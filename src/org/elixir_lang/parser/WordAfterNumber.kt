@@ -3,6 +3,7 @@ package org.elixir_lang.parser
 import com.intellij.lang.ITokenTypeRemapper
 import com.intellij.psi.tree.IElementType
 import org.elixir_lang.psi.ElixirTypes
+import org.elixir_lang.language_level.ElixirLanguageFeature.DECIMAL_NUMBER_ENDS_BEFORE_WORD
 import org.elixir_lang.language_level.ElixirLanguageLevel
 
 /**
@@ -12,7 +13,12 @@ import org.elixir_lang.language_level.ElixirLanguageLevel
 class WordAfterNumber(private val languageLevel: ElixirLanguageLevel) : ITokenTypeRemapper {
     override fun filter(source: IElementType, start: Int, end: Int, text: CharSequence): IElementType {
         val isDigit = DIGITS[source] ?: return source
-        if (source == ElixirTypes.INVALID_DECIMAL_DIGITS && !languageLevel.endsDecimalNumberBeforeWord) return source
+        if (
+            source == ElixirTypes.INVALID_DECIMAL_DIGITS &&
+            !DECIMAL_NUMBER_ENDS_BEFORE_WORD.isSufficient(languageLevel)
+        ) {
+            return source
+        }
 
         val word = text.subSequence(start, end).toString()
         val type = WORDS[word] ?: return source

@@ -8,6 +8,7 @@ import com.intellij.psi.TokenType;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.tree.TokenSet;
 import org.elixir_lang.psi.ElixirTypes;
+import org.elixir_lang.language_level.ElixirLanguageFeature;
 import org.elixir_lang.language_level.ElixirLanguageLevel;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -504,14 +505,14 @@ public class ElixirParserUtil extends GeneratedParserUtilBase {
     /**
      * Whether the {@code &} just consumed is joined to what follows, making the two one capture
      * argument such as {@code &1} - see
-     * {@link ElixirLanguageLevel#getRequiresAdjacentCaptureArgument()}.
+     * {@link ElixirLanguageFeature#ADJACENT_CAPTURE_ARGUMENT}.
      * <p>
      * Used positively by {@code captureNumericOperation} and negated by {@code nonNumeric}, which is
      * what keeps those two rules exact complements: a spaced {@code & 1} the first rejects has to be
      * accepted by the second, or it matches neither and parses as an error.
      */
     public static boolean captureArgument(@NotNull PsiBuilder builder, int level) {
-        if (!languageLevel(builder).getRequiresAdjacentCaptureArgument()) {
+        if (!ElixirLanguageFeature.ADJACENT_CAPTURE_ARGUMENT.isSufficient(languageLevel(builder))) {
             return true;
         }
 
@@ -522,9 +523,9 @@ public class ElixirParserUtil extends GeneratedParserUtilBase {
         return builder.rawLookup(-1) == ElixirTypes.CAPTURE_OPERATOR;
     }
 
-    /** Whether {@code //} is the step operator - see {@link ElixirLanguageLevel#getHasStepOperator()}. */
+    /** Whether {@code //} is the step operator - see {@link ElixirLanguageFeature#STEP_OPERATOR}. */
     public static boolean stepOperator(@NotNull PsiBuilder builder, int level) {
-        return languageLevel(builder).getHasStepOperator();
+        return ElixirLanguageFeature.STEP_OPERATOR.isSufficient(languageLevel(builder));
     }
 
     /** The characters between a heredoc's opening and its end of line, which the lexer returns as bad characters. */
@@ -548,21 +549,21 @@ public class ElixirParserUtil extends GeneratedParserUtilBase {
     /**
      * Whether the {@code +} or {@code -} here takes the other reading from the one the lexer gave it, because the
      * language level does not count an escaped newline as space - see
-     * {@link ElixirLanguageLevel#getCountsEscapedNewlineAsSpace()}. The lexer follows the newer reading, so this is true
+     * {@link ElixirLanguageFeature#ESCAPED_NEWLINE_AS_SPACE}. The lexer follows the newer reading, so this is true
      * for a binary sign in {@code f -\}+newline+{@code var} and a unary one in {@code f \}+newline+{@code -var}.
      */
     public static boolean escapedNewlineSwapsDualOperator(@NotNull PsiBuilder builder, int level) {
         IElementType tokenType = builder.getTokenType();
 
         if (tokenType == ElixirTypes.ADDITION_OPERATOR || tokenType == ElixirTypes.SUBTRACTION_OPERATOR) {
-            return !languageLevel(builder).getCountsEscapedNewlineAsSpace() &&
+            return !ElixirLanguageFeature.ESCAPED_NEWLINE_AS_SPACE.isSufficient(languageLevel(builder)) &&
                     rawTokenStartsWith(builder, 1, '\\') &&
                     rawTokenStartsWithHorizontalSpace(builder, -1) &&
                     builder.rawLookup(-2) == ElixirTypes.IDENTIFIER_TOKEN;
         }
 
         if (tokenType == ElixirTypes.NEGATE_OPERATOR || tokenType == ElixirTypes.NUMBER_OR_BADARITH_OPERATOR) {
-            if (languageLevel(builder).getCountsEscapedNewlineAsSpace()) {
+            if (ElixirLanguageFeature.ESCAPED_NEWLINE_AS_SPACE.isSufficient(languageLevel(builder))) {
                 return false;
             }
 

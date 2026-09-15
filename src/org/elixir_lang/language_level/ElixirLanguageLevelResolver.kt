@@ -19,7 +19,7 @@ import org.elixir_lang.sdk.elixir.sdk
 import org.jetbrains.annotations.TestOnly
 
 /**
- * Resolves the [ElixirLanguageLevel] to quote a given element in.
+ * Resolves the [ElixirLanguageLevel] a given element is written for.
  *
  * Quoting recurses through the parameterless `Quotable.quote()`, so a child inherits nothing from
  * its parent's call, and consumers call `quote()` on arbitrary nodes rather than only on a file
@@ -38,10 +38,6 @@ object ElixirLanguageLevelResolver {
     /**
      * The language level for [element], or [ElixirLanguageLevel.FALLBACK] when its Elixir version cannot be
      * determined.
-     *
-     * Only the handful of sites that actually diverge between versions call this, not every node of
-     * a parse, so the cost is bounded by the number of bracket, interpolation and ellipsis
-     * constructs in the file rather than by its size.
      */
     @RequiresReadLock
     @JvmStatic
@@ -64,6 +60,12 @@ object ElixirLanguageLevelResolver {
             )
         }
     }
+
+    /** Whether [feature] applies at [element]'s language level. */
+    @RequiresReadLock
+    @JvmStatic
+    fun isAvailable(feature: ElixirLanguageFeature, element: PsiElement): Boolean =
+        feature.isSufficient(languageLevelFor(element))
 
     @RequiresReadLock
     private fun resolve(file: PsiFile): ElixirLanguageLevel {

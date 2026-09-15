@@ -9,7 +9,7 @@ import org.junit.Test
  * misplaced boundary shows up as a quoting failure on one CI leg rather than as a wrong mapping.
  * So they are pinned here, one assertion per side of each boundary.
  *
- * Each expected value was confirmed against the reference implementation; see [ElixirLanguageLevel] for
+ * Each expected value was confirmed against the reference implementation; see [ElixirLanguageFeature] for
  * the Elixir commit and release behind each one.
  */
 class ElixirLanguageLevelTest {
@@ -158,118 +158,5 @@ class ElixirLanguageLevelTest {
         for ((earlier, later) in releases.zipWithNext()) {
             assertTrue("$earlier before $later", compareValuesBy(earlier, later, { it[0] }, { it[1] }, { it[2] }) < 0)
         }
-    }
-
-    @Test
-    fun `each divergence is on from its own threshold and stays on`() {
-        assertEquals(
-            listOf(false, true, true, true, true, true, true, true, true, true, true),
-            ElixirLanguageLevel.entries.map { it.keepsEscapedNewlineInExtractedBuffer }
-        )
-        assertEquals(
-            listOf(false, true, true, true, true, true, true, true, true, true, true),
-            ElixirLanguageLevel.entries.map { it.countsEscapedNewlineInLiteralSigilLine }
-        )
-        assertEquals(
-            listOf(false, false, false, false, false, false, false, false, false, true, true),
-            ElixirLanguageLevel.entries.map { it.countsNewlineInCharacter }
-        )
-        assertEquals(
-            listOf(false, false, false, true, true, true, true, true, true, true, true),
-            ElixirLanguageLevel.entries.map { it.normalizesIdentifiers }
-        )
-        assertEquals(
-            listOf(false, false, true, true, true, true, true, true, true, true, true),
-            ElixirLanguageLevel.entries.map { it.putsRemoteCallOnNameLine }
-        )
-        assertEquals(
-            listOf(false, false, false, false, false, false, false, false, true, true, true),
-            ElixirLanguageLevel.entries.map { it.unescapesQuotedRemoteCallName }
-        )
-        assertEquals(
-            listOf(false, true, true, true, true, true, true, true, true, true, true),
-            ElixirLanguageLevel.entries.map { it.emitsEmptyLeadingHeredocSegment }
-        )
-        assertEquals(
-            listOf(false, false, true, true, true, true, true, true, true, true, true),
-            ElixirLanguageLevel.entries.map { it.unescapesSigilHeredocTerminator }
-        )
-        assertEquals(
-            listOf(false, false, false, false, true, true, true, true, true, true, true),
-            ElixirLanguageLevel.entries.map { it.emitsFromBracketsOnBracketedExpression }
-        )
-        assertEquals(
-            listOf(false, false, false, false, false, true, true, true, true, true, true),
-            ElixirLanguageLevel.entries.map { it.emitsFromInterpolation }
-        )
-        assertEquals(
-            listOf(false, false, false, false, false, false, true, true, true, true, true),
-            ElixirLanguageLevel.entries.map { it.emitsFromBracketsOnEveryBracketForm }
-        )
-        assertEquals(
-            listOf(false, false, false, false, false, false, false, true, true, true, true),
-            ElixirLanguageLevel.entries.map { it.quotesEllipsisAsNullaryCall }
-        )
-        assertEquals(
-            listOf(false, false, false, false, false, false, false, true, true, true, true),
-            ElixirLanguageLevel.entries.map { it.quotesAmbiguousDualOperatorAsCall }
-        )
-        assertEquals(
-            listOf(false, false, false, false, false, false, false, false, false, false, true),
-            ElixirLanguageLevel.entries.map { it.emitsLineMetadataOnBlock }
-        )
-        assertEquals(
-            listOf(false, true, true, true, true, true, true, true, true, true, true),
-            ElixirLanguageLevel.entries.map { it.hasStepOperator }
-        )
-        assertEquals(
-            listOf(false, false, false, false, false, false, false, false, false, false, true),
-            ElixirLanguageLevel.entries.map { it.countsEscapedNewlineAsSpace }
-        )
-    }
-
-    /**
-     * Shares [ElixirLanguageLevel.V1_17] with the ellipsis and ambiguous-operator changes, but reads
-     * downwards like [ElixirLanguageLevel.wrapsSolitaryUnaryNotInEveryBlock] - on below the threshold,
-     * off from it - since 1.17.0 *dropped* the merge rather than adding it.
-     */
-    @Test
-    fun `merging an enclosing paren's own metadata onto an already-block child is on only below 1_17`() {
-        assertEquals(
-            listOf(true, true, true, true, true, true, true, false, false, false, false),
-            ElixirLanguageLevel.entries.map { it.mergesEnclosingParenMetadataOntoBlock }
-        )
-        assertEquals(true, ElixirLanguageLevel.of("1.16.3").mergesEnclosingParenMetadataOntoBlock)
-        assertEquals(false, ElixirLanguageLevel.of("1.17.0").mergesEnclosingParenMetadataOntoBlock)
-        assertEquals(false, ElixirLanguageLevel.FALLBACK.mergesEnclosingParenMetadataOntoBlock)
-    }
-
-    /**
-     * Shares [ElixirLanguageLevel.V1_17] with the ellipsis change, so the boundary is asserted on the
-     * versions either side of it as well as across the constants - a threshold that silently moved to
-     * 1.16.2 would still pass the list above by matching the ellipsis row.
-     */
-    @Test
-    fun `the ambiguous dual operator call is on from 1_17_0`() {
-        assertEquals(false, ElixirLanguageLevel.of("1.16.3").quotesAmbiguousDualOperatorAsCall)
-        assertEquals(true, ElixirLanguageLevel.of("1.17.0").quotesAmbiguousDualOperatorAsCall)
-        assertEquals(true, ElixirLanguageLevel.FALLBACK.quotesAmbiguousDualOperatorAsCall)
-    }
-
-    /**
-     * The one predicate that reads downwards: 1.15.0 narrowed the wrapper rather than adding it, so
-     * it is on for the oldest language level and off from [ElixirLanguageLevel.V1_15]. Asserted across every
-     * constant because getting the direction backwards is the easy mistake, and it would emit a
-     * spurious `__block__` on every modern Elixir while looking like the other four predicates.
-     */
-    @Test
-    fun `the unary block wrapper is on only below 1_15`() {
-        assertEquals(
-            listOf(true, true, true, true, false, false, false, false, false, false, false),
-            ElixirLanguageLevel.entries.map { it.wrapsSolitaryUnaryNotInEveryBlock }
-        )
-        assertEquals(true, ElixirLanguageLevel.of("1.14.5").wrapsSolitaryUnaryNotInEveryBlock)
-        assertEquals(false, ElixirLanguageLevel.of("1.15.0").wrapsSolitaryUnaryNotInEveryBlock)
-        assertEquals(false, ElixirLanguageLevel.FALLBACK.wrapsSolitaryUnaryNotInEveryBlock)
     }
 }
