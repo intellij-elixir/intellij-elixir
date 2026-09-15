@@ -1,6 +1,7 @@
 package org.elixir_lang.language_level
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -140,6 +141,23 @@ class ElixirLanguageLevelTest {
     @Test
     fun `the fallback is the newest language level`() {
         assertEquals(ElixirLanguageLevel.entries.last(), ElixirLanguageLevel.FALLBACK)
+    }
+
+    /** [ElixirLanguageLevel.of] reads each level's first release, so a level added between two others needs no threshold of its own. */
+    @Test
+    fun `each level's first release resolves to that level`() {
+        for (level in ElixirLanguageLevel.entries) {
+            assertEquals(level.firstRelease, level, ElixirLanguageLevel.of(level.firstRelease))
+        }
+    }
+
+    @Test
+    fun `levels are declared in release order`() {
+        val releases = ElixirLanguageLevel.entries.map { level -> level.firstRelease.split('.').map(String::toInt) }
+
+        for ((earlier, later) in releases.zipWithNext()) {
+            assertTrue("$earlier before $later", compareValuesBy(earlier, later, { it[0] }, { it[1] }, { it[2] }) < 0)
+        }
     }
 
     @Test

@@ -17,9 +17,12 @@ package org.elixir_lang.language_level
  * Every threshold here was pinned against Elixir's own history and confirmed by quoting the
  * construct with the reference implementation on either side of the boundary - see each constant.
  */
-enum class ElixirLanguageLevel {
+enum class ElixirLanguageLevel(
+    /** The first Elixir release at this level, which [of] resolves from. */
+    val firstRelease: String,
+) {
     /** Everything before Elixir 1.12.0, and the floor - nothing resolves below it. */
-    V1_11,
+    V1_11("1.11.0"),
 
     /**
      * Elixir 1.12.0 stopped consuming a `\` ending a line in an **interpolating** sigil, and began
@@ -43,7 +46,7 @@ enum class ElixirLanguageLevel {
      * `1 and 2` (elixir-lang/elixir 6b2cc2332, "Raise clearer error message on number followed by identifiers"). Read
      * by the parser via [endsDecimalNumberBeforeWord].
      */
-    V1_12,
+    V1_12("1.12.0"),
 
     /**
      * Elixir 1.13.0 unescapes an escaped terminator inside a sigil heredoc, so `\"""` quotes as
@@ -59,7 +62,7 @@ enum class ElixirLanguageLevel {
      * elixir-lang/elixir 376ff1e51 ("Add more token metadata to aliases and remote calls", #11038), whose
      * `build_dot` carries the identifier's location. Read via [putsRemoteCallOnNameLine].
      */
-    V1_13,
+    V1_13("1.13.0"),
 
     /**
      * Elixir 1.14.0 accepts `..` with no operands, as the nullary operator `{:.., meta, []}`; 1.13.4
@@ -73,7 +76,7 @@ enum class ElixirLanguageLevel {
      * (elixir-lang/elixir e7001455d, "nfc and additional normalizations for identifiers", #11859). 1.13.4 and earlier
      * reject an identifier that is not NFC. Read via [normalizesIdentifiers].
      */
-    V1_14,
+    V1_14("1.14.0"),
 
     /**
      * Elixir 1.15.0 added `from_brackets: true` to the `Access.get/2` metadata, but only for the
@@ -96,7 +99,7 @@ enum class ElixirLanguageLevel {
      * That one is read via [wrapsSolitaryUnaryNotInEveryBlock], the only predicate here true
      * *below* its threshold, because the behaviour was narrowed rather than added.
      */
-    V1_15,
+    V1_15("1.15.0"),
 
     /**
      * Elixir 1.16.0 added `from_interpolation: true` to the metadata of the `Kernel.to_string/1`
@@ -104,7 +107,7 @@ enum class ElixirLanguageLevel {
      *
      * elixir-lang/elixir 5225b33ba ("Add interpolation token metadata"), first released in v1.16.0.
      */
-    V1_16_0,
+    V1_16_0("1.16.0"),
 
     /**
      * Elixir 1.16.2 extended `from_brackets: true` to the remaining four bracket productions:
@@ -114,7 +117,7 @@ enum class ElixirLanguageLevel {
      * elixir-lang/elixir d8cc841ab ("Include from_brackets metadata in all cases", #13317),
      * first released in v1.16.2 (the same change reached master as eb1499ac2, released in v1.17.0).
      */
-    V1_16_2,
+    V1_16_2("1.16.2"),
 
     /**
      * Elixir 1.17.0 made `...` a nullary call - `{:..., meta, []}` - where earlier versions quoted
@@ -152,7 +155,7 @@ enum class ElixirLanguageLevel {
      *
      * Read via [mergesEnclosingParenMetadataOntoBlock].
      */
-    V1_17,
+    V1_17("1.17.0"),
 
     /**
      * Elixir 1.18.0 unescapes the name of a quoted remote call, so `foo."bar\nbaz"()` calls
@@ -165,7 +168,7 @@ enum class ElixirLanguageLevel {
      *
      * Read via [unescapesQuotedRemoteCallName].
      */
-    V1_18,
+    V1_18("1.18.0"),
 
     /**
      * Elixir 1.19.0 answers `{:error, _}` where 1.18 raises for an invalid escape in a quoted
@@ -181,7 +184,7 @@ enum class ElixirLanguageLevel {
      * when a line continuation separates them (elixir-lang/elixir 8ac8230e1, "Properly handle column for 'in' in 'not in'
      * operator", and a2baac915). Read via [putsInOfNotInOnItsOwnLine].
      */
-    V1_19,
+    V1_19("1.19.0"),
 
     /**
      * Elixir 1.20.0 added `line` metadata to two `__block__` forms that previously carried none: a
@@ -197,7 +200,9 @@ enum class ElixirLanguageLevel {
      * before it a call (elixir-lang/elixir 78fb31201, "Consistently treat \ followed by newlines as horizontal
      * space"). Read by the parser via [countsEscapedNewlineAsSpace].
      */
-    V1_20;
+    V1_20("1.20.0");
+
+    private val release: List<Int> = firstRelease.split('.').map(String::toInt)
 
     /**
      * Whether a `\` ending a line survives extraction into the buffer. A sigil then keeps the
@@ -326,24 +331,12 @@ enum class ElixirLanguageLevel {
         fun of(version: String?): ElixirLanguageLevel {
             val match = version?.let { VERSION.find(it) } ?: return FALLBACK
             val (major, minor, patch) = match.destructured
-            val numbers = Triple(major.toInt(), minor.toInt(), patch.ifEmpty { "0" }.toInt())
+            val numbers = listOf(major.toInt(), minor.toInt(), patch.ifEmpty { "0" }.toInt())
 
-            return when {
-                numbers >= Triple(1, 20, 0) -> V1_20
-                numbers >= Triple(1, 19, 0) -> V1_19
-                numbers >= Triple(1, 18, 0) -> V1_18
-                numbers >= Triple(1, 17, 0) -> V1_17
-                numbers >= Triple(1, 16, 2) -> V1_16_2
-                numbers >= Triple(1, 16, 0) -> V1_16_0
-                numbers >= Triple(1, 15, 0) -> V1_15
-                numbers >= Triple(1, 14, 0) -> V1_14
-                numbers >= Triple(1, 13, 0) -> V1_13
-                numbers >= Triple(1, 12, 0) -> V1_12
-                else -> V1_11
-            }
+            return entries.lastOrNull { compareReleases(it.release, numbers) <= 0 } ?: entries.first()
         }
 
-        private operator fun Triple<Int, Int, Int>.compareTo(other: Triple<Int, Int, Int>): Int =
-            compareValuesBy(this, other, Triple<Int, Int, Int>::first, Triple<Int, Int, Int>::second, Triple<Int, Int, Int>::third)
+        private fun compareReleases(left: List<Int>, right: List<Int>): Int =
+            compareValuesBy(left, right, { it[0] }, { it[1] }, { it[2] })
     }
 }
