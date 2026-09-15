@@ -8,11 +8,11 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import org.elixir_lang.ElixirFileType
 import org.elixir_lang.intellij_elixir.Quoter
 import org.elixir_lang.psi.ElixirTypes
-import org.elixir_lang.psi.quoting.QuotingDialect
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_11
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_12
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_20
-import org.elixir_lang.psi.quoting.QuotingDialectResolver
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_11
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_12
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_20
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 
 /**
  * A word directly after a number, as in `1and 2`, which Elixir reads as its own token after a based number on every
@@ -24,7 +24,7 @@ class WordAfterNumberTest : BasePlatformTestCase() {
 
     override fun tearDown() {
         try {
-            QuotingDialectResolver.overrideDialect(project, null)
+            ElixirLanguageLevelResolver.overrideLanguageLevel(project, null)
         } catch (e: Throwable) {
             addSuppressedException(e)
         } finally {
@@ -39,68 +39,77 @@ class WordAfterNumberTest : BasePlatformTestCase() {
     }
 
     fun testWordAfterADecimalNumberFrom1_12IsPartOfTheNumber() {
-        for (dialect in listOf(V1_12, V1_20)) {
+        for (languageLevel in listOf(V1_12, V1_20)) {
             for ((source, word) in DECIMAL) {
-                assertInvalidDigits(dialect, source, word)
+                assertInvalidDigits(languageLevel, source, word)
             }
         }
     }
 
     fun testWordAfterABasedNumber() {
-        for (dialect in listOf(V1_11, V1_12, V1_20)) {
+        for (languageLevel in listOf(V1_11, V1_12, V1_20)) {
             for ((source, word) in BASED) {
-                assertWord(dialect, source, word)
+                assertWord(languageLevel, source, word)
             }
         }
     }
 
     fun testWordsElixirRejectsAfterANumber() {
-        for (dialect in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(V1_11, V1_20)) {
             for ((source, word) in REJECTED) {
-                assertInvalidDigits(dialect, source, word)
+                assertInvalidDigits(languageLevel, source, word)
             }
         }
     }
 
     fun testQuotedAsThisLegsElixir() {
-        val dialect = QuotingDialect.of(System.getenv("ELIXIR_VERSION"))
-        val cases = if (dialect < V1_12) DECIMAL + BASED else BASED
+        val languageLevel = ElixirLanguageLevel.of(System.getenv("ELIXIR_VERSION"))
+        val cases = if (languageLevel < V1_12) DECIMAL + BASED else BASED
 
         for ((source, _) in cases) {
             try {
-                Quoter.assertQuotedCorrectly(parse(dialect, source))
+                Quoter.assertQuotedCorrectly(parse(languageLevel, source))
             } catch (e: Throwable) {
-                throw AssertionError("quoting $source on $dialect", e)
+                throw AssertionError("quoting $source on $languageLevel", e)
             }
         }
     }
 
-    private fun assertWord(dialect: QuotingDialect, source: String, word: String) {
-        val file = parse(dialect, source)
+    private fun assertWord(languageLevel: ElixirLanguageLevel, source: String, word: String) {
+        val file = parse(languageLevel, source)
         val offset = offset(source, word)
 
-        assertEquals("type of $word in $source on $dialect", WORDS.getValue(word), file.findElementAt(offset)?.node?.elementType)
-        assertFalse("error in $source on $dialect", PsiTreeUtil.hasErrorElements(file))
+        assertEquals(
+            "type of $word in $source on $languageLevel",
+            WORDS.getValue(word),
+            file.findElementAt(offset)?.node?.elementType
+        )
+        assertFalse("error in $source on $languageLevel", PsiTreeUtil.hasErrorElements(file))
 
         // The lexer folds a newline after `do` into the keyword, which it cannot do for a remapped one.
         if ('\n' in source) return
 
         assertEquals(
-            "tree of $source on $dialect",
-            DebugUtil.psiToString(parse(dialect, source.substring(0, offset) + " " + source.substring(offset)), false),
+            "tree of $source on $languageLevel",
+            DebugUtil.psiToString(
+                parse(languageLevel, source.substring(0, offset) + " " + source.substring(offset)),
+                false
+            ),
             DebugUtil.psiToString(file, false)
         )
     }
 
-    private fun assertInvalidDigits(dialect: QuotingDialect, source: String, word: String) {
-        val type = parse(dialect, source).findElementAt(offset(source, word))?.node?.elementType
+    private fun assertInvalidDigits(languageLevel: ElixirLanguageLevel, source: String, word: String) {
+        val type = parse(languageLevel, source).findElementAt(offset(source, word))?.node?.elementType
 
-        assertTrue("type of $word in $source on $dialect: $type", type in INVALID_DIGITS)
+        assertTrue("type of $word in $source on $languageLevel: $type", type in INVALID_DIGITS)
     }
 
-    /** A new file name each time, or a file with the same text keeps the tree parsed under the previous dialect. */
-    private fun parse(dialect: QuotingDialect, source: String): PsiFile {
-        QuotingDialectResolver.overrideDialect(project, dialect)
+    /**
+     * A new file name each time, or a file with the same text keeps the tree parsed under the previous language level.
+     */
+    private fun parse(languageLevel: ElixirLanguageLevel, source: String): PsiFile {
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, languageLevel)
 
         return myFixture.configureByText("word_after_number_${files++}.${ElixirFileType.INSTANCE.defaultExtension}", source)
     }

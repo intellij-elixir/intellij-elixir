@@ -1,6 +1,6 @@
 package org.elixir_lang.parser_definition;
 
-import org.elixir_lang.psi.quoting.QuotingDialect;
+import org.elixir_lang.language_level.ElixirLanguageLevel;
 
 /**
  * Created by kadie.enheduanna.inanna on 9/17/14.
@@ -24,7 +24,7 @@ public class AtomParsingTestCase extends ParsingTestCase {
 
     /** Split out of {@link #testOperator} so gating it does not cost 1.11 coverage of the other atoms. */
     public void testStepRangeOperator() {
-        assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_12);
+        assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_12);
     }
 
     public void testSingleQuotedLiteral() {

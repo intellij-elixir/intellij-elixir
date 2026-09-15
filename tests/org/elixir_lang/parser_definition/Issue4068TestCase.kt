@@ -1,16 +1,16 @@
 package org.elixir_lang.parser_definition
 
-import org.elixir_lang.psi.quoting.QuotingDialect
+import org.elixir_lang.language_level.ElixirLanguageLevel
 
 class Issue4068TestCase : ParsingTestCase() {
-    fun testNullaryRangeParenthesized() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_14, false)
-    fun testNullaryRangeArgument() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_14, false)
-    fun testNullaryRangeOperatorDefinition() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_14, false)
-    fun testNullaryRangeNot() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_14, false)
-    fun testNullaryRangeMatchOperands() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_14, false)
-    fun testNullaryRangeContainers() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_14, false)
-    fun testNullaryRangeNoParenthesesArguments() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_14, false)
-    fun testNullaryRangeEndOfLine() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_14, false)
+    fun testNullaryRangeParenthesized() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_14, false)
+    fun testNullaryRangeArgument() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_14, false)
+    fun testNullaryRangeOperatorDefinition() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_14, false)
+    fun testNullaryRangeNot() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_14, false)
+    fun testNullaryRangeMatchOperands() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_14, false)
+    fun testNullaryRangeContainers() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_14, false)
+    fun testNullaryRangeNoParenthesesArguments() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_14, false)
+    fun testNullaryRangeEndOfLine() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_14, false)
     fun testRangeOperatorNewline() = assertParsedAndQuotedCorrectly(false)
     fun testRangeSpacedOperands() = assertParsedAndQuotedCorrectly(false)
 
@@ -19,27 +19,27 @@ class Issue4068TestCase : ParsingTestCase() {
     fun testForManyArgumentsDoBlockSecondArgument() = assertParsedAndQuotedCorrectly(false)
     fun testWithManyArgumentsDoBlockArgument() = assertParsedAndQuotedCorrectly(false)
 
-    fun testMultiLetterSigilDoubleQuotes() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_15, false)
-    fun testMultiLetterSigilBracketsModifier() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_15, false)
-    fun testMultiLetterSigilParenthesesModifiers() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_15, false)
-    fun testMultiLetterSigilSingleQuotes() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_15, false)
-    fun testMultiLetterSigilHeredoc() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_15, false)
-    fun testMultiLetterSigilDigits() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_17, false)
-    fun testMultiLetterSigilUnknown() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_15, false)
-    fun testMultiLetterSigilEmpty() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_15, false)
-    fun testMultiLetterSigilBraces() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_15, false)
+    fun testMultiLetterSigilDoubleQuotes() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_15, false)
+    fun testMultiLetterSigilBracketsModifier() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_15, false)
+    fun testMultiLetterSigilParenthesesModifiers() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_15, false)
+    fun testMultiLetterSigilSingleQuotes() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_15, false)
+    fun testMultiLetterSigilHeredoc() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_15, false)
+    fun testMultiLetterSigilDigits() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_17, false)
+    fun testMultiLetterSigilUnknown() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_15, false)
+    fun testMultiLetterSigilEmpty() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_15, false)
+    fun testMultiLetterSigilBraces() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_15, false)
 
     fun testPinnedStructName() = assertParsedAndQuotedCorrectly(false)
     fun testPinnedStructNameEmpty() = assertParsedAndQuotedCorrectly(false)
     fun testPrefixedStructNames() = assertParsedAndQuotedCorrectly(false)
-    fun testStepStructName() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_13, false)
-    fun testEllipsisStructName() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_17, false)
-    fun testPinnedStructNameAccess() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_17, false)
+    fun testStepStructName() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_13, false)
+    fun testEllipsisStructName() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_17, false)
+    fun testPinnedStructNameAccess() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_17, false)
 
     fun testUnicodeRemoteCall() = assertParsedAndQuotedCorrectly(false)
     fun testCombiningMarkIdentifierForms() = assertParsedAndQuotedCorrectly(false)
-    fun testDecomposedIdentifier() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_14, false)
-    fun testDecomposedIdentifierForms() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_14, false)
+    fun testDecomposedIdentifier() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_14, false)
+    fun testDecomposedIdentifierForms() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_14, false)
 
     fun testStabWhenManyArguments() = assertParsedAndQuotedCorrectly()
 
@@ -47,7 +47,7 @@ class Issue4068TestCase : ParsingTestCase() {
     fun testHexadecimalByteEscapeAfterMultibyte() = assertParsedAndQuotedCorrectly(false)
     fun testHexadecimalByteEscapeHeredoc() = assertParsedAndQuotedCorrectly(false)
     fun testHexadecimalByteEscapeCharList() =
-        assertParsedAndQuotedAroundErrorOrRaise(QuotingDialect.V1_19, "Elixir.UnicodeConversionError", false)
+        assertParsedAndQuotedAroundErrorOrRaise(ElixirLanguageLevel.V1_19, "Elixir.UnicodeConversionError", false)
     fun testHexadecimalByteEscapeUtf8String() = assertParsedAndQuotedCorrectly(false)
     fun testHexadecimalByteEscapeUtf8CharList() = assertParsedAndQuotedCorrectly(false)
     fun testHexadecimalByteEscapeInterpolated() = assertParsedAndQuotedCorrectly(false)
@@ -57,8 +57,8 @@ class Issue4068TestCase : ParsingTestCase() {
     fun testAmbiguousUnaryPlusTypeOperation() = assertParsedAndQuotedCorrectly(false)
     fun testAmbiguousDualOperatorInfixArgument() = assertParsedAndQuotedCorrectly(false)
     fun testAmbiguousDualOperatorDoBlock() = assertParsedAndQuotedCorrectly(false)
-    fun testAmbiguousKeywordKeyNotOperator() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_12, false)
-    fun testAmbiguousKeywordKeyNewlineNotOperator() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_12, false)
+    fun testAmbiguousKeywordKeyNotOperator() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_12, false)
+    fun testAmbiguousKeywordKeyNewlineNotOperator() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_12, false)
 
     fun testLiteralSigilEscapedNewline() = assertParsedAndQuotedCorrectly(false)
 
@@ -71,16 +71,16 @@ class Issue4068TestCase : ParsingTestCase() {
     fun testCaptureStepOperator() = assertParsedAndQuotedCorrectly(false)
     fun testCaptureStepOperatorEscapedNewline() = assertParsedAndQuotedCorrectly(false)
     fun testStepOperatorUnary() = assertParsedAndQuotedCorrectly(false)
-    fun testCaptureOperatorEscapedNewline() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_20, false)
-    fun testCaptureOperatorsEscapedNewline() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_20, false)
+    fun testCaptureOperatorEscapedNewline() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_20, false)
+    fun testCaptureOperatorsEscapedNewline() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_20, false)
 
-    fun testDotKeywordKey() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_13, false)
+    fun testDotKeywordKey() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_13, false)
     fun testSteppedRangeKeywordKey() = assertParsedAndQuotedCorrectly(false)
     fun testSteppedRangeKeywordKeyForms() = assertParsedAndQuotedCorrectly(false)
 
-    fun testMapNonPairEntries() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_17, false)
-    fun testMapTupleEntry() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_17, false)
-    fun testMapNonPairEntryForms() = assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_17, false)
+    fun testMapNonPairEntries() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_17, false)
+    fun testMapTupleEntry() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_17, false)
+    fun testMapNonPairEntryForms() = assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_17, false)
 
     fun testNotInLineStart() = assertParsedAndQuotedCorrectly(false)
     fun testNotInLineStartNewline() = assertParsedAndQuotedCorrectly(false)
@@ -109,7 +109,7 @@ class Issue4068TestCase : ParsingTestCase() {
     fun testCaptureEllipsis() = assertParsedAndQuotedCorrectly(false)
     fun testEllipsisDivision() = assertParsedAndQuotedCorrectly(false)
 
-    fun testParenthesizedRangeStep() = assertParsedAndQuotedCorrectlyFromOrParsedWithErrors(QuotingDialect.V1_12, false)
+    fun testParenthesizedRangeStep() = assertParsedAndQuotedCorrectlyFromOrParsedWithErrors(ElixirLanguageLevel.V1_12, false)
 
     fun testCharacterOutsideBasicMultilingualPlane() = assertParsedAndQuotedCorrectly(false)
 
@@ -117,20 +117,20 @@ class Issue4068TestCase : ParsingTestCase() {
     fun testCaptureQuotedRemoteCallNameEscape() = assertParsedAndQuotedCorrectly(false)
     fun testCaptureParenthesesQuotedRemoteCallNameEscape() = assertParsedAndQuotedCorrectly(false)
     fun testQuotedRemoteCallNameInvalidEscape() =
-        assertParsedAndQuotedCorrectlyBeforeOrRaise(QuotingDialect.V1_18, QuotingDialect.V1_19, "Elixir.MatchError", false)
+        assertParsedAndQuotedCorrectlyBeforeOrRaise(ElixirLanguageLevel.V1_18, ElixirLanguageLevel.V1_19, "Elixir.MatchError", false)
     fun testQuotedRemoteCallNameInvalidUnicodeEscape() =
-        assertParsedAndQuotedCorrectlyBeforeOrRaise(QuotingDialect.V1_18, QuotingDialect.V1_19, "Elixir.MatchError", false)
+        assertParsedAndQuotedCorrectlyBeforeOrRaise(ElixirLanguageLevel.V1_18, ElixirLanguageLevel.V1_19, "Elixir.MatchError", false)
     fun testQuotedRemoteCallNameInvalidBracedEscape() =
-        assertParsedAndQuotedCorrectlyBeforeOrRaise(QuotingDialect.V1_18, QuotingDialect.V1_19, "Elixir.MatchError", false)
+        assertParsedAndQuotedCorrectlyBeforeOrRaise(ElixirLanguageLevel.V1_18, ElixirLanguageLevel.V1_19, "Elixir.MatchError", false)
     fun testInvalidHexadecimalEscapeString() = assertParsedAndQuotedAroundError(false)
     fun testQuotedRemoteCallNameInvalidCodePoint() =
-        assertParsedAndQuotedCorrectlyBeforeOrRaise(QuotingDialect.V1_18, QuotingDialect.V1_19, "Elixir.MatchError", false)
+        assertParsedAndQuotedCorrectlyBeforeOrRaise(ElixirLanguageLevel.V1_18, ElixirLanguageLevel.V1_19, "Elixir.MatchError", false)
     fun testQuotedRemoteCallNameSurrogate() =
-        assertParsedAndQuotedCorrectlyBeforeOrRaise(QuotingDialect.V1_18, QuotingDialect.V1_19, "Elixir.MatchError", false)
+        assertParsedAndQuotedCorrectlyBeforeOrRaise(ElixirLanguageLevel.V1_18, ElixirLanguageLevel.V1_19, "Elixir.MatchError", false)
 
-    fun testEscapedLineSeparator() = assertParsedAndQuotedCorrectlyBefore(QuotingDialect.V1_20, false)
-    fun testEscapedLineSeparatorLiteralSigil() = assertParsedAndQuotedCorrectlyBefore(QuotingDialect.V1_20, false)
-    fun testLineSeparatorHeredoc() = assertParsedAndQuotedCorrectlyBefore(QuotingDialect.V1_20, false)
+    fun testEscapedLineSeparator() = assertParsedAndQuotedCorrectlyBefore(ElixirLanguageLevel.V1_20, false)
+    fun testEscapedLineSeparatorLiteralSigil() = assertParsedAndQuotedCorrectlyBefore(ElixirLanguageLevel.V1_20, false)
+    fun testLineSeparatorHeredoc() = assertParsedAndQuotedCorrectlyBefore(ElixirLanguageLevel.V1_20, false)
 
     fun testSemicolon() = assertParsedAndQuotedCorrectly(false)
 

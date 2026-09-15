@@ -546,7 +546,8 @@ TRUE = "true"
 
 TILDE = "~"
 SIGIL_MODIFIER = [A-Za-z]
-// Multi-letter uppercase names are from Elixir 1.15 and digits in them from 1.17; both are errors before, so no dialect.
+// Multi-letter uppercase names are from Elixir 1.15 and digits in them from 1.17; both are errors before, so no
+// language level.
 SIGIL_NAME = [a-z] | [A-Z][A-Z0-9]*
 
 /*
@@ -1203,8 +1204,8 @@ EOL_INSENSITIVE = {AND_SYMBOL_OPERATOR} |
   // alike): the backslash escapes the closing delimiter sequence so it doesn't end the group/
   // heredoc, and the backslash itself is NOT part of the content.
   // Placed in the shared block so GROUP and GROUP_HEREDOC_LINE_BODY can never diverge on this rule.
-  // ESCAPE_SEQUENCE already handles {GROUP_HEREDOC_TERMINATOR} → HEREDOC_TERMINATOR (see that
-  // state's rules), and the parser grammar ESCAPE HEREDOC_TERMINATOR → ESCAPED_HEREDOC_TERMINATOR
+  // ESCAPE_SEQUENCE already handles {GROUP_HEREDOC_TERMINATOR} -> HEREDOC_TERMINATOR (see that
+  // state's rules), and the parser grammar ESCAPE HEREDOC_TERMINATOR -> ESCAPED_HEREDOC_TERMINATOR
   // already exists, so no further changes are needed beyond this rule.
   {ESCAPE}{GROUP_HEREDOC_TERMINATOR} {
                                        CharSequence heredocTerminator = yytext().subSequence(1, yytext().length());
@@ -1304,7 +1305,7 @@ EOL_INSENSITIVE = {AND_SYMBOL_OPERATOR} |
   // extract_nl() regardless of the Interpol flag, so the structure is syntactically
   // distinct from plain content. The GROUP state also always returns ESCAPE for
   // \<newline> in non-interpolating mode (going to ESCAPE_IN_LITERAL), so we
-  // mirror that here and always produce ESCAPE + EOL → ESCAPED_EOL in the PSI tree.
+  // mirror that here and always produce ESCAPE + EOL -> ESCAPED_EOL in the PSI tree.
   {ESCAPE} / {EOL} {
                      yybegin(GROUP_HEREDOC_LINE_ESCAPED_EOL);
                      return ElixirTypes.ESCAPE;

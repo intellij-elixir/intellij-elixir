@@ -3,16 +3,16 @@ package org.elixir_lang.parser
 import com.intellij.lang.ITokenTypeRemapper
 import com.intellij.psi.tree.IElementType
 import org.elixir_lang.psi.ElixirTypes
-import org.elixir_lang.psi.quoting.QuotingDialect
+import org.elixir_lang.language_level.ElixirLanguageLevel
 
 /**
  * The lexer reads letters directly after a number's digits as invalid digits of that number. Where Elixir ends the
  * number there instead, a word it allows in that position, as in `0b1and 2`, is given back its own token type.
  */
-class WordAfterNumber(private val dialect: QuotingDialect) : ITokenTypeRemapper {
+class WordAfterNumber(private val languageLevel: ElixirLanguageLevel) : ITokenTypeRemapper {
     override fun filter(source: IElementType, start: Int, end: Int, text: CharSequence): IElementType {
         val isDigit = DIGITS[source] ?: return source
-        if (source == ElixirTypes.INVALID_DECIMAL_DIGITS && !dialect.endsDecimalNumberBeforeWord) return source
+        if (source == ElixirTypes.INVALID_DECIMAL_DIGITS && !languageLevel.endsDecimalNumberBeforeWord) return source
 
         val word = text.subSequence(start, end).toString()
         val type = WORDS[word] ?: return source

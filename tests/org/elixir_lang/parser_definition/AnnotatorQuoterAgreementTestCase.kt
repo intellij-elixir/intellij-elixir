@@ -16,8 +16,8 @@ import junit.framework.TestSuite
 import org.elixir_lang.annotator.InvalidConstruct
 import org.elixir_lang.annotator.VersionedSyntax
 import org.elixir_lang.intellij_elixir.Quoter
-import org.elixir_lang.psi.quoting.QuotingDialect
-import org.elixir_lang.psi.quoting.QuotingDialectResolver
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import java.lang.reflect.Proxy
 import java.nio.file.Files
 import java.nio.file.Path
@@ -39,12 +39,12 @@ class AnnotatorQuoterAgreementTestCase private constructor(
 
     override fun setUp() {
         super.setUp()
-        QuotingDialectResolver.overrideDialect(project, QuotingDialect.of(System.getenv("ELIXIR_VERSION")))
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, ElixirLanguageLevel.of(System.getenv("ELIXIR_VERSION")))
     }
 
     override fun tearDown() {
         try {
-            QuotingDialectResolver.overrideDialect(project, null)
+            ElixirLanguageLevelResolver.overrideLanguageLevel(project, null)
         } catch (e: Throwable) {
             addSuppressedException(e)
         } finally {

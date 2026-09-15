@@ -14,8 +14,8 @@ import org.elixir_lang.ElixirLanguage;
 import org.elixir_lang.parser.ElixirParserUtil;
 import org.elixir_lang.parser.WordAfterNumber;
 import org.elixir_lang.psi.ElixirFile;
-import org.elixir_lang.psi.quoting.QuotingDialect;
-import org.elixir_lang.psi.quoting.QuotingDialectResolver;
+import org.elixir_lang.language_level.ElixirLanguageLevel;
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -24,7 +24,7 @@ import java.io.IOException;
 public class File extends IStubFileElementType<org.elixir_lang.psi.stub.File> {
     /**
      * Bump whenever the parse tree can change shape, so stubs built by an earlier version are
-     * rebuilt. Parsing is version-aware, so that includes changes to how the dialect is resolved and
+     * rebuilt. Parsing is version-aware, so that includes changes to how the language level is resolved and
      * not only changes to the grammar.
      */
     public static final int VERSION = 7;
@@ -76,9 +76,9 @@ public class File extends IStubFileElementType<org.elixir_lang.psi.stub.File> {
         PsiBuilder builder = PsiBuilderFactory.getInstance().createBuilder(project, chameleon, null, languageForParser, chameleon.getChars());
         /* Resolved here and not in the ParserDefinition: createParser is handed only the project, and
            one project can hold modules pointed at different Elixir SDKs. */
-        QuotingDialect dialect = QuotingDialectResolver.dialectFor(psi);
-        builder.putUserData(ElixirParserUtil.DIALECT, dialect);
-        builder.setTokenTypeRemapper(new WordAfterNumber(dialect));
+        ElixirLanguageLevel languageLevel = ElixirLanguageLevelResolver.languageLevelFor(psi);
+        builder.putUserData(ElixirParserUtil.LANGUAGE_LEVEL, languageLevel);
+        builder.setTokenTypeRemapper(new WordAfterNumber(languageLevel));
         PsiParser parser = LanguageParserDefinitions.INSTANCE.forLanguage(languageForParser).createParser(project);
         ASTNode node = parser.parse(this, builder);
         return node.getFirstChildNode();

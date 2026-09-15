@@ -42,8 +42,8 @@ import org.elixir_lang.psi.ElixirUnmatchedQualifiedAlias
 import org.elixir_lang.psi.Quote
 import org.elixir_lang.psi.Sigil
 import org.elixir_lang.psi.UnqualifiedNoArgumentsCall
-import org.elixir_lang.psi.quoting.QuotingDialect
-import org.elixir_lang.psi.quoting.QuotingDialectResolver
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 
 /**
  * Reports, as errors, constructs that Elixir's parser or string unescaping rejects and the plugin's parser accepts.
@@ -178,7 +178,7 @@ internal class InvalidConstruct : Annotator, DumbAware {
         val hexadecimal = letter == "x"
 
         return escaped.textRange to when {
-            QuotingDialectResolver.dialectFor(escaped) < QuotingDialect.V1_12 ->
+            ElixirLanguageLevelResolver.languageLevelFor(escaped) < ElixirLanguageLevel.V1_12 ->
                 if (hexadecimal) "missing hex sequence after \\x, expected \\xHH$delimiter"
                 else "invalid Unicode sequence after \\u, expected \\uHHHH or \\u{H*}"
             holder is Sigil -> if (hexadecimal) INVALID_HEX_ESCAPE_WHEN_COMPILED else INVALID_UNICODE_ESCAPE_WHEN_COMPILED
@@ -195,13 +195,13 @@ internal class InvalidConstruct : Annotator, DumbAware {
      */
     private fun unterminatedHeredoc(heredoc: PsiElement): Pair<TextRange, String>? {
         val promoter = heredoc.node.findChildByType(ElixirTypes.HEREDOC_PROMOTER) ?: return null
-        val dialect = QuotingDialectResolver.dialectFor(heredoc)
-        val cutOff = if (dialect < QuotingDialect.V1_12) cutOff(heredoc) else CutOff.NONE
+        val languageLevel = ElixirLanguageLevelResolver.languageLevelFor(heredoc)
+        val cutOff = if (languageLevel < ElixirLanguageLevel.V1_12) cutOff(heredoc) else CutOff.NONE
 
         if (cutOff == CutOff.SUPPRESSED) return null
 
         if (hasContentAfterOpening(heredoc)) {
-            val message = if (dialect < QuotingDialect.V1_15) {
+            val message = if (languageLevel < ElixirLanguageLevel.V1_15) {
                 "heredoc allows only zero or more whitespace characters followed by a new line after "
             } else {
                 "heredoc allows only whitespace characters followed by a new line after opening "
@@ -213,7 +213,7 @@ internal class InvalidConstruct : Annotator, DumbAware {
         if (cutOff == CutOff.NONE) {
             if (heredoc.node.findChildByType(ElixirTypes.HEREDOC_TERMINATOR) != null) return null
 
-            if (dialect < QuotingDialect.V1_12) {
+            if (languageLevel < ElixirLanguageLevel.V1_12) {
                 val scan = scanHeredocLines(promoter)
 
                 if (scan.terminatorAt != null || scan.misplaced != null) return null
@@ -236,7 +236,7 @@ internal class InvalidConstruct : Annotator, DumbAware {
         if (!isUnclosed(interpolation)) return null
         if (PsiTreeUtil.findChildrenOfType(interpolation, ElixirInterpolation::class.java).any(::isUnclosed)) return null
         if (hasInnerError(interpolation)) return null
-        if (QuotingDialectResolver.dialectFor(interpolation) < QuotingDialect.V1_12 && cutOff(interpolation) == CutOff.SUPPRESSED) {
+        if (ElixirLanguageLevelResolver.languageLevelFor(interpolation) < ElixirLanguageLevel.V1_12 && cutOff(interpolation) == CutOff.SUPPRESSED) {
             return null
         }
 
@@ -268,7 +268,7 @@ internal class InvalidConstruct : Annotator, DumbAware {
             ElixirLiteralSigilHeredoc::class.java
         ).any {
             unterminatedHeredoc(it) != null ||
-                QuotingDialectResolver.dialectFor(it) < QuotingDialect.V1_12 && misplacedHeredocTerminator(it) != null
+                ElixirLanguageLevelResolver.languageLevelFor(it) < ElixirLanguageLevel.V1_12 && misplacedHeredocTerminator(it) != null
         } ||
             // A sigil's escape fails only when the sigil is compiled.
             PsiTreeUtil.findChildrenOfType(interpolation, ElixirEscapedCharacter::class.java).any { escape ->
@@ -277,7 +277,7 @@ internal class InvalidConstruct : Annotator, DumbAware {
 
     /** Before 1.12, a string, charlist, sigil or quoted atom that an enclosing heredoc's terminator line cuts off first. */
     private fun cutOffQuote(quote: PsiElement): Pair<TextRange, String>? {
-        if (QuotingDialectResolver.dialectFor(quote) >= QuotingDialect.V1_12 || cutOff(quote) != CutOff.FIRST) return null
+        if (ElixirLanguageLevelResolver.languageLevelFor(quote) >= ElixirLanguageLevel.V1_12 || cutOff(quote) != CutOff.FIRST) return null
 
         val line = if (quote is ElixirAtom) quote.children.firstOrNull { it is ElixirLine } ?: return null else quote
         val promoter = line.node.findChildByType(ElixirTypes.LINE_PROMOTER) ?: return null
@@ -293,11 +293,11 @@ internal class InvalidConstruct : Annotator, DumbAware {
     }
 
     private fun invalidCodePoint(escape: ElixirQuoteHexadecimalEscapeSequence): Pair<TextRange, String>? {
-        // Elixir unescapes a quoted remote call name only from 1.18. In `?\u{…}` it reads `?\u` and then reports a syntax
+        // Elixir unescapes a quoted remote call name only from 1.18. In `?\u{...}` it reads `?\u` and then reports a syntax
         // error before `{`.
         when (PsiTreeUtil.getParentOfType(escape, ElixirRelativeIdentifier::class.java, ElixirCharToken::class.java)) {
             null -> Unit
-            is ElixirRelativeIdentifier -> if (QuotingDialectResolver.dialectFor(escape) < QuotingDialect.V1_18) return null
+            is ElixirRelativeIdentifier -> if (ElixirLanguageLevelResolver.languageLevelFor(escape) < ElixirLanguageLevel.V1_18) return null
             else -> return null
         }
 
@@ -308,12 +308,12 @@ internal class InvalidConstruct : Annotator, DumbAware {
         val codePoint = digits.toLongOrNull(16) ?: return null
 
         if (codePoint in 0xD800..0xDFFF || codePoint > 0x10FFFF) {
-            val dialect = QuotingDialectResolver.dialectFor(escape)
+            val languageLevel = ElixirLanguageLevelResolver.languageLevelFor(escape)
             val hexadecimal = escape.hexadecimalEscapePrefix.text.endsWith("x")
 
             return escape.textRange to when {
-                dialect < QuotingDialect.V1_12 -> "invalid or reserved Unicode code point $codePoint"
-                hexadecimal && dialect >= QuotingDialect.V1_20 -> INVALID_HEX_ESCAPE
+                languageLevel < ElixirLanguageLevel.V1_12 -> "invalid or reserved Unicode code point $codePoint"
+                hexadecimal && languageLevel >= ElixirLanguageLevel.V1_20 -> INVALID_HEX_ESCAPE
                 else -> "invalid or reserved Unicode code point \\u{$digits}. Syntax error after: \\u"
             }
         }

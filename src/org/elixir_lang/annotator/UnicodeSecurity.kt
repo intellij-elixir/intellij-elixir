@@ -11,7 +11,7 @@ import org.elixir_lang.annotator.unicode_security.UnicodeSecurityCheck
 import org.elixir_lang.psi.Body
 import org.elixir_lang.psi.ElixirInterpolation
 import org.elixir_lang.psi.ElixirTypes
-import org.elixir_lang.psi.quoting.QuotingDialectResolver
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 
 /**
  * Reports, as errors, the Unicode that the module's Elixir rejects for security reasons.
@@ -31,16 +31,17 @@ internal class UnicodeSecurity : Annotator, DumbAware {
                 if (text.all { it.code <= 127 }) {
                     return
                 } else {
-                    listOfNotNull(UnicodeSecurityCheck.inIdentifier(text, QuotingDialectResolver.dialectFor(element)))
+                    listOfNotNull(UnicodeSecurityCheck.inIdentifier(text, ElixirLanguageLevelResolver.languageLevelFor(element)))
                 }
 
             // A template's characters are also the text of its host sigil, which reports them.
             injection == Injection.TEMPLATE || !UnicodeSecurityCheck.hasBidiOrLineBreak(text) -> return
 
-            element is PsiComment -> UnicodeSecurityCheck.inComment(text, QuotingDialectResolver.dialectFor(element))
+            element is PsiComment ->
+                UnicodeSecurityCheck.inComment(text, ElixirLanguageLevelResolver.languageLevelFor(element))
 
             PsiTreeUtil.getParentOfType(element, Body::class.java, ElixirInterpolation::class.java) is Body ->
-                UnicodeSecurityCheck.inQuoted(text, QuotingDialectResolver.dialectFor(element))
+                UnicodeSecurityCheck.inQuoted(text, ElixirLanguageLevelResolver.languageLevelFor(element))
 
             else -> return
         }

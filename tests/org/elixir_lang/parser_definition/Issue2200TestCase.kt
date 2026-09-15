@@ -1,6 +1,6 @@
 package org.elixir_lang.parser_definition
 
-import org.elixir_lang.psi.quoting.QuotingDialect
+import org.elixir_lang.language_level.ElixirLanguageLevel
 
 class Issue2200TestCase : ParsingTestCase() {
     /**
@@ -8,11 +8,11 @@ class Issue2200TestCase : ParsingTestCase() {
      * the operator was missing from the lexer's operator set and the atom stopped at `:..`.
      */
     fun testOperatorDefinition() {
-        assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_12)
+        assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_12)
     }
 
     fun testPipeline() {
-        assertParsedAndQuotedCorrectlyFromOrParsedWithErrors(QuotingDialect.V1_12, true)
+        assertParsedAndQuotedCorrectlyFromOrParsedWithErrors(ElixirLanguageLevel.V1_12, true)
     }
 
     override fun getTestDataPath(): String = "${super.getTestDataPath()}/issue_2200"

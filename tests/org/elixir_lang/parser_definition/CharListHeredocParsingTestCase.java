@@ -1,12 +1,12 @@
 package org.elixir_lang.parser_definition;
 
-import org.elixir_lang.psi.quoting.QuotingDialect;
+import org.elixir_lang.language_level.ElixirLanguageLevel;
 
 /**
  * Created by kadie.enheduanna.inanna on 8/8/14.
  */
 public class CharListHeredocParsingTestCase extends ParsingTestCase {
-    /** See QuotingDialect.V1_12. */
+    /** See ElixirLanguageLevel.V1_12. */
     public void testInterpolationFirst() {
         assertParsedAndQuotedCorrectly();
     }
@@ -16,11 +16,11 @@ public class CharListHeredocParsingTestCase extends ParsingTestCase {
     }
 
     public void testEmptyUnicodeEscapeSequence() {
-        assertParsedAndQuotedAroundErrorOrRaise(QuotingDialect.V1_12, "Elixir.ArgumentError");
+        assertParsedAndQuotedAroundErrorOrRaise(ElixirLanguageLevel.V1_12, "Elixir.ArgumentError");
     }
 
     public void testEnclosedHexEscapeSequence() {
-        assertParsedAndQuotedCorrectlyBefore(QuotingDialect.V1_20);
+        assertParsedAndQuotedCorrectlyBefore(ElixirLanguageLevel.V1_20);
     }
 
     public void testEscapeSequences() {
@@ -36,7 +36,7 @@ public class CharListHeredocParsingTestCase extends ParsingTestCase {
     }
 
     public void testWhitespaceEndPrefix() {
-        assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_12);
+        assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_12);
     }
 
     @Override

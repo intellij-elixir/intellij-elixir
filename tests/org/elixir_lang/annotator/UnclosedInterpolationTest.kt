@@ -2,11 +2,11 @@ package org.elixir_lang.annotator
 
 import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
-import org.elixir_lang.psi.quoting.QuotingDialect
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_11
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_12
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_20
-import org.elixir_lang.psi.quoting.QuotingDialectResolver
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_11
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_12
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_20
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 
 /** Expected messages were taken from `Code.string_to_quoted/1` on every release from 1.11.4 to 1.20.4. */
 class UnclosedInterpolationTest : BasePlatformTestCase() {
@@ -14,7 +14,7 @@ class UnclosedInterpolationTest : BasePlatformTestCase() {
 
     override fun tearDown() {
         try {
-            QuotingDialectResolver.overrideDialect(project, null)
+            ElixirLanguageLevelResolver.overrideLanguageLevel(project, null)
         } catch (e: Throwable) {
             addSuppressedException(e)
         } finally {
@@ -35,11 +35,11 @@ class UnclosedInterpolationTest : BasePlatformTestCase() {
             "$Q#{${NL}foo" to "string",
             "$Q#{1 +" to "string",
         )) {
-            for (dialect in listOf(V1_11, V1_12, V1_20)) {
+            for (languageLevel in listOf(V1_11, V1_12, V1_20)) {
                 assertEquals(
-                    "$source on $dialect",
+                    "$source on $languageLevel",
                     listOf(Triple(source.lastIndexOf("#{"), "#{", interpolation(owner, 1))),
-                    errors(dialect, source).filter { it.third.startsWith(INTERPOLATION) }
+                    errors(languageLevel, source).filter { it.third.startsWith(INTERPOLATION) }
                 )
             }
         }
@@ -49,15 +49,15 @@ class UnclosedInterpolationTest : BasePlatformTestCase() {
     fun testNestedReportsTheInnermost() {
         val source = "$Q#{$Q#{"
 
-        for (dialect in listOf(V1_11, V1_20)) {
-            assertEquals(listOf(Triple(4, "#{", interpolation("string", 1))), errors(dialect, source))
+        for (languageLevel in listOf(V1_11, V1_20)) {
+            assertEquals(listOf(Triple(4, "#{", interpolation("string", 1))), errors(languageLevel, source))
         }
     }
 
     fun testClosedInterpolations() {
         for (source in listOf("$Q#{1}$Q", "$D$NL#{1}$NL$D", "~s(#{1})", "$Q#{$Q#{1}$Q}$Q")) {
-            for (dialect in listOf(V1_11, V1_20)) {
-                assertEquals("$source on $dialect", emptyList<Triple<Int, String, String>>(), errors(dialect, source))
+            for (languageLevel in listOf(V1_11, V1_20)) {
+                assertEquals("$source on $languageLevel", emptyList<Triple<Int, String, String>>(), errors(languageLevel, source))
             }
         }
     }
@@ -79,11 +79,11 @@ class UnclosedInterpolationTest : BasePlatformTestCase() {
                 errors(V1_11, source)
             )
 
-            for (dialect in listOf(V1_12, V1_20)) {
+            for (languageLevel in listOf(V1_12, V1_20)) {
                 assertEquals(
-                    "$source on $dialect",
+                    "$source on $languageLevel",
                     listOf(Triple(source.indexOf("#{"), "#{", interpolation("heredoc", line))),
-                    errors(dialect, source)
+                    errors(languageLevel, source)
                 )
             }
         }
@@ -169,8 +169,8 @@ class UnclosedInterpolationTest : BasePlatformTestCase() {
         return Regex(pattern).findAll(source).elementAt(occurrence - 1).range.first to message
     }
 
-    private fun errors(dialect: QuotingDialect, source: String): List<Triple<Int, String, String>> {
-        QuotingDialectResolver.overrideDialect(project, dialect)
+    private fun errors(languageLevel: ElixirLanguageLevel, source: String): List<Triple<Int, String, String>> {
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, languageLevel)
         myFixture.configureByText("interpolation_${files++}.ex", source)
 
         return myFixture

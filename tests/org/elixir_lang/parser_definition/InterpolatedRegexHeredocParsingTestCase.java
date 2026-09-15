@@ -1,6 +1,6 @@
 package org.elixir_lang.parser_definition;
 
-import org.elixir_lang.psi.quoting.QuotingDialect;
+import org.elixir_lang.language_level.ElixirLanguageLevel;
 /**
  * Created by kadie.enheduanna.inanna on 8/8/14.
  */
@@ -30,7 +30,7 @@ public class InterpolatedRegexHeredocParsingTestCase extends ParsingTestCase {
     }
 
     public void testWhitespaceEndPrefix() {
-        assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_12);
+        assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_12);
     }
 
     @Override

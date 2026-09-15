@@ -24,8 +24,8 @@ import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.mix.sync.MixSyncTestHelpers.runSuspendOnPooledThread
 import org.elixir_lang.Facet
 import org.elixir_lang.facet.Type
-import org.elixir_lang.psi.quoting.QuotingDialect
-import org.elixir_lang.psi.quoting.QuotingDialectResolver
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.sdk.elixir.ElixirVersions
 import org.elixir_lang.sdk.elixir.OtpMajor
 import java.io.File
@@ -53,11 +53,11 @@ class ElixirLanguageLevelPusherTest : HeavyPlatformTestCase() {
         ModuleRootModificationUtil.setModuleSdk(module, register(SdkFixtures.elixirSdk("Level store Elixir", home)))
         SdkVersionsStore.getInstance().setElixirVersions(home, ElixirVersions("1.12.3", OtpMajor.Known("24")))
 
-        assertEquals(QuotingDialect.V1_12.name, read { pusher.getImmediateValue(module) })
+        assertEquals(ElixirLanguageLevel.V1_12.name, read { pusher.getImmediateValue(module) })
     }
 
     fun testAModuleWithNoElixirSdkIsPushedTheFallback() {
-        assertEquals(QuotingDialect.FALLBACK.name, read { pusher.getImmediateValue(module) })
+        assertEquals(ElixirLanguageLevel.FALLBACK.name, read { pusher.getImmediateValue(module) })
     }
 
     /** A scan can reach the pusher before the store has read the module's home. */
@@ -67,10 +67,10 @@ class ElixirLanguageLevelPusherTest : HeavyPlatformTestCase() {
             register(SdkFixtures.elixirSdk("Level unread Elixir", "/fake/elixir/level-unread")),
         )
         val directory = contentDirectory(module, "unread")
-        ElixirLanguageLevelPusher.KEY.setPersistentValue(directory, QuotingDialect.V1_12.name)
+        ElixirLanguageLevelPusher.KEY.setPersistentValue(directory, ElixirLanguageLevel.V1_12.name)
 
         assertNull("an unread home has no level of its own", read { pusher.getImmediateValue(module) })
-        assertEquals(QuotingDialect.V1_12.name, read { pusher.getImmediateValue(project, directory) })
+        assertEquals(ElixirLanguageLevel.V1_12.name, read { pusher.getImmediateValue(project, directory) })
     }
 
     fun testAHomeThatWasReadLeavesTheDirectoryToTheModule() {
@@ -78,7 +78,7 @@ class ElixirLanguageLevelPusherTest : HeavyPlatformTestCase() {
         ModuleRootModificationUtil.setModuleSdk(module, register(SdkFixtures.elixirSdk("Level read Elixir", home)))
         SdkVersionsStore.getInstance().setElixirVersions(home, ElixirVersions("1.18.4", OtpMajor.Known("27")))
         val directory = contentDirectory(module, "read")
-        ElixirLanguageLevelPusher.KEY.setPersistentValue(directory, QuotingDialect.V1_12.name)
+        ElixirLanguageLevelPusher.KEY.setPersistentValue(directory, ElixirLanguageLevel.V1_12.name)
 
         assertNull(read { pusher.getImmediateValue(project, directory) })
     }
@@ -86,12 +86,12 @@ class ElixirLanguageLevelPusherTest : HeavyPlatformTestCase() {
     fun testAChangedLevelReparsesTheFilesUnderTheDirectory() {
         val file = elixirFile(module, "changed")
         val directory = file.parent
-        ElixirLanguageLevelPusher.KEY.setPersistentValue(directory, QuotingDialect.V1_20.name)
+        ElixirLanguageLevelPusher.KEY.setPersistentValue(directory, ElixirLanguageLevel.V1_20.name)
         val before = parsed(file)
 
-        read { pusher.persistAttribute(project, directory, QuotingDialect.V1_12.name) }
+        read { pusher.persistAttribute(project, directory, ElixirLanguageLevel.V1_12.name) }
 
-        assertEquals(QuotingDialect.V1_12.name, ElixirLanguageLevelPusher.KEY.getPersistentValue(directory))
+        assertEquals(ElixirLanguageLevel.V1_12.name, ElixirLanguageLevelPusher.KEY.getPersistentValue(directory))
         SdkFixtures.waitUntil("a file whose level changed must be parsed again") {
             PsiManager.getInstance(project).findFile(file) !== before
         }
@@ -113,10 +113,10 @@ class ElixirLanguageLevelPusherTest : HeavyPlatformTestCase() {
     fun testAnUnchangedLevelKeepsTheTree() {
         val file = elixirFile(module, "unchanged")
         val directory = file.parent
-        ElixirLanguageLevelPusher.KEY.setPersistentValue(directory, QuotingDialect.V1_12.name)
+        ElixirLanguageLevelPusher.KEY.setPersistentValue(directory, ElixirLanguageLevel.V1_12.name)
         val before = parsed(file)
 
-        read { pusher.persistAttribute(project, directory, QuotingDialect.V1_12.name) }
+        read { pusher.persistAttribute(project, directory, ElixirLanguageLevel.V1_12.name) }
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
 
         assertSame(before, PsiManager.getInstance(project).findFile(file))
@@ -127,9 +127,9 @@ class ElixirLanguageLevelPusherTest : HeavyPlatformTestCase() {
         ModuleRootModificationUtil.setModuleSdk(module, register(SdkFixtures.elixirSdk("Level pushed Elixir", home)))
         SdkVersionsStore.getInstance().setElixirVersions(home, ElixirVersions("1.18.4", OtpMajor.Known("27")))
         val file = elixirFile(module, "pushed-wins")
-        ElixirLanguageLevelPusher.KEY.setPersistentValue(file.parent, QuotingDialect.V1_12.name)
+        ElixirLanguageLevelPusher.KEY.setPersistentValue(file.parent, ElixirLanguageLevel.V1_12.name)
 
-        assertEquals(QuotingDialect.V1_12, QuotingDialectResolver.dialectFor(parsed(file)))
+        assertEquals(ElixirLanguageLevel.V1_12, ElixirLanguageLevelResolver.languageLevelFor(parsed(file)))
     }
 
     fun testWithNothingPushedTheStoreAnswers() {
@@ -139,31 +139,31 @@ class ElixirLanguageLevelPusherTest : HeavyPlatformTestCase() {
         val file = elixirFile(module, "store-fallback")
         ElixirLanguageLevelPusher.KEY.setPersistentValue(file.parent, null)
 
-        assertEquals(QuotingDialect.V1_18, QuotingDialectResolver.dialectFor(parsed(file)))
+        assertEquals(ElixirLanguageLevel.V1_18, ElixirLanguageLevelResolver.languageLevelFor(parsed(file)))
     }
 
     /** Indexing parses a copy of the file in a `LightVirtualFile`, which is in no directory of its own. */
     fun testACopyMadeForIndexingResolvesThroughItsOriginal() {
         val file = elixirFile(module, "indexing-copy")
-        ElixirLanguageLevelPusher.KEY.setPersistentValue(file.parent, QuotingDialect.V1_12.name)
+        ElixirLanguageLevelPusher.KEY.setPersistentValue(file.parent, ElixirLanguageLevel.V1_12.name)
         val copy = LightVirtualFile(file.name, ElixirLanguage, "defmodule Copy do\nend\n").apply {
             originalFile = file
         }
 
-        assertEquals(QuotingDialect.V1_12, QuotingDialectResolver.dialectFor(PsiManager.getInstance(project).findFile(copy)!!))
+        assertEquals(ElixirLanguageLevel.V1_12, ElixirLanguageLevelResolver.languageLevelFor(PsiManager.getInstance(project).findFile(copy)!!))
     }
 
     fun testAStoreChangePushesTheNewLevelAndReparses() {
         val home = "/fake/elixir/level-repush"
         ModuleRootModificationUtil.setModuleSdk(module, register(SdkFixtures.elixirSdk("Level repush Elixir", home)))
         val file = elixirFile(module, "repush")
-        ElixirLanguageLevelPusher.KEY.setPersistentValue(file.parent, QuotingDialect.V1_20.name)
+        ElixirLanguageLevelPusher.KEY.setPersistentValue(file.parent, ElixirLanguageLevel.V1_20.name)
         val before = parsed(file)
 
         SdkVersionsStore.getInstance().setElixirVersions(home, ElixirVersions("1.12.3", OtpMajor.Known("24")))
 
         SdkFixtures.waitUntil("a store change that moves the module's level must push it", timeoutMillis = 30_000) {
-            ElixirLanguageLevelPusher.KEY.getPersistentValue(file.parent) == QuotingDialect.V1_12.name &&
+            ElixirLanguageLevelPusher.KEY.getPersistentValue(file.parent) == ElixirLanguageLevel.V1_12.name &&
                 PsiManager.getInstance(project).findFile(file) !== before
         }
     }
@@ -173,13 +173,13 @@ class ElixirLanguageLevelPusherTest : HeavyPlatformTestCase() {
         ModuleRootModificationUtil.setModuleSdk(module, register(SdkFixtures.elixirSdk("Level matching Elixir", home)))
         val directory = contentDirectory(module, "matching")
         SdkVersionsStore.getInstance().setElixirVersions(home, ElixirVersions("1.12.3", OtpMajor.Known("24")))
-        ElixirLanguageLevelPusher.KEY.setPersistentValue(directory, QuotingDialect.V1_12.name)
+        ElixirLanguageLevelPusher.KEY.setPersistentValue(directory, ElixirLanguageLevel.V1_12.name)
 
         assertFalse(
             "pushing walks the whole project in dumb mode, so a restart that changed nothing must not do it",
             read { project.service<ElixirLanguageLevelPushes>().isStale() },
         )
-        ElixirLanguageLevelPusher.KEY.setPersistentValue(directory, QuotingDialect.V1_20.name)
+        ElixirLanguageLevelPusher.KEY.setPersistentValue(directory, ElixirLanguageLevel.V1_20.name)
         assertTrue("precondition: a differing level is stale", read { project.service<ElixirLanguageLevelPushes>().isStale() })
     }
 
@@ -212,15 +212,15 @@ class ElixirLanguageLevelPusherTest : HeavyPlatformTestCase() {
         val directory = contentDirectory(module, "open")
         SdkVersionsStore.getInstance().setElixirVersions(home, ElixirVersions("1.12.3", OtpMajor.Known("24")))
         SdkFixtures.waitUntil("precondition: the store and roots changes above push their own level", 30_000) {
-            ElixirLanguageLevelPusher.KEY.getPersistentValue(directory) == QuotingDialect.V1_12.name
+            ElixirLanguageLevelPusher.KEY.getPersistentValue(directory) == ElixirLanguageLevel.V1_12.name
         }
         // What an earlier session left: nothing publishes, and nothing changes the roots.
-        ElixirLanguageLevelPusher.KEY.setPersistentValue(directory, QuotingDialect.V1_20.name)
+        ElixirLanguageLevelPusher.KEY.setPersistentValue(directory, ElixirLanguageLevel.V1_20.name)
 
         runSuspendOnPooledThread { pusher.initExtra(project) }
 
         SdkFixtures.waitUntil("opening a project must push a level that differs", timeoutMillis = 30_000) {
-            ElixirLanguageLevelPusher.KEY.getPersistentValue(directory) == QuotingDialect.V1_12.name
+            ElixirLanguageLevelPusher.KEY.getPersistentValue(directory) == ElixirLanguageLevel.V1_12.name
         }
     }
 
@@ -234,17 +234,17 @@ class ElixirLanguageLevelPusherTest : HeavyPlatformTestCase() {
         val root = contentDirectory(module, "unfinished")
         SdkVersionsStore.getInstance().setElixirVersions(home, ElixirVersions("1.12.3", OtpMajor.Known("24")))
         SdkFixtures.waitUntil("precondition: the store and roots changes above push their own level", 30_000) {
-            ElixirLanguageLevelPusher.KEY.getPersistentValue(root) == QuotingDialect.V1_12.name
+            ElixirLanguageLevelPusher.KEY.getPersistentValue(root) == ElixirLanguageLevel.V1_12.name
         }
         val subdirectory = WriteAction.computeAndWait<VirtualFile, Throwable> { root.createChildDirectory(this, "lib") }
-        ElixirLanguageLevelPusher.KEY.setPersistentValue(subdirectory, QuotingDialect.V1_20.name)
+        ElixirLanguageLevelPusher.KEY.setPersistentValue(subdirectory, ElixirLanguageLevel.V1_20.name)
         pushesSettle()
         PropertiesComponent.getInstance(project).setValue(ElixirLanguageLevelPushes.PUSH_PENDING, true)
 
         runSuspendOnPooledThread { pusher.initExtra(project) }
 
         SdkFixtures.waitUntil("a push the last session did not finish must run again", timeoutMillis = 30_000) {
-            ElixirLanguageLevelPusher.KEY.getPersistentValue(subdirectory) == QuotingDialect.V1_12.name
+            ElixirLanguageLevelPusher.KEY.getPersistentValue(subdirectory) == ElixirLanguageLevel.V1_12.name
         }
     }
 
@@ -254,7 +254,7 @@ class ElixirLanguageLevelPusherTest : HeavyPlatformTestCase() {
         val root = contentDirectory(module, "finished")
         SdkVersionsStore.getInstance().setElixirVersions(home, ElixirVersions("1.12.3", OtpMajor.Known("24")))
         SdkFixtures.waitUntil("precondition: the store and roots changes above push their own level", 30_000) {
-            ElixirLanguageLevelPusher.KEY.getPersistentValue(root) == QuotingDialect.V1_12.name
+            ElixirLanguageLevelPusher.KEY.getPersistentValue(root) == ElixirLanguageLevel.V1_12.name
         }
         pushesSettle()
         PropertiesComponent.getInstance(project).setValue(ElixirLanguageLevelPushes.PUSH_PENDING, true)

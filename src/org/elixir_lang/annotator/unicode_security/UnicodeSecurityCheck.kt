@@ -3,13 +3,13 @@ package org.elixir_lang.annotator.unicode_security
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.util.text.HtmlBuilder
 import com.intellij.openapi.util.text.HtmlChunk
-import org.elixir_lang.psi.quoting.QuotingDialect
-import org.elixir_lang.psi.quoting.QuotingDialect.*
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevel.*
 import java.text.Normalizer
 import java.util.BitSet
 
 /**
- * What Elixir's tokenizer rejects for Unicode security reasons, as it did in the release a [QuotingDialect] stands for:
+ * What Elixir's tokenizer rejects for Unicode security reasons, as it did in the release a [ElixirLanguageLevel] stands for:
  * bidirectional formatting and line break characters in comments and quoted text, and identifiers with a restricted
  * code point or a mix of scripts.
  */
@@ -17,32 +17,32 @@ internal object UnicodeSecurityCheck {
     /** [tooltip] is HTML carrying the rest of Elixir's error, where the plugin can reproduce it. */
     class Problem(val range: TextRange, val message: String, val tooltip: String? = null)
 
-    fun inComment(text: CharSequence, dialect: QuotingDialect): List<Problem> =
+    fun inComment(text: CharSequence, languageLevel: ElixirLanguageLevel): List<Problem> =
         characters(text) { character ->
             when {
-                isBidi(character) && dialect >= V1_13 ->
+                isBidi(character) && languageLevel >= V1_13 ->
                     "invalid bidirectional formatting character in comment: ${escaped(character)}"
 
-                isLineBreak(character) && dialect >= V1_19 ->
+                isLineBreak(character) && languageLevel >= V1_19 ->
                     "invalid line break character in comment: ${escaped(character)}"
 
                 else -> null
             }
         }
 
-    fun inQuoted(text: CharSequence, dialect: QuotingDialect): List<Problem> =
+    fun inQuoted(text: CharSequence, languageLevel: ElixirLanguageLevel): List<Problem> =
         characters(text) { character ->
             when {
-                isBidi(character) && dialect >= V1_13 -> inString("invalid bidirectional formatting character", character)
-                isLineBreak(character) && dialect >= V1_20 -> inString("invalid line break character", character)
+                isBidi(character) && languageLevel >= V1_13 -> inString("invalid bidirectional formatting character", character)
+                isLineBreak(character) && languageLevel >= V1_20 -> inString("invalid line break character", character)
                 else -> null
             }
         }
 
     fun hasBidiOrLineBreak(text: CharSequence): Boolean = text.any { isBidi(it) || isLineBreak(it) }
 
-    fun inIdentifier(text: CharSequence, dialect: QuotingDialect): Problem? {
-        val table = IdentifierTable.forUnicode(unicodeVersion(dialect) ?: return null)
+    fun inIdentifier(text: CharSequence, languageLevel: ElixirLanguageLevel): Problem? {
+        val table = IdentifierTable.forUnicode(unicodeVersion(languageLevel) ?: return null)
         val codePoints = mutableListOf<Int>()
         var scriptSet: BitSet? = null
         var offset = 0
@@ -71,7 +71,7 @@ internal object UnicodeSecurityCheck {
                             val identifier = String(codePoints.toIntArray(), 0, codePoints.size) + String(Character.toChars(codePoint))
                             val range = TextRange(offset, offset + Character.charCount(codePoint))
 
-                            return restricted(identifier, range, first, dialect)
+                            return restricted(identifier, range, first, languageLevel)
                         }
 
                         codePoint = GREEK_SMALL_LETTER_MU
@@ -90,23 +90,25 @@ internal object UnicodeSecurityCheck {
         val normalized = Normalizer
             .normalize(String(codePoints.toIntArray(), 0, codePoints.size), Normalizer.Form.NFC)
         val normalizedCodePoints = normalized.codePoints().toArray()
-        val accepted = if (dialect >= V1_18) {
+        val accepted = if (languageLevel >= V1_18) {
             chunksSingle(normalizedCodePoints, table)
         } else {
             highlyRestrictive(normalizedCodePoints, table)
         }
 
-        return if (accepted) null else mixedScript(normalized, normalizedCodePoints, table, dialect, TextRange(0, offset))
+        if (accepted) return null
+
+        return mixedScript(normalized, normalizedCodePoints, table, languageLevel, TextRange(0, offset))
     }
 
     /** [identifier] ends with the code point Elixir rejects. */
-    private fun restricted(identifier: String, range: TextRange, first: Boolean, dialect: QuotingDialect): Problem {
+    private fun restricted(identifier: String, range: TextRange, first: Boolean, languageLevel: ElixirLanguageLevel): Problem {
         val codePoint = identifier.codePointBefore(identifier.length)
         val message = "unexpected token: \"${String(Character.toChars(codePoint))}\" (code point U+%04X)".format(codePoint)
         // Elixir hints only after an identifier's first code point, trying the compatibility form of the identifier up
         // to that code point first; its later tries need confusable data the plugin does not ship.
         val compatible = Normalizer.normalize(identifier, Normalizer.Form.NFKC)
-            .takeIf { !first && it != identifier && inIdentifier(it, dialect) == null }
+            .takeIf { !first && it != identifier && inIdentifier(it, languageLevel) == null }
 
         val tooltip = if (compatible != null) {
             tooltip(
@@ -140,13 +142,13 @@ internal object UnicodeSecurityCheck {
         identifier: String,
         codePoints: IntArray,
         table: IdentifierTable,
-        dialect: QuotingDialect,
+        languageLevel: ElixirLanguageLevel,
         range: TextRange,
     ): Problem {
         val scripts = codePoints.map { codePoint -> codePoint to chunkScriptSetOf(codePoint, table)?.let(table::scriptNames) }
         val message = "invalid mixed-script identifier found: $identifier" +
-            (culprits(codePoints, table, dialect)?.let { " ($it)" } ?: "")
-        val guidance = if (dialect >= V1_18) {
+            (culprits(codePoints, table, languageLevel)?.let { " ($it)" } ?: "")
+        val guidance = if (languageLevel >= V1_18) {
             "Characters in identifiers from different scripts must be separated by underscore (_)."
         } else {
             "All characters in the identifier should resolve to a single script, or use a highly restrictive set of scripts."
@@ -176,9 +178,9 @@ internal object UnicodeSecurityCheck {
      * chunk from 1.18, and before that across the whole identifier, where Latin may also pair with a highly restrictive
      * script.
      */
-    private fun culprits(codePoints: IntArray, table: IdentifierTable, dialect: QuotingDialect): String? {
-        val chunks = if (dialect >= V1_18) chunks(codePoints) else listOf(codePoints)
-        val candidates = if (dialect >= V1_18) table.singleScripts else table.singleScripts + table.highlyRestrictive
+    private fun culprits(codePoints: IntArray, table: IdentifierTable, languageLevel: ElixirLanguageLevel): String? {
+        val chunks = if (languageLevel >= V1_18) chunks(codePoints) else listOf(codePoints)
+        val candidates = if (languageLevel >= V1_18) table.singleScripts else table.singleScripts + table.highlyRestrictive
 
         return chunks
             .mapNotNull { chunk ->
@@ -249,8 +251,8 @@ internal object UnicodeSecurityCheck {
     private const val MICRO_SIGN = 0x00B5
     private const val GREEK_SMALL_LETTER_MU = 0x03BC
 
-    private fun unicodeVersion(dialect: QuotingDialect): String? =
-        when (dialect) {
+    private fun unicodeVersion(languageLevel: ElixirLanguageLevel): String? =
+        when (languageLevel) {
             V1_11, V1_12, V1_13 -> null
             V1_14 -> "14.0"
             V1_15 -> "15.0"

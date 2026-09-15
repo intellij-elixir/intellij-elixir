@@ -5,13 +5,13 @@ import com.intellij.psi.PsiErrorElement
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import org.elixir_lang.psi.HeredocLiteral
-import org.elixir_lang.psi.quoting.QuotingDialect
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_11
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_12
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_14
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_15
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_20
-import org.elixir_lang.psi.quoting.QuotingDialectResolver
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_11
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_12
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_14
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_15
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_20
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 
 /** Expected messages were taken from `Code.string_to_quoted/1` on 1.11.4, 1.12.3, 1.15.8, 1.16.3 and 1.20.4. */
 class HeredocErrorTest : BasePlatformTestCase() {
@@ -19,7 +19,7 @@ class HeredocErrorTest : BasePlatformTestCase() {
 
     override fun tearDown() {
         try {
-            QuotingDialectResolver.overrideDialect(project, null)
+            ElixirLanguageLevelResolver.overrideLanguageLevel(project, null)
         } catch (e: Throwable) {
             addSuppressedException(e)
         } finally {
@@ -40,8 +40,8 @@ class HeredocErrorTest : BasePlatformTestCase() {
         )) {
             assertOnlyError(V1_11, source, terminator to INVALID_LOCATION + terminator)
 
-            for (dialect in listOf(V1_12, V1_20)) {
-                assertOnlyError(dialect, source, fromOpening(source, terminator) to missingTerminator(terminator, 1))
+            for (languageLevel in listOf(V1_12, V1_20)) {
+                assertOnlyError(languageLevel, source, fromOpening(source, terminator) to missingTerminator(terminator, 1))
             }
         }
     }
@@ -53,8 +53,8 @@ class HeredocErrorTest : BasePlatformTestCase() {
             "'''\nbar\n" to SINGLE,
             "\"\"\"\nbar\n" to DOUBLE,
         )) {
-            for (dialect in listOf(V1_11, V1_12, V1_20)) {
-                assertOnlyError(dialect, source, fromOpening(source, terminator) to missingTerminator(terminator, 1))
+            for (languageLevel in listOf(V1_11, V1_12, V1_20)) {
+                assertOnlyError(languageLevel, source, fromOpening(source, terminator) to missingTerminator(terminator, 1))
             }
         }
     }
@@ -76,11 +76,11 @@ class HeredocErrorTest : BasePlatformTestCase() {
             "\"\"\"\"\"\"",
             "\"\"\"",
         )) {
-            for (dialect in listOf(V1_11, V1_14)) {
-                assertOnlyError(dialect, source, DOUBLE to ZERO_OR_MORE_WHITESPACE + DOUBLE)
+            for (languageLevel in listOf(V1_11, V1_14)) {
+                assertOnlyError(languageLevel, source, DOUBLE to ZERO_OR_MORE_WHITESPACE + DOUBLE)
             }
-            for (dialect in listOf(V1_15, V1_20)) {
-                assertOnlyError(dialect, source, DOUBLE to ONLY_WHITESPACE + DOUBLE)
+            for (languageLevel in listOf(V1_15, V1_20)) {
+                assertOnlyError(languageLevel, source, DOUBLE to ONLY_WHITESPACE + DOUBLE)
             }
         }
     }
@@ -131,8 +131,8 @@ class HeredocErrorTest : BasePlatformTestCase() {
             "~s(#{\n\"\"\"\nfoo",
             ":\"#{\n\"\"\"\nfoo",
         )) {
-            for (dialect in listOf(V1_11, V1_20)) {
-                assertEquals("heredoc errors in $source on $dialect", listOf(missingTerminator(DOUBLE, 2)), heredocMessages(dialect, source))
+            for (languageLevel in listOf(V1_11, V1_20)) {
+                assertEquals("heredoc errors in $source on $languageLevel", listOf(missingTerminator(DOUBLE, 2)), heredocMessages(languageLevel, source))
             }
         }
 
@@ -233,7 +233,7 @@ class HeredocErrorTest : BasePlatformTestCase() {
     }
 
     fun testValidHeredocs() {
-        for (dialect in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(V1_11, V1_20)) {
             for (source in listOf(
                 "x = \"\"\"\n  bar\n  \"\"\" <> y",
                 "\"\"\"\n  \"\"\"",
@@ -241,7 +241,7 @@ class HeredocErrorTest : BasePlatformTestCase() {
                 "\"\"\"\t\nbar\n\"\"\"",
                 "~S\"\"\"\nbar\n\"\"\"abc",
             )) {
-                assertNoErrors(dialect, source)
+                assertNoErrors(languageLevel, source)
             }
         }
     }
@@ -256,8 +256,8 @@ class HeredocErrorTest : BasePlatformTestCase() {
 
     private fun fromOpening(source: String, terminator: String): String = source.substring(source.indexOf(terminator))
 
-    private fun errors(dialect: QuotingDialect, source: String): List<Pair<String, String?>> {
-        QuotingDialectResolver.overrideDialect(project, dialect)
+    private fun errors(languageLevel: ElixirLanguageLevel, source: String): List<Pair<String, String?>> {
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, languageLevel)
         myFixture.configureByText("heredoc_${files++}.ex", source)
 
         return myFixture
@@ -265,21 +265,25 @@ class HeredocErrorTest : BasePlatformTestCase() {
             .map { source.substring(it.startOffset, it.endOffset) to it.description }
     }
 
-    private fun assertOnlyError(dialect: QuotingDialect, source: String, expected: Pair<String, String>) {
-        assertEquals("errors in $source on $dialect", listOf(expected), errors(dialect, source))
+    private fun assertOnlyError(languageLevel: ElixirLanguageLevel, source: String, expected: Pair<String, String>) {
+        assertEquals("errors in $source on $languageLevel", listOf(expected), errors(languageLevel, source))
         assertNull("parser error in $source", PsiTreeUtil.findChildOfType(myFixture.file, PsiErrorElement::class.java))
     }
 
     /** The errors about the heredoc's own shape, leaving out grammar errors. */
-    private fun heredocMessages(dialect: QuotingDialect, source: String): List<String> =
-        errors(dialect, source).mapNotNull { it.second }.filter { message ->
+    private fun heredocMessages(languageLevel: ElixirLanguageLevel, source: String): List<String> =
+        errors(languageLevel, source).mapNotNull { it.second }.filter { message ->
             message.startsWith("missing terminator") ||
                 message.startsWith("heredoc allows only") ||
                 message.startsWith("invalid location for heredoc terminator")
         }
 
-    private fun assertNoErrors(dialect: QuotingDialect, source: String) {
-        assertEquals("errors in $source on $dialect", emptyList<Pair<String, String?>>(), errors(dialect, source))
+    private fun assertNoErrors(languageLevel: ElixirLanguageLevel, source: String) {
+        assertEquals(
+            "errors in $source on $languageLevel",
+            emptyList<Pair<String, String?>>(),
+            errors(languageLevel, source)
+        )
     }
 
     private fun missingTerminator(terminator: String, line: Int): String =

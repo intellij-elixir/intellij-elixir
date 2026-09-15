@@ -6,12 +6,12 @@ import com.intellij.psi.PsiErrorElement
 import com.intellij.psi.TokenType
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
-import org.elixir_lang.psi.quoting.QuotingDialect
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_11
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_12
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_19
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_20
-import org.elixir_lang.psi.quoting.QuotingDialectResolver
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_11
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_12
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_19
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_20
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 
 /**
  * Expected messages were taken from `Code.string_to_quoted/1` on 1.11.4, 1.12.3, 1.19.5 and 1.20.4, and for sigils from
@@ -22,7 +22,7 @@ class InvalidEscapeTest : BasePlatformTestCase() {
 
     override fun tearDown() {
         try {
-            QuotingDialectResolver.overrideDialect(project, null)
+            ElixirLanguageLevelResolver.overrideLanguageLevel(project, null)
         } catch (e: Throwable) {
             addSuppressedException(e)
         } finally {
@@ -74,7 +74,7 @@ class InvalidEscapeTest : BasePlatformTestCase() {
     }
 
     fun testValidEscapes() {
-        for (dialect in listOf(V1_11, V1_19)) {
+        for (languageLevel in listOf(V1_11, V1_19)) {
             for (source in listOf(
                 "\"\\x1\"",
                 "\"\\x12\"",
@@ -87,7 +87,7 @@ class InvalidEscapeTest : BasePlatformTestCase() {
                 "\"\\u{12345}\"",
                 "\"\"\"\n\\x12\\u1234\n\"\"\"",
             )) {
-                assertNoErrors(dialect, source)
+                assertNoErrors(languageLevel, source)
             }
         }
     }
@@ -113,7 +113,7 @@ class InvalidEscapeTest : BasePlatformTestCase() {
     }
 
     fun testInvalidEscapeInOtherSigils() {
-        for (dialect in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(V1_11, V1_20)) {
             for (source in listOf(
                 "~r\"\\x{33h}\"",
                 "~r/\\u12/",
@@ -123,7 +123,7 @@ class InvalidEscapeTest : BasePlatformTestCase() {
                 "~C\"\\x{33h}\"",
                 "~S\"\"\"\n\\x{33h}\n\"\"\"",
             )) {
-                assertNoErrors(dialect, source)
+                assertNoErrors(languageLevel, source)
             }
         }
     }
@@ -135,8 +135,8 @@ class InvalidEscapeTest : BasePlatformTestCase() {
     }
 
     fun testCharacterLiteral() {
-        for (dialect in listOf(V1_11, V1_20)) {
-            assertFalse("?\\x{33h} on $dialect", errors(dialect, "?\\x{33h}").isEmpty())
+        for (languageLevel in listOf(V1_11, V1_20)) {
+            assertFalse("?\\x{33h} on $languageLevel", errors(languageLevel, "?\\x{33h}").isEmpty())
         }
     }
 
@@ -159,8 +159,8 @@ class InvalidEscapeTest : BasePlatformTestCase() {
         )
     }
 
-    private fun errors(dialect: QuotingDialect, source: String): List<Pair<String, String?>> {
-        QuotingDialectResolver.overrideDialect(project, dialect)
+    private fun errors(languageLevel: ElixirLanguageLevel, source: String): List<Pair<String, String?>> {
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, languageLevel)
         myFixture.configureByText("escape_${files++}.ex", source)
 
         return myFixture
@@ -168,8 +168,8 @@ class InvalidEscapeTest : BasePlatformTestCase() {
             .map { source.substring(it.startOffset, it.endOffset) to it.description }
     }
 
-    private fun assertEscapeError(dialect: QuotingDialect, source: String, text: String, message: String) {
-        assertEquals("errors in $source on $dialect", listOf(text to message), errors(dialect, source))
+    private fun assertEscapeError(languageLevel: ElixirLanguageLevel, source: String, text: String, message: String) {
+        assertEquals("errors in $source on $languageLevel", listOf(text to message), errors(languageLevel, source))
         assertNull("parser error in $source", PsiTreeUtil.findChildOfType(myFixture.file, PsiErrorElement::class.java))
         assertEquals(
             "bad characters in $source",
@@ -178,8 +178,12 @@ class InvalidEscapeTest : BasePlatformTestCase() {
         )
     }
 
-    private fun assertNoErrors(dialect: QuotingDialect, source: String) {
-        assertEquals("errors in $source on $dialect", emptyList<Pair<String, String?>>(), errors(dialect, source))
+    private fun assertNoErrors(languageLevel: ElixirLanguageLevel, source: String) {
+        assertEquals(
+            "errors in $source on $languageLevel",
+            emptyList<Pair<String, String?>>(),
+            errors(languageLevel, source)
+        )
     }
 
     private companion object {

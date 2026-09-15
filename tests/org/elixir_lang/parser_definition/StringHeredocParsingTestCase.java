@@ -1,12 +1,12 @@
 package org.elixir_lang.parser_definition;
 
-import org.elixir_lang.psi.quoting.QuotingDialect;
+import org.elixir_lang.language_level.ElixirLanguageLevel;
 
 /**
  * Created by kadie.enheduanna.inanna on 8/8/14.
  */
 public class StringHeredocParsingTestCase extends ParsingTestCase {
-    /** A heredoc opening on an interpolation - see QuotingDialect.V1_12. */
+    /** A heredoc opening on an interpolation - see ElixirLanguageLevel.V1_12. */
     public void testInterpolationFirst() {
         assertParsedAndQuotedCorrectly();
     }
@@ -16,7 +16,7 @@ public class StringHeredocParsingTestCase extends ParsingTestCase {
     }
 
     public void testEnclosedHexEscapeSequence() {
-        assertParsedAndQuotedCorrectlyBefore(QuotingDialect.V1_20);
+        assertParsedAndQuotedCorrectlyBefore(ElixirLanguageLevel.V1_20);
     }
 
     public void testEscapeSequences() {
@@ -32,7 +32,7 @@ public class StringHeredocParsingTestCase extends ParsingTestCase {
     }
 
     public void testWhitespaceEndPrefix() {
-        assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_12);
+        assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_12);
     }
 
     @Override

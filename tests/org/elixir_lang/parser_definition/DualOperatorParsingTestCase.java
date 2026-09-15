@@ -1,6 +1,6 @@
 package org.elixir_lang.parser_definition;
 
-import org.elixir_lang.psi.quoting.QuotingDialect;
+import org.elixir_lang.language_level.ElixirLanguageLevel;
 
 /**
  * Created by kadie.enheduanna.inanna on 8/3/14.
@@ -49,7 +49,7 @@ public class DualOperatorParsingTestCase extends ParsingTestCase {
      * preceding {@code &}; earlier versions reject it.
      */
     public void testIdentifierSpaceOperatorSlashIdentifier() {
-        assertParsedAndQuotedCorrectlyFrom(QuotingDialect.V1_13);
+        assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_13);
     }
 
     public void testIdentifierSpaceOperatorSpaceCommentEOLIdentifier() {

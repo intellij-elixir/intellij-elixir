@@ -64,15 +64,15 @@ import org.elixir_lang.psi.QualifiedParenthesesCall
 import org.elixir_lang.psi.UnqualifiedNoArgumentsCall
 import org.elixir_lang.psi.UnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.UnqualifiedParenthesesCall
-import org.elixir_lang.psi.quoting.QuotingDialect
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_12
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_13
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_14
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_15
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_17
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_18
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_20
-import org.elixir_lang.psi.quoting.QuotingDialectResolver
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_12
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_13
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_14
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_15
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_17
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_18
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_20
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import java.text.BreakIterator
 import java.text.Normalizer
 
@@ -82,7 +82,7 @@ import java.text.Normalizer
  */
 internal class VersionedSyntax : Annotator, DumbAware {
     override fun annotate(element: PsiElement, holder: AnnotationHolder) {
-        val problem = problem(element) { QuotingDialectResolver.dialectFor(element) } ?: return
+        val problem = problem(element) { ElixirLanguageLevelResolver.languageLevelFor(element) } ?: return
         if (Injection.of(element) == Injection.UNCOMPILED) return
 
         holder.newAnnotation(HighlightSeverity.ERROR, problem.message)
@@ -93,23 +93,23 @@ internal class VersionedSyntax : Annotator, DumbAware {
 
     private class Problem(val range: TextRange, val message: String, val tooltip: String? = null)
 
-    private fun problem(element: PsiElement, dialect: () -> QuotingDialect): Problem? =
+    private fun problem(element: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? =
         when (element) {
-            is ElixirNullaryRangeOperation -> if (dialect() < V1_14) Problem(element.textRange, before("'..'")) else null
-            is ElixirAssociationsBase -> mapEntry(element, dialect)
-            is ElixirKeywordPair, is ElixirNoParenthesesKeywordPair -> keywordKey(element, dialect)
-            is ElixirMatchedMultiplicationOperation, is ElixirUnmatchedMultiplicationOperation -> operatorArity(element, dialect)
-            is ElixirMatchedTernaryOperation, is ElixirUnmatchedTernaryOperation -> stepOperator(element, dialect)
-            is ElixirRelativeIdentifier -> graphemeCluster(element, dialect)
-            is ElixirEscapedCharacter -> escapedCharacter(element, dialect)
-            is ElixirQuoteHexadecimalEscapeSequence -> hexadecimalEscape(element, dialect)
-            is ElixirHeredoc, is ElixirInterpolatedSigilHeredoc, is ElixirLiteralSigilHeredoc -> heredocTerminatorAfterContent(element, dialect)
-            else -> if (element.firstChild == null) leaf(element, dialect) else null
+            is ElixirNullaryRangeOperation -> if (languageLevel() < V1_14) Problem(element.textRange, before("'..'")) else null
+            is ElixirAssociationsBase -> mapEntry(element, languageLevel)
+            is ElixirKeywordPair, is ElixirNoParenthesesKeywordPair -> keywordKey(element, languageLevel)
+            is ElixirMatchedMultiplicationOperation, is ElixirUnmatchedMultiplicationOperation -> operatorArity(element, languageLevel)
+            is ElixirMatchedTernaryOperation, is ElixirUnmatchedTernaryOperation -> stepOperator(element, languageLevel)
+            is ElixirRelativeIdentifier -> graphemeCluster(element, languageLevel)
+            is ElixirEscapedCharacter -> escapedCharacter(element, languageLevel)
+            is ElixirQuoteHexadecimalEscapeSequence -> hexadecimalEscape(element, languageLevel)
+            is ElixirHeredoc, is ElixirInterpolatedSigilHeredoc, is ElixirLiteralSigilHeredoc -> heredocTerminatorAfterContent(element, languageLevel)
+            else -> if (element.firstChild == null) leaf(element, languageLevel) else null
         }
 
     /** Before 1.12 Elixir rejects a heredoc terminator after content where it stands, once the opening line is valid. */
-    private fun heredocTerminatorAfterContent(heredoc: PsiElement, dialect: () -> QuotingDialect): Problem? {
-        if (dialect() >= V1_12 || hasContentAfterOpening(heredoc)) return null
+    private fun heredocTerminatorAfterContent(heredoc: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? {
+        if (languageLevel() >= V1_12 || hasContentAfterOpening(heredoc)) return null
         val range = misplacedHeredocTerminator(heredoc) ?: return null
 
         return Problem(
@@ -119,19 +119,19 @@ internal class VersionedSyntax : Annotator, DumbAware {
         )
     }
 
-    private fun leaf(leaf: PsiElement, dialect: () -> QuotingDialect): Problem? =
+    private fun leaf(leaf: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? =
         when (leaf.node.elementType) {
-            ElixirTypes.POWER_OPERATOR -> power(leaf, dialect)
-            ElixirTypes.IDENTIFIER_TOKEN -> if (leaf.text == "**") power(leaf, dialect) else notNfc(leaf, dialect)
-            ElixirTypes.ATOM_FRAGMENT -> atomFragment(leaf, dialect)
-            ElixirTypes.LITERAL_SIGIL_NAME, ElixirTypes.INTERPOLATING_SIGIL_NAME -> sigilName(leaf, dialect)
-            ElixirTypes.END -> endBeforeTypeOperator(leaf, dialect)
+            ElixirTypes.POWER_OPERATOR -> power(leaf, languageLevel)
+            ElixirTypes.IDENTIFIER_TOKEN -> if (leaf.text == "**") power(leaf, languageLevel) else notNfc(leaf, languageLevel)
+            ElixirTypes.ATOM_FRAGMENT -> atomFragment(leaf, languageLevel)
+            ElixirTypes.LITERAL_SIGIL_NAME, ElixirTypes.INTERPOLATING_SIGIL_NAME -> sigilName(leaf, languageLevel)
+            ElixirTypes.END -> endBeforeTypeOperator(leaf, languageLevel)
             else -> null
         }
 
     /** Before 1.13 Elixir's tokenizer reads `**` as two `*`, so `x.**` is `x.*` followed by `*`. */
-    private fun power(power: PsiElement, dialect: () -> QuotingDialect): Problem? {
-        if (dialect() >= V1_13) return null
+    private fun power(power: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? {
+        if (languageLevel() >= V1_13) return null
 
         val parent = power.parent
         val token = if (parent is ElixirRelativeIdentifier) {
@@ -140,7 +140,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
             val parenthesesArguments = PsiTreeUtil.getChildOfType(arguments, ElixirParenthesesArguments::class.java)?.children
 
             when {
-                parenthesesArguments == null -> tokenAfterPower(parent, dialect) ?: return null
+                parenthesesArguments == null -> tokenAfterPower(parent, languageLevel) ?: return null
                 parenthesesArguments.size > 1 || parenthesesArguments.singleOrNull() is ElixirKeywords -> "')'"
                 else -> return null
             }
@@ -154,13 +154,13 @@ internal class VersionedSyntax : Annotator, DumbAware {
     }
 
     /** The token Elixir names when the `*` after `x.*` has no operand, or null where that token is not known. */
-    private fun tokenAfterPower(identifier: PsiElement, dialect: () -> QuotingDialect): String? {
+    private fun tokenAfterPower(identifier: PsiElement, languageLevel: () -> ElixirLanguageLevel): String? {
         val next = generateSequence(PsiTreeUtil.nextLeaf(identifier)) { PsiTreeUtil.nextLeaf(it) }
             .firstOrNull { it !is PsiWhiteSpace && it !is PsiComment && it.text.isNotBlank() }
         if (next == null || isFinalBackslash(next) || next.parent is ElixirInterpolation) return ""
 
         val key = PsiTreeUtil.getParentOfType(next, ElixirKeywordKey::class.java)
-        if (key != null) return keywordKeyName(key, dialect)
+        if (key != null) return keywordKeyName(key, languageLevel)
 
         val type = when (next.node.elementType) {
             // The lexer makes some operators before `/` identifiers.
@@ -204,13 +204,13 @@ internal class VersionedSyntax : Annotator, DumbAware {
             gap.all { space -> withoutLineContinuations(space.text).all { it == ' ' || it == '\t' } }
     }
 
-    private fun keywordKeyName(key: ElixirKeywordKey, dialect: () -> QuotingDialect): String? {
+    private fun keywordKeyName(key: ElixirKeywordKey, languageLevel: () -> ElixirLanguageLevel): String? {
         val text = key.text
 
         return when {
             text.first() == '\"' || text.first() == '\'' -> quotedKeyName(key)
             // 1.11 accepts a `..//` key.
-            text == "..//" -> if (dialect() == V1_12) erlangAtom(text) else null
+            text == "..//" -> if (languageLevel() == V1_12) erlangAtom(text) else null
             text in KEYS_NAMED_OTHERWISE -> null
             else -> erlangAtom(text)
         }
@@ -225,21 +225,21 @@ internal class VersionedSyntax : Annotator, DumbAware {
         return unescape(text.substring(1, text.length - 1))?.let { "[${erlangBinary(it)}]" }
     }
 
-    private fun atomFragment(fragment: PsiElement, dialect: () -> QuotingDialect): Problem? =
+    private fun atomFragment(fragment: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? =
         when (fragment.parent) {
             is ElixirAtom ->
                 when (fragment.text) {
-                    "**" -> if (dialect() < V1_13) Problem(fragment.textRange, before("")) else null
-                    "..//" -> if (dialect() < V1_12) Problem(fragment.textRange, before("'/'")) else null
-                    else -> notNfc(fragment, dialect)
+                    "**" -> if (languageLevel() < V1_13) Problem(fragment.textRange, before("")) else null
+                    "..//" -> if (languageLevel() < V1_12) Problem(fragment.textRange, before("'/'")) else null
+                    else -> notNfc(fragment, languageLevel)
                 }
-            is ElixirKeywordKey -> notNfc(fragment, dialect)
+            is ElixirKeywordKey -> notNfc(fragment, languageLevel)
             else -> null
         }
 
-    private fun notNfc(word: PsiElement, dialect: () -> QuotingDialect): Problem? {
+    private fun notNfc(word: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? {
         val text = word.text
-        if (text.all { it.code < 128 } || Normalizer.isNormalized(text, Normalizer.Form.NFC) || dialect() >= V1_14) return null
+        if (text.all { it.code < 128 } || Normalizer.isNormalized(text, Normalizer.Form.NFC) || languageLevel() >= V1_14) return null
 
         val normalized = Normalizer.normalize(text, Normalizer.Form.NFC)
         val tooltip = HtmlBuilder()
@@ -254,13 +254,13 @@ internal class VersionedSyntax : Annotator, DumbAware {
     }
 
     /** Before 1.15 a sigil name is one letter; 1.15 and 1.16 take more uppercase letters, but not digits. */
-    private fun sigilName(name: PsiElement, dialect: () -> QuotingDialect): Problem? {
+    private fun sigilName(name: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? {
         val text = name.text
         if (text.length < 2) return null
 
         val index = when {
-            dialect() < V1_15 -> 1
-            dialect() < V1_17 -> text.indexOfFirst(Char::isDigit).takeIf { it > 0 } ?: return null
+            languageLevel() < V1_15 -> 1
+            languageLevel() < V1_17 -> text.indexOfFirst(Char::isDigit).takeIf { it > 0 } ?: return null
             else -> return null
         }
         val offset = name.textRange.startOffset + index
@@ -274,9 +274,9 @@ internal class VersionedSyntax : Annotator, DumbAware {
     }
 
     /** Before 1.12 a word followed by `:` was never a keyword, so `end::` left its block open. */
-    private fun endBeforeTypeOperator(end: PsiElement, dialect: () -> QuotingDialect): Problem? {
+    private fun endBeforeTypeOperator(end: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? {
         val text = end.containingFile.viewProvider.contents
-        if (!text.startsWith("::", end.textRange.endOffset) || dialect() >= V1_12) return null
+        if (!text.startsWith("::", end.textRange.endOffset) || languageLevel() >= V1_12) return null
 
         val block = end.parent
         if (block !is ElixirDoBlock && block !is ElixirAnonymousFunction) return null
@@ -318,12 +318,12 @@ internal class VersionedSyntax : Annotator, DumbAware {
      * A `.` key needs 1.13; before 1.12 Elixir's tokenizer read a sign after a call name and a space as a unary
      * operator, even when `:` followed it.
      */
-    private fun keywordKey(pair: PsiElement, dialect: () -> QuotingDialect): Problem? {
+    private fun keywordKey(pair: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? {
         val key = pair.firstChild as? ElixirKeywordKey ?: return null
         val colon = key.nextSibling?.takeIf { it.node.elementType == ElixirTypes.KEYWORD_PAIR_COLON } ?: return null
         val rejected = when (key.text) {
-            "." -> dialect() < V1_13
-            "+", "-" -> isSignAfterCallName(key) && dialect() < V1_12
+            "." -> languageLevel() < V1_13
+            "+", "-" -> isSignAfterCallName(key) && languageLevel() < V1_12
             else -> false
         }
 
@@ -359,15 +359,15 @@ internal class VersionedSyntax : Annotator, DumbAware {
      * Before 1.17 a map entry without `=>` is a variable, or a call without arguments or with parentheses, and from 1.13
      * also `foo bar` or `...a`.
      */
-    private fun mapEntry(base: ElixirAssociationsBase, dialect: () -> QuotingDialect): Problem? {
-        if (dialect() >= V1_17) return null
+    private fun mapEntry(base: ElixirAssociationsBase, languageLevel: () -> ElixirLanguageLevel): Problem? {
+        if (languageLevel() >= V1_17) return null
 
         // Elixir stops first at a space between `%` and `{`, which InvalidConstruct reports.
         val arguments = PsiTreeUtil.getParentOfType(base, ElixirMapArguments::class.java)
         if (arguments?.parent is ElixirMapOperation && arguments.prevSibling is PsiWhiteSpace) return null
 
-        val entry = base.children.firstOrNull { !isMapEntry(it, dialect) } ?: return null
-        if (unwrap(entry) is ElixirNullaryRangeOperation && dialect() < V1_14) return null
+        val entry = base.children.firstOrNull { !isMapEntry(it, languageLevel) } ?: return null
+        if (unwrap(entry) is ElixirNullaryRangeOperation && languageLevel() < V1_14) return null
 
         var next = PsiTreeUtil.nextLeaf(entry)
         var eol = false
@@ -382,7 +382,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
         return Problem(entry.textRange, before(if (eol) "eol" else "'${next.text}'"))
     }
 
-    private fun isMapEntry(entry: PsiElement, dialect: () -> QuotingDialect): Boolean =
+    private fun isMapEntry(entry: PsiElement, languageLevel: () -> ElixirLanguageLevel): Boolean =
         when (entry) {
             is ElixirContainerAssociationOperation,
             is ElixirVariable,
@@ -391,9 +391,9 @@ internal class VersionedSyntax : Annotator, DumbAware {
             is UnqualifiedParenthesesCall<*>,
             is QualifiedParenthesesCall<*>,
             is DotCall<*> -> true
-            is UnqualifiedNoParenthesesCall<*>, is QualifiedNoParenthesesCall<*> -> dialect() >= V1_13
+            is UnqualifiedNoParenthesesCall<*>, is QualifiedNoParenthesesCall<*> -> languageLevel() >= V1_13
             is ElixirMatchedUnaryOperation, is ElixirUnmatchedUnaryOperation ->
-                entry.firstChild.text == "..." && dialect() >= V1_13
+                entry.firstChild.text == "..." && languageLevel() >= V1_13
             else -> false
         }
 
@@ -401,7 +401,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
      * The lexer makes an operator before `/` an identifier, as Elixir's tokenizer does only after `&` before 1.13, and
      * only without a line continuation before the `/` before 1.20.
      */
-    private fun operatorArity(operation: PsiElement, dialect: () -> QuotingDialect): Problem? {
+    private fun operatorArity(operation: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? {
         val operator = operation.children.firstOrNull { it is ElixirMultiplicationInfixOperator && it.text == "/" } ?: return null
         val operand = operation.firstChild as? UnqualifiedNoArgumentsCall<*> ?: return null
         val name = operand.text
@@ -414,10 +414,10 @@ internal class VersionedSyntax : Annotator, DumbAware {
 
         if (between.contains("\\\n")) {
             // Before 1.20 Elixir reads `..` there as a range, which has no operands before 1.14.
-            if (name == "..") return if (dialect() < V1_14) Problem(operand.textRange, before("'..'")) else null
+            if (name == "..") return if (languageLevel() < V1_14) Problem(operand.textRange, before("'..'")) else null
             // Before 1.13 [power] reports the `**` itself.
-            if (name == "**" && dialect() < V1_13) return null
-            if (dialect() >= V1_20) return null
+            if (name == "**" && languageLevel() < V1_13) return null
+            if (languageLevel() >= V1_20) return null
 
             return when (name) {
                 "..//" ->
@@ -428,7 +428,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
                 "/", "not", in UNARY_OPERATORS -> Problem(operator.textRange, before("'/'"))
                 // After an operand the operator is binary, so Elixir names the `/` that should have been its operand.
                 else ->
-                    if (isAfterOperand(operand, dialect)) {
+                    if (isAfterOperand(operand, languageLevel)) {
                         Problem(operator.textRange, before("'/'"))
                     } else {
                         Problem(operand.textRange, before(erlangAtom(name) ?: return null))
@@ -445,7 +445,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
         }
         val captured = !newline && previous?.node?.elementType == ElixirTypes.CAPTURE_OPERATOR
 
-        return if (name in UNARY_OPERATORS && !captured && dialect() < V1_13) {
+        return if (name in UNARY_OPERATORS && !captured && languageLevel() < V1_13) {
             Problem(operator.textRange, before("'/'"))
         } else {
             null
@@ -453,22 +453,22 @@ internal class VersionedSyntax : Annotator, DumbAware {
     }
 
     /** Whether an identifier, or `x.**` from 1.13, comes directly before [operand]. */
-    private fun isAfterOperand(operand: PsiElement, dialect: () -> QuotingDialect): Boolean {
+    private fun isAfterOperand(operand: PsiElement, languageLevel: () -> ElixirLanguageLevel): Boolean {
         val previous = generateSequence(PsiTreeUtil.prevLeaf(operand)) { PsiTreeUtil.prevLeaf(it) }
             .firstOrNull { it !is PsiWhiteSpace && it.textLength > 0 }
             ?: return false
 
         return if (previous.text == "**" && previous.parent is ElixirRelativeIdentifier) {
-            dialect() >= V1_13
+            languageLevel() >= V1_13
         } else {
             previous.node.elementType == ElixirTypes.IDENTIFIER_TOKEN
         }
     }
 
-    private fun stepOperator(operation: PsiElement, dialect: () -> QuotingDialect): Problem? {
+    private fun stepOperator(operation: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? {
         val operator = operation.children.firstOrNull { it is ElixirTernaryInfixOperator } ?: return null
 
-        return if (dialect() >= V1_12 && !isRange(operation.firstChild)) Problem(operator.textRange, STEP) else null
+        return if (languageLevel() >= V1_12 && !isRange(operation.firstChild)) Problem(operator.textRange, STEP) else null
     }
 
     private fun isRange(element: PsiElement?): Boolean =
@@ -487,7 +487,10 @@ internal class VersionedSyntax : Annotator, DumbAware {
         }
 
     /** Elixir 1.13 to 1.17 crash turning a quoted call name into an atom when a grapheme cluster has several code points. */
-    private fun graphemeCluster(identifier: ElixirRelativeIdentifier, dialect: () -> QuotingDialect): Problem? {
+    private fun graphemeCluster(
+        identifier: ElixirRelativeIdentifier,
+        languageLevel: () -> ElixirLanguageLevel,
+    ): Problem? {
         val line = identifier.line ?: return null
         val body = line.lineBody?.text ?: return null
         if (body.all { it.code < 128 }) return null
@@ -498,7 +501,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
 
         while (end != BreakIterator.DONE) {
             if (Character.codePointCount(body, start, end) > 1) {
-                return if (dialect() in V1_13..V1_17) Problem(line.textRange, NOT_A_LIST_OF_CHARACTERS) else null
+                return if (languageLevel() in V1_13..V1_17) Problem(line.textRange, NOT_A_LIST_OF_CHARACTERS) else null
             }
 
             start = end
@@ -509,7 +512,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
     }
 
     /** Elixir unescapes a quoted call name from 1.18, so `\x` or `\u` without digits there is then an error. */
-    private fun escapedCharacter(escaped: ElixirEscapedCharacter, dialect: () -> QuotingDialect): Problem? {
+    private fun escapedCharacter(escaped: ElixirEscapedCharacter, languageLevel: () -> ElixirLanguageLevel): Problem? {
         if (PsiTreeUtil.getParentOfType(escaped, ElixirRelativeIdentifier::class.java) == null) return null
 
         val message = when (escaped.lastChild?.text) {
@@ -518,11 +521,11 @@ internal class VersionedSyntax : Annotator, DumbAware {
             else -> return null
         }
 
-        return if (dialect() >= V1_18) Problem(escaped.textRange, message) else null
+        return if (languageLevel() >= V1_18) Problem(escaped.textRange, message) else null
     }
 
     /** 1.20 removed `\xH` and `\x{H*}`; an invalid code point in one is reported by [InvalidConstruct]. */
-    private fun hexadecimalEscape(escape: ElixirQuoteHexadecimalEscapeSequence, dialect: () -> QuotingDialect): Problem? {
+    private fun hexadecimalEscape(escape: ElixirQuoteHexadecimalEscapeSequence, languageLevel: () -> ElixirLanguageLevel): Problem? {
         if (!escape.hexadecimalEscapePrefix.text.endsWith("x")) return null
         if (PsiTreeUtil.getParentOfType(escape, ElixirCharToken::class.java) != null) return null
 
@@ -536,7 +539,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
         val codePoint = digits.toLongOrNull(16) ?: return null
         if (codePoint in 0xD800..0xDFFF || codePoint > 0x10FFFF) return null
 
-        return if (dialect() >= V1_20) Problem(escape.textRange, INVALID_HEX_ESCAPE) else null
+        return if (languageLevel() >= V1_20) Problem(escape.textRange, INVALID_HEX_ESCAPE) else null
     }
 
     private fun column(element: PsiElement, offset: Int): Int {

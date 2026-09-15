@@ -14,8 +14,8 @@ import org.elixir_lang.psi.ElixirDecimalFloatFractional
 import org.elixir_lang.psi.ElixirDecimalFloatIntegral
 import org.elixir_lang.psi.ElixirTypes
 import org.elixir_lang.psi.WholeNumber
-import org.elixir_lang.psi.quoting.QuotingDialect
-import org.elixir_lang.psi.quoting.QuotingDialectResolver
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 
 /**
  * Reports, as errors, the words and numbers that Elixir's tokenizer rejects and the plugin's lexer accepts.
@@ -87,14 +87,20 @@ internal class InvalidToken : Annotator, DumbAware {
         val text = leaf.containingFile.viewProvider.contents
         val start = leaf.textRange.startOffset
 
-        return if (continuesWord(text, start)) null else word(text, start) { QuotingDialectResolver.dialectFor(leaf) }
+        if (continuesWord(text, start)) return null
+
+        return word(text, start) { ElixirLanguageLevelResolver.languageLevelFor(leaf) }
     }
 
     /**
      * The checks of Elixir's tokenizer on a word, in its order: a keyword with a space after the colon is left alone,
      * so `[foo@bar: 1]` is valid while `foo@bar:1` is only a missing space.
      */
-    private fun word(text: CharSequence, start: Int, dialect: () -> QuotingDialect): Pair<TextRange, String>? {
+    private fun word(
+        text: CharSequence,
+        start: Int,
+        languageLevel: () -> ElixirLanguageLevel,
+    ): Pair<TextRange, String>? {
         val end = wordEnd(text, start)
         if (end == start) return null
 
@@ -117,18 +123,18 @@ internal class InvalidToken : Annotator, DumbAware {
         return when {
             '@' in word -> range to invalidCharacter('@'.code, kind, word)
             word == "__aliases__" || word == "__block__" -> range to "reserved token: $word"
-            kind == "alias" -> alias(word, dialect())?.let { range to it }
+            kind == "alias" -> alias(word, languageLevel())?.let { range to it }
             else -> null
         }
     }
 
-    private fun alias(alias: String, dialect: QuotingDialect): String? {
+    private fun alias(alias: String, languageLevel: ElixirLanguageLevel): String? {
         val nonAscii = alias.codePoints().filter { it > 127 }.findFirst()
         val punctuation = alias.last().takeIf { it == '?' || it == '!' }
 
         return when {
             !nonAscii.isPresent && punctuation == null -> null
-            dialect >= QuotingDialect.V1_14 ->
+            languageLevel >= ElixirLanguageLevel.V1_14 ->
                 invalidCharacter(
                     alias.codePoints().filter { it < 'A'.code || it > 127 }.findFirst().asInt,
                     "alias (only ASCII characters, without punctuation, are allowed)",
@@ -146,7 +152,7 @@ internal class InvalidToken : Annotator, DumbAware {
     private fun number(number: PsiElement): Pair<TextRange, String>? {
         val text = number.containingFile.viewProvider.contents
         val start = number.textRange.startOffset
-        val dialect = QuotingDialectResolver.dialectFor(number)
+        val languageLevel = ElixirLanguageLevelResolver.languageLevelFor(number)
         val baseEnd = baseEnd(text, start)
 
         val decimalStart = if (baseEnd == null) {
@@ -155,15 +161,15 @@ internal class InvalidToken : Annotator, DumbAware {
             val next = text.getOrNull(baseEnd) ?: return null
 
             when {
-                next.isAsciiDigit() && dialect >= QuotingDialect.V1_12 -> baseEnd
+                next.isAsciiDigit() && languageLevel >= ElixirLanguageLevel.V1_12 -> baseEnd
                 next.isAsciiDigit() -> {
                     val digitsEnd = decimalEnd(text, baseEnd)
 
-                    return rejectedWord(text, start, digitsEnd, dialect)
+                    return rejectedWord(text, start, digitsEnd, languageLevel)
                         ?: (TextRange(start, wordEnd(text, digitsEnd)) to
                             "syntax error before: \"${text.substring(baseEnd, digitsEnd)}\"")
                 }
-                next.isAsciiLetter() || next == '_' -> return afterLiteral(text, start, baseEnd, dialect)
+                next.isAsciiLetter() || next == '_' -> return afterLiteral(text, start, baseEnd, languageLevel)
                 else -> return null
             }
         }
@@ -177,17 +183,17 @@ internal class InvalidToken : Annotator, DumbAware {
             val range = TextRange(start, wordEnd)
 
             return when {
-                dialect >= QuotingDialect.V1_14 ->
+                languageLevel >= ElixirLanguageLevel.V1_14 ->
                     range to "invalid character \"$next\" after number $decimal. If you intended to write a number, make " +
                         "sure to separate the number from the character (using comma, space, etc). If you meant to write " +
                         "a function name or a variable, note that identifiers in Elixir cannot start with numbers. " +
                         "Unexpected token: $next"
-                dialect >= QuotingDialect.V1_12 ->
+                languageLevel >= ElixirLanguageLevel.V1_12 ->
                     range to "invalid character $next after number $decimal. If you intended to write a number, make sure " +
                         "to add the proper punctuation character after the number (space, comma, etc). If you meant to " +
                         "write an identifier, note that identifiers in Elixir cannot start with numbers. Unexpected " +
                         "token: $next"
-                else -> afterLiteral(text, start, end, dialect)
+                else -> afterLiteral(text, start, end, languageLevel)
             }
         }
 
@@ -202,9 +208,9 @@ internal class InvalidToken : Annotator, DumbAware {
         text: CharSequence,
         numberStart: Int,
         wordStart: Int,
-        dialect: QuotingDialect
+        languageLevel: ElixirLanguageLevel
     ): Pair<TextRange, String>? {
-        rejectedWord(text, numberStart, wordStart, dialect)?.let { return it }
+        rejectedWord(text, numberStart, wordStart, languageLevel)?.let { return it }
 
         val wordEnd = wordEnd(text, wordStart)
         val word = text.substring(wordStart, wordEnd)
@@ -219,7 +225,7 @@ internal class InvalidToken : Annotator, DumbAware {
                         "syntax error before: '$word:'"
                     }
             word in KEYWORDS || (word == "not" && isFollowedByIn(text, wordEnd)) -> null
-            else -> TextRange(numberStart, wordEnd) to "syntax error before: ${atom(word, dialect)}"
+            else -> TextRange(numberStart, wordEnd) to "syntax error before: ${atom(word, languageLevel)}"
         }
     }
 
@@ -228,12 +234,12 @@ internal class InvalidToken : Annotator, DumbAware {
         text: CharSequence,
         numberStart: Int,
         wordStart: Int,
-        dialect: QuotingDialect
+        languageLevel: ElixirLanguageLevel
     ): Pair<TextRange, String>? {
         val first = text.getOrNull(wordStart) ?: return null
         if (!first.isAsciiLetter() && first != '_') return null
 
-        return word(text, wordStart) { dialect }?.let { (range, message) ->
+        return word(text, wordStart) { languageLevel }?.let { (range, message) ->
             TextRange(numberStart, maxOf(range.endOffset, wordEnd(text, wordStart))) to message
         }
     }
@@ -406,11 +412,11 @@ private fun invalidCharacter(codePoint: Int, kind: String, word: String): String
  * How Elixir's parser prints a word it stopped before: as an Erlang atom. Elixir 1.20 requires Erlang/OTP 27, which
  * reserves `maybe`; before 1.20 that depends on the OTP release, so it is left unquoted.
  */
-private fun atom(word: String, dialect: QuotingDialect): String =
+private fun atom(word: String, languageLevel: ElixirLanguageLevel): String =
     if (
         word.matches(UNQUOTED_ATOM) &&
         word !in ERLANG_RESERVED_WORDS &&
-        !(dialect >= QuotingDialect.V1_20 && word == "maybe")
+        !(languageLevel >= ElixirLanguageLevel.V1_20 && word == "maybe")
     ) {
         word
     } else {

@@ -1,6 +1,6 @@
 package org.elixir_lang.parser_definition;
 
-import org.elixir_lang.psi.quoting.QuotingDialect;
+import org.elixir_lang.language_level.ElixirLanguageLevel;
 
 /**
  * Created by kadie.enheduanna.inanna on 8/7/14.
@@ -11,11 +11,11 @@ public class CharListLineParsingTestCase extends ParsingTestCase {
     }
 
     public void testEmptyUnicodeEscapeSequence() {
-        assertParsedAndQuotedAroundErrorOrRaise(QuotingDialect.V1_12, "Elixir.ArgumentError");
+        assertParsedAndQuotedAroundErrorOrRaise(ElixirLanguageLevel.V1_12, "Elixir.ArgumentError");
     }
 
     public void testEnclosedHexEscapeSequence() {
-        assertParsedAndQuotedCorrectlyBefore(QuotingDialect.V1_20);
+        assertParsedAndQuotedCorrectlyBefore(ElixirLanguageLevel.V1_20);
     }
 
     public void testEscapeSequences() {

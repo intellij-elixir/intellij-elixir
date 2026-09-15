@@ -8,7 +8,7 @@ import org.elixir_lang.psi.call.name.Module
 import org.elixir_lang.psi.impl.QuotableImpl.metadata
 import org.elixir_lang.psi.impl.QuotableImpl.quotedFunctionCall
 import org.elixir_lang.psi.impl.QuotableImpl.quotedInterpolationCall
-import org.elixir_lang.psi.quoting.QuotingDialectResolver.dialectFor
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver.languageLevelFor
 import org.jetbrains.annotations.Contract
 import java.io.ByteArrayOutputStream
 import java.nio.charset.Charset
@@ -127,10 +127,10 @@ object ParentImpl {
     ): List<Int> {
         val codePointList: MutableList<Int> = ensureCodePointList(maybeCodePointList)
 
-        // See QuotingDialect.V1_12; `~S` and plain strings are the same in every version, and only a
-        // sigil reaches dialectFor - atom resolution calls this too.
+        // See ElixirLanguageLevel.V1_12; `~S` and plain strings are the same in every version, and only a
+        // sigil reaches languageLevelFor - atom resolution calls this too.
         if (parent is Sigil &&
-            (parent !is Interpolated || dialectFor(parent).keepsEscapedNewlineInExtractedBuffer)
+            (parent !is Interpolated || languageLevelFor(parent).keepsEscapedNewlineInExtractedBuffer)
         ) {
             codePointList.addAll(codePoints("\\\n"))
         }
@@ -143,8 +143,8 @@ object ParentImpl {
     fun addEscapedTerminator(parent: Parent, maybeCodePointList: MutableList<Int>?, child: ASTNode): List<Int> {
         val codePointList: MutableList<Int> = ensureCodePointList(maybeCodePointList)
 
-        // See QuotingDialect.V1_13; plain heredocs and sigil lines are the same in every version.
-        val text = if (parent is SigilHeredocLiteral && !dialectFor(parent).unescapesSigilHeredocTerminator) {
+        // See ElixirLanguageLevel.V1_13; plain heredocs and sigil lines are the same in every version.
+        val text = if (parent is SigilHeredocLiteral && !languageLevelFor(parent).unescapesSigilHeredocTerminator) {
             child.text
         } else {
             child.psi.lastChild.text

@@ -13,7 +13,7 @@ import com.intellij.psi.FilePropertyKeyImpl
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.ElixirFileType
 import org.elixir_lang.isElixirModule
-import org.elixir_lang.psi.quoting.QuotingDialect
+import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.sdk.elixir.ElixirSdkLookup
 import org.elixir_lang.sdk.elixir.sdk
 
@@ -30,7 +30,7 @@ internal class ElixirLanguageLevelPusher : FilePropertyPusher<String> {
 
     override fun pushDirectoriesOnly(): Boolean = true
 
-    override fun getDefaultValue(): String = QuotingDialect.FALLBACK.name
+    override fun getDefaultValue(): String = ElixirLanguageLevel.FALLBACK.name
 
     override fun getImmediateValue(module: Module): String? = levelOf(module)?.name
 
@@ -92,11 +92,11 @@ internal class ElixirLanguageLevelPusher : FilePropertyPusher<String> {
 
         /** `null` until the store has read the SDK's home, which is not the same as having no SDK. */
         @RequiresReadLock
-        internal fun levelOf(module: Module): QuotingDialect? {
-            val sdk = ElixirSdkLookup.resolve(module).sdk ?: return QuotingDialect.FALLBACK
+        internal fun levelOf(module: Module): ElixirLanguageLevel? {
+            val sdk = ElixirSdkLookup.resolve(module).sdk ?: return ElixirLanguageLevel.FALLBACK
             val version = SdkVersionsStore.getInstance().elixirVersions(sdk.homePath)?.elixirVersion ?: return null
 
-            return QuotingDialect.of(version)
+            return ElixirLanguageLevel.of(version)
         }
     }
 }

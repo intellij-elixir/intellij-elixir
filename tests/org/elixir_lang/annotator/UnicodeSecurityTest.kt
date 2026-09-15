@@ -12,26 +12,26 @@ import org.elixir_lang.ElixirFileType
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.injection.ElixirSigilInjector
 import org.elixir_lang.psi.SigilLine
-import org.elixir_lang.psi.quoting.QuotingDialect
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_12
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_13
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_14
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_15
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_17
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_18
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_19
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_20
-import org.elixir_lang.psi.quoting.QuotingDialectResolver
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_12
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_13
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_14
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_15
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_17
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_18
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_19
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_20
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.settings.ElixirExperimentalSettings
 
 /**
  * Expected outcomes were measured by running `Code.string_to_quoted/1` on every release from 1.12 to 1.20; a case whose
- * outcome changed runs on the dialects either side of that release.
+ * outcome changed runs on the language levels either side of that release.
  */
 class UnicodeSecurityTest : BasePlatformTestCase() {
     override fun tearDown() {
         try {
-            QuotingDialectResolver.overrideDialect(project, null)
+            ElixirLanguageLevelResolver.overrideLanguageLevel(project, null)
         } catch (e: Throwable) {
             addSuppressedException(e)
         } finally {
@@ -141,7 +141,7 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
     fun testCodeInjectedIntoSigilDocumentationIsNotCompiled() {
         val source = "defmodule Sample do\n  @moduledoc ~S\"\"\"\n      \u0430dmin = 1\n  \"\"\"\nend\n"
 
-        QuotingDialectResolver.overrideDialect(project, V1_20)
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, V1_20)
         myFixture.configureByText(ElixirFileType.INSTANCE, source)
 
         assertInjectedElixirAt(source.indexOf("dmin"))
@@ -171,7 +171,7 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
             )
             val source = "~S(\u0430dmin = 1)"
 
-            QuotingDialectResolver.overrideDialect(project, V1_20)
+            ElixirLanguageLevelResolver.overrideLanguageLevel(project, V1_20)
             myFixture.configureByText(ElixirFileType.INSTANCE, source)
 
             assertInjectedElixirAt(source.indexOf("dmin"))
@@ -212,7 +212,7 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
     fun testElixirInAMarkdownCodeBlockIsNotChecked() {
         val source = "```elixir\n\u0430dmin = 1\n```\n"
 
-        QuotingDialectResolver.overrideDialect(project, V1_20)
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, V1_20)
         myFixture.configureByText("README.md", source)
 
         assertInjectedElixirAt(source.indexOf("dmin"))
@@ -224,7 +224,7 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
             val source =
                 "defmodule Sample do\n  # language=$language\n  @doc $documentation\n  <div><%= \u0430dmin %></div>\n  \"\"\"\n  def sample, do: 1\nend\n"
 
-            QuotingDialectResolver.overrideDialect(project, V1_20)
+            ElixirLanguageLevelResolver.overrideLanguageLevel(project, V1_20)
             myFixture.configureByText(ElixirFileType.INSTANCE, source)
 
             assertEquals(
@@ -420,8 +420,8 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
     private fun inString(prefix: String, hex: String): String =
         "$prefix in string: \\u$hex. If you want to use such character, use it in its escaped \\u$hex form instead"
 
-    private fun errors(dialect: QuotingDialect, source: String): List<Pair<String, String?>> {
-        QuotingDialectResolver.overrideDialect(project, dialect)
+    private fun errors(languageLevel: ElixirLanguageLevel, source: String): List<Pair<String, String?>> {
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, languageLevel)
         myFixture.configureByText(ElixirFileType.INSTANCE, source)
 
         return myFixture
@@ -429,11 +429,19 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
             .map { source.substring(it.startOffset, it.endOffset) to it.description }
     }
 
-    private fun assertNoErrors(dialect: QuotingDialect, source: String) {
-        assertEquals("errors in ${escaped(source)} on $dialect", emptyList<Pair<String, String?>>(), errors(dialect, source))
+    private fun assertNoErrors(languageLevel: ElixirLanguageLevel, source: String) {
+        assertEquals(
+            "errors in ${escaped(source)} on $languageLevel",
+            emptyList<Pair<String, String?>>(),
+            errors(languageLevel, source)
+        )
     }
 
-    private fun assertErrors(dialect: QuotingDialect, source: String, vararg expected: Pair<String, String>) {
-        assertEquals("errors in ${escaped(source)} on $dialect", expected.toList(), errors(dialect, source))
+    private fun assertErrors(
+        languageLevel: ElixirLanguageLevel,
+        source: String,
+        vararg expected: Pair<String, String>
+    ) {
+        assertEquals("errors in ${escaped(source)} on $languageLevel", expected.toList(), errors(languageLevel, source))
     }
 }

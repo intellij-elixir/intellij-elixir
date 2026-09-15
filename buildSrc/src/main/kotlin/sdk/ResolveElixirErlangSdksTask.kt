@@ -112,8 +112,8 @@ abstract class ResolveElixirErlangSdksTask : DefaultTask() {
      *
      * [ElixirErlangSdkResolver] warns and carries on with a null version, which used to be written
      * out as an empty field. Nothing downstream treats that as an error: `elixirTestEnvironment`
-     * maps it to a blank `ELIXIR_VERSION`, and the parser tests read that to decide the quoting
-     * dialect, so a blank silently changes what they assert. Worse, this task is `@OutputFile`-based
+     * maps it to a blank `ELIXIR_VERSION`, and the parser tests read that to decide the language
+     * level, so a blank silently changes what they assert. Worse, this task is `@OutputFile`-based
      * and its inputs are the *expected* versions - so one bad resolution stays UP-TO-DATE and is
      * served to every later run until an input happens to change.
      */
@@ -127,7 +127,7 @@ abstract class ResolveElixirErlangSdksTask : DefaultTask() {
                 undetected.forEach {
                     appendLine("    ${it.name}: expected ${it.expectedVersion ?: "unknown"}, found at ${it.homePath} (source=${it.source})")
                 }
-                appendLine("The version is not cosmetic - it selects the quoting dialect the parser tests")
+                appendLine("The version is not cosmetic - it selects the language level the parser tests")
                 appendLine("assert against, so recording a blank would change what they test.")
                 appendLine("Check that the SDK above runs, or name the versions explicitly:")
                 append("    -PelixirVersion=<version> -PotpVersion=<version>")

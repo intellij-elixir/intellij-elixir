@@ -5,18 +5,18 @@ import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import org.elixir_lang.ElixirFileType
 import org.elixir_lang.ElixirLanguage
-import org.elixir_lang.psi.quoting.QuotingDialect
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_11
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_12
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_13
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_14
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_15
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_16_2
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_17
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_18
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_19
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_20
-import org.elixir_lang.psi.quoting.QuotingDialectResolver
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_11
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_12
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_13
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_14
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_15
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_16_2
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_17
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_18
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_19
+import org.elixir_lang.language_level.ElixirLanguageLevel.V1_20
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 
 /**
  * Syntax that some Elixir releases reject and others accept. Outcomes were taken from `Code.string_to_quoted/1` on every
@@ -27,7 +27,7 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
 
     override fun tearDown() {
         try {
-            QuotingDialectResolver.overrideDialect(project, null)
+            ElixirLanguageLevelResolver.overrideLanguageLevel(project, null)
         } catch (e: Throwable) {
             addSuppressedException(e)
         } finally {
@@ -202,7 +202,7 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
         assertErrors(V1_12, "2 ** 3 ** 4", "**" to before("'*'"), "**" to before("'*'"))
         assertErrors(V1_12, "x.** ** y", "**" to before("'*'"))
         // Both `**` have the same text, so compare where the error starts.
-        QuotingDialectResolver.overrideDialect(project, V1_12)
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, V1_12)
         myFixture.configureByText("versioned_syntax_${files++}.ex", "x.** **: 1")
         assertEquals(listOf(5 to before("'*'")), myFixture.doHighlighting(HighlightSeverity.ERROR).map { it.startOffset to it.description })
 
@@ -226,8 +226,8 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
         assertEquals(listOf("**" to before("'..//'")), errors(V1_12, "x.** ..//: 1").filter { it.first == "**" })
         assertEquals(emptyList<Pair<String, String?>>(), errors(V1_11, "x.** ..//: 1").filter { it.first == "**" })
         for (source in listOf("x.** /: 1", "x.** ::: 1", "x.** =>: 1", "x.** ..// y", "x.** .. / y", "x.** .. // y", "x.** .. //: 1")) {
-            for (dialect in listOf(V1_11, V1_12)) {
-                assertEquals("$source on $dialect", emptyList<String?>(), errors(dialect, source).filter { it.first == "**" }.map { it.second })
+            for (languageLevel in listOf(V1_11, V1_12)) {
+                assertEquals("$source on $languageLevel", emptyList<String?>(), errors(languageLevel, source).filter { it.first == "**" }.map { it.second })
             }
         }
         assertErrors(V1_12, "x.** !/2", "/" to before("'/'"))
@@ -238,8 +238,8 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             "x.** == # c\n/2" to "'=='",
             "x.** ==\n\n/2" to "'=='",
         )) {
-            for (dialect in listOf(V1_11, V1_12)) {
-                assertEquals("$source on $dialect", listOf("**" to before(token)), errors(dialect, source).filter { it.first == "**" })
+            for (languageLevel in listOf(V1_11, V1_12)) {
+                assertEquals("$source on $languageLevel", listOf("**" to before(token)), errors(languageLevel, source).filter { it.first == "**" })
             }
         }
         assertErrors(V1_12, "x.** ==\\\n/2", "==" to before("'=='"))
@@ -273,8 +273,8 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             "x.** >= /2", "x.** &&& /2", "x.** or/2", "x.** = /2", "x.** :: /2", "x.** ^^^/2", "x.** * /2", "x.** .. /2",
             "x.** in /2", "x.** when /2", "x.** \\\\ /2",
         )) {
-            for (dialect in listOf(V1_11, V1_12)) {
-                assertEquals("$source on $dialect", emptyList<Pair<String, String?>>(), errors(dialect, source).filter { it.first == "**" })
+            for (languageLevel in listOf(V1_11, V1_12)) {
+                assertEquals("$source on $languageLevel", emptyList<Pair<String, String?>>(), errors(languageLevel, source).filter { it.first == "**" })
             }
         }
     }
@@ -301,10 +301,10 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
     }
 
     fun testUppercaseSigilWithDigitsBefore1_17() {
-        for (dialect in listOf(V1_15, V1_16_2)) {
-            assertErrors(dialect, "~A1()", "1" to sigilDelimiter('1', 3))
-            assertErrors(dialect, "~AB1()", "1" to sigilDelimiter('1', 4))
-            assertNoErrors(dialect, "~MAT()")
+        for (languageLevel in listOf(V1_15, V1_16_2)) {
+            assertErrors(languageLevel, "~A1()", "1" to sigilDelimiter('1', 3))
+            assertErrors(languageLevel, "~AB1()", "1" to sigilDelimiter('1', 4))
+            assertNoErrors(languageLevel, "~MAT()")
         }
 
         for (source in listOf("~A1()", "~AB1()", "~MAT()", "~UNKNOWN'abc'")) {
@@ -341,7 +341,7 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
     }
 
     fun testIdentifierNotInNfcTooltip() {
-        QuotingDialectResolver.overrideDialect(project, V1_13)
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, V1_13)
         myFixture.configureByText("nfc.ex", "c\u0327?")
 
         val tooltip = myFixture.doHighlighting(HighlightSeverity.ERROR).single().toolTip.orEmpty()
@@ -378,8 +378,8 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
         }
 
         for (source in listOf("&+/\\\n2", "&\\\n+/2", "&foo\\\n/2", "&+/2", "&+ /2", "&<<>>\\\n/1", "&{}\\\n/1", "&%{}\\\n/1")) {
-            for (dialect in listOf(V1_11, V1_19, V1_20)) {
-                assertNoErrors(dialect, source)
+            for (languageLevel in listOf(V1_11, V1_19, V1_20)) {
+                assertNoErrors(languageLevel, source)
             }
         }
 
@@ -392,20 +392,20 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
         val named = listOf(before("'/'"), before("'=='"), before("in"), before("'in'"))
 
         for (source in listOf("x ==\\\n/2", "f ==\\\n/2", "x.y ==\\\n/2")) {
-            for (dialect in listOf(V1_11, V1_19)) {
-                assertEquals("$source on $dialect", listOf("/" to before("'/'")), errors(dialect, source).filter { it.second in named })
+            for (languageLevel in listOf(V1_11, V1_19)) {
+                assertEquals("$source on $languageLevel", listOf("/" to before("'/'")), errors(languageLevel, source).filter { it.second in named })
             }
         }
 
-        for (dialect in listOf(V1_11, V1_12)) {
-            assertEquals("x.** on $dialect", listOf("==" to before("'=='")), errors(dialect, "x.** ==\\\n/2").filter { it.second in named })
+        for (languageLevel in listOf(V1_11, V1_12)) {
+            assertEquals("x.** on $languageLevel", listOf("==" to before("'=='")), errors(languageLevel, "x.** ==\\\n/2").filter { it.second in named })
         }
-        for (dialect in listOf(V1_13, V1_19)) {
-            assertEquals("x.** on $dialect", listOf("/" to before("'/'")), errors(dialect, "x.** ==\\\n/2").filter { it.second in named })
+        for (languageLevel in listOf(V1_13, V1_19)) {
+            assertEquals("x.** on $languageLevel", listOf("/" to before("'/'")), errors(languageLevel, "x.** ==\\\n/2").filter { it.second in named })
         }
 
-        for (dialect in listOf(V1_11, V1_12)) {
-            assertEquals("x.** in on $dialect", listOf("in" to before("in")), errors(dialect, "x.** in\\\n/2").filter { it.second in named })
+        for (languageLevel in listOf(V1_11, V1_12)) {
+            assertEquals("x.** in on $languageLevel", listOf("in" to before("in")), errors(languageLevel, "x.** in\\\n/2").filter { it.second in named })
         }
 
         for (source in listOf("[==\\\n/2]", "f(==\\\n/2)", "x = ==\\\n/2")) {
@@ -695,7 +695,7 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
     fun testElixirInDocumentationIsNotChecked() {
         val source = "defmodule Sample do\n  @moduledoc \"\"\"\n      x = ..\n  \"\"\"\nend\n"
 
-        QuotingDialectResolver.overrideDialect(project, V1_13)
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, V1_13)
         myFixture.configureByText(ElixirFileType.INSTANCE, source)
 
         assertEquals(
@@ -717,9 +717,10 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
         )
     }
 
-    private fun errors(dialect: QuotingDialect, source: String): List<Pair<String, String?>> {
-        QuotingDialectResolver.overrideDialect(project, dialect)
-        // A new file name each time, or a file with the same text keeps the tree parsed under the previous dialect.
+    private fun errors(languageLevel: ElixirLanguageLevel, source: String): List<Pair<String, String?>> {
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, languageLevel)
+        // A new file name each time, or a file with the same text keeps the tree parsed under the previous language
+        // level.
         myFixture.configureByText("versioned_syntax_${files++}.ex", source)
 
         return myFixture
@@ -727,12 +728,20 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             .map { source.substring(it.startOffset, it.endOffset) to it.description }
     }
 
-    private fun assertNoErrors(dialect: QuotingDialect, source: String) {
-        assertEquals("errors in $source on $dialect", emptyList<Pair<String, String?>>(), errors(dialect, source))
+    private fun assertNoErrors(languageLevel: ElixirLanguageLevel, source: String) {
+        assertEquals(
+            "errors in $source on $languageLevel",
+            emptyList<Pair<String, String?>>(),
+            errors(languageLevel, source)
+        )
     }
 
-    private fun assertErrors(dialect: QuotingDialect, source: String, vararg expected: Pair<String, String>) {
-        assertEquals("errors in $source on $dialect", expected.toList(), errors(dialect, source))
+    private fun assertErrors(
+        languageLevel: ElixirLanguageLevel,
+        source: String,
+        vararg expected: Pair<String, String>
+    ) {
+        assertEquals("errors in $source on $languageLevel", expected.toList(), errors(languageLevel, source))
     }
 
     private companion object {

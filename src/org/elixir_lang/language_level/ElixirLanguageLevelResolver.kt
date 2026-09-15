@@ -1,4 +1,4 @@
-package org.elixir_lang.psi.quoting
+package org.elixir_lang.language_level
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.Sdk
@@ -19,24 +19,24 @@ import org.elixir_lang.sdk.elixir.sdk
 import org.jetbrains.annotations.TestOnly
 
 /**
- * Resolves the [QuotingDialect] to quote a given element in.
+ * Resolves the [ElixirLanguageLevel] to quote a given element in.
  *
  * Quoting recurses through the parameterless `Quotable.quote()`, so a child inherits nothing from
  * its parent's call, and consumers call `quote()` on arbitrary nodes rather than only on a file
- * root. The dialect therefore has to be derivable from any element on its own, which is what this
+ * root. The language level therefore has to be derivable from any element on its own, which is what this
  * resolves: element to containing file to module to Elixir SDK to version.
  */
-object QuotingDialectResolver {
+object ElixirLanguageLevelResolver {
     /**
-     * Set by tests that must exercise a specific dialect. See [overrideDialect] for why this exists
+     * Set by tests that must exercise a specific language level. See [overrideLanguageLevel] for why this exists
      * at all rather than the test reading the version the way production does.
      */
-    private val OVERRIDE_KEY = Key.create<QuotingDialect>("ELIXIR_QUOTING_DIALECT_OVERRIDE")
+    private val OVERRIDE_KEY = Key.create<ElixirLanguageLevel>("ELIXIR_LANGUAGE_LEVEL_OVERRIDE")
 
-    private val CACHE_KEY = Key.create<CachedValue<QuotingDialect>>("ELIXIR_QUOTING_DIALECT")
+    private val CACHE_KEY = Key.create<CachedValue<ElixirLanguageLevel>>("ELIXIR_LANGUAGE_LEVEL")
 
     /**
-     * The dialect for [element], or [QuotingDialect.FALLBACK] when its Elixir version cannot be
+     * The language level for [element], or [ElixirLanguageLevel.FALLBACK] when its Elixir version cannot be
      * determined.
      *
      * Only the handful of sites that actually diverge between versions call this, not every node of
@@ -45,17 +45,17 @@ object QuotingDialectResolver {
      */
     @RequiresReadLock
     @JvmStatic
-    fun dialectFor(element: PsiElement): QuotingDialect {
+    fun languageLevelFor(element: PsiElement): ElixirLanguageLevel {
         // Before the read-access assertion below, and before touching the module model: an override
         // needs neither, which is what lets the parser tests - light fixtures with a mock project
-        // that has no module, no SDK and no ProjectFileIndex - resolve a dialect at all.
+        // that has no module, no SDK and no ProjectFileIndex - resolve a language level at all.
         element.project.getUserData(OVERRIDE_KEY)?.let { return it }
 
-        val file = element.containingFile ?: return QuotingDialect.FALLBACK
+        val file = element.containingFile ?: return ElixirLanguageLevel.FALLBACK
 
         return CachedValuesManager.getCachedValue(file, CACHE_KEY) {
             // Invalidated on root changes, so pointing a module at a different Elixir SDK - or
-            // changing that SDK's home - re-resolves rather than serving the old dialect for the
+            // changing that SDK's home - re-resolves rather than serving the old language level for the
             // rest of the session.
             CachedValueProvider.Result.create(
                 resolve(file),
@@ -66,32 +66,32 @@ object QuotingDialectResolver {
     }
 
     @RequiresReadLock
-    private fun resolve(file: PsiFile): QuotingDialect {
+    private fun resolve(file: PsiFile): ElixirLanguageLevel {
         ThreadingAssertions.assertReadAccess()
         pushed(file)?.let { return it }
-        val sdk = ElixirSdkLookup.resolve(file).sdk ?: return QuotingDialect.FALLBACK
+        val sdk = ElixirSdkLookup.resolve(file).sdk ?: return ElixirLanguageLevel.FALLBACK
 
-        return QuotingDialect.of(version(sdk))
+        return ElixirLanguageLevel.of(version(sdk))
     }
 
     /** Indexing parses a copy in a `LightVirtualFile`, which is in no directory, so its original's is read. */
     @Suppress("UnstableApiUsage")
-    private fun pushed(file: PsiFile): QuotingDialect? {
+    private fun pushed(file: PsiFile): ElixirLanguageLevel? {
         val virtualFile = file.originalFile.viewProvider.virtualFile
         val original = (virtualFile as? LightVirtualFile)?.originalFile ?: virtualFile
         val name = ElixirLanguageLevelPusher.KEY.getPersistentValue(original.parent) ?: return null
 
-        return QuotingDialect.entries.firstOrNull { it.name == name }
+        return ElixirLanguageLevel.entries.firstOrNull { it.name == name }
     }
 
     /** From the store, never the files: quoting runs synchronously inside a read action and on the EDT. */
     private fun version(sdk: Sdk): String? = SdkVersionsStore.getInstance().elixirVersions(sdk.homePath)?.elixirVersion
 
     /**
-     * Forces [dialect] for every element in [project], or clears the override when it is null.
+     * Forces [languageLevel] for every element in [project], or clears the override when it is null.
      *
      * The parser tests run against light fixtures with no Elixir SDK, so production resolution would
-     * always reach [QuotingDialect.FALLBACK] and every CI leg would test the same dialect no matter
+     * always reach [ElixirLanguageLevel.FALLBACK] and every CI leg would test the same language level no matter
      * which Elixir it ran against. They set this instead, from the `ELIXIR_VERSION` the build
      * already exports to the test JVM.
      *
@@ -101,7 +101,7 @@ object QuotingDialectResolver {
      */
     @TestOnly
     @JvmStatic
-    fun overrideDialect(project: Project, dialect: QuotingDialect?) {
-        project.putUserData(OVERRIDE_KEY, dialect)
+    fun overrideLanguageLevel(project: Project, languageLevel: ElixirLanguageLevel?) {
+        project.putUserData(OVERRIDE_KEY, languageLevel)
     }
 }

@@ -25,8 +25,8 @@ import org.elixir_lang.psi.impl.ParentImpl.addChildTextCodePoints
 import org.elixir_lang.psi.impl.ParentImpl.elixirCharList
 import org.elixir_lang.psi.impl.ParentImpl.elixirString
 import org.elixir_lang.psi.operation.*
-import org.elixir_lang.psi.quoting.QuotingDialect
-import org.elixir_lang.psi.quoting.QuotingDialectResolver.dialectFor
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver.languageLevelFor
 import org.jetbrains.annotations.Contract
 import java.lang.Double
 import java.lang.Long
@@ -130,7 +130,7 @@ object QuotableImpl {
 
     /**
      * `one +(two)` quoted as the no-parentheses call `one(+two)` - what Elixir does from 1.17.0 - or
-     * `null` when this is not that shape or the dialect predates it, leaving the caller's
+     * `null` when this is not that shape or the language level predates it, leaving the caller's
      * binary-operation quoting correct.
      *
      * The plugin's lexer implements the pre-1.17.0 rule, so `one +two` already parses as a call and
@@ -168,7 +168,7 @@ object QuotableImpl {
         val afterIdentifier = beforeOperator.last().text.first()
         if (afterIdentifier != ' ' && afterIdentifier != '\t') return null
         // Before 1.20 Elixir stops at a line continuation between that space and the sign.
-        if (beforeOperator.any { '\\' in it.text } && !dialectFor(operator).countsEscapedNewlineAsSpace) return null
+        if (beforeOperator.any { '\\' in it.text } && !languageLevelFor(operator).countsEscapedNewlineAsSpace) return null
         val afterOperator = operator.nextSibling?.takeUnless { it is PsiWhiteSpace } ?: return null
 
         // `NotMarker =/= Sign, NotMarker =/= $/, NotMarker =/= $>` - the three exclusions 1.17.0 kept.
@@ -181,7 +181,7 @@ object QuotableImpl {
 
         val identifier = call.identifier
 
-        if (!dialectFor(identifier).quotesAmbiguousDualOperatorAsCall) return null
+        if (!languageLevelFor(identifier).quotesAmbiguousDualOperatorAsCall) return null
 
         val quotedRightOperand = infix.rightOperand()?.quote() ?: return null
 
@@ -214,7 +214,7 @@ object QuotableImpl {
                 metadata(notOperator),
                 quotedFunctionCall(
                         quotedInOperator,
-                        metadata(if (dialectFor(notIn).putsInOfNotInOnItsOwnLine) inOperator else notOperator),
+                        metadata(if (languageLevelFor(notIn).putsInOfNotInOnItsOwnLine) inOperator else notOperator),
                         quotedLeftOperand,
                         quotedRightOperand
                 )
@@ -1114,7 +1114,7 @@ object QuotableImpl {
             )
         } else if (identifierText == "..." &&
             !isFollowedBySlash(identifier) &&
-            dialectFor(identifier).quotesEllipsisAsNullaryCall
+            languageLevelFor(identifier).quotesEllipsisAsNullaryCall
         ) {
             // Elixir 1.17.0 gave the parser an `ellipsis_op` production built with
             // `build_nullary_op`, so `...` - in a `@spec` or on its own - became a call with no
@@ -1271,7 +1271,7 @@ object QuotableImpl {
             if (quotedChildren.isEmpty() &&
                 (interpolation.node.getChildren(null).any {
                     it.psi !is PsiComment && (it.textContains('\n') || it.textContains(';'))
-                } || dialectFor(interpolation).emitsLineMetadataOnBlock)
+                } || languageLevelFor(interpolation).emitsLineMetadataOnBlock)
             ) {
                 otpErlangList(keywordTuple("line", 1))
             } else {
@@ -1512,7 +1512,7 @@ object QuotableImpl {
             assert(children.size == 1)
 
             when (val child = children[0]) {
-                is ElixirLine if !dialectFor(child).unescapesQuotedRemoteCallName ->
+                is ElixirLine if !languageLevelFor(child).unescapesQuotedRemoteCallName ->
                     OtpErlangAtom(literalQuotedRemoteCallName(child))
                 is Atomable -> child.quoteAsAtom()
                 else -> (child as Quotable).quote()
@@ -1527,12 +1527,12 @@ object QuotableImpl {
 
     /**
      * From Elixir 1.14 the tokenizer normalises an identifier token to NFC and µ (U+00B5) to μ (U+03BC), but not a
-     * quoted atom or name: see QuotingDialect.V1_14.
+     * quoted atom or name: see ElixirLanguageLevel.V1_14.
      */
     @RequiresReadLock
     private fun identifierAtom(identifier: String, element: PsiElement): OtpErlangAtom =
         OtpErlangAtom(
-            if (identifier.any { it.code > 0x7F } && dialectFor(element).normalizesIdentifiers) {
+            if (identifier.any { it.code > 0x7F } && languageLevelFor(element).normalizesIdentifiers) {
                 Normalizer.normalize(identifier, Normalizer.Form.NFC).replace('µ', 'μ')
             } else {
                 identifier
@@ -1624,10 +1624,10 @@ object QuotableImpl {
 
         // @see https://github.com/elixir-lang/elixir/blob/de39bbaca277002797e52ffbde617ace06233a2b/lib/elixir/src/elixir_parser.yrl#L76-L79
         // `grammar -> eoe` has always had `line`, so a file of only `;` or newlines does too; `'$empty'` only gained
-        // it with QuotingDialect.V1_20.
+        // it with ElixirLanguageLevel.V1_20.
         val emptyMetadata =
             if (PsiTreeUtil.getChildOfType(file, ElixirEndOfExpression::class.java) != null ||
-                dialectFor(file).emitsLineMetadataOnBlock
+                languageLevelFor(file).emitsLineMetadataOnBlock
             ) {
                 metadata(file)
             } else {
@@ -1746,12 +1746,12 @@ object QuotableImpl {
 
         if (uncounted.isEmpty()) return documentLine
 
-        val dialect = dialectFor(psi)
+        val languageLevel = languageLevelFor(psi)
         val before = { offsets: IntArray -> offsets.count { it < node.startOffset } }
 
         return documentLine -
-                (if (dialect.countsEscapedNewlineInLiteralSigilLine) 0 else before(uncounted.literalSigilLine)) -
-                (if (dialect.countsNewlineInCharacter) 0 else before(uncounted.character))
+                (if (languageLevel.countsEscapedNewlineInLiteralSigilLine) 0 else before(uncounted.literalSigilLine)) -
+                (if (languageLevel.countsNewlineInCharacter) 0 else before(uncounted.character))
     }
 
     /** Offsets of newlines that older tokenizers consumed without advancing the line. */
@@ -1760,7 +1760,7 @@ object QuotableImpl {
     }
 
     /**
-     * See QuotingDialect.V1_12 and V1_19. Cached per file, as every line in a quoted file asks.
+     * See ElixirLanguageLevel.V1_12 and V1_19. Cached per file, as every line in a quoted file asks.
      *
      * Walks [node]'s own tree rather than [file]'s: building a stub can quote while the file's tree loads from its
      * stubs, and asking the file for its tree then loads it again, which the platform stops with an exception.
@@ -1840,7 +1840,7 @@ object QuotableImpl {
     private fun bracketedExpressionMetadata(bracketArguments: PsiElement): OtpErlangList =
         bracketMetadata(
             bracketArguments,
-            dialectFor(bracketArguments).emitsFromBracketsOnBracketedExpression
+            languageLevelFor(bracketArguments).emitsFromBracketsOnBracketedExpression
         )
 
     /**
@@ -1851,7 +1851,7 @@ object QuotableImpl {
     private fun bracketIdentifierMetadata(bracketArguments: PsiElement): OtpErlangList =
         bracketMetadata(
             bracketArguments,
-            dialectFor(bracketArguments).emitsFromBracketsOnEveryBracketForm
+            languageLevelFor(bracketArguments).emitsFromBracketsOnEveryBracketForm
         )
 
     /** `from_brackets` leads the keyword list, as `meta_with_from_brackets` prepends it. */
@@ -1884,7 +1884,7 @@ object QuotableImpl {
         metadata: OtpErlangList,
         vararg arguments: OtpErlangObject
     ): OtpErlangTuple {
-        if (!dialectFor(interpolation).emitsFromInterpolation) {
+        if (!languageLevelFor(interpolation).emitsFromInterpolation) {
             return quotedFunctionCall(module, identifier, metadata, *arguments)
         }
 
@@ -1986,10 +1986,10 @@ object QuotableImpl {
                 } else if (elementType === ElixirTypes.INTERPOLATION) {
                     // `build_string([], Output) -> Output` drops an empty *buffer*, and below 1.12 a
                     // `\` ending a line was consumed into one, so the part never existed.
-                    // See QuotingDialect.V1_12.
+                    // See ElixirLanguageLevel.V1_12.
                     if (codePointList != null) {
                         if (codePointList.isNotEmpty() ||
-                            dialectFor(parent).keepsEscapedNewlineInExtractedBuffer
+                            languageLevelFor(parent).keepsEscapedNewlineInExtractedBuffer
                         ) {
                             quotedParentList.add(elixirString(codePointList))
                         }
@@ -1997,9 +1997,9 @@ object QuotableImpl {
                         codePointList = null
                     }
 
-                    // See QuotingDialect.V1_12.
+                    // See ElixirLanguageLevel.V1_12.
                     if (parent is HeredocLiteral && quotedParentList.isEmpty() &&
-                        dialectFor(parent).emitsEmptyLeadingHeredocSegment) {
+                        languageLevelFor(parent).emitsEmptyLeadingHeredocSegment) {
                         quotedParentList.add(elixirString(""))
                     }
 
@@ -2021,9 +2021,9 @@ object QuotableImpl {
             quoted = if (codePointList != null && quotedParentList.isEmpty()) {
                 parent.quoteLiteral(codePointList)
             } else {
-                // See QuotingDialect.V1_12.
+                // See ElixirLanguageLevel.V1_12.
                 if (codePointList != null &&
-                    (codePointList.isNotEmpty() || dialectFor(parent).keepsEscapedNewlineInExtractedBuffer)
+                    (codePointList.isNotEmpty() || languageLevelFor(parent).keepsEscapedNewlineInExtractedBuffer)
                 ) {
                     quotedParentList.add(elixirString(codePointList))
                 }
@@ -2056,7 +2056,7 @@ object QuotableImpl {
         val nameMetadata = metadata(relativeIdentifier)
         val dotMetadata = metadata(dotOperator)
 
-        return if (nameMetadata == dotMetadata || dialectFor(relativeIdentifier).putsRemoteCallOnNameLine) {
+        return if (nameMetadata == dotMetadata || languageLevelFor(relativeIdentifier).putsRemoteCallOnNameLine) {
             nameMetadata
         } else {
             dotMetadata
@@ -2259,7 +2259,7 @@ object QuotableImpl {
                 0 -> otpErlangTuple(BLOCK, emptyMetadata, OtpErlangList())
                 // A file's own metadata never reaches a single- or multi-expression body (only an
                 // empty one, above) - see quote(ElixirFile) - so there is nothing here for the merge
-                // below to accumulate; pass `false` rather than resolving a dialect for nothing.
+                // below to accumulate; pass `false` rather than resolving a language level for nothing.
                 1 -> buildBlock(quotedChildren, OtpErlangList(), rearrangeUnaryOperators, false)
                 else -> blockFunctionCall(quotedChildren, OtpErlangList())
             }
@@ -2273,7 +2273,7 @@ object QuotableImpl {
      */
     @RequiresReadLock
     internal fun rearrangesUnaryOperators(element: PsiElement?): Boolean =
-        (element?.let(::dialectFor) ?: QuotingDialect.FALLBACK).wrapsSolitaryUnaryNotInEveryBlock
+        (element?.let(::languageLevelFor) ?: ElixirLanguageLevel.FALLBACK).wrapsSolitaryUnaryNotInEveryBlock
 
     /**
      * Whether a solitary expression that already quotes to a `__block__` - from a nested
@@ -2282,13 +2282,13 @@ object QuotableImpl {
      *
      * Only [quote] for [ElixirParentheticalStab] ever calls [buildBlock] with non-empty metadata for
      * a single-expression body - a file's is always empty (see [toBlock]) and a do-block's own
-     * metadata exists only from [QuotingDialect.V1_20], where this predicate is already `false` - so
+     * metadata exists only from [ElixirLanguageLevel.V1_20], where this predicate is already `false` - so
      * gating on it here is exactly the parenthetical-stab case `build_paren_stab` gates on, without
      * needing to know the caller.
      */
     @RequiresReadLock
     internal fun mergesEnclosingParenMetadataOntoBlock(element: PsiElement?): Boolean =
-        (element?.let(::dialectFor) ?: QuotingDialect.FALLBACK).mergesEnclosingParenMetadataOntoBlock
+        (element?.let(::languageLevelFor) ?: ElixirLanguageLevel.FALLBACK).mergesEnclosingParenMetadataOntoBlock
 
     private fun emptyBlock() =
              otpErlangTuple(
@@ -2340,7 +2340,7 @@ object QuotableImpl {
                             // `unquote_splicing`, or held several expressions itself. Below 1.17.0,
                             // this level's own metadata is appended to what is already there rather
                             // than discarded, so parentheses nested around the same block each add
-                            // one more entry - see QuotingDialect.V1_17.
+                            // one more entry - see ElixirLanguageLevel.V1_17.
                             BLOCK ->
                                 if (mergesEnclosingParenMetadataOntoBlock) {
                                     appendMetadata(quotedChild, metadata)

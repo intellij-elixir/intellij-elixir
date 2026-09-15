@@ -6,8 +6,8 @@ import com.intellij.psi.impl.DebugUtil
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.quoting.QuotingDialect
-import org.elixir_lang.psi.quoting.QuotingDialectResolver
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 
 /**
  * A line that does not parse inside a `do` block is an error of its own: the block still ends at its `end`, and the
@@ -18,7 +18,7 @@ class DoBlockRecoveryTest : PlatformTestCase() {
 
     override fun tearDown() {
         try {
-            QuotingDialectResolver.overrideDialect(project, null)
+            ElixirLanguageLevelResolver.overrideLanguageLevel(project, null)
         } finally {
             super.tearDown()
         }
@@ -73,12 +73,12 @@ class DoBlockRecoveryTest : PlatformTestCase() {
 
         assertRecovered(source)
 
-        for (dialect in DIALECTS) {
-            val file = parse(source, dialect)
+        for (languageLevel in DIALECTS) {
+            val file = parse(source, languageLevel)
             val definitionF = items(file)!!.single { it.text.startsWith("def f do") }
 
             assertNotNull(
-                "`def f` keeps its `rescue` on $dialect:\n${DebugUtil.psiToString(file, true)}",
+                "`def f` keeps its `rescue` on $languageLevel:\n${DebugUtil.psiToString(file, true)}",
                 PsiTreeUtil.findChildOfType(definitionF, ElixirBlockList::class.java)
             )
         }
@@ -165,35 +165,40 @@ class DoBlockRecoveryTest : PlatformTestCase() {
     )
 
     private fun assertRecovered(source: String, keepsDefinitionF: Boolean = true) {
-        for (dialect in DIALECTS) {
-            val file = parse(source, dialect)
+        for (languageLevel in DIALECTS) {
+            val file = parse(source, languageLevel)
             val tree = DebugUtil.psiToString(file, true)
             val definitionG = source.indexOf("def g")
 
             assertEquals(
-                "The module is the only call of the file on $dialect:\n$tree",
+                "The module is the only call of the file on $languageLevel:\n$tree",
                 listOf(source),
                 file.children.filterIsInstance<Call>().map { it.text }
             )
 
             val items = items(file)!!.map { it.text }
 
-            assertTrue("`def g` is an expression of the module's `do` block on $dialect:\n$tree", "def g, do: 2" in items)
+            assertTrue(
+                "`def g` is an expression of the module's `do` block on $languageLevel:\n$tree",
+                "def g, do: 2" in items
+            )
 
             if (keepsDefinitionF) {
                 assertTrue(
-                    "`def f` is an expression of the module's `do` block ending at its own `end` on $dialect:\n$tree",
+                    "`def f` is an expression of the module's `do` block ending at its own `end` " +
+                        "on $languageLevel:\n$tree",
                     items.any { it.startsWith("def f do") && it.endsWith("end") }
                 )
             }
 
             val errors = errors(file)
 
-            assertFalse("An error is reported on $dialect:\n$tree", errors.isEmpty())
+            assertFalse("An error is reported on $languageLevel:\n$tree", errors.isEmpty())
 
             for (error in errors) {
                 assertTrue(
-                    "'${error.errorDescription}' at ${error.textRange} is before `def g` ($definitionG) on $dialect:\n$tree",
+                    "'${error.errorDescription}' at ${error.textRange} is before `def g` ($definitionG) " +
+                        "on $languageLevel:\n$tree",
                     error.textRange.startOffset < definitionG && error.textRange.endOffset <= definitionG
                 )
             }
@@ -201,17 +206,17 @@ class DoBlockRecoveryTest : PlatformTestCase() {
     }
 
     private fun assertUnchanged(source: String, definitionGInModule: Boolean, errorOffsets: List<Int>) {
-        for (dialect in DIALECTS) {
-            val file = parse(source, dialect)
+        for (languageLevel in DIALECTS) {
+            val file = parse(source, languageLevel)
             val tree = DebugUtil.psiToString(file, true)
 
             assertEquals(
-                "Whether `def g` is an expression of the module's `do` block on $dialect:\n$tree",
+                "Whether `def g` is an expression of the module's `do` block on $languageLevel:\n$tree",
                 definitionGInModule,
                 items(file)?.any { it.text == "def g, do: 2" } == true
             )
             assertEquals(
-                "Parse error offsets on $dialect:\n$tree",
+                "Parse error offsets on $languageLevel:\n$tree",
                 errorOffsets,
                 errors(file).map { it.textRange.startOffset }
             )
@@ -227,8 +232,8 @@ class DoBlockRecoveryTest : PlatformTestCase() {
         end
         """.trimIndent()
 
-    private fun parse(source: String, dialect: QuotingDialect): PsiFile {
-        QuotingDialectResolver.overrideDialect(project, dialect)
+    private fun parse(source: String, languageLevel: ElixirLanguageLevel): PsiFile {
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, languageLevel)
 
         return myFixture.configureByText("recovery_${files++}.ex", source)
     }
@@ -245,6 +250,6 @@ class DoBlockRecoveryTest : PlatformTestCase() {
         PsiTreeUtil.findChildrenOfType(file, PsiErrorElement::class.java).sortedBy { it.textRange.startOffset }
 
     private companion object {
-        val DIALECTS = listOf(QuotingDialect.V1_11, QuotingDialect.V1_20)
+        val DIALECTS = listOf(ElixirLanguageLevel.V1_11, ElixirLanguageLevel.V1_20)
     }
 }

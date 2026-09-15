@@ -1,11 +1,11 @@
-package org.elixir_lang.psi.quoting
+package org.elixir_lang.language_level
 
 /**
  * Which shape of quoted form to emit, as a threshold on the Elixir version that produced it.
  *
  * Elixir's quoted form changes between versions, so a single answer is wrong for every version but
  * one. Each constant marks a version at which a divergence appeared; the predicates below read as
- * "this dialect is at least that version", so a dialect answers every predicate for every earlier
+ * "this language level is at least that version", so a language level answers every predicate for every earlier
  * constant too.
  *
  * All the divergences known so far are **additive** - a newer Elixir emits metadata, or a richer
@@ -17,7 +17,7 @@ package org.elixir_lang.psi.quoting
  * Every threshold here was pinned against Elixir's own history and confirmed by quoting the
  * construct with the reference implementation on either side of the boundary - see each constant.
  */
-enum class QuotingDialect {
+enum class ElixirLanguageLevel {
     /** Everything before Elixir 1.12.0, and the floor - nothing resolves below it. */
     V1_11,
 
@@ -301,7 +301,7 @@ enum class QuotingDialect {
 
     companion object {
         /**
-         * The dialect to assume when the Elixir version behind an element cannot be determined - no
+         * The language level to assume when the Elixir version behind an element cannot be determined - no
          * module, no Elixir SDK, or an SDK whose version string carries no version.
          *
          * Deliberately the newest rather than the oldest: most users are on a recent Elixir, so a
@@ -309,13 +309,13 @@ enum class QuotingDialect {
          * that ages well, since a new threshold added below shifts the fallback forward with it.
          */
         @JvmStatic
-        val FALLBACK: QuotingDialect = entries.last()
+        val FALLBACK: ElixirLanguageLevel = entries.last()
 
         /** Leading `MAJOR.MINOR[.PATCH]`, wherever it sits in the string. */
         private val VERSION = Regex("""(\d+)\.(\d+)(?:\.(\d+))?""")
 
         /**
-         * The dialect for an Elixir version, or [FALLBACK] when [version] carries no version number.
+         * The language level for an Elixir version, or [FALLBACK] when [version] carries no version number.
          *
          * [version] may be a bare version (`"1.16.2"`), a mise-style version with a build
          * tag (`"1.13.4-otp-24"`), or a whole SDK version string
@@ -323,7 +323,7 @@ enum class QuotingDialect {
          * also means a pre-release resolves as its release.
          */
         @JvmStatic
-        fun of(version: String?): QuotingDialect {
+        fun of(version: String?): ElixirLanguageLevel {
             val match = version?.let { VERSION.find(it) } ?: return FALLBACK
             val (major, minor, patch) = match.destructured
             val numbers = Triple(major.toInt(), minor.toInt(), patch.ifEmpty { "0" }.toInt())

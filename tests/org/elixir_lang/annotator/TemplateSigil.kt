@@ -10,8 +10,8 @@ import com.intellij.testFramework.fixtures.CodeInsightTestFixture
 import junit.framework.TestCase.fail
 import org.elixir_lang.ElixirFileType
 import org.elixir_lang.injection.ElixirSigilInjector
-import org.elixir_lang.psi.quoting.QuotingDialect
-import org.elixir_lang.psi.quoting.QuotingDialectResolver
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.settings.ElixirExperimentalSettings
 
 /**
@@ -22,7 +22,7 @@ import org.elixir_lang.settings.ElixirExperimentalSettings
 internal fun assertTemplateErrors(
     fixture: CodeInsightTestFixture,
     disposable: Disposable,
-    dialect: QuotingDialect,
+    languageLevel: ElixirLanguageLevel,
     source: String,
     vararg expected: Pair<String, String>
 ) {
@@ -45,7 +45,7 @@ internal fun assertTemplateErrors(
             }
         }
 
-        QuotingDialectResolver.overrideDialect(project, dialect)
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, languageLevel)
         fixture.configureByText(ElixirFileType.INSTANCE, source)
         val errors = errors(fixture, source)
 
@@ -54,7 +54,7 @@ internal fun assertTemplateErrors(
             val injected = InjectedLanguageManager.getInstance(project).findInjectedElementAt(fixture.file, source.indexOf(word))
 
             fail(
-                "errors in ${escaped(source)} on $dialect: expected ${expected.toList()} but was $errors; " +
+                "errors in ${escaped(source)} on $languageLevel: expected ${expected.toList()} but was $errors; " +
                     "injected at ${escaped(word)}: ${injected?.node?.elementType} " +
                     "in ${injected?.containingFile?.viewProvider?.baseLanguage?.id}; " +
                     "highlighting again: ${errors(fixture, source)}"
