@@ -64,14 +64,8 @@ import org.elixir_lang.psi.QualifiedParenthesesCall
 import org.elixir_lang.psi.UnqualifiedNoArgumentsCall
 import org.elixir_lang.psi.UnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.UnqualifiedParenthesesCall
+import org.elixir_lang.language_level.ElixirLanguageFeature.*
 import org.elixir_lang.language_level.ElixirLanguageLevel
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_12
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_13
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_14
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_15
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_17
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_18
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_20
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import java.text.BreakIterator
 import java.text.Normalizer
@@ -95,7 +89,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
 
     private fun problem(element: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? =
         when (element) {
-            is ElixirNullaryRangeOperation -> if (languageLevel() < V1_14) Problem(element.textRange, before("'..'")) else null
+            is ElixirNullaryRangeOperation -> if (!NULLARY_RANGE.isSufficient(languageLevel())) Problem(element.textRange, before("'..'")) else null
             is ElixirAssociationsBase -> mapEntry(element, languageLevel)
             is ElixirKeywordPair, is ElixirNoParenthesesKeywordPair -> keywordKey(element, languageLevel)
             is ElixirMatchedMultiplicationOperation, is ElixirUnmatchedMultiplicationOperation -> operatorArity(element, languageLevel)
@@ -109,7 +103,12 @@ internal class VersionedSyntax : Annotator, DumbAware {
 
     /** Before 1.12 Elixir rejects a heredoc terminator after content where it stands, once the opening line is valid. */
     private fun heredocTerminatorAfterContent(heredoc: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? {
-        if (languageLevel() >= V1_12 || hasContentAfterOpening(heredoc)) return null
+        if (
+            HEREDOC_TERMINATOR_AFTER_CONTENT_IS_CONTENT.isSufficient(languageLevel()) ||
+            hasContentAfterOpening(heredoc)
+        ) {
+            return null
+        }
         val range = misplacedHeredocTerminator(heredoc) ?: return null
 
         return Problem(
@@ -131,7 +130,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
 
     /** Before 1.13 Elixir's tokenizer reads `**` as two `*`, so `x.**` is `x.*` followed by `*`. */
     private fun power(power: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? {
-        if (languageLevel() >= V1_13) return null
+        if (POWER_OPERATOR.isSufficient(languageLevel())) return null
 
         val parent = power.parent
         val token = if (parent is ElixirRelativeIdentifier) {
@@ -210,7 +209,8 @@ internal class VersionedSyntax : Annotator, DumbAware {
         return when {
             text.first() == '\"' || text.first() == '\'' -> quotedKeyName(key)
             // 1.11 accepts a `..//` key.
-            text == "..//" -> if (languageLevel() == V1_12) erlangAtom(text) else null
+            text == "..//" ->
+                if (languageLevel().let { STEP_OPERATOR.isSufficient(it) && !POWER_OPERATOR.isSufficient(it) }) erlangAtom(text) else null
             text in KEYS_NAMED_OTHERWISE -> null
             else -> erlangAtom(text)
         }
@@ -229,8 +229,8 @@ internal class VersionedSyntax : Annotator, DumbAware {
         when (fragment.parent) {
             is ElixirAtom ->
                 when (fragment.text) {
-                    "**" -> if (languageLevel() < V1_13) Problem(fragment.textRange, before("")) else null
-                    "..//" -> if (languageLevel() < V1_12) Problem(fragment.textRange, before("'/'")) else null
+                    "**" -> if (!POWER_OPERATOR.isSufficient(languageLevel())) Problem(fragment.textRange, before("")) else null
+                    "..//" -> if (!STEP_ATOM.isSufficient(languageLevel())) Problem(fragment.textRange, before("'/'")) else null
                     else -> notNfc(fragment, languageLevel)
                 }
             is ElixirKeywordKey -> notNfc(fragment, languageLevel)
@@ -239,7 +239,13 @@ internal class VersionedSyntax : Annotator, DumbAware {
 
     private fun notNfc(word: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? {
         val text = word.text
-        if (text.all { it.code < 128 } || Normalizer.isNormalized(text, Normalizer.Form.NFC) || languageLevel() >= V1_14) return null
+        if (
+            text.all { it.code < 128 } ||
+            Normalizer.isNormalized(text, Normalizer.Form.NFC) ||
+            NORMALIZED_IDENTIFIERS.isSufficient(languageLevel())
+        ) {
+            return null
+        }
 
         val normalized = Normalizer.normalize(text, Normalizer.Form.NFC)
         val tooltip = HtmlBuilder()
@@ -259,8 +265,9 @@ internal class VersionedSyntax : Annotator, DumbAware {
         if (text.length < 2) return null
 
         val index = when {
-            languageLevel() < V1_15 -> 1
-            languageLevel() < V1_17 -> text.indexOfFirst(Char::isDigit).takeIf { it > 0 } ?: return null
+            !MULTI_LETTER_SIGIL_NAMES.isSufficient(languageLevel()) -> 1
+            !DIGITS_IN_SIGIL_NAMES.isSufficient(languageLevel()) ->
+                text.indexOfFirst(Char::isDigit).takeIf { it > 0 } ?: return null
             else -> return null
         }
         val offset = name.textRange.startOffset + index
@@ -276,7 +283,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
     /** Before 1.12 a word followed by `:` was never a keyword, so `end::` left its block open. */
     private fun endBeforeTypeOperator(end: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? {
         val text = end.containingFile.viewProvider.contents
-        if (!text.startsWith("::", end.textRange.endOffset) || languageLevel() >= V1_12) return null
+        if (!text.startsWith("::", end.textRange.endOffset) || TYPE_OPERATOR_AFTER_END.isSufficient(languageLevel())) return null
 
         val block = end.parent
         if (block !is ElixirDoBlock && block !is ElixirAnonymousFunction) return null
@@ -322,8 +329,8 @@ internal class VersionedSyntax : Annotator, DumbAware {
         val key = pair.firstChild as? ElixirKeywordKey ?: return null
         val colon = key.nextSibling?.takeIf { it.node.elementType == ElixirTypes.KEYWORD_PAIR_COLON } ?: return null
         val rejected = when (key.text) {
-            "." -> languageLevel() < V1_13
-            "+", "-" -> isSignAfterCallName(key) && languageLevel() < V1_12
+            "." -> !DOT_KEYWORD_KEY.isSufficient(languageLevel())
+            "+", "-" -> isSignAfterCallName(key) && !SIGN_KEYWORD_KEY_AFTER_CALL.isSufficient(languageLevel())
             else -> false
         }
 
@@ -360,14 +367,14 @@ internal class VersionedSyntax : Annotator, DumbAware {
      * also `foo bar` or `...a`.
      */
     private fun mapEntry(base: ElixirAssociationsBase, languageLevel: () -> ElixirLanguageLevel): Problem? {
-        if (languageLevel() >= V1_17) return null
+        if (MAP_ENTRY_WITHOUT_ASSOCIATION.isSufficient(languageLevel())) return null
 
         // Elixir stops first at a space between `%` and `{`, which InvalidConstruct reports.
         val arguments = PsiTreeUtil.getParentOfType(base, ElixirMapArguments::class.java)
         if (arguments?.parent is ElixirMapOperation && arguments.prevSibling is PsiWhiteSpace) return null
 
         val entry = base.children.firstOrNull { !isMapEntry(it, languageLevel) } ?: return null
-        if (unwrap(entry) is ElixirNullaryRangeOperation && languageLevel() < V1_14) return null
+        if (unwrap(entry) is ElixirNullaryRangeOperation && !NULLARY_RANGE.isSufficient(languageLevel())) return null
 
         var next = PsiTreeUtil.nextLeaf(entry)
         var eol = false
@@ -391,9 +398,10 @@ internal class VersionedSyntax : Annotator, DumbAware {
             is UnqualifiedParenthesesCall<*>,
             is QualifiedParenthesesCall<*>,
             is DotCall<*> -> true
-            is UnqualifiedNoParenthesesCall<*>, is QualifiedNoParenthesesCall<*> -> languageLevel() >= V1_13
+            is UnqualifiedNoParenthesesCall<*>, is QualifiedNoParenthesesCall<*> ->
+                CALL_AND_ELLIPSIS_MAP_ENTRIES.isSufficient(languageLevel())
             is ElixirMatchedUnaryOperation, is ElixirUnmatchedUnaryOperation ->
-                entry.firstChild.text == "..." && languageLevel() >= V1_13
+                entry.firstChild.text == "..." && CALL_AND_ELLIPSIS_MAP_ENTRIES.isSufficient(languageLevel())
             else -> false
         }
 
@@ -414,10 +422,10 @@ internal class VersionedSyntax : Annotator, DumbAware {
 
         if (between.contains("\\\n")) {
             // Before 1.20 Elixir reads `..` there as a range, which has no operands before 1.14.
-            if (name == "..") return if (languageLevel() < V1_14) Problem(operand.textRange, before("'..'")) else null
+            if (name == "..") return if (!NULLARY_RANGE.isSufficient(languageLevel())) Problem(operand.textRange, before("'..'")) else null
             // Before 1.13 [power] reports the `**` itself.
-            if (name == "**" && languageLevel() < V1_13) return null
-            if (languageLevel() >= V1_20) return null
+            if (name == "**" && !POWER_OPERATOR.isSufficient(languageLevel())) return null
+            if (ESCAPED_NEWLINE_BEFORE_ARITY.isSufficient(languageLevel())) return null
 
             return when (name) {
                 "..//" ->
@@ -445,7 +453,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
         }
         val captured = !newline && previous?.node?.elementType == ElixirTypes.CAPTURE_OPERATOR
 
-        return if (name in UNARY_OPERATORS && !captured && languageLevel() < V1_13) {
+        return if (name in UNARY_OPERATORS && !captured && !UNARY_OPERATOR_REFERENCE.isSufficient(languageLevel())) {
             Problem(operator.textRange, before("'/'"))
         } else {
             null
@@ -459,7 +467,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
             ?: return false
 
         return if (previous.text == "**" && previous.parent is ElixirRelativeIdentifier) {
-            languageLevel() >= V1_13
+            POWER_OPERATOR.isSufficient(languageLevel())
         } else {
             previous.node.elementType == ElixirTypes.IDENTIFIER_TOKEN
         }
@@ -468,7 +476,11 @@ internal class VersionedSyntax : Annotator, DumbAware {
     private fun stepOperator(operation: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? {
         val operator = operation.children.firstOrNull { it is ElixirTernaryInfixOperator } ?: return null
 
-        return if (languageLevel() >= V1_12 && !isRange(operation.firstChild)) Problem(operator.textRange, STEP) else null
+        return if (STEP_OPERATOR.isSufficient(languageLevel()) && !isRange(operation.firstChild)) {
+            Problem(operator.textRange, STEP)
+        } else {
+            null
+        }
     }
 
     private fun isRange(element: PsiElement?): Boolean =
@@ -501,7 +513,11 @@ internal class VersionedSyntax : Annotator, DumbAware {
 
         while (end != BreakIterator.DONE) {
             if (Character.codePointCount(body, start, end) > 1) {
-                return if (languageLevel() in V1_13..V1_17) Problem(line.textRange, NOT_A_LIST_OF_CHARACTERS) else null
+                return if (GRAPHEME_CLUSTER_CRASH_IN_QUOTED_CALL_NAME.isSufficient(languageLevel())) {
+                    Problem(line.textRange, NOT_A_LIST_OF_CHARACTERS)
+                } else {
+                    null
+                }
             }
 
             start = end
@@ -521,11 +537,18 @@ internal class VersionedSyntax : Annotator, DumbAware {
             else -> return null
         }
 
-        return if (languageLevel() >= V1_18) Problem(escaped.textRange, message) else null
+        return if (UNESCAPED_QUOTED_REMOTE_CALL_NAME.isSufficient(languageLevel())) {
+            Problem(escaped.textRange, message)
+        } else {
+            null
+        }
     }
 
     /** 1.20 removed `\xH` and `\x{H*}`; an invalid code point in one is reported by [InvalidConstruct]. */
-    private fun hexadecimalEscape(escape: ElixirQuoteHexadecimalEscapeSequence, languageLevel: () -> ElixirLanguageLevel): Problem? {
+    private fun hexadecimalEscape(
+        escape: ElixirQuoteHexadecimalEscapeSequence,
+        languageLevel: () -> ElixirLanguageLevel,
+    ): Problem? {
         if (!escape.hexadecimalEscapePrefix.text.endsWith("x")) return null
         if (PsiTreeUtil.getParentOfType(escape, ElixirCharToken::class.java) != null) return null
 
@@ -539,7 +562,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
         val codePoint = digits.toLongOrNull(16) ?: return null
         if (codePoint in 0xD800..0xDFFF || codePoint > 0x10FFFF) return null
 
-        return if (languageLevel() >= V1_20) Problem(escape.textRange, INVALID_HEX_ESCAPE) else null
+        return if (HEXADECIMAL_ESCAPE_NEEDS_TWO_DIGITS.isSufficient(languageLevel())) Problem(escape.textRange, INVALID_HEX_ESCAPE) else null
     }
 
     private fun column(element: PsiElement, offset: Int): Int {

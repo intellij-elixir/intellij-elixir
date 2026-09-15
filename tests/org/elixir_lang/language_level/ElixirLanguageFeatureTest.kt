@@ -29,6 +29,32 @@ class ElixirLanguageFeatureTest : BasePlatformTestCase() {
             IN_OF_NOT_IN_ON_ITS_OWN_LINE to ("1.18.4" to "1.19.0"),
             LINE_METADATA_ON_BLOCK to ("1.19.5" to "1.20.0"),
             ESCAPED_NEWLINE_AS_SPACE to ("1.19.5" to "1.20.0"),
+            HEREDOC_TERMINATOR_AFTER_CONTENT_IS_CONTENT to ("1.11.4" to "1.12.0"),
+            TYPE_OPERATOR_AFTER_END to ("1.11.4" to "1.12.0"),
+            SIGN_KEYWORD_KEY_AFTER_CALL to ("1.11.4" to "1.12.0"),
+            STEP_ATOM to ("1.11.4" to "1.12.0"),
+            BASED_NUMBER_CONTINUES_INTO_DIGITS to ("1.11.4" to "1.12.0"),
+            ESCAPE_ERRORS_NAME_THE_INVALID_CHARACTER to ("1.11.4" to "1.12.0"),
+            POWER_OPERATOR to ("1.12.3" to "1.13.0"),
+            DOT_KEYWORD_KEY to ("1.12.3" to "1.13.0"),
+            CALL_AND_ELLIPSIS_MAP_ENTRIES to ("1.12.3" to "1.13.0"),
+            UNARY_OPERATOR_REFERENCE to ("1.12.3" to "1.13.0"),
+            GRAPHEME_CLUSTER_CRASH_IN_QUOTED_CALL_NAME to ("1.12.3" to "1.13.0"),
+            BIDI_CHARACTERS_REJECTED to ("1.12.3" to "1.13.0"),
+            NULLARY_RANGE to ("1.13.4" to "1.14.0"),
+            ALIAS_ERROR_COVERS_PUNCTUATION to ("1.13.4" to "1.14.0"),
+            NUMBER_ERROR_QUOTES_THE_CHARACTER to ("1.13.4" to "1.14.0"),
+            MULTI_LETTER_SIGIL_NAMES to ("1.14.5" to "1.15.0"),
+            HEREDOC_OPENING_ERROR_SAYS_OPENING to ("1.14.5" to "1.15.0"),
+            DIGITS_IN_SIGIL_NAMES to ("1.16.3" to "1.17.0"),
+            MAP_ENTRY_WITHOUT_ASSOCIATION to ("1.16.3" to "1.17.0"),
+            MIXED_SCRIPT_BY_UNDERSCORE_CHUNK to ("1.17.3" to "1.18.0"),
+            MIXED_SCRIPT_GUIDANCE_REQUIRES_UNDERSCORES to ("1.17.3" to "1.18.0"),
+            LINE_BREAKS_REJECTED_IN_COMMENTS to ("1.18.4" to "1.19.0"),
+            ESCAPED_NEWLINE_BEFORE_ARITY to ("1.19.5" to "1.20.0"),
+            HEXADECIMAL_ESCAPE_NEEDS_TWO_DIGITS to ("1.19.5" to "1.20.0"),
+            LINE_BREAKS_REJECTED_IN_QUOTED_TEXT to ("1.19.5" to "1.20.0"),
+            MAYBE_RESERVED to ("1.19.5" to "1.20.0"),
         )
 
         assertEquals(entries.filter { it.since != ElixirLanguageLevel.entries.first() }.toSet(), boundaries.keys)
@@ -45,6 +71,7 @@ class ElixirLanguageFeatureTest : BasePlatformTestCase() {
             DECIMAL_NUMBER_ENDS_BEFORE_WORD to ("1.11.4" to "1.12.0"),
             SOLITARY_UNARY_WRAPPED_IN_EVERY_BLOCK to ("1.14.5" to "1.15.0"),
             ENCLOSING_PARENS_MERGE_BLOCK_METADATA to ("1.16.3" to "1.17.0"),
+            GRAPHEME_CLUSTER_CRASH_IN_QUOTED_CALL_NAME to ("1.17.3" to "1.18.0"),
         )
 
         assertEquals(entries.filter { it.removedIn != null }.toSet(), removals.keys)

@@ -42,7 +42,11 @@ import org.elixir_lang.psi.ElixirUnmatchedQualifiedAlias
 import org.elixir_lang.psi.Quote
 import org.elixir_lang.psi.Sigil
 import org.elixir_lang.psi.UnqualifiedNoArgumentsCall
-import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPE_ERRORS_NAME_THE_INVALID_CHARACTER
+import org.elixir_lang.language_level.ElixirLanguageFeature.HEREDOC_OPENING_ERROR_SAYS_OPENING
+import org.elixir_lang.language_level.ElixirLanguageFeature.HEREDOC_TERMINATOR_AFTER_CONTENT_IS_CONTENT
+import org.elixir_lang.language_level.ElixirLanguageFeature.HEXADECIMAL_ESCAPE_NEEDS_TWO_DIGITS
+import org.elixir_lang.language_level.ElixirLanguageFeature.UNESCAPED_QUOTED_REMOTE_CALL_NAME
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 
 /**
@@ -178,7 +182,7 @@ internal class InvalidConstruct : Annotator, DumbAware {
         val hexadecimal = letter == "x"
 
         return escaped.textRange to when {
-            ElixirLanguageLevelResolver.languageLevelFor(escaped) < ElixirLanguageLevel.V1_12 ->
+            !ElixirLanguageLevelResolver.isAvailable(ESCAPE_ERRORS_NAME_THE_INVALID_CHARACTER, escaped) ->
                 if (hexadecimal) "missing hex sequence after \\x, expected \\xHH$delimiter"
                 else "invalid Unicode sequence after \\u, expected \\uHHHH or \\u{H*}"
             holder is Sigil -> if (hexadecimal) INVALID_HEX_ESCAPE_WHEN_COMPILED else INVALID_UNICODE_ESCAPE_WHEN_COMPILED
@@ -196,12 +200,16 @@ internal class InvalidConstruct : Annotator, DumbAware {
     private fun unterminatedHeredoc(heredoc: PsiElement): Pair<TextRange, String>? {
         val promoter = heredoc.node.findChildByType(ElixirTypes.HEREDOC_PROMOTER) ?: return null
         val languageLevel = ElixirLanguageLevelResolver.languageLevelFor(heredoc)
-        val cutOff = if (languageLevel < ElixirLanguageLevel.V1_12) cutOff(heredoc) else CutOff.NONE
+        val cutOff = if (HEREDOC_TERMINATOR_AFTER_CONTENT_IS_CONTENT.isSufficient(languageLevel)) {
+            CutOff.NONE
+        } else {
+            cutOff(heredoc)
+        }
 
         if (cutOff == CutOff.SUPPRESSED) return null
 
         if (hasContentAfterOpening(heredoc)) {
-            val message = if (languageLevel < ElixirLanguageLevel.V1_15) {
+            val message = if (!HEREDOC_OPENING_ERROR_SAYS_OPENING.isSufficient(languageLevel)) {
                 "heredoc allows only zero or more whitespace characters followed by a new line after "
             } else {
                 "heredoc allows only whitespace characters followed by a new line after opening "
@@ -213,7 +221,7 @@ internal class InvalidConstruct : Annotator, DumbAware {
         if (cutOff == CutOff.NONE) {
             if (heredoc.node.findChildByType(ElixirTypes.HEREDOC_TERMINATOR) != null) return null
 
-            if (languageLevel < ElixirLanguageLevel.V1_12) {
+            if (!HEREDOC_TERMINATOR_AFTER_CONTENT_IS_CONTENT.isSufficient(languageLevel)) {
                 val scan = scanHeredocLines(promoter)
 
                 if (scan.terminatorAt != null || scan.misplaced != null) return null
@@ -236,7 +244,10 @@ internal class InvalidConstruct : Annotator, DumbAware {
         if (!isUnclosed(interpolation)) return null
         if (PsiTreeUtil.findChildrenOfType(interpolation, ElixirInterpolation::class.java).any(::isUnclosed)) return null
         if (hasInnerError(interpolation)) return null
-        if (ElixirLanguageLevelResolver.languageLevelFor(interpolation) < ElixirLanguageLevel.V1_12 && cutOff(interpolation) == CutOff.SUPPRESSED) {
+        if (
+            !ElixirLanguageLevelResolver.isAvailable(HEREDOC_TERMINATOR_AFTER_CONTENT_IS_CONTENT, interpolation) &&
+            cutOff(interpolation) == CutOff.SUPPRESSED
+        ) {
             return null
         }
 
@@ -268,7 +279,8 @@ internal class InvalidConstruct : Annotator, DumbAware {
             ElixirLiteralSigilHeredoc::class.java
         ).any {
             unterminatedHeredoc(it) != null ||
-                ElixirLanguageLevelResolver.languageLevelFor(it) < ElixirLanguageLevel.V1_12 && misplacedHeredocTerminator(it) != null
+                !ElixirLanguageLevelResolver.isAvailable(HEREDOC_TERMINATOR_AFTER_CONTENT_IS_CONTENT, it) &&
+                misplacedHeredocTerminator(it) != null
         } ||
             // A sigil's escape fails only when the sigil is compiled.
             PsiTreeUtil.findChildrenOfType(interpolation, ElixirEscapedCharacter::class.java).any { escape ->
@@ -277,7 +289,12 @@ internal class InvalidConstruct : Annotator, DumbAware {
 
     /** Before 1.12, a string, charlist, sigil or quoted atom that an enclosing heredoc's terminator line cuts off first. */
     private fun cutOffQuote(quote: PsiElement): Pair<TextRange, String>? {
-        if (ElixirLanguageLevelResolver.languageLevelFor(quote) >= ElixirLanguageLevel.V1_12 || cutOff(quote) != CutOff.FIRST) return null
+        if (
+            ElixirLanguageLevelResolver.isAvailable(HEREDOC_TERMINATOR_AFTER_CONTENT_IS_CONTENT, quote) ||
+            cutOff(quote) != CutOff.FIRST
+        ) {
+            return null
+        }
 
         val line = if (quote is ElixirAtom) quote.children.firstOrNull { it is ElixirLine } ?: return null else quote
         val promoter = line.node.findChildByType(ElixirTypes.LINE_PROMOTER) ?: return null
@@ -297,7 +314,7 @@ internal class InvalidConstruct : Annotator, DumbAware {
         // error before `{`.
         when (PsiTreeUtil.getParentOfType(escape, ElixirRelativeIdentifier::class.java, ElixirCharToken::class.java)) {
             null -> Unit
-            is ElixirRelativeIdentifier -> if (ElixirLanguageLevelResolver.languageLevelFor(escape) < ElixirLanguageLevel.V1_18) return null
+            is ElixirRelativeIdentifier -> if (!ElixirLanguageLevelResolver.isAvailable(UNESCAPED_QUOTED_REMOTE_CALL_NAME, escape)) return null
             else -> return null
         }
 
@@ -312,8 +329,9 @@ internal class InvalidConstruct : Annotator, DumbAware {
             val hexadecimal = escape.hexadecimalEscapePrefix.text.endsWith("x")
 
             return escape.textRange to when {
-                languageLevel < ElixirLanguageLevel.V1_12 -> "invalid or reserved Unicode code point $codePoint"
-                hexadecimal && languageLevel >= ElixirLanguageLevel.V1_20 -> INVALID_HEX_ESCAPE
+                !ESCAPE_ERRORS_NAME_THE_INVALID_CHARACTER.isSufficient(languageLevel) ->
+                    "invalid or reserved Unicode code point $codePoint"
+                hexadecimal && HEXADECIMAL_ESCAPE_NEEDS_TWO_DIGITS.isSufficient(languageLevel) -> INVALID_HEX_ESCAPE
                 else -> "invalid or reserved Unicode code point \\u{$digits}. Syntax error after: \\u"
             }
         }

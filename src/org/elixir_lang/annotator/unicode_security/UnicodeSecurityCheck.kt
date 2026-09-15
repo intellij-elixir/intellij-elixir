@@ -4,7 +4,7 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.util.text.HtmlBuilder
 import com.intellij.openapi.util.text.HtmlChunk
 import org.elixir_lang.language_level.ElixirLanguageLevel
-import org.elixir_lang.language_level.ElixirLanguageLevel.*
+import org.elixir_lang.language_level.ElixirLanguageFeature.*
 import java.text.Normalizer
 import java.util.BitSet
 
@@ -20,10 +20,10 @@ internal object UnicodeSecurityCheck {
     fun inComment(text: CharSequence, languageLevel: ElixirLanguageLevel): List<Problem> =
         characters(text) { character ->
             when {
-                isBidi(character) && languageLevel >= V1_13 ->
+                isBidi(character) && BIDI_CHARACTERS_REJECTED.isSufficient(languageLevel) ->
                     "invalid bidirectional formatting character in comment: ${escaped(character)}"
 
-                isLineBreak(character) && languageLevel >= V1_19 ->
+                isLineBreak(character) && LINE_BREAKS_REJECTED_IN_COMMENTS.isSufficient(languageLevel) ->
                     "invalid line break character in comment: ${escaped(character)}"
 
                 else -> null
@@ -33,8 +33,10 @@ internal object UnicodeSecurityCheck {
     fun inQuoted(text: CharSequence, languageLevel: ElixirLanguageLevel): List<Problem> =
         characters(text) { character ->
             when {
-                isBidi(character) && languageLevel >= V1_13 -> inString("invalid bidirectional formatting character", character)
-                isLineBreak(character) && languageLevel >= V1_20 -> inString("invalid line break character", character)
+                isBidi(character) && BIDI_CHARACTERS_REJECTED.isSufficient(languageLevel) ->
+                    inString("invalid bidirectional formatting character", character)
+                isLineBreak(character) && LINE_BREAKS_REJECTED_IN_QUOTED_TEXT.isSufficient(languageLevel) ->
+                    inString("invalid line break character", character)
                 else -> null
             }
         }
@@ -90,7 +92,7 @@ internal object UnicodeSecurityCheck {
         val normalized = Normalizer
             .normalize(String(codePoints.toIntArray(), 0, codePoints.size), Normalizer.Form.NFC)
         val normalizedCodePoints = normalized.codePoints().toArray()
-        val accepted = if (languageLevel >= V1_18) {
+        val accepted = if (MIXED_SCRIPT_BY_UNDERSCORE_CHUNK.isSufficient(languageLevel)) {
             chunksSingle(normalizedCodePoints, table)
         } else {
             highlyRestrictive(normalizedCodePoints, table)
@@ -148,7 +150,7 @@ internal object UnicodeSecurityCheck {
         val scripts = codePoints.map { codePoint -> codePoint to chunkScriptSetOf(codePoint, table)?.let(table::scriptNames) }
         val message = "invalid mixed-script identifier found: $identifier" +
             (culprits(codePoints, table, languageLevel)?.let { " ($it)" } ?: "")
-        val guidance = if (languageLevel >= V1_18) {
+        val guidance = if (MIXED_SCRIPT_GUIDANCE_REQUIRES_UNDERSCORES.isSufficient(languageLevel)) {
             "Characters in identifiers from different scripts must be separated by underscore (_)."
         } else {
             "All characters in the identifier should resolve to a single script, or use a highly restrictive set of scripts."
@@ -179,8 +181,9 @@ internal object UnicodeSecurityCheck {
      * script.
      */
     private fun culprits(codePoints: IntArray, table: IdentifierTable, languageLevel: ElixirLanguageLevel): String? {
-        val chunks = if (languageLevel >= V1_18) chunks(codePoints) else listOf(codePoints)
-        val candidates = if (languageLevel >= V1_18) table.singleScripts else table.singleScripts + table.highlyRestrictive
+        val byChunk = MIXED_SCRIPT_BY_UNDERSCORE_CHUNK.isSufficient(languageLevel)
+        val chunks = if (byChunk) chunks(codePoints) else listOf(codePoints)
+        val candidates = if (byChunk) table.singleScripts else table.singleScripts + table.highlyRestrictive
 
         return chunks
             .mapNotNull { chunk ->

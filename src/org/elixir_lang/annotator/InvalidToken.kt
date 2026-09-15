@@ -14,6 +14,11 @@ import org.elixir_lang.psi.ElixirDecimalFloatFractional
 import org.elixir_lang.psi.ElixirDecimalFloatIntegral
 import org.elixir_lang.psi.ElixirTypes
 import org.elixir_lang.psi.WholeNumber
+import org.elixir_lang.language_level.ElixirLanguageFeature.ALIAS_ERROR_COVERS_PUNCTUATION
+import org.elixir_lang.language_level.ElixirLanguageFeature.BASED_NUMBER_CONTINUES_INTO_DIGITS
+import org.elixir_lang.language_level.ElixirLanguageFeature.DECIMAL_NUMBER_ENDS_BEFORE_WORD
+import org.elixir_lang.language_level.ElixirLanguageFeature.MAYBE_RESERVED
+import org.elixir_lang.language_level.ElixirLanguageFeature.NUMBER_ERROR_QUOTES_THE_CHARACTER
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 
@@ -134,7 +139,7 @@ internal class InvalidToken : Annotator, DumbAware {
 
         return when {
             !nonAscii.isPresent && punctuation == null -> null
-            languageLevel >= ElixirLanguageLevel.V1_14 ->
+            ALIAS_ERROR_COVERS_PUNCTUATION.isSufficient(languageLevel) ->
                 invalidCharacter(
                     alias.codePoints().filter { it < 'A'.code || it > 127 }.findFirst().asInt,
                     "alias (only ASCII characters, without punctuation, are allowed)",
@@ -161,7 +166,7 @@ internal class InvalidToken : Annotator, DumbAware {
             val next = text.getOrNull(baseEnd) ?: return null
 
             when {
-                next.isAsciiDigit() && languageLevel >= ElixirLanguageLevel.V1_12 -> baseEnd
+                next.isAsciiDigit() && BASED_NUMBER_CONTINUES_INTO_DIGITS.isSufficient(languageLevel) -> baseEnd
                 next.isAsciiDigit() -> {
                     val digitsEnd = decimalEnd(text, baseEnd)
 
@@ -183,12 +188,12 @@ internal class InvalidToken : Annotator, DumbAware {
             val range = TextRange(start, wordEnd)
 
             return when {
-                languageLevel >= ElixirLanguageLevel.V1_14 ->
+                NUMBER_ERROR_QUOTES_THE_CHARACTER.isSufficient(languageLevel) ->
                     range to "invalid character \"$next\" after number $decimal. If you intended to write a number, make " +
                         "sure to separate the number from the character (using comma, space, etc). If you meant to write " +
                         "a function name or a variable, note that identifiers in Elixir cannot start with numbers. " +
                         "Unexpected token: $next"
-                languageLevel >= ElixirLanguageLevel.V1_12 ->
+                !DECIMAL_NUMBER_ENDS_BEFORE_WORD.isSufficient(languageLevel) ->
                     range to "invalid character $next after number $decimal. If you intended to write a number, make sure " +
                         "to add the proper punctuation character after the number (space, comma, etc). If you meant to " +
                         "write an identifier, note that identifiers in Elixir cannot start with numbers. Unexpected " +
@@ -416,7 +421,7 @@ private fun atom(word: String, languageLevel: ElixirLanguageLevel): String =
     if (
         word.matches(UNQUOTED_ATOM) &&
         word !in ERLANG_RESERVED_WORDS &&
-        !(languageLevel >= ElixirLanguageLevel.V1_20 && word == "maybe")
+        !(MAYBE_RESERVED.isSufficient(languageLevel) && word == "maybe")
     ) {
         word
     } else {

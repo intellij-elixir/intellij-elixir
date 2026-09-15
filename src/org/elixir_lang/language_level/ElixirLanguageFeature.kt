@@ -212,7 +212,198 @@ enum class ElixirLanguageFeature(val since: ElixirLanguageLevel, val removedIn: 
      * `elixir-lang/elixir@78fb31201` ("Consistently treat \ followed by newlines as horizontal space"), first released
      * in v1.20.0.
      */
-    ESCAPED_NEWLINE_AS_SPACE(V1_20);
+    ESCAPED_NEWLINE_AS_SPACE(V1_20),
+    /**
+     * A heredoc terminator after content on its line is content, where 1.11 rejects it there ("invalid location for
+     * heredoc terminator") and scans a heredoc's lines for its terminator before reading its interpolations.
+     *
+     * `elixir-lang/elixir@51d90f193` ("Allow heredoc inside heredoc interpolation"), first released in v1.12.0.
+     */
+    HEREDOC_TERMINATOR_AFTER_CONTENT_IS_CONTENT(V1_12),
+
+    /**
+     * `end::` closes its block, where 1.11 leaves the block open.
+     *
+     * `elixir-lang/elixir@01f5196bf`, first released in v1.12.0.
+     */
+    TYPE_OPERATOR_AFTER_END(V1_12),
+
+    /**
+     * `+:` or `-:` after a call name and a space is a keyword key, where 1.11 rejects it as it does an identifier.
+     *
+     * `elixir-lang/elixir@8df17a089`, first released in v1.12.0.
+     */
+    SIGN_KEYWORD_KEY_AFTER_CALL(V1_12),
+
+    /**
+     * `:..//` is an atom, where 1.11 rejects it before `'/'`.
+     *
+     * `elixir-lang/elixir@bc187f37d` (#10810), with [STEP_OPERATOR], first released in v1.12.0.
+     */
+    STEP_ATOM(V1_12),
+
+    /**
+     * A based number followed by a digit continues as a decimal number, where 1.11 reports the digit.
+     *
+     * `elixir-lang/elixir@6b2cc2332`, with the end of [DECIMAL_NUMBER_ENDS_BEFORE_WORD], first released in v1.12.0.
+     */
+    BASED_NUMBER_CONTINUES_INTO_DIGITS(V1_12),
+
+    /**
+     * `**` is one token. Before it the tokenizer reads two `*`, so `x.**` is `x.*` followed by `*`, `:**` is rejected,
+     * and an operator directly before `/` starts the `*`'s operand.
+     *
+     * `elixir-lang/elixir@af55ee589` (#11241), first released in v1.13.0.
+     */
+    POWER_OPERATOR(V1_13),
+
+    /**
+     * `.:` is a keyword key.
+     *
+     * `elixir-lang/elixir@1d56b11f0`, first released in v1.13.0.
+     */
+    DOT_KEYWORD_KEY(V1_13),
+
+    /**
+     * A map entry may be a call without parentheses, or `...` applied to an operand.
+     *
+     * `elixir-lang/elixir@4917b9681`, first released in v1.13.0.
+     */
+    CALL_AND_ELLIPSIS_MAP_ENTRIES(V1_13),
+
+    /**
+     * A unary operator directly before `/` is an operator reference without `&`.
+     *
+     * `elixir-lang/elixir@bbde3cb98`, first released in v1.13.0.
+     */
+    UNARY_OPERATOR_REFERENCE(V1_13),
+
+    /**
+     * Turning a quoted call name into an atom crashes with `ArgumentError` when a grapheme cluster in it has several code
+     * points, as `list_to_atom` is handed a cluster.
+     *
+     * Appears with `elixir-lang/elixir@f429a27e2` (#11231), first released in v1.13.0; fixed by
+     * `elixir-lang/elixir@09c602d10`, first released in v1.18.0.
+     */
+    GRAPHEME_CLUSTER_CRASH_IN_QUOTED_CALL_NAME(V1_13, removedIn = V1_18),
+
+    /**
+     * `..` without operands is the nullary range.
+     *
+     * `elixir-lang/elixir@6447f440d` (#11623), first released in v1.14.0.
+     */
+    NULLARY_RANGE(V1_14),
+
+    /**
+     * A sigil name may have several letters, where earlier releases reject the second.
+     *
+     * `elixir-lang/elixir@c402e8336` (#12448), first released in v1.15.0.
+     */
+    MULTI_LETTER_SIGIL_NAMES(V1_15),
+
+    /**
+     * A sigil name may hold digits after its first letter.
+     *
+     * `elixir-lang/elixir@496cb2c89` (#13448), first released in v1.17.0.
+     */
+    DIGITS_IN_SIGIL_NAMES(V1_17),
+
+    /**
+     * A map entry may be an expression without `=>`, Elixir's `map_base_expr`.
+     *
+     * `elixir-lang/elixir@d68c8d6cd`, first released in v1.17.0.
+     */
+    MAP_ENTRY_WITHOUT_ASSOCIATION(V1_17),
+
+    /**
+     * An operator, a line continuation and `/ARITY` is an operator reference, where earlier releases reject it.
+     *
+     * `elixir-lang/elixir@78fb31201`, with [ESCAPED_NEWLINE_AS_SPACE], first released in v1.20.0.
+     */
+    ESCAPED_NEWLINE_BEFORE_ARITY(V1_20),
+
+    /**
+     * `\x` takes exactly two hexadecimal digits: the deprecated `\xH` and `\x{H*}` are errors.
+     *
+     * `elixir-lang/elixir@4b48982da`, first released in v1.20.0.
+     */
+    HEXADECIMAL_ESCAPE_NEEDS_TWO_DIGITS(V1_20),
+
+    /**
+     * `maybe` is a reserved word Erlang prints quoted. It is reserved once OTP enables the `maybe_expr` feature by
+     * default, from OTP 27 (`erlang/otp@5d45a0d9c`), so this window starts at the first Elixir release that requires
+     * OTP 27, `elixir-lang/elixir@2c54f9a64` (#15166), first released in v1.20.0-rc.4. Earlier releases running on OTP 27
+     * already quote it.
+     */
+    MAYBE_RESERVED(V1_20),
+
+    /**
+     * Bidirectional formatting characters, U+202A to U+202E and U+2066 to U+2069, are rejected in comments and quoted
+     * text.
+     *
+     * `elixir-lang/elixir@6d408bb0c` (#11391), first released in v1.13.0.
+     */
+    BIDI_CHARACTERS_REJECTED(V1_13),
+
+    /**
+     * Each underscore-separated chunk of an identifier must be single-script, where before the whole identifier had to
+     * resolve to one script or a highly restrictive set.
+     *
+     * `elixir-lang/elixir@c83334e5f` (#13693) and `elixir-lang/elixir@9924afff5`, first released in v1.18.0.
+     */
+    MIXED_SCRIPT_BY_UNDERSCORE_CHUNK(V1_18),
+
+    /**
+     * Line-break characters are rejected in comments.
+     *
+     * `elixir-lang/elixir@d507502ec`, first released in v1.19.0; the same change reached 1.20 as
+     * `elixir-lang/elixir@54321de13`.
+     */
+    LINE_BREAKS_REJECTED_IN_COMMENTS(V1_19),
+
+    /**
+     * Line-break characters are rejected in quoted text, where 1.19 only warns (`elixir-lang/elixir@cb15a3dd4`).
+     *
+     * `elixir-lang/elixir@54321de13`, first released in v1.20.0.
+     */
+    LINE_BREAKS_REJECTED_IN_QUOTED_TEXT(V1_20),
+
+    /**
+     * An invalid escape's error names the invalid character ("invalid hex escape character", `\u{...}` for a code point),
+     * where 1.11 says "missing hex sequence" or raises "invalid or reserved Unicode code point" with the decimal value.
+     *
+     * `elixir-lang/elixir@7d3a33698`, first released in v1.12.0.
+     */
+    ESCAPE_ERRORS_NAME_THE_INVALID_CHARACTER(V1_12),
+
+    /**
+     * A non-ASCII or punctuated alias gets one error, "only ASCII characters, without punctuation, are allowed", naming
+     * the first character that is not an ASCII letter, where earlier releases word the two cases apart.
+     *
+     * `elixir-lang/elixir@5deafbdc8`, first released in v1.14.0.
+     */
+    ALIAS_ERROR_COVERS_PUNCTUATION(V1_14),
+
+    /**
+     * The error for a letter after a decimal number quotes the character and rewords its advice.
+     *
+     * `elixir-lang/elixir@b53fb305a`, first released in v1.14.0.
+     */
+    NUMBER_ERROR_QUOTES_THE_CHARACTER(V1_14),
+
+    /**
+     * The error for content after a heredoc's opening says "after opening", at the column after the opening.
+     *
+     * `elixir-lang/elixir@207350fb4`, first released in v1.15.0.
+     */
+    HEREDOC_OPENING_ERROR_SAYS_OPENING(V1_15),
+
+    /**
+     * The mixed-script error's guidance says that scripts must be separated by underscore.
+     *
+     * `elixir-lang/elixir@9924afff5`, first released in v1.18.0.
+     */
+    MIXED_SCRIPT_GUIDANCE_REQUIRES_UNDERSCORES(V1_18);
 
     fun isSufficient(languageLevel: ElixirLanguageLevel): Boolean =
         languageLevel >= since && (removedIn == null || languageLevel < removedIn)
