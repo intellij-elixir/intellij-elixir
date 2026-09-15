@@ -42,7 +42,7 @@ internal object UnicodeSecurityCheck {
     fun hasBidiOrLineBreak(text: CharSequence): Boolean = text.any { isBidi(it) || isLineBreak(it) }
 
     fun inIdentifier(text: CharSequence, languageLevel: ElixirLanguageLevel): Problem? {
-        val table = IdentifierTable.forUnicode(unicodeVersion(languageLevel) ?: return null)
+        val table = IdentifierTable.forLanguageLevel(languageLevel) ?: return null
         val codePoints = mutableListOf<Int>()
         var scriptSet: BitSet? = null
         var offset = 0
@@ -250,16 +250,6 @@ internal object UnicodeSecurityCheck {
     private const val UNICODE_SYNTAX = "https://hexdocs.pm/elixir/unicode-syntax.html"
     private const val MICRO_SIGN = 0x00B5
     private const val GREEK_SMALL_LETTER_MU = 0x03BC
-
-    private fun unicodeVersion(languageLevel: ElixirLanguageLevel): String? =
-        when (languageLevel) {
-            V1_11, V1_12, V1_13 -> null
-            V1_14 -> "14.0"
-            V1_15 -> "15.0"
-            V1_16_0, V1_16_2, V1_17 -> "15.1"
-            V1_18 -> "16.0"
-            V1_19, V1_20 -> "17.0"
-        }
 
     private fun isAsciiLetter(codePoint: Int) = codePoint in 'a'.code..'z'.code || codePoint in 'A'.code..'Z'.code
 

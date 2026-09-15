@@ -1,5 +1,6 @@
 package org.elixir_lang.annotator.unicode_security
 
+import org.elixir_lang.language_level.ElixirLanguageLevel
 import java.util.BitSet
 import java.util.concurrent.ConcurrentHashMap
 
@@ -53,7 +54,16 @@ internal class IdentifierTable private constructor(
 
         private val tables = ConcurrentHashMap<String, IdentifierTable>()
 
-        fun forUnicode(version: String): IdentifierTable = tables.computeIfAbsent(version, ::load)
+        private fun forUnicode(version: String): IdentifierTable = tables.computeIfAbsent(version, ::load)
+
+        /** The table for [languageLevel]'s releases, or `null` when they do not check identifiers. */
+        fun forLanguageLevel(languageLevel: ElixirLanguageLevel): IdentifierTable? {
+            val release = languageLevel.firstRelease.substringBeforeLast('.')
+
+            return IDENTIFIER_TABLE_UNICODE_VERSIONS
+                .firstOrNull { (minor, _) -> "${minor.first}.${minor.second}" == release }
+                ?.let { (_, unicode) -> forUnicode(unicode) }
+        }
 
         private fun scriptSet(scripts: List<String>, script: String): BitSet =
             BitSet().apply { set(scripts.indexOf(script).also { check(it >= 0) { "no $script script" } }) }
