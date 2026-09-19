@@ -89,15 +89,22 @@ internal class VersionedSyntax : Annotator, DumbAware {
 
     private fun problem(element: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? =
         when (element) {
-            is ElixirNullaryRangeOperation -> if (!NULLARY_RANGE.isSufficient(languageLevel())) Problem(element.textRange, before("'..'")) else null
+            is ElixirNullaryRangeOperation ->
+                if (!NULLARY_RANGE.isSufficient(languageLevel())) {
+                    Problem(element.textRange, syntaxErrorBefore("'..'"))
+                } else {
+                    null
+                }
             is ElixirAssociationsBase -> mapEntry(element, languageLevel)
             is ElixirKeywordPair, is ElixirNoParenthesesKeywordPair -> keywordKey(element, languageLevel)
-            is ElixirMatchedMultiplicationOperation, is ElixirUnmatchedMultiplicationOperation -> operatorArity(element, languageLevel)
+            is ElixirMatchedMultiplicationOperation, is ElixirUnmatchedMultiplicationOperation ->
+                operatorArity(element, languageLevel)
             is ElixirMatchedTernaryOperation, is ElixirUnmatchedTernaryOperation -> stepOperator(element, languageLevel)
             is ElixirRelativeIdentifier -> graphemeCluster(element, languageLevel)
             is ElixirEscapedCharacter -> escapedCharacter(element, languageLevel)
             is ElixirQuoteHexadecimalEscapeSequence -> hexadecimalEscape(element, languageLevel)
-            is ElixirHeredoc, is ElixirInterpolatedSigilHeredoc, is ElixirLiteralSigilHeredoc -> heredocTerminatorAfterContent(element, languageLevel)
+            is ElixirHeredoc, is ElixirInterpolatedSigilHeredoc, is ElixirLiteralSigilHeredoc ->
+                heredocTerminatorAfterContent(element, languageLevel)
             else -> if (element.firstChild == null) leaf(element, languageLevel) else null
         }
 
@@ -151,7 +158,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
 
         if (endsWithBackslash(power)) return Problem(power.textRange, INVALID_ESCAPE_AT_END)
 
-        return Problem(power.textRange, before(token))
+        return Problem(power.textRange, syntaxErrorBefore(token))
     }
 
     /** The token Elixir names when the `*` after `x.*` has no operand, or null where that token is not known. */
@@ -166,7 +173,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
         val type = when (next.node.elementType) {
             // The lexer makes some operators before `/` identifiers.
             ElixirTypes.IDENTIFIER_TOKEN -> tokenType(next.text)
-            ElixirTypes.NOT_OPERATOR -> return if (isNotIn(next)) erlangAtom("not in") else null
+            ElixirTypes.NOT_OPERATOR -> return if (isNotIn(next)) erlangAtom("not in", languageLevel()) else null
             // Elixir does not name `..` there when `/` or `//` follows, spaces aside.
             ElixirTypes.RANGE_OPERATOR -> if (isBeforeDivision(next)) return null else ElixirTypes.RANGE_OPERATOR
             else -> next.node.elementType
@@ -178,7 +185,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
         // An operator before `/` on the same line is a reference, which starts the operand.
         if (type in OPERATORS && isDivisionOnSameLine(next)) return null
 
-        return if (type in ENDS_OPERAND) erlangAtom(next.text) else null
+        return if (type in ENDS_OPERAND) erlangAtom(next.text, languageLevel()) else null
     }
 
     private fun isBeforeDivision(range: PsiElement): Boolean {
@@ -212,9 +219,13 @@ internal class VersionedSyntax : Annotator, DumbAware {
             text.first() == '\"' || text.first() == '\'' -> quotedKeyName(key)
             // 1.11 accepts a `..//` key.
             text == "..//" ->
-                if (languageLevel().let { STEP_OPERATOR.isSufficient(it) && !POWER_OPERATOR.isSufficient(it) }) erlangAtom(text) else null
+                if (languageLevel().let { STEP_OPERATOR.isSufficient(it) && !POWER_OPERATOR.isSufficient(it) }) {
+                    erlangAtom(text, languageLevel())
+                } else {
+                    null
+                }
             text in KEYS_NAMED_OTHERWISE -> null
-            else -> erlangAtom(text)
+            else -> erlangAtom(text, languageLevel())
         }
     }
 
@@ -231,8 +242,18 @@ internal class VersionedSyntax : Annotator, DumbAware {
         when (fragment.parent) {
             is ElixirAtom ->
                 when (fragment.text) {
-                    "**" -> if (!POWER_OPERATOR.isSufficient(languageLevel())) Problem(fragment.textRange, before("")) else null
-                    "..//" -> if (!STEP_ATOM.isSufficient(languageLevel())) Problem(fragment.textRange, before("'/'")) else null
+                    "**" ->
+                        if (!POWER_OPERATOR.isSufficient(languageLevel())) {
+                            Problem(fragment.textRange, syntaxErrorBefore(""))
+                        } else {
+                            null
+                        }
+                    "..//" ->
+                        if (!STEP_ATOM.isSufficient(languageLevel())) {
+                            Problem(fragment.textRange, syntaxErrorBefore("'/'"))
+                        } else {
+                            null
+                        }
                     else -> notNfc(fragment, languageLevel)
                 }
             is ElixirKeywordKey -> notNfc(fragment, languageLevel)
@@ -398,7 +419,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
 
         next ?: return null
 
-        return Problem(entry.textRange, before(if (eol) "eol" else "'${next.text}'"))
+        return Problem(entry.textRange, syntaxErrorBefore(if (eol) "eol" else "'${next.text}'"))
     }
 
     private fun isMapEntry(entry: PsiElement, languageLevel: () -> ElixirLanguageLevel): Boolean =
@@ -434,7 +455,13 @@ internal class VersionedSyntax : Annotator, DumbAware {
 
         if (between.contains("\\\n")) {
             // Before 1.20 Elixir reads `..` there as a range, which has no operands before 1.14.
-            if (name == "..") return if (!NULLARY_RANGE.isSufficient(languageLevel())) Problem(operand.textRange, before("'..'")) else null
+            if (name == "..") {
+                return if (!NULLARY_RANGE.isSufficient(languageLevel())) {
+                    Problem(operand.textRange, syntaxErrorBefore("'..'"))
+                } else {
+                    null
+                }
+            }
             // Before 1.13 [power] reports the `**` itself.
             if (name == "**" && !POWER_OPERATOR.isSufficient(languageLevel())) return null
             if (ESCAPED_NEWLINE_BEFORE_ARITY.isSufficient(languageLevel())) return null
@@ -443,15 +470,18 @@ internal class VersionedSyntax : Annotator, DumbAware {
                 "..//" if STEP_OPERATOR.isSufficient(languageLevel()) ->
                     Problem(
                         operand.textRange,
-                        unexpectedToken('.'.code, column(operand.containingFile.viewProvider.contents, operand.textRange.startOffset))
+                        unexpectedToken(
+                            '.'.code,
+                            column(operand.containingFile.viewProvider.contents, operand.textRange.startOffset),
+                        )
                     )
-                "..//", "/", "not", in UNARY_OPERATORS -> Problem(operator.textRange, before("'/'"))
+                "..//", "/", "not", in UNARY_OPERATORS -> Problem(operator.textRange, syntaxErrorBefore("'/'"))
                 // After an operand the operator is binary, so Elixir names the `/` that should have been its operand.
                 else ->
                     if (isAfterOperand(operand, languageLevel)) {
-                        Problem(operator.textRange, before("'/'"))
+                        Problem(operator.textRange, syntaxErrorBefore("'/'"))
                     } else {
-                        Problem(operand.textRange, before(erlangAtom(name) ?: return null))
+                        Problem(operand.textRange, syntaxErrorBefore(erlangAtom(name, languageLevel())))
                     }
             }
         }
@@ -466,7 +496,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
         val captured = !newline && previous?.node?.elementType == ElixirTypes.CAPTURE_OPERATOR
 
         return if (name in UNARY_OPERATORS && !captured && !UNARY_OPERATOR_REFERENCE.isSufficient(languageLevel())) {
-            Problem(operator.textRange, before("'/'"))
+            Problem(operator.textRange, syntaxErrorBefore("'/'"))
         } else {
             null
         }
@@ -581,7 +611,6 @@ internal class VersionedSyntax : Annotator, DumbAware {
 
     private fun codePoints(text: String): String = text.codePoints().toArray().joinToString(" ") { "0x%04X".format(it) }
 
-    private fun before(token: String) = "syntax error before: $token"
 
     private companion object {
         const val NFC = "Elixir expects unquoted Unicode atoms, variables, and calls to be in NFC form."
@@ -632,24 +661,11 @@ private val ERLANG_STRING_ESCAPES = mapOf(
     '\u000C' to "\\f", '\u001B' to "\\e",
 )
 
-private val ERLANG_BARE_ATOM = Regex("[a-zß-öø-ÿ][A-Za-z0-9_@À-ÖØ-öø-ÿ]*")
-private val ERLANG_RESERVED_WORDS = setOf(
-    "after", "and", "andalso", "band", "begin", "bnot", "bor", "bsl", "bsr", "bxor", "case", "catch", "cond", "div", "end", "fun",
-    "if", "let", "not", "of", "or", "orelse", "receive", "rem", "try", "when", "xor",
-)
 
 private fun tokenType(text: String): IElementType? = ElixirLexer().run {
     start(text)
     tokenType
 }
-
-/** As Erlang prints an atom, or null beyond Latin-1. */
-private fun erlangAtom(text: String): String? =
-    when {
-        text.any { it.code > 0xFF } -> null
-        ERLANG_BARE_ATOM.matches(text) && text !in ERLANG_RESERVED_WORDS -> text
-        else -> "'${text.replace("\\", "\\\\").replace("'", "\\'")}'"
-    }
 
 /** As Erlang prints a binary: a string when every character is printable in Latin-1 or escaped, else its bytes. */
 private fun erlangBinary(text: String): String =

@@ -180,6 +180,9 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             "x.** \"a\\u0041\": 1" to "[<<\"aA\">>]",
             "x.** \"a\\u{41}\": 1" to "[<<\"aA\">>]",
             "x.** aé: 1" to "aé",
+            // Erlang quotes an atom beyond Latin-1.
+            "x.** \u0141x: 1" to "'\u0141x'",
+            "x.** \u65E5\u672C: 1" to "'\u65E5\u672C'",
             "x.** é: 1" to "é",
         ) + listOf(
             "*", "..", "<>", "++", "--", "+++", "---", "==", "!=", "===", "!==", "=~", "<", ">", "<=", ">=", "&&", "||", "&&&",

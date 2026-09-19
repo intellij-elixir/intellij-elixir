@@ -102,7 +102,7 @@ internal class InvalidConstruct : Annotator, DumbAware {
         val next = generateSequence(PsiTreeUtil.nextVisibleLeaf(atom)) { PsiTreeUtil.nextVisibleLeaf(it) }
             .firstOrNull { it !is PsiWhiteSpace && it !is PsiComment }
         if (next == null || isFinalBackslash(next)) {
-            return fragment.textRange to if (endsWithBackslash(atom)) INVALID_ESCAPE_AT_END else "syntax error before: "
+            return fragment.textRange to if (endsWithBackslash(atom)) INVALID_ESCAPE_AT_END else syntaxErrorBefore("")
         }
 
         val token = when {
@@ -111,7 +111,7 @@ internal class InvalidConstruct : Annotator, DumbAware {
             else -> return null
         }
 
-        return fragment.textRange to "syntax error before: $token"
+        return fragment.textRange to syntaxErrorBefore(token)
     }
 
     /**
@@ -126,11 +126,15 @@ internal class InvalidConstruct : Annotator, DumbAware {
             ?.text
 
         return when (operand.text) {
-            "=>" -> if (previous in setOf(null, "&", "(", "=")) operand.textRange to "syntax error before: '=>'" else null
+            "=>" -> if (previous in setOf(null, "&", "(", "=")) operand.textRange to syntaxErrorBefore("'=>'") else null
             "//" -> {
                 val between = operation.containingFile.viewProvider.contents.subSequence(operand.textRange.endOffset, operator.textRange.startOffset)
 
-                if ('\n' in between && (previous == null || previous == "&")) operator.textRange to "syntax error before: '/'" else null
+                if ('\n' in between && (previous == null || previous == "&")) {
+                    operator.textRange to syntaxErrorBefore("'/'")
+                } else {
+                    null
+                }
             }
             else -> null
         }

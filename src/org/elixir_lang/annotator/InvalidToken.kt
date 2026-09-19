@@ -21,7 +21,6 @@ import org.elixir_lang.psi.WholeNumber
 import org.elixir_lang.language_level.ElixirLanguageFeature.ALIAS_ERROR_COVERS_PUNCTUATION
 import org.elixir_lang.language_level.ElixirLanguageFeature.BASED_NUMBER_CONTINUES_INTO_DIGITS
 import org.elixir_lang.language_level.ElixirLanguageFeature.DECIMAL_NUMBER_ENDS_BEFORE_WORD
-import org.elixir_lang.language_level.ElixirLanguageFeature.MAYBE_RESERVED
 import org.elixir_lang.language_level.ElixirLanguageFeature.NORMALIZED_IDENTIFIERS
 import org.elixir_lang.language_level.ElixirLanguageFeature.NUMBER_ERROR_QUOTES_THE_CHARACTER
 import org.elixir_lang.language_level.ElixirLanguageLevel
@@ -191,7 +190,7 @@ internal class InvalidToken : Annotator, DumbAware {
 
                     return rejectedWord(text, start, digitsEnd, languageLevel)
                         ?: (TextRange(start, wordEnd(text, digitsEnd)) to
-                            "syntax error before: \"${text.substring(baseEnd, digitsEnd)}\"")
+                            syntaxErrorBefore("\"${text.substring(baseEnd, digitsEnd)}\""))
                 }
                 next.isAsciiLetter() || next == '_' -> return afterLiteral(text, start, baseEnd, languageLevel)
                 else -> return null
@@ -222,7 +221,7 @@ internal class InvalidToken : Annotator, DumbAware {
         }
 
         return if (decimalStart != start) {
-            TextRange(start, end) to "syntax error before: \"${text.substring(decimalStart, end)}\""
+            TextRange(start, end) to syntaxErrorBefore("\"${text.substring(decimalStart, end)}\"")
         } else {
             null
         }
@@ -246,10 +245,10 @@ internal class InvalidToken : Annotator, DumbAware {
                         "unexpected keyword: do:. In case you wanted to write a \"do\" expression, you must either use " +
                             "do-blocks or separate the keyword argument with comma."
                     } else {
-                        "syntax error before: '$word:'"
+                        syntaxErrorBefore("'$word:'")
                     }
             word in KEYWORDS || (word == "not" && isFollowedByIn(text, wordEnd, languageLevel)) -> null
-            else -> TextRange(numberStart, wordEnd) to "syntax error before: ${atom(word, languageLevel)}"
+            else -> TextRange(numberStart, wordEnd) to syntaxErrorBefore(erlangAtom(word, languageLevel))
         }
     }
 
@@ -299,18 +298,8 @@ private val WORDS = TokenSet.create(
  */
 private val KEYWORDS = setOf("after", "and", "catch", "do", "else", "end", "in", "or", "rescue", "when")
 
-/** Erlang leaves an atom unquoted when it is a lowercase Latin-1 word. */
-private val UNQUOTED_ATOM =
-    Regex("[a-z\u00DF-\u00F6\u00F8-\u00FF][A-Za-z0-9_@\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF]*")
-
 private fun isElixirSpace(character: Char): Boolean =
     character == ' ' || character == '\t' || character == '\r' || character == '\n'
-
-/** `erl_scan`'s reserved words, which Erlang prints quoted. */
-private val ERLANG_RESERVED_WORDS = setOf(
-    "after", "and", "andalso", "band", "begin", "bnot", "bor", "bsl", "bsr", "bxor", "case", "catch", "cond", "div", "end",
-    "fun", "if", "let", "not", "of", "or", "orelse", "receive", "rem", "try", "when", "xor"
-)
 
 private fun baseEnd(text: CharSequence, start: Int): Int? {
     if (text.getOrNull(start) != '0') return null
@@ -435,17 +424,7 @@ private fun letterThatStartsOnlyAnAtom(
     return TextRange(start, start + Character.charCount(codePoint)) to message
 }
 
-/** How Elixir's parser prints a word it stopped before: as an Erlang atom, whose reserved words depend on the OTP. */
-private fun atom(word: String, languageLevel: ElixirLanguageLevel): String =
-    if (
-        word.matches(UNQUOTED_ATOM) &&
-        word !in ERLANG_RESERVED_WORDS &&
-        !(MAYBE_RESERVED.isSufficient(languageLevel) && word == "maybe")
-    ) {
-        word
-    } else {
-        "'$word'"
-    }
+
 
 private fun Char.isAsciiDigit(): Boolean = this in '0'..'9'
 
