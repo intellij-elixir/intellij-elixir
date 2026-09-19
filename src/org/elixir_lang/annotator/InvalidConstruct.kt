@@ -154,9 +154,7 @@ internal class InvalidConstruct : Annotator, DumbAware {
         val arguments = mapOperation.mapArguments.textRange
         val between = mapOperation.containingFile.viewProvider.contents
             .subSequence(prefix.endOffset, arguments.startOffset)
-            .toString()
-            .replace("\\\r\n", " ")
-            .replace("\\\n", " ")
+            .let { withoutLineContinuations(it, " ") }
 
         if (between.isEmpty() || between.any { it != ' ' && it != '\t' }) return null
 
@@ -236,8 +234,10 @@ internal class InvalidConstruct : Annotator, DumbAware {
             }
         }
 
+        val startLine = line(heredoc.containingFile.viewProvider.contents, promoter.startOffset)
+
         return TextRange(promoter.startOffset, heredoc.textRange.endOffset) to
-            "missing terminator: ${promoter.text} (for heredoc starting at line ${lineAt(heredoc, promoter.startOffset)})"
+            "missing terminator: ${promoter.text} (for heredoc starting at line $startLine)"
     }
 
     /**
@@ -270,8 +270,10 @@ internal class InvalidConstruct : Annotator, DumbAware {
             else -> "string" to owner.textRange.startOffset
         }
 
+        val startLine = line(interpolation.containingFile.viewProvider.contents, start)
+
         return interpolation.node.firstChildNode.textRange to
-            "missing interpolation terminator: \"}\" (for $name starting at line ${lineAt(interpolation, start)})"
+            "missing interpolation terminator: \"}\" (for $name starting at line $startLine)"
     }
 
     /** A heredoc, or an escape in a string, charlist, atom or heredoc, that fails while Elixir reads [interpolation]. */
@@ -309,16 +311,18 @@ internal class InvalidConstruct : Annotator, DumbAware {
         }
         val terminator = CLOSING_DELIMITERS[promoter.text] ?: promoter.text
 
-        return quote.textRange to
-            "missing terminator: $terminator (for $owner starting at line ${lineAt(quote, quote.textRange.startOffset)})"
+        val startLine = line(quote.containingFile.viewProvider.contents, quote.textRange.startOffset)
+
+        return quote.textRange to "missing terminator: $terminator (for $owner starting at line $startLine)"
     }
 
     private fun invalidCodePoint(escape: ElixirQuoteHexadecimalEscapeSequence): Pair<TextRange, String>? {
-        // Elixir unescapes a quoted remote call name only from 1.18. In `?\u{...}` it reads `?\u` and then reports a syntax
-        // error before `{`.
+        // Elixir unescapes a quoted remote call name only from 1.18. In `?\u{...}` it reads `?\u` and then reports a
+        // syntax error before `{`.
         when (PsiTreeUtil.getParentOfType(escape, ElixirRelativeIdentifier::class.java, ElixirCharToken::class.java)) {
             null -> Unit
-            is ElixirRelativeIdentifier -> if (!ElixirLanguageLevelResolver.isAvailable(UNESCAPED_QUOTED_REMOTE_CALL_NAME, escape)) return null
+            is ElixirRelativeIdentifier ->
+                if (!ElixirLanguageLevelResolver.isAvailable(UNESCAPED_QUOTED_REMOTE_CALL_NAME, escape)) return null
             else -> return null
         }
 
@@ -459,9 +463,6 @@ private fun isHeredoc(element: PsiElement): Boolean =
 
 private fun isUnclosed(interpolation: ElixirInterpolation): Boolean =
     interpolation.node.findChildByType(ElixirTypes.INTERPOLATION_END) == null
-
-private fun lineAt(element: PsiElement, offset: Int): Int =
-    StringUtil.offsetToLineNumber(element.containingFile.viewProvider.contents, offset) + 1
 
 /** Where the terminator line's terminator starts, or the first misplaced terminator; neither when the file ends first. */
 private class HeredocScan(val terminatorAt: Int?, val misplaced: TextRange?)

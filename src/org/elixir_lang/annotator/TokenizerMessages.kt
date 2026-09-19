@@ -1,14 +1,5 @@
 package org.elixir_lang.annotator
 
-/** Elixir's column: code points since the start of the line, a tab counting as one, from 1. */
-internal fun column(text: CharSequence, offset: Int): Int {
-    var start = offset
-
-    while (start > 0 && text[start - 1] != '\n') start--
-
-    return Character.codePointCount(text, start, offset) + 1
-}
-
 /** Erlang's `~4.16.0B` fills a code point that needs more than four hexadecimal digits with stars. */
 internal fun codePointHexadecimal(codePoint: Int): String = if (codePoint > 0xFFFF) "****" else "%04X".format(codePoint)
 

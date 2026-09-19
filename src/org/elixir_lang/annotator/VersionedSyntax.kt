@@ -607,7 +607,6 @@ internal class VersionedSyntax : Annotator, DumbAware {
         return if (HEXADECIMAL_ESCAPE_NEEDS_TWO_DIGITS.isSufficient(languageLevel())) Problem(escape.textRange, INVALID_HEX_ESCAPE) else null
     }
 
-    private fun line(text: CharSequence, offset: Int): Int = (0 until offset).count { text[it] == '\n' } + 1
 
     private fun codePoints(text: String): String = text.codePoints().toArray().joinToString(" ") { "0x%04X".format(it) }
 
@@ -714,4 +713,3 @@ private fun unescape(text: String): String? {
 
 private fun Char.isHexDigit(): Boolean = this in '0'..'9' || this in 'a'..'f' || this in 'A'..'F'
 
-private fun withoutLineContinuations(text: CharSequence): String = text.toString().replace("\\\r\n", "").replace("\\\n", "")
