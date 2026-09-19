@@ -6,8 +6,10 @@ import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
+import com.intellij.psi.TokenType
 import com.intellij.psi.tree.TokenSet
 import com.intellij.psi.util.PsiTreeUtil
+import org.elixir_lang.annotator.unicode_security.UnicodeSecurityCheck
 import org.elixir_lang.psi.ElixirDecimalFloat
 import org.elixir_lang.psi.ElixirDecimalFloatExponent
 import org.elixir_lang.psi.ElixirDecimalFloatFractional
@@ -42,6 +44,8 @@ internal class InvalidToken : Annotator, DumbAware {
             if (isNumber(element)) number(element)?.let(problems::add)
 
             for (child in generateSequence(firstChild, PsiElement::getNextSibling)) {
+                // A bad character belongs to no language, so annotators never see it; its parent reports it.
+                rejectedFirstLetter(child)?.let(problems::add)
                 if (child.nextSibling != null) acrossBoundary(child)?.let(problems::add)
             }
         }
@@ -124,6 +128,10 @@ internal class InvalidToken : Annotator, DumbAware {
                 else -> return TextRange(start, end + 1) to "keyword argument must be followed by space after: $word:"
             }
         }
+
+        val first = word.codePointAt(0)
+        // The lexer rejects the uppercase ones itself, but not the titlecase ones.
+        if (startsOnlyAnAtom(first)) return letterThatStartsOnlyAnAtom(text, start, languageLevel)
 
         val kind = if (word[0] in 'A'..'Z') "alias" else "identifier"
 
@@ -415,11 +423,40 @@ private fun isWordCharacter(codePoint: Int): Boolean =
             it == Character.NON_SPACING_MARK.toInt() || it == Character.COMBINING_SPACING_MARK.toInt()
         }
 
-/** Erlang's `~4.16.0B` fills a code point that needs more than four digits with stars. */
 private fun invalidCharacter(codePoint: Int, kind: String, word: String): String {
-    val hexadecimal = if (codePoint > 0xFFFF) "****" else "%04X".format(codePoint)
+    val character = String(Character.toChars(codePoint))
 
-    return "invalid character \"${String(Character.toChars(codePoint))}\" (code point U+$hexadecimal) in $kind: $word"
+    return "invalid character \"$character\" (code point U+${codePointHexadecimal(codePoint)}) in $kind: $word"
+}
+
+/**
+ * A letter the lexer cannot start a word with: a non-ASCII uppercase letter outside an atom or keyword key, or one
+ * Elixir restricts. [RejectedLetterErrorFilter] hides the parser's own error for it.
+ */
+internal fun rejectedFirstLetter(badCharacter: PsiElement): Pair<TextRange, String>? {
+    if (badCharacter.node.elementType != TokenType.BAD_CHARACTER) return null
+    val text = badCharacter.containingFile.viewProvider.contents
+    val start = badCharacter.textRange.startOffset
+    if (!startsOnlyAnAtom(Character.codePointAt(text, start)) || continuesWord(text, start)) return null
+
+    return letterThatStartsOnlyAnAtom(text, start) { ElixirLanguageLevelResolver.languageLevelFor(badCharacter) }
+}
+
+/** Elixir reads the word through `@` and reports that first, unless the letter is one no word may start with. */
+private fun letterThatStartsOnlyAnAtom(
+    text: CharSequence,
+    start: Int,
+    languageLevel: () -> ElixirLanguageLevel,
+): Pair<TextRange, String> {
+    val codePoint = Character.codePointAt(text, start)
+    val word = text.substring(start, wordEnd(text, start))
+    val message = if ('@' in word && !UnicodeSecurityCheck.rejectsFirst(codePoint, languageLevel())) {
+        invalidCharacter('@'.code, "atom", word)
+    } else {
+        unexpectedToken(codePoint, column(text, start))
+    }
+
+    return TextRange(start, start + Character.charCount(codePoint)) to message
 }
 
 /** How Elixir's parser prints a word it stopped before: as an Erlang atom, whose reserved words depend on the OTP. */

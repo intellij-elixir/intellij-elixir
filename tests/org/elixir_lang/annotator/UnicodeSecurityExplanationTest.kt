@@ -99,11 +99,11 @@ class UnicodeSecurityExplanationTest : BasePlatformTestCase() {
      */
     fun testRestrictedCharacterTooltipHasNoHintWithoutACompatibleForm() {
         for ((source, message) in listOf(
-            "\u3164 = 1" to "unexpected token: \"\u3164\" (code point U+3164)",
-            "_shib\u3164 = 1" to "unexpected token: \"\u3164\" (code point U+3164)",
-            "\uFF46\uFF4F\uFF4F = 1" to "unexpected token: \"\uFF46\" (code point U+FF46)",
-            "foO\uD835\uDEB3" to "unexpected token: \"\uD835\uDEB3\" (code point U+1D6B3)",
-            "foo\uFF71 = 1" to "unexpected token: \"\uFF71\" (code point U+FF71)",
+            "\u3164 = 1" to "unexpected token: \"\u3164\" (column 1, code point U+3164)",
+            "_shib\u3164 = 1" to "unexpected token: \"\u3164\" (column 6, code point U+3164)",
+            "\uFF46\uFF4F\uFF4F = 1" to "unexpected token: \"\uFF46\" (column 1, code point U+FF46)",
+            "foO\uD835\uDEB3" to "unexpected token: \"\uD835\uDEB3\" (column 4, code point U+****)",
+            "foo\uFF71 = 1" to "unexpected token: \"\uFF71\" (column 4, code point U+FF71)",
         )) {
             val tooltip = tooltip(elixir("1.20.0"), source)
 

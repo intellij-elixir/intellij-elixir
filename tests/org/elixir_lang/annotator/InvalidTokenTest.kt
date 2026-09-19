@@ -24,6 +24,60 @@ class InvalidTokenTest : BasePlatformTestCase() {
         }
     }
 
+    /** A word may start with a non-ASCII uppercase letter only as an atom or a keyword key; Elixir names its column. */
+    fun testNonAsciiUppercaseLetterStartsOnlyAnAtomOrKeywordKey() {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.13.0"), elixir("1.14.0"), elixir("1.20.0"))) {
+            assertErrors(languageLevel, "\u00C9x = 1", "\u00C9" to unexpectedToken("\u00C9", 1, "00C9"))
+            assertErrors(languageLevel, "\u00C9 = 1", "\u00C9" to unexpectedToken("\u00C9", 1, "00C9"))
+            assertErrors(languageLevel, "a.\u00C9x", "\u00C9" to unexpectedToken("\u00C9", 3, "00C9"))
+            assertErrors(languageLevel, "&\u00C9x/1", "\u00C9" to unexpectedToken("\u00C9", 2, "00C9"))
+            assertErrors(languageLevel, "\t\u00C9x = 1", "\u00C9" to unexpectedToken("\u00C9", 2, "00C9"))
+            assertErrors(languageLevel, "\u0394 = 1", "\u0394" to unexpectedToken("\u0394", 1, "0394"))
+            assertErrors(languageLevel, "\u01C5x = 1", "\u01C5" to unexpectedToken("\u01C5", 1, "01C5"))
+            assertNoErrors(languageLevel, ":\u00C9x")
+            assertNoErrors(languageLevel, "[\u00C9x: 1]")
+            assertNoErrors(languageLevel, "x\u00C9 = 1")
+        }
+    }
+
+    /** Before 1.14 a restricted uppercase letter still starts an atom or keyword key; from 1.14 it starts nothing. */
+    fun testRestrictedUppercaseLetterStartsNoWord() {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.13.0"))) {
+            assertErrors(
+                languageLevel,
+                "\uD835\uDCB3 = 1",
+                "\uD835\uDCB3" to unexpectedToken("\uD835\uDCB3", 1, "****")
+            )
+            assertNoErrors(languageLevel, ":\uD835\uDCB3")
+            assertNoErrors(languageLevel, "[\uD835\uDCB3: 1]")
+        }
+
+        for (languageLevel in listOf(elixir("1.14.0"), elixir("1.20.0"))) {
+            assertErrors(
+                languageLevel,
+                "\uD835\uDCB3 = 1",
+                "\uD835\uDCB3" to unexpectedToken("\uD835\uDCB3", 1, "****")
+            )
+        }
+    }
+
+    /** Elixir reads a word through `@` before it checks the first letter, unless the letter is restricted from 1.14. */
+    fun testAtInAWordStartingWithALetterThatStartsOnlyAnAtom() {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.13.0"), elixir("1.14.0"), elixir("1.20.0"))) {
+            assertErrors(languageLevel, "\u00C9x@y = 1", "\u00C9" to invalidCharacter("@", "0040", "atom", "\u00C9x@y"))
+            assertErrors(languageLevel, "x = \u00C9x", "\u00C9" to unexpectedToken("\u00C9", 5, "00C9"))
+            assertErrors(languageLevel, "x = \u00C9x@y", "\u00C9" to invalidCharacter("@", "0040", "atom", "\u00C9x@y"))
+        }
+
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.13.0"))) {
+            assertErrors(languageLevel, "\u01C5x@y = 1", "\u01C5" to invalidCharacter("@", "0040", "atom", "\u01C5x@y"))
+        }
+
+        for (languageLevel in listOf(elixir("1.14.0"), elixir("1.20.0"))) {
+            assertErrors(languageLevel, "\u01C5x@y = 1", "\u01C5" to unexpectedToken("\u01C5", 1, "01C5"))
+        }
+    }
+
     fun testNonAsciiCharacterInAnAlias() {
         val alias = "Fo\u00F3"
 
@@ -516,6 +570,9 @@ class InvalidTokenTest : BasePlatformTestCase() {
         "invalid character $character after number $number. If you intended to write a number, make sure to add the " +
             "proper punctuation character after the number (space, comma, etc). If you meant to write an identifier, note " +
             "that identifiers in Elixir cannot start with numbers. Unexpected token: $character"
+
+    private fun unexpectedToken(character: String, column: Int, codePoint: String): String =
+        "unexpected token: \"$character\" (column $column, code point U+$codePoint)"
 
     private fun errors(languageLevel: ElixirLanguageLevel, source: String): List<Pair<String, String?>> {
         ElixirLanguageLevelResolver.overrideLanguageLevel(project, languageLevel)

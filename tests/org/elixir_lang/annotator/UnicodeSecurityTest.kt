@@ -350,29 +350,49 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
         val source = "\u3164 = 1"
 
         assertNoErrors(elixir("1.13.0"), source)
-        assertErrors(elixir("1.14.0"), source, "\u3164" to "unexpected token: \"\u3164\" (code point U+3164)")
+        assertErrors(elixir("1.14.0"), source, "\u3164" to "unexpected token: \"\u3164\" (column 1, code point U+3164)")
+    }
+
+    /** From 1.14 a restricted letter starts no atom or keyword key either; in an atom Elixir names the colon. */
+    fun testRestrictedFirstLetterOfAnAtomOrKeywordKeyFrom1_14() {
+        for (languageLevel in listOf(elixir("1.14.0"), elixir("1.20.0"))) {
+            assertErrors(languageLevel, ":\uD835\uDCB3", ":" to "unexpected token: \":\" (column 1, code point U+003A)")
+            assertErrors(
+                languageLevel,
+                "[\uD835\uDCB3: 1]",
+                "\uD835\uDCB3" to "unexpected token: \"\uD835\uDCB3\" (column 2, code point U+****)"
+            )
+        }
     }
 
     fun testRestrictedCharacterAfterAllowedOnes() {
-        assertErrors(elixir("1.14.0"), "_shib\u3164 = 1", "\u3164" to "unexpected token: \"\u3164\" (code point U+3164)")
+        assertErrors(
+            elixir("1.14.0"),
+            "_shib\u3164 = 1",
+            "\u3164" to "unexpected token: \"\u3164\" (column 6, code point U+3164)"
+        )
 
         val boldMu = cp(0x1D6B3)
         assertNoErrors(elixir("1.13.0"), "foO$boldMu")
-        assertErrors(elixir("1.14.0"), "foO$boldMu", boldMu to "unexpected token: \"$boldMu\" (code point U+1D6B3)")
+        assertErrors(
+            elixir("1.14.0"),
+            "foO$boldMu",
+            boldMu to "unexpected token: \"$boldMu\" (column 4, code point U+****)"
+        )
     }
 
     fun testUnicode17RestrictsBopomofoFrom1_19() {
         val source = "\u5E7B\u3112\u3127\u3124 = 1"
 
         assertNoErrors(elixir("1.18.0"), source)
-        assertErrors(elixir("1.19.0"), source, "\u3112" to "unexpected token: \"\u3112\" (code point U+3112)")
+        assertErrors(elixir("1.19.0"), source, "\u3112" to "unexpected token: \"\u3112\" (column 2, code point U+3112)")
     }
 
     fun testUnicode17RestrictsLatinSmallLetterUWithDiaeresisAndGraveFrom1_19() {
         val source = ":foo\u01DC"
 
         assertNoErrors(elixir("1.18.0"), source)
-        assertErrors(elixir("1.19.0"), source, "\u01DC" to "unexpected token: \"\u01DC\" (code point U+01DC)")
+        assertErrors(elixir("1.19.0"), source, "\u01DC" to "unexpected token: \"\u01DC\" (column 5, code point U+01DC)")
     }
 
     fun testRestrictionIsCheckedBeforeNormalization() {
@@ -383,7 +403,7 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
         val source = "foo\uA7AE = 1"
 
         assertNoErrors(elixir("1.14.0"), source)
-        assertErrors(elixir("1.15.0"), source, "\uA7AE" to "unexpected token: \"\uA7AE\" (code point U+A7AE)")
+        assertErrors(elixir("1.15.0"), source, "\uA7AE" to "unexpected token: \"\uA7AE\" (column 4, code point U+A7AE)")
     }
 
     fun testUnicode16GivesCombiningMarksScriptsFrom1_18() {
@@ -403,7 +423,7 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
         val source = "\u0115 = 1"
 
         assertNoErrors(elixir("1.18.0"), source)
-        assertErrors(elixir("1.19.0"), source, "\u0115" to "unexpected token: \"\u0115\" (code point U+0115)")
+        assertErrors(elixir("1.19.0"), source, "\u0115" to "unexpected token: \"\u0115\" (column 1, code point U+0115)")
     }
 
     /** A script shared by most characters is taken as the one meant, so overlapping scripts are not blamed. */

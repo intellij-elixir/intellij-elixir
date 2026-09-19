@@ -243,6 +243,7 @@
         <annotator implementationClass="org.elixir_lang.annotator.Textual" language="Elixir"/>
         <annotator implementationClass="org.elixir_lang.annotator.UnicodeSecurity" language="Elixir"/>
         <annotator implementationClass="org.elixir_lang.annotator.InvalidToken" language="Elixir"/>
+        <highlightErrorFilter implementation="org.elixir_lang.annotator.RejectedLetterErrorFilter"/>
         <annotator implementationClass="org.elixir_lang.annotator.InvalidConstruct" language="Elixir"/>
         <annotator implementationClass="org.elixir_lang.annotator.VersionedSyntax" language="Elixir"/>
 

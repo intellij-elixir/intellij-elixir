@@ -3,19 +3,28 @@ package org.elixir_lang.annotator.unicode_security
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.util.text.HtmlBuilder
 import com.intellij.openapi.util.text.HtmlChunk
+import org.elixir_lang.annotator.unexpectedToken
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.language_level.ElixirLanguageFeature.*
 import java.text.Normalizer
 import java.util.BitSet
 
 /**
- * What Elixir's tokenizer rejects for Unicode security reasons, as it did in the release a [ElixirLanguageLevel] stands for:
- * bidirectional formatting and line break characters in comments and quoted text, and identifiers with a restricted
- * code point or a mix of scripts.
+ * What Elixir's tokenizer rejects for Unicode security reasons, as it did in the release an [ElixirLanguageLevel]
+ * stands for: bidirectional formatting and line break characters in comments and quoted text, and identifiers with a
+ * restricted code point or a mix of scripts.
  */
 internal object UnicodeSecurityCheck {
-    /** [tooltip] is HTML carrying the rest of Elixir's error, where the plugin can reproduce it. */
-    class Problem(val range: TextRange, val message: String, val tooltip: String? = null)
+    /**
+     * [tooltip] is HTML carrying the rest of Elixir's error, where the plugin can reproduce it. [firstLetter] marks a
+     * code point that cannot start an identifier, which in an atom Elixir reports on the colon.
+     */
+    class Problem(
+        val range: TextRange,
+        val message: String,
+        val tooltip: String? = null,
+        val firstLetter: Boolean = false,
+    )
 
     fun inComment(text: CharSequence, languageLevel: ElixirLanguageLevel): List<Problem> =
         characters(text) { character ->
@@ -43,7 +52,13 @@ internal object UnicodeSecurityCheck {
 
     fun hasBidiOrLineBreak(text: CharSequence): Boolean = text.any { isBidi(it) || isLineBreak(it) }
 
-    fun inIdentifier(text: CharSequence, languageLevel: ElixirLanguageLevel): Problem? {
+    /** Whether no word may start with [codePoint], as Elixir checks from 1.14. */
+    fun rejectsFirst(codePoint: Int, languageLevel: ElixirLanguageLevel): Boolean =
+        IdentifierTable.forLanguageLevel(languageLevel)
+            ?.let { (it.classesOf(codePoint) and (IdentifierTable.UPPER or IdentifierTable.START)) == 0 } == true
+
+    /** [column] is Elixir's column of [text]'s first code point. */
+    fun inIdentifier(text: CharSequence, languageLevel: ElixirLanguageLevel, column: Int = 1): Problem? {
         val table = IdentifierTable.forLanguageLevel(languageLevel) ?: return null
         val codePoints = mutableListOf<Int>()
         var scriptSet: BitSet? = null
@@ -73,7 +88,9 @@ internal object UnicodeSecurityCheck {
                             val identifier = String(codePoints.toIntArray(), 0, codePoints.size) + String(Character.toChars(codePoint))
                             val range = TextRange(offset, offset + Character.charCount(codePoint))
 
-                            return restricted(identifier, range, first, languageLevel)
+                            val identifierColumn = column + Character.codePointCount(text, 0, offset)
+
+                            return restricted(identifier, range, first, languageLevel, identifierColumn)
                         }
 
                         codePoint = GREEK_SMALL_LETTER_MU
@@ -104,18 +121,28 @@ internal object UnicodeSecurityCheck {
     }
 
     /** [identifier] ends with the code point Elixir rejects. */
-    private fun restricted(identifier: String, range: TextRange, first: Boolean, languageLevel: ElixirLanguageLevel): Problem {
+    private fun restricted(
+        identifier: String,
+        range: TextRange,
+        first: Boolean,
+        languageLevel: ElixirLanguageLevel,
+        column: Int,
+    ): Problem {
         val codePoint = identifier.codePointBefore(identifier.length)
-        val message = "unexpected token: \"${String(Character.toChars(codePoint))}\" (code point U+%04X)".format(codePoint)
         // Elixir hints only after an identifier's first code point, trying the compatibility form of the identifier up
         // to that code point first; its later tries need confusable data the plugin does not ship.
         val compatible = Normalizer.normalize(identifier, Normalizer.Form.NFKC)
             .takeIf { !first && it != identifier && inIdentifier(it, languageLevel) == null }
+        val message = if (compatible != null) {
+            "unexpected token: Elixir expects unquoted Unicode atoms, variables, and calls to use allowed codepoints " +
+                "and to be in NFC form."
+        } else {
+            unexpectedToken(codePoint, column)
+        }
 
         val tooltip = if (compatible != null) {
             tooltip(
                 message,
-                HtmlChunk.p().addText("Elixir expects unquoted Unicode atoms, variables, and calls to use allowed codepoints and to be in NFC form."),
                 HtmlChunk.p().addText("Got: \"$identifier\" (code points${hexadecimal(identifier)})"),
                 HtmlChunk.p().addText(
                     "Hint: You could write the above in a compatible format that is accepted by Elixir: " +
@@ -137,7 +164,7 @@ internal object UnicodeSecurityCheck {
             )
         }
 
-        return Problem(range, message, tooltip)
+        return Problem(range, message, tooltip, firstLetter = first)
     }
 
     private fun mixedScript(

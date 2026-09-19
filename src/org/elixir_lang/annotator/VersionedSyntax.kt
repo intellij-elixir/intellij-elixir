@@ -277,8 +277,10 @@ internal class VersionedSyntax : Annotator, DumbAware {
 
         return Problem(
             TextRange(offset, offset + 1),
-            "invalid sigil delimiter: \"$character\" (column ${column(name, offset)}, code point " +
-                "U+${"%04X".format(character.code)}). The available delimiters are: //, ||, \"\", '', (), [], {}, <>"
+            "invalid sigil delimiter: \"$character\" " +
+                "(column ${column(name.containingFile.viewProvider.contents, offset)}, " +
+                "code point U+${"%04X".format(character.code)}). " +
+                "The available delimiters are: //, ||, \"\", '', (), [], {}, <>"
         )
     }
 
@@ -339,7 +341,10 @@ internal class VersionedSyntax : Annotator, DumbAware {
         return if (rejected) {
             Problem(
                 colon.textRange,
-                "unexpected token: \":\" (column ${column(colon, colon.textRange.startOffset)}, code point U+003A)"
+                unexpectedToken(
+                    ':'.code,
+                    column(colon.containingFile.viewProvider.contents, colon.textRange.startOffset),
+                )
             )
         } else {
             null
@@ -433,7 +438,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
                 "..//" if STEP_OPERATOR.isSufficient(languageLevel()) ->
                     Problem(
                         operand.textRange,
-                        "unexpected token: \".\" (column ${column(operand, operand.textRange.startOffset)}, code point U+002E)"
+                        unexpectedToken('.'.code, column(operand.containingFile.viewProvider.contents, operand.textRange.startOffset))
                     )
                 "..//", "/", "not", in UNARY_OPERATORS -> Problem(operator.textRange, before("'/'"))
                 // After an operand the operator is binary, so Elixir names the `/` that should have been its operand.
@@ -565,15 +570,6 @@ internal class VersionedSyntax : Annotator, DumbAware {
         if (codePoint in 0xD800..0xDFFF || codePoint > 0x10FFFF) return null
 
         return if (HEXADECIMAL_ESCAPE_NEEDS_TWO_DIGITS.isSufficient(languageLevel())) Problem(escape.textRange, INVALID_HEX_ESCAPE) else null
-    }
-
-    private fun column(element: PsiElement, offset: Int): Int {
-        val text = element.containingFile.viewProvider.contents
-        var start = offset
-
-        while (start > 0 && text[start - 1] != '\n') start--
-
-        return Character.codePointCount(text, start, offset) + 1
     }
 
     private fun line(text: CharSequence, offset: Int): Int = (0 until offset).count { text[it] == '\n' } + 1
