@@ -33,7 +33,7 @@
         <backgroundPostStartupActivity implementation="org.elixir_lang.status_bar_widget.ElixirSdkStatusWidgetStartupActivity"/>
 
         <!--suppress PluginXmlValidity -->
-        <filePropertyPusher implementation="org.elixir_lang.sdk.ElixirLanguageLevelPusher"/>
+        <filePropertyPusher implementation="org.elixir_lang.sdk.SdkVersionsPusher"/>
         <postStartupActivity implementation="org.elixir_lang.sdk.SdkTableListenerStartupActivity"/>
         <postStartupActivity implementation="org.elixir_lang.mix.DepsCheckerStartupActivity"/>
         <postStartupActivity implementation="org.elixir_lang.mix.sync.MixLibraryReconcileStartupActivity"/>
@@ -243,6 +243,7 @@
         <annotator implementationClass="org.elixir_lang.annotator.Textual" language="Elixir"/>
         <annotator implementationClass="org.elixir_lang.annotator.UnicodeSecurity" language="Elixir"/>
         <annotator implementationClass="org.elixir_lang.annotator.InvalidToken" language="Elixir"/>
+        <highlightErrorFilter implementation="org.elixir_lang.annotator.RejectedLetterErrorFilter"/>
         <annotator implementationClass="org.elixir_lang.annotator.InvalidConstruct" language="Elixir"/>
         <annotator implementationClass="org.elixir_lang.annotator.VersionedSyntax" language="Elixir"/>
 
@@ -297,7 +298,7 @@
         <lang.commenter language="Elixir" implementationClass="org.elixir_lang.ElixirCommenter"/>
 
         <!-- Symbol-API pilot: @callback / @macrocallback code insight.
-             declarationProvider makes the callback name a declaration (Ctrl-Click → Show Usages);
+             declarationProvider makes the callback name a declaration (Ctrl-Click -> Show Usages);
              the searcher supplies the self-declaration usage and implementation usages. -->
         <psi.declarationProvider
                 implementation="org.elixir_lang.model.psi.callback.CallbackSymbolDeclarationProvider"/>
@@ -305,18 +306,19 @@
                   implementationClass="org.elixir_lang.model.psi.ElixirSymbolUsageSearcher"/>
         <searcher forClass="com.intellij.refactoring.rename.api.RenameUsageSearchParameters"
                   implementationClass="org.elixir_lang.model.psi.ElixirRenameUsageSearcher"/>
-        <!-- Reverse navigation: implementing `def`/`defmacro` name → the `@callback` it implements. -->
+        <!-- Reverse navigation: implementing `def`/`defmacro` name -> the `@callback` it implements. -->
         <psi.symbolReferenceProvider hostElementClass="org.elixir_lang.psi.call.Call"
                                      hostLanguage="Elixir"
                                      implementationClass="org.elixir_lang.model.psi.callback.CallbackImplReferenceProvider"
                                      targetClass="org.elixir_lang.model.psi.callback.Callback"/>
 
         <!-- Symbol-API: defprotocol / defimpl code insight.
-             declarationProvider makes the protocol function name a declaration (Ctrl-Click → Show Usages);
+             declarationProvider makes the protocol function name a declaration (Ctrl-Click -> Show Usages);
              the searcher supplies the self-declaration usage and implementation usages. -->
         <psi.declarationProvider
                 implementation="org.elixir_lang.model.psi.protocol.ProtocolFunctionDeclarationProvider"/>
-        <!-- Reverse navigation: implementing `def`/`defmacro` inside defimpl → the protocol function it implements. -->
+        <!-- Reverse navigation: implementing `def`/`defmacro` inside defimpl -> the protocol function it
+             implements. -->
         <psi.symbolReferenceProvider hostElementClass="org.elixir_lang.psi.call.Call"
                                      hostLanguage="Elixir"
                                      implementationClass="org.elixir_lang.model.psi.protocol.ProtocolImplReferenceProvider"
@@ -325,17 +327,17 @@
         <!-- Symbol-API: function definitions (def/defp/defmacro/defmacrop) -->
         <psi.declarationProvider
                 implementation="org.elixir_lang.model.psi.function.FunctionSymbolDeclarationProvider"/>
-        <!-- @spec function head (`@spec foo(...) :: ...`) → function definition. -->
+        <!-- @spec function head (`@spec foo(...) :: ...`) -> function definition. -->
         <psi.symbolReferenceProvider hostElementClass="org.elixir_lang.psi.call.Call"
                                      hostLanguage="Elixir"
                                      implementationClass="org.elixir_lang.model.psi.function.SpecFunctionReferenceProvider"
                                      targetClass="org.elixir_lang.model.psi.function.FunctionSymbol"/>
-        <!-- Forward navigation: call site → function definition (Go To Declaration / Ctrl+Click). -->
+        <!-- Forward navigation: call site -> function definition (Go To Declaration / Ctrl+Click). -->
         <psi.symbolReferenceProvider hostElementClass="org.elixir_lang.psi.call.Call"
                                      hostLanguage="Elixir"
                                      implementationClass="org.elixir_lang.model.psi.function.FunctionCallReferenceProvider"
                                      targetClass="org.elixir_lang.model.psi.function.FunctionSymbol"/>
-        <!-- Captured name of `&name/arity` / `&Mod.name/arity` → the function it captures. Hosted on
+        <!-- Captured name of `&name/arity` / `&Mod.name/arity` -> the function it captures. Hosted on
              the capture operation because the bare name inside it classifies as a variable to the
              legacy scope-walker, so FunctionCallReferenceProvider deliberately skips it. -->
         <psi.symbolReferenceProvider hostElementClass="org.elixir_lang.psi.operation.capture.NonNumeric"

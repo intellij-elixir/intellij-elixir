@@ -1,15 +1,15 @@
 package org.elixir_lang.parser_definition;
 
-import org.elixir_lang.psi.quoting.QuotingDialect;
-import org.elixir_lang.psi.quoting.QuotingDialectResolver;
+import org.elixir_lang.language_level.ElixirLanguageLevel;
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver;
 
 import java.io.IOException;
 
 /**
  * `& 1` - the one construct whose parse tree depends on which Elixir the file belongs to.
  *
- * Both dialects are forced here rather than read from the leg's Elixir, so every leg covers both
- * shapes. A fixture that took the dialect from the environment would only ever exercise whichever
+ * Both language levels are forced here rather than read from the leg's Elixir, so every leg covers both
+ * shapes. A fixture that took the language level from the environment would only ever exercise whichever
  * side of the 1.15.0 boundary that leg happened to run.
  *
  * Parse trees only, no quoting: the reference quoter runs at the leg's real version, so it cannot
@@ -23,15 +23,18 @@ public class CaptureArgumentParsingTestCase extends ParsingTestCase {
     private static final String SOURCE = "& 1 + & 2\n";
 
     public void testSpacedCaptureArgumentBelow1_15() throws IOException {
-        assertParsedInDialect(QuotingDialect.V1_13, "SpacedCaptureArgumentBelow1_15");
+        assertParsedAtLanguageLevel(ElixirLanguageLevel.of("1.13.0"), "SpacedCaptureArgumentBelow1_15");
     }
 
     public void testSpacedCaptureArgumentFrom1_15() throws IOException {
-        assertParsedInDialect(QuotingDialect.V1_15, "SpacedCaptureArgumentFrom1_15");
+        assertParsedAtLanguageLevel(ElixirLanguageLevel.of("1.15.0"), "SpacedCaptureArgumentFrom1_15");
     }
 
-    private void assertParsedInDialect(QuotingDialect dialect, String expectedName) throws IOException {
-        QuotingDialectResolver.overrideDialect(getProject(), dialect);
+    private void assertParsedAtLanguageLevel(
+            ElixirLanguageLevel languageLevel,
+            String expectedName
+    ) throws IOException {
+        ElixirLanguageLevelResolver.overrideLanguageLevel(getProject(), languageLevel);
 
         parseFile(expectedName, SOURCE);
 

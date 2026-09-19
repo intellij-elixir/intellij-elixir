@@ -9,8 +9,8 @@ import org.elixir_lang.ElixirLanguage;
 import org.elixir_lang.ElixirParserDefinition;
 import org.elixir_lang.intellij_elixir.Quoter;
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil;
-import org.elixir_lang.psi.quoting.QuotingDialect;
-import org.elixir_lang.psi.quoting.QuotingDialectResolver;
+import org.elixir_lang.language_level.ElixirLanguageLevel;
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -30,29 +30,32 @@ public abstract class ParsingTestCase extends com.intellij.testFramework.Parsing
     }
 
     /**
-     * Quotes in the dialect of the Elixir the reference quoter is running, so both sides of
+     * Quotes in the language level of the Elixir the reference quoter is running, so both sides of
      * {@link #assertQuotedCorrectly()} speak the same version.
      *
      * These are light fixtures with no Elixir SDK, so production resolution would reach
-     * {@link QuotingDialect#getFALLBACK()} on every CI leg and every leg would compare against the same
-     * dialect however old the Elixir it ran. {@code ELIXIR_VERSION} is exported to the test JVM by
+     * {@link ElixirLanguageLevel#getFALLBACK()} on every CI leg and every leg would compare against the same
+     * language level however old the Elixir it ran. {@code ELIXIR_VERSION} is exported to the test JVM by
      * the build, from the SDK it resolved - the same SDK the quoter was built against.
      *
      * Absent - running a test straight from the IDE, outside the build's environment -
-     * {@link QuotingDialect#of} answers {@link QuotingDialect#getFALLBACK()}, which is what production
+     * {@link ElixirLanguageLevel#of} answers {@link ElixirLanguageLevel#getFALLBACK()}, which is what production
      * resolves to when no Elixir SDK is configured.
      *
      * <p>The override is installed either way, and has to be: skipping it sends
-     * {@code QuotingDialectResolver.dialectFor} into the module model, and this fixture's mock
+     * {@code ElixirLanguageLevelResolver.languageLevelFor} into the module model, and this fixture's mock
      * project has no {@code ProjectFileIndex} for {@code ModuleUtilCore.findModuleForPsiElement} to
      * find, so every test in this hierarchy dies on a {@code @NotNull} assertion naming neither
-     * Elixir nor the dialect.
+     * Elixir nor the language level.
      */
     @Override
     protected void setUp() throws Exception {
         super.setUp();
 
-        QuotingDialectResolver.overrideDialect(getProject(), QuotingDialect.of(System.getenv("ELIXIR_VERSION")));
+        ElixirLanguageLevelResolver.overrideLanguageLevel(
+                getProject(),
+                ElixirLanguageLevel.of(System.getenv("ELIXIR_VERSION"), System.getenv("ERLANG_VERSION"))
+        );
     }
 
     protected void assertParsedAndQuotedAroundError() {
@@ -76,18 +79,19 @@ public abstract class ParsingTestCase extends com.intellij.testFramework.Parsing
 
     /**
      * For a construct the parser accepts in every version, but that the reference quoter started
-     * rejecting as invalid Elixir from {@code dialect} on - so only one side of the boundary can be
-     * asserted per run, chosen by the dialect the leg's real Elixir resolves to (set in
+     * rejecting as invalid Elixir from {@code languageLevel} on - so only one side of the boundary can be
+     * asserted per run, chosen by the language level the leg's real Elixir resolves to (set in
      * {@link #setUp()}), not by which Elixir wrote the test.
      */
-    protected void assertParsedAndQuotedCorrectlyBefore(QuotingDialect dialect) {
-        assertParsedAndQuotedCorrectlyBefore(dialect, true);
+    protected void assertParsedAndQuotedCorrectlyBefore(ElixirLanguageLevel languageLevel) {
+        assertParsedAndQuotedCorrectlyBefore(languageLevel, true);
     }
 
-    protected void assertParsedAndQuotedCorrectlyBefore(QuotingDialect dialect, boolean checkResult) {
+    protected void assertParsedAndQuotedCorrectlyBefore(ElixirLanguageLevel languageLevel, boolean checkResult) {
         doTest(checkResult);
 
-        if (QuotingDialectResolver.dialectFor(myFile).compareTo(dialect) >= 0) {
+        if (ElixirLanguageLevelResolver.languageLevelFor(myFile).getElixir()
+                .compareTo(languageLevel.getElixir()) >= 0) {
             assertQuotedAroundError();
         } else {
             assertWithoutLocalError();
@@ -95,15 +99,15 @@ public abstract class ParsingTestCase extends com.intellij.testFramework.Parsing
         }
     }
 
-    /** Mirror of {@link #assertParsedAndQuotedCorrectlyBefore}: the quoter rejects it *below* {@code dialect}. */
-    protected void assertParsedAndQuotedCorrectlyFrom(QuotingDialect dialect) {
-        assertParsedAndQuotedCorrectlyFrom(dialect, true);
+    /** Mirror of {@link #assertParsedAndQuotedCorrectlyBefore}: the quoter rejects it *below* {@code languageLevel}. */
+    protected void assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel languageLevel) {
+        assertParsedAndQuotedCorrectlyFrom(languageLevel, true);
     }
 
-    protected void assertParsedAndQuotedCorrectlyFrom(QuotingDialect dialect, boolean checkResult) {
+    protected void assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel languageLevel, boolean checkResult) {
         doTest(checkResult);
 
-        if (QuotingDialectResolver.dialectFor(myFile).compareTo(dialect) < 0) {
+        if (ElixirLanguageLevelResolver.languageLevelFor(myFile).getElixir().compareTo(languageLevel.getElixir()) < 0) {
             assertQuotedAroundError();
         } else {
             assertWithoutLocalError();
@@ -113,13 +117,15 @@ public abstract class ParsingTestCase extends com.intellij.testFramework.Parsing
 
     /**
      * As {@link #assertParsedAndQuotedCorrectly}, where the parser, like the reference quoter, rejects it below
-     * {@code dialect}; the tree is only checked from {@code dialect}, since below it has an error in it.
+     * {@code languageLevel}; the tree is only checked from {@code languageLevel}, since below it has an error in it.
      */
-    protected void assertParsedAndQuotedCorrectlyFromOrParsedWithErrors(QuotingDialect dialect, boolean checkResult)
-            throws IOException {
+    protected void assertParsedAndQuotedCorrectlyFromOrParsedWithErrors(
+            ElixirLanguageLevel languageLevel,
+            boolean checkResult
+    ) throws IOException {
         doTest(false);
 
-        if (QuotingDialectResolver.dialectFor(myFile).compareTo(dialect) < 0) {
+        if (ElixirLanguageLevelResolver.languageLevelFor(myFile).getElixir().compareTo(languageLevel.getElixir()) < 0) {
             assertWithLocalError();
             Quoter.assertError(myFile);
         } else {
@@ -134,45 +140,49 @@ public abstract class ParsingTestCase extends com.intellij.testFramework.Parsing
 
     /**
      * As {@link #assertParsedAndQuotedAroundError}: every supported version rejects, but below
-     * {@code dialect} it raises {@code expectedException} rather than answering an error tuple.
+     * {@code languageLevel} it raises {@code expectedException} rather than answering an error tuple.
      */
-    protected void assertParsedAndQuotedAroundErrorOrRaise(QuotingDialect dialect, String expectedException) {
-        assertParsedAndQuotedAroundErrorOrRaise(dialect, expectedException, true);
+    protected void assertParsedAndQuotedAroundErrorOrRaise(
+            ElixirLanguageLevel languageLevel,
+            String expectedException
+    ) {
+        assertParsedAndQuotedAroundErrorOrRaise(languageLevel, expectedException, true);
     }
 
     protected void assertParsedAndQuotedAroundErrorOrRaise(
-            QuotingDialect dialect,
+            ElixirLanguageLevel languageLevel,
             String expectedException,
             boolean checkResult
     ) {
         doTest(checkResult);
-        assertQuotedAroundErrorOrRaise(dialect, expectedException);
+        assertQuotedAroundErrorOrRaise(languageLevel, expectedException);
     }
 
     /**
-     * As {@link #assertParsedAndQuotedCorrectlyBefore}, where the releases from {@code dialect} reject by raising
-     * {@code expectedException} until {@code errorDialect}, and by answering an error tuple from it.
+     * As {@link #assertParsedAndQuotedCorrectlyBefore}, where the releases from {@code languageLevel} reject by raising
+     * {@code expectedException} until {@code errorLanguageLevel}, and by answering an error tuple from it.
      */
     protected void assertParsedAndQuotedCorrectlyBeforeOrRaise(
-            QuotingDialect dialect,
-            QuotingDialect errorDialect,
+            ElixirLanguageLevel languageLevel,
+            ElixirLanguageLevel errorLanguageLevel,
             String expectedException,
             boolean checkResult
     ) {
         doTest(checkResult);
 
-        if (QuotingDialectResolver.dialectFor(myFile).compareTo(dialect) >= 0) {
-            assertQuotedAroundErrorOrRaise(errorDialect, expectedException);
+        if (ElixirLanguageLevelResolver.languageLevelFor(myFile).getElixir()
+                .compareTo(languageLevel.getElixir()) >= 0) {
+            assertQuotedAroundErrorOrRaise(errorLanguageLevel, expectedException);
         } else {
             assertWithoutLocalError();
             assertQuotedCorrectly();
         }
     }
 
-    private void assertQuotedAroundErrorOrRaise(QuotingDialect dialect, String expectedException) {
+    private void assertQuotedAroundErrorOrRaise(ElixirLanguageLevel languageLevel, String expectedException) {
         assertInstanceOf(ElixirPsiImplUtil.quote(myFile), OtpErlangObject.class);
 
-        if (QuotingDialectResolver.dialectFor(myFile).compareTo(dialect) < 0) {
+        if (ElixirLanguageLevelResolver.languageLevelFor(myFile).getElixir().compareTo(languageLevel.getElixir()) < 0) {
             Quoter.assertRaise(myFile, expectedException);
         } else {
             Quoter.assertError(myFile);

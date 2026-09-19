@@ -1,4 +1,4 @@
-package org.elixir_lang.psi.quoting
+package org.elixir_lang.psi.impl
 
 import com.intellij.openapi.application.WriteAction
 import com.intellij.psi.impl.source.PsiFileImpl
@@ -8,8 +8,9 @@ import com.intellij.util.concurrency.annotations.RequiresEdt
 class TreeReloadTest : BasePlatformTestCase() {
     /**
      * Building a stub asks whether a keyword pair's key is `do`, which quotes a key such as `"a"` and so asks for its
-     * line. When the file's tree is being loaded from its stubs, that must not ask the file for its tree again. The `?\`
-     * and newline before the key are a newline Elixir did not count before 1.19, so the line also looks up the dialect.
+     * line. When the file's tree is being loaded from its stubs, that must not ask the file for its tree again. The
+     * `?\` and newline before the key are a newline Elixir did not count before 1.19, so the line also looks up the
+     * language level.
      */
     @RequiresEdt
     fun testTreeLoadsFromStubsWhenAQuotedKeyIsAskedForItsLine() {

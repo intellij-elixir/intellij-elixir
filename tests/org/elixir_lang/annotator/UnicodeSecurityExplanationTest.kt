@@ -4,12 +4,9 @@ import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import org.elixir_lang.ElixirFileType
-import org.elixir_lang.psi.quoting.QuotingDialect
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_14
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_17
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_18
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_20
-import org.elixir_lang.psi.quoting.QuotingDialectResolver
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
+import org.elixir_lang.language_level.elixir
 
 /**
  * The hover text follows the rest of Elixir's error, measured by running `Code.string_to_quoted/1` on 1.14, 1.17, 1.18
@@ -18,7 +15,7 @@ import org.elixir_lang.psi.quoting.QuotingDialectResolver
 class UnicodeSecurityExplanationTest : BasePlatformTestCase() {
     override fun tearDown() {
         try {
-            QuotingDialectResolver.overrideDialect(project, null)
+            ElixirLanguageLevelResolver.overrideLanguageLevel(project, null)
         } catch (e: Throwable) {
             addSuppressedException(e)
         } finally {
@@ -27,12 +24,12 @@ class UnicodeSecurityExplanationTest : BasePlatformTestCase() {
     }
 
     fun testMixedScriptTooltipListsEachCharactersScripts() {
-        for (dialect in listOf(V1_17, V1_20)) {
-            val tooltip = tooltip(dialect, "\u0430dmin = 1")
+        for (languageLevel in listOf(elixir("1.17.0"), elixir("1.20.0"))) {
+            val tooltip = tooltip(languageLevel, "\u0430dmin = 1")
 
             assertContainsText(
                 tooltip,
-                dialect,
+                languageLevel,
                 "invalid mixed-script identifier found: \u0430dmin (U+0430 \u0430 is Cyrillic; the rest is Latin)",
                 "Mixed-script identifiers are not supported for security reasons. '\u0430dmin' is made of the following scripts:",
                 "U+0430 \u0430 Cyrillic",
@@ -47,28 +44,28 @@ class UnicodeSecurityExplanationTest : BasePlatformTestCase() {
 
     fun testMixedScriptTooltipGivesTheGuidanceOfTheRelease() {
         assertContainsText(
-            tooltip(V1_17, "\u0430dmin = 1"),
-            V1_17,
+            tooltip(elixir("1.17.0"), "\u0430dmin = 1"),
+            elixir("1.17.0"),
             "All characters in the identifier should resolve to a single script, or use a highly restrictive set of scripts."
         )
         assertContainsText(
-            tooltip(V1_18, "\u0430dmin = 1"),
-            V1_18,
+            tooltip(elixir("1.18.0"), "\u0430dmin = 1"),
+            elixir("1.18.0"),
             "Characters in identifiers from different scripts must be separated by underscore (_)."
         )
     }
 
     fun testMixedScriptTooltipNamesEveryScriptOfACharacter() {
         assertContainsText(
-            tooltip(V1_20, "[\u0422\u30B7\u30E3\u30C4: 1]"),
-            V1_20,
+            tooltip(elixir("1.20.0"), "[\u0422\u30B7\u30E3\u30C4: 1]"),
+            elixir("1.20.0"),
             "U+0422 \u0422 Cyrillic",
             "U+30B7 \u30B7 Japanese, Katakana",
         )
     }
 
     fun testRestrictedCharacterTooltipHintsTheCompatibleForm() {
-        for (dialect in listOf(V1_14, V1_20)) {
+        for (languageLevel in listOf(elixir("1.14.0"), elixir("1.20.0"))) {
             for ((source, got, hint) in listOf(
                 Triple(
                     "foo\uD835\uDECD = 1",
@@ -81,11 +78,11 @@ class UnicodeSecurityExplanationTest : BasePlatformTestCase() {
                     "\"foo\" (code points 0x00066 0x0006F 0x0006F)"
                 ),
             )) {
-                val tooltip = tooltip(dialect, source)
+                val tooltip = tooltip(languageLevel, source)
 
                 assertContainsText(
                     tooltip,
-                    dialect,
+                    languageLevel,
                     "Elixir expects unquoted Unicode atoms, variables, and calls to use allowed codepoints and to be in NFC form.",
                     "Got: $got",
                     "Hint: You could write the above in a compatible format that is accepted by Elixir: $hint",
@@ -102,17 +99,17 @@ class UnicodeSecurityExplanationTest : BasePlatformTestCase() {
      */
     fun testRestrictedCharacterTooltipHasNoHintWithoutACompatibleForm() {
         for ((source, message) in listOf(
-            "\u3164 = 1" to "unexpected token: \"\u3164\" (code point U+3164)",
-            "_shib\u3164 = 1" to "unexpected token: \"\u3164\" (code point U+3164)",
-            "\uFF46\uFF4F\uFF4F = 1" to "unexpected token: \"\uFF46\" (code point U+FF46)",
-            "foO\uD835\uDEB3" to "unexpected token: \"\uD835\uDEB3\" (code point U+1D6B3)",
-            "foo\uFF71 = 1" to "unexpected token: \"\uFF71\" (code point U+FF71)",
+            "\u3164 = 1" to "unexpected token: \"\u3164\" (column 1, code point U+3164)",
+            "_shib\u3164 = 1" to "unexpected token: \"\u3164\" (column 6, code point U+3164)",
+            "\uFF46\uFF4F\uFF4F = 1" to "unexpected token: \"\uFF46\" (column 1, code point U+FF46)",
+            "foO\uD835\uDEB3" to "unexpected token: \"\uD835\uDEB3\" (column 4, code point U+****)",
+            "foo\uFF71 = 1" to "unexpected token: \"\uFF71\" (column 4, code point U+FF71)",
         )) {
-            val tooltip = tooltip(V1_20, source)
+            val tooltip = tooltip(elixir("1.20.0"), source)
 
             assertContainsText(
                 tooltip,
-                V1_20,
+                elixir("1.20.0"),
                 message,
                 "Elixir does not allow this code point in unquoted atoms, variables, and calls: Unicode's identifier rules exclude it, or its security profile restricts it.",
             )
@@ -123,8 +120,8 @@ class UnicodeSecurityExplanationTest : BasePlatformTestCase() {
 
     fun testRestrictedCharacterTooltipShowsTheIdentifierAsElixirTokenizedIt() {
         assertContainsText(
-            tooltip(V1_20, "a\u00B5\uD835\uDECD = 1"),
-            V1_20,
+            tooltip(elixir("1.20.0"), "a\u00B5\uD835\uDECD = 1"),
+            elixir("1.20.0"),
             "Got: \"a\u03BC\uD835\uDECD\" (code points 0x00061 0x003BC 0x1D6CD)",
             "Hint: You could write the above in a compatible format that is accepted by Elixir: \"a\u03BC\u03BC\" (code points 0x00061 0x003BC 0x003BC)",
         )
@@ -132,29 +129,29 @@ class UnicodeSecurityExplanationTest : BasePlatformTestCase() {
 
     fun testRestrictedCharacterHintFollowsTheRelease() {
         assertContainsText(
-            tooltip(V1_17, "foo\uFF71 = 1"),
-            V1_17,
+            tooltip(elixir("1.17.0"), "foo\uFF71 = 1"),
+            elixir("1.17.0"),
             "Hint: You could write the above in a compatible format that is accepted by Elixir: \"foo\u30A2\" (code points 0x00066 0x0006F 0x0006F 0x030A2)",
         )
     }
 
-    private fun tooltip(dialect: QuotingDialect, source: String): String {
-        QuotingDialectResolver.overrideDialect(project, dialect)
+    private fun tooltip(languageLevel: ElixirLanguageLevel, source: String): String {
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, languageLevel)
         myFixture.configureByText(ElixirFileType.INSTANCE, source)
 
         val errors = myFixture.doHighlighting(HighlightSeverity.ERROR)
-        assertEquals("errors in ${escaped(source)} on $dialect: ${errors.map { it.description }}", 1, errors.size)
+        assertEquals("errors in ${escaped(source)} on $languageLevel: ${errors.map { it.description }}", 1, errors.size)
 
         return errors.single().toolTip!!
     }
 
-    private fun assertContainsText(tooltip: String, dialect: QuotingDialect, vararg expected: String) {
+    private fun assertContainsText(tooltip: String, languageLevel: ElixirLanguageLevel, vararg expected: String) {
         val text = StringUtil.unescapeXmlEntities(StringUtil.removeHtmlTags(tooltip))
             .replace(Regex("&#x([0-9a-fA-F]+);")) { String(Character.toChars(it.groupValues[1].toInt(16))) }
             .replace(Regex("&#([0-9]+);")) { String(Character.toChars(it.groupValues[1].toInt())) }
 
         for (part in expected) {
-            assertTrue("tooltip on $dialect lacks <$part>:\n$text", text.contains(part))
+            assertTrue("tooltip on $languageLevel lacks <$part>:\n$text", text.contains(part))
         }
     }
 

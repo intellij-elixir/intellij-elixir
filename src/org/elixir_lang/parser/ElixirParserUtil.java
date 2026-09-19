@@ -8,7 +8,8 @@ import com.intellij.psi.TokenType;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.tree.TokenSet;
 import org.elixir_lang.psi.ElixirTypes;
-import org.elixir_lang.psi.quoting.QuotingDialect;
+import org.elixir_lang.language_level.ElixirLanguageFeature;
+import org.elixir_lang.language_level.ElixirLanguageLevel;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -28,7 +29,7 @@ import java.util.Set;
 @SuppressWarnings("unused")
 public class ElixirParserUtil extends GeneratedParserUtilBase {
     /** Set by {@code File.doParseContents}; absent for builders created by any other route. */
-    public static final Key<QuotingDialect> DIALECT = Key.create("ELIXIR_PARSE_DIALECT");
+    public static final Key<ElixirLanguageLevel> LANGUAGE_LEVEL = Key.create("ELIXIR_PARSE_LANGUAGE_LEVEL");
 
     /*
      * The rules that open a nesting group, the token each starts with, and the element type its section closes with.
@@ -269,9 +270,10 @@ public class ElixirParserUtil extends GeneratedParserUtilBase {
     );
 
     /**
-     * The token at {@code steps} as the builder will see it. The remapper rewrites a token only once the builder reaches
-     * it, so ahead of it {@link PsiBuilder#rawLookup} still shows invalid digits where it will show a keyword.
-     * {@code File.doParseContents} installs the remapper with the {@link #DIALECT}; without one nothing is remapped.
+     * The token at {@code steps} as the builder will see it. The remapper rewrites a token only once the builder
+     * reaches it, so ahead of it {@link PsiBuilder#rawLookup} still shows invalid digits where it will show a keyword.
+     * {@code File.doParseContents} installs the remapper with the {@link #LANGUAGE_LEVEL}; without one nothing is
+     * remapped.
      */
     private static @Nullable IElementType remapped(@NotNull PsiBuilder builder, int steps) {
         IElementType tokenType = builder.rawLookup(steps);
@@ -280,11 +282,11 @@ public class ElixirParserUtil extends GeneratedParserUtilBase {
             return tokenType;
         }
 
-        QuotingDialect dialect = builder.getUserData(DIALECT);
+        ElixirLanguageLevel languageLevel = builder.getUserData(LANGUAGE_LEVEL);
 
-        return dialect == null
+        return languageLevel == null
                 ? tokenType
-                : new WordAfterNumber(dialect).filter(
+                : new WordAfterNumber(languageLevel).filter(
                         tokenType,
                         builder.rawTokenTypeStart(steps),
                         builder.rawTokenTypeStart(steps + 1),
@@ -503,14 +505,14 @@ public class ElixirParserUtil extends GeneratedParserUtilBase {
     /**
      * Whether the {@code &} just consumed is joined to what follows, making the two one capture
      * argument such as {@code &1} - see
-     * {@link QuotingDialect#getRequiresAdjacentCaptureArgument()}.
+     * {@link ElixirLanguageFeature#ADJACENT_CAPTURE_ARGUMENT}.
      * <p>
      * Used positively by {@code captureNumericOperation} and negated by {@code nonNumeric}, which is
      * what keeps those two rules exact complements: a spaced {@code & 1} the first rejects has to be
      * accepted by the second, or it matches neither and parses as an error.
      */
     public static boolean captureArgument(@NotNull PsiBuilder builder, int level) {
-        if (!dialect(builder).getRequiresAdjacentCaptureArgument()) {
+        if (!ElixirLanguageFeature.ADJACENT_CAPTURE_ARGUMENT.isSufficient(languageLevel(builder))) {
             return true;
         }
 
@@ -521,9 +523,9 @@ public class ElixirParserUtil extends GeneratedParserUtilBase {
         return builder.rawLookup(-1) == ElixirTypes.CAPTURE_OPERATOR;
     }
 
-    /** Whether {@code //} is the step operator - see {@link QuotingDialect#getHasStepOperator()}. */
+    /** Whether {@code //} is the step operator - see {@link ElixirLanguageFeature#STEP_OPERATOR}. */
     public static boolean stepOperator(@NotNull PsiBuilder builder, int level) {
-        return dialect(builder).getHasStepOperator();
+        return ElixirLanguageFeature.STEP_OPERATOR.isSufficient(languageLevel(builder));
     }
 
     /** The characters between a heredoc's opening and its end of line, which the lexer returns as bad characters. */
@@ -546,22 +548,22 @@ public class ElixirParserUtil extends GeneratedParserUtilBase {
 
     /**
      * Whether the {@code +} or {@code -} here takes the other reading from the one the lexer gave it, because the
-     * dialect does not count an escaped newline as space - see
-     * {@link QuotingDialect#getCountsEscapedNewlineAsSpace()}. The lexer follows the newer reading, so this is true
+     * language level does not count an escaped newline as space - see
+     * {@link ElixirLanguageFeature#ESCAPED_NEWLINE_AS_SPACE}. The lexer follows the newer reading, so this is true
      * for a binary sign in {@code f -\}+newline+{@code var} and a unary one in {@code f \}+newline+{@code -var}.
      */
     public static boolean escapedNewlineSwapsDualOperator(@NotNull PsiBuilder builder, int level) {
         IElementType tokenType = builder.getTokenType();
 
         if (tokenType == ElixirTypes.ADDITION_OPERATOR || tokenType == ElixirTypes.SUBTRACTION_OPERATOR) {
-            return !dialect(builder).getCountsEscapedNewlineAsSpace() &&
+            return !ElixirLanguageFeature.ESCAPED_NEWLINE_AS_SPACE.isSufficient(languageLevel(builder)) &&
                     rawTokenStartsWith(builder, 1, '\\') &&
                     rawTokenStartsWithHorizontalSpace(builder, -1) &&
                     builder.rawLookup(-2) == ElixirTypes.IDENTIFIER_TOKEN;
         }
 
         if (tokenType == ElixirTypes.NEGATE_OPERATOR || tokenType == ElixirTypes.NUMBER_OR_BADARITH_OPERATOR) {
-            if (dialect(builder).getCountsEscapedNewlineAsSpace()) {
+            if (ElixirLanguageFeature.ESCAPED_NEWLINE_AS_SPACE.isSufficient(languageLevel(builder))) {
                 return false;
             }
 
@@ -582,10 +584,10 @@ public class ElixirParserUtil extends GeneratedParserUtilBase {
         return false;
     }
 
-    private static QuotingDialect dialect(@NotNull PsiBuilder builder) {
-        QuotingDialect dialect = builder.getUserData(DIALECT);
+    private static ElixirLanguageLevel languageLevel(@NotNull PsiBuilder builder) {
+        ElixirLanguageLevel languageLevel = builder.getUserData(LANGUAGE_LEVEL);
 
-        return dialect != null ? dialect : QuotingDialect.getFALLBACK();
+        return languageLevel != null ? languageLevel : ElixirLanguageLevel.getFALLBACK();
     }
 
     private static boolean rawTokenStartsWithHorizontalSpace(@NotNull PsiBuilder builder, int steps) {

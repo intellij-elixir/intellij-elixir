@@ -14,18 +14,20 @@ import com.intellij.util.ThrowableRunnable
 import junit.framework.Test
 import junit.framework.TestSuite
 import org.elixir_lang.annotator.InvalidConstruct
+import org.elixir_lang.annotator.InvalidToken
 import org.elixir_lang.annotator.VersionedSyntax
 import org.elixir_lang.intellij_elixir.Quoter
-import org.elixir_lang.psi.quoting.QuotingDialect
-import org.elixir_lang.psi.quoting.QuotingDialectResolver
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import java.lang.reflect.Proxy
 import java.nio.file.Files
 import java.nio.file.Path
 
 /**
- * One test per source that `VersionedSyntax` and `InvalidConstruct` are meant to judge, and per snippet of Elixir's own
- * tests: under the release of the Elixir under test, the annotators must report nothing where that Elixir accepts the
- * source, and where they report, give that Elixir's message. Elixir's hints after the first line are left to hovers.
+ * One test per source that `VersionedSyntax`, `InvalidConstruct` and `InvalidToken` are meant to judge, and per snippet
+ * of Elixir's own tests: under the release of the Elixir under test, the annotators must report nothing where that
+ * Elixir accepts the source, and where they report, give that Elixir's message. Elixir's hints after the first line are
+ * left to hovers.
  */
 class AnnotatorQuoterAgreementTestCase private constructor(
     private val hash: String,
@@ -39,12 +41,15 @@ class AnnotatorQuoterAgreementTestCase private constructor(
 
     override fun setUp() {
         super.setUp()
-        QuotingDialectResolver.overrideDialect(project, QuotingDialect.of(System.getenv("ELIXIR_VERSION")))
+        ElixirLanguageLevelResolver.overrideLanguageLevel(
+            project,
+            ElixirLanguageLevel.of(System.getenv("ELIXIR_VERSION"), System.getenv("ERLANG_VERSION")),
+        )
     }
 
     override fun tearDown() {
         try {
-            QuotingDialectResolver.overrideDialect(project, null)
+            ElixirLanguageLevelResolver.overrideLanguageLevel(project, null)
         } catch (e: Throwable) {
             addSuppressedException(e)
         } finally {
@@ -93,7 +98,7 @@ class AnnotatorQuoterAgreementTestCase private constructor(
                 }
             }
         } as AnnotationHolder
-        val annotators: List<Annotator> = listOf(VersionedSyntax(), InvalidConstruct())
+        val annotators: List<Annotator> = listOf(VersionedSyntax(), InvalidConstruct(), InvalidToken())
 
         file.accept(object : PsiRecursiveElementWalkingVisitor() {
             override fun visitElement(element: PsiElement) {

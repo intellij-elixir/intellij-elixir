@@ -6,12 +6,9 @@ import com.intellij.psi.PsiErrorElement
 import com.intellij.psi.TokenType
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
-import org.elixir_lang.psi.quoting.QuotingDialect
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_11
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_12
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_19
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_20
-import org.elixir_lang.psi.quoting.QuotingDialectResolver
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
+import org.elixir_lang.language_level.elixir
 
 /**
  * Expected messages were taken from `Code.string_to_quoted/1` on 1.11.4, 1.12.3, 1.19.5 and 1.20.4, and for sigils from
@@ -22,7 +19,7 @@ class InvalidEscapeTest : BasePlatformTestCase() {
 
     override fun tearDown() {
         try {
-            QuotingDialectResolver.overrideDialect(project, null)
+            ElixirLanguageLevelResolver.overrideLanguageLevel(project, null)
         } catch (e: Throwable) {
             addSuppressedException(e)
         } finally {
@@ -49,9 +46,9 @@ class InvalidEscapeTest : BasePlatformTestCase() {
             "\"\\x{1234567}\"" to "\"",
             "\"\\xg#{1}\"" to "\"",
         )) {
-            assertEscapeError(V1_11, source, "\\x", MISSING_HEX_SEQUENCE + delimiter)
-            assertEscapeError(V1_12, source, "\\x", INVALID_HEX_ESCAPE)
-            assertEscapeError(V1_20, source, "\\x", INVALID_HEX_ESCAPE)
+            assertEscapeError(elixir("1.11.0"), source, "\\x", MISSING_HEX_SEQUENCE + delimiter)
+            assertEscapeError(elixir("1.12.0"), source, "\\x", INVALID_HEX_ESCAPE)
+            assertEscapeError(elixir("1.20.0"), source, "\\x", INVALID_HEX_ESCAPE)
         }
     }
 
@@ -68,13 +65,13 @@ class InvalidEscapeTest : BasePlatformTestCase() {
             "\"\\u{33\"",
             "\"\\u{1234567}\"",
         )) {
-            assertEscapeError(V1_11, source, "\\u", INVALID_UNICODE_SEQUENCE)
-            assertEscapeError(V1_12, source, "\\u", INVALID_UNICODE_ESCAPE)
+            assertEscapeError(elixir("1.11.0"), source, "\\u", INVALID_UNICODE_SEQUENCE)
+            assertEscapeError(elixir("1.12.0"), source, "\\u", INVALID_UNICODE_ESCAPE)
         }
     }
 
     fun testValidEscapes() {
-        for (dialect in listOf(V1_11, V1_19)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.19.0"))) {
             for (source in listOf(
                 "\"\\x1\"",
                 "\"\\x12\"",
@@ -87,7 +84,7 @@ class InvalidEscapeTest : BasePlatformTestCase() {
                 "\"\\u{12345}\"",
                 "\"\"\"\n\\x12\\u1234\n\"\"\"",
             )) {
-                assertNoErrors(dialect, source)
+                assertNoErrors(languageLevel, source)
             }
         }
     }
@@ -104,16 +101,16 @@ class InvalidEscapeTest : BasePlatformTestCase() {
             "~s(\\xg)",
             "~s\"\"\"\n\\x{33h}\n\"\"\"",
         )) {
-            assertEscapeError(V1_11, source, "\\x", MISSING_HEX_SEQUENCE)
-            assertEscapeError(V1_12, source, "\\x", INVALID_HEX_ESCAPE_WHEN_COMPILED)
-            assertEscapeError(V1_20, source, "\\x", INVALID_HEX_ESCAPE_WHEN_COMPILED)
+            assertEscapeError(elixir("1.11.0"), source, "\\x", MISSING_HEX_SEQUENCE)
+            assertEscapeError(elixir("1.12.0"), source, "\\x", INVALID_HEX_ESCAPE_WHEN_COMPILED)
+            assertEscapeError(elixir("1.20.0"), source, "\\x", INVALID_HEX_ESCAPE_WHEN_COMPILED)
         }
 
-        assertEscapeError(V1_12, "~s\"\\u12\"", "\\u", INVALID_UNICODE_ESCAPE_WHEN_COMPILED)
+        assertEscapeError(elixir("1.12.0"), "~s\"\\u12\"", "\\u", INVALID_UNICODE_ESCAPE_WHEN_COMPILED)
     }
 
     fun testInvalidEscapeInOtherSigils() {
-        for (dialect in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
             for (source in listOf(
                 "~r\"\\x{33h}\"",
                 "~r/\\u12/",
@@ -123,27 +120,27 @@ class InvalidEscapeTest : BasePlatformTestCase() {
                 "~C\"\\x{33h}\"",
                 "~S\"\"\"\n\\x{33h}\n\"\"\"",
             )) {
-                assertNoErrors(dialect, source)
+                assertNoErrors(languageLevel, source)
             }
         }
     }
 
     /** Elixir unescapes a quoted call name only from 1.18. */
     fun testQuotedCallName() {
-        assertNoErrors(V1_12, "x.\"\\x{33h}\"()")
-        assertEscapeError(V1_20, "x.\"\\x{33h}\"()", "\\x", INVALID_HEX_ESCAPE)
+        assertNoErrors(elixir("1.12.0"), "x.\"\\x{33h}\"()")
+        assertEscapeError(elixir("1.20.0"), "x.\"\\x{33h}\"()", "\\x", INVALID_HEX_ESCAPE)
     }
 
     fun testCharacterLiteral() {
-        for (dialect in listOf(V1_11, V1_20)) {
-            assertFalse("?\\x{33h} on $dialect", errors(dialect, "?\\x{33h}").isEmpty())
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
+            assertFalse("?\\x{33h} on $languageLevel", errors(languageLevel, "?\\x{33h}").isEmpty())
         }
     }
 
     fun testInvalidEscapeKeepsTheModuleDocumentation() {
         val source = "defmodule A do\n  @moduledoc \"\"\"\n  Doc \\x{33h} here.\n  \"\"\"\n  def f, do: 1\nend\n"
 
-        assertEscapeError(V1_20, source, "\\x", INVALID_HEX_ESCAPE)
+        assertEscapeError(elixir("1.20.0"), source, "\\x", INVALID_HEX_ESCAPE)
         assertNotNull(
             "documentation after the escape is injected",
             InjectedLanguageManager.getInstance(project).findInjectedElementAt(myFixture.file, source.indexOf("here"))
@@ -152,15 +149,15 @@ class InvalidEscapeTest : BasePlatformTestCase() {
 
     fun testInvalidEscapeInDocumentationKeepsLaterDefinitions() {
         assertEscapeError(
-            V1_12,
+            elixir("1.12.0"),
             "defmodule A do\n  @doc \"\\x{33h}\"\n  def f, do: 1\n  def g, do: 2\nend\n",
             "\\x",
             INVALID_HEX_ESCAPE
         )
     }
 
-    private fun errors(dialect: QuotingDialect, source: String): List<Pair<String, String?>> {
-        QuotingDialectResolver.overrideDialect(project, dialect)
+    private fun errors(languageLevel: ElixirLanguageLevel, source: String): List<Pair<String, String?>> {
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, languageLevel)
         myFixture.configureByText("escape_${files++}.ex", source)
 
         return myFixture
@@ -168,8 +165,8 @@ class InvalidEscapeTest : BasePlatformTestCase() {
             .map { source.substring(it.startOffset, it.endOffset) to it.description }
     }
 
-    private fun assertEscapeError(dialect: QuotingDialect, source: String, text: String, message: String) {
-        assertEquals("errors in $source on $dialect", listOf(text to message), errors(dialect, source))
+    private fun assertEscapeError(languageLevel: ElixirLanguageLevel, source: String, text: String, message: String) {
+        assertEquals("errors in $source on $languageLevel", listOf(text to message), errors(languageLevel, source))
         assertNull("parser error in $source", PsiTreeUtil.findChildOfType(myFixture.file, PsiErrorElement::class.java))
         assertEquals(
             "bad characters in $source",
@@ -178,8 +175,12 @@ class InvalidEscapeTest : BasePlatformTestCase() {
         )
     }
 
-    private fun assertNoErrors(dialect: QuotingDialect, source: String) {
-        assertEquals("errors in $source on $dialect", emptyList<Pair<String, String?>>(), errors(dialect, source))
+    private fun assertNoErrors(languageLevel: ElixirLanguageLevel, source: String) {
+        assertEquals(
+            "errors in $source on $languageLevel",
+            emptyList<Pair<String, String?>>(),
+            errors(languageLevel, source)
+        )
     }
 
     private companion object {

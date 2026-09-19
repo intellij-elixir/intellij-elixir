@@ -102,6 +102,8 @@
 
 ### Bug Fixes
 
+- [#4140](https://github.com/intellij-elixir/intellij-elixir/pull/4140) [@sh41](https://github.com/sh41)
+  - **Errors follow the module's exact Elixir release, release candidates included, and the Erlang/OTP it runs on, so `maybe` is quoted from OTP 27.** Refs [#4080](https://github.com/intellij-elixir/intellij-elixir/issues/4080).
 - [#4132](https://github.com/intellij-elixir/intellij-elixir/pull/4132) [@sh41](https://github.com/sh41)
   - **Opening the Elixir SDK or Credo settings no longer reports a slow operation on the EDT.** Fixes [#4130](https://github.com/intellij-elixir/intellij-elixir/issues/4130).
 - [#4133](https://github.com/intellij-elixir/intellij-elixir/pull/4133) [@sh41](https://github.com/sh41)

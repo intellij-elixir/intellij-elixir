@@ -9,12 +9,13 @@ import com.intellij.psi.PsiErrorElement
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.ElixirParserDefinition
 import org.elixir_lang.intellij_elixir.Quoter
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.parser.ElixirParser
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.quoting.QuotingDialect
-import org.elixir_lang.psi.quoting.QuotingDialectResolver
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Proxy
+import org.elixir_lang.language_level.elixir
 
 /**
  * Nesting is depth-first, so a parser that re-reads a nested group's contents once per enclosing group costs
@@ -69,21 +70,21 @@ class Issue4114TestCase : ParsingTestCase() {
      * Half-typed source whose groups do not balance, where error recovery reads a `->` or `,` inside an unclosed group
      * as the stab operation's or the arguments'. The trees are the ones the parser produced before the lookaheads.
      * Where the error lists the operators that could come next, `//` is one only from Elixir 1.12, so those trees are
-     * checked in both dialects.
+     * checked in both language levels.
      */
-    fun testHalfTypedStabGuardBelow1_12() = assertParsedWithErrorsIn(QuotingDialect.V1_11, "HalfTypedStabGuard")
-    fun testHalfTypedStabGuardFrom1_12() = assertParsedWithErrorsIn(QuotingDialect.V1_12, "HalfTypedStabGuard")
+    fun testHalfTypedStabGuardBelow1_12() = assertParsedWithErrorsIn(elixir("1.11.0"), "HalfTypedStabGuard")
+    fun testHalfTypedStabGuardFrom1_12() = assertParsedWithErrorsIn(elixir("1.12.0"), "HalfTypedStabGuard")
     fun testHalfTypedStabGuardAtEnd() = assertParsedWithErrors()
     fun testHalfTypedCallArguments() = assertParsedWithErrors()
     fun testHalfTypedCaseClauseAtEndBelow1_12() =
-        assertParsedWithErrorsIn(QuotingDialect.V1_11, "HalfTypedCaseClauseAtEnd")
+        assertParsedWithErrorsIn(elixir("1.11.0"), "HalfTypedCaseClauseAtEnd")
     fun testHalfTypedCaseClauseAtEndFrom1_12() =
-        assertParsedWithErrorsIn(QuotingDialect.V1_12, "HalfTypedCaseClauseAtEnd")
+        assertParsedWithErrorsIn(elixir("1.12.0"), "HalfTypedCaseClauseAtEnd")
     fun testHalfTypedCallArgumentsAtEnd() = assertParsedWithErrors()
 
-    /** [source]`.ex` parsed in [dialect] against the golden named for the test. */
-    private fun assertParsedWithErrorsIn(dialect: QuotingDialect, source: String) {
-        QuotingDialectResolver.overrideDialect(project, dialect)
+    /** [source]`.ex` parsed in [languageLevel] against the golden named for the test. */
+    private fun assertParsedWithErrorsIn(languageLevel: ElixirLanguageLevel, source: String) {
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, languageLevel)
         val expectedName = getTestName(false)
         parseFile(expectedName, loadFile("$source.ex"))
         checkResult(expectedName, myFile)

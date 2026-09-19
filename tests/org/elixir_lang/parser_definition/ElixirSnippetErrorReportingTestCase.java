@@ -18,8 +18,8 @@ import org.elixir_lang.inspection.MatchOperatorInsteadOfTypeOperator;
 import org.elixir_lang.inspection.NoParenthesesManyStrict;
 import org.elixir_lang.inspection.NoParenthesesStrict;
 import org.elixir_lang.intellij_elixir.Quoter;
-import org.elixir_lang.psi.quoting.QuotingDialect;
-import org.elixir_lang.psi.quoting.QuotingDialectResolver;
+import org.elixir_lang.language_level.ElixirLanguageLevel;
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -96,13 +96,16 @@ public class ElixirSnippetErrorReportingTestCase extends BasePlatformTestCase {
     protected void setUp() throws Exception {
         super.setUp();
 
-        QuotingDialectResolver.overrideDialect(getProject(), QuotingDialect.of(System.getenv("ELIXIR_VERSION")));
+        ElixirLanguageLevelResolver.overrideLanguageLevel(
+                getProject(),
+                ElixirLanguageLevel.of(System.getenv("ELIXIR_VERSION"), System.getenv("ERLANG_VERSION"))
+        );
     }
 
     @Override
     protected void tearDown() throws Exception {
         try {
-            QuotingDialectResolver.overrideDialect(getProject(), null);
+            ElixirLanguageLevelResolver.overrideLanguageLevel(getProject(), null);
         } catch (Throwable e) {
             addSuppressedException(e);
         } finally {

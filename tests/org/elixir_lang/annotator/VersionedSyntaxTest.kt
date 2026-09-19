@@ -5,29 +5,20 @@ import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import org.elixir_lang.ElixirFileType
 import org.elixir_lang.ElixirLanguage
-import org.elixir_lang.psi.quoting.QuotingDialect
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_11
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_12
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_13
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_14
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_15
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_16_2
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_17
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_18
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_19
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_20
-import org.elixir_lang.psi.quoting.QuotingDialectResolver
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
+import org.elixir_lang.language_level.elixir
 
 /**
  * Syntax that some Elixir releases reject and others accept. Outcomes were taken from `Code.string_to_quoted/1` on every
- * release from 1.11.4 to 1.20.4, and each message from the newest release that rejects the construct.
+ * release from 1.11.4 to 1.20.4, and each message from the release it is asserted on.
  */
 class VersionedSyntaxTest : BasePlatformTestCase() {
     private var files = 0
 
     override fun tearDown() {
         try {
-            QuotingDialectResolver.overrideDialect(project, null)
+            ElixirLanguageLevelResolver.overrideLanguageLevel(project, null)
         } catch (e: Throwable) {
             addSuppressedException(e)
         } finally {
@@ -64,19 +55,19 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             "x = ..\n",
             "&..\\\n/0",
         )) {
-            assertErrors(V1_11, source, ".." to NULLARY_RANGE)
-            assertErrors(V1_13, source, ".." to NULLARY_RANGE)
+            assertErrors(elixir("1.11.0"), source, ".." to NULLARY_RANGE)
+            assertErrors(elixir("1.13.0"), source, ".." to NULLARY_RANGE)
         }
 
         for (source in listOf("assert (..) == 0..-1//1", "assert 0..-1//1 == (..)")) {
-            assertErrors(V1_13, source, ".." to NULLARY_RANGE)
+            assertErrors(elixir("1.13.0"), source, ".." to NULLARY_RANGE)
         }
     }
 
     fun testNullaryRangeFrom1_14() {
         for (source in listOf("..", ".. = right", "require (..), bar", "assert (..) == 0..-1//1", "x = ..\n", "&..\\\n/0")) {
-            assertNoErrors(V1_14, source)
-            assertNoErrors(V1_20, source)
+            assertNoErrors(elixir("1.14.0"), source)
+            assertNoErrors(elixir("1.20.0"), source)
         }
     }
 
@@ -189,20 +180,23 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             "x.** \"a\\u0041\": 1" to "[<<\"aA\">>]",
             "x.** \"a\\u{41}\": 1" to "[<<\"aA\">>]",
             "x.** aé: 1" to "aé",
+            // Erlang quotes an atom beyond Latin-1.
+            "x.** \u0141x: 1" to "'\u0141x'",
+            "x.** \u65E5\u672C: 1" to "'\u65E5\u672C'",
             "x.** é: 1" to "é",
         ) + listOf(
             "*", "..", "<>", "++", "--", "+++", "---", "==", "!=", "===", "!==", "=~", "<", ">", "<=", ">=", "&&", "||", "&&&",
             "|||", "<<<", ">>>", "^^^", "~>", "<~", "<~>", "<|>", "~>>", "<<~", "|", "=", "|>", "::", "<-", "and", "or", "when",
         ).map { "x.** $it y" to "'$it'" }) {
-            assertErrors(V1_11, source, "**" to before(token))
-            assertErrors(V1_12, source, "**" to before(token))
-            assertNoErrors(V1_13, source)
+            assertErrors(elixir("1.11.0"), source, "**" to before(token))
+            assertErrors(elixir("1.12.0"), source, "**" to before(token))
+            assertNoErrors(elixir("1.13.0"), source)
         }
 
-        assertErrors(V1_12, "2 ** 3 ** 4", "**" to before("'*'"), "**" to before("'*'"))
-        assertErrors(V1_12, "x.** ** y", "**" to before("'*'"))
+        assertErrors(elixir("1.12.0"), "2 ** 3 ** 4", "**" to before("'*'"), "**" to before("'*'"))
+        assertErrors(elixir("1.12.0"), "x.** ** y", "**" to before("'*'"))
         // Both `**` have the same text, so compare where the error starts.
-        QuotingDialectResolver.overrideDialect(project, V1_12)
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, elixir("1.12.0"))
         myFixture.configureByText("versioned_syntax_${files++}.ex", "x.** **: 1")
         assertEquals(listOf(5 to before("'*'")), myFixture.doHighlighting(HighlightSeverity.ERROR).map { it.startOffset to it.description })
 
@@ -214,23 +208,33 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             val source = "x.** $operator: 1"
             val expected = "**" to before("'${operator.replace("\\", "\\\\")}'")
 
-            assertErrors(V1_11, source, expected)
-            assertErrors(V1_12, source, expected)
-            assertNoErrors(V1_13, source)
+            assertErrors(elixir("1.11.0"), source, expected)
+            assertErrors(elixir("1.12.0"), source, expected)
+            assertNoErrors(elixir("1.13.0"), source)
         }
         for ((source, token) in listOf("x.** true: 1" to "true", "x.** false: 1" to "false", "x.** Foo: 1" to "'Foo'")) {
-            assertErrors(V1_11, source, "**" to before(token))
-            assertErrors(V1_12, source, "**" to before(token))
-            assertNoErrors(V1_13, source)
+            assertErrors(elixir("1.11.0"), source, "**" to before(token))
+            assertErrors(elixir("1.12.0"), source, "**" to before(token))
+            assertNoErrors(elixir("1.13.0"), source)
         }
-        assertEquals(listOf("**" to before("'..//'")), errors(V1_12, "x.** ..//: 1").filter { it.first == "**" })
-        assertEquals(emptyList<Pair<String, String?>>(), errors(V1_11, "x.** ..//: 1").filter { it.first == "**" })
+        assertEquals(
+            listOf("**" to before("'..//'")),
+            errors(elixir("1.12.0"), "x.** ..//: 1").filter { it.first == "**" }
+        )
+        assertEquals(
+            emptyList<Pair<String, String?>>(),
+            errors(elixir("1.11.0"), "x.** ..//: 1").filter { it.first == "**" }
+        )
         for (source in listOf("x.** /: 1", "x.** ::: 1", "x.** =>: 1", "x.** ..// y", "x.** .. / y", "x.** .. // y", "x.** .. //: 1")) {
-            for (dialect in listOf(V1_11, V1_12)) {
-                assertEquals("$source on $dialect", emptyList<String?>(), errors(dialect, source).filter { it.first == "**" }.map { it.second })
+            for (languageLevel in listOf(elixir("1.11.0"), elixir("1.12.0"))) {
+                assertEquals(
+                    "$source on $languageLevel",
+                    emptyList<String?>(),
+                    errors(languageLevel, source).filter { it.first == "**" }.map { it.second }
+                )
             }
         }
-        assertErrors(V1_12, "x.** !/2", "/" to before("'/'"))
+        assertErrors(elixir("1.12.0"), "x.** !/2", "/" to before("'/'"))
 
         for ((source, token) in listOf(
             "x.** ==\n/2" to "'=='",
@@ -238,24 +242,35 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             "x.** == # c\n/2" to "'=='",
             "x.** ==\n\n/2" to "'=='",
         )) {
-            for (dialect in listOf(V1_11, V1_12)) {
-                assertEquals("$source on $dialect", listOf("**" to before(token)), errors(dialect, source).filter { it.first == "**" })
+            for (languageLevel in listOf(elixir("1.11.0"), elixir("1.12.0"))) {
+                assertEquals(
+                    "$source on $languageLevel",
+                    listOf("**" to before(token)),
+                    errors(languageLevel, source).filter { it.first == "**" }
+                )
             }
         }
-        assertErrors(V1_12, "x.** ==\\\n/2", "==" to before("'=='"))
+        assertErrors(elixir("1.12.0"), "x.** ==\\\n/2", "==" to before("'=='"))
 
         for (source in listOf("x.**\\\n", "x.** \\\n", "x.**\n\\\n", "x.** # c\n\\\n")) {
-            assertErrors(V1_12, source, "**" to "invalid escape \\ at end of file")
+            assertErrors(elixir("1.12.0"), source, "**" to "invalid escape \\ at end of file")
         }
         for (source in listOf("x.**\\", "x.** \\")) {
-            assertTrue(source, ("**" to "invalid escape \\ at end of file") in errors(V1_12, source))
+            assertTrue(source, ("**" to "invalid escape \\ at end of file") in errors(elixir("1.12.0"), source))
         }
-        assertErrors(V1_12, "[x.**]\\\n", "**" to "invalid escape \\ at end of file")
-        assertEquals(emptyList<Pair<String, String?>>(), errors(V1_11, "Kernel.**]").filter { it.first == "**" })
+        assertErrors(elixir("1.12.0"), "[x.**]\\\n", "**" to "invalid escape \\ at end of file")
+        assertEquals(
+            emptyList<Pair<String, String?>>(),
+            errors(elixir("1.11.0"), "Kernel.**]").filter { it.first == "**" }
+        )
         for (source in listOf("x.** do/2", "x.** do /2", "x.** end/2", "x.** end /2")) {
-            assertEquals(source, emptyList<Pair<String, String?>>(), errors(V1_11, source).filter { it.first == "**" })
+            assertEquals(
+                source,
+                emptyList<Pair<String, String?>>(),
+                errors(elixir("1.11.0"), source).filter { it.first == "**" }
+            )
         }
-        assertNoErrors(V1_12, "\"**\"")
+        assertNoErrors(elixir("1.12.0"), "\"**\"")
 
         for (source in listOf(
             "Kernel.** 2", "x.** + 1", "x.**()", "x.**(1)", "Kernel.**(2)", "x.**\n1", "x.** - y", "x.** / y", "x.** not y",
@@ -263,8 +278,8 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             "x.** ==/2", "x.** == /2", "x.**\n==/2", "[x.** ==/2]", "x.** in/2", "x.** ../2", "x.** |>/2", "x.** =/2", "x.** ::/2",
             "x.** and/2", "x.** when/2", "x.** */2", "x.** <-/2", "x.** |/2", "x.** \\\\/2",
         )) {
-            assertNoErrors(V1_11, source)
-            assertNoErrors(V1_12, source)
+            assertNoErrors(elixir("1.11.0"), source)
+            assertNoErrors(elixir("1.12.0"), source)
         }
 
         // Operator references the plugin's parser does not all read, so only the `**` error is checked.
@@ -273,8 +288,12 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             "x.** >= /2", "x.** &&& /2", "x.** or/2", "x.** = /2", "x.** :: /2", "x.** ^^^/2", "x.** * /2", "x.** .. /2",
             "x.** in /2", "x.** when /2", "x.** \\\\ /2",
         )) {
-            for (dialect in listOf(V1_11, V1_12)) {
-                assertEquals("$source on $dialect", emptyList<Pair<String, String?>>(), errors(dialect, source).filter { it.first == "**" })
+            for (languageLevel in listOf(elixir("1.11.0"), elixir("1.12.0"))) {
+                assertEquals(
+                    "$source on $languageLevel",
+                    emptyList<Pair<String, String?>>(),
+                    errors(languageLevel, source).filter { it.first == "**" }
+                )
             }
         }
     }
@@ -293,26 +312,26 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             "~A1()" to '1',
             "~AB1()" to 'B',
         )) {
-            assertErrors(V1_11, source, "$character" to sigilDelimiter(character, 3))
-            assertErrors(V1_14, source, "$character" to sigilDelimiter(character, 3))
+            assertErrors(elixir("1.11.0"), source, "$character" to sigilDelimiter(character, 3))
+            assertErrors(elixir("1.14.0"), source, "$character" to sigilDelimiter(character, 3))
         }
 
-        assertErrors(V1_14, "x = ~MAT()", "A" to sigilDelimiter('A', 7))
+        assertErrors(elixir("1.14.0"), "x = ~MAT()", "A" to sigilDelimiter('A', 7))
     }
 
     fun testUppercaseSigilWithDigitsBefore1_17() {
-        for (dialect in listOf(V1_15, V1_16_2)) {
-            assertErrors(dialect, "~A1()", "1" to sigilDelimiter('1', 3))
-            assertErrors(dialect, "~AB1()", "1" to sigilDelimiter('1', 4))
-            assertNoErrors(dialect, "~MAT()")
+        for (languageLevel in listOf(elixir("1.15.0"), elixir("1.16.2"))) {
+            assertErrors(languageLevel, "~A1()", "1" to sigilDelimiter('1', 3))
+            assertErrors(languageLevel, "~AB1()", "1" to sigilDelimiter('1', 4))
+            assertNoErrors(languageLevel, "~MAT()")
         }
 
         for (source in listOf("~A1()", "~AB1()", "~MAT()", "~UNKNOWN'abc'")) {
-            assertNoErrors(V1_17, source)
+            assertNoErrors(elixir("1.17.0"), source)
         }
 
         for (source in listOf("~A()", "~r()")) {
-            assertNoErrors(V1_11, source)
+            assertNoErrors(elixir("1.11.0"), source)
         }
     }
 
@@ -330,18 +349,30 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             "c\u0327c\u0327" to "c\u0327c\u0327",
             "c\u0327?" to "c\u0327?",
         )) {
-            assertErrors(V1_11, source, word to NFC)
-            assertErrors(V1_13, source, word to NFC)
-            assertNoErrors(V1_14, source)
+            assertErrors(elixir("1.11.0"), source, word to NFC)
+            assertErrors(elixir("1.13.0"), source, word to NFC)
+            assertNoErrors(elixir("1.14.0"), source)
         }
 
         for (source in listOf("\u00E7", "x\u0327", "\"c\u0327\"", ":\"c\u0327\"")) {
-            assertNoErrors(V1_13, source)
+            assertNoErrors(elixir("1.13.0"), source)
+        }
+    }
+
+    /** An alias is put in NFC like any other word; from 1.14 its non-ASCII character is [InvalidToken]'s to report. */
+    fun testAliasNotInNfcBefore1_14() {
+        for ((source, alias) in listOf(
+            "C\u0327" to "C\u0327",
+            "E\u0301x" to "E\u0301x",
+            "Foo.C\u0327" to "C\u0327",
+        )) {
+            assertErrors(elixir("1.11.0"), source, alias to NFC)
+            assertErrors(elixir("1.13.0"), source, alias to NFC)
         }
     }
 
     fun testIdentifierNotInNfcTooltip() {
-        QuotingDialectResolver.overrideDialect(project, V1_13)
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, elixir("1.13.0"))
         myFixture.configureByText("nfc.ex", "c\u0327?")
 
         val tooltip = myFixture.doHighlighting(HighlightSeverity.ERROR).single().toolTip.orEmpty()
@@ -360,7 +391,6 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             "&+\\\n/2" to ("/" to before("'/'")),
             "&/\\\n/2" to ("/" to before("'/'")),
             "&or\\\n/2" to ("or" to before("'or'")),
-            "&..//\\\n/3" to ("..//" to "unexpected token: \".\" (column 2, code point U+002E)"),
             "&+\\\n /2" to ("/" to before("'/'")),
             "&+ \\\n/2" to ("/" to before("'/'")),
             "&(+\\\n/2)" to ("/" to before("'/'")),
@@ -372,44 +402,75 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             "&not\\\n/1" to ("/" to before("'/'")),
             "&when\\\n/2" to ("when" to before("'when'")),
         )) {
-            assertErrors(V1_11, source, expected)
-            assertErrors(V1_19, source, expected)
-            assertNoErrors(V1_20, source)
+            assertErrors(elixir("1.11.0"), source, expected)
+            assertErrors(elixir("1.19.0"), source, expected)
+            assertNoErrors(elixir("1.20.0"), source)
         }
 
+        // Before `..//` was a token, 1.11 read the `/` after the break as the one out of place.
+        assertErrors(elixir("1.11.4"), "&..//\\\n/3", "/" to before("'/'"))
+        for (languageLevel in listOf(elixir("1.12.0-rc.0"), elixir("1.19.0"))) {
+            assertErrors(
+                languageLevel,
+                "&..//\\\n/3",
+                "..//" to "unexpected token: \".\" (column 2, code point U+002E)"
+            )
+        }
+        assertNoErrors(elixir("1.20.0"), "&..//\\\n/3")
+
         for (source in listOf("&+/\\\n2", "&\\\n+/2", "&foo\\\n/2", "&+/2", "&+ /2", "&<<>>\\\n/1", "&{}\\\n/1", "&%{}\\\n/1")) {
-            for (dialect in listOf(V1_11, V1_19, V1_20)) {
-                assertNoErrors(dialect, source)
+            for (languageLevel in listOf(elixir("1.11.0"), elixir("1.19.0"), elixir("1.20.0"))) {
+                assertNoErrors(languageLevel, source)
             }
         }
 
-        assertErrors(V1_12, "&**\\\n/2", "**" to before("'*'"))
-        assertErrors(V1_19, "&**\\\n/2", "**" to before("'**'"))
-        assertNoErrors(V1_20, "&**\\\n/2")
+        assertErrors(elixir("1.12.0"), "&**\\\n/2", "**" to before("'*'"))
+        assertErrors(elixir("1.19.0"), "&**\\\n/2", "**" to before("'**'"))
+        assertNoErrors(elixir("1.20.0"), "&**\\\n/2")
     }
 
     fun testEscapedNewlineBeforeArityAfterAnOperandBefore1_20() {
         val named = listOf(before("'/'"), before("'=='"), before("in"), before("'in'"))
 
         for (source in listOf("x ==\\\n/2", "f ==\\\n/2", "x.y ==\\\n/2")) {
-            for (dialect in listOf(V1_11, V1_19)) {
-                assertEquals("$source on $dialect", listOf("/" to before("'/'")), errors(dialect, source).filter { it.second in named })
+            for (languageLevel in listOf(elixir("1.11.0"), elixir("1.19.0"))) {
+                assertEquals(
+                    "$source on $languageLevel",
+                    listOf("/" to before("'/'")),
+                    errors(languageLevel, source).filter { it.second in named }
+                )
             }
         }
 
-        for (dialect in listOf(V1_11, V1_12)) {
-            assertEquals("x.** on $dialect", listOf("==" to before("'=='")), errors(dialect, "x.** ==\\\n/2").filter { it.second in named })
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.12.0"))) {
+            assertEquals(
+                "x.** on $languageLevel",
+                listOf("==" to before("'=='")),
+                errors(languageLevel, "x.** ==\\\n/2").filter { it.second in named }
+            )
         }
-        for (dialect in listOf(V1_13, V1_19)) {
-            assertEquals("x.** on $dialect", listOf("/" to before("'/'")), errors(dialect, "x.** ==\\\n/2").filter { it.second in named })
+        for (languageLevel in listOf(elixir("1.13.0"), elixir("1.19.0"))) {
+            assertEquals(
+                "x.** on $languageLevel",
+                listOf("/" to before("'/'")),
+                errors(languageLevel, "x.** ==\\\n/2").filter { it.second in named }
+            )
         }
 
-        for (dialect in listOf(V1_11, V1_12)) {
-            assertEquals("x.** in on $dialect", listOf("in" to before("in")), errors(dialect, "x.** in\\\n/2").filter { it.second in named })
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.12.0"))) {
+            assertEquals(
+                "x.** in on $languageLevel",
+                listOf("in" to before("in")),
+                errors(languageLevel, "x.** in\\\n/2").filter { it.second in named }
+            )
         }
 
         for (source in listOf("[==\\\n/2]", "f(==\\\n/2)", "x = ==\\\n/2")) {
-            assertEquals(source, listOf("==" to before("'=='")), errors(V1_19, source).filter { it.second in named })
+            assertEquals(
+                source,
+                listOf("==" to before("'=='")),
+                errors(elixir("1.19.0"), source).filter { it.second in named }
+            )
         }
     }
 
@@ -453,20 +514,20 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
         )) {
             val (entry, token) = expected
 
-            assertErrors(V1_11, source, entry to before(token))
-            assertErrors(V1_16_2, source, entry to before(token))
-            assertNoErrors(V1_17, source)
+            assertErrors(elixir("1.11.0"), source, entry to before(token))
+            assertErrors(elixir("1.16.2"), source, entry to before(token))
+            assertNoErrors(elixir("1.17.0"), source)
         }
 
-        assertErrors(V1_12, "%{...a}", "...a" to before("'}'"))
-        assertNoErrors(V1_13, "%{...a}")
-        assertErrors(V1_16_2, "%{..}", ".." to before("'}'"))
-        assertNoErrors(V1_17, "%{..}")
-        assertErrors(V1_16_2, "%{.. \\\n}", ".." to before("'}'"))
-        assertErrors(V1_16_2, "%{..\\\n\n}", ".." to before("eol"))
+        assertErrors(elixir("1.12.0"), "%{...a}", "...a" to before("'}'"))
+        assertNoErrors(elixir("1.13.0"), "%{...a}")
+        assertErrors(elixir("1.16.2"), "%{..}", ".." to before("'}'"))
+        assertNoErrors(elixir("1.17.0"), "%{..}")
+        assertErrors(elixir("1.16.2"), "%{.. \\\n}", ".." to before("'}'"))
+        assertErrors(elixir("1.16.2"), "%{..\\\n\n}", ".." to before("eol"))
 
         for (source in listOf("%{a}", "%{a, b}", "%{x.y}", "%{foo()}", "%{...}", "%{a | b}", "%{a: 1}", "%{m | a: 1}", "%{a => 1}", "%{x.()}", "%{foo.bar.()}")) {
-            assertNoErrors(V1_11, source)
+            assertNoErrors(elixir("1.11.0"), source)
         }
     }
 
@@ -495,44 +556,50 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             "x.<> +: 1" to 7,
             "x.@ +: 1" to 6,
         )) {
-            assertErrors(V1_11, source, ":" to colon(column))
-            assertNoErrors(V1_12, source)
+            assertErrors(elixir("1.11.0"), source, ":" to colon(column))
+            assertNoErrors(elixir("1.12.0"), source)
         }
 
         for (source in listOf("[+: 1]", "f(+: 1)", "%{+: 1}", "f a, +: 1", "f ++: 1", "f when: 1", "f \\\n+: 1", "x.\"f\"+: 1", "x.\"f\" \\\n+: 1")) {
-            assertNoErrors(V1_11, source)
+            assertNoErrors(elixir("1.11.0"), source)
         }
 
         assertEquals(
             emptyList<String?>(),
-            errors(V1_11, "f\\\n +: 1").map { it.second }.filter { it?.startsWith("unexpected token") == true }
+            errors(elixir("1.11.0"), "f\\\n +: 1")
+                .map { it.second }
+                .filter { it?.startsWith("unexpected token") == true }
         )
         assertEquals(
             emptyList<String?>(),
-            errors(V1_11, "x.\"f#{a}\" +: 1").map { it.second }.filter { it?.startsWith("unexpected token: \":\"") == true }
+            errors(elixir("1.11.0"), "x.\"f#{a}\" +: 1")
+                .map { it.second }
+                .filter { it?.startsWith("unexpected token: \":\"") == true }
         )
         assertEquals(
             emptyList<String?>(),
-            errors(V1_11, "x.% +: 1").map { it.second }.filter { it?.startsWith("unexpected token: \":\"") == true }
+            errors(elixir("1.11.0"), "x.% +: 1")
+                .map { it.second }
+                .filter { it?.startsWith("unexpected token: \":\"") == true }
         )
     }
 
     fun testDotKeywordKeyBefore1_13() {
         for ((source, column) in listOf("[.: :.]" to 3, "[.: 1]" to 3, "f .: 1" to 4, "f(.: 1)" to 4, "%{.: 1}" to 4)) {
-            assertErrors(V1_11, source, ":" to colon(column))
-            assertErrors(V1_12, source, ":" to colon(column))
-            assertNoErrors(V1_13, source)
+            assertErrors(elixir("1.11.0"), source, ":" to colon(column))
+            assertErrors(elixir("1.12.0"), source, ":" to colon(column))
+            assertNoErrors(elixir("1.13.0"), source)
         }
 
         for (source in listOf(":.", "[..: 1]")) {
-            assertNoErrors(V1_12, source)
+            assertNoErrors(elixir("1.12.0"), source)
         }
     }
 
     fun testSteppedRangeAtomBefore1_12() {
         for (source in listOf(":..//", "[:..//]")) {
-            assertErrors(V1_11, source, "..//" to before("'/'"))
-            assertNoErrors(V1_12, source)
+            assertErrors(elixir("1.11.0"), source, "..//" to before("'/'"))
+            assertNoErrors(elixir("1.12.0"), source)
         }
     }
 
@@ -558,8 +625,8 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             "\"#{if a do 1 end::x}\"" to unexpectedToken("}", "do"),
             "x[if true do 1 end::x]" to unexpectedToken("]", "do"),
         )) {
-            assertErrors(V1_11, source, "end" to message)
-            assertNoErrors(V1_12, source)
+            assertErrors(elixir("1.11.0"), source, "end" to message)
+            assertNoErrors(elixir("1.12.0"), source)
         }
 
         for (source in listOf(
@@ -567,7 +634,7 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             "<<if true do \"a\" end :: binary>>",
             "<<(if true do \"a\" end)::binary>>",
         )) {
-            assertNoErrors(V1_11, source)
+            assertNoErrors(elixir("1.11.0"), source)
         }
     }
 
@@ -596,13 +663,13 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             "&\n-/1",
             "&\n&/1",
         )) {
-            assertErrors(V1_11, source, "/" to before("'/'"))
-            assertErrors(V1_12, source, "/" to before("'/'"))
-            assertNoErrors(V1_13, source)
+            assertErrors(elixir("1.11.0"), source, "/" to before("'/'"))
+            assertErrors(elixir("1.12.0"), source, "/" to before("'/'"))
+            assertNoErrors(elixir("1.13.0"), source)
         }
 
         for (source in listOf("&@/1", "&+/1", "not/1", "when/2", "@foo/1", ".../1", "&+/1 |> foo", "&+/1 + 1", "&-/1 == x", "&@/1 |> foo", "& +/1", "&\\\n+/2")) {
-            assertNoErrors(V1_12, source)
+            assertNoErrors(elixir("1.12.0"), source)
         }
     }
 
@@ -616,14 +683,14 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             ":foo.\"\u0E1A\u0E39\"" to "\"\u0E1A\u0E39\"",
             "Foo.\"\u0E1A\u0E39\"()" to "\"\u0E1A\u0E39\"",
         )) {
-            assertNoErrors(V1_12, source)
-            assertErrors(V1_13, source, name to NOT_A_LIST_OF_CHARACTERS)
-            assertErrors(V1_17, source, name to NOT_A_LIST_OF_CHARACTERS)
-            assertNoErrors(V1_18, source)
+            assertNoErrors(elixir("1.12.0"), source)
+            assertErrors(elixir("1.13.0"), source, name to NOT_A_LIST_OF_CHARACTERS)
+            assertErrors(elixir("1.17.0"), source, name to NOT_A_LIST_OF_CHARACTERS)
+            assertNoErrors(elixir("1.18.0"), source)
         }
 
         for (source in listOf(":\"\u0E1A\u0E39\"", "[\"\u0E1A\u0E39\": 1]", ":foo.\"\u0E1A\u0E21\"()")) {
-            assertNoErrors(V1_13, source)
+            assertNoErrors(elixir("1.13.0"), source)
         }
     }
 
@@ -640,16 +707,16 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             "def foo(a // b)",
             "a..b//c//d",
         )) {
-            assertErrors(V1_12, source, "//" to STEP)
-            assertErrors(V1_20, source, "//" to STEP)
+            assertErrors(elixir("1.12.0"), source, "//" to STEP)
+            assertErrors(elixir("1.20.0"), source, "//" to STEP)
         }
 
         for (source in listOf("foo..(bar//bat)", "foo++bar//bat", "foo//bar", "(foo//bar)", "[foo//bar]", "&foo//2", "def foo(a // b)")) {
-            assertNoErrors(V1_11, source)
+            assertNoErrors(elixir("1.11.0"), source)
         }
 
         for (source in listOf("a..b//c", "(a..b)//c", "x = 1..2//3", "1..2 + 3//4", "foo..bar++baz//bat", "(foo++bar)..baz//bat")) {
-            assertNoErrors(V1_20, source)
+            assertNoErrors(elixir("1.20.0"), source)
         }
     }
 
@@ -662,13 +729,13 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             "a.'\\u{110000}'" to ("\\u{110000}" to "invalid or reserved Unicode code point \\u{110000}. Syntax error after: \\u"),
             "a.'\\u{D800}'" to ("\\u{D800}" to "invalid or reserved Unicode code point \\u{D800}. Syntax error after: \\u"),
         )) {
-            assertNoErrors(V1_17, source)
-            assertErrors(V1_18, source, expected)
-            assertErrors(V1_20, source, expected)
+            assertNoErrors(elixir("1.17.0"), source)
+            assertErrors(elixir("1.18.0"), source, expected)
+            assertErrors(elixir("1.20.0"), source, expected)
         }
 
         for (source in listOf("a.\"\\x41\"()", "a.'\\q'")) {
-            assertNoErrors(V1_20, source)
+            assertNoErrors(elixir("1.20.0"), source)
         }
     }
 
@@ -681,21 +748,21 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             "a.\"\\xA\"()" to "\\xA",
             "a.\"\\x{41}\"()" to "\\x{41}",
         )) {
-            assertNoErrors(V1_19, source)
-            assertErrors(V1_20, source, escape to HEX)
+            assertNoErrors(elixir("1.19.0"), source)
+            assertErrors(elixir("1.20.0"), source, escape to HEX)
         }
 
         for (source in listOf("\"\\xFF\"", "~s(\\xA)", "~S(\\xA)")) {
-            assertNoErrors(V1_20, source)
+            assertNoErrors(elixir("1.20.0"), source)
         }
 
-        assertErrors(V1_20, "\"\\x{110000}\"", "\\x{110000}" to HEX)
+        assertErrors(elixir("1.20.0"), "\"\\x{110000}\"", "\\x{110000}" to HEX)
     }
 
     fun testElixirInDocumentationIsNotChecked() {
         val source = "defmodule Sample do\n  @moduledoc \"\"\"\n      x = ..\n  \"\"\"\nend\n"
 
-        QuotingDialectResolver.overrideDialect(project, V1_13)
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, elixir("1.13.0"))
         myFixture.configureByText(ElixirFileType.INSTANCE, source)
 
         assertEquals(
@@ -717,9 +784,10 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
         )
     }
 
-    private fun errors(dialect: QuotingDialect, source: String): List<Pair<String, String?>> {
-        QuotingDialectResolver.overrideDialect(project, dialect)
-        // A new file name each time, or a file with the same text keeps the tree parsed under the previous dialect.
+    private fun errors(languageLevel: ElixirLanguageLevel, source: String): List<Pair<String, String?>> {
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, languageLevel)
+        // A new file name each time, or a file with the same text keeps the tree parsed under the previous language
+        // level.
         myFixture.configureByText("versioned_syntax_${files++}.ex", source)
 
         return myFixture
@@ -727,12 +795,20 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             .map { source.substring(it.startOffset, it.endOffset) to it.description }
     }
 
-    private fun assertNoErrors(dialect: QuotingDialect, source: String) {
-        assertEquals("errors in $source on $dialect", emptyList<Pair<String, String?>>(), errors(dialect, source))
+    private fun assertNoErrors(languageLevel: ElixirLanguageLevel, source: String) {
+        assertEquals(
+            "errors in $source on $languageLevel",
+            emptyList<Pair<String, String?>>(),
+            errors(languageLevel, source)
+        )
     }
 
-    private fun assertErrors(dialect: QuotingDialect, source: String, vararg expected: Pair<String, String>) {
-        assertEquals("errors in $source on $dialect", expected.toList(), errors(dialect, source))
+    private fun assertErrors(
+        languageLevel: ElixirLanguageLevel,
+        source: String,
+        vararg expected: Pair<String, String>
+    ) {
+        assertEquals("errors in $source on $languageLevel", expected.toList(), errors(languageLevel, source))
     }
 
     private companion object {

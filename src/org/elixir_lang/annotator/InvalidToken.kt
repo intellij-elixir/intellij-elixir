@@ -2,20 +2,33 @@ package org.elixir_lang.annotator
 
 import com.intellij.lang.annotation.AnnotationHolder
 import com.intellij.lang.annotation.Annotator
-import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
+import com.intellij.psi.TokenType
 import com.intellij.psi.tree.TokenSet
 import com.intellij.psi.util.PsiTreeUtil
+import org.elixir_lang.annotator.unicode_security.UnicodeSecurityCheck
+import org.elixir_lang.parser.isBinaryDigit
+import org.elixir_lang.parser.isDecimalDigit
+import org.elixir_lang.parser.isFollowedByIn
+import org.elixir_lang.parser.isHexadecimalDigit
+import org.elixir_lang.parser.isOctalDigit
+import org.elixir_lang.parser.isWordCharacter
 import org.elixir_lang.psi.ElixirDecimalFloat
 import org.elixir_lang.psi.ElixirDecimalFloatExponent
 import org.elixir_lang.psi.ElixirDecimalFloatFractional
 import org.elixir_lang.psi.ElixirDecimalFloatIntegral
 import org.elixir_lang.psi.ElixirTypes
 import org.elixir_lang.psi.WholeNumber
-import org.elixir_lang.psi.quoting.QuotingDialect
-import org.elixir_lang.psi.quoting.QuotingDialectResolver
+import org.elixir_lang.language_level.ElixirLanguageFeature.ALIAS_ERROR_COVERS_PUNCTUATION
+import org.elixir_lang.language_level.ElixirLanguageFeature.BASED_NUMBER_CONTINUES_INTO_DIGITS
+import org.elixir_lang.language_level.ElixirLanguageFeature.DECIMAL_NUMBER_ENDS_BEFORE_WORD
+import org.elixir_lang.language_level.ElixirLanguageFeature.NORMALIZED_IDENTIFIERS
+import org.elixir_lang.language_level.ElixirLanguageFeature.NUMBER_ERROR_QUOTES_THE_CHARACTER
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
+import java.text.Normalizer
 
 /**
  * Reports, as errors, the words and numbers that Elixir's tokenizer rejects and the plugin's lexer accepts.
@@ -35,6 +48,8 @@ internal class InvalidToken : Annotator, DumbAware {
             if (isNumber(element)) number(element)?.let(problems::add)
 
             for (child in generateSequence(firstChild, PsiElement::getNextSibling)) {
+                // A bad character belongs to no language, so annotators never see it; its parent reports it.
+                rejectedFirstLetter(child)?.let(problems::add)
                 if (child.nextSibling != null) acrossBoundary(child)?.let(problems::add)
             }
         }
@@ -43,7 +58,7 @@ internal class InvalidToken : Annotator, DumbAware {
         if (inside.isEmpty() || Injection.of(element) == Injection.UNCOMPILED) return
 
         for ((range, message) in inside) {
-            holder.newAnnotation(HighlightSeverity.ERROR, message).range(range).create()
+            holder.error(range, message)
         }
     }
 
@@ -87,14 +102,20 @@ internal class InvalidToken : Annotator, DumbAware {
         val text = leaf.containingFile.viewProvider.contents
         val start = leaf.textRange.startOffset
 
-        return if (continuesWord(text, start)) null else word(text, start) { QuotingDialectResolver.dialectFor(leaf) }
+        if (continuesWord(text, start)) return null
+
+        return word(text, start) { ElixirLanguageLevelResolver.languageLevelFor(leaf) }
     }
 
     /**
      * The checks of Elixir's tokenizer on a word, in its order: a keyword with a space after the colon is left alone,
      * so `[foo@bar: 1]` is valid while `foo@bar:1` is only a missing space.
      */
-    private fun word(text: CharSequence, start: Int, dialect: () -> QuotingDialect): Pair<TextRange, String>? {
+    private fun word(
+        text: CharSequence,
+        start: Int,
+        languageLevel: () -> ElixirLanguageLevel,
+    ): Pair<TextRange, String>? {
         val end = wordEnd(text, start)
         if (end == start) return null
 
@@ -112,23 +133,34 @@ internal class InvalidToken : Annotator, DumbAware {
             }
         }
 
+        val first = word.codePointAt(0)
+        // The lexer rejects the uppercase ones itself, but not the titlecase ones.
+        if (startsOnlyAnAtom(first)) return letterThatStartsOnlyAnAtom(text, start, languageLevel)
+
         val kind = if (word[0] in 'A'..'Z') "alias" else "identifier"
 
         return when {
             '@' in word -> range to invalidCharacter('@'.code, kind, word)
             word == "__aliases__" || word == "__block__" -> range to "reserved token: $word"
-            kind == "alias" -> alias(word, dialect())?.let { range to it }
+            kind == "alias" -> alias(word, languageLevel())?.let { range to it }
             else -> null
         }
     }
 
-    private fun alias(alias: String, dialect: QuotingDialect): String? {
+    /**
+     * Elixir puts a word in NFC before checking it from 1.14; before that [VersionedSyntax] reports it not being in
+     * NFC.
+     */
+    private fun alias(word: String, languageLevel: ElixirLanguageLevel): String? {
+        val inNfc = Normalizer.isNormalized(word, Normalizer.Form.NFC)
+        if (!inNfc && !NORMALIZED_IDENTIFIERS.isSufficient(languageLevel)) return null
+        val alias = if (inNfc) word else Normalizer.normalize(word, Normalizer.Form.NFC)
         val nonAscii = alias.codePoints().filter { it > 127 }.findFirst()
         val punctuation = alias.last().takeIf { it == '?' || it == '!' }
 
         return when {
             !nonAscii.isPresent && punctuation == null -> null
-            dialect >= QuotingDialect.V1_14 ->
+            ALIAS_ERROR_COVERS_PUNCTUATION.isSufficient(languageLevel) ->
                 invalidCharacter(
                     alias.codePoints().filter { it < 'A'.code || it > 127 }.findFirst().asInt,
                     "alias (only ASCII characters, without punctuation, are allowed)",
@@ -146,7 +178,7 @@ internal class InvalidToken : Annotator, DumbAware {
     private fun number(number: PsiElement): Pair<TextRange, String>? {
         val text = number.containingFile.viewProvider.contents
         val start = number.textRange.startOffset
-        val dialect = QuotingDialectResolver.dialectFor(number)
+        val languageLevel = ElixirLanguageLevelResolver.languageLevelFor(number)
         val baseEnd = baseEnd(text, start)
 
         val decimalStart = if (baseEnd == null) {
@@ -155,15 +187,15 @@ internal class InvalidToken : Annotator, DumbAware {
             val next = text.getOrNull(baseEnd) ?: return null
 
             when {
-                next.isAsciiDigit() && dialect >= QuotingDialect.V1_12 -> baseEnd
-                next.isAsciiDigit() -> {
+                isDecimalDigit(next) && BASED_NUMBER_CONTINUES_INTO_DIGITS.isSufficient(languageLevel) -> baseEnd
+                isDecimalDigit(next) -> {
                     val digitsEnd = decimalEnd(text, baseEnd)
 
-                    return rejectedWord(text, start, digitsEnd, dialect)
+                    return rejectedWord(text, start, digitsEnd, languageLevel)
                         ?: (TextRange(start, wordEnd(text, digitsEnd)) to
-                            "syntax error before: \"${text.substring(baseEnd, digitsEnd)}\"")
+                            syntaxErrorBefore("\"${text.substring(baseEnd, digitsEnd)}\""))
                 }
-                next.isAsciiLetter() || next == '_' -> return afterLiteral(text, start, baseEnd, dialect)
+                next.isAsciiLetter() || next == '_' -> return afterLiteral(text, start, baseEnd, languageLevel)
                 else -> return null
             }
         }
@@ -177,22 +209,22 @@ internal class InvalidToken : Annotator, DumbAware {
             val range = TextRange(start, wordEnd)
 
             return when {
-                dialect >= QuotingDialect.V1_14 ->
+                NUMBER_ERROR_QUOTES_THE_CHARACTER.isSufficient(languageLevel) ->
                     range to "invalid character \"$next\" after number $decimal. If you intended to write a number, make " +
                         "sure to separate the number from the character (using comma, space, etc). If you meant to write " +
                         "a function name or a variable, note that identifiers in Elixir cannot start with numbers. " +
                         "Unexpected token: $next"
-                dialect >= QuotingDialect.V1_12 ->
+                !DECIMAL_NUMBER_ENDS_BEFORE_WORD.isSufficient(languageLevel) ->
                     range to "invalid character $next after number $decimal. If you intended to write a number, make sure " +
                         "to add the proper punctuation character after the number (space, comma, etc). If you meant to " +
                         "write an identifier, note that identifiers in Elixir cannot start with numbers. Unexpected " +
                         "token: $next"
-                else -> afterLiteral(text, start, end, dialect)
+                else -> afterLiteral(text, start, end, languageLevel)
             }
         }
 
         return if (decimalStart != start) {
-            TextRange(start, end) to "syntax error before: \"${text.substring(decimalStart, end)}\""
+            TextRange(start, end) to syntaxErrorBefore("\"${text.substring(decimalStart, end)}\"")
         } else {
             null
         }
@@ -202,9 +234,9 @@ internal class InvalidToken : Annotator, DumbAware {
         text: CharSequence,
         numberStart: Int,
         wordStart: Int,
-        dialect: QuotingDialect
+        languageLevel: ElixirLanguageLevel
     ): Pair<TextRange, String>? {
-        rejectedWord(text, numberStart, wordStart, dialect)?.let { return it }
+        rejectedWord(text, numberStart, wordStart, languageLevel)?.let { return it }
 
         val wordEnd = wordEnd(text, wordStart)
         val word = text.substring(wordStart, wordEnd)
@@ -216,10 +248,10 @@ internal class InvalidToken : Annotator, DumbAware {
                         "unexpected keyword: do:. In case you wanted to write a \"do\" expression, you must either use " +
                             "do-blocks or separate the keyword argument with comma."
                     } else {
-                        "syntax error before: '$word:'"
+                        syntaxErrorBefore("'$word:'")
                     }
-            word in KEYWORDS || (word == "not" && isFollowedByIn(text, wordEnd)) -> null
-            else -> TextRange(numberStart, wordEnd) to "syntax error before: ${atom(word, dialect)}"
+            word in KEYWORDS || (word == "not" && isFollowedByIn(text, wordEnd, languageLevel)) -> null
+            else -> TextRange(numberStart, wordEnd) to syntaxErrorBefore(erlangAtom(word, languageLevel))
         }
     }
 
@@ -228,12 +260,12 @@ internal class InvalidToken : Annotator, DumbAware {
         text: CharSequence,
         numberStart: Int,
         wordStart: Int,
-        dialect: QuotingDialect
+        languageLevel: ElixirLanguageLevel
     ): Pair<TextRange, String>? {
         val first = text.getOrNull(wordStart) ?: return null
         if (!first.isAsciiLetter() && first != '_') return null
 
-        return word(text, wordStart) { dialect }?.let { (range, message) ->
+        return word(text, wordStart) { languageLevel }?.let { (range, message) ->
             TextRange(numberStart, maxOf(range.endOffset, wordEnd(text, wordStart))) to message
         }
     }
@@ -269,44 +301,16 @@ private val WORDS = TokenSet.create(
  */
 private val KEYWORDS = setOf("after", "and", "catch", "do", "else", "end", "in", "or", "rescue", "when")
 
-/** Erlang leaves an atom unquoted when it is a lowercase Latin-1 word. */
-private val UNQUOTED_ATOM =
-    Regex("[a-z\u00DF-\u00F6\u00F8-\u00FF][A-Za-z0-9_@\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF]*")
-
 private fun isElixirSpace(character: Char): Boolean =
     character == ' ' || character == '\t' || character == '\r' || character == '\n'
-
-/** `not in` may be split by spaces, tabs and escaped newlines, but not by a newline. */
-private fun isFollowedByIn(text: CharSequence, end: Int): Boolean {
-    var offset = end
-
-    while (true) {
-        offset = when {
-            text.getOrNull(offset) == ' ' || text.getOrNull(offset) == '\t' -> offset + 1
-            text.startsWith("\\\n", offset) -> offset + 2
-            text.startsWith("\\\r\n", offset) -> offset + 3
-            else -> break
-        }
-    }
-
-    return offset > end &&
-        text.startsWith("in", offset) &&
-        text.getOrNull(offset + 2)?.let { isWordCharacter(it.code) || it in "?!:@" } != true
-}
-
-/** `erl_scan`'s reserved words, which Erlang prints quoted. */
-private val ERLANG_RESERVED_WORDS = setOf(
-    "after", "and", "andalso", "band", "begin", "bnot", "bor", "bsl", "bsr", "bxor", "case", "catch", "cond", "div", "end",
-    "fun", "if", "let", "not", "of", "or", "orelse", "receive", "rem", "try", "when", "xor"
-)
 
 private fun baseEnd(text: CharSequence, start: Int): Int? {
     if (text.getOrNull(start) != '0') return null
 
     val isDigit: (Char) -> Boolean = when (text.getOrNull(start + 1)) {
-        'x' -> { character -> character.isAsciiDigit() || character in 'a'..'f' || character in 'A'..'F' }
-        'o' -> { character -> character in '0'..'7' }
-        'b' -> { character -> character == '0' || character == '1' }
+        'x' -> ::isHexadecimalDigit
+        'o' -> ::isOctalDigit
+        'b' -> ::isBinaryDigit
         else -> return null
     }
 
@@ -314,16 +318,16 @@ private fun baseEnd(text: CharSequence, start: Int): Int? {
 }
 
 private fun decimalEnd(text: CharSequence, start: Int): Int {
-    var end = digitsEnd(text, start, Char::isAsciiDigit)
+    var end = digitsEnd(text, start, ::isDecimalDigit)
 
-    if (text.getOrNull(end) == '.' && text.getOrNull(end + 1)?.isAsciiDigit() == true) {
-        end = digitsEnd(text, end + 1, Char::isAsciiDigit)
+    if (text.getOrNull(end) == '.' && text.getOrNull(end + 1)?.let(::isDecimalDigit) == true) {
+        end = digitsEnd(text, end + 1, ::isDecimalDigit)
 
         if (text.getOrNull(end) == 'e' || text.getOrNull(end) == 'E') {
             val digits = if (text.getOrNull(end + 1) == '+' || text.getOrNull(end + 1) == '-') end + 2 else end + 1
 
-            if (text.getOrNull(digits)?.isAsciiDigit() == true) {
-                end = digitsEnd(text, digits, Char::isAsciiDigit)
+            if (text.getOrNull(digits)?.let(::isDecimalDigit) == true) {
+                end = digitsEnd(text, digits, ::isDecimalDigit)
             }
         }
     }
@@ -388,35 +392,42 @@ private fun continuesWord(text: CharSequence, start: Int): Boolean {
     return offset > 0 && isWordCharacter(Character.codePointBefore(text, offset))
 }
 
-private fun isWordCharacter(codePoint: Int): Boolean =
-    codePoint == '_'.code ||
-        Character.isLetterOrDigit(codePoint) ||
-        Character.getType(codePoint).let {
-            it == Character.NON_SPACING_MARK.toInt() || it == Character.COMBINING_SPACING_MARK.toInt()
-        }
-
-/** Erlang's `~4.16.0B` fills a code point that needs more than four digits with stars. */
 private fun invalidCharacter(codePoint: Int, kind: String, word: String): String {
-    val hexadecimal = if (codePoint > 0xFFFF) "****" else "%04X".format(codePoint)
+    val character = String(Character.toChars(codePoint))
 
-    return "invalid character \"${String(Character.toChars(codePoint))}\" (code point U+$hexadecimal) in $kind: $word"
+    return "invalid character \"$character\" (code point U+${codePointHexadecimal(codePoint)}) in $kind: $word"
 }
 
 /**
- * How Elixir's parser prints a word it stopped before: as an Erlang atom. Elixir 1.20 requires Erlang/OTP 27, which
- * reserves `maybe`; before 1.20 that depends on the OTP release, so it is left unquoted.
+ * A letter the lexer cannot start a word with: a non-ASCII uppercase letter outside an atom or keyword key, or one
+ * Elixir restricts. [RejectedLetterErrorFilter] hides the parser's own error for it.
  */
-private fun atom(word: String, dialect: QuotingDialect): String =
-    if (
-        word.matches(UNQUOTED_ATOM) &&
-        word !in ERLANG_RESERVED_WORDS &&
-        !(dialect >= QuotingDialect.V1_20 && word == "maybe")
-    ) {
-        word
+internal fun rejectedFirstLetter(badCharacter: PsiElement): Pair<TextRange, String>? {
+    if (badCharacter.node.elementType != TokenType.BAD_CHARACTER) return null
+    val text = badCharacter.containingFile.viewProvider.contents
+    val start = badCharacter.textRange.startOffset
+    if (!startsOnlyAnAtom(Character.codePointAt(text, start)) || continuesWord(text, start)) return null
+
+    return letterThatStartsOnlyAnAtom(text, start) { ElixirLanguageLevelResolver.languageLevelFor(badCharacter) }
+}
+
+/** Elixir reads the word through `@` and reports that first, unless the letter is one no word may start with. */
+private fun letterThatStartsOnlyAnAtom(
+    text: CharSequence,
+    start: Int,
+    languageLevel: () -> ElixirLanguageLevel,
+): Pair<TextRange, String> {
+    val codePoint = Character.codePointAt(text, start)
+    val word = text.substring(start, wordEnd(text, start))
+    val message = if ('@' in word && !UnicodeSecurityCheck.rejectsFirst(codePoint, languageLevel())) {
+        invalidCharacter('@'.code, "atom", word)
     } else {
-        "'$word'"
+        unexpectedToken(codePoint, column(text, start))
     }
 
-private fun Char.isAsciiDigit(): Boolean = this in '0'..'9'
+    return TextRange(start, start + Character.charCount(codePoint)) to message
+}
+
+
 
 private fun Char.isAsciiLetter(): Boolean = this in 'a'..'z' || this in 'A'..'Z'

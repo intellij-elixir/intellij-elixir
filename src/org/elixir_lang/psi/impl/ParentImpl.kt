@@ -8,7 +8,9 @@ import org.elixir_lang.psi.call.name.Module
 import org.elixir_lang.psi.impl.QuotableImpl.metadata
 import org.elixir_lang.psi.impl.QuotableImpl.quotedFunctionCall
 import org.elixir_lang.psi.impl.QuotableImpl.quotedInterpolationCall
-import org.elixir_lang.psi.quoting.QuotingDialectResolver.dialectFor
+import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_NEWLINE_KEPT_IN_EXTRACTED_BUFFER
+import org.elixir_lang.language_level.ElixirLanguageFeature.UNESCAPED_SIGIL_HEREDOC_TERMINATOR
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver.isAvailable
 import org.jetbrains.annotations.Contract
 import java.io.ByteArrayOutputStream
 import java.nio.charset.Charset
@@ -127,10 +129,10 @@ object ParentImpl {
     ): List<Int> {
         val codePointList: MutableList<Int> = ensureCodePointList(maybeCodePointList)
 
-        // See QuotingDialect.V1_12; `~S` and plain strings are the same in every version, and only a
-        // sigil reaches dialectFor - atom resolution calls this too.
+        // `~S` and plain strings are the same on every release, and only a sigil reaches `isAvailable` - atom
+        // resolution calls this too.
         if (parent is Sigil &&
-            (parent !is Interpolated || dialectFor(parent).keepsEscapedNewlineInExtractedBuffer)
+            (parent !is Interpolated || isAvailable(ESCAPED_NEWLINE_KEPT_IN_EXTRACTED_BUFFER, parent))
         ) {
             codePointList.addAll(codePoints("\\\n"))
         }
@@ -143,8 +145,8 @@ object ParentImpl {
     fun addEscapedTerminator(parent: Parent, maybeCodePointList: MutableList<Int>?, child: ASTNode): List<Int> {
         val codePointList: MutableList<Int> = ensureCodePointList(maybeCodePointList)
 
-        // See QuotingDialect.V1_13; plain heredocs and sigil lines are the same in every version.
-        val text = if (parent is SigilHeredocLiteral && !dialectFor(parent).unescapesSigilHeredocTerminator) {
+        // Plain heredocs and sigil lines are the same on every release.
+        val text = if (parent is SigilHeredocLiteral && !isAvailable(UNESCAPED_SIGIL_HEREDOC_TERMINATOR, parent)) {
             child.text
         } else {
             child.psi.lastChild.text

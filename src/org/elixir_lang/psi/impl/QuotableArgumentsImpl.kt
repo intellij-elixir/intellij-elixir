@@ -8,7 +8,8 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.otpErlangTuple
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.impl.QuotableImpl.BLOCK
-import org.elixir_lang.psi.quoting.QuotingDialectResolver.dialectFor
+import org.elixir_lang.language_level.ElixirLanguageFeature.LINE_METADATA_ON_BLOCK
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver.isAvailable
 import org.jetbrains.annotations.Contract
 
 object QuotableArgumentsImpl {
@@ -49,9 +50,8 @@ object QuotableArgumentsImpl {
     @Contract(pure = true)
     @JvmStatic
     fun quoteArguments(doBlock: ElixirDoBlock): Array<OtpErlangObject> {
-        // See QuotingDialect.V1_20.
         val blockMetadata =
-            if (dialectFor(doBlock).emitsLineMetadataOnBlock) QuotableImpl.metadata(doBlock) else OtpErlangList()
+            if (isAvailable(LINE_METADATA_ON_BLOCK, doBlock)) QuotableImpl.metadata(doBlock) else OtpErlangList()
         val doValue = doBlock.stab?.quote(blockMetadata) ?: emptyDoValue(blockMetadata)
 
         val quotedKeywordPairListPrefix = arrayOf(DO, doValue).let(::OtpErlangTuple).let { listOf(it) }

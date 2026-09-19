@@ -171,7 +171,9 @@ object Quoter {
                 )
             } else if (statusString == "raise") {
                 throw AssertionError(
-                    "quoter ${rejection(quotedMessage)}, use assertParsedAndQuotedAroundErrorOrRaise(dialect, exception) if releases below dialect reject the construct that way"
+                    "quoter ${rejection(quotedMessage)}, use " +
+                        "assertParsedAndQuotedAroundErrorOrRaise(languageLevel, exception) if releases below " +
+                        "languageLevel reject the construct that way"
                 )
             }
         } catch (e: IOException) {

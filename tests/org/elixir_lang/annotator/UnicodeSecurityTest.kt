@@ -12,26 +12,19 @@ import org.elixir_lang.ElixirFileType
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.injection.ElixirSigilInjector
 import org.elixir_lang.psi.SigilLine
-import org.elixir_lang.psi.quoting.QuotingDialect
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_12
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_13
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_14
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_15
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_17
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_18
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_19
-import org.elixir_lang.psi.quoting.QuotingDialect.V1_20
-import org.elixir_lang.psi.quoting.QuotingDialectResolver
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
+import org.elixir_lang.language_level.elixir
 import org.elixir_lang.settings.ElixirExperimentalSettings
 
 /**
  * Expected outcomes were measured by running `Code.string_to_quoted/1` on every release from 1.12 to 1.20; a case whose
- * outcome changed runs on the dialects either side of that release.
+ * outcome changed runs on the language levels either side of that release.
  */
 class UnicodeSecurityTest : BasePlatformTestCase() {
     override fun tearDown() {
         try {
-            QuotingDialectResolver.overrideDialect(project, null)
+            ElixirLanguageLevelResolver.overrideLanguageLevel(project, null)
         } catch (e: Throwable) {
             addSuppressedException(e)
         } finally {
@@ -42,15 +35,23 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
     fun testBidiInCommentFrom1_13() {
         val source = "# a\u202A"
 
-        assertNoErrors(V1_12, source)
-        assertErrors(V1_13, source, "\u202A" to "invalid bidirectional formatting character in comment: \\u202A")
+        assertNoErrors(elixir("1.12.0"), source)
+        assertErrors(
+            elixir("1.13.0"),
+            source,
+            "\u202A" to "invalid bidirectional formatting character in comment: \\u202A"
+        )
     }
 
     fun testBidiInStringFrom1_13() {
         val source = "\"a\u202Eb\""
 
-        assertNoErrors(V1_12, source)
-        assertErrors(V1_13, source, "\u202E" to inString("invalid bidirectional formatting character", "202E"))
+        assertNoErrors(elixir("1.12.0"), source)
+        assertErrors(
+            elixir("1.13.0"),
+            source,
+            "\u202E" to inString("invalid bidirectional formatting character", "202E")
+        )
     }
 
     fun testEveryBidiCharacterInAString() {
@@ -58,7 +59,11 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
             val character = cp(codePoint)
             val hex = "%04X".format(codePoint)
 
-            assertErrors(V1_20, "\"a${character}b\"", character to inString("invalid bidirectional formatting character", hex))
+            assertErrors(
+                elixir("1.20.0"),
+                "\"a${character}b\"",
+                character to inString("invalid bidirectional formatting character", hex)
+            )
         }
     }
 
@@ -71,9 +76,9 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
             "\"#{a}\u202B\"" to "\u202B",
             "\"\\\u202C\"" to "\u202C",
         )) {
-            assertNoErrors(V1_12, source)
+            assertNoErrors(elixir("1.12.0"), source)
             assertErrors(
-                V1_13,
+                elixir("1.13.0"),
                 source,
                 character to inString("invalid bidirectional formatting character", "%04X".format(character.codePointAt(0)))
             )
@@ -81,9 +86,9 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
     }
 
     fun testNeitherAnEscapeSequenceNorOtherFormatCharactersAreBidi() {
-        assertNoErrors(V1_20, "\"\\u{202A}\"")
-        assertNoErrors(V1_20, "\"a\u200E\"")
-        assertNoErrors(V1_20, "\"a\u206A\"")
+        assertNoErrors(elixir("1.20.0"), "\"\\u{202A}\"")
+        assertNoErrors(elixir("1.20.0"), "\"a\u200E\"")
+        assertNoErrors(elixir("1.20.0"), "\"a\u206A\"")
     }
 
     fun testLineBreakInCommentFrom1_19() {
@@ -91,8 +96,12 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
             val character = cp(codePoint)
             val source = "# a$character"
 
-            assertNoErrors(V1_18, source)
-            assertErrors(V1_19, source, character to "invalid line break character in comment: \\u%04X".format(codePoint))
+            assertNoErrors(elixir("1.18.0"), source)
+            assertErrors(
+                elixir("1.19.0"),
+                source,
+                character to "invalid line break character in comment: \\u%04X".format(codePoint)
+            )
         }
     }
 
@@ -103,16 +112,25 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
             "'a\u2029'" to 0x2029,
             "~s(a\u2028)" to 0x2028,
         )) {
-            assertNoErrors(V1_19, source)
-            assertErrors(V1_20, source, cp(codePoint) to inString("invalid line break character", "%04X".format(codePoint)))
+            assertNoErrors(elixir("1.19.0"), source)
+            assertErrors(
+                elixir("1.20.0"),
+                source,
+                cp(codePoint) to inString("invalid line break character", "%04X".format(codePoint))
+            )
         }
     }
 
     fun testMixedScriptIdentifierFrom1_14() {
         val source = "\u0430dmin = 1"
 
-        assertNoErrors(V1_13, source)
-        assertErrors(V1_14, source, "\u0430dmin" to "invalid mixed-script identifier found: \u0430dmin (U+0430 \u0430 is Cyrillic; the rest is Latin)")
+        assertNoErrors(elixir("1.13.0"), source)
+        assertErrors(
+            elixir("1.14.0"),
+            source,
+            "\u0430dmin" to "invalid mixed-script identifier found: \u0430dmin " +
+                "(U+0430 \u0430 is Cyrillic; the rest is Latin)"
+        )
     }
 
     fun testMixedScriptInEveryIdentifierPosition() {
@@ -123,25 +141,38 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
             "if \u0430dmin_, do: 1" to "\u0430dmin_",
             "Foo.\u0430dmin()" to "\u0430dmin",
         )) {
-            assertNoErrors(V1_13, source)
-            assertErrors(V1_14, source, identifier to "invalid mixed-script identifier found: $identifier (U+0430 \u0430 is Cyrillic; the rest is Latin)")
+            assertNoErrors(elixir("1.13.0"), source)
+            assertErrors(
+                elixir("1.14.0"),
+                source,
+                identifier to "invalid mixed-script identifier found: $identifier " +
+                    "(U+0430 \u0430 is Cyrillic; the rest is Latin)"
+            )
         }
     }
 
     fun testTrailingQuestionOrExclamationMarkIsPartOfTheIdentifier() {
         for (identifier in listOf("\u0430dmin?", "\u0430dmin!")) {
-            assertErrors(V1_14, "$identifier = 1", identifier to "invalid mixed-script identifier found: $identifier (U+0430 \u0430 is Cyrillic; the rest is Latin)")
+            assertErrors(
+                elixir("1.14.0"),
+                "$identifier = 1",
+                identifier to "invalid mixed-script identifier found: $identifier " +
+                    "(U+0430 \u0430 is Cyrillic; the rest is Latin)"
+            )
         }
     }
 
     fun testCodeInjectedIntoDocumentationIsNotCompiled() {
-        assertNoErrors(V1_20, "defmodule Sample do\n  @moduledoc \"\"\"\n      \u0430dmin = 1\n  \"\"\"\nend\n")
+        assertNoErrors(
+            elixir("1.20.0"),
+            "defmodule Sample do\n  @moduledoc \"\"\"\n      \u0430dmin = 1\n  \"\"\"\nend\n"
+        )
     }
 
     fun testCodeInjectedIntoSigilDocumentationIsNotCompiled() {
         val source = "defmodule Sample do\n  @moduledoc ~S\"\"\"\n      \u0430dmin = 1\n  \"\"\"\nend\n"
 
-        QuotingDialectResolver.overrideDialect(project, V1_20)
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, elixir("1.20.0"))
         myFixture.configureByText(ElixirFileType.INSTANCE, source)
 
         assertInjectedElixirAt(source.indexOf("dmin"))
@@ -171,7 +202,7 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
             )
             val source = "~S(\u0430dmin = 1)"
 
-            QuotingDialectResolver.overrideDialect(project, V1_20)
+            ElixirLanguageLevelResolver.overrideLanguageLevel(project, elixir("1.20.0"))
             myFixture.configureByText(ElixirFileType.INSTANCE, source)
 
             assertInjectedElixirAt(source.indexOf("dmin"))
@@ -185,7 +216,7 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
         assertTemplateErrors(
             myFixture,
             testRootDisposable,
-            V1_14,
+            elixir("1.14.0"),
             "defmodule Test do\n  def render(assigns) do\n    ~H'''\n    <div><%= \u0430dmin %></div>\n    '''\n  end\nend\n",
             "\u0430dmin" to "invalid mixed-script identifier found: \u0430dmin (U+0430 \u0430 is Cyrillic; the rest is Latin)"
         )
@@ -200,7 +231,7 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
             InjectedLanguageManager.getInstance(project).registerMultiHostInjector(ElixirSigilInjector(), testRootDisposable)
 
             assertErrors(
-                V1_20,
+                elixir("1.20.0"),
                 "defmodule Test do\n  def render(assigns) do\n    ~H'''\n    <div><%= x # a\u202A %></div>\n    '''\n  end\nend\n",
                 "\u202A" to inString("invalid bidirectional formatting character", "202A")
             )
@@ -212,7 +243,7 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
     fun testElixirInAMarkdownCodeBlockIsNotChecked() {
         val source = "```elixir\n\u0430dmin = 1\n```\n"
 
-        QuotingDialectResolver.overrideDialect(project, V1_20)
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, elixir("1.20.0"))
         myFixture.configureByText("README.md", source)
 
         assertInjectedElixirAt(source.indexOf("dmin"))
@@ -224,7 +255,7 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
             val source =
                 "defmodule Sample do\n  # language=$language\n  @doc $documentation\n  <div><%= \u0430dmin %></div>\n  \"\"\"\n  def sample, do: 1\nend\n"
 
-            QuotingDialectResolver.overrideDialect(project, V1_20)
+            ElixirLanguageLevelResolver.overrideLanguageLevel(project, elixir("1.20.0"))
             myFixture.configureByText(ElixirFileType.INSTANCE, source)
 
             assertEquals(
@@ -252,7 +283,7 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
 
     fun testBidiInDocumentationIsReportedOnceForTheString() {
         assertErrors(
-            V1_20,
+            elixir("1.20.0"),
             "defmodule Sample do\n  @moduledoc \"\"\"\n      admin = 1 # a\u202A\n  \"\"\"\nend\n",
             "\u202A" to inString("invalid bidirectional formatting character", "202A")
         )
@@ -263,11 +294,11 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
             val source = "$identifier = 1"
 
             assertErrors(
-                V1_17,
+                elixir("1.17.0"),
                 source,
                 identifier to "invalid mixed-script identifier found: $identifier (U+0068 h, U+0074 t, U+0070 p are Latin; the rest is Cyrillic)"
             )
-            assertNoErrors(V1_18, source)
+            assertNoErrors(elixir("1.18.0"), source)
         }
     }
 
@@ -276,11 +307,15 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
             Triple(":T\u30B7\u30E3\u30C4", "T\u30B7\u30E3\u30C4", "U+0054 T is Latin; the rest is Japanese"),
             Triple("a\u6F22\u5B57 = 1", "a\u6F22\u5B57", "U+0061 a is Latin; the rest is Han"),
         )) {
-            assertNoErrors(V1_17, source)
-            assertErrors(V1_18, source, identifier to "invalid mixed-script identifier found: $identifier ($scripts)")
+            assertNoErrors(elixir("1.17.0"), source)
+            assertErrors(
+                elixir("1.18.0"),
+                source,
+                identifier to "invalid mixed-script identifier found: $identifier ($scripts)"
+            )
         }
 
-        assertNoErrors(V1_18, "a_\u6F22\u5B57 = 1")
+        assertNoErrors(elixir("1.18.0"), "a_\u6F22\u5B57 = 1")
     }
 
     fun testCyrillicWithKatakanaIsNeverAllowed() {
@@ -288,13 +323,13 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
         val identifier = "\u0422\u30B7\u30E3\u30C4"
         val message = "invalid mixed-script identifier found: $identifier (U+0422 \u0422 is Cyrillic; the rest is Japanese)"
 
-        assertErrors(V1_14, source, identifier to message)
-        assertErrors(V1_20, source, identifier to message)
+        assertErrors(elixir("1.14.0"), source, identifier to message)
+        assertErrors(elixir("1.20.0"), source, identifier to message)
     }
 
     fun testQuotedAtomsAndKeysAreNotIdentifiers() {
-        assertNoErrors(V1_20, ":\"\u0430dmin\"")
-        assertNoErrors(V1_20, "[\"\u0430dmin\": 1]")
+        assertNoErrors(elixir("1.20.0"), ":\"\u0430dmin\"")
+        assertNoErrors(elixir("1.20.0"), "[\"\u0430dmin\": 1]")
     }
 
     fun testSingleScriptIdentifiersAreAllowed() {
@@ -306,76 +341,96 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
             "c\u0327 = 1",
             "\u00B5 = 1",
         )) {
-            assertNoErrors(V1_14, source)
-            assertNoErrors(V1_20, source)
+            assertNoErrors(elixir("1.14.0"), source)
+            assertNoErrors(elixir("1.20.0"), source)
         }
     }
 
     fun testRestrictedIdentifierCharacterFrom1_14() {
         val source = "\u3164 = 1"
 
-        assertNoErrors(V1_13, source)
-        assertErrors(V1_14, source, "\u3164" to "unexpected token: \"\u3164\" (code point U+3164)")
+        assertNoErrors(elixir("1.13.0"), source)
+        assertErrors(elixir("1.14.0"), source, "\u3164" to "unexpected token: \"\u3164\" (column 1, code point U+3164)")
+    }
+
+    /** From 1.14 a restricted letter starts no atom or keyword key either; in an atom Elixir names the colon. */
+    fun testRestrictedFirstLetterOfAnAtomOrKeywordKeyFrom1_14() {
+        for (languageLevel in listOf(elixir("1.14.0"), elixir("1.20.0"))) {
+            assertErrors(languageLevel, ":\uD835\uDCB3", ":" to "unexpected token: \":\" (column 1, code point U+003A)")
+            assertErrors(
+                languageLevel,
+                "[\uD835\uDCB3: 1]",
+                "\uD835\uDCB3" to "unexpected token: \"\uD835\uDCB3\" (column 2, code point U+****)"
+            )
+        }
     }
 
     fun testRestrictedCharacterAfterAllowedOnes() {
-        assertErrors(V1_14, "_shib\u3164 = 1", "\u3164" to "unexpected token: \"\u3164\" (code point U+3164)")
+        assertErrors(
+            elixir("1.14.0"),
+            "_shib\u3164 = 1",
+            "\u3164" to "unexpected token: \"\u3164\" (column 6, code point U+3164)"
+        )
 
         val boldMu = cp(0x1D6B3)
-        assertNoErrors(V1_13, "foO$boldMu")
-        assertErrors(V1_14, "foO$boldMu", boldMu to "unexpected token: \"$boldMu\" (code point U+1D6B3)")
+        assertNoErrors(elixir("1.13.0"), "foO$boldMu")
+        assertErrors(
+            elixir("1.14.0"),
+            "foO$boldMu",
+            boldMu to "unexpected token: \"$boldMu\" (column 4, code point U+****)"
+        )
     }
 
     fun testUnicode17RestrictsBopomofoFrom1_19() {
         val source = "\u5E7B\u3112\u3127\u3124 = 1"
 
-        assertNoErrors(V1_18, source)
-        assertErrors(V1_19, source, "\u3112" to "unexpected token: \"\u3112\" (code point U+3112)")
+        assertNoErrors(elixir("1.18.0"), source)
+        assertErrors(elixir("1.19.0"), source, "\u3112" to "unexpected token: \"\u3112\" (column 2, code point U+3112)")
     }
 
     fun testUnicode17RestrictsLatinSmallLetterUWithDiaeresisAndGraveFrom1_19() {
         val source = ":foo\u01DC"
 
-        assertNoErrors(V1_18, source)
-        assertErrors(V1_19, source, "\u01DC" to "unexpected token: \"\u01DC\" (code point U+01DC)")
+        assertNoErrors(elixir("1.18.0"), source)
+        assertErrors(elixir("1.19.0"), source, "\u01DC" to "unexpected token: \"\u01DC\" (column 5, code point U+01DC)")
     }
 
     fun testRestrictionIsCheckedBeforeNormalization() {
-        assertNoErrors(V1_19, ":foou\u0308\u0300")
+        assertNoErrors(elixir("1.19.0"), ":foou\u0308\u0300")
     }
 
     fun testUnicode15RestrictsLatinCapitalLetterSmallCapitalIFrom1_15() {
         val source = "foo\uA7AE = 1"
 
-        assertNoErrors(V1_14, source)
-        assertErrors(V1_15, source, "\uA7AE" to "unexpected token: \"\uA7AE\" (code point U+A7AE)")
+        assertNoErrors(elixir("1.14.0"), source)
+        assertErrors(elixir("1.15.0"), source, "\uA7AE" to "unexpected token: \"\uA7AE\" (column 4, code point U+A7AE)")
     }
 
     fun testUnicode16GivesCombiningMarksScriptsFrom1_18() {
         val source = "\u6F22\u0300 = 1"
 
-        assertNoErrors(V1_17, source)
+        assertNoErrors(elixir("1.17.0"), source)
         assertErrors(
-            V1_18,
+            elixir("1.18.0"),
             source,
             "\u6F22\u0300" to "invalid mixed-script identifier found: \u6F22\u0300 " +
                 "(U+0300 \u0300 is Latin, Cherokee, Coptic, Cyrillic, Greek, Old_Permic, Sunuwar or Tai_Le; the rest is Han)"
         )
-        assertNoErrors(V1_18, "e\u0300x = 1")
+        assertNoErrors(elixir("1.18.0"), "e\u0300x = 1")
     }
 
     fun testUnicode17RestrictsLatinSmallLetterEWithBreveFrom1_19() {
         val source = "\u0115 = 1"
 
-        assertNoErrors(V1_18, source)
-        assertErrors(V1_19, source, "\u0115" to "unexpected token: \"\u0115\" (code point U+0115)")
+        assertNoErrors(elixir("1.18.0"), source)
+        assertErrors(elixir("1.19.0"), source, "\u0115" to "unexpected token: \"\u0115\" (column 1, code point U+0115)")
     }
 
     /** A script shared by most characters is taken as the one meant, so overlapping scripts are not blamed. */
     fun testMessageNamesOnlyTheCharactersOutsideTheScriptMostShare() {
-        assertNoErrors(V1_17, "a\u30AB\u30CA\u6F22\u5B57 = 1")
+        assertNoErrors(elixir("1.17.0"), "a\u30AB\u30CA\u6F22\u5B57 = 1")
         assertErrors(
-            V1_18,
+            elixir("1.18.0"),
             "a\u30AB\u30CA\u6F22\u5B57 = 1",
             "a\u30AB\u30CA\u6F22\u5B57" to "invalid mixed-script identifier found: a\u30AB\u30CA\u6F22\u5B57 (U+0061 a is Latin; the rest is Japanese)"
         )
@@ -383,12 +438,12 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
 
     fun testMessageCountsLatinWithAHighlyRestrictiveScriptBefore1_18() {
         assertErrors(
-            V1_17,
+            elixir("1.17.0"),
             "a\u0422\u30B7\u30E3\u30C4 = 1",
             "a\u0422\u30B7\u30E3\u30C4" to "invalid mixed-script identifier found: a\u0422\u30B7\u30E3\u30C4 (U+0422 \u0422 is Cyrillic; the rest is Latin and Japanese)"
         )
         assertErrors(
-            V1_18,
+            elixir("1.18.0"),
             "a\u0422\u30B7\u30E3\u30C4 = 1",
             "a\u0422\u30B7\u30E3\u30C4" to "invalid mixed-script identifier found: a\u0422\u30B7\u30E3\u30C4 " +
                 "(U+0061 a is Latin; U+0422 \u0422 is Cyrillic; the rest is Japanese)"
@@ -397,13 +452,13 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
 
     fun testMessageNamesTheCharactersOfTheChunkThatDoesNotResolveFrom1_18() {
         assertErrors(
-            V1_17,
+            elixir("1.17.0"),
             "http_\u0441\u0435\u0440\u0432\u0435\u0440_a\u0436 = 1",
             "http_\u0441\u0435\u0440\u0432\u0435\u0440_a\u0436" to "invalid mixed-script identifier found: http_\u0441\u0435\u0440\u0432\u0435\u0440_a\u0436 " +
                 "(U+0068 h, U+0074 t, U+0070 p, U+0061 a are Latin; the rest is Cyrillic)"
         )
         assertErrors(
-            V1_18,
+            elixir("1.18.0"),
             "http_\u0441\u0435\u0440\u0432\u0435\u0440_a\u0436 = 1",
             "http_\u0441\u0435\u0440\u0432\u0435\u0440_a\u0436" to "invalid mixed-script identifier found: http_\u0441\u0435\u0440\u0432\u0435\u0440_a\u0436 " +
                 "(in a\u0436, U+0436 \u0436 is Cyrillic; the rest is Latin)"
@@ -411,8 +466,16 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
     }
 
     fun testMessageTakesTheFirstCharactersScriptOnATie() {
-        assertErrors(V1_20, "a\u0436 = 1", "a\u0436" to "invalid mixed-script identifier found: a\u0436 (U+0436 \u0436 is Cyrillic; the rest is Latin)")
-        assertErrors(V1_20, "\u0436a = 1", "\u0436a" to "invalid mixed-script identifier found: \u0436a (U+0061 a is Latin; the rest is Cyrillic)")
+        assertErrors(
+            elixir("1.20.0"),
+            "a\u0436 = 1",
+            "a\u0436" to "invalid mixed-script identifier found: a\u0436 (U+0436 \u0436 is Cyrillic; the rest is Latin)"
+        )
+        assertErrors(
+            elixir("1.20.0"),
+            "\u0436a = 1",
+            "\u0436a" to "invalid mixed-script identifier found: \u0436a (U+0061 a is Latin; the rest is Cyrillic)"
+        )
     }
 
     private fun cp(codePoint: Int): String = String(Character.toChars(codePoint))
@@ -420,8 +483,8 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
     private fun inString(prefix: String, hex: String): String =
         "$prefix in string: \\u$hex. If you want to use such character, use it in its escaped \\u$hex form instead"
 
-    private fun errors(dialect: QuotingDialect, source: String): List<Pair<String, String?>> {
-        QuotingDialectResolver.overrideDialect(project, dialect)
+    private fun errors(languageLevel: ElixirLanguageLevel, source: String): List<Pair<String, String?>> {
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, languageLevel)
         myFixture.configureByText(ElixirFileType.INSTANCE, source)
 
         return myFixture
@@ -429,11 +492,19 @@ class UnicodeSecurityTest : BasePlatformTestCase() {
             .map { source.substring(it.startOffset, it.endOffset) to it.description }
     }
 
-    private fun assertNoErrors(dialect: QuotingDialect, source: String) {
-        assertEquals("errors in ${escaped(source)} on $dialect", emptyList<Pair<String, String?>>(), errors(dialect, source))
+    private fun assertNoErrors(languageLevel: ElixirLanguageLevel, source: String) {
+        assertEquals(
+            "errors in ${escaped(source)} on $languageLevel",
+            emptyList<Pair<String, String?>>(),
+            errors(languageLevel, source)
+        )
     }
 
-    private fun assertErrors(dialect: QuotingDialect, source: String, vararg expected: Pair<String, String>) {
-        assertEquals("errors in ${escaped(source)} on $dialect", expected.toList(), errors(dialect, source))
+    private fun assertErrors(
+        languageLevel: ElixirLanguageLevel,
+        source: String,
+        vararg expected: Pair<String, String>
+    ) {
+        assertEquals("errors in ${escaped(source)} on $languageLevel", expected.toList(), errors(languageLevel, source))
     }
 }
