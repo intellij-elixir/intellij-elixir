@@ -1,21 +1,16 @@
 package org.elixir_lang.annotator
 
-import com.intellij.lang.ASTNode
 import com.intellij.lang.annotation.AnnotationHolder
 import com.intellij.lang.annotation.Annotator
-import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.util.TextRange
-import com.intellij.openapi.util.text.StringUtil
 import com.intellij.psi.PsiComment
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiWhiteSpace
-import com.intellij.psi.TokenType
 import com.intellij.psi.tree.IElementType
 import com.intellij.psi.util.PsiTreeUtil
-import org.elixir_lang.psi.ElixirAccessExpression
 import org.elixir_lang.psi.ElixirAnonymousFunction
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirAtomKeyword
@@ -33,7 +28,6 @@ import org.elixir_lang.psi.ElixirMapOperation
 import org.elixir_lang.psi.ElixirMatchedMultiplicationOperation
 import org.elixir_lang.psi.ElixirMatchedQualifiedAlias
 import org.elixir_lang.psi.ElixirMultiplicationInfixOperator
-import org.elixir_lang.psi.ElixirParentheticalStab
 import org.elixir_lang.psi.ElixirQuoteHexadecimalEscapeSequence
 import org.elixir_lang.psi.ElixirRelativeIdentifier
 import org.elixir_lang.psi.ElixirTypes
@@ -71,7 +65,7 @@ internal class InvalidConstruct : Annotator, DumbAware {
 
         if (Injection.of(element) == Injection.UNCOMPILED) return
 
-        holder.newAnnotation(HighlightSeverity.ERROR, problem.second).range(problem.first).create()
+        holder.error(problem.first, problem.second)
     }
 
     private fun atomFollowedByAlias(qualifiedAlias: PsiElement): Pair<TextRange, String>? {
@@ -87,12 +81,9 @@ internal class InvalidConstruct : Annotator, DumbAware {
 
     /** An interpolated atom is a call to `:erlang.binary_to_atom/2`, which may be followed by an alias. */
     private fun isAtom(element: PsiElement): Boolean =
-        when (element) {
-            is ElixirAccessExpression -> element.children.singleOrNull()?.let(::isAtom) == true
-            is ElixirAtom -> PsiTreeUtil.findChildOfType(element, ElixirInterpolation::class.java) == null
+        when (val unwrapped = unwrap(element)) {
+            is ElixirAtom -> PsiTreeUtil.findChildOfType(unwrapped, ElixirInterpolation::class.java) == null
             is ElixirAtomKeyword -> true
-            is ElixirParentheticalStab ->
-                element.stab?.let { stab -> stab.stabOperationList.isEmpty() && stab.stabBody?.children?.singleOrNull()?.let(::isAtom) == true } == true
             else -> false
         }
 
@@ -121,9 +112,7 @@ internal class InvalidConstruct : Annotator, DumbAware {
     private fun operatorReference(operation: PsiElement): Pair<TextRange, String>? {
         val operator = operation.children.firstOrNull { it is ElixirMultiplicationInfixOperator && it.text == "/" } ?: return null
         val operand = operation.firstChild as? UnqualifiedNoArgumentsCall<*> ?: return null
-        val previous = generateSequence(PsiTreeUtil.prevLeaf(operand)) { PsiTreeUtil.prevLeaf(it) }
-            .firstOrNull { it !is PsiWhiteSpace && it !is PsiComment && it.text.isNotBlank() }
-            ?.text
+        val previous = previousCodeLeaf(operand)?.text
 
         return when (operand.text) {
             "=>" -> if (previous in setOf(null, "&", "(", "=")) operand.textRange to syntaxErrorBefore("'=>'") else null
@@ -332,7 +321,7 @@ internal class InvalidConstruct : Annotator, DumbAware {
             ?: return null
         val codePoint = digits.toLongOrNull(16) ?: return null
 
-        if (codePoint in 0xD800..0xDFFF || codePoint > 0x10FFFF) {
+        if (!isUnicodeScalarValue(codePoint)) {
             val languageLevel = ElixirLanguageLevelResolver.languageLevelFor(escape)
             val hexadecimal = escape.hexadecimalEscapePrefix.text.endsWith("x")
 
@@ -362,38 +351,6 @@ private val QUOTE_TYPES = arrayOf(
     ElixirLiteralSigilLine::class.java,
     ElixirLiteralSigilHeredoc::class.java
 )
-
-internal const val INVALID_HEX_ESCAPE_WHEN_COMPILED = "invalid hex escape character, expected \\xHH where H is a hexadecimal digit"
-internal const val INVALID_HEX_ESCAPE = "$INVALID_HEX_ESCAPE_WHEN_COMPILED. Syntax error after: \\x"
-
-internal const val INVALID_UNICODE_ESCAPE_WHEN_COMPILED =
-    "invalid Unicode escape character, expected \\uHHHH or \\u{H*} where H is a hexadecimal digit"
-internal const val INVALID_UNICODE_ESCAPE = "$INVALID_UNICODE_ESCAPE_WHEN_COMPILED. Syntax error after: \\u"
-
-internal const val INVALID_ESCAPE_AT_END = "invalid escape \\ at end of file"
-
-/** Elixir's tokenizer stops first at a backslash, with or without a newline, that ends the file. */
-internal fun endsWithBackslash(element: PsiElement): Boolean {
-    val file = element.containingFile
-    val text = file.viewProvider.contents
-    val backslash = when {
-        text.endsWith("\\\r\n") -> text.length - 3
-        text.endsWith("\\\n") -> text.length - 2
-        text.endsWith("\\") -> text.length - 1
-        else -> return false
-    }
-    val leaf = file.findElementAt(backslash)
-
-    return leaf is PsiWhiteSpace || isFinalBackslash(leaf)
-}
-
-/** Whether something other than spaces or tabs follows the heredoc's opening on its line. */
-internal fun hasContentAfterOpening(heredoc: PsiElement): Boolean {
-    val promoter = heredoc.node.findChildByType(ElixirTypes.HEREDOC_PROMOTER) ?: return false
-    val next = generateSequence(promoter.treeNext) { it.treeNext }.firstOrNull { it.elementType != TokenType.WHITE_SPACE }
-
-    return next?.elementType != ElixirTypes.EOL
-}
 
 private enum class CutOff { NONE, SUPPRESSED, FIRST }
 
@@ -463,44 +420,3 @@ private fun isHeredoc(element: PsiElement): Boolean =
 
 private fun isUnclosed(interpolation: ElixirInterpolation): Boolean =
     interpolation.node.findChildByType(ElixirTypes.INTERPOLATION_END) == null
-
-/** Where the terminator line's terminator starts, or the first misplaced terminator; neither when the file ends first. */
-private class HeredocScan(val terminatorAt: Int?, val misplaced: TextRange?)
-
-/**
- * Elixir's reading before 1.12: line by line after the opening, a backslash taking a backslash or quote after it, until a line
- * starting with the terminator; a terminator anywhere else on a line is misplaced.
- */
-private fun scanHeredocLines(promoter: ASTNode): HeredocScan {
-    val terminator = promoter.text
-    val text = promoter.psi.containingFile.viewProvider.contents
-    var index = StringUtil.indexOf(text, '\n', promoter.textRange.endOffset)
-
-    while (index >= 0 && index < text.length) {
-        ProgressManager.checkCanceled()
-        index++
-
-        while (index < text.length && (text[index] == ' ' || text[index] == '\t')) index++
-        if (StringUtil.startsWith(text, index, terminator)) return HeredocScan(index, null)
-
-        while (index < text.length && text[index] != '\n') {
-            when {
-                text[index] == '\\' && index + 1 < text.length && (text[index + 1] == '\\' || text[index + 1] == terminator[0]) ->
-                    index += 2
-                StringUtil.startsWith(text, index, terminator) -> return HeredocScan(null, TextRange.from(index, terminator.length))
-                else -> index++
-            }
-        }
-    }
-
-    return HeredocScan(null, null)
-}
-
-/** The first terminator after content in the heredoc, as Elixir reads it before 1.12. */
-internal fun misplacedHeredocTerminator(heredoc: PsiElement): TextRange? =
-    heredoc.node.findChildByType(ElixirTypes.HEREDOC_PROMOTER)
-        ?.let { scanHeredocLines(it).misplaced }
-        ?.takeIf { heredoc.textRange.contains(it) }
-
-internal fun isFinalBackslash(leaf: PsiElement?): Boolean =
-    leaf != null && leaf.text == "\\" && leaf.textRange.endOffset == leaf.containingFile.textLength

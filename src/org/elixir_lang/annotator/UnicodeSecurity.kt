@@ -2,7 +2,6 @@ package org.elixir_lang.annotator
 
 import com.intellij.lang.annotation.AnnotationHolder
 import com.intellij.lang.annotation.Annotator
-import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.project.DumbAware
 import com.intellij.psi.PsiComment
 import com.intellij.psi.PsiElement
@@ -70,10 +69,7 @@ internal class UnicodeSecurity : Annotator, DumbAware {
         val offset = element.textRange.startOffset
 
         for (problem in problems) {
-            holder.newAnnotation(HighlightSeverity.ERROR, problem.message)
-                .range(problem.range.shiftRight(offset))
-                .apply { problem.tooltip?.let { tooltip(it) } }
-                .create()
+            holder.error(problem.range.shiftRight(offset), problem.message, problem.tooltip)
         }
     }
 
@@ -88,9 +84,7 @@ internal class UnicodeSecurity : Annotator, DumbAware {
         if (problem?.firstLetter != true) return
 
         val contents = atom.containingFile.viewProvider.contents
-        holder.newAnnotation(HighlightSeverity.ERROR, unexpectedToken(':'.code, column(contents, colon.textRange.startOffset)))
-            .range(colon.textRange)
-            .create()
+        holder.error(colon.textRange, unexpectedToken(':'.code, column(contents, colon.textRange.startOffset)))
     }
 
     private fun atomColonOf(fragment: PsiElement): PsiElement? =

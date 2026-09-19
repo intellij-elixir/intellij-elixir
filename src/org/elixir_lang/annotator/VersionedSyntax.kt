@@ -2,12 +2,10 @@ package org.elixir_lang.annotator
 
 import com.intellij.lang.annotation.AnnotationHolder
 import com.intellij.lang.annotation.Annotator
-import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.util.text.HtmlBuilder
 import com.intellij.openapi.util.text.HtmlChunk
-import com.intellij.psi.PsiComment
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiErrorElement
 import com.intellij.psi.PsiFile
@@ -16,8 +14,8 @@ import com.intellij.psi.tree.IElementType
 import com.intellij.psi.tree.TokenSet
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.ElixirLexer
+import org.elixir_lang.parser.isHexadecimalDigit
 import org.elixir_lang.psi.DotCall
-import org.elixir_lang.psi.ElixirAccessExpression
 import org.elixir_lang.psi.ElixirAnonymousFunction
 import org.elixir_lang.psi.ElixirAssociationsBase
 import org.elixir_lang.psi.ElixirAtom
@@ -79,10 +77,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
         val problem = problem(element) { ElixirLanguageLevelResolver.languageLevelFor(element) } ?: return
         if (Injection.of(element) == Injection.UNCOMPILED) return
 
-        holder.newAnnotation(HighlightSeverity.ERROR, problem.message)
-            .range(problem.range)
-            .apply { problem.tooltip?.let { tooltip(it) } }
-            .create()
+        holder.error(problem.range, problem.message, problem.tooltip)
     }
 
     private class Problem(val range: TextRange, val message: String, val tooltip: String? = null)
@@ -163,8 +158,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
 
     /** The token Elixir names when the `*` after `x.*` has no operand, or null where that token is not known. */
     private fun tokenAfterPower(identifier: PsiElement, languageLevel: () -> ElixirLanguageLevel): String? {
-        val next = generateSequence(PsiTreeUtil.nextLeaf(identifier)) { PsiTreeUtil.nextLeaf(it) }
-            .firstOrNull { it !is PsiWhiteSpace && it !is PsiComment && it.text.isNotBlank() }
+        val next = nextCodeLeaf(identifier)
         if (next == null || isFinalBackslash(next) || next.parent is ElixirInterpolation) return ""
 
         val key = PsiTreeUtil.getParentOfType(next, ElixirKeywordKey::class.java)
@@ -409,15 +403,8 @@ internal class VersionedSyntax : Annotator, DumbAware {
         val entry = base.children.firstOrNull { !isMapEntry(it, languageLevel) } ?: return null
         if (unwrap(entry) is ElixirNullaryRangeOperation && !NULLARY_RANGE.isSufficient(languageLevel())) return null
 
-        var next = PsiTreeUtil.nextLeaf(entry)
-        var eol = false
-
-        while (next != null && (next is PsiWhiteSpace || next is PsiComment || next.text.isBlank())) {
-            eol = eol || '\n' in withoutLineContinuations(next.text)
-            next = PsiTreeUtil.nextLeaf(next)
-        }
-
-        next ?: return null
+        val next = nextCodeLeaf(entry) ?: return null
+        val eol = hasNewlineBetween(entry, next)
 
         return Problem(entry.textRange, syntaxErrorBefore(if (eol) "eol" else "'${next.text}'"))
     }
@@ -487,13 +474,8 @@ internal class VersionedSyntax : Annotator, DumbAware {
         }
 
         // A newline between `&` and the operator ends the capture, but a line continuation does not.
-        var previous = PsiTreeUtil.prevLeaf(operand)
-        var newline = false
-        while (previous != null && (previous is PsiWhiteSpace || previous is PsiComment || previous.text.isBlank())) {
-            newline = newline || '\n' in withoutLineContinuations(previous.text)
-            previous = PsiTreeUtil.prevLeaf(previous)
-        }
-        val captured = !newline && previous?.node?.elementType == ElixirTypes.CAPTURE_OPERATOR
+        val captured = previousCodeLeaf(operand)
+            ?.let { it.node.elementType == ElixirTypes.CAPTURE_OPERATOR && !hasNewlineBetween(it, operand) } == true
 
         return if (name in UNARY_OPERATORS && !captured && !UNARY_OPERATOR_REFERENCE.isSufficient(languageLevel())) {
             Problem(operator.textRange, syntaxErrorBefore("'/'"))
@@ -530,14 +512,6 @@ internal class VersionedSyntax : Annotator, DumbAware {
             is ElixirMatchedTwoOperation, is ElixirUnmatchedTwoOperation ->
                 unwrapped.children.any { it is ElixirTwoInfixOperator && it.text == ".." }
             else -> false
-        }
-
-    private fun unwrap(element: PsiElement?): PsiElement? =
-        when (element) {
-            is ElixirAccessExpression -> unwrap(element.children.singleOrNull())
-            is ElixirParentheticalStab ->
-                element.stab?.takeIf { it.stabOperationList.isEmpty() }?.stabBody?.children?.singleOrNull()?.let(::unwrap)
-            else -> element
         }
 
     /** Elixir 1.13 to 1.17 crash turning a quoted call name into an atom when a grapheme cluster has several code points. */
@@ -602,9 +576,13 @@ internal class VersionedSyntax : Annotator, DumbAware {
         if (!enclosed && digits.length != 1) return null
 
         val codePoint = digits.toLongOrNull(16) ?: return null
-        if (codePoint in 0xD800..0xDFFF || codePoint > 0x10FFFF) return null
+        if (!isUnicodeScalarValue(codePoint)) return null
 
-        return if (HEXADECIMAL_ESCAPE_NEEDS_TWO_DIGITS.isSufficient(languageLevel())) Problem(escape.textRange, INVALID_HEX_ESCAPE) else null
+        return if (HEXADECIMAL_ESCAPE_NEEDS_TWO_DIGITS.isSufficient(languageLevel())) {
+            Problem(escape.textRange, INVALID_HEX_ESCAPE)
+        } else {
+            null
+        }
     }
 
 
@@ -691,8 +669,8 @@ private fun unescape(text: String): String? {
         } else {
             val escape = text.getOrNull(index++) ?: return null
             val digits = when (escape) {
-                'x' -> text.substring(index).takeWhile { it.isHexDigit() }.takeIf { it.length == 2 }
-                'u' -> text.substring(index).takeWhile { it.isHexDigit() }.takeIf { it.length == 4 }
+                'x' -> text.substring(index).takeWhile(::isHexadecimalDigit).takeIf { it.length == 2 }
+                'u' -> text.substring(index).takeWhile(::isHexadecimalDigit).takeIf { it.length == 4 }
                     ?: text.substring(index).takeIf { it.startsWith("{") }?.substringBefore("}", "")?.let { "$it}" }
                 else -> null
             }
@@ -710,6 +688,4 @@ private fun unescape(text: String): String? {
 
     return content.toString()
 }
-
-private fun Char.isHexDigit(): Boolean = this in '0'..'9' || this in 'a'..'f' || this in 'A'..'F'
 
