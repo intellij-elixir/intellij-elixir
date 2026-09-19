@@ -1,63 +1,59 @@
 package org.elixir_lang.language_level
 
-/**
- * The Elixir release a file is written for, as the first release of a run the plugin parses, quotes and checks alike.
- *
- * A level exists where an [ElixirLanguageFeature]'s window starts or ends; [of] resolves a version from each level's
- * [firstRelease].
- */
-enum class ElixirLanguageLevel(
-    /** The first Elixir release at this level, which [of] resolves from. */
-    val firstRelease: String,
-) {
-    /** The floor: nothing resolves below it. */
-    V1_11("1.11.0"),
-    V1_12("1.12.0"),
-    V1_13("1.13.0"),
-    V1_14("1.14.0"),
-    V1_15("1.15.0"),
-    V1_16_0("1.16.0"),
-    V1_16_2("1.16.2"),
-    V1_17("1.17.0"),
-    V1_18("1.18.0"),
-    V1_19("1.19.0"),
-    V1_20("1.20.0");
+import com.intellij.util.text.SemVer
 
-    private val release: List<Int> = firstRelease.split('.').map(String::toInt)
+/**
+ * The Elixir release a file is written for, which decides what the plugin parses, quotes and checks.
+ *
+ * Code asks an [ElixirLanguageFeature] whether a behaviour applies rather than comparing versions, so each boundary is
+ * written once, on its feature.
+ */
+class ElixirLanguageLevel private constructor(val elixir: SemVer) {
+    /** [elixir] as it was written, which is what a pusher stores. */
+    val elixirVersion: String get() = elixir.rawVersion
+
+    override fun equals(other: Any?): Boolean = other is ElixirLanguageLevel && elixir == other.elixir
+
+    override fun hashCode(): Int = elixir.hashCode()
+
+    override fun toString(): String = "Elixir $elixirVersion"
 
     companion object {
         /**
-         * The language level to assume when the Elixir version behind an element cannot be determined - no
-         * module, no Elixir SDK, or an SDK whose version string carries no version.
+         * The language level to assume when the Elixir version behind an element cannot be determined - no module, no
+         * Elixir SDK, or no version recorded for it.
          *
-         * Deliberately the newest rather than the oldest: most users are on a recent Elixir, so a
-         * wrong-but-modern quoted form is the least surprising default. It is also the direction
-         * that ages well, since a new level added below shifts the fallback forward with it.
+         * Deliberately the newest rather than the oldest: most users are on a recent Elixir, so a wrong-but-modern
+         * quoted form is the least surprising default. It is the newest boundary any feature has, so it moves forward
+         * as features are added.
          */
         @JvmStatic
-        val FALLBACK: ElixirLanguageLevel = entries.last()
-
-        /** Leading `MAJOR.MINOR[.PATCH]`, wherever it sits in the string. */
-        private val VERSION = Regex("""(\d+)\.(\d+)(?:\.(\d+))?""")
+        val FALLBACK: ElixirLanguageLevel = ElixirLanguageLevel(
+            ElixirLanguageFeature.entries.flatMap { listOfNotNull(it.sinceElixir, it.removedInElixir) }.max()
+        )
 
         /**
-         * The language level for an Elixir version, or [FALLBACK] when [version] carries no version number.
-         *
-         * [version] may be a bare version (`"1.16.2"`), a mise-style version with a build
-         * tag (`"1.13.4-otp-24"`), or a whole SDK version string
-         * (`"mise Elixir 1.13.4 (OTP 24)"`). Anything after the version number is ignored, which
-         * also means a pre-release resolves as its release.
+         * `MAJOR.MINOR[.PATCH][-PRE]`, wherever it sits in the string. A tool manager's `-otp-N` build tag is not a
+         * pre-release, which `SemVer` would take it for and sort `1.20.4-otp-29` before `1.20.4`.
+         */
+        private val VERSION = Regex("""([0-9]+)[.]([0-9]+)(?:[.]([0-9]+))?(?:-(?!otp-)([0-9A-Za-z.]+))?""")
+
+        /** The language level for an Elixir version, or [FALLBACK] when [elixirVersion] carries none. */
+        @JvmStatic
+        fun of(elixirVersion: String?): ElixirLanguageLevel = parse(elixirVersion) ?: FALLBACK
+
+        /**
+         * The language level for an Elixir version, or `null` when [elixirVersion] carries none. [elixirVersion] may be a
+         * bare version (`"1.20.0-rc.0"`), one with a build tag (`"1.13.4-otp-24"`), or a whole SDK version string
+         * (`"mise Elixir 1.13.4 (OTP 24)"`); a missing patch counts as 0.
          */
         @JvmStatic
-        fun of(version: String?): ElixirLanguageLevel {
-            val match = version?.let { VERSION.find(it) } ?: return FALLBACK
-            val (major, minor, patch) = match.destructured
-            val numbers = listOf(major.toInt(), minor.toInt(), patch.ifEmpty { "0" }.toInt())
+        fun parse(elixirVersion: String?): ElixirLanguageLevel? {
+            val match = elixirVersion?.let { VERSION.find(it) } ?: return null
+            val (major, minor, patch, preRelease) = match.destructured
+            val text = "$major.$minor.${patch.ifEmpty { "0" }}" + if (preRelease.isEmpty()) "" else "-$preRelease"
 
-            return entries.lastOrNull { compareReleases(it.release, numbers) <= 0 } ?: entries.first()
+            return SemVer.parseFromText(text)?.let(::ElixirLanguageLevel)
         }
-
-        private fun compareReleases(left: List<Int>, right: List<Int>): Int =
-            compareValuesBy(left, right, { it[0] }, { it[1] }, { it[2] })
     }
 }

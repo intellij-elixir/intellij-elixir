@@ -3,10 +3,8 @@ package org.elixir_lang.annotator
 import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import org.elixir_lang.language_level.ElixirLanguageLevel
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_11
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_12
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_20
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
+import org.elixir_lang.language_level.elixir
 
 /** Expected messages were taken from `Code.string_to_quoted/1` on every release from 1.11.4 to 1.20.4. */
 class UnclosedInterpolationTest : BasePlatformTestCase() {
@@ -35,7 +33,7 @@ class UnclosedInterpolationTest : BasePlatformTestCase() {
             "$Q#{${NL}foo" to "string",
             "$Q#{1 +" to "string",
         )) {
-            for (languageLevel in listOf(V1_11, V1_12, V1_20)) {
+            for (languageLevel in listOf(elixir("1.11.0"), elixir("1.12.0"), elixir("1.20.0"))) {
                 assertEquals(
                     "$source on $languageLevel",
                     listOf(Triple(source.lastIndexOf("#{"), "#{", interpolation(owner, 1))),
@@ -49,15 +47,19 @@ class UnclosedInterpolationTest : BasePlatformTestCase() {
     fun testNestedReportsTheInnermost() {
         val source = "$Q#{$Q#{"
 
-        for (languageLevel in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
             assertEquals(listOf(Triple(4, "#{", interpolation("string", 1))), errors(languageLevel, source))
         }
     }
 
     fun testClosedInterpolations() {
         for (source in listOf("$Q#{1}$Q", "$D$NL#{1}$NL$D", "~s(#{1})", "$Q#{$Q#{1}$Q}$Q")) {
-            for (languageLevel in listOf(V1_11, V1_20)) {
-                assertEquals("$source on $languageLevel", emptyList<Triple<Int, String, String>>(), errors(languageLevel, source))
+            for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
+                assertEquals(
+                    "$source on $languageLevel",
+                    emptyList<Triple<Int, String, String>>(),
+                    errors(languageLevel, source)
+                )
             }
         }
     }
@@ -74,12 +76,12 @@ class UnclosedInterpolationTest : BasePlatformTestCase() {
             val terminator = source.substring(opening, opening + 3)
 
             assertEquals(
-                "$source on V1_11",
+                "$source on 1.11.0",
                 listOf(Triple(opening, source.substring(opening), terminator(terminator, "heredoc", line))),
-                errors(V1_11, source)
+                errors(elixir("1.11.0"), source)
             )
 
-            for (languageLevel in listOf(V1_12, V1_20)) {
+            for (languageLevel in listOf(elixir("1.12.0"), elixir("1.20.0"))) {
                 assertEquals(
                     "$source on $languageLevel",
                     listOf(Triple(source.indexOf("#{"), "#{", interpolation("heredoc", line))),
@@ -156,8 +158,16 @@ class UnclosedInterpolationTest : BasePlatformTestCase() {
             ),
             Triple("$S$NL#{${Q}a$Q}$NL$S", emptyList(), emptyList()),
         )) {
-            assertEquals("$source on V1_11", beforeTwelve.map { at(source, it) }, errors(V1_11, source).map { it.first to it.third })
-            assertEquals("$source on V1_20", fromTwelve.map { at(source, it) }, errors(V1_20, source).map { it.first to it.third })
+            assertEquals(
+                "$source on 1.11.0",
+                beforeTwelve.map { at(source, it) },
+                errors(elixir("1.11.0"), source).map { it.first to it.third }
+            )
+            assertEquals(
+                "$source on 1.20.0",
+                fromTwelve.map { at(source, it) },
+                errors(elixir("1.20.0"), source).map { it.first to it.third }
+            )
         }
     }
 

@@ -6,12 +6,8 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import org.elixir_lang.psi.HeredocLiteral
 import org.elixir_lang.language_level.ElixirLanguageLevel
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_11
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_12
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_14
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_15
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_20
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
+import org.elixir_lang.language_level.elixir
 
 /** Expected messages were taken from `Code.string_to_quoted/1` on 1.11.4, 1.12.3, 1.15.8, 1.16.3 and 1.20.4. */
 class HeredocErrorTest : BasePlatformTestCase() {
@@ -38,10 +34,14 @@ class HeredocErrorTest : BasePlatformTestCase() {
             "\"\"\"\na\nb\"\"\"" to DOUBLE,
             "\"\"\"\n  bar\"\"\"" to DOUBLE,
         )) {
-            assertOnlyError(V1_11, source, terminator to INVALID_LOCATION + terminator)
+            assertOnlyError(elixir("1.11.0"), source, terminator to INVALID_LOCATION + terminator)
 
-            for (languageLevel in listOf(V1_12, V1_20)) {
-                assertOnlyError(languageLevel, source, fromOpening(source, terminator) to missingTerminator(terminator, 1))
+            for (languageLevel in listOf(elixir("1.12.0"), elixir("1.20.0"))) {
+                assertOnlyError(
+                    languageLevel,
+                    source,
+                    fromOpening(source, terminator) to missingTerminator(terminator, 1)
+                )
             }
         }
     }
@@ -53,8 +53,12 @@ class HeredocErrorTest : BasePlatformTestCase() {
             "'''\nbar\n" to SINGLE,
             "\"\"\"\nbar\n" to DOUBLE,
         )) {
-            for (languageLevel in listOf(V1_11, V1_12, V1_20)) {
-                assertOnlyError(languageLevel, source, fromOpening(source, terminator) to missingTerminator(terminator, 1))
+            for (languageLevel in listOf(elixir("1.11.0"), elixir("1.12.0"), elixir("1.20.0"))) {
+                assertOnlyError(
+                    languageLevel,
+                    source,
+                    fromOpening(source, terminator) to missingTerminator(terminator, 1)
+                )
             }
         }
     }
@@ -64,8 +68,8 @@ class HeredocErrorTest : BasePlatformTestCase() {
             "\"\"\"\na\"\"\"\nb\n\"\"\"",
             "defmodule A do\n  @moduledoc \"\"\"\n  a\"\"\"\n  b\n  \"\"\"\nend",
         )) {
-            assertOnlyError(V1_11, source, DOUBLE to INVALID_LOCATION + DOUBLE)
-            assertNoErrors(V1_12, source)
+            assertOnlyError(elixir("1.11.0"), source, DOUBLE to INVALID_LOCATION + DOUBLE)
+            assertNoErrors(elixir("1.12.0"), source)
         }
     }
 
@@ -76,10 +80,10 @@ class HeredocErrorTest : BasePlatformTestCase() {
             "\"\"\"\"\"\"",
             "\"\"\"",
         )) {
-            for (languageLevel in listOf(V1_11, V1_14)) {
+            for (languageLevel in listOf(elixir("1.11.0"), elixir("1.14.0"))) {
                 assertOnlyError(languageLevel, source, DOUBLE to ZERO_OR_MORE_WHITESPACE + DOUBLE)
             }
-            for (languageLevel in listOf(V1_15, V1_20)) {
+            for (languageLevel in listOf(elixir("1.15.0"), elixir("1.20.0"))) {
                 assertOnlyError(languageLevel, source, DOUBLE to ONLY_WHITESPACE + DOUBLE)
             }
         }
@@ -95,29 +99,33 @@ class HeredocErrorTest : BasePlatformTestCase() {
             "\"\"\"\na #{b\n\"\"\"",
             "\"\"\"\n#{\na\n\"\"\"",
         )) {
-            assertEquals("heredoc errors in $source on V1_11", emptyList<String>(), heredocMessages(V1_11, source))
-            assertEquals(listOf(ZERO_OR_MORE_WHITESPACE + DOUBLE), heredocMessages(V1_12, source))
-            assertEquals(listOf(ONLY_WHITESPACE + DOUBLE), heredocMessages(V1_20, source))
+            assertEquals(
+                "heredoc errors in $source on 1.11.0",
+                emptyList<String>(),
+                heredocMessages(elixir("1.11.0"), source)
+            )
+            assertEquals(listOf(ZERO_OR_MORE_WHITESPACE + DOUBLE), heredocMessages(elixir("1.12.0"), source))
+            assertEquals(listOf(ONLY_WHITESPACE + DOUBLE), heredocMessages(elixir("1.20.0"), source))
         }
 
         val unclosedToTheEnd = "\"\"\"\n#{\n"
 
-        assertEquals(listOf(missingTerminator(DOUBLE, 1)), heredocMessages(V1_11, unclosedToTheEnd))
-        assertEquals(emptyList<String>(), heredocMessages(V1_12, unclosedToTheEnd))
-        assertEquals(emptyList<String>(), heredocMessages(V1_20, unclosedToTheEnd))
+        assertEquals(listOf(missingTerminator(DOUBLE, 1)), heredocMessages(elixir("1.11.0"), unclosedToTheEnd))
+        assertEquals(emptyList<String>(), heredocMessages(elixir("1.12.0"), unclosedToTheEnd))
+        assertEquals(emptyList<String>(), heredocMessages(elixir("1.20.0"), unclosedToTheEnd))
     }
 
     /** Before 1.12 Elixir reads a closed interpolation's text as heredoc content while it looks for the terminator. */
     fun testClosedInterpolation() {
         val openingInside = "\"#{\"\"\"x\n\"\"\"}\""
 
-        assertOnlyError(V1_11, openingInside, DOUBLE to ZERO_OR_MORE_WHITESPACE + DOUBLE)
-        assertOnlyError(V1_20, openingInside, DOUBLE to ONLY_WHITESPACE + DOUBLE)
+        assertOnlyError(elixir("1.11.0"), openingInside, DOUBLE to ZERO_OR_MORE_WHITESPACE + DOUBLE)
+        assertOnlyError(elixir("1.20.0"), openingInside, DOUBLE to ONLY_WHITESPACE + DOUBLE)
 
         val heredocInside = "\"\"\"\n#{\"\"\"\nx\n\"\"\"}\n\"\"\""
 
-        assertOnlyError(V1_11, heredocInside, DOUBLE to INVALID_LOCATION + DOUBLE)
-        assertNoErrors(V1_12, heredocInside)
+        assertOnlyError(elixir("1.11.0"), heredocInside, DOUBLE to INVALID_LOCATION + DOUBLE)
+        assertNoErrors(elixir("1.12.0"), heredocInside)
     }
 
     /**
@@ -131,28 +139,36 @@ class HeredocErrorTest : BasePlatformTestCase() {
             "~s(#{\n\"\"\"\nfoo",
             ":\"#{\n\"\"\"\nfoo",
         )) {
-            for (languageLevel in listOf(V1_11, V1_20)) {
-                assertEquals("heredoc errors in $source on $languageLevel", listOf(missingTerminator(DOUBLE, 2)), heredocMessages(languageLevel, source))
+            for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
+                assertEquals(
+                    "heredoc errors in $source on $languageLevel",
+                    listOf(missingTerminator(DOUBLE, 2)),
+                    heredocMessages(languageLevel, source)
+                )
             }
         }
 
         val openingInAString = "\"#{\n\"\"\"x"
 
-        assertEquals(listOf(ZERO_OR_MORE_WHITESPACE + DOUBLE), heredocMessages(V1_11, openingInAString))
-        assertEquals(listOf(ONLY_WHITESPACE + DOUBLE), heredocMessages(V1_20, openingInAString))
+        assertEquals(listOf(ZERO_OR_MORE_WHITESPACE + DOUBLE), heredocMessages(elixir("1.11.0"), openingInAString))
+        assertEquals(listOf(ONLY_WHITESPACE + DOUBLE), heredocMessages(elixir("1.20.0"), openingInAString))
 
         for (source in listOf(
             "\"\"\"\n#{\"#{\n\"\"\"\nfoo",
             "~s\"\"\"\n#{\"#{\n\"\"\"\nfoo",
         )) {
-            assertEquals("heredoc errors in $source on V1_11", emptyList<String>(), heredocMessages(V1_11, source))
-            assertEquals(listOf(missingTerminator(DOUBLE, 3)), heredocMessages(V1_12, source))
+            assertEquals(
+                "heredoc errors in $source on 1.11.0",
+                emptyList<String>(),
+                heredocMessages(elixir("1.11.0"), source)
+            )
+            assertEquals(listOf(missingTerminator(DOUBLE, 3)), heredocMessages(elixir("1.12.0"), source))
         }
 
         val openingInAStringInAHeredoc = "\"\"\"\n#{\"#{\n\"\"\"x"
 
-        assertEquals(emptyList<String>(), heredocMessages(V1_11, openingInAStringInAHeredoc))
-        assertEquals(listOf(ONLY_WHITESPACE + DOUBLE), heredocMessages(V1_20, openingInAStringInAHeredoc))
+        assertEquals(emptyList<String>(), heredocMessages(elixir("1.11.0"), openingInAStringInAHeredoc))
+        assertEquals(listOf(ONLY_WHITESPACE + DOUBLE), heredocMessages(elixir("1.20.0"), openingInAStringInAHeredoc))
     }
 
     /** An escaped delimiter closes nothing, so a heredoc after one can still be in a heredoc's unclosed interpolation. */
@@ -164,14 +180,21 @@ class HeredocErrorTest : BasePlatformTestCase() {
             "\"\"\"\n\\\\\n#{\n\"\"\"\nfoo",
             "\"\"\"\n#{\"\\\\\"}\n#{\n\"\"\"\nfoo",
         )) {
-            assertEquals("heredoc errors in $source on V1_11", emptyList<String>(), heredocMessages(V1_11, source))
-            assertEquals(listOf(missingTerminator(DOUBLE, 4)), heredocMessages(V1_12, source))
+            assertEquals(
+                "heredoc errors in $source on 1.11.0",
+                emptyList<String>(),
+                heredocMessages(elixir("1.11.0"), source)
+            )
+            assertEquals(listOf(missingTerminator(DOUBLE, 4)), heredocMessages(elixir("1.12.0"), source))
         }
 
         val openingAfterAnEscapedTerminator = "\"\"\"\n\\\"\"\"\n#{\n\"\"\"x"
 
-        assertEquals(emptyList<String>(), heredocMessages(V1_11, openingAfterAnEscapedTerminator))
-        assertEquals(listOf(ONLY_WHITESPACE + DOUBLE), heredocMessages(V1_20, openingAfterAnEscapedTerminator))
+        assertEquals(emptyList<String>(), heredocMessages(elixir("1.11.0"), openingAfterAnEscapedTerminator))
+        assertEquals(
+            listOf(ONLY_WHITESPACE + DOUBLE),
+            heredocMessages(elixir("1.20.0"), openingAfterAnEscapedTerminator)
+        )
     }
 
     /** Before 1.12 a heredoc ends only at a line starting with its own terminator, and only then are its interpolations read. */
@@ -187,7 +210,11 @@ class HeredocErrorTest : BasePlatformTestCase() {
             "'''x\n#{\n\"\"\"\nfoo\n'''" to ZERO_OR_MORE_WHITESPACE + SINGLE,
             "\"\"\"x\n#{\n'''y\n\"\"\"" to ZERO_OR_MORE_WHITESPACE + DOUBLE,
         )) {
-            assertEquals("heredoc errors in $source on V1_11", listOf(expected), heredocMessages(V1_11, source))
+            assertEquals(
+                "heredoc errors in $source on 1.11.0",
+                listOf(expected),
+                heredocMessages(elixir("1.11.0"), source)
+            )
         }
     }
 
@@ -195,8 +222,8 @@ class HeredocErrorTest : BasePlatformTestCase() {
     fun testContentAfterTheOpeningThenATerminatorAfterContent() {
         val source = "\"\"\"bar\nbaz\"\"\""
 
-        assertOnlyError(V1_11, source, DOUBLE to ZERO_OR_MORE_WHITESPACE + DOUBLE)
-        assertOnlyError(V1_20, source, DOUBLE to ONLY_WHITESPACE + DOUBLE)
+        assertOnlyError(elixir("1.11.0"), source, DOUBLE to ZERO_OR_MORE_WHITESPACE + DOUBLE)
+        assertOnlyError(elixir("1.20.0"), source, DOUBLE to ONLY_WHITESPACE + DOUBLE)
     }
 
     /** Before 1.12 a backslash takes only a backslash or quote after it, so the terminator after one stands and a line continuation ends its line. */
@@ -205,8 +232,8 @@ class HeredocErrorTest : BasePlatformTestCase() {
             "~S\"\"\"\na\\\\\"\"\"\n\"\"\"",
             "\"\"\"\na\\\"\"\"\"\n\"\"\"",
         )) {
-            assertOnlyError(V1_11, source, DOUBLE to INVALID_LOCATION + DOUBLE)
-            assertNoErrors(V1_12, source)
+            assertOnlyError(elixir("1.11.0"), source, DOUBLE to INVALID_LOCATION + DOUBLE)
+            assertNoErrors(elixir("1.12.0"), source)
         }
 
         for (source in listOf(
@@ -214,7 +241,7 @@ class HeredocErrorTest : BasePlatformTestCase() {
             "~S\"\"\"\na\\\"\"\"\n\"\"\"",
             "\"\"\"\nhere\\\ndoc\\\n\"\"\"",
         )) {
-            assertNoErrors(V1_11, source)
+            assertNoErrors(elixir("1.11.0"), source)
         }
     }
 
@@ -226,14 +253,14 @@ class HeredocErrorTest : BasePlatformTestCase() {
             "~s\"\"\"\nbar\n",
             "~S\"\"\"\nbar\n",
         )) {
-            errors(V1_20, source)
+            errors(elixir("1.20.0"), source)
 
             assertEquals(source, 1, PsiTreeUtil.findChildOfType(myFixture.file, HeredocLiteral::class.java)!!.heredocLineList.size)
         }
     }
 
     fun testValidHeredocs() {
-        for (languageLevel in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
             for (source in listOf(
                 "x = \"\"\"\n  bar\n  \"\"\" <> y",
                 "\"\"\"\n  \"\"\"",
@@ -250,8 +277,11 @@ class HeredocErrorTest : BasePlatformTestCase() {
     fun testDocumentationRunsToTheEndOfTheFile() {
         val source = "defmodule A do\n  @doc \"\"\"\n  a\"\"\"\n  def f, do: 1\n  def g, do: 2\nend"
 
-        assertEquals(DOUBLE to INVALID_LOCATION + DOUBLE, errors(V1_11, source).first())
-        assertEquals(fromOpening(source, DOUBLE) to missingTerminator(DOUBLE, 2), errors(V1_12, source).first())
+        assertEquals(DOUBLE to INVALID_LOCATION + DOUBLE, errors(elixir("1.11.0"), source).first())
+        assertEquals(
+            fromOpening(source, DOUBLE) to missingTerminator(DOUBLE, 2),
+            errors(elixir("1.12.0"), source).first()
+        )
     }
 
     private fun fromOpening(source: String, terminator: String): String = source.substring(source.indexOf(terminator))

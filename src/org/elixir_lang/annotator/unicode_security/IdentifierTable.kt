@@ -56,12 +56,15 @@ internal class IdentifierTable private constructor(
 
         private fun forUnicode(version: String): IdentifierTable = tables.computeIfAbsent(version, ::load)
 
-        /** The table for [languageLevel]'s releases, or `null` when they do not check identifiers. */
+        /**
+         * The table of the newest Elixir minor at or before [languageLevel]'s, or `null` before the first minor that
+         * checks identifiers. A minor newer than [IDENTIFIER_TABLE_UNICODE_VERSIONS] checks with the newest table.
+         */
         fun forLanguageLevel(languageLevel: ElixirLanguageLevel): IdentifierTable? {
-            val release = languageLevel.firstRelease.substringBeforeLast('.')
+            val release = languageLevel.elixir.major to languageLevel.elixir.minor
 
             return IDENTIFIER_TABLE_UNICODE_VERSIONS
-                .firstOrNull { (minor, _) -> "${minor.first}.${minor.second}" == release }
+                .lastOrNull { (minor, _) -> compareValuesBy(minor, release, { it.first }, { it.second }) <= 0 }
                 ?.let { (_, unicode) -> forUnicode(unicode) }
         }
 

@@ -5,11 +5,8 @@ import com.intellij.openapi.util.text.StringUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import org.elixir_lang.ElixirFileType
 import org.elixir_lang.language_level.ElixirLanguageLevel
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_14
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_17
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_18
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_20
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
+import org.elixir_lang.language_level.elixir
 
 /**
  * The hover text follows the rest of Elixir's error, measured by running `Code.string_to_quoted/1` on 1.14, 1.17, 1.18
@@ -27,7 +24,7 @@ class UnicodeSecurityExplanationTest : BasePlatformTestCase() {
     }
 
     fun testMixedScriptTooltipListsEachCharactersScripts() {
-        for (languageLevel in listOf(V1_17, V1_20)) {
+        for (languageLevel in listOf(elixir("1.17.0"), elixir("1.20.0"))) {
             val tooltip = tooltip(languageLevel, "\u0430dmin = 1")
 
             assertContainsText(
@@ -47,28 +44,28 @@ class UnicodeSecurityExplanationTest : BasePlatformTestCase() {
 
     fun testMixedScriptTooltipGivesTheGuidanceOfTheRelease() {
         assertContainsText(
-            tooltip(V1_17, "\u0430dmin = 1"),
-            V1_17,
+            tooltip(elixir("1.17.0"), "\u0430dmin = 1"),
+            elixir("1.17.0"),
             "All characters in the identifier should resolve to a single script, or use a highly restrictive set of scripts."
         )
         assertContainsText(
-            tooltip(V1_18, "\u0430dmin = 1"),
-            V1_18,
+            tooltip(elixir("1.18.0"), "\u0430dmin = 1"),
+            elixir("1.18.0"),
             "Characters in identifiers from different scripts must be separated by underscore (_)."
         )
     }
 
     fun testMixedScriptTooltipNamesEveryScriptOfACharacter() {
         assertContainsText(
-            tooltip(V1_20, "[\u0422\u30B7\u30E3\u30C4: 1]"),
-            V1_20,
+            tooltip(elixir("1.20.0"), "[\u0422\u30B7\u30E3\u30C4: 1]"),
+            elixir("1.20.0"),
             "U+0422 \u0422 Cyrillic",
             "U+30B7 \u30B7 Japanese, Katakana",
         )
     }
 
     fun testRestrictedCharacterTooltipHintsTheCompatibleForm() {
-        for (languageLevel in listOf(V1_14, V1_20)) {
+        for (languageLevel in listOf(elixir("1.14.0"), elixir("1.20.0"))) {
             for ((source, got, hint) in listOf(
                 Triple(
                     "foo\uD835\uDECD = 1",
@@ -108,11 +105,11 @@ class UnicodeSecurityExplanationTest : BasePlatformTestCase() {
             "foO\uD835\uDEB3" to "unexpected token: \"\uD835\uDEB3\" (code point U+1D6B3)",
             "foo\uFF71 = 1" to "unexpected token: \"\uFF71\" (code point U+FF71)",
         )) {
-            val tooltip = tooltip(V1_20, source)
+            val tooltip = tooltip(elixir("1.20.0"), source)
 
             assertContainsText(
                 tooltip,
-                V1_20,
+                elixir("1.20.0"),
                 message,
                 "Elixir does not allow this code point in unquoted atoms, variables, and calls: Unicode's identifier rules exclude it, or its security profile restricts it.",
             )
@@ -123,8 +120,8 @@ class UnicodeSecurityExplanationTest : BasePlatformTestCase() {
 
     fun testRestrictedCharacterTooltipShowsTheIdentifierAsElixirTokenizedIt() {
         assertContainsText(
-            tooltip(V1_20, "a\u00B5\uD835\uDECD = 1"),
-            V1_20,
+            tooltip(elixir("1.20.0"), "a\u00B5\uD835\uDECD = 1"),
+            elixir("1.20.0"),
             "Got: \"a\u03BC\uD835\uDECD\" (code points 0x00061 0x003BC 0x1D6CD)",
             "Hint: You could write the above in a compatible format that is accepted by Elixir: \"a\u03BC\u03BC\" (code points 0x00061 0x003BC 0x003BC)",
         )
@@ -132,8 +129,8 @@ class UnicodeSecurityExplanationTest : BasePlatformTestCase() {
 
     fun testRestrictedCharacterHintFollowsTheRelease() {
         assertContainsText(
-            tooltip(V1_17, "foo\uFF71 = 1"),
-            V1_17,
+            tooltip(elixir("1.17.0"), "foo\uFF71 = 1"),
+            elixir("1.17.0"),
             "Hint: You could write the above in a compatible format that is accepted by Elixir: \"foo\u30A2\" (code points 0x00066 0x0006F 0x0006F 0x030A2)",
         )
     }

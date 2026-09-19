@@ -18,31 +18,31 @@ import org.elixir_lang.sdk.elixir.ElixirSdkLookup
 import org.elixir_lang.sdk.elixir.sdk
 
 /**
- * Pushes the language level of each Elixir module's SDK onto the module's directories, where it is persisted, so a file
- * is parsed and indexed at that level from the start of a session - before [SdkVersionsStore], which is not persisted,
- * has read anything.
+ * Pushes the Elixir version of each Elixir module's SDK onto the module's directories, where it is persisted, so a file
+ * is parsed and indexed at that version from the start of a session - before [SdkVersionsStore], which is not
+ * persisted, has read anything.
  *
  * All but [initExtra] run under a read lock, some inside a VFS write action, so they must not do I/O.
  */
 @Suppress("UnstableApiUsage") // The platform's only way to make an index input follow a module's SDK.
-internal class ElixirLanguageLevelPusher : FilePropertyPusher<String> {
+internal class ElixirVersionPusher : FilePropertyPusher<String> {
     override fun getFilePropertyKey(): FilePropertyKey<String> = KEY
 
     override fun pushDirectoriesOnly(): Boolean = true
 
-    override fun getDefaultValue(): String = ElixirLanguageLevel.FALLBACK.name
+    override fun getDefaultValue(): String = ElixirLanguageLevel.FALLBACK.elixirVersion
 
-    override fun getImmediateValue(module: Module): String? = levelOf(module)?.name
+    override fun getImmediateValue(module: Module): String? = versionOf(module)
 
     /**
-     * Asked before the module: a home the store has not read yet keeps the level already on the directory. Answering
+     * Asked before the module: a home the store has not read yet keeps the version already on the directory. Answering
      * the default instead would reindex everything under it now, and again once the home is read.
      */
     override fun getImmediateValue(project: Project, file: VirtualFile?): String? {
         val directory = file ?: return null
         val module = ProjectFileIndex.getInstance(project).getModuleForFile(directory, false) ?: return null
 
-        return if (levelOf(module) == null) KEY.getPersistentValue(directory) else null
+        return if (versionOf(module) == null) KEY.getPersistentValue(directory) else null
     }
 
     @RequiresReadLock
@@ -56,8 +56,8 @@ internal class ElixirLanguageLevelPusher : FilePropertyPusher<String> {
     }
 
     /**
-     * Before the project's first scan, so what it pushes is the level the SDK reports rather than the default. A home
-     * an earlier project already read publishes nothing now, so the levels are compared here too.
+     * Before the project's first scan, so what it pushes is the version the SDK reports rather than the default. A
+     * home an earlier project already read publishes nothing now, so the versions are compared here too.
      */
     override fun initExtra(project: Project) {
         SdkVersionsFiller.fillUsedByBlocking(project)
@@ -70,7 +70,7 @@ internal class ElixirLanguageLevelPusher : FilePropertyPusher<String> {
     }
 
     companion object {
-        val KEY: FilePropertyKey<String> = FilePropertyKeyImpl.createPersistentStringKey("elixir.language.level", attribute())
+        val KEY: FilePropertyKey<String> = FilePropertyKeyImpl.createPersistentStringKey("elixir.version", attribute())
 
         /**
          * A `FileAttribute` id may be registered once per JVM, and loading the plugin again without a restart runs this
@@ -79,7 +79,7 @@ internal class ElixirLanguageLevelPusher : FilePropertyPusher<String> {
         internal fun attribute(): FileAttribute =
             System.getProperties().computeIfAbsent(ATTRIBUTE_ID) { FileAttribute(ATTRIBUTE_ID, 1, true) } as FileAttribute
 
-        private const val ATTRIBUTE_ID = "elixir_language_level"
+        private const val ATTRIBUTE_ID = "elixir_version"
 
         /**
          * `.exs` and `.leex` are covered by subclasses of the types checked here. A `.beam`'s stubs are built from the
@@ -92,11 +92,10 @@ internal class ElixirLanguageLevelPusher : FilePropertyPusher<String> {
 
         /** `null` until the store has read the SDK's home, which is not the same as having no SDK. */
         @RequiresReadLock
-        internal fun levelOf(module: Module): ElixirLanguageLevel? {
-            val sdk = ElixirSdkLookup.resolve(module).sdk ?: return ElixirLanguageLevel.FALLBACK
-            val version = SdkVersionsStore.getInstance().elixirVersions(sdk.homePath)?.elixirVersion ?: return null
+        internal fun versionOf(module: Module): String? {
+            val sdk = ElixirSdkLookup.resolve(module).sdk ?: return ElixirLanguageLevel.FALLBACK.elixirVersion
 
-            return ElixirLanguageLevel.of(version)
+            return SdkVersionsStore.getInstance().elixirVersions(sdk.homePath)?.elixirVersion
         }
     }
 }

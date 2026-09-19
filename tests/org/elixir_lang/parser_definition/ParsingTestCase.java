@@ -87,7 +87,8 @@ public abstract class ParsingTestCase extends com.intellij.testFramework.Parsing
     protected void assertParsedAndQuotedCorrectlyBefore(ElixirLanguageLevel languageLevel, boolean checkResult) {
         doTest(checkResult);
 
-        if (ElixirLanguageLevelResolver.languageLevelFor(myFile).compareTo(languageLevel) >= 0) {
+        if (ElixirLanguageLevelResolver.languageLevelFor(myFile).getElixir()
+                .compareTo(languageLevel.getElixir()) >= 0) {
             assertQuotedAroundError();
         } else {
             assertWithoutLocalError();
@@ -103,7 +104,7 @@ public abstract class ParsingTestCase extends com.intellij.testFramework.Parsing
     protected void assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel languageLevel, boolean checkResult) {
         doTest(checkResult);
 
-        if (ElixirLanguageLevelResolver.languageLevelFor(myFile).compareTo(languageLevel) < 0) {
+        if (ElixirLanguageLevelResolver.languageLevelFor(myFile).getElixir().compareTo(languageLevel.getElixir()) < 0) {
             assertQuotedAroundError();
         } else {
             assertWithoutLocalError();
@@ -121,7 +122,7 @@ public abstract class ParsingTestCase extends com.intellij.testFramework.Parsing
     ) throws IOException {
         doTest(false);
 
-        if (ElixirLanguageLevelResolver.languageLevelFor(myFile).compareTo(languageLevel) < 0) {
+        if (ElixirLanguageLevelResolver.languageLevelFor(myFile).getElixir().compareTo(languageLevel.getElixir()) < 0) {
             assertWithLocalError();
             Quoter.assertError(myFile);
         } else {
@@ -166,7 +167,8 @@ public abstract class ParsingTestCase extends com.intellij.testFramework.Parsing
     ) {
         doTest(checkResult);
 
-        if (ElixirLanguageLevelResolver.languageLevelFor(myFile).compareTo(languageLevel) >= 0) {
+        if (ElixirLanguageLevelResolver.languageLevelFor(myFile).getElixir()
+                .compareTo(languageLevel.getElixir()) >= 0) {
             assertQuotedAroundErrorOrRaise(errorLanguageLevel, expectedException);
         } else {
             assertWithoutLocalError();
@@ -177,7 +179,7 @@ public abstract class ParsingTestCase extends com.intellij.testFramework.Parsing
     private void assertQuotedAroundErrorOrRaise(ElixirLanguageLevel languageLevel, String expectedException) {
         assertInstanceOf(ElixirPsiImplUtil.quote(myFile), OtpErlangObject.class);
 
-        if (ElixirLanguageLevelResolver.languageLevelFor(myFile).compareTo(languageLevel) < 0) {
+        if (ElixirLanguageLevelResolver.languageLevelFor(myFile).getElixir().compareTo(languageLevel.getElixir()) < 0) {
             Quoter.assertRaise(myFile, expectedException);
         } else {
             Quoter.assertError(myFile);

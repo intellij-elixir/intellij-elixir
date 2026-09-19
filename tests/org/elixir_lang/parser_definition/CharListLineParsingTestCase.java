@@ -11,11 +11,11 @@ public class CharListLineParsingTestCase extends ParsingTestCase {
     }
 
     public void testEmptyUnicodeEscapeSequence() {
-        assertParsedAndQuotedAroundErrorOrRaise(ElixirLanguageLevel.V1_12, "Elixir.ArgumentError");
+        assertParsedAndQuotedAroundErrorOrRaise(ElixirLanguageLevel.of("1.12.0"), "Elixir.ArgumentError");
     }
 
     public void testEnclosedHexEscapeSequence() {
-        assertParsedAndQuotedCorrectlyBefore(ElixirLanguageLevel.V1_20);
+        assertParsedAndQuotedCorrectlyBefore(ElixirLanguageLevel.of("1.20.0"));
     }
 
     public void testEscapeSequences() {

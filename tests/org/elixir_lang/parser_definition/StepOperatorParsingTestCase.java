@@ -17,19 +17,19 @@ public class StepOperatorParsingTestCase extends ParsingTestCase {
     private static final String KEYWORD_KEY = "[..//: 1]\n";
 
     public void testSteppedRangeBelow1_12() throws IOException {
-        assertParsedAtLanguageLevel(ElixirLanguageLevel.V1_11, "SteppedRangeBelow1_12", STEPPED_RANGE);
+        assertParsedAtLanguageLevel(ElixirLanguageLevel.of("1.11.0"), "SteppedRangeBelow1_12", STEPPED_RANGE);
     }
 
     public void testSteppedRangeFrom1_12() throws IOException {
-        assertParsedAtLanguageLevel(ElixirLanguageLevel.V1_12, "SteppedRangeFrom1_12", STEPPED_RANGE);
+        assertParsedAtLanguageLevel(ElixirLanguageLevel.of("1.12.0"), "SteppedRangeFrom1_12", STEPPED_RANGE);
     }
 
     public void testKeywordKeyBelow1_12() throws IOException {
-        assertParsedAtLanguageLevel(ElixirLanguageLevel.V1_11, "KeywordKeyBelow1_12", KEYWORD_KEY);
+        assertParsedAtLanguageLevel(ElixirLanguageLevel.of("1.11.0"), "KeywordKeyBelow1_12", KEYWORD_KEY);
     }
 
     public void testKeywordKeyFrom1_12() throws IOException {
-        assertParsedAtLanguageLevel(ElixirLanguageLevel.V1_12, "KeywordKeyFrom1_12", KEYWORD_KEY);
+        assertParsedAtLanguageLevel(ElixirLanguageLevel.of("1.12.0"), "KeywordKeyFrom1_12", KEYWORD_KEY);
     }
 
     private void assertParsedAtLanguageLevel(

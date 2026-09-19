@@ -6,13 +6,8 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import org.elixir_lang.ElixirFileType
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.language_level.ElixirLanguageLevel
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_11
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_12
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_13
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_14
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_17
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_20
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
+import org.elixir_lang.language_level.elixir
 
 /**
  * Expected messages were taken from `Code.string_to_quoted/1` on 1.11.4, 1.12.3, 1.13.4, 1.14.5 and 1.20.4. An error's
@@ -32,25 +27,37 @@ class InvalidTokenTest : BasePlatformTestCase() {
     fun testNonAsciiCharacterInAnAlias() {
         val alias = "Fo\u00F3"
 
-        assertErrors(V1_13, alias, alias to invalidCharacter("\u00F3", "00F3", "alias$ASCII_ONLY", alias))
-        assertErrors(V1_14, alias, alias to invalidCharacter("\u00F3", "00F3", "alias$WITHOUT_PUNCTUATION", alias))
+        assertErrors(elixir("1.13.0"), alias, alias to invalidCharacter("\u00F3", "00F3", "alias$ASCII_ONLY", alias))
+        assertErrors(elixir("1.14.0"), alias, alias to invalidCharacter("\u00F3", "00F3", "alias$WITHOUT_PUNCTUATION", alias))
     }
 
     fun testAliasEndingInPunctuation() {
         for ((alias, character, codePoint) in listOf(Triple("Ola?", "?", "003F"), Triple("Foo!", "!", "0021"))) {
-            assertErrors(V1_13, alias, alias to invalidCharacter(character, codePoint, "alias", alias))
-            assertErrors(V1_14, alias, alias to invalidCharacter(character, codePoint, "alias$WITHOUT_PUNCTUATION", alias))
+            assertErrors(elixir("1.13.0"), alias, alias to invalidCharacter(character, codePoint, "alias", alias))
+            assertErrors(
+                elixir("1.14.0"),
+                alias,
+                alias to invalidCharacter(character, codePoint, "alias$WITHOUT_PUNCTUATION", alias)
+            )
         }
     }
 
     fun testAliasNamesTheFirstCharacterBelowAFrom1_14() {
-        assertErrors(V1_13, "Foo1?", "Foo1?" to invalidCharacter("?", "003F", "alias", "Foo1?"))
-        assertErrors(V1_14, "Foo1?", "Foo1?" to invalidCharacter("1", "0031", "alias$WITHOUT_PUNCTUATION", "Foo1?"))
+        assertErrors(elixir("1.13.0"), "Foo1?", "Foo1?" to invalidCharacter("?", "003F", "alias", "Foo1?"))
+        assertErrors(
+            elixir("1.14.0"),
+            "Foo1?",
+            "Foo1?" to invalidCharacter("1", "0031", "alias$WITHOUT_PUNCTUATION", "Foo1?")
+        )
 
         val alias = "Fo1\u00F3"
 
-        assertErrors(V1_13, alias, alias to invalidCharacter("\u00F3", "00F3", "alias$ASCII_ONLY", alias))
-        assertErrors(V1_14, alias, alias to invalidCharacter("1", "0031", "alias$WITHOUT_PUNCTUATION", alias))
+        assertErrors(elixir("1.13.0"), alias, alias to invalidCharacter("\u00F3", "00F3", "alias$ASCII_ONLY", alias))
+        assertErrors(
+            elixir("1.14.0"),
+            alias,
+            alias to invalidCharacter("1", "0031", "alias$WITHOUT_PUNCTUATION", alias)
+        )
     }
 
     /** Erlang's `~4.16.0B` fills a code point that needs more than four digits with stars. */
@@ -58,20 +65,32 @@ class InvalidTokenTest : BasePlatformTestCase() {
         val character = "\uD840\uDC00"
         val alias = "Foo$character"
 
-        assertHasError(V1_13, alias, alias to invalidCharacter(character, "****", "alias$ASCII_ONLY", alias))
-        assertHasError(V1_17, alias, alias to invalidCharacter(character, "****", "alias$WITHOUT_PUNCTUATION", alias))
+        assertHasError(elixir("1.13.0"), alias, alias to invalidCharacter(character, "****", "alias$ASCII_ONLY", alias))
+        assertHasError(
+            elixir("1.17.0"),
+            alias,
+            alias to invalidCharacter(character, "****", "alias$WITHOUT_PUNCTUATION", alias)
+        )
     }
 
     fun testInvalidAliasAfterADotOrInAStruct() {
         assertErrors(
-            V1_20,
+            elixir("1.20.0"),
             "Foo.B\u00E1r",
             "B\u00E1r" to invalidCharacter("\u00E1", "00E1", "alias$WITHOUT_PUNCTUATION", "B\u00E1r")
         )
-        assertErrors(V1_20, "foo.Bar?", "Bar?" to invalidCharacter("?", "003F", "alias$WITHOUT_PUNCTUATION", "Bar?"))
-        assertErrors(V1_20, "%Foo?{}", "Foo?" to invalidCharacter("?", "003F", "alias$WITHOUT_PUNCTUATION", "Foo?"))
         assertErrors(
-            V1_20,
+            elixir("1.20.0"),
+            "foo.Bar?",
+            "Bar?" to invalidCharacter("?", "003F", "alias$WITHOUT_PUNCTUATION", "Bar?")
+        )
+        assertErrors(
+            elixir("1.20.0"),
+            "%Foo?{}",
+            "Foo?" to invalidCharacter("?", "003F", "alias$WITHOUT_PUNCTUATION", "Foo?")
+        )
+        assertErrors(
+            elixir("1.20.0"),
             "alias Foo?, as: Bar",
             "Foo?" to invalidCharacter("?", "003F", "alias$WITHOUT_PUNCTUATION", "Foo?")
         )
@@ -79,12 +98,12 @@ class InvalidTokenTest : BasePlatformTestCase() {
 
     fun testValidAliasesAndTheirKeywordAndAtomForms() {
         for (source in listOf("Foo_bar1", "Foo.bar?", ":Foo?", "[Foo?: 1]", "[Fo\u00F3: 1]", ":Fo\u00F3")) {
-            assertNoErrors(V1_20, source)
+            assertNoErrors(elixir("1.20.0"), source)
         }
     }
 
     fun testAtInAnIdentifierStartingWithALetterAboveFFFF() {
-        for (languageLevel in listOf(V1_11, V1_17)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.17.0"))) {
             for (word in listOf("\uD840\uDC00@y", "x\uD840\uDC00@y")) {
                 assertHasError(languageLevel, word, word to invalidCharacter("@", "0040", "identifier", word))
             }
@@ -92,7 +111,7 @@ class InvalidTokenTest : BasePlatformTestCase() {
     }
 
     fun testAtInAnIdentifier() {
-        for (languageLevel in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
             for ((source, word) in listOf(
                 "foo@bar" to "foo@bar",
                 "x.foo@bar" to "foo@bar",
@@ -110,12 +129,12 @@ class InvalidTokenTest : BasePlatformTestCase() {
 
     fun testAtInAnAliasIsNamedAsSuch() {
         for (alias in listOf("Foo@bar", "Foo@bar?")) {
-            assertHasError(V1_20, alias, alias to invalidCharacter("@", "0040", "alias", alias))
+            assertHasError(elixir("1.20.0"), alias, alias to invalidCharacter("@", "0040", "alias", alias))
         }
     }
 
     fun testAtEndingAnIdentifier() {
-        assertHasError(V1_20, "foo@ bar", "foo@" to invalidCharacter("@", "0040", "identifier", "foo@"))
+        assertHasError(elixir("1.20.0"), "foo@ bar", "foo@" to invalidCharacter("@", "0040", "identifier", "foo@"))
     }
 
     fun testAtOutsideAWord() {
@@ -128,7 +147,7 @@ class InvalidTokenTest : BasePlatformTestCase() {
             "...@foo",
             "@foo",
         )) {
-            assertNoErrors(V1_20, source)
+            assertNoErrors(elixir("1.20.0"), source)
         }
     }
 
@@ -145,66 +164,94 @@ class InvalidTokenTest : BasePlatformTestCase() {
             listOf("0o9", "o", "0", "o9"),
             listOf("0b2", "b", "0", "b2"),
         )) {
-            assertErrors(V1_11, source, source to "syntax error before: $elixir11Token")
-            assertErrors(V1_12, source, source to afterNumber1_12(character, number))
-            assertErrors(V1_13, source, source to afterNumber1_12(character, number))
-            assertErrors(V1_14, source, source to afterNumber(character, number))
-            assertErrors(V1_20, source, source to afterNumber(character, number))
+            assertErrors(elixir("1.11.0"), source, source to "syntax error before: $elixir11Token")
+            assertErrors(elixir("1.12.0"), source, source to afterNumber1_12(character, number))
+            assertErrors(elixir("1.13.0"), source, source to afterNumber1_12(character, number))
+            assertErrors(elixir("1.14.0"), source, source to afterNumber(character, number))
+            assertErrors(elixir("1.20.0"), source, source to afterNumber(character, number))
         }
     }
 
     fun testLetterAfterANumberInAWordEndingInPunctuation() {
-        assertHasError(V1_11, "1var?", "1var?" to "syntax error before: 'var?'")
-        assertHasError(V1_20, "1var?", "1var?" to afterNumber("v", "1"))
+        assertHasError(elixir("1.11.0"), "1var?", "1var?" to "syntax error before: 'var?'")
+        assertHasError(elixir("1.20.0"), "1var?", "1var?" to afterNumber("v", "1"))
     }
 
     fun testWhatFollowsANumberInAnotherBase() {
-        for (languageLevel in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
             assertErrors(languageLevel, "0x1Fg", "0x1Fg" to "syntax error before: g")
             assertErrors(languageLevel, "0x1F_g", "0x1F_g" to "syntax error before: '_g'")
             assertErrors(languageLevel, "0b12", "0b12" to "syntax error before: \"2\"")
         }
 
-        assertErrors(V1_11, "0b12a", "0b12a" to "syntax error before: \"2\"")
-        assertErrors(V1_20, "0b12a", "0b12a" to afterNumber("a", "2"))
+        assertErrors(elixir("1.11.0"), "0b12a", "0b12a" to "syntax error before: \"2\"")
+        assertErrors(elixir("1.20.0"), "0b12a", "0b12a" to afterNumber("a", "2"))
     }
 
     fun testRejectedWordAfterANumberReportsTheWordsOwnError() {
-        assertHasError(V1_11, "1foo@bar", "1foo@bar" to invalidCharacter("@", "0040", "identifier", "foo@bar"))
-        assertHasError(V1_11, "1foo:bar", "1foo:" to "keyword argument must be followed by space after: foo:")
-        assertHasError(V1_11, "1__block__", "1__block__" to "reserved token: __block__")
-        assertHasError(V1_11, "1Foo?", "1Foo?" to invalidCharacter("?", "003F", "alias", "Foo?"))
-        assertHasError(V1_11, "0b1Foo?", "0b1Foo?" to invalidCharacter("?", "003F", "alias", "Foo?"))
-        assertHasError(V1_20, "0b1Foo?", "0b1Foo?" to invalidCharacter("?", "003F", "alias$WITHOUT_PUNCTUATION", "Foo?"))
+        assertHasError(
+            elixir("1.11.0"),
+            "1foo@bar",
+            "1foo@bar" to invalidCharacter("@", "0040", "identifier", "foo@bar")
+        )
+        assertHasError(
+            elixir("1.11.0"),
+            "1foo:bar",
+            "1foo:" to "keyword argument must be followed by space after: foo:"
+        )
+        assertHasError(elixir("1.11.0"), "1__block__", "1__block__" to "reserved token: __block__")
+        assertHasError(elixir("1.11.0"), "1Foo?", "1Foo?" to invalidCharacter("?", "003F", "alias", "Foo?"))
+        assertHasError(elixir("1.11.0"), "0b1Foo?", "0b1Foo?" to invalidCharacter("?", "003F", "alias", "Foo?"))
+        assertHasError(
+            elixir("1.20.0"),
+            "0b1Foo?",
+            "0b1Foo?" to invalidCharacter("?", "003F", "alias$WITHOUT_PUNCTUATION", "Foo?")
+        )
 
-        for (languageLevel in listOf(V1_11, V1_20)) {
-            assertHasError(languageLevel, "0b1foo:bar", "0b1foo:" to "keyword argument must be followed by space after: foo:")
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
+            assertHasError(
+                languageLevel,
+                "0b1foo:bar",
+                "0b1foo:" to "keyword argument must be followed by space after: foo:"
+            )
             assertHasError(languageLevel, "0b1__block__", "0b1__block__" to "reserved token: __block__")
-            assertHasError(languageLevel, "0x1Ffoo@bar", "0x1Ffoo@bar" to invalidCharacter("@", "0040", "identifier", "oo@bar"))
+            assertHasError(
+                languageLevel,
+                "0x1Ffoo@bar",
+                "0x1Ffoo@bar" to invalidCharacter("@", "0040", "identifier", "oo@bar")
+            )
         }
     }
 
     fun testRejectedWordAfterDigitsFollowingABaseNumberBefore1_12() {
-        assertHasError(V1_11, "0b12foo@bar", "0b12foo@bar" to invalidCharacter("@", "0040", "identifier", "foo@bar"))
-        assertHasError(V1_11, "0b12foo:bar", "0b12foo:" to "keyword argument must be followed by space after: foo:")
-        assertHasError(V1_11, "0b12Foo?", "0b12Foo?" to invalidCharacter("?", "003F", "alias", "Foo?"))
-        assertHasError(V1_11, "0b12__block__", "0b12__block__" to "reserved token: __block__")
-        assertHasError(V1_11, "0b12if", "0b12if" to "syntax error before: \"2\"")
+        assertHasError(
+            elixir("1.11.0"),
+            "0b12foo@bar",
+            "0b12foo@bar" to invalidCharacter("@", "0040", "identifier", "foo@bar")
+        )
+        assertHasError(
+            elixir("1.11.0"),
+            "0b12foo:bar",
+            "0b12foo:" to "keyword argument must be followed by space after: foo:"
+        )
+        assertHasError(elixir("1.11.0"), "0b12Foo?", "0b12Foo?" to invalidCharacter("?", "003F", "alias", "Foo?"))
+        assertHasError(elixir("1.11.0"), "0b12__block__", "0b12__block__" to "reserved token: __block__")
+        assertHasError(elixir("1.11.0"), "0b12if", "0b12if" to "syntax error before: \"2\"")
     }
 
     fun testLatin1WordAfterANumberIsNotQuoted() {
-        assertHasError(V1_11, "1fo\u00E9", "1fo\u00E9" to "syntax error before: fo\u00E9")
+        assertHasError(elixir("1.11.0"), "1fo\u00E9", "1fo\u00E9" to "syntax error before: fo\u00E9")
 
-        for (languageLevel in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
             assertHasError(languageLevel, "0b1fo\u00E9", "0b1fo\u00E9" to "syntax error before: fo\u00E9")
             assertHasError(languageLevel, "0b1fo\u0141", "0b1fo\u0141" to "syntax error before: 'fo\u0141'")
         }
     }
 
     fun testKeywordWithASpaceAfterANumber() {
-        assertHasError(V1_11, "1foo: 1", "1foo:" to "syntax error before: 'foo:'")
+        assertHasError(elixir("1.11.0"), "1foo: 1", "1foo:" to "syntax error before: 'foo:'")
 
-        for (languageLevel in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
             assertHasError(languageLevel, "0b1foo: 1", "0b1foo:" to "syntax error before: 'foo:'")
             assertHasError(languageLevel, "0b1Foo: 1", "0b1Foo:" to "syntax error before: 'Foo:'")
             assertHasError(languageLevel, "0b1foo:\n1", "0b1foo:" to "syntax error before: 'foo:'")
@@ -213,7 +260,7 @@ class InvalidTokenTest : BasePlatformTestCase() {
     }
 
     fun testWordsThatCannotFollowANumber() {
-        for (languageLevel in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
             for ((source, range, token) in listOf(
                 Triple("0b1nil", "0b1nil", "nil"),
                 Triple("0o7true", "0o7true", "true"),
@@ -233,10 +280,10 @@ class InvalidTokenTest : BasePlatformTestCase() {
             Triple("1not\nin x", "1not", "'not'"),
             Triple("1not in? x", "1not", "'not'"),
         )) {
-            assertHasError(V1_11, source, range to "syntax error before: $token")
+            assertHasError(elixir("1.11.0"), source, range to "syntax error before: $token")
         }
 
-        for (languageLevel in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
             for (source in listOf("0b1not in? x", "0b1not in: 1", "0b1not inx")) {
                 assertHasError(languageLevel, source, "0b1not" to "syntax error before: 'not'")
             }
@@ -244,25 +291,25 @@ class InvalidTokenTest : BasePlatformTestCase() {
     }
 
     fun testWordsThatCanFollowANumber() {
-        for (languageLevel in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
             for (source in listOf("0b1and 2", "0b1or 2", "0b1in x", "x = 0b1when true", "0b1not in x")) {
                 assertNoInvalidTokenErrors(languageLevel, source)
             }
         }
 
         for (source in listOf("1or 2", "1in x", "x = 1when true", "1not in x", "1not  in x", "1not \\\nin x")) {
-            assertNoInvalidTokenErrors(V1_11, source)
+            assertNoInvalidTokenErrors(elixir("1.11.0"), source)
         }
 
-        for (languageLevel in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
             assertNoInvalidTokenErrors(languageLevel, "0b1not \\\nin x")
         }
     }
 
     fun testDoKeywordAfterANumber() {
-        assertHasError(V1_11, "1do: 2", "1do:" to DO_KEYWORD)
+        assertHasError(elixir("1.11.0"), "1do: 2", "1do:" to DO_KEYWORD)
 
-        for (languageLevel in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
             for (source in listOf("0b1do: 2", "0b1do:\t2", "0b1do:\n2")) {
                 assertHasError(languageLevel, source, "0b1do:" to DO_KEYWORD)
             }
@@ -270,36 +317,36 @@ class InvalidTokenTest : BasePlatformTestCase() {
     }
 
     fun testErlangReservedWordAfterANumberIsQuoted() {
-        assertErrors(V1_11, "1if", "1if" to "syntax error before: 'if'")
-        assertErrors(V1_11, "1.0case", "1.0case" to "syntax error before: 'case'")
-        assertErrors(V1_20, "0b1if", "0b1if" to "syntax error before: 'if'")
+        assertErrors(elixir("1.11.0"), "1if", "1if" to "syntax error before: 'if'")
+        assertErrors(elixir("1.11.0"), "1.0case", "1.0case" to "syntax error before: 'case'")
+        assertErrors(elixir("1.20.0"), "0b1if", "0b1if" to "syntax error before: 'if'")
     }
 
     /** Elixir 1.20 requires Erlang/OTP 27, where `maybe` is reserved; before 1.20 that depends on the OTP release. */
     fun testMaybeIsQuotedFrom1_20() {
-        assertErrors(V1_11, "0b1maybe", "0b1maybe" to "syntax error before: maybe")
-        assertErrors(V1_20, "0b1maybe", "0b1maybe" to "syntax error before: 'maybe'")
+        assertErrors(elixir("1.11.0"), "0b1maybe", "0b1maybe" to "syntax error before: maybe")
+        assertErrors(elixir("1.20.0"), "0b1maybe", "0b1maybe" to "syntax error before: 'maybe'")
     }
 
     /** Before `/`, an operator is an identifier to Elixir's tokenizer, and the lexer reads it the same way. */
     fun testOperatorReferencedBeforeASlashIsNotAWord() {
-        for (languageLevel in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
             for (source in listOf("&@/1", "&@/2", "x = &@/1")) {
                 assertNoInvalidTokenErrors(languageLevel, source)
             }
         }
 
-        assertNoInvalidTokenErrors(V1_20, "@/1")
+        assertNoInvalidTokenErrors(elixir("1.20.0"), "@/1")
     }
 
     fun testKeywordAfterANumberFrom1_12() {
-        assertNoErrors(V1_11, "1and 2")
-        assertErrors(V1_12, "1and 2", "1and" to afterNumber1_12("a", "1"))
-        assertErrors(V1_20, "1and 2", "1and" to afterNumber("a", "1"))
+        assertNoErrors(elixir("1.11.0"), "1and 2")
+        assertErrors(elixir("1.12.0"), "1and 2", "1and" to afterNumber1_12("a", "1"))
+        assertErrors(elixir("1.20.0"), "1and 2", "1and" to afterNumber("a", "1"))
     }
 
     fun testValidNumbers() {
-        for (languageLevel in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
             for (source in listOf(
                 "1_000",
                 "1.0e10",
@@ -320,7 +367,7 @@ class InvalidTokenTest : BasePlatformTestCase() {
     }
 
     fun testReservedToken() {
-        for (languageLevel in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
             for ((source, word) in listOf(
                 "__block__" to "__block__",
                 "__aliases__(1)" to "__aliases__",
@@ -335,12 +382,12 @@ class InvalidTokenTest : BasePlatformTestCase() {
 
     fun testReservedNamesInOtherForms() {
         for (source in listOf(":__block__", "[__block__: 1]", "__block__?", "__MODULE__", "__cursor__", "foo.\"__block__\"")) {
-            assertNoErrors(V1_20, source)
+            assertNoErrors(elixir("1.20.0"), source)
         }
     }
 
     fun testKeywordWithoutSpaceAfterTheColon() {
-        for (languageLevel in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
             for ((source, keyword) in listOf(
                 "foo:bar" to "foo:",
                 "[foo:bar]" to "foo:",
@@ -370,7 +417,11 @@ class InvalidTokenTest : BasePlatformTestCase() {
             "foo@bar:1" to "foo@bar:",
             "Foo?:bar" to "Foo?:",
         )) {
-            assertHasError(V1_20, source, keyword to "keyword argument must be followed by space after: $keyword")
+            assertHasError(
+                elixir("1.20.0"),
+                source,
+                keyword to "keyword argument must be followed by space after: $keyword"
+            )
         }
     }
 
@@ -385,7 +436,7 @@ class InvalidTokenTest : BasePlatformTestCase() {
             "%{foo: 1}",
             "if x, do: 1",
         )) {
-            assertNoErrors(V1_20, source)
+            assertNoErrors(elixir("1.20.0"), source)
         }
     }
 
@@ -396,14 +447,14 @@ class InvalidTokenTest : BasePlatformTestCase() {
             "~w(foo@bar 1var __block__ foo:bar Foo?)",
             "'Foo?'",
         )) {
-            assertNoErrors(V1_20, source)
+            assertNoErrors(elixir("1.20.0"), source)
         }
     }
 
     fun testElixirInDocumentationIsNotChecked() {
         val source = "defmodule Sample do\n  @moduledoc \"\"\"\n      foo@bar = 1var\n  \"\"\"\nend\n"
 
-        ElixirLanguageLevelResolver.overrideLanguageLevel(project, V1_20)
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, elixir("1.20.0"))
         myFixture.configureByText(ElixirFileType.INSTANCE, source)
 
         assertEquals(
@@ -418,7 +469,7 @@ class InvalidTokenTest : BasePlatformTestCase() {
         assertTemplateErrors(
             myFixture,
             testRootDisposable,
-            V1_20,
+            elixir("1.20.0"),
             "defmodule Test do\n  def render(assigns) do\n    ~H'''\n    <div><%= foo@bar %></div>\n    '''\n  end\nend\n",
             "foo@bar" to invalidCharacter("@", "0040", "identifier", "foo@bar")
         )

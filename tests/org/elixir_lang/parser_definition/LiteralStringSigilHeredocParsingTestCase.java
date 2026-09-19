@@ -34,7 +34,7 @@ public class LiteralStringSigilHeredocParsingTestCase extends ParsingTestCase {
     }
 
     public void testWhitespaceEndPrefix() {
-        assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_12);
+        assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.of("1.12.0"));
     }
 
     public void testEmbeddedStringHeredoc() {

@@ -5,7 +5,7 @@ import org.elixir_lang.language_level.ElixirLanguageLevel;
  * Created by kadie.enheduanna.inanna on 8/8/14.
  */
 public class InterpolatedStringSigilHeredocParsingTestCase extends ParsingTestCase {
-    /** See ElixirLanguageLevel.V1_12. */
+    /** See {@link org.elixir_lang.language_level.ElixirLanguageFeature#EMPTY_LEADING_HEREDOC_SEGMENT}. */
     public void testInterpolationFirst() {
         assertParsedAndQuotedCorrectly();
     }
@@ -35,7 +35,7 @@ public class InterpolatedStringSigilHeredocParsingTestCase extends ParsingTestCa
     }
 
     public void testWhitespaceEndPrefix() {
-        assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_12);
+        assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.of("1.12.0"));
     }
 
     @Override

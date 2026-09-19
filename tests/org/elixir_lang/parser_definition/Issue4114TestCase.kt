@@ -15,6 +15,7 @@ import org.elixir_lang.parser.ElixirParser
 import org.elixir_lang.psi.call.Call
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Proxy
+import org.elixir_lang.language_level.elixir
 
 /**
  * Nesting is depth-first, so a parser that re-reads a nested group's contents once per enclosing group costs
@@ -71,14 +72,14 @@ class Issue4114TestCase : ParsingTestCase() {
      * Where the error lists the operators that could come next, `//` is one only from Elixir 1.12, so those trees are
      * checked in both language levels.
      */
-    fun testHalfTypedStabGuardBelow1_12() = assertParsedWithErrorsIn(ElixirLanguageLevel.V1_11, "HalfTypedStabGuard")
-    fun testHalfTypedStabGuardFrom1_12() = assertParsedWithErrorsIn(ElixirLanguageLevel.V1_12, "HalfTypedStabGuard")
+    fun testHalfTypedStabGuardBelow1_12() = assertParsedWithErrorsIn(elixir("1.11.0"), "HalfTypedStabGuard")
+    fun testHalfTypedStabGuardFrom1_12() = assertParsedWithErrorsIn(elixir("1.12.0"), "HalfTypedStabGuard")
     fun testHalfTypedStabGuardAtEnd() = assertParsedWithErrors()
     fun testHalfTypedCallArguments() = assertParsedWithErrors()
     fun testHalfTypedCaseClauseAtEndBelow1_12() =
-        assertParsedWithErrorsIn(ElixirLanguageLevel.V1_11, "HalfTypedCaseClauseAtEnd")
+        assertParsedWithErrorsIn(elixir("1.11.0"), "HalfTypedCaseClauseAtEnd")
     fun testHalfTypedCaseClauseAtEndFrom1_12() =
-        assertParsedWithErrorsIn(ElixirLanguageLevel.V1_12, "HalfTypedCaseClauseAtEnd")
+        assertParsedWithErrorsIn(elixir("1.12.0"), "HalfTypedCaseClauseAtEnd")
     fun testHalfTypedCallArgumentsAtEnd() = assertParsedWithErrors()
 
     /** [source]`.ex` parsed in [languageLevel] against the golden named for the test. */

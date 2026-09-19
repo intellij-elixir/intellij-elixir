@@ -49,7 +49,7 @@ public class DualOperatorParsingTestCase extends ParsingTestCase {
      * preceding {@code &}; earlier versions reject it.
      */
     public void testIdentifierSpaceOperatorSlashIdentifier() {
-        assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_13);
+        assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.of("1.13.0"));
     }
 
     public void testIdentifierSpaceOperatorSpaceCommentEOLIdentifier() {

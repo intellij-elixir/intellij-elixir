@@ -6,13 +6,8 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import org.elixir_lang.ElixirFileType
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.language_level.ElixirLanguageLevel
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_11
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_12
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_14
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_15
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_19
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_20
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
+import org.elixir_lang.language_level.elixir
 
 /**
  * Expected messages were taken from `Code.string_to_quoted/1` on 1.11.4, 1.12.3, 1.14.5, 1.15.8, 1.19.5 and 1.20.4.
@@ -29,7 +24,7 @@ class InvalidConstructTest : BasePlatformTestCase() {
     }
 
     fun testAtomFollowedByAnAlias() {
-        for (languageLevel in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
             for (source in listOf(
                 ":foo.Bar",
                 ":\"+\".Bar",
@@ -64,27 +59,31 @@ class InvalidConstructTest : BasePlatformTestCase() {
             "Foo.Bar",
             "true.bar",
         )) {
-            assertNoErrors(V1_20, source)
+            assertNoErrors(elixir("1.20.0"), source)
         }
     }
 
     fun testAnonymousFunctionWithoutAClause() {
-        for (languageLevel in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
             for (source in listOf("fn 1 end", "fn x end", "fn\n  1\nend", "fn 1; 2 end")) {
-                assertErrors(languageLevel, source, "fn" to "expected anonymous functions to be defined with -> inside: 'fn'")
+                assertErrors(
+                    languageLevel,
+                    source,
+                    "fn" to "expected anonymous functions to be defined with -> inside: 'fn'"
+                )
             }
         }
     }
 
     fun testAnonymousFunctionsWithAClause() {
         for (source in listOf("fn -> end", "fn x -> x end", "fn 1 -> 2; 3 end", "fn x -> x; 1 end")) {
-            assertNoErrors(V1_20, source)
+            assertNoErrors(elixir("1.20.0"), source)
         }
     }
 
     /** Before 1.15 Elixir reported only a syntax error whose position depends on what follows; the later message is used. */
     fun testSpaceBetweenPercentAndBrace() {
-        for (languageLevel in listOf(V1_11, V1_14, V1_15, V1_20)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.14.0"), elixir("1.15.0"), elixir("1.20.0"))) {
             for ((source, range) in listOf(
                 "% {}" to "% {",
                 "%\t{}" to "%\t{",
@@ -109,14 +108,15 @@ class InvalidConstructTest : BasePlatformTestCase() {
             assertEquals(
                 "errors in $source",
                 emptyList<String>(),
-                errors(V1_20, source).mapNotNull { (_, description) -> description?.takeIf { "code point" in it } }
+                errors(elixir("1.20.0"), source)
+                    .mapNotNull { (_, description) -> description?.takeIf { "code point" in it } }
             )
         }
     }
 
     fun testMapsAndStructsThatAreValid() {
         for (source in listOf("%{}", "% Foo{}", "%Foo {}", "%@foo{}")) {
-            assertNoErrors(V1_20, source)
+            assertNoErrors(elixir("1.20.0"), source)
         }
     }
 
@@ -135,9 +135,9 @@ class InvalidConstructTest : BasePlatformTestCase() {
             listOf("\"\\u{d800}\"", "\\u{d800}", "d800", "55296"),
             listOf("\"\\u{0D800}\"", "\\u{0D800}", "0D800", "55296"),
         )) {
-            assertErrors(V1_11, source, escape to "invalid or reserved Unicode code point $decimal")
-            assertErrors(V1_12, source, escape to unicodeCodePoint(digits))
-            assertErrors(V1_20, source, escape to unicodeCodePoint(digits))
+            assertErrors(elixir("1.11.0"), source, escape to "invalid or reserved Unicode code point $decimal")
+            assertErrors(elixir("1.12.0"), source, escape to unicodeCodePoint(digits))
+            assertErrors(elixir("1.20.0"), source, escape to unicodeCodePoint(digits))
         }
     }
 
@@ -146,10 +146,10 @@ class InvalidConstructTest : BasePlatformTestCase() {
             listOf("\"\\x{110000}\"", "\\x{110000}", "110000", "1114112"),
             listOf("\"\\x{dfff}\"", "\\x{dfff}", "dfff", "57343"),
         )) {
-            assertErrors(V1_11, source, escape to "invalid or reserved Unicode code point $decimal")
-            assertErrors(V1_19, source, escape to unicodeCodePoint(digits))
+            assertErrors(elixir("1.11.0"), source, escape to "invalid or reserved Unicode code point $decimal")
+            assertErrors(elixir("1.19.0"), source, escape to unicodeCodePoint(digits))
             assertErrors(
-                V1_20,
+                elixir("1.20.0"),
                 source,
                 escape to "invalid hex escape character, expected \\xHH where H is a hexadecimal digit. Syntax error after: \\x"
             )
@@ -166,12 +166,12 @@ class InvalidConstructTest : BasePlatformTestCase() {
             "~S(\\u{110000})",
             "~r/\\u{110000}/",
         )) {
-            assertNoErrors(V1_20, source)
+            assertNoErrors(elixir("1.20.0"), source)
         }
     }
 
     fun testDivisionAtom() {
-        for (languageLevel in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
             for ((source, token) in listOf(
                 "://" to "",
                 "x = ://" to "",
@@ -196,22 +196,25 @@ class InvalidConstructTest : BasePlatformTestCase() {
             }
         }
 
-        for (languageLevel in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
             for (source in listOf("://\\\n", ":// \\\n", "x = ://\\\n", "://\\\n\\\n", "://\n\\\n", ":// # c\n\\\n")) {
                 assertErrors(languageLevel, source, "//" to "invalid escape \\ at end of file")
             }
         }
 
         for (source in listOf("://\\", ":// \\")) {
-            assertTrue(source, ("//" to "invalid escape \\ at end of file") in errors(V1_20, source))
+            assertTrue(source, ("//" to "invalid escape \\ at end of file") in errors(elixir("1.20.0"), source))
         }
 
-        assertNoErrors(V1_20, ":/")
-        assertEquals(emptyList<Pair<String, String?>>(), errors(V1_20, ":// 1").filter { (text, _) -> text == "//" })
+        assertNoErrors(elixir("1.20.0"), ":/")
+        assertEquals(
+            emptyList<Pair<String, String?>>(),
+            errors(elixir("1.20.0"), ":// 1").filter { (text, _) -> text == "//" }
+        )
     }
 
     fun testOperatorReferenceRejectedOnEveryRelease() {
-        for (languageLevel in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
             for (source in listOf(
                 "&=>\\\n/2", "&=>/2", "&=> /2", "=>/2", "&(=>/2)", "[&=>\\\n/2]", "x = =>/2", "%{a => &=>/2}",
             )) {
@@ -228,25 +231,35 @@ class InvalidConstructTest : BasePlatformTestCase() {
                 "&//\\\n/2 |> f",
             )) {
                 val errors = errors(languageLevel, source)
-                assertEquals("$source on $languageLevel: $errors", 1, errors.count { it == "/" to "syntax error before: '/'" })
+                assertEquals(
+                    "$source on $languageLevel: $errors",
+                    1,
+                    errors.count { it == "/" to "syntax error before: '/'" }
+                )
             }
         }
 
         // Elixir reads `=>` in a map as the association, and `//` after `(` or without a newline differs by release.
-        assertFalse(errors(V1_11, "%{a => /2}").any { (_, description) -> description == "syntax error before: '=>'" })
+        assertFalse(
+            errors(elixir("1.11.0"), "%{a => /2}")
+                .any { (_, description) -> description == "syntax error before: '=>'" }
+        )
         for (source in listOf("&(//\\\n/2)", "&///2", "&// /2")) {
-            assertFalse(source, errors(V1_11, source).any { (_, description) -> description == "syntax error before: '/'" })
+            assertFalse(
+                source,
+                errors(elixir("1.11.0"), source).any { (_, description) -> description == "syntax error before: '/'" }
+            )
         }
     }
 
     fun testQuotedRemoteCallNameIsNotUnescapedBefore1_18() {
-        assertNoErrors(V1_11, "a.\"\\u{110000}\"()")
+        assertNoErrors(elixir("1.11.0"), "a.\"\\u{110000}\"()")
     }
 
     fun testElixirInDocumentationIsNotChecked() {
         val source = "defmodule Sample do\n  @moduledoc \"\"\"\n      x = :foo.Bar\n  \"\"\"\nend\n"
 
-        ElixirLanguageLevelResolver.overrideLanguageLevel(project, V1_20)
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, elixir("1.20.0"))
         myFixture.configureByText(ElixirFileType.INSTANCE, source)
 
         assertEquals(
@@ -282,7 +295,7 @@ class InvalidConstructTest : BasePlatformTestCase() {
 
     /** For source the parser already reports an error in. */
     private fun assertHasError(source: String, expected: Pair<String, String>) {
-        val errors = errors(V1_20, source)
+        val errors = errors(elixir("1.20.0"), source)
 
         assertEquals("$expected among the errors in $source: $errors", 1, errors.count { it == expected })
     }

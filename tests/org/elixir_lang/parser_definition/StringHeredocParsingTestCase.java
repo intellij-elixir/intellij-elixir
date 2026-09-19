@@ -6,7 +6,10 @@ import org.elixir_lang.language_level.ElixirLanguageLevel;
  * Created by kadie.enheduanna.inanna on 8/8/14.
  */
 public class StringHeredocParsingTestCase extends ParsingTestCase {
-    /** A heredoc opening on an interpolation - see ElixirLanguageLevel.V1_12. */
+    /**
+     * A heredoc opening on an interpolation - see
+     * {@link org.elixir_lang.language_level.ElixirLanguageFeature#EMPTY_LEADING_HEREDOC_SEGMENT}.
+     */
     public void testInterpolationFirst() {
         assertParsedAndQuotedCorrectly();
     }
@@ -16,7 +19,7 @@ public class StringHeredocParsingTestCase extends ParsingTestCase {
     }
 
     public void testEnclosedHexEscapeSequence() {
-        assertParsedAndQuotedCorrectlyBefore(ElixirLanguageLevel.V1_20);
+        assertParsedAndQuotedCorrectlyBefore(ElixirLanguageLevel.of("1.20.0"));
     }
 
     public void testEscapeSequences() {
@@ -32,7 +35,7 @@ public class StringHeredocParsingTestCase extends ParsingTestCase {
     }
 
     public void testWhitespaceEndPrefix() {
-        assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_12);
+        assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.of("1.12.0"));
     }
 
     @Override

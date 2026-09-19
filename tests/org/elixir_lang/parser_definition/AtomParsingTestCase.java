@@ -24,7 +24,7 @@ public class AtomParsingTestCase extends ParsingTestCase {
 
     /** Split out of {@link #testOperator} so gating it does not cost 1.11 coverage of the other atoms. */
     public void testStepRangeOperator() {
-        assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_12);
+        assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.of("1.12.0"));
     }
 
     public void testSingleQuotedLiteral() {

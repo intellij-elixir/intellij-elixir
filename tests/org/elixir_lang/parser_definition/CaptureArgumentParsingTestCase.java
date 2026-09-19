@@ -23,11 +23,11 @@ public class CaptureArgumentParsingTestCase extends ParsingTestCase {
     private static final String SOURCE = "& 1 + & 2\n";
 
     public void testSpacedCaptureArgumentBelow1_15() throws IOException {
-        assertParsedAtLanguageLevel(ElixirLanguageLevel.V1_13, "SpacedCaptureArgumentBelow1_15");
+        assertParsedAtLanguageLevel(ElixirLanguageLevel.of("1.13.0"), "SpacedCaptureArgumentBelow1_15");
     }
 
     public void testSpacedCaptureArgumentFrom1_15() throws IOException {
-        assertParsedAtLanguageLevel(ElixirLanguageLevel.V1_15, "SpacedCaptureArgumentFrom1_15");
+        assertParsedAtLanguageLevel(ElixirLanguageLevel.of("1.15.0"), "SpacedCaptureArgumentFrom1_15");
     }
 
     private void assertParsedAtLanguageLevel(

@@ -8,6 +8,7 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
+import org.elixir_lang.language_level.elixir
 
 /**
  * A line that does not parse inside a `do` block is an error of its own: the block still ends at its `end`, and the
@@ -250,6 +251,6 @@ class DoBlockRecoveryTest : PlatformTestCase() {
         PsiTreeUtil.findChildrenOfType(file, PsiErrorElement::class.java).sortedBy { it.textRange.startOffset }
 
     private companion object {
-        val DIALECTS = listOf(ElixirLanguageLevel.V1_11, ElixirLanguageLevel.V1_20)
+        val DIALECTS = listOf(elixir("1.11.0"), elixir("1.20.0"))
     }
 }

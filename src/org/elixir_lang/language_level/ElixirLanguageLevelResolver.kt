@@ -12,7 +12,7 @@ import com.intellij.psi.util.CachedValuesManager
 import com.intellij.testFramework.LightVirtualFile
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
-import org.elixir_lang.sdk.ElixirLanguageLevelPusher
+import org.elixir_lang.sdk.ElixirVersionPusher
 import org.elixir_lang.sdk.SdkVersionsStore
 import org.elixir_lang.sdk.elixir.ElixirSdkLookup
 import org.elixir_lang.sdk.elixir.sdk
@@ -81,9 +81,8 @@ object ElixirLanguageLevelResolver {
     private fun pushed(file: PsiFile): ElixirLanguageLevel? {
         val virtualFile = file.originalFile.viewProvider.virtualFile
         val original = (virtualFile as? LightVirtualFile)?.originalFile ?: virtualFile
-        val name = ElixirLanguageLevelPusher.KEY.getPersistentValue(original.parent) ?: return null
 
-        return ElixirLanguageLevel.entries.firstOrNull { it.name == name }
+        return ElixirLanguageLevel.parse(ElixirVersionPusher.KEY.getPersistentValue(original.parent))
     }
 
     /** From the store, never the files: quoting runs synchronously inside a read action and on the EDT. */

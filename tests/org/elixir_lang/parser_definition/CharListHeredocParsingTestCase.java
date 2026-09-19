@@ -6,7 +6,7 @@ import org.elixir_lang.language_level.ElixirLanguageLevel;
  * Created by kadie.enheduanna.inanna on 8/8/14.
  */
 public class CharListHeredocParsingTestCase extends ParsingTestCase {
-    /** See ElixirLanguageLevel.V1_12. */
+    /** See {@link org.elixir_lang.language_level.ElixirLanguageFeature#EMPTY_LEADING_HEREDOC_SEGMENT}. */
     public void testInterpolationFirst() {
         assertParsedAndQuotedCorrectly();
     }
@@ -16,11 +16,11 @@ public class CharListHeredocParsingTestCase extends ParsingTestCase {
     }
 
     public void testEmptyUnicodeEscapeSequence() {
-        assertParsedAndQuotedAroundErrorOrRaise(ElixirLanguageLevel.V1_12, "Elixir.ArgumentError");
+        assertParsedAndQuotedAroundErrorOrRaise(ElixirLanguageLevel.of("1.12.0"), "Elixir.ArgumentError");
     }
 
     public void testEnclosedHexEscapeSequence() {
-        assertParsedAndQuotedCorrectlyBefore(ElixirLanguageLevel.V1_20);
+        assertParsedAndQuotedCorrectlyBefore(ElixirLanguageLevel.of("1.20.0"));
     }
 
     public void testEscapeSequences() {
@@ -36,7 +36,7 @@ public class CharListHeredocParsingTestCase extends ParsingTestCase {
     }
 
     public void testWhitespaceEndPrefix() {
-        assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.V1_12);
+        assertParsedAndQuotedCorrectlyFrom(ElixirLanguageLevel.of("1.12.0"));
     }
 
     @Override

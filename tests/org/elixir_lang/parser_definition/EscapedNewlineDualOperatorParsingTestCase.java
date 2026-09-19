@@ -18,19 +18,19 @@ public class EscapedNewlineDualOperatorParsingTestCase extends ParsingTestCase {
     private static final String BEFORE_OPERAND = "f \\\n-var\n";
 
     public void testAfterOperatorBelow1_20() throws IOException {
-        assertParsedAtLanguageLevel(ElixirLanguageLevel.V1_19, "AfterOperatorBelow1_20", AFTER_OPERATOR);
+        assertParsedAtLanguageLevel(ElixirLanguageLevel.of("1.19.0"), "AfterOperatorBelow1_20", AFTER_OPERATOR);
     }
 
     public void testAfterOperatorFrom1_20() throws IOException {
-        assertParsedAtLanguageLevel(ElixirLanguageLevel.V1_20, "AfterOperatorFrom1_20", AFTER_OPERATOR);
+        assertParsedAtLanguageLevel(ElixirLanguageLevel.of("1.20.0"), "AfterOperatorFrom1_20", AFTER_OPERATOR);
     }
 
     public void testBeforeOperandBelow1_20() throws IOException {
-        assertParsedAtLanguageLevel(ElixirLanguageLevel.V1_19, "BeforeOperandBelow1_20", BEFORE_OPERAND);
+        assertParsedAtLanguageLevel(ElixirLanguageLevel.of("1.19.0"), "BeforeOperandBelow1_20", BEFORE_OPERAND);
     }
 
     public void testBeforeOperandFrom1_20() throws IOException {
-        assertParsedAtLanguageLevel(ElixirLanguageLevel.V1_20, "BeforeOperandFrom1_20", BEFORE_OPERAND);
+        assertParsedAtLanguageLevel(ElixirLanguageLevel.of("1.20.0"), "BeforeOperandFrom1_20", BEFORE_OPERAND);
     }
 
     private void assertParsedAtLanguageLevel(

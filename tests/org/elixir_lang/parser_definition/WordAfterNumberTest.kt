@@ -7,12 +7,11 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import org.elixir_lang.ElixirFileType
 import org.elixir_lang.intellij_elixir.Quoter
-import org.elixir_lang.psi.ElixirTypes
+import org.elixir_lang.language_level.ElixirLanguageFeature
 import org.elixir_lang.language_level.ElixirLanguageLevel
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_11
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_12
-import org.elixir_lang.language_level.ElixirLanguageLevel.V1_20
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
+import org.elixir_lang.language_level.elixir
+import org.elixir_lang.psi.ElixirTypes
 
 /**
  * A word directly after a number, as in `1and 2`, which Elixir reads as its own token after a based number on every
@@ -34,12 +33,12 @@ class WordAfterNumberTest : BasePlatformTestCase() {
 
     fun testWordAfterADecimalNumberBefore1_12() {
         for ((source, word) in DECIMAL) {
-            assertWord(V1_11, source, word)
+            assertWord(elixir("1.11.0"), source, word)
         }
     }
 
     fun testWordAfterADecimalNumberFrom1_12IsPartOfTheNumber() {
-        for (languageLevel in listOf(V1_12, V1_20)) {
+        for (languageLevel in listOf(elixir("1.12.0"), elixir("1.20.0"))) {
             for ((source, word) in DECIMAL) {
                 assertInvalidDigits(languageLevel, source, word)
             }
@@ -47,7 +46,7 @@ class WordAfterNumberTest : BasePlatformTestCase() {
     }
 
     fun testWordAfterABasedNumber() {
-        for (languageLevel in listOf(V1_11, V1_12, V1_20)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.12.0"), elixir("1.20.0"))) {
             for ((source, word) in BASED) {
                 assertWord(languageLevel, source, word)
             }
@@ -55,7 +54,7 @@ class WordAfterNumberTest : BasePlatformTestCase() {
     }
 
     fun testWordsElixirRejectsAfterANumber() {
-        for (languageLevel in listOf(V1_11, V1_20)) {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
             for ((source, word) in REJECTED) {
                 assertInvalidDigits(languageLevel, source, word)
             }
@@ -64,7 +63,11 @@ class WordAfterNumberTest : BasePlatformTestCase() {
 
     fun testQuotedAsThisLegsElixir() {
         val languageLevel = ElixirLanguageLevel.of(System.getenv("ELIXIR_VERSION"))
-        val cases = if (languageLevel < V1_12) DECIMAL + BASED else BASED
+        val cases = if (ElixirLanguageFeature.DECIMAL_NUMBER_ENDS_BEFORE_WORD.isSufficient(languageLevel)) {
+            DECIMAL + BASED
+        } else {
+            BASED
+        }
 
         for ((source, _) in cases) {
             try {
