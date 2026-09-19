@@ -71,8 +71,8 @@ import java.text.BreakIterator
 import java.text.Normalizer
 
 /**
- * Reports, as errors, syntax that the module's Elixir release rejects and another release accepts, with the message of
- * the newest release that rejects it.
+ * Reports, as errors, syntax that the module's Elixir release rejects and another release accepts, with the message
+ * that release gives.
  */
 internal class VersionedSyntax : Annotator, DumbAware {
     override fun annotate(element: PsiElement, holder: AnnotationHolder) {
@@ -428,12 +428,12 @@ internal class VersionedSyntax : Annotator, DumbAware {
             if (ESCAPED_NEWLINE_BEFORE_ARITY.isSufficient(languageLevel())) return null
 
             return when (name) {
-                "..//" ->
+                "..//" if STEP_OPERATOR.isSufficient(languageLevel()) ->
                     Problem(
                         operand.textRange,
                         "unexpected token: \".\" (column ${column(operand, operand.textRange.startOffset)}, code point U+002E)"
                     )
-                "/", "not", in UNARY_OPERATORS -> Problem(operator.textRange, before("'/'"))
+                "..//", "/", "not", in UNARY_OPERATORS -> Problem(operator.textRange, before("'/'"))
                 // After an operand the operator is binary, so Elixir names the `/` that should have been its operand.
                 else ->
                     if (isAfterOperand(operand, languageLevel)) {

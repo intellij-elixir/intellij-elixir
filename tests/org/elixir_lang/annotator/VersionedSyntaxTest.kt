@@ -11,7 +11,7 @@ import org.elixir_lang.language_level.elixir
 
 /**
  * Syntax that some Elixir releases reject and others accept. Outcomes were taken from `Code.string_to_quoted/1` on every
- * release from 1.11.4 to 1.20.4, and each message from the newest release that rejects the construct.
+ * release from 1.11.4 to 1.20.4, and each message from the release it is asserted on.
  */
 class VersionedSyntaxTest : BasePlatformTestCase() {
     private var files = 0
@@ -376,7 +376,6 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             "&+\\\n/2" to ("/" to before("'/'")),
             "&/\\\n/2" to ("/" to before("'/'")),
             "&or\\\n/2" to ("or" to before("'or'")),
-            "&..//\\\n/3" to ("..//" to "unexpected token: \".\" (column 2, code point U+002E)"),
             "&+\\\n /2" to ("/" to before("'/'")),
             "&+ \\\n/2" to ("/" to before("'/'")),
             "&(+\\\n/2)" to ("/" to before("'/'")),
@@ -392,6 +391,17 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
             assertErrors(elixir("1.19.0"), source, expected)
             assertNoErrors(elixir("1.20.0"), source)
         }
+
+        // Before `..//` was a token, 1.11 read the `/` after the break as the one out of place.
+        assertErrors(elixir("1.11.4"), "&..//\\\n/3", "/" to before("'/'"))
+        for (languageLevel in listOf(elixir("1.12.0-rc.0"), elixir("1.19.0"))) {
+            assertErrors(
+                languageLevel,
+                "&..//\\\n/3",
+                "..//" to "unexpected token: \".\" (column 2, code point U+002E)"
+            )
+        }
+        assertNoErrors(elixir("1.20.0"), "&..//\\\n/3")
 
         for (source in listOf("&+/\\\n2", "&\\\n+/2", "&foo\\\n/2", "&+/2", "&+ /2", "&<<>>\\\n/1", "&{}\\\n/1", "&%{}\\\n/1")) {
             for (languageLevel in listOf(elixir("1.11.0"), elixir("1.19.0"), elixir("1.20.0"))) {
