@@ -37,12 +37,10 @@ class WordAfterNumber(private val languageLevel: ElixirLanguageLevel) : ITokenTy
 
     private companion object {
         val DIGITS: Map<IElementType, (Char) -> Boolean> = mapOf(
-            ElixirTypes.INVALID_BINARY_DIGITS to { character -> character == '0' || character == '1' },
-            ElixirTypes.INVALID_DECIMAL_DIGITS to { character -> character in '0'..'9' },
-            ElixirTypes.INVALID_HEXADECIMAL_DIGITS to { character ->
-                character in '0'..'9' || character in 'a'..'f' || character in 'A'..'F'
-            },
-            ElixirTypes.INVALID_OCTAL_DIGITS to { character -> character in '0'..'7' },
+            ElixirTypes.INVALID_BINARY_DIGITS to ::isBinaryDigit,
+            ElixirTypes.INVALID_DECIMAL_DIGITS to ::isDecimalDigit,
+            ElixirTypes.INVALID_HEXADECIMAL_DIGITS to ::isHexadecimalDigit,
+            ElixirTypes.INVALID_OCTAL_DIGITS to ::isOctalDigit,
         )
 
         val WORDS: Map<String, IElementType> = mapOf(

@@ -10,7 +10,11 @@ import com.intellij.psi.TokenType
 import com.intellij.psi.tree.TokenSet
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.annotator.unicode_security.UnicodeSecurityCheck
+import org.elixir_lang.parser.isBinaryDigit
+import org.elixir_lang.parser.isDecimalDigit
 import org.elixir_lang.parser.isFollowedByIn
+import org.elixir_lang.parser.isHexadecimalDigit
+import org.elixir_lang.parser.isOctalDigit
 import org.elixir_lang.parser.isWordCharacter
 import org.elixir_lang.psi.ElixirDecimalFloat
 import org.elixir_lang.psi.ElixirDecimalFloatExponent
@@ -184,8 +188,8 @@ internal class InvalidToken : Annotator, DumbAware {
             val next = text.getOrNull(baseEnd) ?: return null
 
             when {
-                next.isAsciiDigit() && BASED_NUMBER_CONTINUES_INTO_DIGITS.isSufficient(languageLevel) -> baseEnd
-                next.isAsciiDigit() -> {
+                isDecimalDigit(next) && BASED_NUMBER_CONTINUES_INTO_DIGITS.isSufficient(languageLevel) -> baseEnd
+                isDecimalDigit(next) -> {
                     val digitsEnd = decimalEnd(text, baseEnd)
 
                     return rejectedWord(text, start, digitsEnd, languageLevel)
@@ -305,9 +309,9 @@ private fun baseEnd(text: CharSequence, start: Int): Int? {
     if (text.getOrNull(start) != '0') return null
 
     val isDigit: (Char) -> Boolean = when (text.getOrNull(start + 1)) {
-        'x' -> { character -> character.isAsciiDigit() || character in 'a'..'f' || character in 'A'..'F' }
-        'o' -> { character -> character in '0'..'7' }
-        'b' -> { character -> character == '0' || character == '1' }
+        'x' -> ::isHexadecimalDigit
+        'o' -> ::isOctalDigit
+        'b' -> ::isBinaryDigit
         else -> return null
     }
 
@@ -315,16 +319,16 @@ private fun baseEnd(text: CharSequence, start: Int): Int? {
 }
 
 private fun decimalEnd(text: CharSequence, start: Int): Int {
-    var end = digitsEnd(text, start, Char::isAsciiDigit)
+    var end = digitsEnd(text, start, ::isDecimalDigit)
 
-    if (text.getOrNull(end) == '.' && text.getOrNull(end + 1)?.isAsciiDigit() == true) {
-        end = digitsEnd(text, end + 1, Char::isAsciiDigit)
+    if (text.getOrNull(end) == '.' && text.getOrNull(end + 1)?.let(::isDecimalDigit) == true) {
+        end = digitsEnd(text, end + 1, ::isDecimalDigit)
 
         if (text.getOrNull(end) == 'e' || text.getOrNull(end) == 'E') {
             val digits = if (text.getOrNull(end + 1) == '+' || text.getOrNull(end + 1) == '-') end + 2 else end + 1
 
-            if (text.getOrNull(digits)?.isAsciiDigit() == true) {
-                end = digitsEnd(text, digits, Char::isAsciiDigit)
+            if (text.getOrNull(digits)?.let(::isDecimalDigit) == true) {
+                end = digitsEnd(text, digits, ::isDecimalDigit)
             }
         }
     }
@@ -389,14 +393,15 @@ private fun continuesWord(text: CharSequence, start: Int): Boolean {
     return offset > 0 && isWordCharacter(Character.codePointBefore(text, offset))
 }
 
+private fun invalidCharacter(codePoint: Int, kind: String, word: String): String {
+    val character = String(Character.toChars(codePoint))
 
-private fun invalidCharacter(codePoint: Int, kind: String, word: String): String =
-    "invalid character \"${String(Character.toChars(codePoint))}\" (code point U+${codePointHexadecimal(codePoint)}) in $kind: $word"
+    return "invalid character \"$character\" (code point U+${codePointHexadecimal(codePoint)}) in $kind: $word"
+}
 
 /**
  * A letter the lexer cannot start a word with: a non-ASCII uppercase letter outside an atom or keyword key, or one
- * Elixir restricts. Elixir's tokenizer names it as an unexpected token; the parser's own error is hidden for it by
- * [RejectedLetterErrorFilter].
+ * Elixir restricts. [RejectedLetterErrorFilter] hides the parser's own error for it.
  */
 internal fun rejectedFirstLetter(badCharacter: PsiElement): Pair<TextRange, String>? {
     if (badCharacter.node.elementType != TokenType.BAD_CHARACTER) return null
@@ -425,7 +430,5 @@ private fun letterThatStartsOnlyAnAtom(
 }
 
 
-
-private fun Char.isAsciiDigit(): Boolean = this in '0'..'9'
 
 private fun Char.isAsciiLetter(): Boolean = this in 'a'..'z' || this in 'A'..'Z'
