@@ -28,7 +28,34 @@ class InvalidTokenTest : BasePlatformTestCase() {
         val alias = "Fo\u00F3"
 
         assertErrors(elixir("1.13.0"), alias, alias to invalidCharacter("\u00F3", "00F3", "alias$ASCII_ONLY", alias))
-        assertErrors(elixir("1.14.0"), alias, alias to invalidCharacter("\u00F3", "00F3", "alias$WITHOUT_PUNCTUATION", alias))
+        assertErrors(
+            elixir("1.14.0"),
+            alias,
+            alias to invalidCharacter("\u00F3", "00F3", "alias$WITHOUT_PUNCTUATION", alias)
+        )
+    }
+
+    /** From 1.14 Elixir puts an alias in NFC before checking it, so it names the composed character. */
+    fun testAliasNamesItsCharacterInNfcFrom1_14() {
+        for ((alias, composed, codePoint) in listOf(
+            Triple("C\u0327", "\u00C7", "00C7"),
+            Triple("E\u0301x", "\u00C9x", "00C9"),
+        )) {
+            assertErrors(
+                elixir("1.14.0"),
+                alias,
+                alias to invalidCharacter(composed.substring(0, 1), codePoint, "alias$WITHOUT_PUNCTUATION", composed),
+            )
+        }
+
+        // Without a composed form an alias is already in NFC, and its combining mark is the character named.
+        val alias = "Fo\u0327o"
+        assertErrors(elixir("1.13.0"), alias, alias to invalidCharacter("\u0327", "0327", "alias$ASCII_ONLY", alias))
+        assertErrors(
+            elixir("1.14.0"),
+            alias,
+            alias to invalidCharacter("\u0327", "0327", "alias$WITHOUT_PUNCTUATION", alias)
+        )
     }
 
     fun testAliasEndingInPunctuation() {

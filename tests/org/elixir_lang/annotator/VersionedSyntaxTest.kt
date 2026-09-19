@@ -356,6 +356,18 @@ class VersionedSyntaxTest : BasePlatformTestCase() {
         }
     }
 
+    /** An alias is put in NFC like any other word; from 1.14 its non-ASCII character is [InvalidToken]'s to report. */
+    fun testAliasNotInNfcBefore1_14() {
+        for ((source, alias) in listOf(
+            "C\u0327" to "C\u0327",
+            "E\u0301x" to "E\u0301x",
+            "Foo.C\u0327" to "C\u0327",
+        )) {
+            assertErrors(elixir("1.11.0"), source, alias to NFC)
+            assertErrors(elixir("1.13.0"), source, alias to NFC)
+        }
+    }
+
     fun testIdentifierNotInNfcTooltip() {
         ElixirLanguageLevelResolver.overrideLanguageLevel(project, elixir("1.13.0"))
         myFixture.configureByText("nfc.ex", "c\u0327?")

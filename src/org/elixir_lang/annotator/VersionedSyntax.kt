@@ -121,7 +121,9 @@ internal class VersionedSyntax : Annotator, DumbAware {
     private fun leaf(leaf: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? =
         when (leaf.node.elementType) {
             ElixirTypes.POWER_OPERATOR -> power(leaf, languageLevel)
-            ElixirTypes.IDENTIFIER_TOKEN -> if (leaf.text == "**") power(leaf, languageLevel) else notNfc(leaf, languageLevel)
+            ElixirTypes.IDENTIFIER_TOKEN ->
+                if (leaf.text == "**") power(leaf, languageLevel) else notNfc(leaf, languageLevel)
+            ElixirTypes.ALIAS_TOKEN -> notNfc(leaf, languageLevel)
             ElixirTypes.ATOM_FRAGMENT -> atomFragment(leaf, languageLevel)
             ElixirTypes.LITERAL_SIGIL_NAME, ElixirTypes.INTERPOLATING_SIGIL_NAME -> sigilName(leaf, languageLevel)
             ElixirTypes.END -> endBeforeTypeOperator(leaf, languageLevel)

@@ -18,9 +18,11 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.ALIAS_ERROR_COVERS_P
 import org.elixir_lang.language_level.ElixirLanguageFeature.BASED_NUMBER_CONTINUES_INTO_DIGITS
 import org.elixir_lang.language_level.ElixirLanguageFeature.DECIMAL_NUMBER_ENDS_BEFORE_WORD
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAYBE_RESERVED
+import org.elixir_lang.language_level.ElixirLanguageFeature.NORMALIZED_IDENTIFIERS
 import org.elixir_lang.language_level.ElixirLanguageFeature.NUMBER_ERROR_QUOTES_THE_CHARACTER
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
+import java.text.Normalizer
 
 /**
  * Reports, as errors, the words and numbers that Elixir's tokenizer rejects and the plugin's lexer accepts.
@@ -133,7 +135,14 @@ internal class InvalidToken : Annotator, DumbAware {
         }
     }
 
-    private fun alias(alias: String, languageLevel: ElixirLanguageLevel): String? {
+    /**
+     * Elixir puts a word in NFC before checking it from 1.14; before that [VersionedSyntax] reports it not being in
+     * NFC.
+     */
+    private fun alias(word: String, languageLevel: ElixirLanguageLevel): String? {
+        val inNfc = Normalizer.isNormalized(word, Normalizer.Form.NFC)
+        if (!inNfc && !NORMALIZED_IDENTIFIERS.isSufficient(languageLevel)) return null
+        val alias = if (inNfc) word else Normalizer.normalize(word, Normalizer.Form.NFC)
         val nonAscii = alias.codePoints().filter { it > 127 }.findFirst()
         val punctuation = alias.last().takeIf { it == '?' || it == '!' }
 
