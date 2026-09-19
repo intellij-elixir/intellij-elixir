@@ -1,5 +1,5 @@
 # Sources whose annotator message differs from the Elixir under test's by design, as <hash>\t<Elixir versions>.
-# VersionedSyntax and InvalidConstruct give each release its own wording, except where that release crashes or names
+# The annotators give each release its own wording, except where that release crashes or names
 # only the token its parser failed on; those releases are listed here with the message of the next release.
 # `unexpected space between % and {`: before 1.15 Elixir reports only a syntax error whose position depends on what follows.
 cdcb336029b1f09b	1.11.4,1.12.3,1.13.4,1.14.5
@@ -24,3 +24,11 @@ f57f88f8b9bb967a	1.12.3,1.13.4,1.14.5,1.15.8,1.16.3,1.17.3,1.18.4,1.19.5,1.20.4
 475e6fef1226a6bd	1.12.3,1.13.4,1.14.5,1.15.8,1.16.3,1.17.3,1.18.4,1.19.5,1.20.4
 0470112944466d24	1.12.3,1.13.4,1.14.5,1.15.8,1.16.3,1.17.3,1.18.4,1.19.5,1.20.4
 f72da046b47ad4f3	1.12.3,1.13.4,1.14.5,1.15.8,1.16.3,1.17.3,1.18.4,1.19.5,1.20.4
+# Elixir's tokenizer rejects a word first, so its parser never reaches the construct the plugin also reports there.
+46809c3605df3ee3	1.11.4
+81e2542c419e6685	1.11.4
+79af4cffb4d149e8	1.11.4
+fdb4d3a690fb8483	1.14.5,1.15.8,1.16.3,1.17.3,1.18.4,1.19.5,1.20.4
+3e60f71dd21a7087	1.14.5,1.15.8,1.16.3,1.17.3,1.18.4,1.19.5,1.20.4
+# `do:` after a number: the annotation keeps the first sentence of Elixir's message, whose first line runs into its example.
+7b1c3b944b9e6eeb	1.11.4,1.12.3,1.13.4,1.14.5,1.15.8,1.16.3,1.17.3,1.18.4,1.19.5,1.20.4

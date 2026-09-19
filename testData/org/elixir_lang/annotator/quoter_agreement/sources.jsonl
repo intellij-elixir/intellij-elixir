@@ -1520,3 +1520,116 @@
 {"hash":"af390e31db99fd15","origin":"measured","source":"defmodule A do\n  def f do\n    1\n  end\n  def g, do: 2\nend"}
 {"hash":"8ea2410805ef9182","origin":"measured","source":"defmodule A do\n  def f, do: )\n  def g, do: 2\nend"}
 {"hash":"ba662dc41fd0efb7","origin":"measured","source":"defmodule A do\n  def f do\n    1\n  end\n  end\n  def g, do: 2\nend"}
+{"hash":"0d14d355ca9a6360","origin":"measured","source":"Foó"}
+{"hash":"3374a2a02b4f26f6","origin":"measured","source":"Ola?"}
+{"hash":"63d16b05d77b2a0e","origin":"measured","source":"Foo1?"}
+{"hash":"e27b940a79c35eeb","origin":"measured","source":"Fo1ó"}
+{"hash":"82d706bd1b34eaca","origin":"measured","source":"Foo_?"}
+{"hash":"1a9dcea5516ce098","origin":"measured","source":"Foo.Bár"}
+{"hash":"ba2880cccf46cbad","origin":"measured","source":"Óla"}
+{"hash":"28aa2335259ba1e1","origin":"measured","source":"Foo@bar?"}
+{"hash":"eb6a491e2c7bb5af","origin":"measured","source":"foo@bar"}
+{"hash":"5bd1d5b794acbdcf","origin":"measured","source":"Foo@bar"}
+{"hash":"7907943ecef3a4a4","origin":"measured","source":"x.foo@bar"}
+{"hash":"61f132cbfda65120","origin":"measured","source":"@foo@bar"}
+{"hash":"15036cf6b6d686c7","origin":"measured","source":"foo@bar?"}
+{"hash":"eec74611264b2a6e","origin":"measured","source":"\"#{foo@bar}\""}
+{"hash":"9506f9d598e8b49b","origin":"measured","source":"foo@@bar"}
+{"hash":"1b7c8375adde3660","origin":"measured","source":"foo@ bar"}
+{"hash":"f839b8d877e76acd","origin":"measured","source":"...@foo"}
+{"hash":"c67b5db42cf70f74","origin":"measured","source":"1var"}
+{"hash":"0d943dd0ce24300d","origin":"measured","source":"123_456_foo"}
+{"hash":"91c9c3812cc0e050","origin":"measured","source":"1e10"}
+{"hash":"6d4a8f7682894d3b","origin":"measured","source":"1.5foo"}
+{"hash":"90193ee960b49acd","origin":"measured","source":"0o9"}
+{"hash":"c60e04b28f8ae2f6","origin":"measured","source":"0x1Fg"}
+{"hash":"2f4d2b0c0c1f960f","origin":"measured","source":"0b12"}
+{"hash":"b933cea24e0318ab","origin":"measured","source":"1ó"}
+{"hash":"d8823c2507940192","origin":"measured","source":"0x1F_g"}
+{"hash":"0d7e4719cb20e55d","origin":"measured","source":"__block__"}
+{"hash":"79c23b035ebf401c","origin":"measured","source":"__aliases__(1)"}
+{"hash":"6eb1125362b1c33c","origin":"measured","source":"__block__:x"}
+{"hash":"a765a8beaa9d561d","origin":"measured","source":"foo:bar"}
+{"hash":"8f2805d53efd7925","origin":"measured","source":"do:bar"}
+{"hash":"f01df20e317206f6","origin":"measured","source":"if x, do:1"}
+{"hash":"5664640638c47402","origin":"measured","source":"true:bar"}
+{"hash":"7eba458aaa8d4c83","origin":"measured","source":"@foo:bar"}
+{"hash":"d2b8e502ca5a19f6","origin":"measured","source":"foo@bar:1"}
+{"hash":"c62a4d8f35bf99f2","origin":"measured","source":"Foo?:bar"}
+{"hash":"65c299733ac67428","origin":"measured","source":"foo:'bar'"}
+{"hash":"f04b6373c4909201","origin":"measured","source":"and:1"}
+{"hash":"ad43d38c608f60cd","origin":"measured","source":"123Foo"}
+{"hash":"b52b8961a84a11d7","origin":"measured","source":"1_foo"}
+{"hash":"642c71c9a0d7d237","origin":"measured","source":"1.0_foo"}
+{"hash":"230a0eec2c1eb28e","origin":"measured","source":"0b2"}
+{"hash":"ea6be7fcb3cf424d","origin":"measured","source":"0b12a"}
+{"hash":"b18358865c524395","origin":"measured","source":"1.5Foo"}
+{"hash":"5fc12883d71e29c0","origin":"measured","source":"1var?"}
+{"hash":"adf405393f678c1c","origin":"measured","source":"1.0e10foo"}
+{"hash":"a54942c8e365f378","origin":"measured","source":"0x"}
+{"hash":"100d6cc835fad70b","origin":"measured","source":"1.0e"}
+{"hash":"bd0c9503b12f80a3","origin":"measured","source":"1.0ex"}
+{"hash":"d56654da5e04327a","origin":"measured","source":"1_000a"}
+{"hash":"ca9283dd520060ff","origin":"measured","source":"0xg"}
+{"hash":"42de6613274760f1","origin":"measured","source":"1and 2"}
+{"hash":"ac7fd3bb54aaf82b","origin":"measured","source":"1.0E-5"}
+{"hash":"a571a576a9126b5a","origin":"measured","source":"0x1F"}
+{"hash":"412cb8fe88ce8762","origin":"measured","source":"0b101"}
+{"hash":"9e63dedde5e8482d","origin":"measured","source":"0o17"}
+{"hash":"93ed244c440444a8","origin":"measured","source":"x1 = 1"}
+{"hash":"67c01b5b60a954f8","origin":"measured","source":"?a"}
+{"hash":"64a8cc9614c912a4","origin":"measured","source":":Foó"}
+{"hash":"ffe31cabd6941c9e","origin":"measured","source":"[Foó: 1]"}
+{"hash":"dfb72b5d6af40034","origin":"measured","source":"Foo!"}
+{"hash":"4157ee5a563d0fdb","origin":"measured","source":"alias Foo?, as: Bar"}
+{"hash":"1223a7b3abe771c8","origin":"measured","source":"foo@1"}
+{"hash":"2b31df77059871a9","origin":"measured","source":"@foo"}
+{"hash":"201c800c1b5a69c9","origin":"measured","source":"__block__ 1"}
+{"hash":"b10a158734b5293d","origin":"measured","source":"foo.\"__block__\""}
+{"hash":"ae015071dc17cec3","origin":"measured","source":"__cursor__"}
+{"hash":"a998bc784eade396","origin":"measured","source":"[\"foo\": 1]"}
+{"hash":"9299c866cbd7509e","origin":"measured","source":"if x, do: 1"}
+{"hash":"5f554aeec05e161d","origin":"measured","source":"foo :bar"}
+{"hash":"ebe68e88cb818d65","origin":"measured","source":"x.** Łx: 1"}
+{"hash":"1592d25735cb9854","origin":"measured","source":"x.** 日本: 1"}
+{"hash":"5e84f29365656a1b","origin":"measured","source":"x.** aŁ: 1"}
+{"hash":"baf11a2410d093ce","origin":"measured","source":"0b1foŁ"}
+{"hash":"3e5d6bf076a1fbdf","origin":"measured","source":"0b1Ł"}
+{"hash":"78af970a8dca5b59","origin":"measured","source":"1not in::x"}
+{"hash":"46809c3605df3ee3","origin":"measured","source":"1not in:x"}
+{"hash":"a4ce35daca1cfdac","origin":"measured","source":"1not in: x"}
+{"hash":"e5d3ceb9634b5bca","origin":"measured","source":"1not in?x"}
+{"hash":"81e2542c419e6685","origin":"measured","source":"1not in@x"}
+{"hash":"68e7b129ba5f2356","origin":"measured","source":"1not in𝒳"}
+{"hash":"79af4cffb4d149e8","origin":"measured","source":"1not ińx"}
+{"hash":"7e992fc1d6f90358","origin":"measured","source":"1not iné"}
+{"hash":"1a17a67d34e81714","origin":"measured","source":"0b1not in::x"}
+{"hash":"3e60f71dd21a7087","origin":"measured","source":"0b1not in𝒳"}
+{"hash":"95c6a0c3332feef4","origin":"measured","source":"1and́ 2"}
+{"hash":"952463d72116c028","origin":"measured","source":"1and? 2"}
+{"hash":"856b21c484a27f18","origin":"measured","source":"1and! 2"}
+{"hash":"e8c10c1a61eb0774","origin":"measured","source":"1and@x 2"}
+{"hash":"a8c129d65c86d627","origin":"measured","source":"1and:x"}
+{"hash":"ac49437405574ca0","origin":"measured","source":"1and::x"}
+{"hash":"0b08f7c2d87e77fd","origin":"measured","source":"1and𝒳 2"}
+{"hash":"f7d7129a862e6445","origin":"measured","source":"0b1and́ 2"}
+{"hash":"fdb4d3a690fb8483","origin":"measured","source":"0b1and𝒳 2"}
+{"hash":"d0f51a4fcbf7a243","origin":"measured","source":"1_000and"}
+{"hash":"d9b5f3384b2ace20","origin":"measured","source":"1__0and"}
+{"hash":"7e43eb4aafd101db","origin":"measured","source":"1_and"}
+{"hash":"70f4fb227428b00f","origin":"measured","source":"0x_1fand"}
+{"hash":"8aac586de1370e5e","origin":"measured","source":"0x1f_and"}
+{"hash":"e70d53d0f0973237","origin":"measured","source":"0x1fand"}
+{"hash":"6401bd633e0c34db","origin":"measured","source":"1e5and"}
+{"hash":"ef843cb4658abfa0","origin":"measured","source":"1.0e5and"}
+{"hash":"564cfc65d3f4169a","origin":"measured","source":"1.0e-5and"}
+{"hash":"cbfde5a9874d0bee","origin":"measured","source":"1.0e+5and"}
+{"hash":"b44ac1065ab63e99","origin":"measured","source":"0b1_0and"}
+{"hash":"bd2ebd0d5f8e1562","origin":"measured","source":"0o7and"}
+{"hash":"2445ba9de0869177","origin":"measured","source":"1.0_1and"}
+{"hash":"a45dd3b70fbe9402","origin":"measured","source":"\t~MAT()"}
+{"hash":"fc2bd099a107dcc4","origin":"measured","source":"𝒳 = ~MAT()"}
+{"hash":"8115e32016416b32","origin":"measured","source":"é = ~MAT()"}
+{"hash":"c7ec1422840a0dea","origin":"measured","source":"\t&..//\\\n/3"}
+{"hash":"ec78c4ddb4325a86","origin":"measured","source":"x = \"𝒳\"; &..//\\\n/3"}
+{"hash":"bdf6261560146260","origin":"measured","source":"x = 1\n\tfoo do\nend::t"}
