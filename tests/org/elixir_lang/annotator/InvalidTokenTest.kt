@@ -322,10 +322,12 @@ class InvalidTokenTest : BasePlatformTestCase() {
         assertErrors(elixir("1.20.0"), "0b1if", "0b1if" to "syntax error before: 'if'")
     }
 
-    /** Elixir 1.20 requires Erlang/OTP 27, where `maybe` is reserved; before 1.20 that depends on the OTP release. */
-    fun testMaybeIsQuotedFrom1_20() {
-        assertErrors(elixir("1.11.0"), "0b1maybe", "0b1maybe" to "syntax error before: maybe")
-        assertErrors(elixir("1.20.0"), "0b1maybe", "0b1maybe" to "syntax error before: 'maybe'")
+    /** The OTP running Elixir decides, not the Elixir release or the OTP its build targeted. */
+    fun testMaybeIsQuotedFromOtp27() {
+        assertErrors(elixir("1.11.4", otp = "24.3.4.6"), "0b1maybe", "0b1maybe" to "syntax error before: maybe")
+        assertErrors(elixir("1.18.4", otp = "26.2.5.21"), "0b1maybe", "0b1maybe" to "syntax error before: maybe")
+        assertErrors(elixir("1.18.4", otp = "27.3.4"), "0b1maybe", "0b1maybe" to "syntax error before: 'maybe'")
+        assertErrors(elixir("1.20.0", otp = "27.0"), "0b1maybe", "0b1maybe" to "syntax error before: 'maybe'")
     }
 
     /** Before `/`, an operator is an identifier to Elixir's tokenizer, and the lexer reads it the same way. */

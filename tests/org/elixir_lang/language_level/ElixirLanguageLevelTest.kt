@@ -1,8 +1,11 @@
 package org.elixir_lang.language_level
 
 import com.intellij.util.text.SemVer
+import org.elixir_lang.sdk.erlang.Release
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -46,6 +49,25 @@ class ElixirLanguageLevelTest {
             ElixirLanguageLevel.of("1.13.4"),
             ElixirLanguageLevel.of("mise Elixir 1.13.4-otp-24 (Erlang 24.3.4.6)")
         )
+    }
+
+    @Test
+    fun `the OTP version is read as Erlang writes it`() {
+        assertEquals(Release.parse("26.2.5.21"), ElixirLanguageLevel.of("1.18.4", "26.2.5.21").otp)
+        assertEquals(Release.parse("27.0"), ElixirLanguageLevel.of("1.18.4", "27.0").otp)
+    }
+
+    @Test
+    fun `an OTP version that cannot be read is unknown`() {
+        assertNull(ElixirLanguageLevel.of("1.18.4", null).otp)
+        assertNull(ElixirLanguageLevel.of("1.18.4", "").otp)
+        assertNull(ElixirLanguageLevel.of("1.18.4", "unknown").otp)
+    }
+
+    @Test
+    fun `the same Elixir on another OTP is another level`() {
+        assertNotEquals(ElixirLanguageLevel.of("1.18.4", "26.2.5.21"), ElixirLanguageLevel.of("1.18.4", "27.3.4"))
+        assertEquals(ElixirLanguageLevel.of("1.18.4", "27.0"), ElixirLanguageLevel.of("1.18.4", "27.0.0"))
     }
 
     @Test

@@ -413,10 +413,7 @@ private fun invalidCharacter(codePoint: Int, kind: String, word: String): String
     return "invalid character \"${String(Character.toChars(codePoint))}\" (code point U+$hexadecimal) in $kind: $word"
 }
 
-/**
- * How Elixir's parser prints a word it stopped before: as an Erlang atom. Elixir 1.20 requires Erlang/OTP 27, which
- * reserves `maybe`; before 1.20 that depends on the OTP release, so it is left unquoted.
- */
+/** How Elixir's parser prints a word it stopped before: as an Erlang atom, whose reserved words depend on the OTP. */
 private fun atom(word: String, languageLevel: ElixirLanguageLevel): String =
     if (
         word.matches(UNQUOTED_ATOM) &&

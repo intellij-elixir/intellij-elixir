@@ -53,7 +53,7 @@ internal class ElixirLanguageLevelPushes(private val project: Project, private v
         PropertiesComponent.getInstance(project).setValue(PUSH_PENDING, true)
         @Suppress("UnstableApiUsage")
         PushedFilePropertiesUpdater.getInstance(project)
-            .pushAll(FilePropertyPusher.EP_NAME.findExtensionOrFail(ElixirVersionPusher::class.java))
+            .pushAll(FilePropertyPusher.EP_NAME.findExtensionOrFail(SdkVersionsPusher::class.java))
         // A push reports no end, and one cut short leaves roots that match over directories that do not, which `isStale`
         // cannot see. The push can be merged or re-queued behind this task, but the project stays dumb until it has run.
         DumbService.getInstance(project).queueTask(object : DumbModeTask() {
@@ -86,9 +86,9 @@ internal class ElixirLanguageLevelPushes(private val project: Project, private v
         return ModuleManager.getInstance(project).modules
             .filter { module -> module.isElixirModule() }
             .any { module ->
-                val version = ElixirVersionPusher.versionOf(module) ?: return@any false
+                val versions = PushedVersions.versionsOf(module) ?: return@any false
                 ModuleRootManager.getInstance(module).contentRoots
-                    .any { root -> ElixirVersionPusher.KEY.getPersistentValue(root) != version }
+                    .any { root -> PushedVersions.KEY.getPersistentValue(root) != versions }
             }
     }
 }

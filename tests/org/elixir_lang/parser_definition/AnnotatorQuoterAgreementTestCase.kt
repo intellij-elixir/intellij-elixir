@@ -39,7 +39,10 @@ class AnnotatorQuoterAgreementTestCase private constructor(
 
     override fun setUp() {
         super.setUp()
-        ElixirLanguageLevelResolver.overrideLanguageLevel(project, ElixirLanguageLevel.of(System.getenv("ELIXIR_VERSION")))
+        ElixirLanguageLevelResolver.overrideLanguageLevel(
+            project,
+            ElixirLanguageLevel.of(System.getenv("ELIXIR_VERSION"), System.getenv("ERLANG_VERSION")),
+        )
     }
 
     override fun tearDown() {

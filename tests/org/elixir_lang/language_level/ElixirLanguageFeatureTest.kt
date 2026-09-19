@@ -45,7 +45,6 @@ class ElixirLanguageFeatureTest : BasePlatformTestCase() {
             MAP_ENTRY_WITHOUT_ASSOCIATION to ("1.16.3" to "1.17.0-rc.0"),
             ESCAPED_NEWLINE_BEFORE_ARITY to ("1.19.5" to "1.20.0-rc.0"),
             HEXADECIMAL_ESCAPE_NEEDS_TWO_DIGITS to ("1.19.5" to "1.20.0-rc.0"),
-            MAYBE_RESERVED to ("1.20.0-rc.3" to "1.20.0-rc.4"),
             BIDI_CHARACTERS_REJECTED to ("1.13.0-rc.0" to "1.13.0-rc.1"),
             MIXED_SCRIPT_BY_UNDERSCORE_CHUNK to ("1.17.3" to "1.18.0-rc.0"),
             LINE_BREAKS_REJECTED_IN_COMMENTS to ("1.19.0-rc.0" to "1.19.0-rc.1"),
@@ -80,6 +79,27 @@ class ElixirLanguageFeatureTest : BasePlatformTestCase() {
             val (last, removed) = tags
             assertTrue("$feature on $last", feature.isSufficient(ElixirLanguageLevel.of(last)))
             assertFalse("$feature on $removed", feature.isSufficient(ElixirLanguageLevel.of(removed)))
+        }
+    }
+
+    fun testEachOtpFeatureAppliesFromTheOtpReleaseThatShippedIt() {
+        val boundaries = mapOf(
+            MAYBE_RESERVED to ("26.2.5.21" to "27.0-rc1"),
+        )
+
+        assertEquals(entries.filter { it.sinceOtp != null }.toSet(), boundaries.keys)
+
+        for ((feature, releases) in boundaries) {
+            val (without, with) = releases
+            assertFalse("$feature on OTP $without", feature.isSufficient(ElixirLanguageLevel.of("1.18.4", without)))
+            assertTrue("$feature on OTP $with", feature.isSufficient(ElixirLanguageLevel.of("1.18.4", with)))
+        }
+    }
+
+    /** An OTP that cannot be determined is taken as the newest, as an Elixir version that cannot be is. */
+    fun testAnUnknownOtpHasEveryOtpFeature() {
+        for (feature in entries.filter { it.sinceOtp != null }) {
+            assertTrue("$feature", feature.isSufficient(ElixirLanguageLevel.of("1.18.4", null)))
         }
     }
 

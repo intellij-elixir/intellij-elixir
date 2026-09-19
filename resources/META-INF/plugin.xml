@@ -33,7 +33,7 @@
         <backgroundPostStartupActivity implementation="org.elixir_lang.status_bar_widget.ElixirSdkStatusWidgetStartupActivity"/>
 
         <!--suppress PluginXmlValidity -->
-        <filePropertyPusher implementation="org.elixir_lang.sdk.ElixirVersionPusher"/>
+        <filePropertyPusher implementation="org.elixir_lang.sdk.SdkVersionsPusher"/>
         <postStartupActivity implementation="org.elixir_lang.sdk.SdkTableListenerStartupActivity"/>
         <postStartupActivity implementation="org.elixir_lang.mix.DepsCheckerStartupActivity"/>
         <postStartupActivity implementation="org.elixir_lang.mix.sync.MixLibraryReconcileStartupActivity"/>

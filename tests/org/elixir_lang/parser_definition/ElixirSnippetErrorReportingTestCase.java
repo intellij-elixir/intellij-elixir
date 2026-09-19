@@ -96,7 +96,10 @@ public class ElixirSnippetErrorReportingTestCase extends BasePlatformTestCase {
     protected void setUp() throws Exception {
         super.setUp();
 
-        ElixirLanguageLevelResolver.overrideLanguageLevel(getProject(), ElixirLanguageLevel.of(System.getenv("ELIXIR_VERSION")));
+        ElixirLanguageLevelResolver.overrideLanguageLevel(
+                getProject(),
+                ElixirLanguageLevel.of(System.getenv("ELIXIR_VERSION"), System.getenv("ERLANG_VERSION"))
+        );
     }
 
     @Override

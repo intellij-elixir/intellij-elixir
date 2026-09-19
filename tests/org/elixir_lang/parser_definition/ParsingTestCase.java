@@ -52,7 +52,10 @@ public abstract class ParsingTestCase extends com.intellij.testFramework.Parsing
     protected void setUp() throws Exception {
         super.setUp();
 
-        ElixirLanguageLevelResolver.overrideLanguageLevel(getProject(), ElixirLanguageLevel.of(System.getenv("ELIXIR_VERSION")));
+        ElixirLanguageLevelResolver.overrideLanguageLevel(
+                getProject(),
+                ElixirLanguageLevel.of(System.getenv("ELIXIR_VERSION"), System.getenv("ERLANG_VERSION"))
+        );
     }
 
     protected void assertParsedAndQuotedAroundError() {

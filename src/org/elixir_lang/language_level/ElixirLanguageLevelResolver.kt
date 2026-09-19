@@ -1,7 +1,6 @@
 package org.elixir_lang.language_level
 
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.ProjectRootModificationTracker
 import com.intellij.openapi.util.Key
 import com.intellij.psi.PsiElement
@@ -12,7 +11,7 @@ import com.intellij.psi.util.CachedValuesManager
 import com.intellij.testFramework.LightVirtualFile
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
-import org.elixir_lang.sdk.ElixirVersionPusher
+import org.elixir_lang.sdk.PushedVersions
 import org.elixir_lang.sdk.SdkVersionsStore
 import org.elixir_lang.sdk.elixir.ElixirSdkLookup
 import org.elixir_lang.sdk.elixir.sdk
@@ -73,7 +72,9 @@ object ElixirLanguageLevelResolver {
         pushed(file)?.let { return it }
         val sdk = ElixirSdkLookup.resolve(file).sdk ?: return ElixirLanguageLevel.FALLBACK
 
-        return ElixirLanguageLevel.of(version(sdk))
+        return PushedVersions.languageLevelOf(sdk)
+            ?: PushedVersions.unpairedLanguageLevelOf(sdk)
+            ?: ElixirLanguageLevel.FALLBACK
     }
 
     /** Indexing parses a copy in a `LightVirtualFile`, which is in no directory, so its original's is read. */
@@ -82,11 +83,8 @@ object ElixirLanguageLevelResolver {
         val virtualFile = file.originalFile.viewProvider.virtualFile
         val original = (virtualFile as? LightVirtualFile)?.originalFile ?: virtualFile
 
-        return ElixirLanguageLevel.parse(ElixirVersionPusher.KEY.getPersistentValue(original.parent))
+        return PushedVersions.decode(PushedVersions.KEY.getPersistentValue(original.parent))
     }
-
-    /** From the store, never the files: quoting runs synchronously inside a read action and on the EDT. */
-    private fun version(sdk: Sdk): String? = SdkVersionsStore.getInstance().elixirVersions(sdk.homePath)?.elixirVersion
 
     /**
      * Forces [languageLevel] for every element in [project], or clears the override when it is null.

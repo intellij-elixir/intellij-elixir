@@ -1,17 +1,22 @@
 package org.elixir_lang.language_level
 
 import com.intellij.util.text.SemVer
+import org.elixir_lang.sdk.erlang.Release
 
 /**
  * What Elixir does in a window of releases that the plugin has to follow when parsing, quoting or checking code.
  *
- * Code outside this enum and [ElixirLanguageLevel] asks [isSufficient], or
- * [ElixirLanguageLevelResolver.isAvailable] for an element, rather than comparing versions, so a boundary is written
- * once. A window is half-open: an entry applies from [sinceElixir] up to, but not including, [removedInElixir]. Each
- * boundary is the first Elixir tag that shipped the change, pre-releases included, since a pre-release sorts before its
- * release. A behaviour that is not one window is two entries.
+ * Code outside this enum and [ElixirLanguageLevel] asks [isSufficient], or [ElixirLanguageLevelResolver.isAvailable]
+ * for an element, rather than comparing versions. A window is half-open: an entry applies from [sinceElixir] up to, but
+ * not including, [removedInElixir], and from [sinceOtp] on the Erlang/OTP running Elixir. Each Elixir boundary is the
+ * first Elixir tag that shipped the change, pre-releases included, since a pre-release sorts before its release. A
+ * behaviour that is not one window is two entries.
  */
-enum class ElixirLanguageFeature(sinceElixir: String? = null, removedInElixir: String? = null) {
+enum class ElixirLanguageFeature(
+    sinceElixir: String? = null,
+    removedInElixir: String? = null,
+    sinceOtp: String? = null,
+) {
     /**
      * A `\` ending a line survives extraction into the buffer: a sigil then keeps the backslash and newline, since
      * sigil parts skip `unescape_tokens`, while a plain string or heredoc unescapes them away and is left with an empty
@@ -320,12 +325,11 @@ enum class ElixirLanguageFeature(sinceElixir: String? = null, removedInElixir: S
     HEXADECIMAL_ESCAPE_NEEDS_TWO_DIGITS(sinceElixir = "1.20.0-rc.0"),
 
     /**
-     * `maybe` is a reserved word Erlang prints quoted. It is reserved once OTP enables the `maybe_expr` feature by
-     * default, from OTP 27 (`erlang/otp@5d45a0d9c`), so this window starts at the first Elixir release that requires
-     * OTP 27, `elixir-lang/elixir@2c54f9a64` (#15166), first released in v1.20.0-rc.4. Earlier releases running on OTP 27
-     * already quote it.
+     * `maybe` is a reserved word Erlang prints quoted, once OTP enables the `maybe_expr` feature by default from OTP
+     * 27.0-rc1 (`erlang/otp@5d45a0d9c`). The OTP running Elixir decides, not the Elixir release or the OTP its build
+     * targeted.
      */
-    MAYBE_RESERVED(sinceElixir = "1.20.0-rc.4"),
+    MAYBE_RESERVED(sinceOtp = "27.0-rc1"),
 
     /**
      * Bidirectional formatting characters, U+202A to U+202E and U+2066 to U+2069, are rejected in comments and quoted
@@ -402,9 +406,14 @@ enum class ElixirLanguageFeature(sinceElixir: String? = null, removedInElixir: S
     /** The first Elixir release without this behaviour, or `null` while Elixir still has it. */
     val removedInElixir: SemVer? = removedInElixir?.let(::release)
 
+    /** The first Erlang/OTP release with this behaviour, or `null` when it does not depend on OTP. */
+    val sinceOtp: Release? = sinceOtp?.let { Release.parse(it) ?: error("not an OTP release: $it") }
+
+    /** An OTP that cannot be determined is taken as the newest, as [ElixirLanguageLevel.FALLBACK] takes Elixir. */
     fun isSufficient(languageLevel: ElixirLanguageLevel): Boolean =
         (sinceElixir == null || languageLevel.elixir >= sinceElixir) &&
-            (removedInElixir == null || languageLevel.elixir < removedInElixir)
+            (removedInElixir == null || languageLevel.elixir < removedInElixir) &&
+            (sinceOtp == null || languageLevel.otp == null || languageLevel.otp >= sinceOtp)
 }
 
 private fun release(text: String): SemVer = SemVer.parseFromText(text) ?: error("not an Elixir release: $text")
