@@ -287,7 +287,12 @@ internal class VersionedSyntax : Annotator, DumbAware {
     /** Before 1.12 a word followed by `:` was never a keyword, so `end::` left its block open. */
     private fun endBeforeTypeOperator(end: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? {
         val text = end.containingFile.viewProvider.contents
-        if (!text.startsWith("::", end.textRange.endOffset) || TYPE_OPERATOR_AFTER_END.isSufficient(languageLevel())) return null
+        if (
+            !text.startsWith("::", end.textRange.endOffset) ||
+            RESERVED_WORD_BEFORE_TYPE_OPERATOR.isSufficient(languageLevel())
+        ) {
+            return null
+        }
 
         val block = end.parent
         if (block !is ElixirDoBlock && block !is ElixirAnonymousFunction) return null

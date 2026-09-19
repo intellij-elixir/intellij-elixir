@@ -26,37 +26,13 @@ class WordAfterNumber(private val languageLevel: ElixirLanguageLevel) : ITokenTy
         return if (
             start > 0 &&
             isDigit(text[start - 1]) &&
-            !continuesWord(text, end) &&
-            (word != "not" || isFollowedByIn(text, end))
+            !continuesWordAfter(text, end, languageLevel) &&
+            (word != "not" || isFollowedByIn(text, end, languageLevel))
         ) {
             type
         } else {
             source
         }
-    }
-
-    private fun continuesWord(text: CharSequence, end: Int): Boolean {
-        val next = text.getOrNull(end) ?: return false
-
-        return Character.isLetterOrDigit(Character.codePointAt(text, end)) ||
-            next in "_@?!" ||
-            (next == ':' && text.getOrNull(end + 1) != ':')
-    }
-
-    /** `not in` may be split by spaces, tabs and escaped newlines, but not by a newline. */
-    private fun isFollowedByIn(text: CharSequence, end: Int): Boolean {
-        var offset = end
-
-        while (true) {
-            offset = when {
-                text.getOrNull(offset) == ' ' || text.getOrNull(offset) == '\t' -> offset + 1
-                text.startsWith("\\\n", offset) -> offset + 2
-                text.startsWith("\\\r\n", offset) -> offset + 3
-                else -> break
-            }
-        }
-
-        return offset > end && text.startsWith("in", offset) && !continuesWord(text, offset + 2)
     }
 
     private companion object {

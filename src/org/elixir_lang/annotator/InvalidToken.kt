@@ -10,6 +10,8 @@ import com.intellij.psi.TokenType
 import com.intellij.psi.tree.TokenSet
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.annotator.unicode_security.UnicodeSecurityCheck
+import org.elixir_lang.parser.isFollowedByIn
+import org.elixir_lang.parser.isWordCharacter
 import org.elixir_lang.psi.ElixirDecimalFloat
 import org.elixir_lang.psi.ElixirDecimalFloatExponent
 import org.elixir_lang.psi.ElixirDecimalFloatFractional
@@ -246,7 +248,7 @@ internal class InvalidToken : Annotator, DumbAware {
                     } else {
                         "syntax error before: '$word:'"
                     }
-            word in KEYWORDS || (word == "not" && isFollowedByIn(text, wordEnd)) -> null
+            word in KEYWORDS || (word == "not" && isFollowedByIn(text, wordEnd, languageLevel)) -> null
             else -> TextRange(numberStart, wordEnd) to "syntax error before: ${atom(word, languageLevel)}"
         }
     }
@@ -303,24 +305,6 @@ private val UNQUOTED_ATOM =
 
 private fun isElixirSpace(character: Char): Boolean =
     character == ' ' || character == '\t' || character == '\r' || character == '\n'
-
-/** `not in` may be split by spaces, tabs and escaped newlines, but not by a newline. */
-private fun isFollowedByIn(text: CharSequence, end: Int): Boolean {
-    var offset = end
-
-    while (true) {
-        offset = when {
-            text.getOrNull(offset) == ' ' || text.getOrNull(offset) == '\t' -> offset + 1
-            text.startsWith("\\\n", offset) -> offset + 2
-            text.startsWith("\\\r\n", offset) -> offset + 3
-            else -> break
-        }
-    }
-
-    return offset > end &&
-        text.startsWith("in", offset) &&
-        text.getOrNull(offset + 2)?.let { isWordCharacter(it.code) || it in "?!:@" } != true
-}
 
 /** `erl_scan`'s reserved words, which Erlang prints quoted. */
 private val ERLANG_RESERVED_WORDS = setOf(
@@ -416,22 +400,14 @@ private fun continuesWord(text: CharSequence, start: Int): Boolean {
     return offset > 0 && isWordCharacter(Character.codePointBefore(text, offset))
 }
 
-private fun isWordCharacter(codePoint: Int): Boolean =
-    codePoint == '_'.code ||
-        Character.isLetterOrDigit(codePoint) ||
-        Character.getType(codePoint).let {
-            it == Character.NON_SPACING_MARK.toInt() || it == Character.COMBINING_SPACING_MARK.toInt()
-        }
 
-private fun invalidCharacter(codePoint: Int, kind: String, word: String): String {
-    val character = String(Character.toChars(codePoint))
-
-    return "invalid character \"$character\" (code point U+${codePointHexadecimal(codePoint)}) in $kind: $word"
-}
+private fun invalidCharacter(codePoint: Int, kind: String, word: String): String =
+    "invalid character \"${String(Character.toChars(codePoint))}\" (code point U+${codePointHexadecimal(codePoint)}) in $kind: $word"
 
 /**
  * A letter the lexer cannot start a word with: a non-ASCII uppercase letter outside an atom or keyword key, or one
- * Elixir restricts. [RejectedLetterErrorFilter] hides the parser's own error for it.
+ * Elixir restricts. Elixir's tokenizer names it as an unexpected token; the parser's own error is hidden for it by
+ * [RejectedLetterErrorFilter].
  */
 internal fun rejectedFirstLetter(badCharacter: PsiElement): Pair<TextRange, String>? {
     if (badCharacter.node.elementType != TokenType.BAD_CHARACTER) return null

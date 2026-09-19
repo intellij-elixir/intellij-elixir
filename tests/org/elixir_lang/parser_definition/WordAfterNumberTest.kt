@@ -61,6 +61,19 @@ class WordAfterNumberTest : BasePlatformTestCase() {
         }
     }
 
+    /** Before 1.12 Elixir reads a reserved word followed by `::` as a keyword key, so `in::` makes no `not in`. */
+    fun testNotInBeforeATypeOperatorFrom1_12() {
+        assertInvalidDigits(elixir("1.11.0"), "0b1not in::x", "not")
+
+        // Still invalid from 1.12, as Elixir says: `syntax error before: '::'`.
+        for (languageLevel in listOf(elixir("1.12.0"), elixir("1.20.0"))) {
+            val source = "0b1not in::x"
+            val type = parse(languageLevel, source).findElementAt(offset(source, "not"))?.node?.elementType
+
+            assertEquals("type of not in $source on $languageLevel", WORDS.getValue("not"), type)
+        }
+    }
+
     fun testQuotedAsThisLegsElixir() {
         val languageLevel = ElixirLanguageLevel.of(System.getenv("ELIXIR_VERSION"))
         val cases = if (ElixirLanguageFeature.DECIMAL_NUMBER_ENDS_BEFORE_WORD.isSufficient(languageLevel)) {
@@ -192,6 +205,8 @@ class WordAfterNumberTest : BasePlatformTestCase() {
             "0b1and@x" to "and",
             "0b1do: 1" to "do",
             "1and\u00E9 2" to "and",
+            "1and\u0301 2" to "and",
+            "0b1and\u0301 2" to "and",
         )
     }
 }

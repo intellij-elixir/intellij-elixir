@@ -30,7 +30,7 @@ class ElixirLanguageFeatureTest : BasePlatformTestCase() {
             LINE_METADATA_ON_BLOCK to ("1.19.5" to "1.20.0-rc.0"),
             ESCAPED_NEWLINE_AS_SPACE to ("1.19.5" to "1.20.0-rc.0"),
             HEREDOC_TERMINATOR_AFTER_CONTENT_IS_CONTENT to ("1.11.4" to "1.12.0-rc.0"),
-            TYPE_OPERATOR_AFTER_END to ("1.11.4" to "1.12.0-rc.0"),
+            RESERVED_WORD_BEFORE_TYPE_OPERATOR to ("1.11.4" to "1.12.0-rc.0"),
             SIGN_KEYWORD_KEY_AFTER_CALL to ("1.11.4" to "1.12.0-rc.0"),
             STEP_ATOM to ("1.11.4" to "1.12.0-rc.0"),
             BASED_NUMBER_CONTINUES_INTO_DIGITS to ("1.11.4" to "1.12.0-rc.0"),

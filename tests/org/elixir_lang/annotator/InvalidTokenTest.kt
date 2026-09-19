@@ -371,6 +371,22 @@ class InvalidTokenTest : BasePlatformTestCase() {
         }
     }
 
+    /** Before 1.12 Elixir reads a reserved word followed by `::` as a keyword key, so `in::` makes no `not in`. */
+    fun testNotInBeforeATypeOperatorFrom1_12() {
+        assertHasError(elixir("1.11.0"), "0b1not in::x", "0b1not" to "syntax error before: 'not'")
+
+        for (languageLevel in listOf(elixir("1.12.0"), elixir("1.20.0"))) {
+            assertNoInvalidTokenErrors(languageLevel, "0b1not in::x")
+        }
+    }
+
+    /** A letter outside the Basic Multilingual Plane continues `in`, so what follows the `not` is no `not in`. */
+    fun testLetterOutsideTheBmpContinuesIn() {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
+            assertHasError(languageLevel, "0b1not in\uD835\uDCB3", "0b1not" to "syntax error before: 'not'")
+        }
+    }
+
     fun testWordsThatCanFollowANumber() {
         for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
             for (source in listOf("0b1and 2", "0b1or 2", "0b1in x", "x = 0b1when true", "0b1not in x")) {

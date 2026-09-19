@@ -216,11 +216,12 @@ enum class ElixirLanguageFeature(
     HEREDOC_TERMINATOR_AFTER_CONTENT_IS_CONTENT(sinceElixir = "1.12.0-rc.0"),
 
     /**
-     * `end::` closes its block, where 1.11 leaves the block open.
+     * A reserved word followed by `::` is still that word, where 1.11 reads it as a keyword key: `end::` closes its
+     * block, and `not in::x` is `not in`.
      *
-     * `elixir-lang/elixir@01f5196bf`, first released in v1.12.0-rc.0.
+     * `elixir-lang/elixir@01f5196bf` ("Properly handle keywords followed by ::"), first released in v1.12.0-rc.0.
      */
-    TYPE_OPERATOR_AFTER_END(sinceElixir = "1.12.0-rc.0"),
+    RESERVED_WORD_BEFORE_TYPE_OPERATOR(sinceElixir = "1.12.0-rc.0"),
 
     /**
      * `+:` or `-:` after a call name and a space is a keyword key, where 1.11 rejects it as it does an identifier.
