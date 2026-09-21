@@ -9,8 +9,8 @@ import com.intellij.psi.scope.PsiScopeProcessor
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.Named
-import org.elixir_lang.psi.ex_unit.Case
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
+import org.elixir_lang.psi.impl.ElixirPsiImplUtil.hasDoBlockOrKeyword
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.call.keywordArgument
 import org.elixir_lang.psi.impl.call.maybeModularNameToModulars
@@ -49,13 +49,19 @@ abstract class Module : PsiScopeProcessor {
      */
     protected abstract fun executeOnModularName(modular: Named, modularName: String, state: ResolveState): Boolean
 
+    // `hasDoBlockOrKeyword` is a superset of `Case.isChild` for this purpose: whether to descend looking for
+    // a nested `defmodule`, not whether `match` is specifically an ExUnit `describe`/`test` block. A nested
+    // `defmodule` resolves by relative name from inside any macro block in real Elixir, and the syntactic
+    // check removes a reference resolution - of `match` itself - that this module-name search performed
+    // while walking *into* a nested module, which is one arm of #4055's "must the walk continue through
+    // another tree" question (not itself a full fix of that class - see Issue3405Test).
     protected fun execute(match: Named, state: ResolveState): Boolean =
             when {
                 isModular(match) -> executeOnModular(match, state)
                 Use.`is`(match) -> Use.treeWalkUp(match, state, ::execute)
                 Alias.`is`(match) -> executeOnAliasCall(match, state)
                 Require.`is`(match) -> executeOnRequireCall(match, state)
-                Case.isChild(match, state) -> executeOnNestedModulars(match, state)
+                hasDoBlockOrKeyword(match) -> executeOnNestedModulars(match, state)
                 else -> true
             }
 

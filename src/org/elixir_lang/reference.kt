@@ -70,25 +70,58 @@ fun resolvesToMacro(call: Call): Boolean {
     }
 }
 
+/**
+ * Whether [call]'s own reference resolves to a `defmacro` enclosed by the module named [modularName].
+ *
+ * [org.elixir_lang.psi.ModuleWalker.definers]/`matches` now answer this same question structurally, from
+ * [org.elixir_lang.psi.CallableTable] outward, for every enclosing scope that has one - [resolvesToModularCalls]
+ * is their live fallback: while no enclosing table can be consulted yet (mid-build, see
+ * [org.elixir_lang.psi.CallableTable.ofOrNull]). A compiled (`.beam`) target reaches
+ * [org.elixir_lang.psi.CallableTable.matchesCompiledIn] instead once a table exists - this function's own
+ * `resolveResult.element?.let { it as? Call }` still discards a `BeamCallDefinition` match, same as before,
+ * since it has no enclosing-scope table to search.
+ */
 fun resolvesToModularName(call: Call, state: ResolveState, modularName: String): Boolean =
-        // it is not safe to call `multiResolve` on the call's reference if that `call` is currently being resolved.
+        // A boolean answer only needs the first match - `.any` on a `Sequence` short-circuits there, unlike
+        // `resolvesToModularCalls`'s `.mapNotNull` over the full `Array`, which every candidate call site
+        // that wants the actual `Call`s (not just yes/no) legitimately needs to walk in full.
         if (!isBeingResolved(call, state)) {
             call.reference?.let { it as PsiPolyVariantReference }?.let { reference ->
-                safeMultiResolve(reference, false).any { resolveResult ->
-                    if (resolveResult.isValidResult) {
-                        resolveResult.element?.let { it as? Call }?.let { resolved ->
-                            CallDefinitionClause.isMacro(resolved) &&
-                                    // don't treat the signature as a call of the function
-                                    !resolved.isAncestor(call) &&
-                                    enclosingModularMacroCall(resolved)?.name == modularName
-                        } ?: false
-                    } else {
-                        false
-                    }
+                safeMultiResolve(reference, false).asSequence().any { resolveResult ->
+                    resolveResult.isValidResult && matchedModularCall(resolveResult, call, modularName) != null
                 }
             } ?: false
         } else {
             false
+        }
+
+/**
+ * [resolvesToModularName], returning the matched [Call]s instead of collapsing them to a [Boolean] - for a
+ * caller like `Schema.walkChild` that needs an actual [Call] to walk into, not just a yes/no answer.
+ */
+internal fun resolvesToModularCalls(call: Call, state: ResolveState, modularName: String): kotlin.collections.List<Call> =
+        // it is not safe to call `multiResolve` on the call's reference if that `call` is currently being resolved.
+        if (!isBeingResolved(call, state)) {
+            call.reference?.let { it as PsiPolyVariantReference }?.let { reference ->
+                safeMultiResolve(reference, false).mapNotNull { resolveResult ->
+                    if (resolveResult.isValidResult) {
+                        matchedModularCall(resolveResult, call, modularName)
+                    } else {
+                        null
+                    }
+                }
+            } ?: emptyList()
+        } else {
+            emptyList()
+        }
+
+/** Shared filter both [resolvesToModularName] and [resolvesToModularCalls] apply to a resolve candidate. */
+private fun matchedModularCall(resolveResult: ResolveResult, call: Call, modularName: String): Call? =
+        resolveResult.element?.let { it as? Call }?.takeIf { resolved ->
+            CallDefinitionClause.isMacro(resolved) &&
+                    // don't treat the signature as a call of the function
+                    !resolved.isAncestor(call) &&
+                    enclosingModularMacroCall(resolved)?.name == modularName
         }
 
 private fun isBeingResolved(call: Call, state: ResolveState): Boolean =

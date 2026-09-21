@@ -10,8 +10,8 @@ object Test: NameArityRangeWalker("test", 1..3)
 
 object Case: ModuleWalker("ExUnit.Case", Describe, Test) {
     fun isDescribe(call: Call, state: ResolveState): Boolean =
-            Describe.hasNameArity(call) && resolvesTo(call, state)
+            Describe.hasNameArity(call) && matches(call, state)
 
     fun isTest(call: Call, state: ResolveState): Boolean =
-            Test.hasNameArity(call) && resolvesTo(call, state)
+            Test.hasNameArity(call) && matches(call, state)
 }

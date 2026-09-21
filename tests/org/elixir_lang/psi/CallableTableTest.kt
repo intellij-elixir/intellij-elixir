@@ -6,15 +6,10 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.stub.type.call.Stub.isModular
 
 /**
- * `CallableTable.of` builds once per module scope and reuses the same instance across resolves - the
- * module-size independence #4123 exists for, in observable form - and its entries carry enough of the
- * walker's own state (`visitedElements`, `wrappers`) to reproduce the entrance-relative guards
- * `Import`/`Use`/`if`/`unless` apply live, instead of losing the resolve path a `use`-sourced declaration
- * needs or over-offering a declaration an entrance already sits inside.
- *
- * This is deliberately not a wall-clock test: the module-size guard that matters is the platform's own
- * missed-cache assertion (`RecursionManager`), which any test resolving through a re-entrant table build
- * would already fail without one line of timing code here.
+ * `CallableTable.of` builds once per module scope and reuses the same instance across resolves, and its
+ * entries carry enough of the walker's own state (`Path.visitedElements`/`wrappers`) to reproduce the
+ * entrance-relative guards `Import`/`Use`/`if`/`unless` apply live, instead of losing the resolve path a
+ * `use`-sourced declaration needs or over-offering a declaration an entrance already sits inside.
  */
 class CallableTableTest : PlatformTestCase() {
     fun testTableIsTheSameInstanceAcrossResolves() {
@@ -42,7 +37,7 @@ class CallableTableTest : PlatformTestCase() {
 
         assertTrue(
             "the `use Using` call that declared `clause/1` must be recorded in its entry's wrappers",
-            entry.wrappers.any { it.isEquivalentTo(useCall) }
+            entry.path.wrappers.any { it.isEquivalentTo(useCall) }
         )
         assertTrue(
             "resolving from outside the `use` must still offer the entry",

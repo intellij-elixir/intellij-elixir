@@ -7,7 +7,6 @@ import com.intellij.psi.scope.PsiScopeProcessor
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.ecto.Query
-import org.elixir_lang.ecto.Schema
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
@@ -136,12 +135,19 @@ object ProcessDeclarationsImpl {
         // need to check if call is place because lastParent is set to place at start of treeWalkUp
         if (!call.isEquivalentTo(lastParent) || call.isEquivalentTo(place)) {
             when {
-                // Cheapest first: `declares` can resolve a reference.
+                // Cheapest first: `continuesWalk`/`bindsNames` are syntactic-or-cheaply-gated, and `declares`
+                // (for a `Variable` processor) checks only the two head-binding forms, syntactically - no
+                // Ecto/ExUnit resolve, unlike the full six-form `CallableDeclaration.declares` a non-`Variable`
+                // processor still needs. No dedicated `Schema.isChild` arm: `ModuleWalker.isChild` is
+                // name/arity/scope-based, not shape-based, so it CAN be `true` for a `schema/2` call with no
+                // literal `do:`/do-block - but that case is harmless to fall through here. It cannot reach
+                // `executeOnNonDeclaration`'s own, independent `Schema.isChild` check (used for the enclosing
+                // module's own declaration walk, unaffected either way) unless `processor.execute(call, state)`
+                // is actually called, and the one thing worth reaching from *inside* such a call's own
+                // arguments - a bound variable - is already covered identically by the `processor is Variable`
+                // arm below (see `SchemaWithoutDoBlockTest`, which pins this).
                 continuesWalk(call) || bindsNames(call, state) || declares(call, processor, state)
                 -> processor.execute(call, state)
-                Schema.isChild(call, state) -> {
-                    processor.execute(call, state)
-                }
                 hasDoBlockOrKeyword(call) ->
                     // unknown macros that take do blocks often allow variables to be declared in their arguments
                     processor.execute(call, state)

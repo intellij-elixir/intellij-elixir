@@ -188,19 +188,19 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
 
                     for (entry in table.entries) {
                         if (entry.reachableFrom(entrance)) {
-                            executeOnDeclaration(entry.call, entry.form, state.putVisitedElements(entry.visitedElements))
+                            executeOnDeclaration(entry.call, entry.form, state.putVisitedElements(entry.path.visitedElements))
                         }
                     }
 
                     for (candidate in table.liveCandidates) {
                         if (candidate.reachableFrom(entrance)) {
-                            execute(candidate.call, state.putVisitedElements(candidate.visitedElements))
+                            execute(candidate.call, state.putVisitedElements(candidate.path.visitedElements))
                         }
                     }
 
                     for (beamCallDefinition in table.beamCallDefinitions) {
                         if (beamCallDefinition.reachableFrom(entrance)) {
-                            execute(beamCallDefinition.callDefinition, state.putVisitedElements(beamCallDefinition.visitedElements))
+                            execute(beamCallDefinition.callDefinition, state.putVisitedElements(beamCallDefinition.path.visitedElements))
                         }
                     }
                 }
