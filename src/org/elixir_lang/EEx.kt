@@ -15,16 +15,13 @@ object EEx {
             when (functionName) {
                 FUNCTION_FROM_FILE_ARITY_RANGE.name ->
                     call.resolvedFinalArity() in FUNCTION_FROM_FILE_ARITY_RANGE.arityRange &&
-                            resolvesToEEx(call, state)
+                            resolvesToQualifiedModularName(call, state, "EEx")
                 FUNCTION_FROM_STRING_ARITY_RANGE.name ->
                     call.resolvedFinalArity() in FUNCTION_FROM_STRING_ARITY_RANGE.arityRange &&
-                            resolvesToEEx(call, state)
+                            resolvesToQualifiedModularName(call, state, "EEx")
                 else -> false
             }
         } ?: false
-
-    private fun resolvesToEEx(call: Call, state: ResolveState): Boolean =
-            resolvesToModularName(call, state, "EEx")
 
     // function_from_file(kind, name, file, args \\ [], options \\ [])
     val FUNCTION_FROM_FILE_ARITY_RANGE = NameArityRange("function_from_file", 3..5)

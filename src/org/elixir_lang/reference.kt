@@ -1,15 +1,18 @@
 package org.elixir_lang
 
+import com.intellij.psi.PsiNamedElement
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.ResolveResult
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.isAncestor
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil
+import org.elixir_lang.psi.impl.call.qualification.qualifiedToModulars
 
 fun safeMultiResolve(reference: PsiPolyVariantReference, incompleteCode: Boolean): Array<ResolveResult> =
     try {
@@ -79,7 +82,8 @@ fun resolvesToMacro(call: Call): Boolean {
  * [org.elixir_lang.psi.CallableTable.ofOrNull]). A compiled (`.beam`) target reaches
  * [org.elixir_lang.psi.CallableTable.matchesCompiledIn] instead once a table exists - this function's own
  * `resolveResult.element?.let { it as? Call }` still discards a `BeamCallDefinition` match, same as before,
- * since it has no enclosing-scope table to search.
+ * since it has no enclosing-scope table to search. [resolvesToQualifiedModularName] is the counterpart for
+ * a call that is always written qualified.
  */
 fun resolvesToModularName(call: Call, state: ResolveState, modularName: String): Boolean =
         // A boolean answer only needs the first match - `.any` on a `Sequence` short-circuits there, unlike
@@ -124,8 +128,33 @@ private fun matchedModularCall(resolveResult: ResolveResult, call: Call, modular
                     enclosingModularMacroCall(resolved)?.name == modularName
         }
 
-private fun isBeingResolved(call: Call, state: ResolveState): Boolean =
+/**
+ * Whether [call] is somewhere on the stack of the resolve currently in progress - resolving [call]'s own
+ * reference again here would recurse. [org.elixir_lang.EEx]/[org.elixir_lang.psi.mix.Generator] guard their
+ * qualified-call path with this directly: resolving a qualified call's *qualifier* can walk back up through
+ * the enclosing module and re-visit the same call as one of its `CallableTable` live candidates.
+ */
+internal fun isBeingResolved(call: Call, state: ResolveState): Boolean =
         call.isEquivalentTo(state.get(ElixirPsiImplUtil.ENTRANCE)) || qualifierIsBeingResolved(call, state)
+
+/**
+ * [resolvesToModularName], for a call real Elixir always writes qualified (`EEx`, `Mix.Generator`'s
+ * macros): a qualified call's own qualifier resolves via [qualifiedToModulars] (alias resolution, the same
+ * mechanism `import`/`use` use to find their own target module), never by resolving the call itself, so
+ * this reaches a compiled (`.beam`) target. The exotic, non-idiomatic unqualified case (e.g. `import EEx`)
+ * falls back to [resolvesToModularName] live, exactly as before either form had this qualified path.
+ * [isBeingResolved] guards it the same way [resolvesToModularName] guards its own reference resolution:
+ * resolving the qualifier can walk back up through the enclosing module and revisit [call] itself as one
+ * of `CallableTable`'s live candidates - without the guard, that recurses.
+ */
+@RequiresReadLock
+fun resolvesToQualifiedModularName(call: Call, state: ResolveState, modularName: String): Boolean =
+    if (call is Qualified) {
+        !isBeingResolved(call, state) &&
+            call.qualifiedToModulars().any { (it as? PsiNamedElement)?.name == modularName }
+    } else {
+        resolvesToModularName(call, state, modularName)
+    }
 
 private fun qualifierIsBeingResolved(call: Call, state: ResolveState): Boolean =
         if (call is Qualified) {
