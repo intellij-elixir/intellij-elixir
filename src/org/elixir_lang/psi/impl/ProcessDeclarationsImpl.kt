@@ -19,14 +19,11 @@ import org.elixir_lang.psi.impl.call.CallImpl.hasDoBlockOrKeyword
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.declarations.UseScopeImpl
 import org.elixir_lang.psi.impl.declarations.UseScopeImpl.selector
-import org.elixir_lang.psi.mix.Generator
 import org.elixir_lang.psi.operation.*
 import org.elixir_lang.psi.operation.infix.Position
 import org.elixir_lang.psi.operation.infix.Triple
 import org.elixir_lang.psi.scope.Variable
 import org.elixir_lang.psi.scope.WhileIn.whileIn
-import org.elixir_lang.structure_view.element.Callback
-import org.elixir_lang.structure_view.element.Delegation
 
 object ProcessDeclarationsImpl {
     @JvmField
@@ -139,27 +136,8 @@ object ProcessDeclarationsImpl {
         // need to check if call is place because lastParent is set to place at start of treeWalkUp
         if (!call.isEquivalentTo(lastParent) || call.isEquivalentTo(place)) {
             when {
-                call.isCalling(KERNEL, ALIAS) ||
-                        CallDefinitionClause.`is`(call) || // call parameters
-                        Callback.`is`(call) ||
-                        Case.isChild(call, state) ||
-                        Delegation.`is`(call) || // delegation call parameters
-                        Exception.`is`(call) ||
-                        Implementation.`is`(call) ||
-                        Import.`is`(call) ||
-                        Module.`is`(call) ||
-                        Protocol.`is`(call) ||
-                        Use.`is`(call) ||
-                        call.isCalling(KERNEL, DESTRUCTURE) || // left operand
-                        call.isCallingMacro(KERNEL, IF) || // match in condition
-                        call.isCallingMacro(KERNEL, FOR) || // comprehension match variable
-                        call.isCalling(KERNEL, MATCH_QUESTION_MARK) ||
-                        call.isCalling(KERNEL, REQUIRE) ||
-                        call.isCallingMacro(KERNEL, UNLESS) || // match in condition
-                        call.isCallingMacro(KERNEL, "with") || // <- or = variable
-                        QuoteMacro.`is`(call) || // quote :bind_quoted keys for Variable resolver OR call definitions for Callable resolver
-                        Generator.isEmbed(call, state) ||
-                        Assertions.isChild(call, state)
+                // Cheapest first: `declares` can resolve a reference.
+                continuesWalk(call) || bindsNames(call, state) || declares(call, processor, state)
                 -> processor.execute(call, state)
                 Schema.isChild(call, state) -> {
                     processor.execute(call, state)
@@ -187,6 +165,39 @@ object ProcessDeclarationsImpl {
         } else {
             true
         }
+
+    /**
+     * Only a clause's or a delegation's head binds variables, so the variable walk asks for those alone; every other
+     * declaring form's arguments are values, read in order by the `processor is Variable` arm.
+     */
+    private fun declares(call: Call, processor: PsiScopeProcessor, state: ResolveState): Boolean =
+        if (processor is Variable) {
+            CallableDeclaration.headBindingFormOf(call) != null
+        } else {
+            CallableDeclaration.declares(call, state)
+        }
+
+    /** A bare name in the call's arguments, or in a clause it owns, may bind a variable. */
+    private fun bindsNames(call: Call, state: ResolveState): Boolean =
+        Case.isChild(call, state) ||
+            call.isCalling(KERNEL, DESTRUCTURE) || // left operand
+            call.isCallingMacro(KERNEL, IF) || // match in condition
+            call.isCallingMacro(KERNEL, FOR) || // comprehension match variable
+            call.isCalling(KERNEL, MATCH_QUESTION_MARK) ||
+            call.isCallingMacro(KERNEL, UNLESS) || // match in condition
+            call.isCallingMacro(KERNEL, "with") || // <- or = variable
+            Assertions.isChild(call, state)
+
+    /** The walk continues through what the call names or injects. */
+    private fun continuesWalk(call: Call): Boolean =
+        call.isCalling(KERNEL, ALIAS) ||
+            call.isCalling(KERNEL, REQUIRE) ||
+            Implementation.`is`(call) ||
+            Import.`is`(call) ||
+            Module.`is`(call) ||
+            Protocol.`is`(call) ||
+            Use.`is`(call) ||
+            QuoteMacro.`is`(call) // quote :bind_quoted keys for Variable resolver OR call definitions for Callable resolver
 
     @JvmStatic
     fun processDeclarations(

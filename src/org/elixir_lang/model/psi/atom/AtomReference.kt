@@ -29,7 +29,7 @@ class AtomReference(
     private val arity: Int
 ) : PsiReferenceBase<ElixirAtom>(atom, contentTextRange(atom)), PsiPolyVariantReference, PsiSymbolReference {
     private val functionName: String?
-        get() = myElement.node.lastChildNode?.text
+        get() = myElement.name
 
     override fun getVariants(): Array<Any> {
         val modulars = moduleElement.maybeModularNameToModulars(

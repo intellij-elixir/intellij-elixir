@@ -6,20 +6,16 @@ import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.NameArityInterval
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.psi.*
-import org.elixir_lang.psi.CallDefinitionClause.nameArityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.Named
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
-import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.call.keywordArgument
+import org.elixir_lang.psi.impl.literalName
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
-import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.scope.ResolveResultOrderedSet
 import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
 import org.elixir_lang.psi.scope.WhileIn.whileIn
 import org.elixir_lang.psi.scope.maxScope
-import org.elixir_lang.structure_view.element.CallDefinitionHead
-import org.elixir_lang.structure_view.element.Callback
 
 class MultiResolve
 private constructor(
@@ -36,26 +32,21 @@ private constructor(
         private val resolvedPrimaryArity: Int,
         private val incompleteCode: Boolean) : org.elixir_lang.psi.scope.CallDefinitionClause() {
     override fun executeOnCallDefinitionClause(element: Call, state: ResolveState): Boolean =
-            nameArityInterval(element, state)
-                    ?.let { addIfNameOrArityToResolveResults(element, it, state) }
-                    ?: true
+            addDeclarations(element, CallableDeclaration.Form.CLAUSE, state)
 
     override fun execute(element: BeamCallDefinition, state: ResolveState): Boolean =
         addIfNameOrArityToResolveResults(element, element.nameArityInterval, state)
 
     override fun executeOnCallback(element: AtUnqualifiedNoParenthesesCall<*>, state: ResolveState): Boolean =
-            Callback.headCall(element)
-                    ?.let { CallDefinitionHead.nameArityInterval(it, state) }
-                    ?.let { addIfNameOrArityToResolveResults(element, it, state) }
-                    ?: true
+            addDeclarations(element, CallableDeclaration.Form.CALLBACK, state)
 
     override fun executeOnDelegation(element: Call, state: ResolveState): Boolean {
-        element.finalArguments()?.takeIf { it.size == 2 }?.let { arguments ->
-            val head = arguments[0]
-
-            CallDefinitionHead.nameArityInterval(head, state)?.let { headNameArityInterval ->
-                val headName = headNameArityInterval.name
-                val validArity = resolvedPrimaryArity in headNameArityInterval.arityInterval
+        // firstOrNull, not singleOrNull: delegationHead is single-head only today, but a second declaration
+        // must not make this silently resolve to nothing once that widens (#4040).
+        CallableDeclaration.declarations(element, CallableDeclaration.Form.DELEGATION, state).firstOrNull()
+            ?.let { declaration ->
+                val headName = declaration.name
+                val validArity = declaration.arityInterval?.let { resolvedPrimaryArity in it } ?: false
 
                 if ((this.name == null && (incompleteCode || validArity)) ||
                         (this.name != null && headName.startsWith(this.name))) {
@@ -69,10 +60,9 @@ private constructor(
                     element.keywordArgument("to")?.let { definingModuleName ->
                         val modulars = definingModuleName.maybeModularNameToModulars(element.containingFile, useCall = null, incompleteCode = incompleteCode)
 
-                        if (modulars.isNotEmpty()) {
-                            val nameInDefiningModule = element.keywordArgument("as")?.let { it as? ElixirAtom }?.node?.lastChildNode?.text
-                                    ?: headName
+                        val nameInDefiningModule = nameInDefiningModule(element, headName)
 
+                        if (modulars.isNotEmpty() && nameInDefiningModule != null) {
                             for (modular in modulars) {
                                 // Call recursively to get all the proper `for` and `use` handling.
                                 val modularResolveResults = resolveResults(nameInDefiningModule, resolvedPrimaryArity, incompleteCode, modular)
@@ -104,71 +94,25 @@ private constructor(
                     }
                 }
             }
-        }
 
         return keepProcessing()
     }
 
     override fun executeOnEExFunctionFrom(element: Call, state: ResolveState): Boolean =
-            element.finalArguments()?.let { arguments ->
-                        arguments[1].stripAccessExpression().let { it as? ElixirAtom }?.node?.lastChildNode?.text?.let { name ->
-                            if (this.name != null && name.startsWith(this.name)) {
-                                val arity = if (arguments.size >= 4) {
-                                    // function_from_file(kind, name, file, args)
-                                    // function_from_file(kind, name, file, args, options)
-                                    // function_from_string(kind, name, template, args)
-                                    // function_from_string(kind, name, template, args, options)
-                                    arguments[3].stripAccessExpression().let { it as? ElixirList }?.children?.size
-                                } else {
-                                    // function_from_file(kind, name, file) where args defaults to `[]`
-                                    // function_from_string(kind, name, template) where args defaults to `[]`
-                                    0
-                                }
-
-                                val validResult = (resolvedPrimaryArity == arity) && (name == this.name)
-
-                                addToResolveResults(element, name, validResult, state)
-                            } else {
-                                true
-                            }
-                        } ?: true
-            } ?: true
+            addDeclarations(element, CallableDeclaration.Form.EEX_FUNCTION_FROM, state)
 
     override fun executeOnException(element: Call, state: ResolveState): Boolean =
-            whileIn(Exception.NAME_ARITY_LIST) { nameArity ->
-                val name = nameArity.name
-                val validArity = resolvedPrimaryArity == nameArity.arity
-
-                addIfNameOrArityToResolveResults(element, name, validArity, state)
-            }
+            addDeclarations(element, CallableDeclaration.Form.EXCEPTION, state)
 
     override fun executeOnMixGeneratorEmbed(element: Call, state: ResolveState): Boolean =
-            element.finalArguments()?.first()?.stripAccessExpression()?.let { it as? ElixirAtom }?.node?.lastChildNode?.text?.let { prefix ->
-                val suffix = element.functionName()!!.removePrefix("embed_")
-                val name = "${prefix}_${suffix}"
-                val arityRange = when (suffix) {
-                    "template" -> 0..1
-                    "text" -> 0..0
-                    else -> TODO("Unknown suffix $suffix")
-                }
+            addDeclarations(element, CallableDeclaration.Form.GENERATOR_EMBED, state)
 
-                if (this.name != null && name.startsWith(this.name)) {
-                    val validResult = (resolvedPrimaryArity in arityRange) && (name == this.name)
+    private fun addDeclarations(call: Call, form: CallableDeclaration.Form, state: ResolveState): Boolean =
+            whileIn(CallableDeclaration.declarations(call, form, state)) { declaration ->
+                val validArity = declaration.arityInterval?.let { resolvedPrimaryArity in it } ?: false
 
-                    addToResolveResults(element, name, validResult, state)
-                } else {
-                    true
-                }
-            } ?: true
-
-    private fun addIfNameOrArityToResolveResults(call: Call,
-                                                 nameArityInterval: NameArityInterval,
-                                                 state: ResolveState): Boolean {
-        val name = nameArityInterval.name
-        val validArity = resolvedPrimaryArity in nameArityInterval.arityInterval
-
-        return addIfNameOrArityToResolveResults(call, name, validArity, state)
-    }
+                addIfNameOrArityToResolveResults(call, declaration.name, validArity, state)
+            }
 
     private fun addIfNameOrArityToResolveResults(callDefinition: BeamCallDefinition,
                                                  nameArityInterval: NameArityInterval,
@@ -254,3 +198,10 @@ private constructor(
         }
     }
 }
+
+/** The `as:` name, the head's when there is no `as:`, or `null` when `as:` names nothing fixed - which targets nothing. */
+private fun nameInDefiningModule(delegation: Call, headName: String): String? =
+    when (val asArgument = delegation.keywordArgument("as")) {
+        null -> headName
+        else -> (asArgument as? ElixirAtom)?.literalName()
+    }
