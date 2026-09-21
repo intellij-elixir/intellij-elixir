@@ -3,7 +3,7 @@ package org.elixir_lang.psi.mix
 import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.resolvesToModularName
+import org.elixir_lang.resolvesToQualifiedModularName
 
 object Generator {
     /** `Mix.Generator`'s two embedding macros, and the parameters of the `prefix_suffix` function each defines. */
@@ -19,10 +19,8 @@ object Generator {
 
     @RequiresReadLock
     fun isEmbed(call: Call, state: ResolveState): Boolean =
-        Embed.of(call) != null && call.resolvedFinalArity() == ARITY && resolvesTo(call, state)
-
-    private fun resolvesTo(call: Call, state: ResolveState): Boolean =
-            resolvesToModularName(call, state, "Mix.Generator")
+        Embed.of(call) != null && call.resolvedFinalArity() == ARITY &&
+                resolvesToQualifiedModularName(call, state, "Mix.Generator")
 
     internal val NAMES = Embed.entries.map { "embed_${it.suffix}" }
     private const val ARITY = 2

@@ -18,7 +18,17 @@ import org.elixir_lang.psi.impl.stripAccessExpression
 
 object EEx {
     fun isFunctionFrom(call: Call, state: ResolveState): Boolean =
-        functionFrom(call) != null && resolvesToModularName(call, state, "EEx")
+        call.functionName()?.let { functionName ->
+            when (functionName) {
+                FUNCTION_FROM_FILE_ARITY_RANGE.name ->
+                    call.resolvedFinalArity() in FUNCTION_FROM_FILE_ARITY_RANGE.arityRange &&
+                            resolvesToQualifiedModularName(call, state, "EEx")
+                FUNCTION_FROM_STRING_ARITY_RANGE.name ->
+                    call.resolvedFinalArity() in FUNCTION_FROM_STRING_ARITY_RANGE.arityRange &&
+                            resolvesToQualifiedModularName(call, state, "EEx")
+                else -> false
+            }
+        } ?: false
 
     /**
      * Whether [call] is `function_from_file`, `EEx.`-qualified or not, read without resolving: a template's context is
