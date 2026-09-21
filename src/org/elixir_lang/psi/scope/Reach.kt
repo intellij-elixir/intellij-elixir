@@ -44,6 +44,9 @@ enum class Reach {
     companion object {
         private val KEY = Key<Reach>("Reach")
 
+        /** The [Reach] of the path [this] state took, as the walk recorded it; [OWN] for one that took none. */
+        fun ResolveState.pathReach(): Reach = get(KEY) ?: OWN
+
         /**
          * Whether the module exports [element], reached by [reach]: it holds it, and it is public. At [runtime], as for
          * `apply/3` or an MFA tuple, only a function.

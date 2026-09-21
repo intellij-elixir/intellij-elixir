@@ -18,6 +18,9 @@
 - [#4169](https://github.com/intellij-elixir/intellij-elixir/pull/4169) [@sh41](https://github.com/sh41)
   - **Completion now inserts a call's parameters as editable, tabbable placeholders instead of an empty
     `()`.** Refs [#4150](https://github.com/intellij-elixir/intellij-elixir/issues/4150).
+- [#4161](https://github.com/intellij-elixir/intellij-elixir/pull/4161) [@sh41](https://github.com/sh41)
+  - **Highlighting and completion in a module with hundreds or thousands of definitions - most visibly a
+    decompiled `.beam` - no longer slow to a crawl.** Refs [#4123](https://github.com/intellij-elixir/intellij-elixir/issues/4123).
 
 - [#4134](https://github.com/intellij-elixir/intellij-elixir/pull/4134) [@georgeguimaraes](https://github.com/georgeguimaraes)
   - **The plugin icon is now the new official Elixir logo.**

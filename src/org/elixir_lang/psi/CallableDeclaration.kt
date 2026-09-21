@@ -5,6 +5,7 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.ResolveState
+import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
@@ -37,9 +38,15 @@ import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
  * Three entry points, nesting `headBindingFormOf ⊆ syntacticFormOf ⊆ formOf`, each answering as much as its caller
  * can afford to ask:
  *
- * - [formOf] - every form, for a caller that may resolve a reference.
+ * - [formOf] - every form, for a caller that may resolve a reference. Its four syntactic forms are cached per call
+ *   ([deterministicFormOf]): [#4123](https://github.com/intellij-elixir/intellij-elixir/issues/4123) is this
+ *   classification recomputing on every one of a module's resolves.
  * - [syntacticFormOf] - the forms recognised without resolving, for a caller that may not, stub building above all.
  * - [headBindingFormOf] - the two forms whose head binds parameters, for a caller that needs only those.
+ *
+ * [Form.EEX_FUNCTION_FROM] and [Form.GENERATOR_EMBED] are never cached: their answer depends on the `ResolveState`,
+ * since [org.elixir_lang.resolvesToModularName]'s `isBeingResolved` guard answers differently while the call is the
+ * resolution's own entrance.
  */
 object CallableDeclaration {
     enum class Form { CLAUSE, CALLBACK, DELEGATION, EXCEPTION, EEX_FUNCTION_FROM, GENERATOR_EMBED }
@@ -198,8 +205,15 @@ object CallableDeclaration {
     @RequiresReadLock
     fun formOf(call: Call, state: ResolveState): Form? =
         when (val classified = classified(call, state)) {
-            null -> syntacticFormOf(call) ?: RESOLVING.firstOrNull { isForm(call, it, state) }
+            null -> deterministicFormOf(call) ?: RESOLVING.firstOrNull { isForm(call, it, state) }
             else -> classified.form
+        }
+
+    /** [syntacticFormOf], cached per call; for [CallableTable]'s collection, which must never resolve [call] itself. */
+    @RequiresReadLock
+    internal fun deterministicFormOf(call: Call): Form? =
+        CachedValuesManager.getCachedValue(call, DETERMINISTIC_FORM_KEY) {
+            CachedValueProvider.Result(syntacticFormOf(call), PsiModificationTracker.MODIFICATION_COUNT)
         }
 
     /** [formOf], restricted to the forms recognised without resolving a reference, so safe during stub building. */
@@ -257,11 +271,15 @@ object CallableDeclaration {
             Form.CALLBACK -> listOfNotNull(
                 (call as? AtUnqualifiedNoParenthesesCall<*>)
                     ?.let { Callback.headCall(it) }
-                    ?.let { CallDefinitionHead.nameArityInterval(it, state) }
+                    ?.let { head -> cachedNameArityInterval(call) { CallDefinitionHead.nameArityInterval(head, ResolveState.initial()) } }
+                    ?.adjusted(state)
                     ?.let(::declaration)
             )
             Form.DELEGATION -> listOfNotNull(
-                delegationHead(call)?.let { CallDefinitionHead.nameArityInterval(it, state) }?.let(::declaration)
+                delegationHead(call)
+                    ?.let { head -> cachedNameArityInterval(call) { CallDefinitionHead.nameArityInterval(head, ResolveState.initial()) } }
+                    ?.adjusted(state)
+                    ?.let(::declaration)
             )
             Form.EXCEPTION -> Exception.NAME_ARITY_LIST.map { Declaration(it.name, ArityInterval(it.arity, it.arity)) }
             Form.EEX_FUNCTION_FROM -> listOfNotNull(eexFunctionFrom(call))
@@ -289,6 +307,20 @@ object CallableDeclaration {
 
         return Named(form, nameElement, modular, moduleName, declarations(call, form, state), capabilitiesOf(call, form)?.compileTime == true)
     }
+
+    /**
+     * The name/arity before [NameArityInterval.adjusted]'s `ResolveState`-dependent arity override, cached per [call]
+     * so [compute]'s `resolvedFinalArityInterval` walk runs once however often the module is resolved into.
+     */
+    private fun cachedNameArityInterval(call: Call, compute: () -> NameArityInterval?): NameArityInterval? =
+        CachedValuesManager.getCachedValue(call, NAME_ARITY_INTERVAL_KEY) {
+            CachedValueProvider.Result(compute(), PsiModificationTracker.MODIFICATION_COUNT)
+        }
+
+    private val DETERMINISTIC_FORM_KEY: Key<CachedValue<Form?>> =
+        Key.create("org.elixir_lang.psi.CallableDeclaration.DETERMINISTIC_FORM")
+    private val NAME_ARITY_INTERVAL_KEY: Key<CachedValue<NameArityInterval?>> =
+        Key.create("org.elixir_lang.psi.CallableDeclaration.NAME_ARITY_INTERVAL")
 
     /** What [element] - a source call or a compiled definition alike - can do, `null` when it declares nothing. */
     @RequiresReadLock

@@ -140,8 +140,8 @@ object Import {
      */
     fun definitionsOnly(state: ResolveState): ResolveState = state.put(DEFINITIONS_ONLY, true)
 
-    /** What the `import` [state] was reached through brings in; `null` when it came through none. */
-    fun filter(state: ResolveState): Filter? = state.get(FILTER)
+    /** Whether a walk with [state] follows an `import`; the one [definitionsOnly] marks does not. */
+    fun followsImports(state: ResolveState): Boolean = state.get(DEFINITIONS_ONLY) != true
 
     /** Whether the `import` [state] was reached through, if any, brings in [declaration]: see [Filter.admits]. */
     fun admits(
@@ -158,6 +158,12 @@ object Import {
         capabilities: CallableDeclaration.Capabilities?,
         arityInterval: ArityInterval = declaration.nameArityInterval().arityInterval,
     ): Boolean = filter?.admits(declaration, capabilities, arityInterval) ?: true
+
+    /** The filter [state] carries, for a walk that replays the declaration later against another state. */
+    fun filter(state: ResolveState): Filter? = state.get(FILTER)
+
+    fun withFilter(state: ResolveState, filter: Filter?): ResolveState =
+        filter?.let { state.put(FILTER, it) } ?: state
 
     /**
      * Whether `call` is an `import Module` or `import Module, opts` call
@@ -239,6 +245,8 @@ object Import {
         resolveState: ResolveState,
         keepProcessing: (Call, ResolveState) -> Boolean
     ): Boolean {
+        ProgressManager.checkCanceled()
+
         // What a `use` injects is the module's own, so the `import` brings it in too; an `import` it injects is not.
         if (Use.`is`(importedCall)) {
             return Use.treeWalkUpInjected(importedCall, resolveState) { injected, injectedState ->
