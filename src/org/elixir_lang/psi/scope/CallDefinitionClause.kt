@@ -174,8 +174,34 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
                 // If the entrance is at compile time level of `childCalls`, then only previous siblings could possibly define
                 // this call and those will be handled by ElixirStabBody's processDeclarations.
                 if (!containsCompileTimeEntranceAncestorOrSelf(childCalls, state)) {
-                    for (childCall in childCalls) {
-                        execute(childCall, state)
+                    // `CallableTable` answers, for the whole scope at once and cached against PSI changes,
+                    // which calls declare a callable and what - see its class doc for why the handful of
+                    // forms that decide by resolving a call's own reference are excluded and walked below
+                    // exactly as before this table existed. `reachableFrom` reproduces the entrance-relative
+                    // guards the live walk applies to an `import`/`use`/`if`/`unless` wrapper crossed getting
+                    // to an entry; `putVisitedElements` restores the path that wrapper would have recorded.
+                    // `of`, not `ofOrNull`: this walk never reaches `element`'s own build recursively, only
+                    // `CallableTable.ofOrNull`'s DSL-membership callers do (see its doc) - if that ever
+                    // stopped holding, `ofOrNull` would need to replace this too.
+                    val table = CallableTable.of(element)
+                    val entrance = state.get(ENTRANCE)
+
+                    for (entry in table.entries) {
+                        if (entry.reachableFrom(entrance)) {
+                            executeOnDeclaration(entry.call, entry.form, state.putVisitedElements(entry.visitedElements))
+                        }
+                    }
+
+                    for (candidate in table.liveCandidates) {
+                        if (candidate.reachableFrom(entrance)) {
+                            execute(candidate.call, state.putVisitedElements(candidate.visitedElements))
+                        }
+                    }
+
+                    for (beamCallDefinition in table.beamCallDefinitions) {
+                        if (beamCallDefinition.reachableFrom(entrance)) {
+                            execute(beamCallDefinition.callDefinition, state.putVisitedElements(beamCallDefinition.visitedElements))
+                        }
                     }
                 }
 
@@ -376,7 +402,9 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
                 containsCompileTimeAncestorOrSelf(childCalls, entrance)
             }
 
-        private fun containsCompileTimeAncestorOrSelf(childCalls: Sequence<Call>, entrance: PsiElement): Boolean =
+        /** Shared with [org.elixir_lang.psi.CallableTable.Entry.reachableFrom], which needs the same
+         *  entrance-relative check for an `if`/`unless` wrapper crossed while the table was built. */
+        internal fun containsCompileTimeAncestorOrSelf(childCalls: Sequence<Call>, entrance: PsiElement): Boolean =
             childCalls.any { isCompileTimeAncestorOrSelf(it, entrance) }
 
         private fun isCompileTimeAncestorOrSelf(call: Call, entrance: PsiElement): Boolean =

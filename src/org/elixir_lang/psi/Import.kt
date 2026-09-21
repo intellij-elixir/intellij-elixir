@@ -1,5 +1,6 @@
 package org.elixir_lang.psi
 
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.ElementDescriptionLocation
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiNamedElement
@@ -113,8 +114,10 @@ object Import {
         importedCall: Call,
         resolveState: ResolveState,
         keepProcessing: (Call, ResolveState) -> Boolean
-    ): Boolean =
-        when (CallableDeclaration.headBindingFormOf(importedCall)) {
+    ): Boolean {
+        ProgressManager.checkCanceled()
+
+        return when (CallableDeclaration.headBindingFormOf(importedCall)) {
             CallableDeclaration.Form.CLAUSE -> {
                 CallDefinitionClause.nameArityInterval(importedCall, resolveState)?.let { nameArityInterval ->
                     if (filter(nameArityInterval)) {
@@ -138,6 +141,7 @@ object Import {
             else -> null
         }
             ?: true
+    }
 
     private fun treeWalkUpImportedModularChildExpression(
         filter: (NameArityInterval) -> Boolean,
@@ -145,9 +149,9 @@ object Import {
         resolveState: ResolveState,
         keepProcessing: (PsiElement, ResolveState) -> Boolean
     ): Boolean {
+        ProgressManager.checkCanceled()
+
         val nameArityInterval = importedCall.nameArityInterval
-
-
 
         return if (filter(nameArityInterval)) {
             keepProcessing(importedCall, resolveState)
