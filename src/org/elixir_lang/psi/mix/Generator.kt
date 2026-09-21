@@ -24,5 +24,6 @@ object Generator {
     private fun resolvesTo(call: Call, state: ResolveState): Boolean =
             resolvesToModularName(call, state, "Mix.Generator")
 
+    internal val NAMES = Embed.entries.map { "embed_${it.suffix}" }
     private const val ARITY = 2
 }

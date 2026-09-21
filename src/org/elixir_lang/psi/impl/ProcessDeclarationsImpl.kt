@@ -7,7 +7,6 @@ import com.intellij.psi.scope.PsiScopeProcessor
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.ecto.Query
-import org.elixir_lang.ecto.Schema
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
@@ -143,11 +142,10 @@ object ProcessDeclarationsImpl {
                 val form = declaredForm(call, processor, state)
                 val handedOn = handOn(call, processor, form, state)
 
+                // No `Schema.isChild` arm: without a do-block a `schema/2` call holds only values, which the
+                // `processor is Variable` arm reads (`SchemaWithoutDoBlockTest`).
                 when {
                     form != null -> processor.execute(call, handedOn)
-                    Schema.isChild(call, state) -> {
-                        processor.execute(call, handedOn)
-                    }
                     hasDoBlockOrKeyword(call) ->
                         // unknown macros that take do blocks often allow variables to be declared in their arguments
                         processor.execute(call, handedOn)

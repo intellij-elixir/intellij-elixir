@@ -182,7 +182,7 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
                     // forms that decide by resolving a call's own reference are excluded and walked below
                     // exactly as before this table existed. `reachableFrom` reproduces the entrance-relative
                     // guards the live walk applies to an `import`/`use`/`if`/`unless` wrapper crossed getting
-                    // to an entry; `onto` restores the state that wrapper would have recorded.
+                    // to an entry; `Path.onto` restores the state that wrapper would have recorded.
                     // `of`, not `ofOrNull`: this walk never reaches `element`'s own build recursively, only
                     // `CallableTable.ofOrNull`'s DSL-membership callers do (see its doc) - if that ever
                     // stopped holding, `ofOrNull` would need to replace this too.
@@ -193,19 +193,19 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
 
                     for (entry in table.entries) {
                         if (entry.reachableFrom(entrance, walksImports)) {
-                            executeOnDeclaration(entry.call, entry.form, entry.onto(listed))
+                            executeOnDeclaration(entry.call, entry.form, entry.path.onto(listed))
                         }
                     }
 
                     for (candidate in table.liveCandidates) {
                         if (candidate.reachableFrom(entrance, walksImports)) {
-                            execute(candidate.call, candidate.onto(listed))
+                            execute(candidate.call, candidate.path.onto(listed))
                         }
                     }
 
                     for (beamCallDefinition in table.beamCallDefinitions) {
                         if (beamCallDefinition.reachableFrom(entrance, walksImports)) {
-                            execute(beamCallDefinition.callDefinition, beamCallDefinition.onto(listed))
+                            execute(beamCallDefinition.callDefinition, beamCallDefinition.path.onto(listed))
                         }
                     }
                 }
