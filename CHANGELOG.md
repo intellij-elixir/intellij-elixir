@@ -18,6 +18,7 @@
 - [#4169](https://github.com/intellij-elixir/intellij-elixir/pull/4169) [@sh41](https://github.com/sh41)
   - **Completion now inserts a call's parameters as editable, tabbable placeholders instead of an empty
     `()`.** Refs [#4150](https://github.com/intellij-elixir/intellij-elixir/issues/4150).
+
 - [#4161](https://github.com/intellij-elixir/intellij-elixir/pull/4161) [@sh41](https://github.com/sh41)
   - **Highlighting and completion in a module with hundreds or thousands of definitions - most visibly a
     decompiled `.beam` - no longer slow to a crawl.** Refs [#4123](https://github.com/intellij-elixir/intellij-elixir/issues/4123).
@@ -114,12 +115,10 @@
 
 - [#4167](https://github.com/intellij-elixir/intellij-elixir/pull/4167) [@sh41](https://github.com/sh41)
   - **Go to Declaration on a compiled function with more than one clause for the same arity now lands on the first clause, not the last.** Refs [#4164](https://github.com/intellij-elixir/intellij-elixir/issues/4164).
-- [#PR-TBD](https://github.com/intellij-elixir/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)
 - [#4161](https://github.com/intellij-elixir/intellij-elixir/pull/4161) [@sh41](https://github.com/sh41)
   - **`EEx.function_from_file`/`function_from_string` and `Mix.Generator.embed_template`/`embed_text` declare
     their function against a compiled dependency, not only against source.** Refs
     [#4123](https://github.com/intellij-elixir/intellij-elixir/issues/4123).
-- [#4161](https://github.com/intellij-elixir/intellij-elixir/pull/4161) [@sh41](https://github.com/sh41)
   - **Ecto.Schema, Ecto.Query and ExUnit.Case (`schema`, `embedded_schema`, `from`/`where`/etc., `describe`/`test`)
     are recognized reliably instead of intermittently overflowing the resolver's recursion guard.** Refs
     [#4123](https://github.com/intellij-elixir/intellij-elixir/issues/4123).

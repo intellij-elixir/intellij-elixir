@@ -1,9 +1,13 @@
 package org.elixir_lang.psi.impl
 
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.Key
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import com.intellij.psi.scope.PsiScopeProcessor
+import com.intellij.psi.util.CachedValueProvider
+import com.intellij.psi.util.CachedValuesManager
+import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.ecto.Query
@@ -396,6 +400,53 @@ object ProcessDeclarationsImpl {
         return selector(element) == UseScopeImpl.UseScopeSelector.SELF
     }
 
+    /**
+     * A scope's child expressions split once by [createsNewScope], instead of per walk.
+     *
+     * [declaring] is the children that do *not* create a scope of their own, in document order - the only
+     * ones [processDeclarations] would go on to ask anything of. [indexByChild] covers **every** child
+     * expression, the scope-creating ones included, so a walk can find where to stop by lookup rather than
+     * by scanning.
+     */
+    data class DeclaringChildren(val declaring: List<PsiElement>, val indexByChild: Map<PsiElement, Int>)
+
+    /**
+     * [createsNewScope] runs [UseScopeImpl.selector], which classifies from scratch: six
+     * `isCalling(KERNEL, CASE|COND|IF|RECEIVE|UNLESS|VAR_BANG)` checks, then `CallDefinitionClause.is`,
+     * `isModular` and `hasDoBlockOrKeyword`. [processDeclarationsInPreviousSibling] used to pay that for
+     * every expression before the entrance on *every* resolve, and a decompiled `.beam` module body is one
+     * [ElixirStabBody] holding thousands of `def` siblings - all of which classify as `SELF` and are
+     * discarded. That was O(N) per resolve, O(N^2) per file, and 244 of 300 thread dumps of
+     * [#4123](https://github.com/intellij-elixir/intellij-elixir/issues/4123)'s own `elixir_parser.beam`.
+     *
+     * The split it caches is exactly [createsNewScope]'s, so no declaration becomes reachable or
+     * unreachable by caching it. Project-wide [PsiModificationTracker.MODIFICATION_COUNT], matching
+     * [org.elixir_lang.psi.CallableTable.of]: a child's classification can depend on resolving that child
+     * (`hasDoBlockOrKeyword` on an unknown macro, `CallDefinitionClause.is` on `defmemo`), so an edit to
+     * another file can change it. Cached per scope, never per child - a file like that one holds thousands
+     * of children and as many [com.intellij.psi.util.CachedValue]s with it.
+     */
+    @RequiresReadLock
+    @JvmStatic
+    fun declaringChildren(scope: PsiElement): DeclaringChildren =
+        CachedValuesManager.getCachedValue(scope) {
+            val childExpressions = scope.childExpressions().toList()
+
+            CachedValueProvider.Result(
+                DeclaringChildren(
+                    // A decompiled `.beam` module body is exactly the thousands-of-children scope this cache
+                    // exists for - `checkCanceled` per classification, matching `CallableTable.buildUnguarded`'s
+                    // own loop over the same shape of scope.
+                    declaring = childExpressions.filter {
+                        ProgressManager.checkCanceled()
+                        !createsNewScope(it)
+                    },
+                    indexByChild = childExpressions.withIndex().associate { (index, child) -> child to index }
+                ),
+                PsiModificationTracker.MODIFICATION_COUNT
+            )
+        }
+
     @JvmStatic
     fun isDeclaringScope(stabOperation: ElixirStabOperation): Boolean {
         var declaringScope = true
@@ -427,6 +478,32 @@ object ProcessDeclarationsImpl {
     }
 
     /**
+     * [lastParent]'s previous siblings that declare anything, nearest first - [declaringChildren]'s cached
+     * split, cut off at [lastParent] by index lookup, rather than every previous sibling reclassified by
+     * [createsNewScope] on each walk. The elements handed on are exactly the ones
+     * [processDeclarations]' own `filter` would have left, so its filter stays as a cheap no-op and no
+     * caller has to trust this to be the only guard.
+     *
+     * Falls back to the unfiltered walk when [lastParent] is not among the scope's own child expressions.
+     * The cache is keyed by element, and the caller only established that [scope] `isEquivalentTo`
+     * [lastParent]'s parent, which does not guarantee the same instance - a miss must degrade to the old
+     * behaviour, never to processing nothing.
+     */
+    private fun previousDeclaringSiblings(scope: PsiElement, lastParent: PsiElement): Sequence<PsiElement> {
+        val declaringChildren = declaringChildren(scope)
+        val lastParentIndex = declaringChildren.indexByChild[lastParent]
+            ?: return lastParent.siblingExpressions(forward = false, withSelf = false)
+
+        return declaringChildren
+            .declaring
+            // `declaring` is in document order, so the indices only increase - stop at `lastParent` instead
+            // of filtering the whole list.
+            .takeWhile { declaringChildren.indexByChild.getValue(it) < lastParentIndex }
+            .asReversed()
+            .asSequence()
+    }
+
+    /**
      * Processes declarations in siblings of `lastParent` backwards from `lastParent`.
      *
      * @param scope an [ElixirStabBody] or [ElixirFile] that has a sequence of expressions as children
@@ -439,9 +516,7 @@ object ProcessDeclarationsImpl {
         place: PsiElement
     ): Boolean =
         if (scope.isEquivalentTo(lastParent.parent)) {
-            lastParent
-                .siblingExpressions(forward = false, withSelf = false)
-                .let { processDeclarations(it, processor, state, lastParent, place) }
+            processDeclarations(previousDeclaringSiblings(scope, lastParent), processor, state, lastParent, place)
         } else {
             if (lastParent !is ElixirFile) {
                 Logger.error(
