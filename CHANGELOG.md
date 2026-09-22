@@ -124,6 +124,8 @@
     [#4123](https://github.com/intellij-elixir/intellij-elixir/issues/4123).
 - [#4157](https://github.com/intellij-elixir/intellij-elixir/pull/4157) [@sh41](https://github.com/sh41)
   - **Go to Definition, completion and Find Usages now agree on which calls define a function, fixing cases involving `defguard`, `Mix.Generator` templates and EEx-generated functions.** Fixes [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+- [#4168](https://github.com/intellij-elixir/intellij-elixir/pull/4168) [@sh41](https://github.com/sh41)
+  - **The Elixir references inspection, which flags a call to an undeclared or wrong-arity function, is now on by default and names the declared arities instead of just saying the call is invalid.** Refs [#4150](https://github.com/intellij-elixir/intellij-elixir/issues/4150), [#4151](https://github.com/intellij-elixir/intellij-elixir/issues/4151).
 - [#4146](https://github.com/intellij-elixir/intellij-elixir/pull/4146) [@sh41](https://github.com/sh41)
   - **Building a project no longer fails with `UnsupportedClassVersionError` from the plugin's JPS classes when the project SDK is older than the IDE's JDK.** Fixes [#3996](https://github.com/intellij-elixir/intellij-elixir/issues/3996).
 - [#4160](https://github.com/intellij-elixir/intellij-elixir/pull/4160) [@sh41](https://github.com/sh41)
