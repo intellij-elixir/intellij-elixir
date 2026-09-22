@@ -7,6 +7,10 @@ import com.intellij.psi.*
 import com.intellij.psi.scope.PsiScopeProcessor
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.stubs.StubIndex
+import com.intellij.psi.util.CachedValue
+import com.intellij.psi.util.CachedValueProvider
+import com.intellij.psi.util.CachedValuesManager
+import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.psi.util.isAncestor
 import org.elixir_lang.Name
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
@@ -337,23 +341,33 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
         // Falling back to `element` covers the ElixirFile case where ENTRANCE may be absent.
         val entrance = state.get(ENTRANCE) ?: element
         val scope = narrowedScope(entrance, project)
+        val entranceFile = entrance.containingFile
 
-        val keepProcessing = implicitImport(project, scope, KERNEL, state)
+        val keepProcessing = implicitImport(entranceFile, scope, KERNEL, KERNEL_NAMED_ELEMENTS_KEY, state)
 
         return if (keepProcessing) {
             val modularCanonicalNameState = state.put(MODULAR_CANONICAL_NAME, KERNEL_SPECIAL_FORMS)
 
-            implicitImport(project, scope, KERNEL_SPECIAL_FORMS, modularCanonicalNameState)
+            implicitImport(
+                entranceFile, scope, KERNEL_SPECIAL_FORMS, KERNEL_SPECIAL_FORMS_NAMED_ELEMENTS_KEY,
+                modularCanonicalNameState
+            )
         } else {
             false
         }
     }
 
-    private fun implicitImport(project: Project, scope: GlobalSearchScope, moduleName: String, state: ResolveState): Boolean =
-        if (DumbService.isDumb(project)) {
+    private fun implicitImport(
+        entranceFile: PsiFile,
+        scope: GlobalSearchScope,
+        moduleName: String,
+        cacheKey: Key<CachedValue<List<NamedElement>>>,
+        state: ResolveState
+    ): Boolean =
+        if (DumbService.isDumb(entranceFile.project)) {
             true
         } else {
-            whileIn(sourceFirstNamedElements(project, scope, moduleName)) { namedElement ->
+            whileIn(cachedSourceFirstNamedElements(entranceFile, scope, moduleName, cacheKey)) { namedElement ->
                 when (namedElement) {
                     is Call -> {
                         val namedElementResolveState = state.putVisitedElement(namedElement)
@@ -373,6 +387,29 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
                     else -> true
                 }
             }
+        }
+
+    /**
+     * [sourceFirstNamedElements], cached per [entranceFile] - `Kernel`/`Kernel.SpecialForms`'s own
+     * declarations don't change from one resolve to the next within the same file, but
+     * [sourceFirstNamedElements] ran this project-scoped stub-index search fresh on every single resolve
+     * that reached a modular scope, unconditionally. Profiling `elixir_parser.beam` live (#4123's own
+     * example) attributed 14.5% of the resolve cost to `implicitImport`/`implicitImports` for exactly
+     * this reason. `PsiModificationTracker.MODIFICATION_COUNT`, not a narrower per-file stamp, matches
+     * [org.elixir_lang.psi.CallableTable.of]'s own dependency: [scope] can include other files (the SDK,
+     * libraries) whose changes wouldn't touch [entranceFile] itself.
+     */
+    private fun cachedSourceFirstNamedElements(
+        entranceFile: PsiFile,
+        scope: GlobalSearchScope,
+        moduleName: String,
+        cacheKey: Key<CachedValue<List<NamedElement>>>
+    ): List<NamedElement> =
+        CachedValuesManager.getCachedValue(entranceFile, cacheKey) {
+            CachedValueProvider.Result(
+                sourceFirstNamedElements(entranceFile.project, scope, moduleName),
+                PsiModificationTracker.MODIFICATION_COUNT
+            )
         }
 
     /**
@@ -407,6 +444,14 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
 
     companion object {
         val MODULAR_CANONICAL_NAME = Key<String>("MODULAR_CANONICAL_NAME")
+
+        // Created once here, not per-resolve where they're used (`MultiResolve`/`Variants` are instantiated
+        // fresh per resolve) - a `Key` created afresh each time would never find a previous resolve's cache
+        // entry under it, silently defeating `cachedSourceFirstNamedElements`'s caching entirely.
+        private val KERNEL_NAMED_ELEMENTS_KEY: Key<CachedValue<List<NamedElement>>> =
+            Key.create("org.elixir_lang.psi.scope.CallDefinitionClause.KERNEL_NAMED_ELEMENTS")
+        private val KERNEL_SPECIAL_FORMS_NAMED_ELEMENTS_KEY: Key<CachedValue<List<NamedElement>>> =
+            Key.create("org.elixir_lang.psi.scope.CallDefinitionClause.KERNEL_SPECIAL_FORMS_NAMED_ELEMENTS")
 
         /**
          * [containsCompileTimeEntranceAncestorOrSelf], without materializing [element]'s children via
