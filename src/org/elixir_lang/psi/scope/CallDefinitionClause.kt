@@ -360,8 +360,58 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
     ): Boolean =
         DumbService.isDumb(entranceFile.project) ||
             whileIn(cachedSourceFirstNamedElements(entranceFile, scope, moduleName, cacheKey)) { namedElement ->
-                Import.treeWalkUpImplicitly(namedElement, state.putVisitedElement(namedElement), ::execute)
+                when (namedElement) {
+                    is Call -> implicitImportModular(namedElement, state)
+                    else -> Import.treeWalkUpImplicitly(namedElement, state.putVisitedElement(namedElement), ::execute)
+                }
             }
+
+    /**
+     * `Kernel`/`Kernel.SpecialForms`'s own declarations, through the same [CallableTable] the modular branch
+     * of [execute] uses for the module the entrance is actually in. Previously
+     * [Modular.callDefinitionClauseCallWhile], which materializes `macroChildCalls()` and runs
+     * [org.elixir_lang.psi.CallDefinitionClause.is] over every one of them before any name is consulted -
+     * the name only filters later, in
+     * [org.elixir_lang.psi.scope.call_definition_clause.MultiResolve]'s own `addIfNameOrArityToResolveResults`.
+     * That is the O(module size) walk [#4123](https://github.com/intellij-elixir/intellij-elixir/issues/4123)
+     * removed from the entrance's own module, still being paid here on every resolve that falls through to the
+     * implicit import - twice, once per module - and it dominated a live thread-dump sample of
+     * `elixir_parser.beam` (152 of 300) after the earlier fixes landed. [CallableTable.declaring] answers the
+     * same question as a map lookup against a table cached per modular, so `Kernel`'s is built once per PSI
+     * change for the whole project rather than per walk.
+     *
+     * [CallableTable.ofOrNull], not [CallableTable.of]: a DSL-membership check inside a table build resolves a
+     * candidate call's own reference, which can reach this implicit import while that same modular's table is
+     * mid-build on this thread - see `ofOrNull`'s own doc. The full walk is still the fallback for that case.
+     */
+    private fun implicitImportModular(modular: Call, state: ResolveState): Boolean {
+        val modularResolveState = state.putVisitedElement(modular)
+        val table = CallableTable.ofOrNull(modular)
+
+        return if (table != null) {
+            val listed = moduleScopeCallSet(modular)
+            // A caller that knows the one name it can ever match (`MultiResolve`) only needs that name's own
+            // entries; `Variants` (completion) has no single target and still needs every one.
+            val candidateEntries = targetName()?.let { table.declaringStartingWith(it) } ?: table.entries
+
+            whileIn(candidateEntries) { entry ->
+                if (entry.call in listed &&
+                    !modularResolveState.hasBeenVisited(entry.call) &&
+                    Import.bringsInImplicitly(CallableDeclaration.Declared.Source(entry.call, entry.form), modularResolveState)
+                ) {
+                    executeOnDeclaration(
+                        entry.call,
+                        entry.form,
+                        entry.path.onto(modularResolveState).putVisitedElement(entry.call)
+                    )
+                } else {
+                    true
+                }
+            }
+        } else {
+            Import.treeWalkUpImplicitly(modular, modularResolveState, ::execute)
+        }
+    }
 
     /**
      * [sourceFirstNamedElements], cached per [entranceFile] - `Kernel`/`Kernel.SpecialForms`'s own

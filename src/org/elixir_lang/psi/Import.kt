@@ -287,6 +287,11 @@ object Import {
         keepProcessing: (PsiElement, ResolveState) -> Boolean
     ): Boolean = treeWalkUpImportedModular(modular, Filter.IMPLICIT, resolveState, keepProcessing)
 
+    /** Whether the implicit `import Kernel` or `import Kernel.SpecialForms` brings in [declared]. */
+    @RequiresReadLock
+    fun bringsInImplicitly(declared: CallableDeclaration.Declared, state: ResolveState): Boolean =
+        bringsIn(declared, Filter.IMPLICIT, state)
+
     /** Whether an `import` with [filter] brings in [declared]: what another module may call, and [filter] admits. */
     private fun bringsIn(declared: CallableDeclaration.Declared, filter: Filter, state: ResolveState): Boolean {
         val capabilities = declared.capabilities
