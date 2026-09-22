@@ -8,6 +8,7 @@ import com.intellij.psi.scope.PsiScopeProcessor
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.stubs.StubIndex
 import com.intellij.psi.util.isAncestor
+import org.elixir_lang.Name
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.beam.psi.Module as BeamModule
 import org.elixir_lang.ecto.query.WindowAPI
@@ -105,6 +106,15 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
      */
     protected abstract fun keepProcessing(): Boolean
 
+    /**
+     * The one name this processor can ever match, or `null` if it needs every declaration in a scope
+     * (completion's [org.elixir_lang.psi.scope.call_definition_clause.Variants] has no single target).
+     * [org.elixir_lang.psi.scope.call_definition_clause.MultiResolve] overrides this with its own `name` -
+     * knowing it lets the modular branch below look a name up in [CallableTable] instead of walking every
+     * entry in the scope for a resolve that can only ever match one of them.
+     */
+    protected open fun targetName(): Name? = null
+
     /*
      * Private Instance Methods
      */
@@ -186,7 +196,12 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
                     val table = CallableTable.of(element)
                     val entrance = state.get(ENTRANCE)
 
-                    for (entry in table.entries) {
+                    // A caller that knows the one name it can ever match (`MultiResolve`) only needs that
+                    // name's own entries, an O(1) lookup instead of a walk of every entry in the module -
+                    // `Variants` (completion) has no single target and still needs `entries` in full.
+                    val candidateEntries = targetName()?.let { table.declaring(it) } ?: table.entries
+
+                    for (entry in candidateEntries) {
                         if (entry.reachableFrom(entrance)) {
                             executeOnDeclaration(entry.call, entry.form, state.putVisitedElements(entry.path.visitedElements))
                         }

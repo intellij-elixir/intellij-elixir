@@ -31,6 +31,8 @@ private constructor(
          */
         private val resolvedPrimaryArity: Int,
         private val incompleteCode: Boolean) : org.elixir_lang.psi.scope.CallDefinitionClause() {
+    override fun targetName(): String? = name
+
     override fun executeOnCallDefinitionClause(element: Call, state: ResolveState): Boolean =
             addDeclarations(element, CallableDeclaration.Form.CLAUSE, state)
 
