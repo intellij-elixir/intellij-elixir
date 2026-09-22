@@ -369,18 +369,7 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
         } else {
             whileIn(cachedSourceFirstNamedElements(entranceFile, scope, moduleName, cacheKey)) { namedElement ->
                 when (namedElement) {
-                    is Call -> {
-                        val namedElementResolveState = state.putVisitedElement(namedElement)
-
-                        Modular.callDefinitionClauseCallWhile(
-                            namedElement, namedElementResolveState
-                        ) { callDefinitionClause, accResolveState ->
-                            executeOnCallDefinitionClause(
-                                callDefinitionClause,
-                                accResolveState
-                            )
-                        }
-                    }
+                    is Call -> implicitImportModular(namedElement, state)
                     is BeamModule -> whileIn(namedElement.callDefinitions()) {
                         execute(it, state)
                     }
@@ -388,6 +377,86 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
                 }
             }
         }
+
+    /**
+     * `Kernel`/`Kernel.SpecialForms`'s own declarations, through the same [CallableTable] the modular branch
+     * of [execute] uses for the module the entrance is actually in. Previously
+     * [Modular.callDefinitionClauseCallWhile], which materializes `macroChildCalls()` and runs
+     * [org.elixir_lang.psi.CallDefinitionClause.is] over every one of them before any name is consulted -
+     * the name only filters later, in
+     * [org.elixir_lang.psi.scope.call_definition_clause.MultiResolve]'s own `addIfNameOrArityToResolveResults`.
+     * That is the O(module size) walk [#4123](https://github.com/intellij-elixir/intellij-elixir/issues/4123)
+     * removed from the entrance's own module, still being paid here on every resolve that falls through to the
+     * implicit import - twice, once per module - and it dominated a live thread-dump sample of
+     * `elixir_parser.beam` (152 of 300) after the earlier fixes landed. [CallableTable.declaring] answers the
+     * same question as a map lookup against a table cached per modular, so `Kernel`'s is built once per PSI
+     * change for the whole project rather than per walk.
+     *
+     * [CallableTable.ofOrNull], not [CallableTable.of]: a DSL-membership check inside a table build resolves a
+     * candidate call's own reference, which can reach this implicit import while that same modular's table is
+     * mid-build on this thread - see `ofOrNull`'s own doc. The full walk is still the fallback for that case.
+     */
+    private fun implicitImportModular(modular: Call, state: ResolveState): Boolean {
+        val modularResolveState = state.putVisitedElement(modular)
+        val table = CallableTable.ofOrNull(modular)
+
+        return if (table != null) {
+            val entrance = state.get(ENTRANCE)
+            // A caller that knows the one name it can ever match (`MultiResolve`) only needs that name's own
+            // entries; `Variants` (completion) has no single target and still needs every one.
+            val candidateEntries = targetName()?.let { table.declaring(it) } ?: table.entries
+
+            whileIn(candidateEntries) { entry ->
+                if (entry.exportedByItsModular() &&
+                    entry.reachableFrom(entrance) &&
+                    !modularResolveState.hasBeenVisited(entry.call)
+                ) {
+                    executeOnDeclaration(
+                        entry.call,
+                        entry.form,
+                        modularResolveState
+                            .putVisitedElements(entry.path.visitedElements)
+                            .putVisitedElement(entry.call)
+                    )
+                } else {
+                    true
+                }
+            }
+        } else {
+            Modular.callDefinitionClauseCallWhile(modular, modularResolveState) { callDefinitionClause, accResolveState ->
+                executeOnCallDefinitionClause(callDefinitionClause, accResolveState)
+            }
+        }
+    }
+
+    /**
+     * Whether an entry is something the modular that owns the table *exports*, rather than merely something
+     * that modular can *call*. [CallableTable] answers the second, larger question - it descends through
+     * `import` collecting the imported module's declarations, because they are callable from inside the
+     * importing module - and only an `import`'s own results have to be dropped when the question is what a
+     * third party gets by importing that modular in turn: `import` is not transitive in Elixir.
+     *
+     * Every other way the table reaches a declaration keeps it. A `use` injects its `__using__` body into
+     * the using module, so the declaration is that module's own and is re-exported (which is why
+     * [CallableTable.Entry.declaringModuleName] is the wrong test here - the injected `def` sits physically
+     * in the *using* module's `quote`, so it names that module, not this one). An `if`/`unless` only decides
+     * *whether* a declaration exists, not whose it is. `for`/`quote`/`try` are not recorded as wrappers at
+     * all and need no test.
+     *
+     * Each of those three is what `elixir` itself does, not a reading of the docs: compiling `import M`
+     * against an `M` that only `import`ed the name fails with "expected C1 to define such a function or for
+     * it to be imported, but none are available", while the same import of a `use`-injected `def` and of an
+     * `if`-guarded `def` both compile.
+     *
+     * Only ever consulted for the implicit `import Kernel`/`import Kernel.SpecialForms`
+     * ([implicitImportModular]) - the modular branch of [execute] is asking the callable question, about the
+     * module the entrance is inside, and must not filter. Nothing about `Kernel` makes the rule specific to
+     * it; `Kernel` is just the only module whose [CallableTable] is read to answer what a *different* file
+     * may call unqualified. An explicit `import` resolves through `Import.treeWalkUp`, which is handed only
+     * declaration calls from the imported module's own children and so cannot follow a nested `import` -
+     * pinned by `reference/callable/ImportIsNotTransitiveTest`.
+     */
+    private fun CallableTable.Entry.exportedByItsModular(): Boolean = path.wrappers.none { Import.`is`(it) }
 
     /**
      * [sourceFirstNamedElements], cached per [entranceFile] - `Kernel`/`Kernel.SpecialForms`'s own
