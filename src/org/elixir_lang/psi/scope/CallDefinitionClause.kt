@@ -179,11 +179,14 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
             (isModular(element) ||
                     Case.isChild(element, state))
                     && modularContainsEntrance(element, state) -> {
-                val childCalls = element.macroChildCallSequence()
-
-                // If the entrance is at compile time level of `childCalls`, then only previous siblings could possibly define
-                // this call and those will be handled by ElixirStabBody's processDeclarations.
-                if (!containsCompileTimeEntranceAncestorOrSelf(childCalls, state)) {
+                // If the entrance is at compile time level of the module's own children, then only previous
+                // siblings could possibly define this call and those will be handled by ElixirStabBody's
+                // processDeclarations. Walks up from the entrance instead of scanning down from `element`'s
+                // children (`element.macroChildCallSequence()`, previously called here unconditionally) -
+                // materializing that list on every resolve reaching a modular scope was itself the majority
+                // of the cost profiled live against a large decompiled file (#4123's own example,
+                // `elixir_parser.beam`); this is bounded by nesting depth instead, typically tiny.
+                if (!modularContainsEntranceAtCompileTimeLevel(element, state.get(ENTRANCE))) {
                     // `CallableTable` answers, for the whole scope at once and cached against PSI changes,
                     // which calls declare a callable and what - see its class doc for why the handful of
                     // forms that decide by resolving a call's own reference are excluded and walked below
@@ -404,6 +407,78 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
 
     companion object {
         val MODULAR_CANONICAL_NAME = Key<String>("MODULAR_CANONICAL_NAME")
+
+        /**
+         * [containsCompileTimeEntranceAncestorOrSelf], without materializing [element]'s children via
+         * [org.elixir_lang.psi.impl.call.macroChildCallSequence]: walks up from [entrance] instead of
+         * scanning down from [element] - only [entrance]'s own compile-time-ancestor chain (bounded by
+         * nesting depth) can ever land on one of [element]'s direct macro children, so there is no need to
+         * enumerate the rest of them to answer this.
+         */
+        private fun modularContainsEntranceAtCompileTimeLevel(element: Call, entrance: PsiElement): Boolean {
+            val childScope = element.macroChildScope() ?: return false
+
+            if (childScope.containsAsMacroChild(entrance)) return true
+
+            var ancestor: PsiElement? = entrance.parent
+
+            while (ancestor != null) {
+                when {
+                    ancestor is ElixirDoBlock || ancestor is ElixirBlockList || ancestor is ElixirBlockItem ||
+                            ancestor is ElixirStab || ancestor is ElixirStabBody ->
+                        ancestor = ancestor.parent
+                    ancestor is Call && (If.`is`(ancestor) || Unless.`is`(ancestor)) -> {
+                        if (childScope.containsAsMacroChild(ancestor)) return true
+
+                        ancestor = ancestor.parent
+                    }
+                    else -> return false
+                }
+            }
+
+            return false
+        }
+
+        /**
+         * The single scope [org.elixir_lang.psi.impl.call.macroChildCallList] would collect [element]'s
+         * direct macro children from - the `ElixirStabBody` of a `do...end` block, or the one [Call] at a
+         * one-liner `do:` keyword. Mirrors that function's own two shapes without building the list; `null`
+         * if [element] has neither.
+         */
+        private fun Call.macroChildScope(): PsiElement? {
+            val doBlock = doBlock
+
+            return if (doBlock != null) {
+                doBlock.stab?.stabBody
+            } else {
+                val potentialKeywords = finalArguments()?.lastOrNull()
+
+                (potentialKeywords as? QuotableKeywordList)
+                    ?.quotableKeywordPairList()
+                    ?.firstOrNull()
+                    ?.takeIf { it.keywordKey.text == "do" }
+                    ?.keywordValue as? Call
+            }
+        }
+
+        /** Whether [candidate] is one of the macro children [this] scope (from [Call.macroChildScope])
+         *  collects - for an `ElixirStabBody`, [candidate]'s own parent, unwrapped through any
+         *  `ElixirAccessExpression` wrapper the same way [org.elixir_lang.psi.impl.macroChildCallList]'s own
+         *  recursion does; for the one-liner `do:` shape, [this] scope *is* the single child, so direct
+         *  equivalence is the whole check. */
+        private fun PsiElement.containsAsMacroChild(candidate: PsiElement): Boolean =
+            when (this) {
+                is ElixirStabBody -> {
+                    var parent: PsiElement? = candidate.parent
+
+                    while (parent is ElixirAccessExpression) {
+                        parent = parent.parent
+                    }
+
+                    parent != null && parent.isEquivalentTo(this)
+                }
+                else -> this.isEquivalentTo(candidate)
+            }
 
         /**
          * The `state.get(ENTRANCE)` is one of the `childCalls` OR any calls in the way are compile-time conditional
