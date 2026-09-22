@@ -8,6 +8,10 @@ import com.intellij.psi.*
 import com.intellij.psi.scope.PsiScopeProcessor
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.stubs.StubIndex
+import com.intellij.psi.util.CachedValue
+import com.intellij.psi.util.CachedValueProvider
+import com.intellij.psi.util.CachedValuesManager
+import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.psi.util.isAncestor
 import org.elixir_lang.Name
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
@@ -177,16 +181,12 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
             (isModular(element) ||
                     Case.isChild(element, state))
                     && modularContainsEntrance(element, state) -> {
-                // A module's whole scope, through whatever runs in its body; a `case` clause's own children.
-                val childCalls = if (isModular(element)) {
-                    org.elixir_lang.psi.CallDefinitionClause.modularChildCalls(element).asSequence()
-                } else {
-                    element.macroChildCallSequence()
-                }
-
-                // If the entrance is at compile time level of `childCalls`, then only previous siblings could possibly define
-                // this call and those will be handled by ElixirStabBody's processDeclarations.
-                if (!containsCompileTimeEntranceAncestorOrSelf(childCalls, state)) {
+                // If the entrance is at compile time level of the module's own scope, then only previous siblings
+                // could possibly define this call and those will be handled by ElixirStabBody's
+                // processDeclarations. Walks up from the entrance instead of scanning down the scope's calls: that
+                // scan was itself the majority of the cost profiled live against a large decompiled file (#4123's
+                // own example, `elixir_parser.beam`); this is bounded by nesting depth instead, typically tiny.
+                if (!atCompileTimeLevel(element, state.get(ENTRANCE))) {
                     // `CallableTable` answers, for the whole scope at once and cached against PSI changes,
                     // which calls declare a callable and what - see its class doc for why the handful of
                     // forms that decide by resolving a call's own reference are excluded and walked below
@@ -388,6 +388,119 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
 
     companion object {
         val MODULAR_CANONICAL_NAME = Key<String>("MODULAR_CANONICAL_NAME")
+
+        /**
+         * [containsCompileTimeEntranceAncestorOrSelf] for [element]'s module scope, without scanning it: only
+         * [entrance]'s own chain up (bounded by nesting depth) can land on one of the calls to compare. A module's scope
+         * is its [org.elixir_lang.psi.CallDefinitionClause.modularChildCalls] listing, which looks through `if`, `case`
+         * and the like, so the walk asks the listing's set at each call up to the first module-scope boundary.
+         */
+        private fun atCompileTimeLevel(element: Call, entrance: PsiElement): Boolean {
+            if (!isModular(element)) return modularContainsEntranceAtCompileTimeLevel(element, entrance)
+
+            val listed = moduleScopeCallSet(element)
+
+            if (entrance is Call && entrance in listed) return true
+
+            var ancestor: PsiElement? = entrance.parent
+
+            while (ancestor != null && ancestor !is PsiFile) {
+                if (ancestor is Call) {
+                    if (isModular(ancestor) || org.elixir_lang.psi.CallDefinitionClause.moduleScopeBoundary(ancestor)) {
+                        return false
+                    }
+
+                    if (ancestor in listed) return true
+                }
+
+                ancestor = ancestor.parent
+            }
+
+            return false
+        }
+
+        private val MODULE_SCOPE_CALL_SET: Key<CachedValue<Set<Call>>> = Key.create("CallDefinitionClause.MODULE_SCOPE_CALL_SET")
+
+        /** [org.elixir_lang.psi.CallDefinitionClause.modularChildCalls] as a set, cached until the next change. */
+        private fun moduleScopeCallSet(modular: Call): Set<Call> =
+            CachedValuesManager.getCachedValue(modular, MODULE_SCOPE_CALL_SET) {
+                CachedValueProvider.Result.create(
+                    org.elixir_lang.psi.CallDefinitionClause.modularChildCalls(modular).toHashSet(),
+                    PsiModificationTracker.MODIFICATION_COUNT
+                )
+            }
+
+        /**
+         * [containsCompileTimeEntranceAncestorOrSelf], without materializing [element]'s children via
+         * [org.elixir_lang.psi.impl.call.macroChildCallSequence]: walks up from [entrance] instead of
+         * scanning down from [element] - only [entrance]'s own compile-time-ancestor chain (bounded by
+         * nesting depth) can ever land on one of [element]'s direct macro children, so there is no need to
+         * enumerate the rest of them to answer this.
+         */
+        private fun modularContainsEntranceAtCompileTimeLevel(element: Call, entrance: PsiElement): Boolean {
+            val childScope = element.macroChildScope() ?: return false
+
+            if (childScope.containsAsMacroChild(entrance)) return true
+
+            var ancestor: PsiElement? = entrance.parent
+
+            while (ancestor != null) {
+                when (ancestor) {
+                    is ElixirDoBlock, is ElixirBlockList, is ElixirBlockItem, is ElixirStab, is ElixirStabBody ->
+                        ancestor = ancestor.parent
+                    is Call -> {
+                        if (!If.`is`(ancestor) && !Unless.`is`(ancestor)) return false
+                        if (childScope.containsAsMacroChild(ancestor)) return true
+
+                        ancestor = ancestor.parent
+                    }
+                    else -> return false
+                }
+            }
+
+            return false
+        }
+
+        /**
+         * The single scope [org.elixir_lang.psi.impl.call.macroChildCallList] would collect this call's
+         * direct macro children from - the `ElixirStabBody` of a `do...end` block, or the one [Call] at a
+         * one-liner `do:` keyword. Mirrors that function's own two shapes without building the list; `null`
+         * if this call has neither.
+         */
+        private fun Call.macroChildScope(): PsiElement? {
+            val doBlock = doBlock
+
+            return if (doBlock != null) {
+                doBlock.stab?.stabBody
+            } else {
+                val potentialKeywords = finalArguments()?.lastOrNull()
+
+                (potentialKeywords as? QuotableKeywordList)
+                    ?.quotableKeywordPairList()
+                    ?.firstOrNull()
+                    ?.takeIf { it.keywordKey.text == "do" }
+                    ?.keywordValue as? Call
+            }
+        }
+
+        /** Whether [candidate] is one of the macro children [this] scope (from [Call.macroChildScope])
+         *  collects - for an `ElixirStabBody`, [candidate]'s own parent, unwrapped through any
+         *  `ElixirAccessExpression` wrapper the same way [org.elixir_lang.psi.impl.macroChildCallList]'s own
+         *  recursion does; for the one-liner `do:` shape, [this] scope *is* the single child, so direct
+         *  equivalence is the whole check. */
+        private fun PsiElement.containsAsMacroChild(candidate: PsiElement): Boolean =
+            when (this) {
+                is ElixirStabBody -> {
+                    var parent: PsiElement? = candidate.parent
+
+                    while (parent is ElixirAccessExpression) {
+                        parent = parent.parent
+                    }
+
+                    parent != null && parent.isEquivalentTo(this)
+                }
+                else -> this.isEquivalentTo(candidate)
+            }
 
         /**
          * The `state.get(ENTRANCE)` is one of the `childCalls` OR any calls in the way are compile-time conditional
