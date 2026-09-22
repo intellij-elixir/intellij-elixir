@@ -9,6 +9,7 @@ import com.intellij.psi.PsiElementVisitor
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.PsiReference
 import com.intellij.psi.ResolveResult
+import org.elixir_lang.annotator.Injection
 import org.elixir_lang.name_arity.PresentationData
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
@@ -16,6 +17,11 @@ import org.elixir_lang.psi.scope.call_definition_clause.CallDefinitionResolveRes
 
 class References : LocalInspectionTool() {
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean, session: LocalInspectionToolSession): PsiElementVisitor {
+        // A doc-embedded code sample is illustrative, not compiled with the module; skip it before even
+        // computing a reference, since a smart pointer into injected PSI can fail to restore later even
+        // when nothing is ever registered against it.
+        if (Injection.of(holder.file) == Injection.UNCOMPILED) return PsiElementVisitor.EMPTY_VISITOR
+
         return object : ElixirVisitor() {
             override fun visitElement(element: PsiElement) {
                 when (element) {
