@@ -24,7 +24,6 @@ import org.elixir_lang.psi.impl.hasKeywordKey
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.structure_view.element.CallDefinitionHead
-import org.elixir_lang.structure_view.element.Delegation
 
 /**
  * An `import` call
@@ -115,8 +114,8 @@ object Import {
         resolveState: ResolveState,
         keepProcessing: (Call, ResolveState) -> Boolean
     ): Boolean =
-        when {
-            CallDefinitionClause.`is`(importedCall) -> {
+        when (CallableDeclaration.headBindingFormOf(importedCall)) {
+            CallableDeclaration.Form.CLAUSE -> {
                 CallDefinitionClause.nameArityInterval(importedCall, resolveState)?.let { nameArityInterval ->
                     if (filter(nameArityInterval)) {
                         keepProcessing(importedCall, resolveState)
@@ -125,10 +124,8 @@ object Import {
                     }
                 }
             }
-            Delegation.`is`(importedCall) -> {
-                importedCall.finalArguments()?.takeIf { it.size == 2 }?.let { arguments ->
-                    val head = arguments[0]
-
+            CallableDeclaration.Form.DELEGATION -> {
+                CallableDeclaration.delegationHead(importedCall)?.let { head ->
                     CallDefinitionHead.nameArityInterval(head, resolveState)?.let { headNameArityInterval ->
                         if (filter(headNameArityInterval)) {
                             keepProcessing(importedCall, resolveState)

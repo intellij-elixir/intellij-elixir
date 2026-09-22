@@ -12,10 +12,8 @@ import org.elixir_lang.psi.impl.call.macroChildCalls
 import org.elixir_lang.code_insight.lookup.element.CallDefinitionClause as CallDefinitionClauseLookupElement
 import org.elixir_lang.code_insight.lookup.element_renderer.CallDefinitionClause as CallDefinitionClauseRenderer
 import com.intellij.psi.ResolveState
-import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.structure_view.element.CallDefinitionHead
-import org.elixir_lang.structure_view.element.Delegation
 import org.elixir_lang.psi.CallDefinitionClause as CallDefinitionClausePsi
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.code_insight.lookup.element_renderer.Delegation as DelegationRenderer
 import org.elixir_lang.code_insight.completion.insert_handler.CallDefinitionClause as CallDefinitionClauseInsertHandler
 
@@ -66,7 +64,7 @@ private fun callDefinitionClauseLookupElements(scope: Call, appendParentheses: B
     val childCalls = scope.macroChildCalls()
 
     val publicClauses = childCalls
-        .filter { CallDefinitionClausePsi.`is`(it) }
+        .filter { CallableDeclaration.headBindingFormOf(it) == CallableDeclaration.Form.CLAUSE }
         .filter { CallDefinitionClausePsi.isPublic(it) }
 
     val clauseLookupElements = preferFunctionHeads(publicClauses).map { (name, bestClause) ->
@@ -81,7 +79,7 @@ private fun callDefinitionClauseLookupElements(scope: Call, appendParentheses: B
 /**
  * The [LookupElement]s for functions this module declares only with `defdelegate`.
  *
- * `Delegation.is` and `CallDefinitionClause.is` are disjoint, so delegates need their own pass or they
+ * [CallableDeclaration.Form.DELEGATION] and [CallableDeclaration.Form.CLAUSE] are disjoint, so delegates need their own pass or they
  * are never offered. Names already in [clauseNames] are skipped so a `def` keeps its richer
  * presentation; visibility is not filtered because there is no `defdelegatep`.
  *
@@ -94,12 +92,11 @@ private fun delegationLookupElements(
     appendParentheses: Boolean
 ): List<LookupElement> =
     childCalls
-        .filter { Delegation.`is`(it) }
+        .filter { CallableDeclaration.headBindingFormOf(it) == CallableDeclaration.Form.DELEGATION }
         .mapNotNull { delegation ->
-            delegation
-                .finalArguments()
-                ?.takeIf { it.size == 2 }
-                ?.let { arguments -> CallDefinitionHead.nameArityInterval(arguments[0], ResolveState.initial()) }
+            CallableDeclaration
+                .declarations(delegation, CallableDeclaration.Form.DELEGATION, ResolveState.initial())
+                .firstOrNull()
                 ?.name
                 ?.takeIf { it !in clauseNames }
                 ?.let { name -> name to delegation }
