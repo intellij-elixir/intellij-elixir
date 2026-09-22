@@ -115,6 +115,19 @@ class CallableTable private constructor(
 
     fun declaring(name: Name): List<Entry> = byName[name] ?: emptyList()
 
+    private val sortedNames: java.util.TreeSet<Name> by lazy { java.util.TreeSet(byName.keys) }
+    private val firstSeen: Map<Name, Int> by lazy { byName.keys.withIndex().associate { (index, name) -> name to index } }
+
+    /**
+     * What declares a name that [prefix] starts, [prefix] itself included: what a use of [prefix] may reach, valid or
+     * as a candidate. A range of the sorted names, not a scan of every one; names come in the order [entries] has them.
+     */
+    fun declaringStartingWith(prefix: Name): List<Entry> =
+        sortedNames.tailSet(prefix, true)
+            .takeWhile { it.startsWith(prefix) }
+            .sortedBy { firstSeen.getValue(it) }
+            .flatMap { byName.getValue(it) }
+
     /**
      * Every source-declared macro clause named [name] at an arity containing [arity], declared by the module
      * named [modularName], excluding [candidate] itself - reproducing

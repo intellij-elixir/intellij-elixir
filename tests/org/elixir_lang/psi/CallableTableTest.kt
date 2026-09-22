@@ -78,6 +78,34 @@ class CallableTableTest : PlatformTestCase() {
         assertEquals(listOf("def conditional, do: :ok"), resolved)
     }
 
+    /** A use of a name may reach a declaration whose name it only starts, as a candidate: what starts with it, and only that. */
+    fun testDeclaringStartingWithNamesWhatAPrefixStartsInTheOrderTheyAreFirstDeclared() {
+        myFixture.configureByText(
+            "prefixed.ex",
+            """
+            defmodule Prefixed do
+              def snoc, do: 1
+              def snow, do: 2
+              def snoc!, do: 3
+              def other, do: 4
+              def snoc, do: 5
+            end
+            """.trimIndent()
+        )
+
+        val table = CallableTable.of(modularCall("Prefixed"))
+
+        assertEquals(
+            listOf("def snoc, do: 1", "def snoc, do: 5", "def snow, do: 2", "def snoc!, do: 3"),
+            table.declaringStartingWith("sno").map { it.call.text }
+        )
+        assertEquals(
+            listOf("def snoc, do: 1", "def snoc, do: 5", "def snoc!, do: 3"),
+            table.declaringStartingWith("snoc").map { it.call.text }
+        )
+        assertEquals(emptyList<String>(), table.declaringStartingWith("x").map { it.call.text })
+    }
+
     private fun modularCall(name: String): Call =
         PsiTreeUtil.findChildrenOfType(myFixture.file, Call::class.java)
             .single { isModular(it) && it.text.startsWith("defmodule $name ") }
