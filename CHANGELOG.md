@@ -19,6 +19,10 @@
   - **Completion now inserts a call's parameters as editable, tabbable placeholders instead of an empty
     `()`.** Refs [#4150](https://github.com/intellij-elixir/intellij-elixir/issues/4150).
 
+- [#4161](https://github.com/intellij-elixir/intellij-elixir/pull/4161) [@sh41](https://github.com/sh41)
+  - **Highlighting and completion in a module with hundreds or thousands of definitions - most visibly a
+    decompiled `.beam` - no longer slow to a crawl.** Refs [#4123](https://github.com/intellij-elixir/intellij-elixir/issues/4123).
+
 - [#4134](https://github.com/intellij-elixir/intellij-elixir/pull/4134) [@georgeguimaraes](https://github.com/georgeguimaraes)
   - **The plugin icon is now the new official Elixir logo.**
 
@@ -111,6 +115,15 @@
 
 - [#4167](https://github.com/intellij-elixir/intellij-elixir/pull/4167) [@sh41](https://github.com/sh41)
   - **Go to Declaration on a compiled function with more than one clause for the same arity now lands on the first clause, not the last.** Refs [#4164](https://github.com/intellij-elixir/intellij-elixir/issues/4164).
+- [#4161](https://github.com/intellij-elixir/intellij-elixir/pull/4161) [@sh41](https://github.com/sh41)
+  - **`EEx.function_from_file`/`function_from_string` and `Mix.Generator.embed_template`/`embed_text` declare
+    their function against a compiled dependency, not only against source.** Refs
+    [#4123](https://github.com/intellij-elixir/intellij-elixir/issues/4123).
+  - **Ecto.Schema, Ecto.Query and ExUnit.Case (`schema`, `embedded_schema`, `from`/`where`/etc., `describe`/`test`)
+    are recognized reliably instead of intermittently overflowing the resolver's recursion guard.** Refs
+    [#4123](https://github.com/intellij-elixir/intellij-elixir/issues/4123).
+- [#4157](https://github.com/intellij-elixir/intellij-elixir/pull/4157) [@sh41](https://github.com/sh41)
+  - **Go to Definition, completion and Find Usages now agree on which calls define a function, fixing cases involving `defguard`, `Mix.Generator` templates and EEx-generated functions.** Fixes [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
 - [#4146](https://github.com/intellij-elixir/intellij-elixir/pull/4146) [@sh41](https://github.com/sh41)
   - **Building a project no longer fails with `UnsupportedClassVersionError` from the plugin's JPS classes when the project SDK is older than the IDE's JDK.** Fixes [#3996](https://github.com/intellij-elixir/intellij-elixir/issues/3996).
 - [#4160](https://github.com/intellij-elixir/intellij-elixir/pull/4160) [@sh41](https://github.com/sh41)

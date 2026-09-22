@@ -2,6 +2,7 @@ package org.elixir_lang.psi.scope.call_definition_clause
 
 import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.codeInsight.lookup.LookupElementBuilder
+import com.intellij.codeInsight.lookup.LookupElementRenderer
 import com.intellij.openapi.util.Key
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
@@ -13,10 +14,7 @@ import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.Named
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
-import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.scope.CallDefinitionClause
-import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.Callback
 
 /**
@@ -102,39 +100,27 @@ class Variants(private val appendParentheses: Boolean) : CallDefinitionClause() 
             }
 
     override fun executeOnDelegation(element: Call, state: ResolveState): Boolean {
-        element.finalArguments()?.takeIf { it.size == 2 }?.let { arguments ->
-            val head = arguments[0]
-
-            CallDefinitionHead.nameArityInterval(head, state)?.let { headNameArityInterval ->
-                val headName = headNameArityInterval.name
-
-                lookupElementByPsiElementName.computeIfAbsent(head to headName) { (_, headName) ->
-                    LookupElementBuilder.createWithSmartPointer(
-                            headName,
-                            element
-                    ).withRenderer(
-                            org.elixir_lang.code_insight.lookup.element_renderer.Delegation(headName)
-                    ).withInsertHandlerIfAppendingParentheses()
-                }
-            }
+        addDeclarations(element, CallableDeclaration.Form.DELEGATION, state) { name ->
+            LookupElementBuilder.createWithSmartPointer(
+                    name,
+                    element
+            ).withRenderer(
+                    org.elixir_lang.code_insight.lookup.element_renderer.Delegation(name)
+            )
         }
 
         return true
     }
 
     override fun executeOnEExFunctionFrom(element: Call, state: ResolveState): Boolean {
-        element.finalArguments()?.let { arguments ->
-            arguments[1].stripAccessExpression().let { it as? ElixirAtom }?.node?.lastChildNode?.text?.let { name ->
-                lookupElementByPsiElementName.computeIfAbsent(element to name) { (_, name) ->
-                    LookupElementBuilder.createWithSmartPointer(
-                            name,
-                            element
-                    ).withRenderer(
-                            org.elixir_lang.code_insight.lookup.element_renderer.EExFunctionFrom(name)
-                    ).withInsertHandlerIfAppendingParentheses()
-                }
-            }
-       }
+        addDeclarations(element, CallableDeclaration.Form.EEX_FUNCTION_FROM, state) { name ->
+            LookupElementBuilder.createWithSmartPointer(
+                    name,
+                    element
+            ).withRenderer(
+                    org.elixir_lang.code_insight.lookup.element_renderer.EExFunctionFrom(name)
+            )
+        }
 
         return true
     }
@@ -157,25 +143,35 @@ class Variants(private val appendParentheses: Boolean) : CallDefinitionClause() 
     }
 
     override fun executeOnMixGeneratorEmbed(element: Call, state: ResolveState): Boolean {
-        element.finalArguments()?.first()?.stripAccessExpression()?.let { it as? ElixirAtom }?.node?.lastChildNode?.text?.let { prefix ->
-            val suffix = element.functionName()!!.removePrefix("embed_")
-            val name = "${prefix}_${suffix}"
-            // `Generator.isEmbed` admits only these two names.
-            val renderer = when (suffix) {
-                "template" -> org.elixir_lang.code_insight.lookup.element_renderer.mix.generator.EmbedTemplate(name)
-                "text" -> org.elixir_lang.code_insight.lookup.element_renderer.mix.generator.EmbedText(name)
-                else -> null
-            } ?: return true
+        // `Generator.isEmbed` admits only these two names today; refuse rather than mislabel a third.
+        val renderer: (String) -> LookupElementRenderer<LookupElement> = when (element.functionName()) {
+            "embed_template" -> { name -> org.elixir_lang.code_insight.lookup.element_renderer.mix.generator.EmbedTemplate(name) }
+            "embed_text" -> { name -> org.elixir_lang.code_insight.lookup.element_renderer.mix.generator.EmbedText(name) }
+            else -> return true
+        }
 
-            lookupElementByPsiElementName.computeIfAbsent(element to name) { (element, name) ->
-                LookupElementBuilder
-                        .createWithSmartPointer(name, element)
-                        .withRenderer(renderer)
-                        .withInsertHandlerIfAppendingParentheses()
-            }
+        addDeclarations(element, CallableDeclaration.Form.GENERATOR_EMBED, state) { name ->
+            LookupElementBuilder.createWithSmartPointer(name, element).withRenderer(renderer(name))
         }
 
         return true
+    }
+
+    /**
+     * The shape [executeOnDelegation], [executeOnEExFunctionFrom] and [executeOnMixGeneratorEmbed] share. Applies the
+     * insert handler the same way every other builder here does, so a capture (`appendParentheses` false) stays bare.
+     */
+    private fun addDeclarations(
+        call: Call,
+        form: CallableDeclaration.Form,
+        state: ResolveState,
+        lookupElement: (name: String) -> LookupElementBuilder,
+    ) {
+        for ((name, _) in CallableDeclaration.declarations(call, form, state)) {
+            lookupElementByPsiElementName.computeIfAbsent(call to name) { (_, n) ->
+                lookupElement(n).withInsertHandlerIfAppendingParentheses()
+            }
+        }
     }
 
     /**

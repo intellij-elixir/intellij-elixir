@@ -1,5 +1,6 @@
 package org.elixir_lang.psi
 
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.ElementDescriptionLocation
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiNamedElement
@@ -24,7 +25,6 @@ import org.elixir_lang.psi.impl.hasKeywordKey
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.structure_view.element.CallDefinitionHead
-import org.elixir_lang.structure_view.element.Delegation
 
 /**
  * An `import` call
@@ -114,9 +114,11 @@ object Import {
         importedCall: Call,
         resolveState: ResolveState,
         keepProcessing: (Call, ResolveState) -> Boolean
-    ): Boolean =
-        when {
-            CallDefinitionClause.`is`(importedCall) -> {
+    ): Boolean {
+        ProgressManager.checkCanceled()
+
+        return when (CallableDeclaration.headBindingFormOf(importedCall)) {
+            CallableDeclaration.Form.CLAUSE -> {
                 CallDefinitionClause.nameArityInterval(importedCall, resolveState)?.let { nameArityInterval ->
                     if (filter(nameArityInterval)) {
                         keepProcessing(importedCall, resolveState)
@@ -125,10 +127,8 @@ object Import {
                     }
                 }
             }
-            Delegation.`is`(importedCall) -> {
-                importedCall.finalArguments()?.takeIf { it.size == 2 }?.let { arguments ->
-                    val head = arguments[0]
-
+            CallableDeclaration.Form.DELEGATION -> {
+                CallableDeclaration.delegationHead(importedCall)?.let { head ->
                     CallDefinitionHead.nameArityInterval(head, resolveState)?.let { headNameArityInterval ->
                         if (filter(headNameArityInterval)) {
                             keepProcessing(importedCall, resolveState)
@@ -141,6 +141,7 @@ object Import {
             else -> null
         }
             ?: true
+    }
 
     private fun treeWalkUpImportedModularChildExpression(
         filter: (NameArityInterval) -> Boolean,
@@ -148,9 +149,9 @@ object Import {
         resolveState: ResolveState,
         keepProcessing: (PsiElement, ResolveState) -> Boolean
     ): Boolean {
+        ProgressManager.checkCanceled()
+
         val nameArityInterval = importedCall.nameArityInterval
-
-
 
         return if (filter(nameArityInterval)) {
             keepProcessing(importedCall, resolveState)

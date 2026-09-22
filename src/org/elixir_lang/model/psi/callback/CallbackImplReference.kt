@@ -11,11 +11,11 @@ import com.intellij.psi.stubs.StubIndex
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.macroChildCallSequence
 import org.elixir_lang.psi.stub.index.ModularName
-import org.elixir_lang.structure_view.element.Callback as CallbackElement
 
 /**
  * Symbol reference from an implementing `def`/`defmacro` clause's name to the `@callback`(s) it
@@ -36,7 +36,7 @@ class CallbackImplReference(
 
     @RequiresReadLock
     override fun resolveReference(): Collection<Symbol> {
-        if (!CallDefinitionClause.`is`(call)) return emptyList()
+        if (CallableDeclaration.headBindingFormOf(call) != CallableDeclaration.Form.CLAUSE) return emptyList()
         val nameArity = CallDefinitionClause.nameArityInterval(call, ResolveState.initial()) ?: return emptyList()
         val macro = CallDefinitionClause.isMacro(call)
         val module = CallDefinitionClause.enclosingModularMacroCall(call) ?: return emptyList()
@@ -53,7 +53,7 @@ class CallbackImplReference(
                 behaviourModule
                     .macroChildCallSequence()
                     .filterIsInstance<AtUnqualifiedNoParenthesesCall<*>>()
-                    .filter { CallbackElement.`is`(it) }
+                    .filter { CallableDeclaration.syntacticFormOf(it) == CallableDeclaration.Form.CALLBACK }
                     .forEach { attr ->
                         Callback.fromModuleAttribute(attr).forEach { callback ->
                             if (callback.name == nameArity.name &&
