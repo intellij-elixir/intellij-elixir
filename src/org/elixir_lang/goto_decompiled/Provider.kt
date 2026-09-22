@@ -17,6 +17,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.StubBased
 import org.elixir_lang.psi.definition
 import org.elixir_lang.psi.stub.index.AllName
+import org.elixir_lang.psi.scope.NameMatch
 
 /**
  * Go To Related from source to decompiled version of the same function
@@ -68,7 +69,7 @@ class Provider : GotoRelatedProvider() {
                                                 .callDefinitionClauseCallSequence(decompiledModularDefiner)
                                                 .mapNotNull { decompiledDefiner ->
                                                     nameArityInterval(decompiledDefiner, ResolveState.initial())?.let { decompiledNameArityRange ->
-                                                        if (nameArityRange.name == decompiledNameArityRange.name &&
+                                                        if (NameMatch.same(nameArityRange.name, definer, decompiledNameArityRange.name, decompiledDefiner) &&
                                                                 nameArityRange.arityInterval.overlaps(decompiledNameArityRange.arityInterval)) {
                                                             decompiledDefiner
                                                         } else {

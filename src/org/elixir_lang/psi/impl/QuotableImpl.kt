@@ -1529,13 +1529,21 @@ object QuotableImpl {
 
     @RequiresReadLock
     private fun identifierAtom(identifier: String, element: PsiElement): OtpErlangAtom =
-        OtpErlangAtom(
-            if (identifier.any { it.code > 0x7F } && isAvailable(NORMALIZED_IDENTIFIERS, element)) {
-                Normalizer.normalize(identifier, Normalizer.Form.NFC).replace('µ', 'μ')
-            } else {
-                identifier
-            }
-        )
+        OtpErlangAtom(normalizeIdentifier(identifier, element))
+
+    /**
+     * [identifier] the way the real compiler would see it at [element]'s language level: NFC, with `µ`
+     * (MICRO SIGN) folded to `μ` (GREEK SMALL LETTER MU) - the same identifier-equivalence the compiler
+     * itself normalises to, not merely a superficial lookalike.
+     */
+    @RequiresReadLock
+    @JvmStatic
+    fun normalizeIdentifier(identifier: String, element: PsiElement): String =
+        if (identifier.any { it.code > 0x7F } && isAvailable(NORMALIZED_IDENTIFIERS, element)) {
+            Normalizer.normalize(identifier, Normalizer.Form.NFC).replace('µ', 'μ')
+        } else {
+            identifier
+        }
 
     @JvmStatic
     fun quote(decimalFloat: ElixirDecimalFloat): OtpErlangObject {

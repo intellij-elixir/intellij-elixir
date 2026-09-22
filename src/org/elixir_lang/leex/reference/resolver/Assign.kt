@@ -19,8 +19,13 @@ import org.elixir_lang.psi.stub.index.AllName
 import org.elixir_lang.util.AccumulatorContinue
 import org.elixir_lang.util.foldWhile
 import org.elixir_lang.leex.reference.Assign as ReferenceAssign
+import org.elixir_lang.psi.scope.NameMatch
 
 object Assign : ResolveCache.PolyVariantResolver<ReferenceAssign> {
+
+    /** How [declaredName], declared at [declaration], matches the name [assign] reads. */
+    private fun nameMatch(assign: Assign, declaredName: String, declaration: PsiElement): NameMatch =
+        NameMatch.of(NameMatch.query(assign.name, assign.element), declaredName, declaration)
     override fun resolve(assign: Assign, incompleteCode: Boolean): Array<ResolveResult> {
         val containingFile = assign.element.containingFile
 
@@ -332,10 +337,10 @@ object Assign : ResolveCache.PolyVariantResolver<ReferenceAssign> {
             is ElixirKeywordKey -> {
                 if (expression.line == null) {
                     val resolvedName = expression.text
-                    val assignName = assign.name
+                    val nameMatch = nameMatch(assign, resolvedName, expression)
 
-                    if (resolvedName.startsWith(assignName)) {
-                        val validResult = resolvedName == assignName
+                    if (nameMatch != NameMatch.NONE) {
+                        val validResult = nameMatch == NameMatch.EXACT
 
                         initial + listOf(PsiElementResolveResult(expression, validResult))
                     } else {
@@ -387,10 +392,10 @@ object Assign : ResolveCache.PolyVariantResolver<ReferenceAssign> {
 
             is ElixirAtom -> if (expression.line == null) {
                 val resolvedName = expression.node.lastChildNode.text
-                val assignName = assign.name
+                val nameMatch = nameMatch(assign, resolvedName, expression)
 
-                if (resolvedName.startsWith(assignName)) {
-                    val validResult = resolvedName == assignName
+                if (nameMatch != NameMatch.NONE) {
+                    val validResult = nameMatch == NameMatch.EXACT
                     initial + listOf(PsiElementResolveResult(expression, validResult))
                 } else {
                     null
@@ -462,10 +467,10 @@ object Assign : ResolveCache.PolyVariantResolver<ReferenceAssign> {
             is ElixirKeywordKey -> {
                 if (assigns.line == null) {
                     val resolvedName = assigns.text
-                    val assignName = assign.name
+                    val nameMatch = nameMatch(assign, resolvedName, assigns)
 
-                    if (resolvedName.startsWith(assignName)) {
-                        val validResult = resolvedName == assignName
+                    if (nameMatch != NameMatch.NONE) {
+                        val validResult = nameMatch == NameMatch.EXACT
 
                         listOf(PsiElementResolveResult(assigns, validResult))
                     } else {
@@ -838,10 +843,10 @@ object Assign : ResolveCache.PolyVariantResolver<ReferenceAssign> {
             is ElixirKeywordKey -> {
                 if (expression.line == null) {
                     val resolvedName = expression.text
-                    val assignName = assign.name
+                    val nameMatch = nameMatch(assign, resolvedName, expression)
 
-                    if (resolvedName.startsWith(assignName)) {
-                        val validResult = resolvedName == assignName
+                    if (nameMatch != NameMatch.NONE) {
+                        val validResult = nameMatch == NameMatch.EXACT
 
                         val accumulator = initial + listOf(PsiElementResolveResult(expression, validResult))
 

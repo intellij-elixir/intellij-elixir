@@ -22,6 +22,7 @@ import org.elixir_lang.psi.impl.call.macroChildCallSequence
 import org.elixir_lang.psi.impl.call.whileInStabBodyChildExpressions
 import org.elixir_lang.psi.mix.Generator
 import org.elixir_lang.psi.scope.CallDefinitionClause.Companion.containsCompileTimeAncestorOrSelf
+import org.elixir_lang.psi.scope.NameMatch
 import org.elixir_lang.psi.stub.type.call.Stub.isModular
 import org.elixir_lang.structure_view.element.Timed
 
@@ -233,7 +234,8 @@ class CallableTable private constructor(
                 val path = Path(state.visitedElementSet(), wrappers)
 
                 for ((name, arityInterval) in CallableDeclaration.declarations(call, form, ResolveState.initial())) {
-                    byName.getOrPut(name) { mutableListOf() }
+                    // keyed as a lookup's normalized query finds it, so two spellings of one identifier meet
+                    byName.getOrPut(NameMatch.key(name, call)) { mutableListOf() }
                         .add(Entry(call, form, arityInterval, path))
                 }
 

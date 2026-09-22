@@ -13,6 +13,7 @@ import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.For
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.macroChildCalls
+import org.elixir_lang.psi.scope.NameMatch
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.CallDefinitionSpecification.Companion.typeNameArity
 
@@ -23,7 +24,7 @@ object CallDefinitionClause : ResolveCache.PolyVariantResolver<org.elixir_lang.r
         return enclosingModularMacroCall(callDefinitionClause.moduleAttribute)?.macroChildCalls()?.let { siblings ->
             if (siblings.isNotEmpty()) {
                 val nameArity = typeNameArity(callDefinitionClause.element) ?: return emptyArray()
-                val name = nameArity.name
+                val name = NameMatch.query(nameArity.name, callDefinitionClause.element)
                 val arity = nameArity.arity
 
                 siblings
@@ -74,11 +75,11 @@ object CallDefinitionClause : ResolveCache.PolyVariantResolver<org.elixir_lang.r
                                                  name: Name,
                                                  arity: Arity,
                                                  nameArityInterval: NameArityInterval): PsiElementResolveResult? {
-        val definerName = nameArityInterval.name
+        val nameMatch = NameMatch.of(name, nameArityInterval.name, call)
 
-        return if (definerName.startsWith(name)) {
+        return if (nameMatch != NameMatch.NONE) {
             val definerArityInterval = nameArityInterval.arityInterval
-            val validResult = (arity in definerArityInterval) && (definerName == name)
+            val validResult = (arity in definerArityInterval) && (nameMatch == NameMatch.EXACT)
 
             PsiElementResolveResult(call, validResult)
         } else {
