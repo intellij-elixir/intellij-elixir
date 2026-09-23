@@ -576,7 +576,8 @@ private class Group(val scenario: Scenario) {
 
     /**
      * Source: every head of the definition and every call the compiler bound to it are renamed, and nothing else
-     * changes. Compiled: there is nothing to rename, because the definition is in a read-only `.beam`.
+     * changes. Compiled: the rename is refused, because the definition is in a read-only `.beam` - either nothing is
+     * offered to rename, or the rename dialog refuses with a reason saying it cannot be renamed and edits nothing.
      */
     private fun checkRename(binding: Binding?) {
         openAt(place)
@@ -593,7 +594,20 @@ private class Group(val scenario: Scenario) {
         }
 
         if (definition(binding).first.compiled) {
-            assertEquals("Rename at ${place.id} should be refused for a compiled definition", emptyList<Any>(), myFixture.renameTargetsAtCaret())
+            val targets = myFixture.renameTargetsAtCaret()
+            if (targets.isEmpty()) return
+
+            // Offered, the rename has to be refused by the dialog's validator, which the test engine reports as an
+            // exception carrying the validator's reason; any other failure is not a refusal the user could read.
+            val failure = runCatching { myFixture.renameTargetAtCaret(renamed(definition(binding).second.name)) }.exceptionOrNull()
+            val reason = generateSequence(failure) { it.cause }.mapNotNull { it.message }.firstOrNull { "cannot be renamed" in it }
+            assertNotNull(
+                "Rename at ${place.id} should be refused for a compiled definition, but offered $targets and " +
+                    (failure?.let { "failed with $it" } ?: "renamed it"),
+                reason
+            )
+            val changed = originals.filter { (file, text) -> FileDocumentManager.getInstance().getDocument(file)!!.text != text }.keys.map { it.name }
+            assertEquals("Rename at ${place.id} was refused ($reason) but still changed", emptyList<String>(), changed)
             return
         }
 
