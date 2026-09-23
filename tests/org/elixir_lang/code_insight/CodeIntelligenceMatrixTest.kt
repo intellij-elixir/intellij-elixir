@@ -1,6 +1,7 @@
 package org.elixir_lang.code_insight
 
 import com.intellij.ide.impl.HeadlessDataManager
+import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiCompiledFile
@@ -25,6 +26,7 @@ import org.elixir_lang.ElixirSyntaxHighlighter
 import com.intellij.openapi.editor.colors.EditorColorsManager
 import com.intellij.openapi.editor.markup.TextAttributes
 import java.awt.Color
+import java.io.File
 import com.intellij.codeInsight.lookup.LookupManager
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.fileEditor.FileDocumentManager
@@ -45,6 +47,8 @@ import org.elixir_lang.code_insight.matrix.Binding
 import org.elixir_lang.code_insight.matrix.Cell
 import org.elixir_lang.code_insight.matrix.Complaint
 import org.elixir_lang.code_insight.matrix.complaintOf
+import org.elixir_lang.code_insight.matrix.namedArities
+import org.elixir_lang.code_insight.matrix.suggestionsOf
 import org.elixir_lang.inspection.References
 import org.elixir_lang.inspection.UnresolvableModuleQualifier
 import org.elixir_lang.code_insight.matrix.Crossing
@@ -61,6 +65,7 @@ import org.elixir_lang.code_insight.matrix.Place
 import org.elixir_lang.code_insight.matrix.Site
 import org.elixir_lang.code_insight.matrix.UNAVAILABLE_PHRASE
 import org.elixir_lang.code_insight.matrix.nfc
+import org.elixir_lang.code_insight.matrix.sees
 import org.elixir_lang.documentation.quickDocumentationAtCaret
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
@@ -145,29 +150,31 @@ private class Group(private val scenario: Scenario) {
                 // down, the light project stays dirty, and every later scenario fails to set up in turn: 35,206
                 // cells reporting a disposer leak instead of the one file that was missing.
                 try {
-                    setUp()
+                    timed("setUp") { setUp() }
 
                     for ((atPlace, features) in cells.groupBy({ it.first }, { it.second })) {
                         place = atPlace
                         opened = false
-                        val binding = binding()
+                        val binding = timed("binding", place = atPlace) { binding() }
 
                         for (feature in features) {
-                            outcomes[atPlace to feature] = try {
-                                check(feature, binding)
-                                null
-                            } catch (e: Throwable) {
-                                if (e is ControlFlowException || e is VirtualMachineError || e is CancellationException) throw e
-                                e
-                            } finally {
-                                if (feature.edits) restore()
+                            outcomes[atPlace to feature] = timed("check", feature, atPlace) {
+                                try {
+                                    check(feature, binding)
+                                    null
+                                } catch (e: Throwable) {
+                                    if (e is ControlFlowException || e is VirtualMachineError || e is CancellationException) throw e
+                                    e
+                                } finally {
+                                    if (feature.edits) restore()
+                                }
                             }
                         }
                     }
                 } finally {
                     // `myFixture` is only unset when the factory itself threw, and then there is nothing to tear
                     // down; calling it anyway would replace the real failure with an uninitialized-property one.
-                    if (this::myFixture.isInitialized) myFixture.tearDown()
+                    if (this::myFixture.isInitialized) timed("tearDown") { myFixture.tearDown() }
                 }
             }
         } catch (e: Throwable) {
@@ -176,6 +183,26 @@ private class Group(private val scenario: Scenario) {
         }
 
         return outcomes
+    }
+
+    /**
+     * [block]'s result, with its wall time appended to [TIMING] when that is set.
+     *
+     * JUnit charges a scenario's whole cost to whichever of its cells runs first, so the XML cannot say which
+     * feature or phase the time goes to; this can. A feature's time includes the [restore] after it.
+     */
+    private inline fun <T> timed(phase: String, feature: Feature? = null, place: Place? = null, block: () -> T): T {
+        val timing = TIMING ?: return block()
+        val start = System.nanoTime()
+        try {
+            return block()
+        } finally {
+            val nanos = System.nanoTime() - start
+            timing.appendText(
+                listOf(scenario.backing, scenario.form, scenario.world, phase, feature?.testName ?: "", place?.id ?: "", nanos)
+                    .joinToString("\t", postfix = "\n")
+            )
+        }
     }
 
     private fun setUp() {
@@ -200,7 +227,9 @@ private class Group(private val scenario: Scenario) {
         LookupManager.hideActiveLookup(project)
         WriteCommandAction.runWriteCommandAction(project) {
             for ((file, text) in originals) {
-                FileDocumentManager.getInstance().getDocument(file)!!.setText(text)
+                val document = FileDocumentManager.getInstance().getDocument(file)!!
+                // Only what the feature changed: resetting an untouched document to its own text still reparses it.
+                if (document.text != text) document.setText(text)
             }
         }
         PsiDocumentManager.getInstance(project).commitAllDocuments()
@@ -241,7 +270,7 @@ private class Group(private val scenario: Scenario) {
         val site = siteOrNull()!!
         val module = binding?.let { definition(it).first } ?: scenario.main
         val expected = module.definitions
-            .filter { nfc(it.name) == nfc(site.name) }
+            .filter { nfc(it.name) == nfc(site.name) && site.sees(it) }
             .map { definition -> Expected.heads(module, definition.name, definition.maxArity).first().parameters.joinToString(", ") }
             .map(::nfc)
             .sorted()
@@ -254,7 +283,9 @@ private class Group(private val scenario: Scenario) {
         openAt(place)
         val navigation = myFixture.gtduNavigationAtCaret()
 
-        assertTrue("Ctrl+Click on ${place.id} should show its usages, but resolved to $navigation", navigation is GtduNavigation.ShowUsages)
+        // Without its identity hash, which differs from run to run and would make every such cell's message "change".
+        val described = navigation.toString().replace(IDENTITY_HASH, "")
+        assertTrue("Ctrl+Click on ${place.id} should show its usages, but resolved to $described", navigation is GtduNavigation.ShowUsages)
         assertEquals(
             "Show Usages at ${place.id} offered the wrong targets",
             listOf(nfc(presentedHead(binding).label)),
@@ -295,28 +326,71 @@ private class Group(private val scenario: Scenario) {
      * so no cell can see the difference, but the scheme is left marginally more explicit than it was found for the
      * rest of the test JVM.
      */
-    private fun highlightKeysAt(offset: Int): List<String> {
+    private fun highlightKeysAt(offset: Int): List<String> =
+        highlights().filter { it.startOffset == offset }.mapNotNull { it.key }.sorted()
+
+    /** One highlight of the open file: where, how severe, what it says, and which of [highlightKeysAt]'s keys it is. */
+    private class Highlight(val startOffset: Int, val endOffset: Int, val severity: HighlightSeverity, val description: String?, val key: String?)
+
+    /**
+     * The open file's highlights, with each of [highlightKeysAt]'s keys given a foreground of its own while they are
+     * computed, so an applied attribute can be read back as the key that applied it.
+     *
+     * The highlights depend on the project's text, not on the caret, so one pass answers every place in the file and
+     * both [checkHighlighting] and [checkDiagnostic]. Without this every place re-highlighted the whole file twice,
+     * a fifth of the suite. A pass is only reused while [pristine], and [restore] puts the project back to exactly
+     * that text.
+     */
+    private fun highlights(): List<Highlight> {
+        val file = myFixture.file.virtualFile
+        val pristine = pristine()
+        highlightsByFile[file]?.takeIf { pristine }?.let { return it }
+
         val scheme = EditorColorsManager.getInstance().globalScheme
-        val keys = listOf(
-            ElixirSyntaxHighlighter.FUNCTION_CALL,
-            ElixirSyntaxHighlighter.MACRO_CALL,
-            ElixirSyntaxHighlighter.FUNCTION_DECLARATION,
-            ElixirSyntaxHighlighter.MACRO_DECLARATION,
-            ElixirSyntaxHighlighter.PREDEFINED_CALL,
-        )
-        val previous = keys.associateWith { scheme.getAttributes(it) }
-        val distinct = keys.withIndex().associate { (index, key) -> key to TextAttributes(Color(1, 2, 3 + index), null, null, null, 0) }
+        val previous = HIGHLIGHT_KEYS.associateWith { scheme.getAttributes(it) }
+        val distinct = HIGHLIGHT_KEYS.withIndex().associate { (index, key) -> key to TextAttributes(Color(1, 2, 3 + index), null, null, null, 0) }
 
         return try {
             distinct.forEach { (key, attributes) -> scheme.setAttributes(key, attributes) }
-            myFixture.doHighlighting()
-                .filter { it.startOffset == offset }
-                .mapNotNull { info -> distinct.entries.firstOrNull { it.value == info.forcedTextAttributes }?.key?.externalName }
-                .sorted()
+            myFixture.doHighlighting().map { info ->
+                Highlight(
+                    info.startOffset,
+                    info.endOffset,
+                    info.severity,
+                    info.description,
+                    distinct.entries.firstOrNull { it.value == info.forcedTextAttributes }?.key?.externalName
+                )
+            }
         } finally {
             previous.forEach { (key, attributes) -> scheme.setAttributes(key, attributes) }
-        }
+        }.also { if (pristine) highlightsByFile[file] = it }
     }
+
+    private val highlightsByFile = mutableMapOf<VirtualFile, List<Highlight>>()
+
+    /**
+     * What the editor says about the caret's position: [inspectionDescriptionsAtCaret], read from [highlights]
+     * rather than from a highlighting pass of its own.
+     */
+    private fun inspectionDescriptionsAtCaret(): List<String> {
+        val document = myFixture.editor.document
+        val caret = myFixture.caretOffset
+        val line = document.getLineNumber(caret)
+        val start = document.getLineStartOffset(line)
+        val end = document.getLineEndOffset(line)
+
+        return highlights()
+            .filter { it.severity >= HighlightSeverity.WARNING }
+            .filter { it.startOffset >= start && it.endOffset <= end && caret in it.startOffset..it.endOffset }
+            .mapNotNull { it.description }
+            .distinct()
+            .sorted()
+    }
+
+    /** Whether every copied file's document has the text it was copied with, and nothing is waiting to be committed. */
+    private fun pristine(): Boolean =
+        !PsiDocumentManager.getInstance(project).hasUncommitedDocuments() &&
+            originals.all { (file, text) -> FileDocumentManager.getInstance().getDocument(file)!!.text == text }
 
     /**
      * What the editor says about the call, which is the only feature here that asks what the developer is *told*
@@ -346,7 +420,7 @@ private class Group(private val scenario: Scenario) {
             candidates.isNotEmpty() -> listOf(Complaint.ARITY_MISMATCH.name)
             else -> listOf(Complaint.UNRESOLVED.name)
         }
-        val said = myFixture.inspectionDescriptionsAtCaret()
+        val said = inspectionDescriptionsAtCaret()
 
         assertEquals(
             "The editor says the wrong thing about ${place.id}, which the compiler called: ${site.diagnostic?.message?.trim() ?: "correct"}",
@@ -354,7 +428,18 @@ private class Group(private val scenario: Scenario) {
             said.map(::complaintOf).distinct().sorted()
         )
 
-        if (expected == listOf(Complaint.ARITY_MISMATCH.name)) {
+        val suggested = site.diagnostic?.message?.let(::suggestionsOf).orEmpty()
+
+        if (suggested.isNotEmpty()) {
+            // The compiler already tells the developer what they may have meant, and an editor naming less than that,
+            // or something else, is less help than the build. Its list is fuzzy on the name, not only the arity: a
+            // call of a name nothing declares is pointed at the name that is declared.
+            assertEquals(
+                "The editor's complaint about ${place.id} does not name what the compiler suggests: $said",
+                suggested,
+                said.flatMap(::namedArities).distinct().sorted()
+            )
+        } else if (expected == listOf(Complaint.ARITY_MISMATCH.name)) {
             val arities = candidates.map { "${it.name}/${it.arity}" }
 
             assertTrue(
@@ -453,9 +538,10 @@ private class Group(private val scenario: Scenario) {
         val line = typedLine()
         val text = myFixture.completeCandidateOrSoleMatchAtCaret(name, '\n') { nfc(it) == name }
         val inserted = nfc(text.split('\n')[line.index])
-        val module = scenario.module(siteOrNull()!!.binding?.module ?: scenario.main.module)
+        val site = siteOrNull()!!
+        val module = scenario.module(site.binding?.module ?: scenario.main.module)
         val signatures = module.definitions
-            .filter { nfc(it.name) == nfc(name) }
+            .filter { nfc(it.name) == nfc(name) && site.sees(it) }
             .sortedBy { it.maxArity }
             .map { nfc(line.before + Expected.heads(module, it.name, it.maxArity).first().callSignature) }
 
@@ -492,17 +578,21 @@ private class Group(private val scenario: Scenario) {
         val newName = renamed(definition.name)
         val positions = scenario.sites
             .filter { site -> site.binding?.let { it.module == module.module && definition.covers(it) } == true }
-            .map { it.file to (it.line to it.column) } +
-            module.declarations
-                .filter { nfc(it.name) == nfc(definition.name) && it.arity == definition.maxArity }
-                .map { module.source to (it.line to it.column) }
+            .map { it.file to (it.line to it.column) }
+        // A declaration spells the name as its form does: an embed's atom is the name without the suffix the embed adds.
+        val declarationName = EMBED_SUFFIXES.firstOrNull { scenario.form == GENERATOR_EMBED && newName.endsWith(it) }
+            ?.let(newName::removeSuffix) ?: newName
+        val declarationPositions = module.declarations
+            .filter { nfc(it.name) == nfc(definition.name) && it.arity == definition.maxArity }
+            .map { module.source to (it.line to it.column) }
 
         myFixture.renameTargetAtCaret(newName)
 
         val wrong = originals.keys.mapNotNull { file ->
             val path = callerFiles.entries.firstOrNull { it.value == file }?.key
                 ?: scenario.modules.single { sourceFiles[it] == file }.source
-            val expected = replaceNames(originals.getValue(file), positions.filter { it.first == path }.map { it.second }, newName)
+            val declared = replaceNames(originals.getValue(file), declarationPositions.filter { it.first == path }.map { it.second }, declarationName)
+            val expected = replaceNames(declared, positions.filter { it.first == path }.map { it.second }, newName)
             val actual = FileDocumentManager.getInstance().getDocument(file)!!.text
 
             if (actual == expected) null else "${file.name}: ${firstDifference(expected, actual)}"
@@ -558,9 +648,10 @@ private class Group(private val scenario: Scenario) {
      * the scenario's `<backing>_<form>_<world>_` scope, which an unprefixed helper cannot start with.
      */
     private fun visibleNames(prefix: String): List<String> {
-        val module = scenario.module(siteOrNull()!!.binding?.module ?: scenario.main.module)
+        val site = siteOrNull()!!
+        val module = scenario.module(site.binding?.module ?: scenario.main.module)
 
-        return module.definitions.map { nfc(it.name) }.filter { it.startsWith(prefix) }.distinct().sorted()
+        return module.definitions.filter(site::sees).map { nfc(it.name) }.filter { it.startsWith(prefix) }.distinct().sorted()
     }
 
     private fun fileOf(site: Site): VirtualFile =
@@ -573,7 +664,9 @@ private class Group(private val scenario: Scenario) {
      * The new name keeps the scenario prefix, or two scenarios sharing the project would rename to the same name.
      */
     private fun renamed(name: String): String =
-        scope + "renamed" + name.takeLast(1).takeIf { it == "?" || it == "!" }.orEmpty()
+        scope + "renamed" + name.takeLast(1).takeIf { it == "?" || it == "!" }.orEmpty() +
+            // An embed's function is its atom plus a suffix, so a name without the suffix is one no embed can declare.
+            EMBED_SUFFIXES.firstOrNull { scenario.form == GENERATOR_EMBED && name.endsWith(it) }.orEmpty()
 
     /** [text] with the identifier at each 1-based (line, column) replaced by [newName]. */
     private fun replaceNames(text: String, positions: List<Pair<Int, Int>>, newName: String): String {
@@ -828,7 +921,7 @@ private class Group(private val scenario: Scenario) {
      */
     private fun candidates(site: Site): List<Binding> =
         scenario.main.definitions
-            .filter { nfc(it.name) == nfc(site.name) }
+            .filter { nfc(it.name) == nfc(site.name) && site.sees(it) }
             .sortedBy { it.maxArity }
             .map { Binding(scenario.main.module, it.name, it.maxArity, "candidate") }
 
@@ -881,7 +974,10 @@ private class Group(private val scenario: Scenario) {
         val target = scenario.modules.firstOrNull { it.module == module.delegateTo }
 
         return if (target != null && !(module.compiled && backing in setOf(Backing.EX_GEN, Backing.ERL_GEN))) {
-            headLines(Binding(target.module, definition.name, binding.arity, "delegated"))
+            // A delegate fills in its own defaults and calls the target with every argument, so a call at any arity
+            // the delegate covers lands on the target's one arity. Asking the target for the call's own arity found
+            // no definition, and the cell reported the harness's exception rather than anything the plugin did.
+            headLines(Binding(target.module, module.delegateAs.orEmpty() + definition.name, definition.maxArity, "delegated"))
         } else {
             headLines(binding)
         }
@@ -1018,6 +1114,25 @@ private class Group(private val scenario: Scenario) {
 
     companion object {
         private val IDENTIFIER = Regex("[\\p{L}\\p{N}_\\p{Mn}\\p{Mc}]+[?!]?")
+
+        /** The `@1a2b3c` a default `toString()` ends with. */
+        private val IDENTITY_HASH = Regex("@[0-9a-f]+$")
+
+        /** The form whose declarations are `Mix.Generator` embeds, and the suffixes an embed adds to its atom. */
+        private const val GENERATOR_EMBED = "generator_embed"
+        private val EMBED_SUFFIXES = listOf("_template", "_text")
+
+        /** The keys [highlightKeysAt] can tell apart. */
+        private val HIGHLIGHT_KEYS = listOf(
+            ElixirSyntaxHighlighter.FUNCTION_CALL,
+            ElixirSyntaxHighlighter.MACRO_CALL,
+            ElixirSyntaxHighlighter.FUNCTION_DECLARATION,
+            ElixirSyntaxHighlighter.MACRO_DECLARATION,
+            ElixirSyntaxHighlighter.PREDEFINED_CALL,
+        )
+
+        /** Where [Group.timed] appends one row per phase: the file `MATRIX_TIMING` names, or nowhere when unset. */
+        private val TIMING: File? = System.getenv("MATRIX_TIMING")?.takeIf(String::isNotBlank)?.let(::File)
         private val outcomes = HashMap<Scenario, Map<Pair<Place, Feature>, Throwable?>>()
         private val unread = HashMap<Scenario, Int>()
 
