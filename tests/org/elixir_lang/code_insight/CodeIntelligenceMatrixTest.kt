@@ -11,6 +11,7 @@ import com.intellij.psi.PsiManager
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.EdtTestUtil
+import com.intellij.testFramework.LightPlatformTestCase
 import com.intellij.testFramework.fixtures.CodeInsightTestFixture
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory
 import com.intellij.testFramework.fixtures.impl.LightTempDirTestFixtureImpl
@@ -32,15 +33,18 @@ import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.psi.PsiDocumentManager
-import junit.framework.Test
-import junit.framework.TestCase
 import junit.framework.TestCase.assertEquals
 import junit.framework.TestCase.assertFalse
 import junit.framework.TestCase.assertNotNull
 import junit.framework.TestCase.assertTrue
 import kotlinx.coroutines.CancellationException
+import com.intellij.testFramework.junit5.TestApplication
+import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.DynamicContainer
+import org.junit.jupiter.api.DynamicContainer.dynamicContainer
+import org.junit.jupiter.api.DynamicTest.dynamicTest
+import org.junit.jupiter.api.TestFactory
 import org.elixir_lang.code_insight.matrix.Scenario
-import junit.framework.TestSuite
 import org.elixir_lang.code_insight.matrix.Applicability
 import org.elixir_lang.code_insight.matrix.Backing
 import org.elixir_lang.code_insight.matrix.Binding
@@ -77,38 +81,42 @@ import org.elixir_lang.psi.call.Call
  * the compiler says which definition each call binds to, and quoting the scenario's source says what that
  * definition's heads are.
  *
- * Every feature at one place shares one fixture, built by the first of those cells to run, because the fixture's
- * set-up and tear-down cost more than the features themselves. Each cell still passes or fails on its own outcome.
+ * Every cell of a scenario shares one fixture, opened by the first of them to run and closed after the last, because
+ * the fixture's set-up and tear-down cost more than the features themselves. Each cell still passes or fails on its
+ * own outcome.
  *
  * `testData/.../code_intelligence_matrix/gap-map.tsv` records which cells were red when this suite was written, one
  * sorted row each, so a refactor of the code underneath can be diffed cell by cell. It is **data, not an oracle**:
  * nothing reads it, and a cell going green is an improvement to re-record rather than a row to defend.
  */
-class CodeIntelligenceMatrixTest private constructor(private val cell: Cell) : TestCase() {
-    init {
-        name = cell.testName
-    }
-
-    override fun runTest() {
-        Group.outcome(cell)?.let { throw it }
-    }
-
-    companion object {
-        @JvmStatic
-        fun suite(): Test {
-            val suite = TestSuite(CodeIntelligenceMatrixTest::class.java.name)
-
-            for (scenario in Fixtures.oracle.scenarios.filterNot { Backing.of(it).guardOnly }) {
-                for (place in Crossing.places(scenario)) {
-                    for (feature in Feature.entries) {
-                        if (Crossing.applicability(scenario, feature, place) is Applicability.Applicable) {
-                            suite.addTest(CodeIntelligenceMatrixTest(Cell(scenario, feature, place)))
-                        }
+@TestApplication
+class CodeIntelligenceMatrixTest {
+    @TestFactory
+    fun cells(): List<DynamicContainer> =
+        Fixtures.oracle.scenarios
+            .filterNot { Backing.of(it).guardOnly }
+            .map { it to Group.cellsOf(it) }
+            // An empty container is reported as a passing test named after the scenario.
+            .filter { (_, cells) -> cells.isNotEmpty() }
+            .map { (scenario, cells) ->
+                dynamicContainer(
+                    "${scenario.backing},${scenario.form},${scenario.world}",
+                    cells.map { (place, feature) ->
+                        dynamicTest(Cell(scenario, feature, place).testName) { Group.check(scenario, place, feature) }
                     }
-                }
+                )
             }
 
-            return suite
+    companion object {
+        /**
+         * Closes whichever scenario a filtered or aborted run left open, then the light project every scenario
+         * shared: JUnit 5's leak check at the end of the run reports it otherwise, where JUnit 3 closed it itself.
+         */
+        @AfterAll
+        @JvmStatic
+        fun close() {
+            Group.closeOpen()
+            EdtTestUtil.runInEdtAndWait<Throwable> { LightPlatformTestCase.closeAndDeleteProject() }
         }
     }
 }
@@ -120,7 +128,7 @@ class CodeIntelligenceMatrixTest private constructor(private val cell: Cell) : T
  * themselves, and a scenario's places all ask about the same files. It is not shared any more widely than that: a
  * feature that edits has to be the only thing in the project defining what it edits, so scenarios cannot overlap.
  */
-private class Group(private val scenario: Scenario) {
+private class Group(val scenario: Scenario) {
     private lateinit var myFixture: CodeInsightTestFixture
 
     /** The place being asked; every applicable feature is asked there before the next place is opened. */
@@ -136,61 +144,67 @@ private class Group(private val scenario: Scenario) {
     private val originals = linkedMapOf<VirtualFile, String>()
     private var opened = false
 
-    /** Each cell's failure, or null where it passed; a failure to set the fixture up fails every cell. */
-    fun run(): Map<Pair<Place, Feature>, Throwable?> {
-        val outcomes = linkedMapOf<Pair<Place, Feature>, Throwable?>()
-        val cells = Crossing.places(scenario).flatMap { place ->
-            Feature.entries
-                .filter { Crossing.applicability(scenario, it, place) is Applicability.Applicable }
-                .map { place to it }
-        }
+    private var unchecked = cellsOf(scenario).size
+    private var closed = false
+
+    /** Set once the scenario cannot go on - its fixture would not open, or a place would not bind - and failing every later cell. */
+    private var broken: Throwable? = null
+    private var binding: Binding? = null
+
+    /**
+     * Asks [feature] at [atPlace], opening the fixture for this scenario's first cell and closing it after its last.
+     *
+     * A failure to open the fixture or to bind a place fails that cell and every later one of the scenario, as it
+     * would leave them asking an unknown project.
+     */
+    fun check(atPlace: Place, feature: Feature) {
         try {
+            broken?.let { throw it }
             EdtTestUtil.runInEdtAndWait<Throwable> {
-                // Inside the `try`, because `setUp` can throw after `myFixture.setUp` has already run - a missing
-                // fixture file, an inspection that will not register. Left outside it, that fixture is never torn
-                // down, the light project stays dirty, and every later scenario fails to set up in turn: 35,206
-                // cells reporting a disposer leak instead of the one file that was missing.
-                try {
-                    timed("setUp") { setUp() }
-
-                    for ((atPlace, features) in cells.groupBy({ it.first }, { it.second })) {
-                        place = atPlace
-                        opened = false
-                        val binding = timed("binding", place = atPlace) { binding() }
-
-                        for (feature in features) {
-                            outcomes[atPlace to feature] = timed("check", feature, atPlace) {
-                                try {
-                                    check(feature, binding)
-                                    null
-                                } catch (e: Throwable) {
-                                    if (e is ControlFlowException || e is VirtualMachineError || e is CancellationException) throw e
-                                    e
-                                } finally {
-                                    if (feature.edits) restore()
-                                }
-                            }
-                        }
+                if (!this::myFixture.isInitialized) breakOnFailure { timed("setUp") { setUp() } }
+                if (!this::place.isInitialized || place != atPlace) {
+                    place = atPlace
+                    opened = false
+                    binding = breakOnFailure { timed("binding", place = atPlace) { binding() } }
+                }
+                timed("check", feature, atPlace) {
+                    try {
+                        check(feature, binding)
+                    } catch (e: Throwable) {
+                        if (e is ControlFlowException || e is CancellationException) breakOnFailure { throw e }
+                        throw e
+                    } finally {
+                        if (feature.edits && broken == null) restore()
                     }
-                } finally {
-                    // `myFixture` is only unset when the factory itself threw, and then there is nothing to tear
-                    // down; calling it anyway would replace the real failure with an uninitialized-property one.
-                    if (this::myFixture.isInitialized) timed("tearDown") { myFixture.tearDown() }
                 }
             }
+        } finally {
+            if (--unchecked == 0) closeOpen()
+        }
+    }
+
+    private inline fun <T> breakOnFailure(block: () -> T): T =
+        try {
+            block()
         } catch (e: Throwable) {
-            if (e is VirtualMachineError) throw e
-            cells.forEach { outcomes.putIfAbsent(it, e) }
+            if (e !is VirtualMachineError) broken = e
+            close()
+            throw e
         }
 
-        return outcomes
+    fun close() {
+        if (closed) return
+        closed = true
+        // `myFixture` is only unset when the factory itself threw, and then there is nothing to tear down; calling it
+        // anyway would replace the real failure with an uninitialized-property one.
+        if (this::myFixture.isInitialized) timed("tearDown") { myFixture.tearDown() }
     }
 
     /**
      * [block]'s result, with its wall time appended to [TIMING] when that is set.
      *
-     * JUnit charges a scenario's whole cost to whichever of its cells runs first, so the XML cannot say which
-     * feature or phase the time goes to; this can. A feature's time includes the [restore] after it.
+     * The XML charges a scenario's set-up to its first cell and a place's binding to that place's first; this says
+     * which phase the time goes to. A feature's time includes the [restore] after it.
      */
     private inline fun <T> timed(phase: String, feature: Feature? = null, place: Place? = null, block: () -> T): T {
         val timing = TIMING ?: return block()
@@ -1136,29 +1150,31 @@ private class Group(private val scenario: Scenario) {
 
         /** Where [Group.timed] appends one row per phase: the file `MATRIX_TIMING` names, or nowhere when unset. */
         private val TIMING: File? = System.getenv("MATRIX_TIMING")?.takeIf(String::isNotBlank)?.let(::File)
-        private val outcomes = HashMap<Scenario, Map<Pair<Place, Feature>, Throwable?>>()
-        private val unread = HashMap<Scenario, Int>()
-
         /**
-         * [cell]'s failure, or null where it passed, running its scenario the first time any of its cells asks.
-         *
-         * A scenario's outcomes are dropped once its last cell has read them. Holding all of them would keep 16,734
-         * `Throwable`s alive for the whole run, several of them carrying a whole generated documentation page in
-         * their message, for no reader; the suite asks every cell of a scenario before moving to the next.
+         * The scenario being asked, and the only one holding a fixture: scenarios define the same files, and a closed
+         * scenario's group is dropped rather than kept for the rest of the run.
          */
-        fun outcome(cell: Cell): Throwable? {
-            val scenario = cell.scenario
-            val scenarioOutcomes = outcomes.getOrPut(scenario) {
-                Group(scenario).run().also { unread[scenario] = it.size }
-            }
-            val outcome = scenarioOutcomes.getValue(cell.place to cell.feature)
+        private var open: Group? = null
 
-            if (unread.merge(scenario, -1, Int::plus) == 0) {
-                outcomes.remove(scenario)
-                unread.remove(scenario)
-            }
+        /** Every applicable feature at every place, in the order [check] asks them. */
+        fun cellsOf(scenario: Scenario): List<Pair<Place, Feature>> = Crossing.places(scenario).flatMap { place ->
+            Feature.entries
+                .filter { Crossing.applicability(scenario, it, place) is Applicability.Applicable }
+                .map { place to it }
+        }
 
-            return outcome
+        fun check(scenario: Scenario, place: Place, feature: Feature) {
+            val group = open?.takeIf { it.scenario === scenario } ?: Group(scenario).also {
+                closeOpen()
+                open = it
+            }
+            group.check(place, feature)
+        }
+
+        fun closeOpen() {
+            val group = open ?: return
+            open = null
+            EdtTestUtil.runInEdtAndWait<Throwable> { group.close() }
         }
     }
 }
