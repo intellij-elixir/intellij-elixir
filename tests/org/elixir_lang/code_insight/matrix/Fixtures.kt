@@ -41,13 +41,18 @@ class Scenario(
     val world: String,
     val caller: String,
     val brokenCallers: List<String> = emptyList(),
+    /**
+     * The callers that reach the module through a directive other than a bare `import`: `only:`, `except:`, an import
+     * of a module that imports it, a `require`. What each makes visible is on its sites, as [Site.visible].
+     */
+    val importCallers: List<String> = emptyList(),
     val modules: List<DeclaringModule>,
     val sites: List<Site>,
 ) {
     val main: DeclaringModule get() = modules.first()
 
     /** Every file the scenario's sites live in, so a fixture can hold them all. */
-    val callers: List<String> get() = listOf(caller) + brokenCallers
+    val callers: List<String> get() = listOf(caller) + brokenCallers + importCallers
 
     fun module(reference: String): DeclaringModule = modules.single { it.module == reference }
 }
@@ -66,6 +71,8 @@ class DeclaringModule(
     val beam: String?,
     val clauseSource: String?,
     val delegateTo: String?,
+    /** What a `defdelegate ..., as:` prefixes the head's name with to name the target's function; null without `as:`. */
+    val delegateAs: String? = null,
     val definitions: List<Definition>,
     val declarations: List<Declaration>,
     /**
@@ -98,7 +105,8 @@ class Definition(val name: String, val minArity: Int, val maxArity: Int, val cla
     fun covers(binding: Binding): Boolean = nfc(binding.name) == nfc(name) && binding.arity in minArity..maxArity
 }
 
-class Declaration(val name: String, val arity: Int, val clause: Int, val definer: String, val line: Int, val column: Int)
+/** [spelled] is what is written at the position where that is not [name]: an embed's atom, which lacks the suffix the embed adds. */
+class Declaration(val name: String, val arity: Int, val clause: Int, val definer: String, val line: Int, val column: Int, val spelled: String? = null)
 
 /**
  * A marked place in [file], 1-based, and the definition the compiler bound it to, or none.
@@ -116,7 +124,20 @@ class Site(
     val arity: Int,
     val binding: Binding?,
     val diagnostic: Diagnostic? = null,
+    /**
+     * For a call written bare under a directive that names what it brings in, the declaring module's `name/arity`s
+     * that directive makes callable, as Elixir's own `__ENV__` has them; null where the caller imports the module
+     * whole. Empty where nothing is brought in at all.
+     */
+    val visible: List<String>? = null,
 )
+
+/** Whether a bare call at [this] site can reach [definition] at any of its arities: always, unless [Site.visible] says. */
+fun Site.sees(definition: Definition): Boolean =
+    visible?.let { names ->
+        val visible = names.map(::nfc)
+        (definition.minArity..definition.maxArity).any { "${nfc(definition.name)}/$it" in visible }
+    } ?: true
 
 /** [severity] is the compiler's: a remote call at an unknown arity warns, a local one is an error. */
 class Diagnostic(val severity: String, val message: String)

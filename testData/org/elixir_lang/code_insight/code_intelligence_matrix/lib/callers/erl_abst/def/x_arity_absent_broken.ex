@@ -6,5 +6,6 @@ defmodule Callers.ErlAbst.Def.XArityAbsentBroken do
   def at_arity_1(a, _b), do: :erl_abst_def_x_arity_absent.erl_abst_def_x_arity_absent_snoc(a) # @arity_1
   def at_arity_3(a, b), do: :erl_abst_def_x_arity_absent.erl_abst_def_x_arity_absent_snoc(a, b, a) # @arity_3
   def at_undeclared(a, b), do: :erl_abst_def_x_arity_absent.erl_abst_def_x_arity_absent_undeclared(a, b) # @undeclared
+  def at_lookalike_prefix(a, b), do: :erl_abst_def_x_arity_absent.erl_abst_def_x_arity_absent_sno(a, b) # @lookalike_prefix
   def at_undeclared_no_arguments(_a, _b), do: :erl_abst_def_x_arity_absent.erl_abst_def_x_arity_absent_undeclared # @undeclared_no_arguments
 end
