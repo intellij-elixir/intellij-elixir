@@ -148,7 +148,7 @@ class MatrixFixtureTest : TestCase() {
             // The site's own name, not its binding's: a call at an arity nothing covers has no binding, and a call
             // to a name nothing declares has neither a binding nor anything in the world to fall back to.
             val sites = scenario.sites.map { Triple(it.file, it.line to it.column, it.name) } +
-                scenario.modules.flatMap { module -> module.declarations.map { Triple(module.source, it.line to it.column, it.name) } }
+                scenario.modules.flatMap { module -> module.declarations.map { Triple(module.source, it.line to it.column, it.spelled ?: it.name) } }
 
             sites.mapNotNull { (path, position, name) ->
                 val line = Fixtures.file(path).readLines()[position.first - 1]

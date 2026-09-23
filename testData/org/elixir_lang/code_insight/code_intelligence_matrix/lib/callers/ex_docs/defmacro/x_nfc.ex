@@ -9,4 +9,6 @@ defmodule Callers.ExDocs.Defmacro.XNfc do
   def at_aliased(a, b), do: XNfc.ex_docs_defmacro_x_nfc_snoć(a, b) # @aliased
   def at_aliased_as(a, b), do: Aliased.ex_docs_defmacro_x_nfc_snoć(a, b) # @aliased_as
   def at_unqualified(a, b), do: ex_docs_defmacro_x_nfc_snoć(a, b) # @unqualified
+  def at_pipe(a, b), do: a |> ex_docs_defmacro_x_nfc_snoć(b) # @pipe
+  def at_atom(a, b), do: {:ex_docs_defmacro_x_nfc_snoć, a, b} # @atom
 end

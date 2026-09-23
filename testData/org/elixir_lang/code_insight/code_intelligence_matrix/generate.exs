@@ -65,9 +65,29 @@ defmodule Matrix do
       %{id: "defguardp", definer: "defguardp", macro: true, guard: true, private: true},
       %{id: "defdelegate", definer: "defdelegate", delegate: :same},
       %{id: "defdelegate_compiled", definer: "defdelegate", delegate: :compiled},
-      %{id: "defdelegate_unresolvable", definer: "defdelegate", delegate: :missing}
+      %{id: "defdelegate_unresolvable", definer: "defdelegate", delegate: :missing},
+      # `as:` names the target's function, which here is called something else: `delegated_` and the head's name.
+      %{id: "defdelegate_as", definer: "defdelegate", delegate: :same, as: "delegated_"},
+      # A function declared by a call rather than a `def`: `EEx.function_from_string(:def, :snoc, template, [:q, :x])`.
+      %{id: "eex_function_from", definer: "def", eex: true},
+      # `Mix.Generator.embed_template(:snoc, ...)` declares `snoc_template/1`, `embed_text(:snoc, ...)` `snoc_text/0`: the
+      # names are the atom plus a suffix, so this form has a world of its own, `x_embed`.
+      %{id: "generator_embed", definer: "def", embed: true, private: true}
     ]
   end
+
+  # `as:` only changes which function of the target a delegate calls, so it asks nothing new in the worlds about
+  # clauses, guards or lookalikes; these are the ones where a delegate's arity or module is the question.
+  @delegate_as_worlds ["w1", "w2", "x_defaults", "x_arity_absent", "x_other_module"]
+
+  # The forms that declare functions a caller can name before or after them, and name in a `@spec`.
+  @function_forms ["def", "defp", "defdelegate", "defdelegate_compiled", "defdelegate_unresolvable", "defdelegate_as", "eex_function_from"]
+
+  # A `@spec` names one arity, so the worlds where that is one name at one arity and at two.
+  @spec_worlds ["w1", "x_arity"]
+
+  # EEx declares one clause per name and arity, with no guard and no defaults, so only the worlds made of those.
+  @eex_worlds ["w1", "x_arity", "x_other_module", "x_not_a_call", "x_arity_absent", "x_arity_zero", "x_arity_separate"]
 
   # A world is its modules' definitions and the calls made to them. A definition is `{name, clauses}`; a clause is
   # `{parameters, guard}`, where a parameter is a name or `{name, default}` and a guard is `{function, parameter}`.
@@ -130,6 +150,8 @@ defmodule Matrix do
               # them. It sits in this world because the contrast is then inside one file: the same caller holds
               # `snoc` at arities the module does not define and a name it never heard of.
               {"undeclared", 0, "undeclared", 2, :qualified},
+              # A prefix of the declared name, which is not a call of it at any arity.
+              {"lookalike_prefix", 0, "sno", 2, :qualified},
               {"undeclared_no_arguments", 0, "undeclared", 0, :no_arguments}
             ]
       },
@@ -147,14 +169,35 @@ defmodule Matrix do
       },
       "x_defaults_head" => %{modules: [[defaults_head]], calls: spread_calls},
       "x_arity_separate" => %{modules: [separate], calls: spread_calls},
+      # Every way `snoc` is written, spelled the other way from its declaration: normalisation is the language's,
+      # so no gesture may depend on which of the two equal spellings it was handed.
       "x_nfc" => %{
         modules: [[{@decomposed, [{["q", "x"], nil}]}]],
-        calls: [
-          {"qualified", 0, @precomposed, 2, :qualified},
-          {"aliased", 0, @precomposed, 2, :aliased},
-          {"aliased_as", 0, @precomposed, 2, :aliased_as},
-          {"unqualified", 0, @precomposed, 2, :unqualified}
-        ]
+        # `apply_quoted` names it with a quoted atom, which Elixir asks for only where a name is not plain ASCII.
+        calls:
+          calls_to(0, @precomposed, 2) ++
+            [{"apply_quoted", 0, @precomposed, 2, :apply_quoted}, {"atom", 0, @precomposed, 0, :atom}, {"arity_1", 0, @precomposed, 1, :qualified}]
+      },
+      # The definition written under a module-level `if`, which is how code that is only sometimes compiled is
+      # declared; and written with its name `unquote`d, which is how a macro that defines functions names them.
+      "x_conditional" => %{modules: [[snoc_2]], calls: one_calls},
+      "x_unquote_name" => %{modules: [[snoc_2]], calls: one_calls},
+      # What a Mix.Generator embed declares. Both are private, so their only calls are the module's own: `local_site`
+      # calls the template, and `uses` the text.
+      "x_embed" => %{modules: [[{"snoc_template", [{["assigns"], nil}]}, {"snoc_text", [{[], nil}]}]], calls: []},
+      # The lookalikes beside an arity nothing defines: whether "did you mean" is about the arity or the name is the
+      # compiler's to say, and here it has both to choose from.
+      "x_lookalike_absent" => %{
+        modules: [[snoc_2 | lookalikes]],
+        calls:
+          one_calls ++
+            lookalike_calls ++
+            [
+              {"arity_1", 0, "snoc", 1, :qualified},
+              {"arity_3", 0, "snoc", 3, :qualified},
+              {"unqualified_arity_1", 0, "snoc", 1, :unqualified},
+              {"undeclared", 0, "undeclared", 2, :qualified}
+            ]
       }
     }
   end
@@ -173,6 +216,24 @@ defmodule Matrix do
     do: "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback"
 
   def not_applicable(%{language: :erlang}, form, _world) when form.id not in ["def", "defp"], do: "Erlang has only functions"
+
+  def not_applicable(_backing, %{as: _}, world) when world not in @delegate_as_worlds,
+    do: "`as:` renames only the target's function; this world's question is defdelegate's"
+
+  def not_applicable(%{compiled: true}, _form, world) when world in ["x_conditional", "x_unquote_name"],
+    do: "compiled, the definition is an ordinary one; only its source is written differently"
+
+  def not_applicable(_backing, form, "x_unquote_name") when form.id not in ["def", "defp", "defmacro", "defmacrop"],
+    do: "only `def` and `defmacro` and their private forms take an `unquote`d name"
+
+  def not_applicable(_backing, %{embed: true}, world) when world != "x_embed",
+    do: "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed"
+
+  def not_applicable(_backing, form, "x_embed") when not is_map_key(form, :embed),
+    do: "x_embed's names are what a Mix.Generator embed declares"
+
+  def not_applicable(_backing, %{eex: true}, world) when world not in @eex_worlds,
+    do: "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom"
   def not_applicable(%{language: :erlang}, _form, world) when world in ["x_defaults", "x_defaults_head"],
     do: "Erlang has no default arguments"
 
@@ -203,6 +264,7 @@ defmodule Matrix do
     for dir <- @generated_directories, do: File.rm_rf!(dir)
 
     provenance()
+    sdk()
 
     {scenarios, skipped} =
       for backing <- backings(), form <- forms(), {world, spec} <- Enum.sort(worlds()), reduce: {[], []} do
@@ -232,6 +294,11 @@ defmodule Matrix do
   defp json(list) when is_list(list), do: Enum.map(list, &json/1)
   defp json(other), do: other
 
+  # The worlds with several arities of one name, which is where an import that names an arity can be told apart
+  # from one that takes the whole name: `x_defaults` and `x_defaults_head` declare them with defaults, so one
+  # definition covers the arity an `only:` keeps and the one it leaves out.
+  @import_worlds ["w2", "x_defaults", "x_defaults_head", "x_arity_separate"]
+
   defp scenario(backing, form, world, spec) do
     spec = scope(spec, backing, form, world)
     names = module_names(backing, form, world, length(spec.modules))
@@ -253,7 +320,7 @@ defmodule Matrix do
 
         true ->
           Enum.reject(spec.calls, fn {_, _, _, _, shape} ->
-            (form[:macro] && shape in [:capture, :apply]) ||
+            (form[:macro] && shape in [:capture, :apply, :apply_quoted]) ||
               (backing.language == :erlang && shape in [:aliased, :aliased_as])
           end)
       end
@@ -270,17 +337,180 @@ defmodule Matrix do
 
     {broken_paths, broken_sites} = broken_caller(backing, form, world, names, broken)
 
+    {import_paths, import_sites} =
+      if world in @import_worlds and !form[:private],
+        do: import_callers(backing, form, world, names, elem(primary, 0)),
+        else: {[], []}
+
     %{
       "backing" => backing.id,
       "form" => form.id,
       "world" => world,
       "caller" => caller_path,
       "brokenCallers" => broken_paths,
+      "importCallers" => import_paths,
       "modules" => Enum.map(modules, &Map.delete(&1, :local)),
       "sites" =>
         caller_sites(caller_path, caller, caller_events, calls, backing, names) ++
-          Enum.flat_map(modules, & &1.local) ++ broken_sites
+          Enum.flat_map(modules, & &1.local) ++ broken_sites ++ import_sites
     }
+  end
+
+  # How a caller comes to be able to write `snoc(...)` bare, or not. Each is `{id, directive, calls}`, where the
+  # directive is rendered against the declaring module and a call is `{site id, arity}`; which calls compile, and so
+  # which name/arities each directive makes visible, is the compiler's answer rather than this table's.
+  #
+  # `import_transitive` imports a module that itself imports the declaring one: an import is lexical and is not
+  # passed on, so nothing reaches the caller. `require_only` makes macros callable qualified but imports nothing.
+  defp import_variants(reference, name) do
+    [
+      {"import_only", "import #{reference}, only: [#{name}: 1]", [{"import_only_1", 1}, {"import_only_2", 2}]},
+      {"import_except", "import #{reference}, except: [#{name}: 1]", [{"import_except_2", 2}, {"import_except_1", 1}]},
+      {"import_transitive", {:transitive, "import #{reference}"}, [{"import_transitive", 2}]},
+      {"require_only", "require #{reference}", [{"require_only", 2}]}
+    ]
+  end
+
+  # The callers of `import_variants/2`: every call that compiles shares one file, a module per directive; every call
+  # the compiler rejects gets a file of its own, because the first rejected call ends the compilation that would
+  # have reported the next. The `only:`/`except:` key is a site too - it names a function, and renaming that
+  # function has to rename it - bound to the name and arity it names.
+  defp import_callers(backing, form, world, names, name) do
+    reference = reference(backing, hd(names))
+    namespace = "Callers.#{Macro.camelize(backing.prefix)}.#{Macro.camelize(form.id)}.#{Macro.camelize(world)}"
+    directory = Path.join(["lib", "callers", backing.id, form.id])
+    variants = import_variants(reference, name)
+
+    probed =
+      Enum.map(variants, fn {id, directive, calls} ->
+        visible = visible(directive, reference, namespace <> ".Probe" <> Macro.camelize(id))
+
+        {compiling, rejected} =
+          Enum.split_with(calls, fn {_site, arity} -> "#{nfc(name)}/#{arity}" in visible end)
+
+        {id, directive, visible, compiling, rejected}
+      end)
+
+    ok_path = Path.join(directory, Macro.underscore(world) <> "_imports.ex")
+
+    ok_source =
+      probed
+      |> Enum.filter(fn {_, _, _, compiling, _} -> compiling != [] end)
+      |> Enum.map_join("\n", fn {id, directive, _, compiling, _} ->
+        render_import_module(namespace <> "." <> Macro.camelize(id), key_id(id, id), directive, name, compiling)
+      end)
+      |> then(&"# #{@header}\n#{&1}")
+
+    File.write!(ok_path, ok_source)
+    ok_events = compile_elixir(ok_path, ok_source)
+
+    ok_calls =
+      for {id, _, visible, compiling, _} <- probed, {site, arity} <- compiling,
+          do: {{site, 0, name, arity, :unqualified}, id, visible}
+
+    ok_sites =
+      Enum.map(ok_calls, fn {call, _variant, visible} ->
+        [site] = caller_sites(ok_path, ok_source, ok_events, [call], backing, names)
+        Map.put(site, "visible", visible)
+      end)
+
+    key_sites = import_key_sites(ok_path, ok_source, reference, name)
+
+    {rejected_paths, rejected_sites} =
+      probed
+      |> Enum.flat_map(fn {id, directive, visible, _, rejected} -> Enum.map(rejected, &{id, directive, visible, &1}) end)
+      |> Enum.map(fn {id, directive, visible, {site, arity}} ->
+        path = Path.join(directory, Macro.underscore(world) <> "_" <> site <> ".ex")
+        source = "# #{@header}\n" <> render_import_module(namespace <> "." <> Macro.camelize(site), key_id(id, site), directive, name, [{site, arity}])
+        File.write!(path, source)
+        diagnostics = compile_expecting_failure(path, source)
+        [broken] = broken_sites(path, source, [{site, 0, name, arity, :unqualified}], diagnostics)
+        {path, [Map.put(broken, "visible", visible) | import_key_sites(path, source, reference, name)]}
+      end)
+      |> Enum.unzip()
+
+    {[ok_path | rejected_paths], ok_sites ++ key_sites ++ List.flatten(rejected_sites)}
+  end
+
+  # A module per directive; a transitive one is preceded by the module the directive really sits in, which the
+  # caller then imports.
+  # Only an `only:`/`except:` directive has a key, marked `<owner>_key` after the site or variant it serves.
+  defp key_id(variant, owner) when variant in ["import_only", "import_except"], do: owner <> "_key"
+  defp key_id(_variant, _owner), do: nil
+
+  defp render_import_module(module, _key_id, {:transitive, directive}, name, calls) do
+    """
+    defmodule #{module}.Middle do
+      #{directive}
+      def middle_marker, do: :ok
+    end
+
+    #{render_import_module(module, nil, "import #{module}.Middle", name, calls)}
+    """
+  end
+
+  defp render_import_module(module, key_id, directive, name, calls) do
+    key = if key_id, do: " # @#{key_id}", else: ""
+
+    body =
+      Enum.map_join(calls, "\n", fn {site, arity} ->
+        call = "#{name}(#{arguments(arity)})"
+        parameters = Enum.map_join(["a", "b"], ", ", fn parameter -> if(call =~ ~r/\b#{parameter}\b/, do: parameter, else: "_" <> parameter) end)
+        "  def at_#{site}(#{parameters}), do: #{call} # @#{site}"
+      end)
+
+    """
+    defmodule #{module} do
+      #{directive}#{key}
+
+    #{body}
+    end
+    """
+  end
+
+  # The name/arities of the declaring module a directive makes callable bare, as Elixir's own environment has them:
+  # a probe module with nothing but the directive reads them from `__ENV__` and is never written to disk.
+  defp visible(directive, reference, probe) do
+    {middle, directive} =
+      case directive do
+        {:transitive, inner} -> {"defmodule #{probe}.Middle do\n  #{inner}\nend\n", "import #{probe}.Middle"}
+        directive -> {"", directive}
+      end
+
+    source = """
+    #{middle}defmodule #{probe} do
+      #{directive}
+      @visible for {module, pairs} <- __ENV__.functions ++ __ENV__.macros, module == #{reference}, {name, arity} <- pairs, do: "\#{name}/\#{arity}"
+      def visible, do: @visible
+    end
+    """
+
+    Matrix.Events.take()
+    # A probe whose directive is unused would warn about it, and that is not what it is asking.
+    {_, _diagnostics} = Code.with_diagnostics(fn -> Code.compile_string(source, "probe.ex") end)
+    Matrix.Events.take()
+    visible = apply(Module.concat([probe]), :visible, []) |> Enum.map(&nfc/1) |> Enum.sort()
+    :code.purge(Module.concat([probe]))
+    :code.delete(Module.concat([probe]))
+    visible
+  end
+
+  # The key of an `only:`/`except:` list names one function by name and arity: the site is that name, bound to it.
+  defp import_key_sites(path, source, reference, name) do
+    for {text, line} <- source |> String.split("\n") |> Enum.with_index(1),
+        [_, id] <- [Regex.run(~r/# @(\w+_key)$/, text)] do
+      [{start, _}] = Regex.run(~r/\[#{Regex.escape(name)}: 1\]/u, text, return: :index)
+
+      %{
+        "id" => id,
+        "file" => path,
+        "line" => line,
+        "column" => utf16_length(binary_part(text, 0, start + 1)) + 1,
+        "name" => nfc(name),
+        "arity" => 1,
+        "binding" => %{"module" => reference, "name" => nfc(name), "arity" => 1, "kind" => "import_key"}
+      }
+    end
   end
 
   # The shapes that are not calls of the definition at all, so no arity can be wrong for them.
@@ -435,12 +665,21 @@ defmodule Matrix do
       case form[:delegate] do
         nil -> {nil, []}
         :missing -> {module <> ".Missing", []}
-        :same -> {module <> ".Target", [compile_one(backing, %{id: "def", definer: "def"}, world, module <> ".Target", strip_defaults(definitions), nil, nil)]}
-        :compiled -> {module <> ".Target", [compile_one(@delegate_target_backing, %{id: "def", definer: "def"}, world, module <> ".Target", strip_defaults(definitions), nil, nil)]}
+        :same -> {module <> ".Target", [compile_one(backing, %{id: "def", definer: "def"}, world, module <> ".Target", (strip_defaults(definitions) ++ target_extras(world, definitions)) |> delegated_names(form), nil, nil)]}
+        :compiled -> {module <> ".Target", [compile_one(@delegate_target_backing, %{id: "def", definer: "def"}, world, module <> ".Target", strip_defaults(definitions) ++ target_extras(world, definitions), nil, nil)]}
       end
 
     [compile_one(backing, form, world, module, definitions, primary, target) | targets]
   end
+
+  # Where the calls are at arities the delegate does not declare, its target does define them: a delegate forwards
+  # only the arities it names, so the target having more must not make those calls resolve.
+  defp target_extras("x_arity_absent", [{name, _} | _]), do: [{name, [{["q"], nil}]}, {name, [{["q", "x", "y"], nil}]}]
+  defp target_extras(_world, _definitions), do: []
+
+  # What the target calls each function, where the delegate names it with `as:`.
+  defp delegated_names(definitions, %{as: prefix}), do: Enum.map(definitions, fn {name, clauses} -> {prefix <> name, clauses} end)
+  defp delegated_names(definitions, _form), do: definitions
 
   # A delegate target takes the same arities without the defaults, so a bodiless head has nothing left to declare.
   defp strip_defaults(definitions) do
@@ -457,7 +696,14 @@ defmodule Matrix do
     end)
   end
 
-  defp compile_one(backing, form, _world, module, definitions, primary, target) do
+  defp compile_one(backing, form, world, module, definitions, primary, target) do
+    form =
+      Map.merge(form, %{
+        conditional: world == "x_conditional",
+        unquote_name: world == "x_unquote_name",
+        spec: primary != nil and backing.id == "src" and world in @spec_worlds and form.id in @function_forms,
+        local_forward: primary != nil and backing.id == "src" and world == "w1" and form.id in @function_forms
+      })
     extension = if(backing.language == :elixir, do: ".ex", else: ".erl")
     # Named after the whole module: every world's delegate target is a `Target`.
     file = if(backing.language == :elixir, do: module |> Macro.underscore() |> String.replace("/", "."), else: module)
@@ -479,7 +725,10 @@ defmodule Matrix do
         path
       end
 
-    local = if primary, do: local_sites(path, source, events, backing, module, primary), else: []
+    local =
+      if primary,
+        do: local_sites(path, source, events, backing, module, primary, local_arity(definitions, primary)) ++ marked_sites(path, source, events, backing, module),
+        else: []
 
     %{
       "module" => reference(backing, module),
@@ -490,6 +739,8 @@ defmodule Matrix do
       "beam" => beam,
       "clauseSource" => Map.get(backing, :clause_source),
       "delegateTo" => target,
+      # The prefix `as:` gives the target's function names, absent where the delegate keeps the head's name.
+      "delegateAs" => form[:as],
       "definitions" => Enum.map(definitions, &definition/1),
       "declarations" => if(backing.language == :elixir, do: declarations(source), else: []),
       local: local
@@ -509,6 +760,21 @@ defmodule Matrix do
       "maxArity" => length(parameters),
       "clauses" => length(bodied)
     }
+  end
+
+  # The standard library modules a form declares functions through, as the pinned Elixir compiled them: a real
+  # project always has them, compiled, in its SDK, and the plugin only knows `EEx.function_from_string` declares
+  # something once `EEx` resolves. Copied rather than referenced so every CI leg attaches the same bytes.
+  @sdk_modules [EEx, Mix.Generator]
+
+  defp sdk do
+    directory = Path.join(["_build", "dev", "lib", "elixir_sdk", "ebin"])
+    File.mkdir_p!(directory)
+
+    for module <- @sdk_modules do
+      {:module, ^module} = Code.ensure_loaded(module)
+      File.cp!(:code.which(module), Path.join(directory, "#{module}.beam"))
+    end
   end
 
   # The oldest pair CI supports, from `.github/ci-versions.json`'s `beam.additional`.
@@ -596,6 +862,16 @@ defmodule Matrix do
       |> File.read!()
       |> Code.string_to_quoted!()
       |> Macro.prewalk([], fn
+        # A function declared by a call: its kind, name and parameters are the call's arguments.
+        {{:., _, [{:__aliases__, _, [:EEx]}, :function_from_string]}, _, [kind, name, _template, arguments | _]} = node, acc ->
+          {node, [head(kind, {name, [], Enum.map(arguments, &{&1, [], nil})}) | acc]}
+
+        # An embed declares the atom plus a suffix: a template takes its assigns, a text nothing.
+        {{:., _, [{:__aliases__, _, [:Mix, :Generator]}, kind]}, _, [base | _]} = node, acc when kind in [:embed_template, :embed_text] ->
+          parameters = if kind == :embed_template, do: [{:assigns, [], nil}], else: []
+          suffix = kind |> to_string() |> String.replace_prefix("embed", "")
+          {node, [head(:defp, {:"#{base}#{suffix}", [], parameters}) | acc]}
+
         {definer, _, [head | _]} = node, acc when definer in @definers -> {node, [head(definer, head) | acc]}
         node, acc -> {node, acc}
       end)
@@ -694,6 +970,8 @@ defmodule Matrix do
   end
 
   defp head(definer, {:when, _, [call, guard]}), do: head(definer, call, guard_string(guard))
+  # A name written `unquote(:name)` is that name.
+  defp head(definer, {{:unquote, _, [name]}, meta, arguments}) when is_atom(name), do: head(definer, {name, meta, arguments}, nil)
   defp head(definer, call), do: head(definer, call, nil)
 
   defp head(definer, {name, _, arguments}, guard) when is_atom(name) and is_list(arguments) do
@@ -776,8 +1054,10 @@ defmodule Matrix do
 
   defp render_elixir(form, module, definitions, primary, target) do
     clauses =
-      for {name, clauses} <- definitions, clause <- clauses do
+      for {name, clauses} <- definitions, {clause, index} <- Enum.with_index(clauses) do
         {parameters, guard, head?} = clause_parts(clause)
+        spec = if form[:spec] and index == 0, do: "  @spec #{name}(#{Enum.map_join(parameters, ", ", fn _ -> "term()" end)}) :: term() # @spec_#{length(parameters)}\n", else: ""
+        written = if form[:unquote_name], do: "unquote(:#{name})", else: name
         rendered = Enum.map_join(parameters, ", ", fn {parameter, default} -> "#{parameter} \\\\ #{default}"; parameter -> parameter end)
         variables = Enum.map(parameters, fn {parameter, _} -> parameter; parameter -> parameter end)
         guard = if guard, do: " when #{elem(guard, 0)}(#{elem(guard, 1)})", else: ""
@@ -785,17 +1065,39 @@ defmodule Matrix do
         cond do
           # A bodiless head declares the defaults for the clauses that follow and defines nothing itself.
           head? -> "  #{form.definer} #{name}(#{rendered})"
+          form[:delegate] && form[:as] -> "  defdelegate #{name}(#{rendered}), to: #{target}, as: :#{form.as}#{name}"
           form[:delegate] -> "  defdelegate #{name}(#{rendered}), to: #{target}"
+          form[:embed] && String.ends_with?(name, "_template") -> "  Mix.Generator.embed_template(:#{String.replace_suffix(name, "_template", "")}, \"<%= @q %>\")"
+          form[:embed] -> "  Mix.Generator.embed_text(:#{String.replace_suffix(name, "_text", "")}, \"text\")"
+          form[:eex] -> "  EEx.function_from_string(:#{form.definer}, :#{name}, \"<%= inspect({#{Enum.join(variables, ", ")}}) %>\", [#{Enum.map_join(variables, ", ", &(":" <> &1))}])"
           form[:guard] -> "  #{form.definer} #{name}(#{rendered}) when #{Enum.map_join(variables, " or ", &"is_list(#{&1})")}"
-          form[:macro] -> "  #{form.definer} #{name}(#{rendered})#{guard}, do: quote(do: {#{Enum.map_join(variables, ", ", &"unquote(#{&1})")}})"
-          true -> "  #{form.definer} #{name}(#{rendered})#{guard}, do: {#{Enum.join(variables, ", ")}}"
+          form[:macro] -> "  #{form.definer} #{written}(#{rendered})#{guard}, do: quote(do: {#{Enum.map_join(variables, ", ", &"unquote(#{&1})")}})"
+          true -> "  #{form.definer} #{written}(#{rendered})#{guard}, do: {#{Enum.join(variables, ", ")}}"
         end
+        |> then(&(spec <> &1))
+      end
+
+    # Under a module-level `if`, which is how a definition that is only sometimes compiled is written.
+    clauses =
+      if form[:conditional],
+        do: ["  if Code.ensure_loaded?(Kernel) do" | Enum.map(clauses, &String.replace(&1, ~r/^/m, "  "))] ++ ["  end"],
+        else: clauses
+
+    # A call made before the definition it calls, which a resolver walking the module top-down meets first.
+    forward =
+      if form[:local_forward] do
+        {name, _} = primary
+        "  def local_forward(a, b), do: #{nfc(name)}(a, b) # @local_forward\n\n"
+      else
+        ""
       end
 
     local =
       if primary do
         {name, _} = primary
-        "\n\n  def local_site(a, b), do: #{nfc(name)}(a, b) # @local"
+        call = "#{nfc(name)}(#{arguments(local_arity(definitions, primary))})"
+        parameters = Enum.map_join(["a", "b"], ", ", fn parameter -> if(call =~ ~r/\b#{parameter}\b/, do: parameter, else: "_" <> parameter) end)
+        "\n\n  def local_site(#{parameters}), do: #{call} # @local"
       else
         ""
       end
@@ -805,11 +1107,17 @@ defmodule Matrix do
     # A delegate's target has no `local_site/2`; this gives it an ASCII-named definition too, so how its `.beam` was
     # built can be checked apart from how the decompiler reads the world's own names.
     marker = if String.ends_with?(module, ".Target"), do: "\n\n  def target_marker, do: :ok", else: ""
+    requires =
+      cond do
+        form[:eex] -> "  require EEx\n\n"
+        form[:embed] -> "  require Mix.Generator\n\n"
+        true -> ""
+      end
 
     """
     # #{@header}
     defmodule #{module} do
-    #{Enum.join(clauses, "\n")}#{local}#{uses}#{marker}
+    #{requires}#{forward}#{Enum.join(clauses, "\n")}#{local}#{uses}#{marker}
     end
     """
   end
@@ -824,7 +1132,7 @@ defmodule Matrix do
       defaults = Enum.count(parameters, &is_tuple/1)
       # `local_site` always passes two arguments, whatever the primary's own arity, so that is the one call already
       # made. Excluding the primary's full arity instead only coincided while every primary took two parameters.
-      for arity <- (length(parameters) - defaults)..length(parameters), {name, arity} != {primary_name, 2}, do: {name, arity}
+      for arity <- (length(parameters) - defaults)..length(parameters), {name, arity} != {primary_name, local_arity(definitions, primary)}, do: {name, arity}
     end)
     |> Enum.uniq()
     |> Enum.map_join(", ", fn {name, arity} ->
@@ -884,6 +1192,7 @@ defmodule Matrix do
   defp call(:pipe, _backing, _module, name, arity), do: "a |> #{name}(#{arguments(arity - 1) |> String.replace_prefix("a", "b")})"
   defp call(:capture, backing, module, name, arity), do: "{&#{module}.#{call_name(backing, name)}/#{arity}, a, b}"
   defp call(:apply, _backing, module, name, arity), do: "apply(#{module}, :#{name}, [#{arguments(arity)}])"
+  defp call(:apply_quoted, _backing, module, name, arity), do: "apply(#{module}, :\"#{name}\", [#{arguments(arity)}])"
   defp call(:variable, _backing, _module, name, _arity), do: "(fn #{name} -> #{name} end).({a, b})"
   defp call(:atom, _backing, _module, name, _arity), do: "{:#{name}, a, b}"
   defp call(:keyword, _backing, _module, name, _arity), do: "[#{name}: a, b: b]"
@@ -961,7 +1270,7 @@ defmodule Matrix do
   # The compiler binds nothing at the atom in `apply(M, :name, [...])`, but the plugin treats that atom as a
   # reference to M.name/length([...]), and so does this oracle. A variable, a bare atom and a keyword key bind to no
   # definition.
-  defp binding(_events, _path, _line, name, :apply, backing, module, arity),
+  defp binding(_events, _path, _line, name, shape, backing, module, arity) when shape in [:apply, :apply_quoted],
     do: %{"module" => reference(backing, module), "name" => nfc(name), "arity" => arity, "kind" => "apply"}
 
   defp binding(_events, _path, _line, _name, shape, _backing, _module, _arity) when shape in [:variable, :atom, :keyword], do: nil
@@ -976,15 +1285,15 @@ defmodule Matrix do
   end
 
   # Erlang is compiled without the Elixir tracer, but its only marked call is `local_site`'s local call.
-  defp local_sites(path, source, events, backing, module, {name, _}) do
+  defp local_sites(path, source, events, backing, module, {name, _}, arity) do
     lines = source |> String.split("\n") |> Enum.with_index(1)
     {text, line} = Enum.find(lines, fn {text, _} -> String.ends_with?(text, "@local") end)
 
     binding =
       if events == :erlang do
-        %{"module" => reference(backing, module), "name" => name, "arity" => 2, "kind" => "local_function"}
+        %{"module" => reference(backing, module), "name" => name, "arity" => arity, "kind" => "local_function"}
       else
-        binding(events, path, line, nfc(name), :local, backing, module, 2)
+        binding(events, path, line, nfc(name), :local, backing, module, arity)
       end
 
     [
@@ -994,10 +1303,56 @@ defmodule Matrix do
         "line" => line,
         "column" => name_column(text, nfc(name)),
         "name" => nfc(name),
-        "arity" => 2,
+        "arity" => arity,
         "binding" => binding
       }
     ]
+  end
+
+  # The declaring file's other marked places: a call placed before its definition, and each `@spec`'s name, which
+  # the compiler binds to nothing but names one arity of one function all the same.
+  defp marked_sites(path, source, events, backing, module) do
+    for {text, line} <- source |> String.split("\n") |> Enum.with_index(1),
+        [_, id] <- [Regex.run(~r/# @(local_forward|spec_\d+)$/, text)] do
+      if id == "local_forward" do
+        [_, name] = Regex.run(~r/do: ([^\s(]+)\(/u, text)
+
+        %{
+          "id" => id,
+          "file" => path,
+          "line" => line,
+          "column" => name_column(text, name),
+          "name" => nfc(name),
+          "arity" => 2,
+          "binding" => binding(events, path, line, nfc(name), :local, backing, module, 2)
+        }
+      else
+        [_, {name_start, name_length}] = Regex.run(~r/@spec ([^\s(]+)\(/u, text, return: :index)
+        name = binary_part(text, name_start, name_length)
+        arity = id |> String.replace_prefix("spec_", "") |> String.to_integer()
+
+        %{
+          "id" => id,
+          "file" => path,
+          "line" => line,
+          "column" => utf16_length(binary_part(text, 0, name_start)) + 1,
+          "name" => nfc(name),
+          "arity" => arity,
+          "binding" => %{"module" => reference(backing, module), "name" => nfc(name), "arity" => arity, "kind" => "spec"}
+        }
+      end
+    end
+  end
+
+  # `local_site` calls the primary's name with two arguments wherever some definition of it takes two, which is every
+  # world but `x_embed`, whose template takes one.
+  defp local_arity(definitions, {name, _}) do
+    arities =
+      for {^name, [first | _]} <- definitions, {parameters, _, _} = clause_parts(first),
+          arity <- (length(parameters) - Enum.count(parameters, &is_tuple/1))..length(parameters),
+          do: arity
+
+    if 2 in arities, do: 2, else: Enum.max(arities)
   end
 
   # A site's column is where the target's name starts after `do:` (or `->` in Erlang), counted in UTF-16 code units
@@ -1018,24 +1373,42 @@ defmodule Matrix do
     |> Enum.with_index(1)
     |> Enum.flat_map(fn {text, line} ->
       # `\s*$` matches a bodiless head, which declares the defaults and defines nothing.
-      case Regex.run(~r/^\s*(def|defp|defmacro|defmacrop|defguard|defguardp|defdelegate) ([^\s(]+)\((.*?)\)(?: when |, do:|, to:|\s*$)/u, text, return: :index) do
+      # An EEx function's name is the atom after its kind, and its parameters the atoms in its last list.
+      case Regex.run(~r/^\s*(def|defp|defmacro|defmacrop) unquote\(:([^\s)]+)\)\((.*?)\)(?: when |, do:)/u, text, return: :index) ||
+             Regex.run(~r/^\s*(def|defp|defmacro|defmacrop|defguard|defguardp|defdelegate) ([^\s(]+)\((.*?)\)(?: when |, do:|, to:|\s*$)/u, text, return: :index) ||
+             Regex.run(~r/^\s*EEx\.function_from_string\(:(def|defp), :([^\s,]+), .*, \[(.*)\]\)$/u, text, return: :index) do
         [_, {definer_start, definer_length}, {name_start, name_length}, {parameters_start, parameters_length}] ->
           name = binary_part(text, name_start, name_length)
           parameters = binary_part(text, parameters_start, parameters_length) |> String.split(", ", trim: true)
 
-          if name in ["local_site", "uses"] do
+          if name in ["local_site", "local_forward", "uses"] do
             []
           else
             [%{"name" => nfc(name), "arity" => length(parameters), "definer" => binary_part(text, definer_start, definer_length), "line" => line, "column" => utf16_length(binary_part(text, 0, name_start)) + 1}]
           end
 
         nil ->
-          []
+          embed_declaration(text, line)
       end
     end)
     |> Enum.group_by(&{&1["name"], &1["arity"]})
     |> Enum.flat_map(fn {_, clauses} -> clauses |> Enum.with_index() |> Enum.map(fn {clause, index} -> Map.put(clause, "clause", index) end) end)
     |> Enum.sort_by(&{&1["line"], &1["column"]})
+  end
+
+  # An embed's declaration is its atom, which names the function only with the suffix the kind adds.
+  defp embed_declaration(text, line) do
+    case Regex.run(~r/^\s*Mix\.Generator\.embed_(template|text)\(:([^\s,]+), /u, text, return: :index) do
+      [_, {kind_start, kind_length}, {name_start, name_length}] ->
+        kind = binary_part(text, kind_start, kind_length)
+        name = binary_part(text, name_start, name_length) <> "_" <> kind
+        arity = if kind == "template", do: 1, else: 0
+        spelled = binary_part(text, name_start, name_length)
+        [%{"name" => nfc(name), "spelled" => nfc(spelled), "arity" => arity, "definer" => "defp", "line" => line, "column" => utf16_length(binary_part(text, 0, name_start)) + 1}]
+
+      nil ->
+        []
+    end
   end
 
   # Every file this script writes, found by walking the directories it wipes at the start rather than by listing
