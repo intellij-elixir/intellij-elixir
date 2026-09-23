@@ -7,15 +7,12 @@ import com.intellij.psi.ResolveState
 import com.intellij.psi.impl.source.resolve.ResolveCache
 import org.elixir_lang.Arity
 import org.elixir_lang.Name
-import org.elixir_lang.NameArityInterval
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.For
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.call.macroChildCalls
-import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.CallDefinitionSpecification.Companion.typeNameArity
-import org.elixir_lang.structure_view.element.Delegation
 
 object CallDefinitionClause : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.CallDefinitionClause> {
     override fun resolve(callDefinitionClause: org.elixir_lang.reference.CallDefinitionClause,
@@ -38,21 +35,6 @@ object CallDefinitionClause : ResolveCache.PolyVariantResolver<org.elixir_lang.r
 
     private fun callToResolveResults(call: Call, name: Name, arity: Arity): List<ResolveResult> =
             when {
-                org.elixir_lang.psi.CallDefinitionClause.`is`(call) -> {
-                    org.elixir_lang.psi.CallDefinitionClause.nameArityInterval(call, ResolveState.initial())
-                            ?.let { nameArityInterval -> nameArityIntervalToResolveResult(call, name, arity, nameArityInterval) }
-                            ?.let { listOf(it) }
-                            .orEmpty()
-                }
-                Delegation.`is`(call) -> {
-                    call
-                            .finalArguments()
-                            ?.takeIf { it.size == 2 }
-                            ?.let { CallDefinitionHead.nameArityInterval(it[0], ResolveState.initial()) }
-                            ?.let { nameArityRange -> nameArityIntervalToResolveResult(call, name, arity, nameArityRange) }
-                            ?.let { listOf(it) }
-                            .orEmpty()
-                }
                 For.`is`(call) -> {
                     val resolveResultList = mutableListOf<ResolveResult>()
 
@@ -66,20 +48,19 @@ object CallDefinitionClause : ResolveCache.PolyVariantResolver<org.elixir_lang.r
 
                     resolveResultList
                 }
-                else -> emptyList()
+                else -> CallableDeclaration.definitions(call, ResolveState.initial()).mapNotNull { definition ->
+                    definitionToResolveResult(call, name, arity, definition)
+                }
             }
 
-    private fun nameArityIntervalToResolveResult(call: Call,
-                                                 name: Name,
-                                                 arity: Arity,
-                                                 nameArityInterval: NameArityInterval): PsiElementResolveResult? {
-        val definerName = nameArityInterval.name
+    private fun definitionToResolveResult(call: Call,
+                                          name: Name,
+                                          arity: Arity,
+                                          definition: CallableDeclaration.Declaration): PsiElementResolveResult? {
+        val definerName = definition.name
 
         return if (definerName.startsWith(name)) {
-            val definerArityInterval = nameArityInterval.arityInterval
-            val validResult = (arity in definerArityInterval) && (definerName == name)
-
-            PsiElementResolveResult(call, validResult)
+            PsiElementResolveResult(call, definition.accepts(arity) && (definerName == name))
         } else {
             null
         }

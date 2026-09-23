@@ -1,5 +1,6 @@
 package org.elixir_lang.psi
 
+import com.intellij.openapi.util.Key
 import com.intellij.psi.ElementDescriptionLocation
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiNamedElement
@@ -23,13 +24,21 @@ import org.elixir_lang.psi.impl.call.stabBodyChildExpressions
 import org.elixir_lang.psi.impl.hasKeywordKey
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.psi.impl.stripAccessExpression
-import org.elixir_lang.structure_view.element.CallDefinitionHead
-import org.elixir_lang.structure_view.element.Delegation
 
 /**
  * An `import` call
  */
 object Import {
+    /**
+     * The `only:`/`except:` filter of the `import` a declaration was reached through. An imported call may declare
+     * several names, or one name at several arities, so the processor applies it to each name and arity it resolves.
+     */
+    private val FILTER: Key<(NameArityInterval) -> Boolean> = Key.create("Import.FILTER")
+
+    /** Whether the `import` [state] was reached through, if any, brings in [name] at some arity in [arityInterval]. */
+    fun admits(state: ResolveState, name: Name, arityInterval: ArityInterval): Boolean =
+        state.get(FILTER)?.invoke(NameArityInterval(name, arityInterval)) ?: true
+
     /**
      * Whether `call` is an `import Module` or `import Module, opts` call
      */
@@ -50,8 +59,8 @@ object Import {
             val modulars = modulars(importCall)
 
             if (modulars.isNotEmpty()) {
-                val importCallResolveState = resolveState.putVisitedElement(importCall)
                 val filter = importCallFilter(importCall)
+                val importCallResolveState = resolveState.putVisitedElement(importCall).put(FILTER, filter)
 
                 for (modular in modulars) {
                     val childResolveState = importCallResolveState.putVisitedElement(modular)
@@ -114,33 +123,18 @@ object Import {
         importedCall: Call,
         resolveState: ResolveState,
         keepProcessing: (Call, ResolveState) -> Boolean
-    ): Boolean =
-        when {
-            CallDefinitionClause.`is`(importedCall) -> {
-                CallDefinitionClause.nameArityInterval(importedCall, resolveState)?.let { nameArityInterval ->
-                    if (filter(nameArityInterval)) {
-                        keepProcessing(importedCall, resolveState)
-                    } else {
-                        true
-                    }
-                }
-            }
-            Delegation.`is`(importedCall) -> {
-                importedCall.finalArguments()?.takeIf { it.size == 2 }?.let { arguments ->
-                    val head = arguments[0]
+    ): Boolean {
+        val form = CallableDeclaration.formOf(importedCall, resolveState)
 
-                    CallDefinitionHead.nameArityInterval(head, resolveState)?.let { headNameArityInterval ->
-                        if (filter(headNameArityInterval)) {
-                            keepProcessing(importedCall, resolveState)
-                        } else {
-                            true
-                        }
-                    }
-                }
-            }
-            else -> null
+        return if (CallableDeclaration.definitions(importedCall, form, resolveState).any { filter(it.nameArityInterval()) }) {
+            keepProcessing(
+                importedCall,
+                resolveState.put(CallableDeclaration.CLASSIFIED, CallableDeclaration.Classified(importedCall, form))
+            )
+        } else {
+            true
         }
-            ?: true
+    }
 
     private fun treeWalkUpImportedModularChildExpression(
         filter: (NameArityInterval) -> Boolean,

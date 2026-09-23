@@ -143,22 +143,10 @@ class CallableDeclarationGuardTest {
 
         val NOT_YET_ASKING = setOf(
             "annotator/Parameter.java",
-            "code_insight/completion/ModuleFunctionLookupElements.kt",
-            "code_insight/completion/insert_handler/CallDefinitionClause.kt",
-            "documentation/ElixirDocumentationProvider.kt",
-            "documentation/FetchedDocs.kt",
-            "documentation/SourceFileDocsHelper.kt",
-            "model/psi/callback/CallbackImplReference.kt",
-            "model/psi/function/FunctionArityKeywordPairReference.kt",
-            "model/psi/function/FunctionSymbol.kt",
             "navigation/ChooseByNameContributor.kt",
             "psi/ElementDescriptionProvider.kt",
-            "psi/Import.kt",
             "psi/impl/PsiNameIdentifierOwnerImpl.kt",
-            "psi/impl/declarations/UseScopeImpl.kt",
-            "psi/stub/type/call/Stub.java",
             "reference/Callable.kt",
-            "reference/resolver/CallDefinitionClause.kt",
             "structure_view/ChildCall.kt",
         )
     }

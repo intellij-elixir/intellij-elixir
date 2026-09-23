@@ -229,6 +229,37 @@ class CallDefinitionClauseTest : PlatformTestCase() {
         )
     }
 
+    /**
+     * `:"b"` is the same atom as `:b`, so it names the same argument. One placeholder per list element either way:
+     * the generated function's arity is the list's length, and dropping the quoted one would insert a call at an
+     * arity nothing defines.
+     */
+    fun testLocalEExFunctionFromWithQuotedArgumentNameInsertsItsValue() {
+        myFixture.configureByFiles("eex_function_quoted_argument.ex", "eex.ex")
+
+        myFixture.completeSoleCandidateAtCaret()
+
+        assertTrue(
+            "Expected `quoted_argument_sample(a, b)`; got:\n${myFixture.file.text}",
+            myFixture.file.text.contains("quoted_argument_sample(a, b)")
+        )
+    }
+
+    /**
+     * An element with no name known before compile time - a module attribute, an interpolated atom - still takes its
+     * place, so the call inserted has the arity the list declares.
+     */
+    fun testLocalEExFunctionFromWithUnnamedArgumentsKeepsTheirPlaces() {
+        myFixture.configureByFiles("eex_function_unnamed_arguments.ex", "eex.ex")
+
+        myFixture.completeSoleCandidateAtCaret()
+
+        assertTrue(
+            "Expected `unnamed_arguments_sample(a, arg2, arg3)`; got:\n${myFixture.file.text}",
+            myFixture.file.text.contains("unnamed_arguments_sample(a, arg2, arg3)")
+        )
+    }
+
     /* defexception's exception/1 and message/1 hooks, local (Variants.executeOnException). Fixed,
        hardcoded parameter names - the same ones the completion renderer's tail text already shows. */
 
