@@ -14,7 +14,6 @@ import org.elixir_lang.psi.Module
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.model.psi.function.FunctionSymbol
-import org.elixir_lang.psi.impl.call.stabBodyChildExpressions
 import org.elixir_lang.psi.scope.call_definition_clause.MultiResolve
 import org.elixir_lang.reference.resolver.Module as ModuleResolver
 
@@ -48,9 +47,8 @@ import org.elixir_lang.reference.resolver.Module as ModuleResolver
         val module = elixirRoot(tag)?.viewFile()?.modulars()?.singleOrNull() as? Call ?: return emptyList()
         val state = ResolveState.initial()
 
-        return module.stabBodyChildExpressions()
-            ?.filterIsInstance<Call>()
-            ?.flatMap { call ->
+        return org.elixir_lang.psi.CallDefinitionClause.modularChildCalls(module)
+            .flatMap { call ->
                 CallableDeclaration.declaredOf(call, state)
                     ?.takeIf { it.capabilities?.runtimeFunction == true }
                     ?.definitions(state)
@@ -58,8 +56,6 @@ import org.elixir_lang.reference.resolver.Module as ModuleResolver
                     ?.map { LocalComponent(it.name, call) }
                     .orEmpty()
             }
-            ?.toList()
-            ?: emptyList()
     }
 
     private fun doResolveCall(tag: XmlTag): Call? {

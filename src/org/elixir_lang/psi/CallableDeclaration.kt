@@ -5,6 +5,9 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.ResolveState
+import com.intellij.psi.util.CachedValueProvider
+import com.intellij.psi.util.CachedValuesManager
+import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.EEx
 import org.elixir_lang.Name
@@ -215,6 +218,18 @@ object CallableDeclaration {
             null, Form.CALLBACK -> emptyList()
             Form.CLAUSE, Form.DELEGATION, Form.EXCEPTION, Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED ->
                 declarations(call, form, state)
+        }
+
+    /** Each call in [modular]'s module scope that defines something there, with its [definitions], once per change. */
+    @RequiresReadLock
+    fun definitionsIn(modular: Call): List<Pair<Call, List<Declaration>>> =
+        CachedValuesManager.getCachedValue(modular) {
+            CachedValueProvider.Result.create(
+                CallDefinitionClause.modularChildCalls(modular)
+                    .map { it to definitions(it, ResolveState.initial()) }
+                    .filter { (_, definitions) -> definitions.isNotEmpty() },
+                PsiModificationTracker.MODIFICATION_COUNT
+            )
         }
 
     /** [form] must be [formOf]'s answer for [call]; callers already have it from dispatching on it. */

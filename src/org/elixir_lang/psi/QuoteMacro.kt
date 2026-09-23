@@ -8,7 +8,6 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.QUOTE
 import org.elixir_lang.psi.call.name.Function.TRY
 import org.elixir_lang.psi.call.name.Module.KERNEL
-import org.elixir_lang.psi.impl.call.macroChildCallSequence
 import org.elixir_lang.psi.impl.call.whileInStabBodyChildExpressions
 import org.elixir_lang.psi.scope.WhileIn.whileIn
 
@@ -16,8 +15,8 @@ object QuoteMacro {
     @RequiresReadLock
     fun treeWalkUp(quoteCall: Call, resolveState: ResolveState, keepProcessing: (PsiElement, ResolveState) -> Boolean): Boolean =
             if (!resolveState.containsAncestorUnquote(quoteCall)) {
-                quoteCall
-                        .macroChildCallSequence()
+                org.elixir_lang.psi.CallDefinitionClause.modularChildCalls(quoteCall)
+                        .asSequence()
                         .filter { !resolveState.hasBeenVisited(it) }
                         .let { treeWalkUp(it, resolveState.putVisitedElement(quoteCall), keepProcessing) }
             } else {

@@ -7,6 +7,7 @@ import org.elixir_lang.code_insight.assertGotoDeclarationChosenAtCaret
 import org.elixir_lang.code_insight.assertGotoDeclarationLandsIn
 import org.elixir_lang.code_insight.enclosingCallAtCaret
 import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
+import org.elixir_lang.code_insight.gotoDeclarationLineAtCaret
 import org.elixir_lang.structure_view.element.Type as TypeElement
 
 @Suppress("UnstableApiUsage")
@@ -58,6 +59,38 @@ class TypeGotoDeclarationTest : PlatformTestCase() {
             .filterIsInstance<org.elixir_lang.psi.call.Call>()
             .firstOrNull { TypeElement.`is`(it) }
         assertNotNull("Should land inside a @type/@typep/@opaque declaration", enclosing)
+    }
+
+    /** A type named in a `@spec` is the `@type`, wherever the spec and the type stand in the module. */
+    fun testATypeUsedInASpecGoesToItsTypeWhicheverComesFirst() {
+        val shapes = listOf(
+            "argument, spec first" to "@spec check(conf<caret>ig) :: :ok\n  def check(_), do: :ok\n  @type config :: map()",
+            "return, spec first" to "@spec check(term) :: conf<caret>ig\n  def check(_), do: :ok\n  @type config :: map()",
+            "argument with parentheses, spec first" to
+                "@spec check(conf<caret>ig()) :: :ok\n  def check(_), do: :ok\n  @type config :: map()",
+            "return with parentheses, spec first" to
+                "@spec check(term) :: conf<caret>ig()\n  def check(_), do: :ok\n  @type config :: map()",
+            "argument, type first" to "@type config :: map()\n  @spec check(conf<caret>ig) :: :ok\n  def check(_), do: :ok",
+            "return, type first" to "@type config :: map()\n  @spec check(term) :: conf<caret>ig\n  def check(_), do: :ok",
+            // A `use`d module's `quote` names `config` in a `@spec` of its own, which is no declaration of it.
+            "return, after a use whose quote names it" to
+                "use Uses\n  @spec other(term) :: conf<caret>ig\n  def other(_), do: :ok\n  @type config :: map()"
+        )
+        val uses = "defmodule Uses do\n  defmacro __using__(_) do\n    quote do\n      @spec check(config) :: :ok\n" +
+            "      def check(_), do: :ok\n    end\n  end\nend\n\n"
+
+        val misses = shapes.mapNotNull { (label, body) ->
+            myFixture.configureByText("spec_type.ex", "${uses}defmodule M do\n  $body\nend\n")
+            val line = try {
+                myFixture.gotoDeclarationLineAtCaret()
+            } catch (nowhere: AssertionError) {
+                "nowhere"
+            }
+
+            if (line == "@type config :: map()") null else "$label went to $line"
+        }
+
+        assertEquals("a type usage that did not go to its `@type`", emptyList<String>(), misses)
     }
 
     fun testCtrlClickOnTypeVariableUsageChoosesGotoDeclaration() {

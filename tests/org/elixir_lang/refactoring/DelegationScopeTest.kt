@@ -4,6 +4,7 @@ import com.intellij.ide.impl.HeadlessDataManager
 import com.intellij.openapi.util.TextRange
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
+import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
 
 /**
@@ -125,6 +126,31 @@ class DelegationScopeTest : PlatformTestCase() {
 
         assertEquals(expected.toSet(), resolved.mapNotNull { it.element?.text?.lineSequence()?.first() }.toSet())
         assertEquals(emptyList<String>(), resolved.filter { it.isValidResult }.mapNotNull { it.element?.text })
+    }
+
+    /** A definition under a compile-time `if` belongs to the module around the `if`, not to the `if`. */
+    fun testADefinitionUnderAnIfBelongsToItsModule() {
+        configure(conditional, "defdelegate sn<caret>oc(q, x)")
+        val calls = com.intellij.psi.util.PsiTreeUtil.findChildrenOfType(myFixture.file, org.elixir_lang.psi.call.Call::class.java)
+
+        val modules = listOf("def snoc", "defdelegate snoc").map { start ->
+            calls.first { it.text.startsWith(start) }.let(org.elixir_lang.model.psi.function.FunctionSymbol::fromDeclaration).single().moduleName
+        }
+
+        assertEquals(listOf("Target", "Delegator"), modules)
+    }
+
+    /** ... so the target's `def` is not another declaration of the delegation's function. */
+    fun testFindUsagesOfADelegationUnderAnIfDoesNotListItsTarget() {
+        configure(conditional, "defdelegate sn<caret>oc(q, x)")
+        val text = myFixture.file.text
+
+        val usages = myFixture.psiUsagesAtCaret(project)
+            .filterNot { it.declaration }
+            .map { usage -> text.substring(0, usage.range.startOffset).count { it == '\n' } + 1 }
+            .sorted()
+
+        assertEquals(listOf(text.lines().indexOfFirst { "Delegator.snoc(a, b)" in it } + 1), usages.distinct())
     }
 
     private fun assertFollows(source: String, caretAt: String, targetLine: String) {

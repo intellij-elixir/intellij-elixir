@@ -30,6 +30,17 @@ class CollectDocCommentsTest : PlatformTestCase() {
         assertEquals(listOf("@moduledoc \"Module\"", "@doc \"Function\""), collectDocCommentTexts())
     }
 
+    /** A `@moduledoc` under an `if` in a module documents that module, as Elixir applies it. */
+    fun testModuleDocumentationUnderAnIfIsOwnedByItsModule() {
+        myFixture.configureByText("owned.ex", "defmodule Outer do\n  if true do\n    @moduledoc \"Doc\"\n  end\nend\n")
+
+        val attribute = PsiTreeUtil.findChildrenOfType(myFixture.file, AtUnqualifiedNoParenthesesCall::class.java)
+            .single { it.text.startsWith("@moduledoc") }
+        val owner = Comment(attribute).owner as? Call
+
+        assertEquals("defmodule Outer do", owner?.text?.lineSequence()?.first())
+    }
+
     fun testHeredocHasNoDocumentation() {
         myFixture.configureByText("heredoc.ex", "\"\"\"\nbar\n\"\"\"")
 

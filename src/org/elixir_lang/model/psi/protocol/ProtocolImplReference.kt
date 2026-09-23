@@ -14,7 +14,6 @@ import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.Implementation
 import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.call.macroChildCallList
 import org.elixir_lang.psi.stub.index.ModularName
 
 /**
@@ -50,7 +49,7 @@ class ProtocolImplReference(
         for (element in StubIndex.getElements(ModularName.KEY, protocolName, call.project, scope, NamedElement::class.java)) {
             ProgressManager.checkCanceled()
             if (element !is Call) continue
-            element.macroChildCallList()
+            org.elixir_lang.psi.CallDefinitionClause.modularChildCalls(element)
                 .filter { CallDefinitionClause.`is`(it) }
                 .forEach { protocolClause ->
                     ProtocolFunction.fromClause(protocolClause).forEach { pf ->

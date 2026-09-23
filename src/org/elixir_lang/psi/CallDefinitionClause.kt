@@ -3,7 +3,11 @@ package org.elixir_lang.psi
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.ElementDescriptionLocation
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
 import com.intellij.psi.ResolveState
+import com.intellij.psi.util.CachedValueProvider
+import com.intellij.psi.util.CachedValuesManager
+import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.usageView.UsageViewTypeLocation
 import com.intellij.util.concurrency.annotations.RequiresReadLock
@@ -11,37 +15,123 @@ import org.elixir_lang.NameArityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.*
 import org.elixir_lang.psi.call.name.Module.KERNEL
-import org.elixir_lang.psi.impl.enclosingMacroCall
+import org.elixir_lang.psi.impl.call.finalArguments
+import org.elixir_lang.psi.impl.call.macroChildCallList
+import org.elixir_lang.psi.impl.call.stabBodyChildExpressions
+import org.elixir_lang.psi.impl.keywordValue
+import org.elixir_lang.psi.stub.type.call.Stub.isModular
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 
 object CallDefinitionClause {
     /**
-     * The enclosing macro call that acts as the modular scope of `call`.  Ignores enclosing `for` calls that
-     * [enclosingMacroCall] doesn't.
+     * The modular [call] belongs to, or else the boundary that stops module scope around it: the nearest enclosing
+     * call that is a modular or a [moduleScopeBoundary]. Everything between - arguments, pipes, `fn`, `if`, `case` -
+     * is looked through, as the compiler runs it all in the module body.
      *
      * @param call a def(macro)?p?
      */
+    @JvmStatic
+    fun enclosingModularMacroCall(call: Call): Call? =
+        generateSequence(call.parent) { it.parent }
+            .takeWhile { it !is PsiFile }
+            .filterIsInstance<Call>()
+            .firstOrNull { ancestor ->
+                ProgressManager.checkCanceled()
+                isModular(ancestor) || moduleScopeBoundary(ancestor)
+            }
+
+    /**
+     * Whether [call] stops module scope for what is inside it: a definition's body, a `quote`, or a `do` block that is
+     * not one of Elixir's own [isModuleScopeConstruct]s, as a macro may put it in a `def` as ExUnit's `test` does.
+     * Decided without resolving, so stub building may ask; telling macros apart would resolve while listing the module.
+     */
+    @JvmStatic
+    fun moduleScopeBoundary(call: Call): Boolean =
+        `is`(call) || QuoteMacro.`is`(call) ||
+            (call.hasDoBlockOrKeyword() && !isModular(call) && !isModuleScopeConstruct(call))
+
+    /**
+     * Whether [call] is one of Elixir's own `do`-block forms that run their block where they are written. Every other
+     * `do`-block form of `Kernel` and `Kernel.SpecialForms` defines, is a module or quotes; `ModuleScopeConstructTest`
+     * checks that against the SDK's docs.
+     */
+    @JvmStatic
+    fun isModuleScopeConstruct(call: Call): Boolean =
+        call.functionName() in BLOCK_IN_PLACE_FORMS && call.resolvedModuleName() == KERNEL
+
+    /** Unqualified, as a module body writes them, they read as `Kernel`'s whether `Kernel` or `Kernel.SpecialForms` defines them. */
+    val BLOCK_IN_PLACE_FORMS = setOf("case", "cond", "for", "if", "receive", "try", "unless", "with")
+
+    /**
+     * The `unquote(block)` a macro definition's `quote` puts directly in the module body the macro is called in, where
+     * `block` is the macro's `do` argument; `null` when it puts the block anywhere else, or is not such a macro.
+     */
     @RequiresReadLock
     @JvmStatic
-    fun enclosingModularMacroCall(call: Call): Call? {
-        var enclosedCall = call
-        var enclosingMacroCall: Call?
+    fun moduleBodyUnquoteOfBlock(macroDefinition: Call): Call? =
+        head(macroDefinition)?.let { it as? Call }?.finalArguments()
+            ?.lastOrNull()?.let { it as? QuotableKeywordList }?.keywordValue("do")?.let { block ->
+                macroDefinition.stabBodyChildExpressions(forward = false)?.filterIsInstance<Call>()?.firstOrNull()
+                    ?.takeIf { QuoteMacro.`is`(it) }
+                    ?.stabBodyChildExpressions()?.filterIsInstance<Call>()?.filter { Unquote.`is`(it) }
+                    ?.singleOrNull { unquote -> unquote.textMatches("unquote(${block.text})") }
+            }
 
-        while (true) {
+    /**
+     * The calls inside [call] in the module scope around it: every call its subtree holds outside a
+     * [moduleScopeBoundary] or a modular, in document order; `null` when [call] is itself one of those.
+     */
+    @RequiresReadLock
+    @JvmStatic
+    fun moduleScopeCalls(call: Call): List<Call>? =
+        if (isModular(call) || moduleScopeBoundary(call)) null else inModuleScope(childCalls(call))
+
+    /**
+     * The calls in [modular]'s module scope: its body, through everything that is not a [moduleScopeBoundary]. Listed
+     * once per change, as each `@spec` and call in the module asks. It is what the module defines: `import`, `alias`,
+     * `require` and variables are lexical and come only from the walk up from a use; a walk of this listing marks its
+     * state [Import.definitionsOnly].
+     */
+    @RequiresReadLock
+    @JvmStatic
+    fun modularChildCalls(modular: Call): List<Call> =
+        CachedValuesManager.getCachedValue(modular) {
+            CachedValueProvider.Result.create(
+                inModuleScope(modular.macroChildCallList()),
+                PsiModificationTracker.MODIFICATION_COUNT
+            )
+        }
+
+    /**
+     * [calls] and what each holds in module scope. Elixir's own constructs stand for their contents alone; any other
+     * call is listed and looked into.
+     */
+    @RequiresReadLock
+    private fun inModuleScope(calls: List<Call>): List<Call> =
+        calls.flatMap { call ->
             ProgressManager.checkCanceled()
-            enclosingMacroCall = enclosedCall.enclosingMacroCall()
+            val inside = moduleScopeCalls(call)
 
-            if (enclosingMacroCall != null &&
-                    (enclosingMacroCall.isCalling(KERNEL, ALIAS) ||
-                            enclosingMacroCall.isCalling(KERNEL, REQUIRE) ||
-                            For.`is`(enclosingMacroCall))) {
-                enclosedCall = enclosingMacroCall
-            } else {
-                break
+            when {
+                inside == null -> listOf(call)
+                isModuleScopeConstruct(call) -> inside
+                else -> listOf(call) + inside
             }
         }
 
-        return enclosingMacroCall
+    /** The nearest calls under [call] in its subtree, not looking inside them. */
+    private fun childCalls(call: Call): List<Call> {
+        val calls = mutableListOf<Call>()
+
+        fun collect(element: PsiElement) {
+            for (child in element.children) {
+                if (child is Call) calls.add(child) else collect(child)
+            }
+        }
+
+        collect(call)
+
+        return calls
     }
 
     /**

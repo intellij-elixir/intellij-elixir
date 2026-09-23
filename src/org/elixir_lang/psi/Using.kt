@@ -14,7 +14,6 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.*
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.call.macroChildCallSequence
 import org.elixir_lang.psi.impl.call.stabBodyChildExpressions
 import org.elixir_lang.psi.impl.childExpressions
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
@@ -295,8 +294,8 @@ object Using {
 
     @RequiresReadLock
     fun definers(modularCall: Call): Sequence<Call> =
-        modularCall
-            .macroChildCallSequence()
+        org.elixir_lang.psi.CallDefinitionClause.modularChildCalls(modularCall)
+            .asSequence()
             .filter { isDefiner(it) }
 
     fun definers(moduleImpl: BeamModule): Sequence<BeamCallDefinition> =
@@ -325,7 +324,7 @@ object Using {
             is Call -> {
                 val updatedState = resolveState.putVisitedElement(modular)
                 modular.name == EXUNIT_CASE_TEMPLATE ||
-                modular.macroChildCallSequence()
+                org.elixir_lang.psi.CallDefinitionClause.modularChildCalls(modular).asSequence()
                     .filter { Use.`is`(it) }
                     .any { useCall ->
                         Use.modulars(useCall).any { inner ->

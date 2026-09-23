@@ -3,55 +3,34 @@ package org.elixir_lang.reference.resolver
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.psi.PsiElementResolveResult
 import com.intellij.psi.ResolveResult
-import com.intellij.psi.ResolveState
 import com.intellij.psi.impl.source.resolve.ResolveCache
 import org.elixir_lang.Arity
 import org.elixir_lang.Name
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
 import org.elixir_lang.psi.CallableDeclaration
-import org.elixir_lang.psi.For
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.call.macroChildCalls
 import org.elixir_lang.structure_view.element.CallDefinitionSpecification.Companion.typeNameArity
 
 object CallDefinitionClause : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.CallDefinitionClause> {
     override fun resolve(callDefinitionClause: org.elixir_lang.reference.CallDefinitionClause,
                          incompleteCode: Boolean): Array<ResolveResult> {
         ApplicationManager.getApplication().assertReadAccessAllowed()
-        return enclosingModularMacroCall(callDefinitionClause.moduleAttribute)?.macroChildCalls()?.let { siblings ->
+        return enclosingModularMacroCall(callDefinitionClause.moduleAttribute)?.let(CallableDeclaration::definitionsIn)?.let { siblings ->
             if (siblings.isNotEmpty()) {
                 val nameArity = typeNameArity(callDefinitionClause.element) ?: return emptyArray()
                 val name = nameArity.name
                 val arity = nameArity.arity
 
                 siblings
-                    .flatMap { call -> callToResolveResults(call, name, arity) }
+                    .flatMap { (call, definitions) ->
+                        definitions.mapNotNull { definitionToResolveResult(call, name, arity, it) }
+                    }
                     .toTypedArray()
             } else {
                 null
             }
         } ?: emptyArray()
     }
-
-    private fun callToResolveResults(call: Call, name: Name, arity: Arity): List<ResolveResult> =
-            when {
-                For.`is`(call) -> {
-                    val resolveResultList = mutableListOf<ResolveResult>()
-
-                    For.treeWalkDown(call, ResolveState.initial()) { child, _ ->
-                        if (child is Call) {
-                            resolveResultList.addAll(callToResolveResults(child, name, arity))
-                        }
-
-                        true
-                    }
-
-                    resolveResultList
-                }
-                else -> CallableDeclaration.definitions(call, ResolveState.initial()).mapNotNull { definition ->
-                    definitionToResolveResult(call, name, arity, definition)
-                }
-            }
 
     private fun definitionToResolveResult(call: Call,
                                           name: Name,

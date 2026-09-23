@@ -20,7 +20,6 @@ import org.elixir_lang.psi.call.name.Function.IMPORT
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
 import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.call.stabBodyChildExpressions
 import org.elixir_lang.psi.impl.hasKeywordKey
 import org.elixir_lang.psi.impl.literalName
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
@@ -112,6 +111,15 @@ object Import {
     /** The [Filter] of the `import` a declaration was reached through, applied to each name and arity it declares. */
     private val FILTER: Key<Filter> = Key.create("Import.FILTER")
 
+    private val DEFINITIONS_ONLY: Key<Boolean> = Key.create("Import.DEFINITIONS_ONLY")
+
+    /**
+     * [state], marked as walking a module's listing for what it defines. An `import` is lexical: it reaches from where
+     * it is written to the end of its block, which only the walk up from a use follows, so a walk marked so does not
+     * follow one, whether listed or injected by a listed `use`. What a module defines is the module's wherever it is.
+     */
+    fun definitionsOnly(state: ResolveState): ResolveState = state.put(DEFINITIONS_ONLY, true)
+
     /** Whether the `import` [state] was reached through, if any, brings in [name] at some arity in [arityInterval]. */
     fun admits(state: ResolveState, name: Name, arityInterval: ArityInterval, compileTime: Boolean?): Boolean =
         state.get(FILTER)?.admits(name, arityInterval, compileTime) ?: true
@@ -136,7 +144,7 @@ object Import {
 
         // don't descend back into `import` when the entrance is the alis to the `import` like `MyAlias` in
         // `import MyAlias`.
-        if (!importCall.isAncestor(resolveState.get(ENTRANCE))) {
+        if (resolveState.get(DEFINITIONS_ONLY) != true && !importCall.isAncestor(resolveState.get(ENTRANCE))) {
             val modulars = modulars(importCall)
 
             if (modulars.isNotEmpty()) {
@@ -177,13 +185,13 @@ object Import {
         resolveState: ResolveState,
         keepProcessing: (PsiElement, ResolveState) -> Boolean
     ): Boolean =
-        importedModular
-            .stabBodyChildExpressions()
-            ?.filterIsInstance<Call>()
-            ?.filter { !resolveState.hasBeenVisited(it) }
-            ?.map { treeWalkUpImportedModularChildExpression(filter, it, resolveState, keepProcessing) }
-            ?.takeWhile { it }
-            ?.lastOrNull()
+        // Looks through the conditionals a definition may be under, as the module's own walk does.
+        CallDefinitionClause.modularChildCalls(importedModular)
+            .asSequence()
+            .filter { !resolveState.hasBeenVisited(it) }
+            .map { treeWalkUpImportedModularChildExpression(filter, it, resolveState, keepProcessing) }
+            .takeWhile { it }
+            .lastOrNull()
             ?: true
 
     private fun treeWalkUpImportedModular(
