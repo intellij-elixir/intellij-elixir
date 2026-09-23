@@ -576,38 +576,21 @@ private class Group(val scenario: Scenario) {
 
     /**
      * Source: every head of the definition and every call the compiler bound to it are renamed, and nothing else
-     * changes. Compiled: the rename is refused, because the definition is in a read-only `.beam` - either nothing is
-     * offered to rename, or the rename dialog refuses with a reason saying it cannot be renamed and edits nothing.
+     * changes. Compiled: the rename is refused, because the definition is in a read-only `.beam`. A call nothing
+     * covers: the rename is refused, because renaming would edit a function the call does not make. Refused is
+     * either nothing offered to rename, or the rename dialog refusing with a reason saying it cannot be renamed and
+     * editing nothing.
      */
     private fun checkRename(binding: Binding?) {
         openAt(place)
 
-        // Nothing resolves here, so there is nothing to rename: a call at an arity no definition covers must not
-        // offer one of them as its target, or renaming would silently edit a function the call does not make.
         if (binding == null) {
-            assertEquals(
-                "Rename at ${place.id} should offer nothing, because no definition covers that call",
-                emptyList<Any>(),
-                myFixture.renameTargetsAtCaret()
-            )
+            assertRenameRefused("no definition covers that call", "nothing")
             return
         }
 
         if (definition(binding).first.compiled) {
-            val targets = myFixture.renameTargetsAtCaret()
-            if (targets.isEmpty()) return
-
-            // Offered, the rename has to be refused by the dialog's validator, which the test engine reports as an
-            // exception carrying the validator's reason; any other failure is not a refusal the user could read.
-            val failure = runCatching { myFixture.renameTargetAtCaret(renamed(definition(binding).second.name)) }.exceptionOrNull()
-            val reason = generateSequence(failure) { it.cause }.mapNotNull { it.message }.firstOrNull { "cannot be renamed" in it }
-            assertNotNull(
-                "Rename at ${place.id} should be refused for a compiled definition, but offered $targets and " +
-                    (failure?.let { "failed with $it" } ?: "renamed it"),
-                reason
-            )
-            val changed = originals.filter { (file, text) -> FileDocumentManager.getInstance().getDocument(file)!!.text != text }.keys.map { it.name }
-            assertEquals("Rename at ${place.id} was refused ($reason) but still changed", emptyList<String>(), changed)
+            assertRenameRefused("the definition is compiled", definition(binding).second.name)
             return
         }
 
@@ -705,6 +688,26 @@ private class Group(val scenario: Scenario) {
         scope + "renamed" + name.takeLast(1).takeIf { it == "?" || it == "!" }.orEmpty() +
             // An embed's function is its atom plus a suffix, so a name without the suffix is one no embed can declare.
             EMBED_SUFFIXES.firstOrNull { scenario.form == GENERATOR_EMBED && name.endsWith(it) }.orEmpty()
+
+    /**
+     * Rename at the caret is refused because [why]: nothing is offered, or what is offered is refused by the rename
+     * dialog's validator - which the test engine reports as an exception carrying the validator's reason - and nothing
+     * is edited. Any other failure is not a refusal the user could read.
+     */
+    private fun assertRenameRefused(why: String, name: String) {
+        val targets = myFixture.renameTargetsAtCaret()
+        if (targets.isEmpty()) return
+
+        val failure = runCatching { myFixture.renameTargetAtCaret(renamed(name)) }.exceptionOrNull()
+        val reason = generateSequence(failure) { it.cause }.mapNotNull { it.message }.firstOrNull { "cannot be renamed" in it }
+        assertNotNull(
+            "Rename at ${place.id} should be refused, as $why, but offered $targets and " +
+                (failure?.let { "failed with $it" } ?: "renamed it"),
+            reason
+        )
+        val changed = originals.filter { (file, text) -> FileDocumentManager.getInstance().getDocument(file)!!.text != text }.keys.map { it.name }
+        assertEquals("Rename at ${place.id} was refused ($reason) but still changed", emptyList<String>(), changed)
+    }
 
     /**
      * Renaming a `defdelegate` renames the delegation, not what it calls: the target keeps its name, so a delegation
