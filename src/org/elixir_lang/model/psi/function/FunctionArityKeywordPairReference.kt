@@ -14,6 +14,7 @@ import org.elixir_lang.model.psi.callback.BehaviourMembership
 import org.elixir_lang.model.psi.callback.Callback
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.QuotableKeywordPair
 import org.elixir_lang.psi.call.Call
@@ -21,7 +22,6 @@ import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.call.macroChildCallSequence
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.psi.stub.index.ModularName
-import org.elixir_lang.structure_view.element.Callback as CallbackElement
 
 /**
  * Symbol reference from the **key** of a `name: arity` keyword pair
@@ -77,7 +77,7 @@ class FunctionArityKeywordPairReference(
         return modulars.flatMap { modular ->
             modular
                 .macroChildCallSequence()
-                .filter { CallDefinitionClause.`is`(it) }
+                .filter { CallableDeclaration.isForm(it, CallableDeclaration.Form.CLAUSE) }
                 .flatMap { FunctionSymbol.fromClause(it) }
                 .filter { it.name == occurrence.name && it.arity == occurrence.arity }
                 .toList()
@@ -98,7 +98,7 @@ class FunctionArityKeywordPairReference(
                 behaviourModule
                     .macroChildCallSequence()
                     .filterIsInstance<AtUnqualifiedNoParenthesesCall<*>>()
-                    .filter { CallbackElement.`is`(it) }
+                    .filter { CallableDeclaration.isForm(it, CallableDeclaration.Form.CALLBACK) }
                     .forEach { attr ->
                         Callback.fromModuleAttribute(attr).forEach { callback ->
                             if (callback.name == occurrence.name && callback.arity == occurrence.arity) {
@@ -122,7 +122,7 @@ class FunctionArityKeywordPairReference(
         val usingDefiner = generateSequence(hostCall.parent) { it.parent }
             .filterIsInstance<Call>()
             .firstOrNull { call ->
-                CallDefinitionClause.`is`(call) &&
+                CallableDeclaration.isForm(call, CallableDeclaration.Form.CLAUSE) &&
                     CallDefinitionClause.nameArityInterval(call, ResolveState.initial())?.name == "__using__"
             }
 

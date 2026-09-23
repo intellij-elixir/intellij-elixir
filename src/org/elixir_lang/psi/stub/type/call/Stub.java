@@ -58,13 +58,15 @@ public abstract class Stub<Stub extends org.elixir_lang.psi.stub.call.Stub<Psi>,
         return CallDefinitionHead.Companion.is(call) && CallDefinitionHead.Companion.enclosingDelegationCall(call) != null;
     }
 
+    /**
+     * Nothing here may resolve a reference: this runs during stub building. Changing what it accepts changes the index
+     * and needs a stub version bump; a {@code defdelegate} is stubbed through its head instead, by
+     * {@link #isDelegationCallDefinitionHead}.
+     */
     private boolean isEnclosableByModular(Call call) {
-        return CallDefinitionClause.is(call) ||
-                /* skip CallDefinitionHead because there can be false positives the the ancestor calls need to be
-                   checked */
-                CallDefinitionSpecification.Companion.is(call) ||
-                // skip CallDefinitionHead because it is covered by CallDefinitionClause
-                Callback.Companion.is(call);
+        return CallableDeclaration.INSTANCE.isForm(call, CallableDeclaration.Form.CLAUSE) ||
+                Callback.Companion.is(call) ||
+                CallDefinitionSpecification.Companion.is(call);
     }
 
     private boolean isNameable(Call call) {

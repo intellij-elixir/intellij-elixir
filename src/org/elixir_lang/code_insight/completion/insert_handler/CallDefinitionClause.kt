@@ -7,26 +7,26 @@ import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.codeInsight.template.Template
 import com.intellij.codeInsight.template.TemplateManager
 import com.intellij.codeInsight.template.impl.TextExpression
+import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
-import com.intellij.psi.ResolveState
 import org.elixir_lang.EEx
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.code_insight.Signature
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause as CallDefinitionClausePsi
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.ElixirAtom
-import org.elixir_lang.psi.ElixirList
 import org.elixir_lang.psi.Exception as ElixirException
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
+import org.elixir_lang.psi.impl.literalName
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.mix.Generator as MixGenerator
 import org.elixir_lang.psi.operation.InMatch
 import org.elixir_lang.psi.operation.Type
 import org.elixir_lang.structure_view.element.Callback
 import org.elixir_lang.structure_view.element.CallDefinitionHead
-import org.elixir_lang.structure_view.element.Delegation
 
 /**
  * Inserts a call-definition-clause completion's target as `name(a, b)`, with each parameter a live
@@ -38,9 +38,15 @@ import org.elixir_lang.structure_view.element.Delegation
  * [org.elixir_lang.code_insight.completion.callDefinitionClauseLookupElements] and
  * [org.elixir_lang.code_insight.lookup.element.CallDefinitionClause], and the seven local/unqualified
  * ones in [org.elixir_lang.psi.scope.call_definition_clause.Variants]. Each site's target PSI shape
- * differs, so [parameters] dispatches on it independently of whatever produced the [LookupElement].
+ * differs, so [parameters] dispatches on the target's form: [FORM] where the site recorded it.
  */
 object CallDefinitionClause : InsertHandler<LookupElement> {
+    /**
+     * The form of the declaration a [LookupElement] completes, recorded where it was built, so insertion does not
+     * classify the call again - which for EEx and `Mix.Generator` forms would resolve a reference on the EDT.
+     */
+    val FORM: Key<CallableDeclaration.Form> = Key.create("CallDefinitionClause.FORM")
+
     override fun handleInsert(context: InsertionContext, item: LookupElement) {
         val tailOffset = context.tailOffset
         val document = context.document
@@ -101,23 +107,23 @@ object CallDefinitionClause : InsertHandler<LookupElement> {
     private fun parameters(item: LookupElement): List<String>? =
         when (val psiElement = item.psiElement) {
             is BeamCallDefinition -> Signature.of(psiElement).parameters
-            is Call -> callParameters(psiElement, item.lookupString)
+            is Call -> callParameters(
+                psiElement,
+                item.getUserData(FORM) ?: CallableDeclaration.syntacticFormOf(psiElement),
+                item.lookupString
+            )
             else -> null
         }
 
-    /**
-     * Mirrors [org.elixir_lang.psi.scope.CallDefinitionClause]'s own private `execute(element: Call,
-     * ...)` dispatch order - a given [call] can only be one of these shapes, so the first match wins.
-     */
-    private fun callParameters(call: Call, lookupString: String): List<String>? =
-        when {
-            CallDefinitionClausePsi.`is`(call) -> callDefinitionClauseParameters(call)
-            Callback.`is`(call) -> callbackParameters(call)
-            Delegation.`is`(call) -> delegationParameters(call)
-            ElixirException.`is`(call) -> exceptionParameters(lookupString)
-            EEx.isFunctionFrom(call, ResolveState.initial()) -> eexFunctionFromParameters(call)
-            MixGenerator.isEmbed(call, ResolveState.initial()) -> embedParameters(call)
-            else -> null
+    private fun callParameters(call: Call, form: CallableDeclaration.Form?, lookupString: String): List<String>? =
+        when (form) {
+            CallableDeclaration.Form.CLAUSE -> callDefinitionClauseParameters(call)
+            CallableDeclaration.Form.CALLBACK -> callbackParameters(call)
+            CallableDeclaration.Form.DELEGATION -> delegationParameters(call)
+            CallableDeclaration.Form.EXCEPTION -> exceptionParameters(lookupString)
+            CallableDeclaration.Form.EEX_FUNCTION_FROM -> eexFunctionFromParameters(call)
+            CallableDeclaration.Form.GENERATOR_EMBED -> embedParameters(call)
+            null -> null
         }
 
     /**
@@ -150,10 +156,8 @@ object CallDefinitionClause : InsertHandler<LookupElement> {
      * of a default value for the same reason as [callDefinitionClauseParameters].
      */
     private fun delegationParameters(call: Call): List<String> =
-        call
-            .finalArguments()
-            ?.takeIf { it.size == 2 }
-            ?.get(0)
+        CallableDeclaration
+            .delegationHead(call)
             ?.let { it as? Call }
             ?.finalArguments()
             ?.map(::stripDefaultValue)
@@ -175,31 +179,13 @@ object CallDefinitionClause : InsertHandler<LookupElement> {
             else -> emptyList()
         }
 
-    /**
-     * The macro's own `[:a, :b]` argument-name list - `EEx.function_from_file`/`function_from_string`
-     * generates a function with exactly these names, not derivable from any PSI head. Defaults to `[]`,
-     * matching [org.elixir_lang.structure_view.element.EExFunctionFrom]'s own arity computation.
-     */
+    /** One placeholder per `args` element, even one with no fixed name: the list's length is the arity. */
     private fun eexFunctionFromParameters(call: Call): List<String> =
-        call.finalArguments()?.let { arguments ->
-            if (arguments.size >= 4) {
-                (arguments[3].stripAccessExpression() as? ElixirList)
-                    ?.children
-                    ?.mapNotNull { child ->
-                        child.stripAccessExpression().let { it as? ElixirAtom }?.node?.lastChildNode?.text
-                    }
-            } else {
-                emptyList()
+        EEx.argumentList(call)
+            ?.mapIndexed { index, element ->
+                (element.stripAccessExpression() as? ElixirAtom)?.literalName() ?: "arg${index + 1}"
             }
-        } ?: emptyList()
+            .orEmpty()
 
-    /**
-     * Fixed by `Mix.Generator`'s own two macros - `embed_template` defines a function of `assigns`,
-     * `embed_text` of nothing, same as the completion renderer's tail text.
-     */
-    private fun embedParameters(call: Call): List<String> =
-        when (call.functionName()?.removePrefix("embed_")) {
-            "template" -> listOf("assigns")
-            else -> emptyList()
-        }
+    private fun embedParameters(call: Call): List<String> = MixGenerator.Embed.of(call)?.parameters.orEmpty()
 }

@@ -43,9 +43,10 @@ private constructor(
     override fun executeOnDelegation(element: Call, state: ResolveState): Boolean {
         // `delegationHead` reads a single head until #4040.
         CallableDeclaration.declarations(element, CallableDeclaration.Form.DELEGATION, state).firstOrNull()
+            ?.takeIf { admitted(it, state) }
             ?.let { declaration ->
                 val headName = declaration.name
-                val validArity = declaration.arityInterval?.let { resolvedPrimaryArity in it } ?: false
+                val validArity = accepted(declaration, state)
 
                 if ((this.name == null && (incompleteCode || validArity)) ||
                         (this.name != null && headName.startsWith(this.name))) {
@@ -107,11 +108,18 @@ private constructor(
             addDeclarations(element, CallableDeclaration.Form.GENERATOR_EMBED, state)
 
     private fun addDeclarations(call: Call, form: CallableDeclaration.Form, state: ResolveState): Boolean =
-            whileIn(CallableDeclaration.declarations(call, form, state)) { declaration ->
-                val validArity = declaration.arityInterval?.let { resolvedPrimaryArity in it } ?: false
-
-                addIfNameOrArityToResolveResults(call, declaration.name, validArity, state)
+            whileIn(CallableDeclaration.declarations(call, form, state).filter { admitted(it, state) }) { declaration ->
+                addIfNameOrArityToResolveResults(call, declaration.name, accepted(declaration, state), state)
             }
+
+    /** Whether an `import` this was reached through brings in [declaration] at any arity. */
+    private fun admitted(declaration: CallableDeclaration.Declaration, state: ResolveState): Boolean =
+        Import.admits(state, declaration.name, declaration.nameArityInterval().arityInterval)
+
+    /** Whether [declaration] is defined, and imported if reached through an `import`, at the resolved arity. */
+    private fun accepted(declaration: CallableDeclaration.Declaration, state: ResolveState): Boolean =
+        declaration.accepts(resolvedPrimaryArity) &&
+            Import.admits(state, declaration.name, ArityInterval(resolvedPrimaryArity, resolvedPrimaryArity))
 
     private fun addIfNameOrArityToResolveResults(callDefinition: BeamCallDefinition,
                                                  nameArityInterval: NameArityInterval,

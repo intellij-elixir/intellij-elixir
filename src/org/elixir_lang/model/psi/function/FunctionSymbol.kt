@@ -18,9 +18,9 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.ElixirSymbolWithUsages
 import org.elixir_lang.navigation.ElixirClausePresentation
 import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.Delegation
 import java.util.*
@@ -60,7 +60,10 @@ class FunctionSymbol(
         // identifier replacement, so its name-identifier range is recomputed correctly on restore.
         val clause = generateSequence(file.findElementAt(range.startOffset)) { it.parent }
             .filterIsInstance<Call>()
-            .firstOrNull { CallDefinitionClause.`is`(it) && CallDefinitionClause.nameIdentifier(it)?.textRange == range }
+            .firstOrNull {
+                CallableDeclaration.isForm(it, CallableDeclaration.Form.CLAUSE) &&
+                    CallDefinitionClause.nameIdentifier(it)?.textRange == range
+            }
         if (clause != null) {
             val clausePointer = SmartPointerManager.getInstance(file.project)
                 .createSmartPsiElementPointer(clause, file)
@@ -99,7 +102,7 @@ class FunctionSymbol(
         val leaf = file.findElementAt(range.startOffset) ?: return null
         val clause = generateSequence(leaf) { it.parent }
             .filterIsInstance<Call>()
-            .firstOrNull { CallDefinitionClause.`is`(it) }
+            .firstOrNull { CallableDeclaration.isForm(it, CallableDeclaration.Form.CLAUSE) }
             ?: return null
 
         return ElixirClausePresentation.elementText(clause)
@@ -128,7 +131,7 @@ class FunctionSymbol(
          */
         @RequiresReadLock
         fun fromClause(clause: Call): List<FunctionSymbol> {
-            if (!CallDefinitionClause.`is`(clause)) return emptyList()
+            if (!CallableDeclaration.isForm(clause, CallableDeclaration.Form.CLAUSE)) return emptyList()
             val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(clause) ?: return emptyList()
             // Protocol function declarations are owned by ProtocolFunction, not FunctionSymbol.
             if (Protocol.`is`(enclosingModular)) return emptyList()
@@ -151,12 +154,15 @@ class FunctionSymbol(
          * The symbols a `defdelegate` declares in its own module.
          *
          * A delegation declares a function whether or not `to:` resolves, and [fromClause] cannot
-         * express it because `Delegation.is` and `CallDefinitionClause.is` are disjoint. Never a macro.
+         * express it because [CallableDeclaration.Form.DELEGATION] and [CallableDeclaration.Form.CLAUSE] are
+         * separate forms. Never a macro.
          */
         @RequiresReadLock
         fun fromDelegation(delegation: Call): List<FunctionSymbol> {
-            if (!Delegation.`is`(delegation)) return emptyList()
-            val head = delegation.finalArguments()?.takeIf { it.size == 2 }?.get(0) ?: return emptyList()
+            if (!CallableDeclaration.isForm(delegation, CallableDeclaration.Form.DELEGATION)) {
+                return emptyList()
+            }
+            val head = CallableDeclaration.delegationHead(delegation) ?: return emptyList()
             val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(delegation) ?: return emptyList()
             if (Protocol.`is`(enclosingModular)) return emptyList()
             val moduleName = runCatching { org.elixir_lang.psi.Module.name(enclosingModular) }

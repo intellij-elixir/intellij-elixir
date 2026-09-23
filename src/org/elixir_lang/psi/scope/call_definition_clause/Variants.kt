@@ -128,8 +128,12 @@ class Variants(private val appendParentheses: Boolean) : CallDefinitionClause() 
         lookupElement: (CallableDeclaration.Declaration) -> LookupElementBuilder,
     ) {
         for (declaration in CallableDeclaration.declarations(call, form, state)) {
-            lookupElementByPsiElementName.computeIfAbsent(call to declaration.name) {
-                lookupElement(declaration).withInsertHandlerIfAppendingParentheses()
+            if (Import.admits(state, declaration.name, declaration.nameArityInterval().arityInterval)) {
+                lookupElementByPsiElementName.computeIfAbsent(call to declaration.name) {
+                    lookupElement(declaration).withInsertHandlerIfAppendingParentheses().also {
+                        it.putUserData(CallDefinitionClauseInsertHandler.FORM, form)
+                    }
+                }
             }
         }
     }

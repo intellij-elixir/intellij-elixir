@@ -5,6 +5,7 @@ import com.intellij.psi.ResolveState
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.ElixirUnmatchedAtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.CanonicallyNamed
@@ -13,9 +14,7 @@ import org.elixir_lang.psi.impl.call.macroChildCallList
 import org.elixir_lang.psi.impl.identifierName
 import org.elixir_lang.psi.impl.siblingExpressions
 import org.elixir_lang.psi.stub.type.call.Stub
-import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.structure_view.element.CallDefinitionHead
-import org.elixir_lang.structure_view.element.Delegation
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 
 object SourceFileDocsHelper {
@@ -40,7 +39,7 @@ object SourceFileDocsHelper {
     private fun documentedCallDefinitionClause(element: PsiElement): Call? =
         generateSequence(element.parent) { it.parent }
             .filterIsInstance<Call>()
-            .firstOrNull { CallDefinitionClause.`is`(it) }
+            .firstOrNull { CallableDeclaration.isForm(it, CallableDeclaration.Form.CLAUSE) }
             ?.takeIf { CallDefinitionClause.nameIdentifier(it) == element }
 
     private fun fetchDocs(moduleAttribute: AtUnqualifiedNoParenthesesCall<*>): FetchedDocs? =
@@ -113,7 +112,7 @@ object SourceFileDocsHelper {
                 null
             }
         }
-        CallDefinitionClause.`is`(call) -> {
+        CallableDeclaration.isForm(call, CallableDeclaration.Form.CLAUSE) -> {
             val state = ResolveState.initial()
 
             CallDefinitionClause.nameArityInterval(call, state)?.let { nameArityRange ->
@@ -123,7 +122,7 @@ object SourceFileDocsHelper {
                     modular
                         .macroChildCallList()
                         .mapNotNull { sibling ->
-                            if (CallDefinitionClause.`is`(sibling)) {
+                            if (CallableDeclaration.isForm(sibling, CallableDeclaration.Form.CLAUSE)) {
                                 CallDefinitionClause
                                     .head(sibling)
                                     ?.let { siblingHead ->
@@ -152,7 +151,7 @@ object SourceFileDocsHelper {
                 }
             }
         }
-        Delegation.`is`(call) -> delegationDocs(call)
+        CallableDeclaration.isForm(call, CallableDeclaration.Form.DELEGATION) -> delegationDocs(call)
         else -> null
     }
 
@@ -164,15 +163,14 @@ object SourceFileDocsHelper {
      */
     @RequiresReadLock
     private fun delegationDocs(call: Call): FetchedDocs? =
-        call
-            .finalArguments()
-            ?.takeIf { it.size == 2 }
-            ?.let { arguments ->
+        CallableDeclaration
+            .delegationHead(call)
+            ?.let { head ->
                 enclosingModularMacroCall(call)?.let { modular ->
                     val module = (modular as? CanonicallyNamed)?.canonicalName().orEmpty()
 
                     FetchedDocs.FunctionOrMacroDocumentation
-                        .fromCallDefinitionClauseCall(module, call, arguments[0])
+                        .fromCallDefinitionClauseCall(module, call, head)
                         .takeIf { it.doc != null }
                 }
             }
