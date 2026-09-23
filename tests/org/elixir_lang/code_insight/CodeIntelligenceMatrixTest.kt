@@ -25,6 +25,7 @@ import com.intellij.ide.util.treeView.smartTree.TreeElement
 import com.intellij.openapi.util.Disposer
 import org.elixir_lang.ElixirSyntaxHighlighter
 import com.intellij.openapi.editor.colors.EditorColorsManager
+import com.intellij.openapi.editor.colors.TextAttributesKey
 import com.intellij.openapi.editor.markup.TextAttributes
 import java.awt.Color
 import java.io.File
@@ -317,14 +318,19 @@ private class Group(val scenario: Scenario) {
         val nameStart = myFixture.editor.caretModel.offset - 1
         val keys = highlightKeysAt(nameStart)
         val macro = scenario.form in MACRO_FORMS
+        // A guard is a macro Elixir allows in a guard, and it has keys of its own; they fall back to the function
+        // keys, so an unconfigured scheme shows it as a function, but the key says what it is.
+        val guard = scenario.form in GUARD_FORMS
 
         if (binding == null) {
-            val callKeys = listOf(ElixirSyntaxHighlighter.FUNCTION_CALL, ElixirSyntaxHighlighter.MACRO_CALL).map { it.externalName }
+            val callKeys = listOf(ElixirSyntaxHighlighter.FUNCTION_CALL, ElixirSyntaxHighlighter.MACRO_CALL, GUARD_CALL).map { it.externalName }
             assertEquals("${place.id} is highlighted as a call", emptyList<String>(), keys.filter { it in callKeys })
         } else {
             val expected = when {
+                place is Place.Head && guard -> GUARD_DECLARATION
                 place is Place.Head && macro -> ElixirSyntaxHighlighter.MACRO_DECLARATION
                 place is Place.Head -> ElixirSyntaxHighlighter.FUNCTION_DECLARATION
+                guard -> GUARD_CALL
                 macro -> ElixirSyntaxHighlighter.MACRO_CALL
                 else -> ElixirSyntaxHighlighter.FUNCTION_CALL
             }.externalName
@@ -1139,6 +1145,14 @@ private class Group(val scenario: Scenario) {
         private const val GENERATOR_EMBED = "generator_embed"
         private val EMBED_SUFFIXES = listOf("_template", "_text")
 
+        /**
+         * A guard's own keys, looked up by name: a plugin without them still compiles this suite, and its guard cells
+         * then say what it is missing rather than failing to build.
+         */
+        private val GUARD_CALL: TextAttributesKey = TextAttributesKey.find("ELIXIR_GUARD_CALL")
+        private val GUARD_DECLARATION: TextAttributesKey = TextAttributesKey.find("ELIXIR_GUARD_DECLARATION")
+        private val GUARD_FORMS = setOf("defguard", "defguardp")
+
         /** The keys [highlightKeysAt] can tell apart. */
         private val HIGHLIGHT_KEYS = listOf(
             ElixirSyntaxHighlighter.FUNCTION_CALL,
@@ -1146,6 +1160,8 @@ private class Group(val scenario: Scenario) {
             ElixirSyntaxHighlighter.FUNCTION_DECLARATION,
             ElixirSyntaxHighlighter.MACRO_DECLARATION,
             ElixirSyntaxHighlighter.PREDEFINED_CALL,
+            GUARD_CALL,
+            GUARD_DECLARATION,
         )
 
         /** Where [Group.timed] appends one row per phase: the file `MATRIX_TIMING` names, or nowhere when unset. */
