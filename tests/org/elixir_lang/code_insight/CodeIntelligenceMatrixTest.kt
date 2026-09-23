@@ -734,7 +734,10 @@ private class Group(val scenario: Scenario) {
             val functionHeads = headLines(primary())
             assertEquals("Go To Declaration from ${place.id} landed on a function head", emptyList<String>(), landed.filter { it in functionHeads })
         } else {
-            assertEquals("Go To Declaration from ${place.id} landed on the wrong heads", goToDeclarationLines(binding), landed)
+            // A `@spec` describes the definition it is written over, so from a delegate's spec the user lands on the
+            // `defdelegate` itself, not on the function it delegates to.
+            val expected = if (specName(place.id)) headLines(binding) else goToDeclarationLines(binding)
+            assertEquals("Go To Declaration from ${place.id} landed on the wrong heads", expected, landed)
         }
     }
 
