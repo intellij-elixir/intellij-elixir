@@ -614,7 +614,8 @@ private class Group(val scenario: Scenario) {
         val wrong = originals.keys.mapNotNull { file ->
             val path = callerFiles.entries.firstOrNull { it.value == file }?.key
                 ?: scenario.modules.single { sourceFiles[it] == file }.source
-            val declared = replaceNames(originals.getValue(file), declarationPositions.filter { it.first == path }.map { it.second }, declarationName)
+            val heads = declarationPositions.filter { it.first == path }.map { it.second }
+            val declared = replaceNames(keepDelegationTarget(module, originals.getValue(file), heads), heads, declarationName)
             val expected = replaceNames(declared, positions.filter { it.first == path }.map { it.second }, newName)
             val actual = FileDocumentManager.getInstance().getDocument(file)!!.text
 
@@ -690,6 +691,24 @@ private class Group(val scenario: Scenario) {
         scope + "renamed" + name.takeLast(1).takeIf { it == "?" || it == "!" }.orEmpty() +
             // An embed's function is its atom plus a suffix, so a name without the suffix is one no embed can declare.
             EMBED_SUFFIXES.firstOrNull { scenario.form == GENERATOR_EMBED && name.endsWith(it) }.orEmpty()
+
+    /**
+     * Renaming a `defdelegate` renames the delegation, not what it calls: the target keeps its name, so a delegation
+     * without `as:` gains `as: :<its old name>` to go on calling it. One that already has `as:` keeps it unchanged.
+     */
+    private fun keepDelegationTarget(module: DeclaringModule, text: String, heads: List<Pair<Int, Int>>): String {
+        if (module.delegateTo == null || module.delegateAs != null) return text
+        val lines = text.split('\n').toMutableList()
+
+        for ((line, column) in heads) {
+            val current = lines[line - 1]
+            val name = IDENTIFIER.find(current, column - 1)?.value ?: throw AssertionError("No identifier at $line:$column of `$current`")
+            val to = DELEGATE_TO.find(current) ?: throw AssertionError("No `to:` in the delegation `$current`")
+            lines[line - 1] = current.substring(0, to.range.last + 1) + ", as: :$name" + current.substring(to.range.last + 1)
+        }
+
+        return lines.joinToString("\n")
+    }
 
     /** [text] with the identifier at each 1-based (line, column) replaced by [newName]. */
     private fun replaceNames(text: String, positions: List<Pair<Int, Int>>, newName: String): String {
@@ -1143,6 +1162,7 @@ private class Group(val scenario: Scenario) {
 
         /** The `@1a2b3c` a default `toString()` ends with. */
         private val IDENTITY_HASH = Regex("@[0-9a-f]+$")
+        private val DELEGATE_TO = Regex("\\bto: [A-Z][\\w.]*")
 
         /** The form whose declarations are `Mix.Generator` embeds, and the suffixes an embed adds to its atom. */
         private const val GENERATOR_EMBED = "generator_embed"
