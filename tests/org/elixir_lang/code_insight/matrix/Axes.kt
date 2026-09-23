@@ -85,8 +85,25 @@ fun complaintOf(description: String): String =
         else -> description
     }
 
+/** A `name/arity`, or a `name/arity+` for an arity with no upper bound, as a message writes one. */
+private val NAME_ARITY = Regex("""[\p{L}\p{N}_\p{Mn}\p{Mc}]+[?!]?/\d+\+?""")
+
+/** One entry of the compiler's `Did you mean:` list, which it writes as `    * name/arity` on a line of its own. */
+private val SUGGESTION = Regex("""^\s*\* (\S+/\d+)\s*$""", RegexOption.MULTILINE)
+
+/**
+ * The `name/arity`s the compiler suggests in [message], sorted: empty where it suggests nothing, as for an
+ * unqualified call, which it reports as `undefined function` with no list.
+ */
+fun suggestionsOf(message: String): List<String> =
+    SUGGESTION.findAll(message).map { nfc(it.groupValues[1]) }.distinct().sorted().toList()
+
+/** The `name/arity`s [description] names, sorted; like [complaintOf], the one place a wording is read. */
+fun namedArities(description: String): List<String> =
+    NAME_ARITY.findAll(description).map { nfc(it.value) }.distinct().sorted().toList()
+
 /** The sites whose text is a call a user could be typing; a capture, `apply`'s atom and a non-call are not. */
-private val NOT_TYPED_CALLS = setOf("capture", "apply", "variable", "atom", "keyword")
+private val NOT_TYPED_CALLS = setOf("capture", "apply", "apply_quoted", "variable", "atom", "keyword")
 
 /** The site written without an argument list, which is a different shape in the parser. */
 const val NO_ARGUMENTS = "no_arguments"
@@ -99,6 +116,18 @@ const val NO_ARGUMENTS = "no_arguments"
  * should have been not-applicable instead asked Parameter Info at a caret that had nowhere to go.
  */
 fun writtenWithoutArguments(id: String): Boolean = id == NO_ARGUMENTS || id.endsWith("_$NO_ARGUMENTS")
+
+/**
+ * The world putting `w3`'s lookalikes beside arities nothing defines, so the compiler's "Did you mean" has both a
+ * wrong arity and a similar name to choose from. Only its rejected calls ask anything `w3` does not.
+ */
+const val LOOKALIKE_ABSENT = "x_lookalike_absent"
+
+/** Whether [id] is the name in a `@spec`, which `generate.exs` marks `spec_<arity>`. */
+fun specName(id: String): Boolean = id.startsWith("spec_")
+
+/** Whether [id] is the key of an `import`'s `only:`/`except:` list, which `generate.exs` marks `<owner>_key`. */
+fun importKey(id: String): Boolean = id.endsWith("_key")
 
 /** The sites that are not calls of a definition at all. */
 private val NOT_CALLS = setOf("variable", "atom", "keyword")
@@ -136,6 +165,8 @@ object Crossing {
         val backing = Backing.of(scenario)
 
         return when {
+            scenario.world == LOOKALIKE_ABSENT && !rejected(scenario, place) ->
+                Applicability.NotApplicable("$LOOKALIKE_ABSENT asks only where the compiler rejected a call; everywhere else it is w3's question again")
             place is Place.Marked && place.id == LOCAL && !backing.hasBodies ->
                 Applicability.NotApplicable("the ${backing.id} mirror has no bodies, so no local call")
             place is Place.Marked && place.id == LOCAL && !hasLocalCall(scenario) ->
@@ -152,9 +183,17 @@ object Crossing {
                 Applicability.NotApplicable("a call written without an argument list has nowhere to put a hint")
             feature == Feature.DIAGNOSTIC && place is Place.Head ->
                 Applicability.NotApplicable("a diagnostic answers a call; what a declaration's own text is marked with is the declaring file's business")
+            place is Place.Marked && importKey(place.id) &&
+                feature in setOf(Feature.HIGHLIGHTING, Feature.PARAMETER_INFO, Feature.COMPLETION_OFFERED, Feature.COMPLETION_INSERTED) ->
+                Applicability.NotApplicable("an `only:`/`except:` key names a function by name and arity; it is not a call")
+            place is Place.Marked && specName(place.id) &&
+                feature in setOf(Feature.HIGHLIGHTING, Feature.PARAMETER_INFO, Feature.COMPLETION_OFFERED, Feature.COMPLETION_INSERTED) ->
+                Applicability.NotApplicable("a `@spec` names a function in a type; it is not a call")
             feature == Feature.COMPLETION_INSERTED && place is Place.Marked && undeclared(scenario, place) ->
                 Applicability.NotApplicable("no module declares that name, so there is nothing completion could insert; that it offers nothing is asked by completionOffered")
-            feature == Feature.HIGHLIGHTING && place.id == "apply" ->
+            feature == Feature.COMPLETION_INSERTED && place is Place.Marked && importsNothing(scenario, place) ->
+                Applicability.NotApplicable("the caller's directives bring no function in, so there is nothing completion could insert; that it offers nothing is asked by completionOffered")
+            feature == Feature.HIGHLIGHTING && place.id in setOf("apply", "apply_quoted") ->
                 Applicability.NotApplicable("`apply`'s argument is highlighted as an atom")
             (feature == Feature.STRUCTURE_VIEW || feature == Feature.BREADCRUMBS) && place !is Place.Head ->
                 Applicability.NotApplicable("structure view and breadcrumbs describe declarations")
@@ -188,6 +227,14 @@ object Crossing {
 
         return backing.hasBodies && !(backing.compiled && scenario.form in MACRO_FORMS)
     }
+
+    /** A call the compiler rejected, which is where it says what it thinks was meant. */
+    private fun rejected(scenario: Scenario, place: Place): Boolean =
+        place is Place.Marked && scenario.sites.firstOrNull { it.id == place.id }?.diagnostic != null
+
+    /** A bare call under directives that bring nothing of the declaring module in: a `require`, or a transitive import. */
+    private fun importsNothing(scenario: Scenario, place: Place.Marked): Boolean =
+        scenario.sites.firstOrNull { it.id == place.id }?.visible?.isEmpty() == true
 
     /** A site naming a function no module in the scenario declares at any arity - the control for "no such name". */
     private fun undeclared(scenario: Scenario, place: Place.Marked): Boolean {
