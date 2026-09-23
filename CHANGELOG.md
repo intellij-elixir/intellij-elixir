@@ -138,6 +138,7 @@
   - **Ctrl+Click on a `defdelegate`'s own name shows its usages, and quick documentation there shows its own `@doc`, as on a `def`.** Fixes [#4043](https://github.com/intellij-elixir/intellij-elixir/issues/4043).
   - **`import only:` and `except:` now apply to each arity a function declares.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
   - **Completing an EEx function inserts one placeholder per argument.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **Renaming anything defined in a compiled `.beam` is refused with a message instead of failing with an exception.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
 - [#4146](https://github.com/intellij-elixir/intellij-elixir/pull/4146) [@sh41](https://github.com/sh41)
   - **Building a project no longer fails with `UnsupportedClassVersionError` from the plugin's JPS classes when the project SDK is older than the IDE's JDK.** Fixes [#3996](https://github.com/intellij-elixir/intellij-elixir/issues/3996).
 - [#4160](https://github.com/intellij-elixir/intellij-elixir/pull/4160) [@sh41](https://github.com/sh41)

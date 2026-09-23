@@ -115,11 +115,7 @@ internal object ElixirUsageQueries {
         // `ElixirFile`, because `TypeSymbol.createPointer()` restores `file` from the mirror element's
         // `containingFile`. A mirror is recognised by its `originalFile` being the compiled file. Handle both.
         val declarationFile = target.file
-        val compiledFile: PsiCompiledFile? = when {
-            declarationFile is PsiCompiledFile -> declarationFile
-            declarationFile.originalFile is PsiCompiledFile -> declarationFile.originalFile as PsiCompiledFile
-            else -> null
-        }
+        val compiledFile: PsiCompiledFile? = compiledFileOf(declarationFile)
         if (compiledFile != null) {
             // The decompiled mirror to scan (the same cached instance whether `target.file` arrived as the
             // compiled file or as the mirror restored through the pointer - `getMirror()` caches it).
