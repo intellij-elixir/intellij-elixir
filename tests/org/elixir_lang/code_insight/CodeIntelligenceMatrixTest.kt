@@ -66,6 +66,7 @@ import org.elixir_lang.code_insight.matrix.Site
 import org.elixir_lang.code_insight.matrix.UNAVAILABLE_PHRASE
 import org.elixir_lang.code_insight.matrix.nfc
 import org.elixir_lang.code_insight.matrix.sees
+import org.elixir_lang.code_insight.matrix.specName
 import org.elixir_lang.documentation.quickDocumentationAtCaret
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
@@ -470,9 +471,11 @@ private class Group(private val scenario: Scenario) {
             val name = "${nfc(definition.name)}/${definition.maxArity}"
             // Every head the declaration writes, which for a defaults world is one more than `Definition.clauses`:
             // the bodiless head is not a clause, but the structure view still shows it under the definition.
-            val heads = Expected.heads(module, definition.name, definition.maxArity).size
+            // A `@spec` of the definition is shown under it too, as the other thing written about it.
+            val specs = scenario.sites.count { specName(it.id) && it.file == module.source && nfc(it.name) == nfc(definition.name) && it.arity == definition.maxArity }
+            val heads = Expected.heads(module, definition.name, definition.maxArity).size + specs
             assertTrue(
-                "Structure view has no `$name` with $heads head(s); it has ${entries.filter { it.first.contains('/') }}",
+                "Structure view has no `$name` with $heads head(s) and spec(s); it has ${entries.filter { it.first.contains('/') }}",
                 entries.any { it.first == name && it.second == heads }
             )
         } finally {
