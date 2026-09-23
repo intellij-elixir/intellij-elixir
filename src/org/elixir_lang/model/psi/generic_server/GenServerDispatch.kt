@@ -12,6 +12,7 @@ import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.Modular
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
+import org.elixir_lang.psi.impl.literalName
 import org.elixir_lang.psi.impl.stripAccessExpression
 
 /**
@@ -38,8 +39,7 @@ internal object GenServerDispatch {
      */
     @RequiresReadLock
     fun handlerTargetsForRequestAtom(atom: ElixirAtom): List<GenServerHandlerTarget> {
-        if (atom.line != null) return emptyList()
-        val messageName = atom.node.lastChildNode?.text ?: return emptyList()
+        val messageName = atom.literalName() ?: return emptyList()
 
         val (sendCall, dispatch) = enclosingSendSite(atom) ?: return emptyList()
         val arguments = sendCall.finalArguments() ?: return emptyList()
@@ -93,8 +93,7 @@ internal object GenServerDispatch {
         val head = CallDefinitionClause.head(clause) as? Call ?: return false
         val firstParam = head.primaryArguments()?.firstOrNull()?.stripAccessExpression() ?: return false
         val paramAtom = firstParam as? ElixirAtom ?: return false
-        if (paramAtom.line != null) return false
-        return paramAtom.node.lastChildNode?.text == messageName
+        return paramAtom.literalName() == messageName
     }
 
     @RequiresReadLock

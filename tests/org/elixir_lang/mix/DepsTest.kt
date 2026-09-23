@@ -11,6 +11,20 @@ import org.elixir_lang.psi.ElixirDoBlock
 import java.util.concurrent.TimeUnit
 
 class DepsTest : PlatformTestCase() {
+    /** A dep named by an interpolated atom has no name until the project is compiled, so it is left out. */
+    fun testADepWithAnInterpolatedNameIsLeftOut() {
+        val psiFile = myFixture.configureByText(
+            "mix.exs",
+            "defmodule Sample.MixProject do\n  def project do\n    [deps: deps()]\n  end\n\n" +
+                "  defp deps do\n    [{:plain, \"~> 1.0\"}, {:\"my_#{suffix()}\", \"~> 1.0\"}]\n  end\nend\n"
+        )
+        val gatherer = DepGatherer()
+
+        psiFile.accept(gatherer)
+
+        assertEquals(setOf("plain"), gatherer.depSet.map { it.application }.toSet())
+    }
+
     /**
      * No source parses to an access expression without exactly one child, so the test gives a second child to the one ending
      * a `deps` helper.

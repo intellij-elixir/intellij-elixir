@@ -68,4 +68,33 @@ class EExFunctionFromNodeTest : PlatformTestCase() {
 
         assertEquals("every function_from_* call must build an EExFunctionFrom node", emptyList<String>(), missing)
     }
+
+    /** `:"defp"` is `:defp`, so the kind is read as Elixir reads it, as the name is. */
+    fun testAQuotedKindGivesTheBareKindsVisibility() {
+        myFixture.configureByText(
+            "quoted_kind.ex",
+            """
+            defmodule QuotedKind do
+              require EEx
+
+              EEx.function_from_string(:"defp", :"page", "")
+            end
+            """.trimIndent()
+        )
+        myFixture.copyFileToProject("eex.ex")
+
+        val nodes = mutableListOf<EExFunctionFrom>()
+
+        fun walk(element: StructureViewTreeElement) {
+            if (element is EExFunctionFrom) nodes.add(element)
+
+            for (child in element.children) {
+                if (child is StructureViewTreeElement) walk(child)
+            }
+        }
+
+        walk(Model(myFixture.file as ElixirFile, null).root)
+
+        assertEquals(listOf("page/0 PRIVATE"), nodes.map { "${it.name} ${it.visibility()}" })
+    }
 }

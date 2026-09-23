@@ -11,6 +11,7 @@ import com.intellij.psi.ResolveState
 import com.intellij.psi.scope.PsiScopeProcessor
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.EEx
 import org.elixir_lang.ElixirFileType
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.psi.call.Call
@@ -117,14 +118,8 @@ class ElixirFile(viewProvider: FileViewProvider) : PsiFileBase(viewProvider, Eli
         }
 
     private fun moduleUsesEExFile(module: Call): Boolean =
-            module.stabBodyChildExpressions()?.filterIsInstance<Qualified>()?.any { call ->
-                // `function_from_file(kind, name, file, args \\ [], options \\ [])`
-                if (call.qualifier().let { it as? ElixirAlias }?.name == "EEx" && call.functionName() == "function_from_file" &&
-                        call.resolvedFinalArity() in 3..5) {
-                    eexFunctionFromFileUsesEExFile(call)
-                } else {
-                    false
-                }
+            module.stabBodyChildExpressions()?.filterIsInstance<Call>()?.any { call ->
+                EEx.isWrittenAsFunctionFromFile(call) && eexFunctionFromFileUsesEExFile(call)
             } ?: false
 
     private fun eexFunctionFromFileUsesEExFile(call: Call): Boolean =
