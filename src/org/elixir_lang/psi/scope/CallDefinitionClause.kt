@@ -8,7 +8,6 @@ import com.intellij.psi.scope.PsiScopeProcessor
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.stubs.StubIndex
 import com.intellij.psi.util.isAncestor
-import org.elixir_lang.EEx
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.beam.psi.Module as BeamModule
 import org.elixir_lang.ecto.query.WindowAPI
@@ -28,8 +27,6 @@ import org.elixir_lang.psi.impl.siblingExpressions
 import org.elixir_lang.psi.scope.WhileIn.whileIn
 import org.elixir_lang.psi.stub.type.call.Stub.isModular
 import org.elixir_lang.reference.resolver.narrowedScope
-import org.elixir_lang.structure_view.element.Callback
-import org.elixir_lang.structure_view.element.Delegation
 
 abstract class CallDefinitionClause : PsiScopeProcessor {
     /*
@@ -113,11 +110,23 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
      */
 
     private fun execute(element: Call, state: ResolveState): Boolean =
+        CallableDeclaration.formOf(element, state)
+            ?.let { form -> executeOnDeclaration(element, form, state) }
+            ?: executeOnNonDeclaration(element, state)
+
+    private fun executeOnDeclaration(element: Call, form: CallableDeclaration.Form, state: ResolveState): Boolean =
+        when (form) {
+            CallableDeclaration.Form.CLAUSE -> executeOnCallDefinitionClause(element, state)
+            CallableDeclaration.Form.CALLBACK ->
+                executeOnCallback(element as AtUnqualifiedNoParenthesesCall<*>, state)
+            CallableDeclaration.Form.DELEGATION -> executeOnDelegation(element, state)
+            CallableDeclaration.Form.EXCEPTION -> executeOnException(element, state)
+            CallableDeclaration.Form.EEX_FUNCTION_FROM -> executeOnEExFunctionFrom(element, state)
+            CallableDeclaration.Form.GENERATOR_EMBED -> executeOnMixGeneratorEmbed(element, state)
+        }
+
+    private fun executeOnNonDeclaration(element: Call, state: ResolveState): Boolean =
         when {
-            org.elixir_lang.psi.CallDefinitionClause.`is`(element) -> executeOnCallDefinitionClause(element, state)
-            Callback.`is`(element) -> executeOnCallback(element as AtUnqualifiedNoParenthesesCall<*>, state)
-            Delegation.`is`(element) -> executeOnDelegation(element, state)
-            Exception.`is`(element) -> executeOnException(element, state)
             For.`is`(element) -> For.treeWalkDown(element, state, ::execute)
             If.`is`(element) || Unless.`is`(element) -> {
                 // If the entrance os at compile time level of `childCalls`, then only previous siblings could
@@ -203,8 +212,6 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
             WindowAPI.`is`(element, state) -> {
                 WindowAPI.treeWalkUp(element, state, ::execute)
             }
-            EEx.isFunctionFrom(element, state) -> executeOnEExFunctionFrom(element, state)
-            org.elixir_lang.psi.mix.Generator.isEmbed(element, state) -> executeOnMixGeneratorEmbed(element, state)
             hasDoBlockOrKeyword(element) -> executeOnUnknownMacroCall(element, state)
             else -> true
         }

@@ -173,19 +173,8 @@ object PsiNamedElementImpl {
                 ?.children
                 ?.singleOrNull()
                 ?.let { it as? ElixirAtom }
-                ?.let { atom ->
-                    val body = atom.line?.body
-
-                    if (body != null) {
-                        if (body.children.isEmpty()) {
-                            body.text
-                        } else {
-                            null
-                        }
-                    } else {
-                        atom.node.lastChildNode.text
-                    }
-                } ?: "${name}(${primaryArgument.text})"
+                ?.literalName()
+                ?: "${name}(${primaryArgument.text})"
         } else {
             null
         }

@@ -11,6 +11,7 @@ import org.elixir_lang.code_insight.completion.callDefinitionClauseLookupElement
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.impl.literalName
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.psi.scope.call_definition_clause.MultiResolve as CallDefinitionClauseMultiResolve
@@ -29,7 +30,7 @@ class AtomReference(
     private val arity: Int
 ) : PsiReferenceBase<ElixirAtom>(atom, contentTextRange(atom)), PsiPolyVariantReference, PsiSymbolReference {
     private val functionName: String?
-        get() = myElement.node.lastChildNode?.text
+        get() = myElement.literalName()
 
     override fun getVariants(): Array<Any> {
         val modulars = moduleElement.maybeModularNameToModulars(

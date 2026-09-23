@@ -19,14 +19,12 @@ import org.elixir_lang.psi.impl.call.CallImpl.hasDoBlockOrKeyword
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.declarations.UseScopeImpl
 import org.elixir_lang.psi.impl.declarations.UseScopeImpl.selector
-import org.elixir_lang.psi.mix.Generator
 import org.elixir_lang.psi.operation.*
 import org.elixir_lang.psi.operation.infix.Position
 import org.elixir_lang.psi.operation.infix.Triple
+import org.elixir_lang.psi.scope.CallDefinitionClause as CallDefinitionClauseProcessor
 import org.elixir_lang.psi.scope.Variable
 import org.elixir_lang.psi.scope.WhileIn.whileIn
-import org.elixir_lang.structure_view.element.Callback
-import org.elixir_lang.structure_view.element.Delegation
 
 object ProcessDeclarationsImpl {
     @JvmField
@@ -138,55 +136,90 @@ object ProcessDeclarationsImpl {
     ): Boolean =
         // need to check if call is place because lastParent is set to place at start of treeWalkUp
         if (!call.isEquivalentTo(lastParent) || call.isEquivalentTo(place)) {
-            when {
-                call.isCalling(KERNEL, ALIAS) ||
-                        CallDefinitionClause.`is`(call) || // call parameters
-                        Callback.`is`(call) ||
-                        Case.isChild(call, state) ||
-                        Delegation.`is`(call) || // delegation call parameters
-                        Exception.`is`(call) ||
-                        Implementation.`is`(call) ||
-                        Import.`is`(call) ||
-                        Module.`is`(call) ||
-                        Protocol.`is`(call) ||
-                        Use.`is`(call) ||
-                        call.isCalling(KERNEL, DESTRUCTURE) || // left operand
-                        call.isCallingMacro(KERNEL, IF) || // match in condition
-                        call.isCallingMacro(KERNEL, FOR) || // comprehension match variable
-                        call.isCalling(KERNEL, MATCH_QUESTION_MARK) ||
-                        call.isCalling(KERNEL, REQUIRE) ||
-                        call.isCallingMacro(KERNEL, UNLESS) || // match in condition
-                        call.isCallingMacro(KERNEL, "with") || // <- or = variable
-                        QuoteMacro.`is`(call) || // quote :bind_quoted keys for Variable resolver OR call definitions for Callable resolver
-                        Generator.isEmbed(call, state) ||
-                        Assertions.isChild(call, state)
-                -> processor.execute(call, state)
-                Schema.isChild(call, state) -> {
-                    processor.execute(call, state)
-                }
-                hasDoBlockOrKeyword(call) ->
-                    // unknown macros that take do blocks often allow variables to be declared in their arguments
-                    processor.execute(call, state)
-                Query.isChild(call, state) -> {
-                    processor.execute(call, state)
-                }
-                /* Any other call's arguments are values, so what they hold is read, but a match inside one binds a
-                   variable for the code after the call, `IO.puts(x = 1)` then `x`, and for the arguments after it,
-                   which Elixir evaluates left to right. A read inside an argument therefore sees only the arguments
-                   before its own, the last of them to bind a name wins, and a call met as an ancestor is not walked
-                   past that point. Only the variable resolver reads arguments; a type or module walk finds nothing in
-                   a value. */
-                processor is Variable -> call.finalArguments()?.let { arguments ->
-                    val reading = state.put(DECLARING_SCOPE, false)
-                    val before = arguments.takeWhile { !PsiTreeUtil.isAncestor(it, place, false) }
+            if (continuesWalk(call) || bindsNames(call, state)) {
+                processor.execute(call, state)
+            } else {
+                // After the cheap checks: the function walk's question can resolve a reference.
+                val form = declaredForm(call, processor, state)
+                val handedOn = handOn(call, processor, form, state)
 
-                    whileIn(before.asReversed()) { processor.execute(it, reading) }
-                } ?: true
-                else -> true
+                when {
+                    form != null -> processor.execute(call, handedOn)
+                    Schema.isChild(call, state) -> {
+                        processor.execute(call, handedOn)
+                    }
+                    hasDoBlockOrKeyword(call) ->
+                        // unknown macros that take do blocks often allow variables to be declared in their arguments
+                        processor.execute(call, handedOn)
+                    Query.isChild(call, state) -> {
+                        processor.execute(call, handedOn)
+                    }
+                    /* Any other call's arguments are values, so what they hold is read, but a match inside one binds
+                       a variable for the code after the call, `IO.puts(x = 1)` then `x`, and for the arguments after
+                       it, which Elixir evaluates left to right. A read inside an argument therefore sees only the
+                       arguments before its own, the last of them to bind a name wins, and a call met as an ancestor
+                       is not walked past that point. Only the variable resolver reads arguments; a type or module
+                       walk finds nothing in a value. */
+                    processor is Variable -> call.finalArguments()?.let { arguments ->
+                        val reading = state.put(DECLARING_SCOPE, false)
+                        val before = arguments.takeWhile { !PsiTreeUtil.isAncestor(it, place, false) }
+
+                        whileIn(before.asReversed()) { processor.execute(it, reading) }
+                    } ?: true
+                    else -> true
+                }
             }
         } else {
             true
         }
+
+    /**
+     * The form [call] declares, asked only as far as [processor] uses it. The function walk needs every form. The
+     * variable walk needs only a clause's or a delegation's head, which binds variables; every other declaring form's
+     * arguments are values, read in order by the `processor is Variable` arm. No other walk uses a declaring form, so
+     * it asks nothing that resolves a reference.
+     */
+    private fun declaredForm(call: Call, processor: PsiScopeProcessor, state: ResolveState): CallableDeclaration.Form? =
+        when (processor) {
+            is CallDefinitionClauseProcessor -> CallableDeclaration.formOf(call, state)
+            is Variable -> CallableDeclaration.headBindingFormOf(call, state)
+            else -> CallableDeclaration.syntacticFormOf(call)
+        }
+
+    /** A form found is [CallableDeclaration.formOf]'s answer whichever walk asked; so is the function walk's `null`. */
+    private fun handOn(
+        call: Call,
+        processor: PsiScopeProcessor,
+        form: CallableDeclaration.Form?,
+        state: ResolveState
+    ): ResolveState =
+        if (form != null || processor is CallDefinitionClauseProcessor) {
+            state.put(CallableDeclaration.CLASSIFIED, CallableDeclaration.Classified(call, form))
+        } else {
+            state
+        }
+
+    /** A bare name in the call's arguments, or in a clause it owns, may bind a variable. */
+    private fun bindsNames(call: Call, state: ResolveState): Boolean =
+        Case.isChild(call, state) ||
+            call.isCalling(KERNEL, DESTRUCTURE) || // left operand
+            call.isCallingMacro(KERNEL, IF) || // match in condition
+            call.isCallingMacro(KERNEL, FOR) || // comprehension match variable
+            call.isCalling(KERNEL, MATCH_QUESTION_MARK) ||
+            call.isCallingMacro(KERNEL, UNLESS) || // match in condition
+            call.isCallingMacro(KERNEL, "with") || // <- or = variable
+            Assertions.isChild(call, state)
+
+    /** The walk continues through what the call names or injects. */
+    private fun continuesWalk(call: Call): Boolean =
+        call.isCalling(KERNEL, ALIAS) ||
+            call.isCalling(KERNEL, REQUIRE) ||
+            Implementation.`is`(call) ||
+            Import.`is`(call) ||
+            Module.`is`(call) ||
+            Protocol.`is`(call) ||
+            Use.`is`(call) ||
+            QuoteMacro.`is`(call) // quote :bind_quoted keys for Variable resolver OR call definitions for Callable resolver
 
     @JvmStatic
     fun processDeclarations(
