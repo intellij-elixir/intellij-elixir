@@ -690,23 +690,24 @@ private class Group(val scenario: Scenario) {
             EMBED_SUFFIXES.firstOrNull { scenario.form == GENERATOR_EMBED && name.endsWith(it) }.orEmpty()
 
     /**
-     * Rename at the caret is refused because [why]: nothing is offered, or what is offered is refused by the rename
-     * dialog's validator - which the test engine reports as an exception carrying the validator's reason - and nothing
-     * is edited. Any other failure is not a refusal the user could read.
+     * Rename at the caret is refused because [why]: nothing is offered, or whichever of the offered targets the user
+     * picks is refused by the rename dialog's validator - which the test engine reports as an exception carrying the
+     * validator's reason - and nothing is edited. Any other failure is not a refusal the user could read.
      */
     private fun assertRenameRefused(why: String, name: String) {
         val targets = myFixture.renameTargetsAtCaret()
-        if (targets.isEmpty()) return
 
-        val failure = runCatching { myFixture.renameTargetAtCaret(renamed(name)) }.exceptionOrNull()
-        val reason = generateSequence(failure) { it.cause }.mapNotNull { it.message }.firstOrNull { "cannot be renamed" in it }
-        assertNotNull(
-            "Rename at ${place.id} should be refused, as $why, but offered $targets and " +
-                (failure?.let { "failed with $it" } ?: "renamed it"),
-            reason
-        )
-        val changed = originals.filter { (file, text) -> FileDocumentManager.getInstance().getDocument(file)!!.text != text }.keys.map { it.name }
-        assertEquals("Rename at ${place.id} was refused ($reason) but still changed", emptyList<String>(), changed)
+        for (target in targets) {
+            val failure = runCatching { myFixture.renameTarget(target, renamed(name)) }.exceptionOrNull()
+            val reason = generateSequence(failure) { it.cause }.mapNotNull { it.message }.firstOrNull { "cannot be renamed" in it }
+            assertNotNull(
+                "Rename at ${place.id} should be refused, as $why, but offered $targets and $target " +
+                    (failure?.let { "failed with $it" } ?: "renamed it"),
+                reason
+            )
+            val changed = originals.filter { (file, text) -> FileDocumentManager.getInstance().getDocument(file)!!.text != text }.keys.map { it.name }
+            assertEquals("Rename at ${place.id} of $target was refused ($reason) but still changed", emptyList<String>(), changed)
+        }
     }
 
     /**
