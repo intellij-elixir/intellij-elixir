@@ -14,7 +14,6 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.ResolveState
 import com.intellij.psi.search.SearchScope
-import com.intellij.refactoring.rename.api.RenameTarget
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.ElixirSymbolWithUsages
 import org.elixir_lang.navigation.ElixirClausePresentation
@@ -35,7 +34,7 @@ class AtomSymbol private constructor(
     private val displayText: String? = null,
     /** Reached from a use of a `defdelegate`, so Go To follows its `to:`; not part of its identity. */
     val followsDelegation: Boolean = false
-) : ElixirSymbolWithUsages, NavigationTarget, SearchTarget, RenameTarget {
+) : ElixirSymbolWithUsages, NavigationTarget, SearchTarget {
     override val searchText: String get() = name
     override val targetName: String get() = name
 

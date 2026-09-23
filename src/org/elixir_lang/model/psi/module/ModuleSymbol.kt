@@ -12,7 +12,6 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.SmartPointerManager
 import com.intellij.psi.search.SearchScope
-import com.intellij.refactoring.rename.api.RenameTarget
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.ElixirSymbolWithUsages
 import org.elixir_lang.psi.Module
@@ -30,7 +29,7 @@ class ModuleSymbol(
     override val file: PsiFile,
     override val range: TextRange,
     val moduleName: String
-) : ElixirSymbolWithUsages, NavigationTarget, SearchTarget, RenameTarget {
+) : ElixirSymbolWithUsages, NavigationTarget, SearchTarget {
     override val searchText: String get() = moduleName.substringAfterLast('.')
     override val targetName: String get() = moduleName
 
