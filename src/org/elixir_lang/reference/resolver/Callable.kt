@@ -6,7 +6,11 @@ import com.intellij.psi.PsiCompiledElement
 import com.intellij.psi.PsiElementResolveResult
 import com.intellij.psi.ResolveResult
 import com.intellij.psi.impl.source.resolve.ResolveCache
+import com.intellij.psi.util.CachedValueProvider
+import com.intellij.psi.util.CachedValuesManager
+import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.psi.util.PsiUtilCore
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Arity
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.psi.*
@@ -26,11 +30,29 @@ object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Cal
     }
 
     fun resolve(call: Call, resolvedPrimaryArity: Arity, incompleteCode: Boolean): Array<ResolveResult> {
-        val preferred = resolvePreferred(call, resolvedPrimaryArity, incompleteCode)
-        val expanded = expand(preferred)
+        val all =
+            if (!incompleteCode && resolvedPrimaryArity == (call.resolvedPrimaryArity() ?: 0)) {
+                candidates(call)
+            } else {
+                resolveAll(call, resolvedPrimaryArity, incompleteCode)
+            }
+        val preferred = org.elixir_lang.reference.Resolver.preferred(call, incompleteCode, all)
 
-        return expanded.toTypedArray()
+        return expand(preferred).toTypedArray()
     }
+
+    /**
+     * Every declaration [call]'s name reaches, valid or not, each with how it was reached, walked once until the next
+     * change: resolution and what asks about a call that resolved to nothing valid share it.
+     */
+    @RequiresReadLock
+    fun candidates(call: Call): List<VisitedElementSetResolveResult> =
+        CachedValuesManager.getCachedValue(call) {
+            CachedValueProvider.Result.create(
+                resolveAll(call, call.resolvedPrimaryArity() ?: 0, false),
+                PsiModificationTracker.MODIFICATION_COUNT
+            )
+        }
 
     private fun expand(visitedElementSetResolveResultList: List<VisitedElementSetResolveResult>): List<PsiElementResolveResult> =
         visitedElementSetResolveResultList
@@ -91,16 +113,6 @@ object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Cal
         val elementType = PsiUtilCore.getElementType(element)?.toString() ?: ""
 
         return "$filePath#$startOffset:$endOffset:$elementType"
-    }
-
-    private fun resolvePreferred(
-        element: Call,
-        resolvedPrimaryArity: Arity,
-        incompleteCode: Boolean
-    ): List<VisitedElementSetResolveResult> {
-        val all = resolveAll(element, resolvedPrimaryArity, incompleteCode)
-
-        return org.elixir_lang.reference.Resolver.preferred(element, incompleteCode, all)
     }
 
     private fun resolveAll(element: Call, resolvedPrimaryArity: Arity, incompleteCode: Boolean) =

@@ -1,5 +1,6 @@
 package org.elixir_lang.psi.scope
 
+import org.elixir_lang.psi.scope.Reach.Companion.reachedThrough
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
@@ -292,10 +293,11 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
         val entrance = state.get(ENTRANCE) ?: element
         val scope = narrowedScope(entrance, project)
 
-        val keepProcessing = implicitImport(project, scope, KERNEL, state)
+        val implicitState = state.reachedThrough(Reach.IMPLICIT_IMPORT)
+        val keepProcessing = implicitImport(project, scope, KERNEL, implicitState)
 
         return if (keepProcessing) {
-            val modularCanonicalNameState = state.put(MODULAR_CANONICAL_NAME, KERNEL_SPECIAL_FORMS)
+            val modularCanonicalNameState = implicitState.put(MODULAR_CANONICAL_NAME, KERNEL_SPECIAL_FORMS)
 
             implicitImport(project, scope, KERNEL_SPECIAL_FORMS, modularCanonicalNameState)
         } else {

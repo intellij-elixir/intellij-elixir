@@ -3,10 +3,10 @@ package org.elixir_lang.psi.scope
 import com.intellij.psi.PsiElement
 
 class ResolveResultOrderedSet {
-    fun add(element: PsiElement, name: String, validResult: Boolean, visitedElementSet: Set<PsiElement>) {
+    fun add(element: PsiElement, name: String, validResult: Boolean, visitedElementSet: Set<PsiElement>, reach: Reach = Reach.OWN) {
         if (element !in psiElementSet) {
             psiElementSet.add(element)
-            val visitedElementSetResolveResult = VisitedElementSetResolveResult(element, validResult, visitedElementSet)
+            val visitedElementSetResolveResult = VisitedElementSetResolveResult(element, validResult, visitedElementSet, reach)
             val existingVisitedElementSetResolveResultList = visitedElementSetResolveResultListByName[name]
 
             if (existingVisitedElementSetResolveResultList != null) {
@@ -27,7 +27,8 @@ class ResolveResultOrderedSet {
                         visitedElementSetResolveResult.element,
                         name,
                         visitedElementSetResolveResult.isValidResult,
-                        visitedElementSetResolveResult.visitedElementSet
+                        visitedElementSetResolveResult.visitedElementSet,
+                        visitedElementSetResolveResult.reach
                 )
             }
         }

@@ -46,11 +46,39 @@ class FunctionCallReference(
         // Delegate to the legacy Callable scope-walker, which understands qualified calls,
         // unqualified calls within the lexical scope, captures, imports, etc.
         val callArity = call.resolvedFinalArity()
-        val resolved = Callable(call).multiResolve(false)
-            .filter { it.isValidResult }
-        return functionSymbolsReached(resolved, callArity)
+        val all = Callable(call).multiResolve(false).toList()
+
+        val valid = all.filter { it.isValidResult }
+
+        return if (valid.isEmpty()) offeredDeclarations(call) else functionSymbolsReached(valid, callArity)
     }
 }
+
+/**
+ * What a call that resolves to nothing valid can still be offered: the arities each declaration it names declares, of
+ * whatever form, marked as offered to a call that does not compile.
+ */
+@RequiresReadLock
+private fun offeredDeclarations(call: Call): List<FunctionSymbol> =
+    RejectedCall.named(call)
+        .mapNotNull { named -> sourceOrMirror(named.declaration)?.let { it to named.arities } }
+        // A declaration with defaults is one declaration, offered once, at the most arguments the call could mean.
+        .mapNotNull { (declaration, arities) ->
+            FunctionSymbol.fromDeclaration(declaration).filter { it.arity in arities }.maxByOrNull { it.arity }
+        }
+        .map { it.offeredToARejectedCall() }
+
+/**
+ * [element] where it declares in source: a source declaration is its own `Call`, while a compiled definition declares
+ * in the `.beam` mirror, so both reach the same [FunctionSymbol]s, equal by module, name, arity and kind.
+ */
+@RequiresReadLock
+private fun sourceOrMirror(element: PsiElement?): Call? =
+    when (element) {
+        is Call -> element
+        is BeamCallDefinition -> element.navigationElement as? Call
+        else -> null
+    }
 
 /**
  * The function symbols a call or capture resolving to [resolved] reaches at [arity], in one precedence order: clauses,
@@ -69,16 +97,7 @@ internal fun functionSymbolsReached(resolved: List<ResolveResult>, arity: Int): 
     if (delegations.isNotEmpty()) return delegations
 
     val clauses = resolved
-        .mapNotNull { result ->
-            when (val element = result.element) {
-                // A source `def`/`defmacro` clause is already a `Call`, while a decompiled beam function exposes
-                // the equivalent clause as its navigation element (the `.beam` mirror), so both flow through the
-                // same `FunctionSymbol.fromClause` pipeline and compare equal by module/name/arity/macro.
-                is Call -> element
-                is BeamCallDefinition -> element.navigationElement as? Call
-                else -> null
-            }
-        }
+        .mapNotNull { sourceOrMirror(it.element) }
         .filter { CallDefinitionClause.`is`(it) }
 
     // Only navigate to the clause(s) whose arity matches this specific call site.
