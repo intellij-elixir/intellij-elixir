@@ -46,11 +46,27 @@ class FunctionCallReference(
         // Delegate to the legacy Callable scope-walker, which understands qualified calls,
         // unqualified calls within the lexical scope, captures, imports, etc.
         val callArity = call.resolvedFinalArity()
-        val resolved = Callable(call).multiResolve(false)
-            .filter { it.isValidResult }
-        return functionSymbolsReached(resolved, callArity)
+        val all = Callable(call).multiResolve(false).toList()
+
+        val valid = all.filter { it.isValidResult }
+
+        return if (valid.isEmpty()) offeredDeclarations(call) else functionSymbolsReached(valid, callArity)
     }
 }
+
+/**
+ * What a call that resolves to nothing valid can still be offered: the arities each declaration it names declares, of
+ * whatever form, marked as offered to a call that does not compile.
+ */
+@RequiresReadLock
+private fun offeredDeclarations(call: Call): List<FunctionSymbol> =
+    RejectedCall.named(call)
+        .mapNotNull { named -> (named.declaration as? Call)?.let { it to named.arities } }
+        // A declaration with defaults is one declaration, offered once, at the most arguments the call could mean.
+        .mapNotNull { (declaration, arities) ->
+            FunctionSymbol.fromDeclaration(declaration).filter { it.arity in arities }.maxByOrNull { it.arity }
+        }
+        .map { it.offeredToARejectedCall() }
 
 /**
  * The function symbols a call or capture resolving to [resolved] reaches at [arity], in one precedence order: clauses,

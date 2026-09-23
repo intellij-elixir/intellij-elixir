@@ -9,6 +9,7 @@ import org.elixir_lang.Name
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
 import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.scope.call_definition_clause.MultiResolve
 import org.elixir_lang.structure_view.element.CallDefinitionSpecification.Companion.typeNameArity
 
 object CallDefinitionClause : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.CallDefinitionClause> {
@@ -35,13 +36,8 @@ object CallDefinitionClause : ResolveCache.PolyVariantResolver<org.elixir_lang.r
     private fun definitionToResolveResult(call: Call,
                                           name: Name,
                                           arity: Arity,
-                                          definition: CallableDeclaration.Declaration): PsiElementResolveResult? {
-        val definerName = definition.name
-
-        return if (definerName.startsWith(name)) {
-            PsiElementResolveResult(call, definition.accepts(arity) && (definerName == name))
-        } else {
-            null
-        }
-    }
+                                          definition: CallableDeclaration.Declaration): PsiElementResolveResult? =
+        MultiResolve
+            .reached(name, definition.name, definition.accepts(arity), incompleteCode = false)
+            ?.let { validResult -> PsiElementResolveResult(call, validResult) }
 }

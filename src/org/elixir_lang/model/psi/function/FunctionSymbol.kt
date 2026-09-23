@@ -13,6 +13,8 @@ import com.intellij.psi.PsiElementResolveResult
 import com.intellij.psi.PsiFile
 import com.intellij.psi.ResolveState
 import com.intellij.psi.SmartPointerManager
+import com.intellij.refactoring.rename.api.RenameValidationResult
+import com.intellij.refactoring.rename.api.RenameValidator
 import com.intellij.psi.search.SearchScope
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.ElixirSymbolWithUsages
@@ -46,7 +48,9 @@ class FunctionSymbol private constructor(
     val arity: Int,
     val macro: Boolean,
     /** Reached from a use of a `defdelegate`, so Go To follows its `to:`; not part of its identity. */
-    val followsDelegation: Boolean = false
+    val followsDelegation: Boolean = false,
+    /** Reached from a call at an arity nothing declares, which does not compile; not part of its identity. */
+    val rejectedCall: Boolean = false
 ) : ElixirSymbolWithUsages, NavigationTarget, SearchTarget {
 
     override val searchText: String get() = name
@@ -58,9 +62,10 @@ class FunctionSymbol private constructor(
         val arity = this.arity
         val macro = this.macro
         val followsDelegation = this.followsDelegation
+        val rejectedCall = this.rejectedCall
 
         return declarationPointer(file, range) { restoredFile, restoredRange ->
-            FunctionSymbol(restoredFile, restoredRange, moduleName, name, arity, macro, followsDelegation)
+            FunctionSymbol(restoredFile, restoredRange, moduleName, name, arity, macro, followsDelegation, rejectedCall)
         }
     }
 
@@ -73,6 +78,12 @@ class FunctionSymbol private constructor(
 
     /** This symbol as a use reaches it: a `defdelegate`'s Go To follows its `to:`. */
     fun reachedFromAUse(): FunctionSymbol = FunctionSymbol(file, range, moduleName, name, arity, macro, true)
+
+    /** This symbol as a call that does not compile offers it: to search for and label, not to rename. */
+    fun offeredToARejectedCall(): FunctionSymbol = FunctionSymbol(file, range, moduleName, name, arity, macro, false, true)
+
+    override fun validator(): RenameValidator =
+        if (rejectedCall) RejectedCallValidator else super<ElixirSymbolWithUsages>.validator()
 
     /** What the `defdelegate` declaring this symbol delegates to at its arity; empty for any other declaration. */
     @RequiresReadLock
@@ -116,6 +127,11 @@ class FunctionSymbol private constructor(
     override fun hashCode(): Int = Objects.hash(moduleName, name, arity, macro)
 
     override fun toString(): String = "FunctionSymbol($moduleName.$name/$arity, macro=$macro)"
+
+    private object RejectedCallValidator : RenameValidator {
+        override fun validate(newName: String): RenameValidationResult =
+            RenameValidationResult.invalid("A call that does not compile cannot be renamed")
+    }
 
     companion object {
         /**

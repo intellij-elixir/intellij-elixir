@@ -1,5 +1,7 @@
 package org.elixir_lang.psi.scope.call_definition_clause
 
+import org.elixir_lang.psi.scope.Reach.Companion.reachedAsDelegationTarget
+import org.elixir_lang.psi.scope.Reach
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
@@ -48,17 +50,16 @@ private constructor(
             addDeclarations(element, CallableDeclaration.Form.CALLBACK, state)
 
     override fun executeOnDelegation(element: Call, state: ResolveState): Boolean {
+        val compileTime = CallableDeclaration.Declared.Source(element, CallableDeclaration.Form.DELEGATION).capabilities?.compileTime
+
         // `delegationHead` reads a single head until #4040.
         CallableDeclaration.declarations(element, CallableDeclaration.Form.DELEGATION, state).firstOrNull()
-            ?.takeIf { admitted(it, false, state) }
+            ?.takeIf { admitted(it, compileTime, state) }
             ?.let { declaration ->
                 val headName = declaration.name
-                val validArity = accepted(declaration, false, state)
+                val validArity = accepted(declaration, compileTime, state)
 
-                if ((this.name == null && (incompleteCode || validArity)) ||
-                        (this.name != null && headName.startsWith(this.name))) {
-                    val headValidResult = validArity && headName == this.name
-
+                reached(this.name, headName, validArity, incompleteCode)?.let { headValidResult ->
                     // the defdelegate is valid or invalid regardless of whether the `to:` (and `:as` resolves as
                     // `defdelegate` still defines a function in the module with the head's name and arity even if it
                     // will fail at runtime to call the delegated function
@@ -72,7 +73,8 @@ private constructor(
                     val named = this.name == null || headName == this.name
 
                     if (incompleteCode || (named && validArity)) {
-                        addTargets(element, headName, state)
+                        // Incomplete code lists every target, but only one the call names is a valid result.
+                        addTargets(element, headName, state, candidatesOnly = !(named && validArity))
                     } else if (named) {
                         otherArityDelegations += OtherArityDelegation(element, headName, state)
                     }
@@ -109,29 +111,17 @@ private constructor(
             Import.admits(state, declaration.name, ArityInterval(resolvedPrimaryArity, resolvedPrimaryArity), compileTime)
 
     private fun addIfNameOrArityToResolveResults(call: Call, name: String, validArity: Boolean, state: ResolveState): Boolean =
-            if ((this.name == null && (incompleteCode || validArity)) ||
-                    (this.name != null && name.startsWith(this.name))) {
-                val validResult = validArity && name == this.name
-
-                addToResolveResults(call, name, validResult, state)
-            } else {
-                true
-            }
+        reached(this.name, name, validArity, incompleteCode)?.let { addToResolveResults(call, name, it, state) } ?: true
 
     private fun addIfNameOrArityToResolveResults(callDefinition: BeamCallDefinition,
                                                  name: String,
                                                  validArity: Boolean,
                                                  state: ResolveState) : Boolean =
-        if ((this.name == null && (incompleteCode || validArity)) ||
-            (this.name != null && name.startsWith(this.name))) {
-            val validResult = validArity && name == this.name
+        reached(this.name, name, validArity, incompleteCode)?.let { addToResolveResults(callDefinition, name, it, state) } ?: true
 
-            addToResolveResults(callDefinition, name, validResult, state)
-        } else {
-            true
-        }
+    private fun addTargets(delegation: Call, headName: String, delegationState: ResolveState, candidatesOnly: Boolean = false) {
+        val state = delegationState.reachedAsDelegationTarget()
 
-    private fun addTargets(delegation: Call, headName: String, state: ResolveState, candidatesOnly: Boolean = false) {
         for (targets in delegatedTargets(delegation, headName, resolvedPrimaryArity, incompleteCode)) {
             for ((definition, targetName, valid) in targets) {
                 when (definition) {
@@ -168,9 +158,9 @@ private constructor(
     private fun addToResolveResults(call: Call, name: String, validResult: Boolean, state: ResolveState): Boolean =
             (call as? Named)?.nameIdentifier?.let { nameIdentifier ->
                 if (PsiTreeUtil.isAncestor(state.get(ENTRANCE), nameIdentifier, false)) {
-                    resolveResultOrderedSet.add(call, name, validResult, emptySet())
+                    resolveResultOrderedSet.add(call, name, validResult, emptySet(), Reach.of(call, state))
                 } else {
-                    resolveResultOrderedSet.add(call, name, validResult, state.visitedElementSet())
+                    resolveResultOrderedSet.add(call, name, validResult, state.visitedElementSet(), Reach.of(call, state))
                 }
 
                 keepProcessing()
@@ -180,12 +170,25 @@ private constructor(
                                     name: String,
                                     validResult: Boolean,
                                     state: ResolveState): Boolean {
-        resolveResultOrderedSet.add(callDefinition, name, validResult, state.visitedElementSet())
+        resolveResultOrderedSet.add(callDefinition, name, validResult, state.visitedElementSet(), Reach.of(callDefinition, state))
 
         return keepProcessing()
     }
 
     companion object {
+        /**
+         * Whether a use of [name] reaches a declaration of [declared], and if so as a valid result: `null` when it does not
+         * reach it; a name the use only starts is a candidate, never valid; and a use naming nothing - `Mod.unquote(f)()`,
+         * or completion with a `null` [name] - reaches what fits its arity, or with [incompleteCode] everything, as
+         * candidates.
+         */
+        fun reached(name: String?, declared: String, validArity: Boolean, incompleteCode: Boolean): Boolean? =
+            if (if (name == null) incompleteCode || validArity else declared.startsWith(name)) {
+                validArity && declared == name
+            } else {
+                null
+            }
+
         /** A definition a `defdelegate` delegates to: what it is, the name it has there, and whether it fits the arity. */
         data class DelegatedTarget(val definition: PsiElement, val name: String, val isValid: Boolean)
 

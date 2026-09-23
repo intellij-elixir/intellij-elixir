@@ -1,5 +1,7 @@
 package org.elixir_lang.psi
 
+import org.elixir_lang.psi.scope.Reach.Companion.reachedThrough
+import org.elixir_lang.psi.scope.Reach
 import com.intellij.openapi.util.Key
 import com.intellij.psi.ElementDescriptionLocation
 import com.intellij.psi.PsiElement
@@ -149,7 +151,7 @@ object Import {
 
             if (modulars.isNotEmpty()) {
                 val filter = Filter.of(importCall)
-                val importCallResolveState = resolveState.putVisitedElement(importCall).put(FILTER, filter)
+                val importCallResolveState = resolveState.putVisitedElement(importCall).put(FILTER, filter).reachedThrough(Reach.IMPORT)
 
                 for (modular in modulars) {
                     val childResolveState = importCallResolveState.putVisitedElement(modular)
