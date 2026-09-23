@@ -19,7 +19,6 @@ import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.QuotableKeywordPair
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.call.macroChildCallSequence
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.psi.stub.index.ModularName
 
@@ -75,8 +74,7 @@ class FunctionArityKeywordPairReference(
         }
 
         return modulars.flatMap { modular ->
-            modular
-                .macroChildCallSequence()
+            CallDefinitionClause.modularChildCalls(modular)
                 .flatMap { FunctionSymbol.fromDeclaration(it) }
                 .filter { it.name == occurrence.name && it.arity == occurrence.arity }
                 .toList()
@@ -94,8 +92,7 @@ class FunctionArityKeywordPairReference(
             for (behaviourModule in StubIndex.getElements(ModularName.KEY, name, host.project, scope, NamedElement::class.java)) {
                 ProgressManager.checkCanceled()
                 if (behaviourModule !is Call) continue
-                behaviourModule
-                    .macroChildCallSequence()
+                CallDefinitionClause.modularChildCalls(behaviourModule)
                     .filterIsInstance<AtUnqualifiedNoParenthesesCall<*>>()
                     .filter { CallableDeclaration.isForm(it, CallableDeclaration.Form.CALLBACK) }
                     .forEach { attr ->

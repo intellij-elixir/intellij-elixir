@@ -289,6 +289,21 @@ fun CodeInsightTestFixture.assertNoNavigationAtCaret(message: String? = null) {
  */
 fun CodeInsightTestFixture.gotoDeclarationDestinationAtCaret(): PsiElement? = gotoDeclarationSingleTargetAtCaret().destination
 
+/** The trimmed line of the open document at [offset], as a test names where a gesture landed. */
+fun CodeInsightTestFixture.lineAt(offset: Int): String {
+    val document = editor.document
+    val line = document.getLineNumber(offset)
+
+    return document.getText(com.intellij.openapi.util.TextRange(document.getLineStartOffset(line), document.getLineEndOffset(line))).trim()
+}
+
+/** The line [gotoDeclarationDestinationAtCaret] lands on, or `null` where it lands nowhere. */
+fun CodeInsightTestFixture.gotoDeclarationLineAtCaret(): String? = gotoDeclarationDestinationAtCaret()?.let { lineAt(it.textOffset) }
+
+/** The lines every Go To Declaration target at the caret lands on, sorted. */
+fun CodeInsightTestFixture.gotoDeclarationLinesAtCaret(): List<String> =
+    gotoDeclarationTargetsAtCaret().orEmpty().mapNotNull { it.destination }.map { lineAt(it.textOffset) }.sorted()
+
 private fun CodeInsightTestFixture.gotoDeclarationSingleTargetAtCaret(): GtduTarget {
     val targets = gotoDeclarationTargetsAtCaret()
         ?: throw AssertionError("Expected Go To Declaration to resolve a target, but it navigated nowhere")

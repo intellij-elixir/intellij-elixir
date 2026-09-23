@@ -36,6 +36,24 @@ class ModuleAttributeFindUsagesTest : PlatformTestCase() {
         assertEquals(1, nonDeclarationUsageCount("usages_module_attribute_cross_module.ex"))
     }
 
+    /** An attribute set under an `if` is the module's, so a read after the `if` is a usage of it. */
+    fun testFindUsagesOfAnAttributeUnderAnIfFindsAReadAfterIt() {
+        myFixture.configureByText(
+            "attribute_under_if.ex",
+            """
+            defmodule M do
+              if true do
+                @li<caret>mit 3
+              end
+
+              def f, do: @limit
+            end
+            """.trimIndent()
+        )
+
+        assertEquals(1, myFixture.nonDeclarationUsageCountAtCaret(project))
+    }
+
     fun testCtrlClickOnDocDeclarationDoesNothing() {
         myFixture.configureByFiles("goto_declaration_nonreferencing_doc.ex")
         myFixture.assertNoNavigationAtCaret()

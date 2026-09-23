@@ -14,7 +14,6 @@ import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.call.macroChildCallSequence
 import org.elixir_lang.psi.stub.index.ModularName
 
 /**
@@ -50,8 +49,7 @@ class CallbackImplReference(
             for (behaviourModule in StubIndex.getElements(ModularName.KEY, name, call.project, scope, NamedElement::class.java)) {
                 ProgressManager.checkCanceled()
                 if (behaviourModule !is Call) continue
-                behaviourModule
-                    .macroChildCallSequence()
+                CallDefinitionClause.modularChildCalls(behaviourModule)
                     .filterIsInstance<AtUnqualifiedNoParenthesesCall<*>>()
                     .filter { CallableDeclaration.isForm(it, CallableDeclaration.Form.CALLBACK) }
                     .forEach { attr ->

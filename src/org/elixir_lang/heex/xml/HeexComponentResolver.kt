@@ -13,7 +13,6 @@ import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.stub.type.call.Stub
 import org.elixir_lang.model.psi.function.FunctionSymbol
-import org.elixir_lang.psi.impl.call.stabBodyChildExpressions
 import org.elixir_lang.psi.scope.call_definition_clause.MultiResolve
 import org.elixir_lang.reference.resolver.Module as ModuleResolver
 
@@ -41,18 +40,12 @@ object HeexComponentResolver {
     @RequiresReadLock
     fun localComponents(tag: XmlTag): List<LocalComponent> {
         val module = elixirRoot(tag)?.viewFile()?.modulars()?.singleOrNull() as? Call ?: return emptyList()
-        val state = ResolveState.initial()
 
-        return module.stabBodyChildExpressions()
-            ?.filterIsInstance<Call>()
-            ?.filter(::isComponent)
-            ?.flatMap { call ->
-                CallableDeclaration.declaredOf(call, state)?.definitions(state).orEmpty()
-                    .filter { it.accepts(1) }
-                    .map { LocalComponent(it.name, call) }
+        return CallableDeclaration.definitionsIn(module)
+            .filter { (call, _) -> isComponent(call) }
+            .flatMap { (call, definitions) ->
+                definitions.filter { it.accepts(1) }.map { LocalComponent(it.name, call) }
             }
-            ?.toList()
-            ?: emptyList()
     }
 
     /** `<.name>` and `<Module.name>` compile to a call of `name(assigns)`, so only a runtime function is a component. */

@@ -17,8 +17,7 @@ import org.elixir_lang.navigation.item_presentation.Parent
 import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
-import org.elixir_lang.psi.impl.call.macroChildCalls
-import org.elixir_lang.psi.impl.enclosingMacroCall
+import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.impl.locationString
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.putInitialVisitedElement
@@ -85,7 +84,7 @@ open class Module(protected val parent: Modular?, call: Call) : Element<Call>(ca
 
         @RequiresReadLock
         fun callChildren(modular: Modular, call: Call): Array<TreeElement> {
-            val childCalls = call.macroChildCalls()
+            val childCalls = CallDefinitionClause.modularChildCalls(call).toTypedArray()
             return childCallTreeElements(modular, childCalls, ResolveState.initial().put(ENTRANCE, call).putInitialVisitedElement(call))
         }
 
@@ -94,7 +93,7 @@ open class Module(protected val parent: Modular?, call: Call) : Element<Call>(ca
         fun elementDescription(call: Call, location: ElementDescriptionLocation): String? =
                 when(location) {
                     UsageViewLongNameLocation.INSTANCE -> {
-                        val enclosingCall = call.enclosingMacroCall()
+                        val enclosingCall = CallDefinitionClause.enclosingModularMacroCall(call)
                         // indirect recursion through ElementDescriptionUtil.getElementDescription because it is @NotNull and will
                         // default to element text when not implemented, so a bug, but not an error will result.
                         val relative = ElementDescriptionUtil.getElementDescription(call, UsageViewShortNameLocation.INSTANCE)

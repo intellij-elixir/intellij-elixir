@@ -7,7 +7,7 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.psi.CallDefinitionClause.nameArityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
-import org.elixir_lang.psi.impl.enclosingMacroCall
+import org.elixir_lang.psi.CallDefinitionClause
 
 class UsingTest : PlatformTestCase() {
     /**
@@ -33,7 +33,7 @@ class UsingTest : PlatformTestCase() {
 
         val usedList = ArrayList<PsiElement>()
         val resolveState =
-            ResolveState.initial().put(ENTRANCE, call.enclosingMacroCall()).putInitialVisitedElement(call)
+            ResolveState.initial().put(ENTRANCE, CallDefinitionClause.enclosingModularMacroCall(call)).putInitialVisitedElement(call)
 
         Use.treeWalkUp(call, resolveState) { element, _ ->
             usedList.add(element)
@@ -82,7 +82,7 @@ class UsingTest : PlatformTestCase() {
         )
 
         val call = myFixture.file.findElementAt(myFixture.caretOffset)!!.parent.parent as Call
-        val resolveState = ResolveState.initial().put(ENTRANCE, call.enclosingMacroCall()).putInitialVisitedElement(call)
+        val resolveState = ResolveState.initial().put(ENTRANCE, CallDefinitionClause.enclosingModularMacroCall(call)).putInitialVisitedElement(call)
         val used = mutableListOf<PsiElement>()
 
         Use.treeWalkUp(call, resolveState) { element, _ ->

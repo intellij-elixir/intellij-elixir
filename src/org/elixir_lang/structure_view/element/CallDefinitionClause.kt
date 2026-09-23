@@ -10,7 +10,6 @@ import org.elixir_lang.psi.CallDefinitionClause.head
 import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.QuoteMacro
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.enclosingMacroCall
 import org.elixir_lang.structure_view.element.modular.*
 import org.jetbrains.annotations.Contract
 
@@ -76,7 +75,7 @@ class CallDefinitionClause(val callDefinition: CallDefinition, call: Call, defin
                 val grandScope = enclosingModular(enclosingMacroCall)
                 modular = Protocol(grandScope, enclosingMacroCall)
             } else if (QuoteMacro.`is`(enclosingMacroCall)) {
-                val quoteEnclosingMacroCall = enclosingMacroCall.enclosingMacroCall()
+                val quoteEnclosingMacroCall = enclosingModularMacroCall(enclosingMacroCall)
                 var quote: Quote? = null
 
                 if (quoteEnclosingMacroCall == null) {

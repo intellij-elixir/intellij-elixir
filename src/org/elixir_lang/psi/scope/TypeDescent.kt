@@ -16,7 +16,7 @@ object TypeDescent {
     enum class Bucket(val reads: Class<*>) {
         /** `@` typed on the line above an existing attribute: the attribute below is read. */
         AT_OPERATION(AtOperation::class.java),
-        /** A call decides by what it is: a type-spec attribute, a module, `use` or a type variable's bare name. */
+        /** A call decides by what it is: a type-spec attribute, a module or `use`. */
         CALL(Call::class.java),
         /** An anonymous function type's signature. */
         STAB_PARENTHESES_SIGNATURE(ElixirStabParenthesesSignature::class.java),

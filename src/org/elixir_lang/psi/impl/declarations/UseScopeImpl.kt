@@ -55,13 +55,26 @@ object UseScopeImpl {
      * @see {@link com.intellij.psi.search.PsiSearchHelper.getUseScope
      */
     @Contract(pure = true)
+    @RequiresReadLock
     @JvmStatic
     fun get(atUnqualifiedNoParenthesesCall: AtUnqualifiedNoParenthesesCall<*>): SearchScope =
             if (isNonReferencing(atUnqualifiedNoParenthesesCall.atIdentifier)) {
                 atUnqualifiedNoParenthesesCall.moduleWithDependentsScope()
             } else {
-                atUnqualifiedNoParenthesesCall.selfAndFollowingSiblingsSearchScope()
+                moduleBodyStatement(atUnqualifiedNoParenthesesCall).selfAndFollowingSiblingsSearchScope()
             }
+
+    /** The statement of the module body holding [attribute]: one set under an `if` or the like is set on the module. */
+    @RequiresReadLock
+    private fun moduleBodyStatement(attribute: AtUnqualifiedNoParenthesesCall<*>): PsiElement =
+        CallDefinitionClause.enclosingModularMacroCall(attribute)
+            ?.takeIf(::isModular)
+            ?.let { modular ->
+                generateSequence<PsiElement>(attribute) { it.parent }
+                    .takeWhile { it != modular }
+                    .lastOrNull { it.parent is ElixirStabBody }
+            }
+            ?: attribute
 
     /**
      * Returns the scope in which references to this element are searched.
@@ -85,20 +98,16 @@ object UseScopeImpl {
                 if (ancestor is Call) {
                     val ancestorCall = ancestor
 
-                    val headBindingForm = CallableDeclaration.headBindingFormOf(ancestorCall)
+                    when (CallableDeclaration.headBindingFormOf(ancestorCall)) {
+                        CallableDeclaration.Form.CLAUSE -> {
+                            CallableDeclaration.headedBy(ancestorCall)?.let { ancestor = it }
 
-                    if (headBindingForm == CallableDeclaration.Form.CLAUSE) {
-                        val definitionClause = CallableDeclaration.headedBy(ancestorCall)
-
-                        if (definitionClause != null) {
-                            ancestor = definitionClause
+                            break
                         }
-
-                        break
-                    } else if (headBindingForm == CallableDeclaration.Form.DELEGATION) {
-                        break
-                    } else if (ancestorCall.hasDoBlockOrKeyword()) {
-                        break
+                        CallableDeclaration.Form.DELEGATION -> break
+                        CallableDeclaration.Form.CALLBACK, CallableDeclaration.Form.EXCEPTION,
+                        CallableDeclaration.Form.EEX_FUNCTION_FROM, CallableDeclaration.Form.GENERATOR_EMBED, null ->
+                            if (ancestorCall.hasDoBlockOrKeyword()) break
                     }
                 } else if (ancestor is ElixirStabOperation) {
                     break

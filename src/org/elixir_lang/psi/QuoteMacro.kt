@@ -1,71 +1,45 @@
 package org.elixir_lang.psi
 
-import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.QUOTE
-import org.elixir_lang.psi.call.name.Function.TRY
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.call.macroChildCallSequence
-import org.elixir_lang.psi.impl.call.whileInStabBodyChildExpressions
 import org.elixir_lang.psi.scope.WhileIn.whileIn
 
 object QuoteMacro {
     @RequiresReadLock
     fun treeWalkUp(quoteCall: Call, resolveState: ResolveState, keepProcessing: (PsiElement, ResolveState) -> Boolean): Boolean =
             if (!resolveState.containsAncestorUnquote(quoteCall)) {
-                quoteCall
-                        .macroChildCallSequence()
-                        .filter { !resolveState.hasBeenVisited(it) }
-                        .let { treeWalkUp(it, resolveState.putVisitedElement(quoteCall), keepProcessing) }
+                treeWalkUp(quoteCall.macroChildCallSequence(), resolveState.putVisitedElement(quoteCall), keepProcessing)
             } else {
                 true
             }
 
+    /**
+     * [childCalls] as the code a quote puts them in runs them. What each holds in module scope is walked
+     * [Import.definitionsOnly], as an `import` inside an `if` or a function reaches only its own block.
+     */
     @RequiresReadLock
-    fun treeWalkUp(childCallSequence: Sequence<Call>,
+    fun treeWalkUp(childCalls: Sequence<Call>,
                    resolveState: ResolveState,
-                   keepProcessing: (PsiElement, ResolveState) -> Boolean): Boolean {
-        var accumulatorKeepProcessing = true
+                   keepProcessing: (PsiElement, ResolveState) -> Boolean): Boolean =
+        whileIn(childCalls.filterNot { resolveState.hasBeenVisited(it) }) { childCall ->
+            val (self, inside) = CallDefinitionClause.moduleScopeParts(childCall)
 
-        for (childCall in childCallSequence) {
-            ProgressManager.checkCanceled()
-            accumulatorKeepProcessing = when {
-                If.`is`(childCall) || Unless.`is`(childCall) -> {
-                    val branches = Branches(childCall)
-
-                    val primaryKeepProcessing = whileIn(branches.primaryChildExpressions) {
-                        keepProcessing(it, resolveState)
-                    }
-
-                    val alternativeKeepProcessing = whileIn(branches.alternativeChildExpressions) {
-                        keepProcessing(it, resolveState)
-                    }
-
-                    primaryKeepProcessing && alternativeKeepProcessing
-                }
-
-                Import.`is`(childCall) -> Import.treeWalkUp(childCall, resolveState, keepProcessing)
-                Unquote.`is`(childCall) -> Unquote.treeWalkUp(childCall, resolveState, keepProcessing)
-                Use.`is`(childCall) -> Use.treeWalkUp(childCall, resolveState, keepProcessing)
-                childCall.isCalling(KERNEL, TRY) -> {
-                    childCall.whileInStabBodyChildExpressions { grandChildExpression ->
-                        keepProcessing(grandChildExpression, resolveState)
-                    }
-                }
-
-                else -> keepProcessing(childCall, resolveState)
-            }
-
-            if (!accumulatorKeepProcessing) {
-                break
-            }
+            (self == null || inPlace(self, resolveState, keepProcessing)) &&
+                whileIn(inside) { inPlace(it, Import.definitionsOnly(resolveState), keepProcessing) }
         }
 
-        return accumulatorKeepProcessing
-    }
+    private fun inPlace(call: Call, resolveState: ResolveState, keepProcessing: (PsiElement, ResolveState) -> Boolean): Boolean =
+        when {
+            Import.`is`(call) -> Import.treeWalkUp(call, resolveState, keepProcessing)
+            Unquote.`is`(call) -> Unquote.treeWalkUp(call, resolveState, keepProcessing)
+            Use.`is`(call) -> Use.treeWalkUp(call, resolveState, keepProcessing)
+            else -> keepProcessing(call, resolveState)
+        }
 
     @JvmStatic
     fun `is`(call: Call): Boolean {

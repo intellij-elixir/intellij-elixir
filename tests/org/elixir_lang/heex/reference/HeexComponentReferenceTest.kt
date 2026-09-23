@@ -331,6 +331,17 @@ class HeexComponentReferenceTest : HeexHostTestCase() {
         assertEquals(listOf(".macro_component -> null", ".guard_component -> null"), resolved)
     }
 
+    /** A component defined under a compile-time `if` belongs to its module, so it is a local component too. */
+    fun testAComponentUnderAnIfIsALocalComponent() {
+        myFixture.configureByFiles("conditional_component/page_live.html.heex", "conditional_component/page_live.ex")
+        val tag = PsiTreeUtil.findChildOfType(
+            myFixture.file.viewProvider.getPsi(com.intellij.lang.html.HTMLLanguage.INSTANCE),
+            XmlTag::class.java
+        )!!
+
+        assertEquals(listOf("button", "gated"), HeexComponentResolver.localComponents(tag).map { it.name })
+    }
+
     /** A tag's declaration is the component's name, whichever form declares it, as a call's Go To lands on. */
     fun testAComponentsDeclarationIsItsNameInEveryForm() {
         myFixture.configureByFiles("components_by_form/page_live.html.heex", "components_by_form/page_live.ex", "components_by_form/eex.ex")

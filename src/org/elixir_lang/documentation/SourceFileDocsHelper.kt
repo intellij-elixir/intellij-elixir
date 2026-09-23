@@ -10,7 +10,6 @@ import org.elixir_lang.psi.ElixirUnmatchedAtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.CanonicallyNamed
 import org.elixir_lang.psi.impl.ElixirUnmatchedUnqualifiedNoParenthesesCallImpl
-import org.elixir_lang.psi.impl.call.macroChildCallList
 import org.elixir_lang.psi.impl.identifierName
 import org.elixir_lang.psi.impl.siblingExpressions
 import org.elixir_lang.psi.stub.type.call.Stub
@@ -119,8 +118,8 @@ object SourceFileDocsHelper {
                 enclosingModularMacroCall(call)?.let { modular ->
                     val module = (modular as? CanonicallyNamed)?.canonicalName().orEmpty()
 
-                    modular
-                        .macroChildCallList()
+                    CallDefinitionClause
+                        .modularChildCalls(modular)
                         .mapNotNull { sibling ->
                             if (CallableDeclaration.isForm(sibling, CallableDeclaration.Form.CLAUSE)) {
                                 CallDefinitionClause
