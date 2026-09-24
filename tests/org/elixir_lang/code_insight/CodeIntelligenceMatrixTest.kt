@@ -461,7 +461,13 @@ private class Group(val scenario: Scenario) {
                 said.flatMap(::namedArities).distinct().sorted()
             )
         } else if (expected == listOf(Complaint.ARITY_MISMATCH.name)) {
-            val arities = candidates.map { "${it.name}/${it.arity}" }
+            // Every arity a candidate covers, defaults included, less any an `import only:`/`except:` hides from
+            // this site: naming the one arity the developer can call here is the answer, not the definition's widest.
+            val visible = site.visible?.map(::nfc)
+            val arities = candidates
+                .map { definition(it).second }
+                .flatMap { definition -> (definition.minArity..definition.maxArity).map { "${definition.name}/$it" } }
+                .filter { visible == null || nfc(it) in visible }
 
             assertTrue(
                 "The editor complains about ${place.id} without saying which arities there are, so it leaves the developer where it found them: $said does not name any of $arities",
