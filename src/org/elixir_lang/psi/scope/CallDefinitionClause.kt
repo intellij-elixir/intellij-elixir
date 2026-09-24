@@ -598,9 +598,7 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
             childCalls: Sequence<Call>,
             state: ResolveState
         ): Boolean =
-            state.get(ENTRANCE).let { entrance ->
-                containsCompileTimeAncestorOrSelf(childCalls, entrance)
-            }
+            containsCompileTimeAncestorOrSelf(childCalls, state.get(ENTRANCE))
 
         /** Shared with [org.elixir_lang.psi.CallableTable.Entry.reachableFrom], which needs the same
          *  entrance-relative check for an `if`/`unless` wrapper crossed while the table was built. */

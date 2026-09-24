@@ -36,7 +36,7 @@ fun safeMultiResolve(reference: PsiPolyVariantReference, incompleteCode: Boolean
  * same hazard and guards it with the `ENTRANCE` of a `ResolveState`; the callers here hold no
  * `ResolveState`, so the guard is kept beside the function instead of widening their signatures.
  */
-private val RESOLVING_MACRO: ThreadLocal<MutableSet<Call>> = ThreadLocal.withInitial { mutableSetOf<Call>() }
+private val RESOLVING_MACRO: ThreadLocal<MutableSet<Call>> = ThreadLocal.withInitial { mutableSetOf() }
 
 /**
  * Whether [call] resolves to a `defmacro` rather than a `def`.
@@ -151,12 +151,9 @@ fun resolvesToQualifiedModularName(call: Call, state: ResolveState, modularName:
     }
 
 private fun qualifierIsBeingResolved(call: Call, state: ResolveState): Boolean =
-        if (call is Qualified) {
+        call is Qualified &&
             // `isAncestor` rejects a null second argument, and a caller with no entrance has nothing
             // for the guard to compare against.
-            state.get(ElixirPsiImplUtil.ENTRANCE)?.let { entrance ->
+            (state.get(ElixirPsiImplUtil.ENTRANCE)?.let { entrance ->
                 call.qualifier().isAncestor(entrance, strict = false)
-            } ?: false
-        } else {
-            false
-        }
+            } ?: false)
