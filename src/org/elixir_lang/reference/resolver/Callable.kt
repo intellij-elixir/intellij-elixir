@@ -70,10 +70,8 @@ object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Cal
                         }
                         .map { PsiElementResolveResult(it, validResult) }
 
-                val terminalResolveResult = PsiElementResolveResult(
-                    visitedElementSetResolveResult.element,
-                    visitedElementSetResolveResult.isValidResult
-                )
+                // Kept whole, so its `Reach` stays readable.
+                val terminalResolveResult: PsiElementResolveResult = visitedElementSetResolveResult
 
                 listOf(terminalResolveResult) + pathResolveResultList
             }
