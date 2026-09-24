@@ -105,6 +105,9 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
      */
     protected abstract fun keepProcessing(): Boolean
 
+    /** Whether the walk wants what an `import`, explicit or the implicit `import Kernel`, brings in. */
+    protected open val followsImports: Boolean = true
+
     /*
      * Private Instance Methods
      */
@@ -148,7 +151,7 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
 
         return when {
             Import.`is`(element) -> {
-                try {
+                if (followsImports) try {
                     Import.treeWalkUp(element, state) { call, accResolveState ->
                         execute(call, accResolveState)
                     }
@@ -187,7 +190,7 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
                 // Only check MultiResolve.keepProcessing at the end of a Module to all multiple arities
                 keepProcessing() &&
                         // the implicit `import Kernel` and `import Kernel.SpecialForms`
-                        implicitImports(element, state)
+                        (!followsImports || implicitImports(element, state))
             }
             QuoteMacro.`is`(element) -> if (!state.hasBeenVisited(element)) {
                 QuoteMacro.treeWalkUp(element, state, ::execute)
@@ -219,7 +222,7 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
 
     private fun execute(element: ElixirFile, state: ResolveState): Boolean =
         if (element.viewFile() == null) {
-            implicitImports(element, state)
+            !followsImports || implicitImports(element, state)
         }
         // if there is a view file then it will have implicit imports, not this template
         else {
@@ -310,24 +313,7 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
             true
         } else {
             whileIn(sourceFirstNamedElements(project, scope, moduleName)) { namedElement ->
-                when (namedElement) {
-                    is Call -> {
-                        val namedElementResolveState = state.putVisitedElement(namedElement)
-
-                        Modular.callDefinitionClauseCallWhile(
-                            namedElement, namedElementResolveState
-                        ) { callDefinitionClause, accResolveState ->
-                            executeOnCallDefinitionClause(
-                                callDefinitionClause,
-                                accResolveState
-                            )
-                        }
-                    }
-                    is BeamModule -> whileIn(namedElement.callDefinitions()) {
-                        execute(it, state)
-                    }
-                    else -> true
-                }
+                Import.treeWalkUpImplicitly(namedElement, state.putVisitedElement(namedElement), ::execute)
             }
         }
 

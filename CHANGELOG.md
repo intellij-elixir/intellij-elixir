@@ -147,6 +147,7 @@
   - **A call at an arity nothing declares names the arities that exist, and a misspelled remote call suggests what the compiler would.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
   - **Quick documentation at `apply(Mod, :fun, args)` shows a `defdelegate`'s own `@doc`, as at a call.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
   - **An MFA tuple naming a function beside a `defdelegate` of the same name at another arity names the function.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **A qualified call, an MFA tuple or `apply/3` now reaches only what its module exports, and `Mod.` completion offers the same.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
 - [#4146](https://github.com/intellij-elixir/intellij-elixir/pull/4146) [@sh41](https://github.com/sh41)
   - **Building a project no longer fails with `UnsupportedClassVersionError` from the plugin's JPS classes when the project SDK is older than the IDE's JDK.** Fixes [#3996](https://github.com/intellij-elixir/intellij-elixir/issues/3996).
 - [#4160](https://github.com/intellij-elixir/intellij-elixir/pull/4160) [@sh41](https://github.com/sh41)

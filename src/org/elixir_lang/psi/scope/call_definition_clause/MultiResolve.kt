@@ -1,6 +1,7 @@
 package org.elixir_lang.psi.scope.call_definition_clause
 
-import org.elixir_lang.psi.scope.Reach.Companion.reachedAsDelegationTarget
+import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.psi.scope.Reach.Companion.reachedThrough
 import org.elixir_lang.psi.scope.Reach
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
@@ -121,7 +122,7 @@ private constructor(
         reached(this.name, name, validArity, incompleteCode)?.let { addToResolveResults(callDefinition, name, it, state) } ?: true
 
     private fun addTargets(delegation: Call, headName: String, delegationState: ResolveState, candidatesOnly: Boolean = false) {
-        val state = delegationState.reachedAsDelegationTarget()
+        val state = delegationState.reachedThrough(Reach.DELEGATION_TARGET, delegation)
 
         for (targets in delegatedTargets(delegation, headName, resolvedPrimaryArity, incompleteCode)) {
             for ((definition, targetName, valid) in targets) {
@@ -195,8 +196,8 @@ private constructor(
 
         /**
          * What [delegation] delegates to at [arity], one list per module its `to:` names: [headName], or its `as:`
-         * name, defined there. Lazy, so a caller can stop at the first module that resolves. The walk starts at that
-         * module, so it does not depend on where the delegation is written.
+         * name, as that module exports it ([Reach.remotelyReaches]). Lazy, so a caller can stop at the first module that
+         * resolves. The walk starts at that module, so it does not depend on where the delegation is written.
          */
         @JvmStatic
         fun delegatedTargets(delegation: Call, headName: String, arity: Int, incompleteCode: Boolean): Sequence<List<DelegatedTarget>> {
@@ -209,14 +210,29 @@ private constructor(
                 .asSequence()
                 .map { modular ->
                     // Call recursively to get all the proper `for` and `use` handling.
-                    resolveResults(nameInDefiningModule, arity, incompleteCode, modular).mapNotNull { result ->
-                        // Anything but a source or compiled definition is not something a delegation can target.
+                    // A delegation calls its target remotely; only a source or compiled definition is a target.
+                    remoteResults(nameInDefiningModule, arity, incompleteCode, modular, runtime = false).mapNotNull { result ->
                         result.element
                             .takeIf { it is Call || it is BeamCallDefinition }
                             ?.let { DelegatedTarget(it, nameInDefiningModule, result.isValidResult) }
                     }
                 }
         }
+
+        /**
+         * What a remote use of [modular] - a qualified call, a `<Module.name>` tag, at [runtime] `apply/3` - reaches: the
+         * walk from the module also reaches what a local call inside it could, which [Reach.remotelyReaches] drops.
+         */
+        @RequiresReadLock
+        fun remoteResults(
+            name: String?,
+            arity: Int,
+            incompleteCode: Boolean,
+            modular: PsiElement,
+            runtime: Boolean
+        ): List<VisitedElementSetResolveResult> =
+            resolveResults(name, arity, incompleteCode, modular)
+                .filter { Reach.remotelyReaches(it.reach, it.element, runtime) }
 
         @JvmOverloads
         @JvmStatic

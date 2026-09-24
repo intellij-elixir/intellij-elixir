@@ -117,6 +117,72 @@ class DelegatedMfaTest : PlatformTestCase() {
         assertTrue(text, "defdelegate snoc(q), to: Target\n" in text)
     }
 
+    /** A delegation at another arity makes the MFA's arity undefined, not a name for what it delegates to. */
+    fun testAnApplyAtAnArityOnlyTheTargetDefinesNamesNothing() {
+        for (options in listOf("to: Target", "to: Target, as: :add")) {
+            myFixture.configureByText(
+                "target_arity.ex",
+                """
+                defmodule Target do
+                  def snoc(q, x), do: {q, x}
+                  def add(q, x), do: {q, x}
+                end
+
+                defmodule OnlyOne do
+                  defdelegate snoc(q), $options
+                end
+
+                defmodule Caller do
+                  def applies(a, b), do: apply(OnlyOne, :snoc, [a, b])
+                end
+                """.trimIndent()
+            )
+
+            val caller = myFixture.file.text.indexOf("defmodule Caller")
+            val atom = PsiTreeUtil.findChildrenOfType(myFixture.file, ElixirAtom::class.java).single { it.textOffset > caller }
+            val symbols = (atom.reference as PsiSymbolReference).resolveReference()
+                .filterIsInstance<AtomSymbol>()
+                .map { "${it.name}/${it.arity}" }
+
+            assertEquals(options, emptyList<String>(), symbols)
+        }
+    }
+
+    /** An MFA atom naming a delegation with `as:` reaches what it delegates to, as a call of it does. */
+    fun testAnApplyOfARenamedDelegationReachesItsTargetAsACallDoes() {
+        myFixture.configureByText(
+            "renamed_delegation.ex",
+            """
+            defmodule Target do
+              def snoc(q), do: q
+            end
+
+            defmodule Renaming do
+              defdelegate renamed(q), to: Target, as: :snoc
+            end
+
+            defmodule Caller do
+              def applies(q), do: apply(Renaming, :renamed, [q])
+              def calls(q), do: Renaming.renamed(q)
+            end
+            """.trimIndent()
+        )
+
+        fun targets(element: com.intellij.psi.PsiElement): List<String> =
+            generateSequence(element) { it.parent }
+                .mapNotNull { it.reference as? PsiPolyVariantReference }
+                .first()
+                .multiResolve(false)
+                .filter { it.isValidResult }
+                .mapNotNull { it.element?.text?.trim() }
+
+        val text = myFixture.file.text
+        val atom = myFixture.file.findElementAt(text.indexOf(":renamed, [q]") + 1)!!
+        val call = myFixture.file.findElementAt(text.indexOf("renamed(q)", text.indexOf("def calls")))!!
+
+        assertEquals(targets(call).sorted(), targets(atom).sorted())
+    }
+
     fun testADelegationIsNotAUsageOfItself() {
         myFixture.configureByText("delegated_mfa.ex", source.replace("defdelegate lost(q", "defdelegate lo<caret>st(q"))
 

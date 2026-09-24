@@ -181,11 +181,12 @@ object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Cal
             val resolvableName = name.takeUnless { Unquote.isQualified(element, it) }
 
             modulars.flatMap { modular ->
-                org.elixir_lang.psi.scope.call_definition_clause.MultiResolve.resolveResults(
+                org.elixir_lang.psi.scope.call_definition_clause.MultiResolve.remoteResults(
                     resolvableName,
                     arity,
                     incompleteCode,
-                    modular
+                    modular,
+                    runtime = false
                 )
             }
         } else {

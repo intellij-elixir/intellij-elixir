@@ -59,7 +59,7 @@ object HeexComponentResolver {
         val elixirRoot = elixirRoot(tag) ?: return null
 
         return when (component) {
-            is ComponentTagName.Local -> component(component.functionName, elixirRoot)
+            is ComponentTagName.Local -> component(component.functionName, elixirRoot, remote = false)
             is ComponentTagName.Remote -> resolveRemoteCall(component.aliasChain, component.functionName, elixirRoot)
             // A slot is declared by the `slot` macro, not a def/defp.
             is ComponentTagName.Slot -> null
@@ -77,11 +77,11 @@ object HeexComponentResolver {
             .filter { it.isValidResult }
             .mapNotNull { it.element }
             .filter { it is Call && Stub.isModular(it) }
-            .firstNotNullOfOrNull { modular -> component(functionName, modular) }
+            .firstNotNullOfOrNull { modular -> component(functionName, modular, remote = true) }
 
-    private fun component(functionName: String, entrance: PsiElement): Call? =
-        MultiResolve
-            .resolveResults(functionName, 1, false, entrance)
+    private fun component(functionName: String, entrance: PsiElement, remote: Boolean): Call? =
+        (if (remote) MultiResolve.remoteResults(functionName, 1, false, entrance, runtime = true)
+        else MultiResolve.resolveResults(functionName, 1, false, entrance))
             .filter { it.isValidResult }
             .mapNotNull { it.element as? Call }
             .firstOrNull(::isComponent)

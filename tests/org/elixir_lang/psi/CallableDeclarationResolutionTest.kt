@@ -285,6 +285,24 @@ class CallableDeclarationResolutionTest : PlatformTestCase() {
         assertTrue(resolved, resolved.contains("""EEx.function_from_string(:def, :render, "<%= a %>", @args)"""))
     }
 
+    /** A `@callback` declares what an implementing module defines, so a qualified call of its module reaches nothing. */
+    fun testAQualifiedCallDoesNotReachACallback() {
+        myFixture.configureByText(
+            "callback_remote.ex",
+            """
+            defmodule Hooks do
+              @callback hook() :: term
+            end
+
+            defmodule Caller do
+              def usage, do: Hooks.hook()
+            end
+            """.trimIndent()
+        )
+
+        assertEquals("hook() -> nothing", resolutions("hook()"))
+    }
+
     /** A `@spec` names a function this module defines, whichever form defines it. */
     fun testSpecResolvesToTheFormThatDefinesIt() {
         myFixture.configureByFiles("spec_targets.ex", "eex.ex")

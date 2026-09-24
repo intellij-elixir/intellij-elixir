@@ -113,11 +113,12 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                         MarkdownFlavourDescriptor
                             .modulars(project, module)
                             .flatMap { modular ->
-                                org.elixir_lang.psi.scope.call_definition_clause.MultiResolve.resolveResults(
+                                org.elixir_lang.psi.scope.call_definition_clause.MultiResolve.remoteResults(
                                     relative,
                                     arity,
                                     false,
-                                    modular
+                                    modular,
+                                    runtime = false
                                 )
                             }
                     } else {

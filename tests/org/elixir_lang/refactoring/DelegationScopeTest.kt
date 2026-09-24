@@ -6,6 +6,7 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
 import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
+import org.elixir_lang.code_insight.gotoDeclarationLineAtCaret
 
 /**
  * A use of a `defdelegate` names the delegation, which Go To follows to its target, wherever the delegation is written
@@ -80,6 +81,46 @@ class DelegationScopeTest : PlatformTestCase() {
 
     fun testGoToFromAPipedCallOfAMultiArityDelegationFollowsIt() =
         assertFollows(multiArity, "a |> sn<caret>oc(b)", "def snoc(a, b), do: {a, b}")
+
+    /**
+     * A `defdelegate` calls its target remotely, so it reaches only what the `to:` module exports: not what that module
+     * imports, nor `Kernel`'s functions, nor a private one. Go To lands on the delegation, as for a `to:` that is missing.
+     */
+    fun testGoToFromACallOfADelegationFollowsOnlyWhatItsTargetExports() {
+        val imports = """
+            defmodule Source do
+              def snoc(q, x), do: {q, x}
+            end
+
+            defmodule Kernel do
+              def is_nil(term), do: term == nil
+            end
+
+            defmodule Target do
+              import Source, only: [snoc: 2], warn: false
+
+              defp secret(q), do: q
+            end
+
+            defmodule Delegator do
+              defdelegate snoc(q, x), to: Target
+              defdelegate is_nil(q), to: Target
+              defdelegate secret(q), to: Target
+
+              def calls(a, b), do: {snoc(a, b), is_nil(a), secret(a)}
+            end
+        """.trimIndent()
+
+        HeadlessDataManager.fallbackToProductionDataManager(myFixture.testRootDisposable)
+
+        assertEquals(
+            listOf("defdelegate snoc(q, x), to: Target", "defdelegate is_nil(q), to: Target", "defdelegate secret(q), to: Target"),
+            listOf("sn<caret>oc(a, b)", "is_n<caret>il(a)", "sec<caret>ret(a)").map { caretAt ->
+                configure(imports, caretAt)
+                myFixture.gotoDeclarationLineAtCaret()
+            }
+        )
+    }
 
     fun testRenamingFromAnImportedCallOfAMultiArityDelegationRenamesTheDelegation() {
         configure(multiArity, "do: sn<caret>oc(a, b)")

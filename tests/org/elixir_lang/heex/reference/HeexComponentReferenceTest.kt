@@ -186,6 +186,25 @@ class HeexComponentReferenceTest : HeexHostTestCase() {
         assertButtonResolves()
     }
 
+    /** `<Module.name>` is a remote call, so it reaches only what the module exports: not a `defp`. */
+    fun testARemoteComponentTagDoesNotReachAPrivateFunction() {
+        myFixture.addFileToProject(
+            "secret_components.ex",
+            """
+            defmodule MyAppWeb.SecretComponents do
+              defp secret(assigns), do: assigns
+            end
+            """.trimIndent()
+        )
+        myFixture.configureByText("page.html.heex", "<MyAppWeb.SecretComponents.sec<caret>ret />")
+        val tag = PsiTreeUtil.findChildOfType(
+            myFixture.file.viewProvider.getPsi(com.intellij.lang.html.HTMLLanguage.INSTANCE),
+            XmlTag::class.java
+        )!!
+
+        assertNull(HeexComponentResolver.resolveCall(tag)?.text)
+    }
+
     /** `<Widgets.button>` resolves through `alias MyAppWeb.CoreComponents, as: Widgets`. */
     fun testRemoteComponentResolvesThroughAlias() {
         myFixture.configureByFiles(

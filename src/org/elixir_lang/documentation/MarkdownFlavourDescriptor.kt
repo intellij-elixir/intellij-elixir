@@ -77,11 +77,12 @@ class MarkdownFlavourDescriptor(private val project: Project) : GFMFlavourDescri
                                                 module
                                                     .let { modulars(project, it) }
                                                     .flatMap { modular ->
-                                                        org.elixir_lang.psi.scope.call_definition_clause.MultiResolve.resolveResults(
+                                                        org.elixir_lang.psi.scope.call_definition_clause.MultiResolve.remoteResults(
                                                             relative,
                                                             arity,
                                                             false,
-                                                            modular
+                                                            modular,
+                                                            runtime = false
                                                         )
                                                     }
                                                     .count { it.isValidResult }

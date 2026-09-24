@@ -3,8 +3,21 @@ package org.elixir_lang.psi.scope
 import com.intellij.psi.PsiElement
 
 class ResolveResultOrderedSet {
+    /** An element reached again keeps its first result, unless this path reaches it as what the module [Reach.held]. */
     fun add(element: PsiElement, name: String, validResult: Boolean, visitedElementSet: Set<PsiElement>, reach: Reach = Reach.OWN) {
-        if (element !in psiElementSet) {
+        if (element in psiElementSet) {
+            if (reach.held) {
+                for (results in visitedElementSetResolveResultListByName.values) {
+                    val index = results.indexOfFirst { it.element == element && !it.reach.held }
+
+                    if (index >= 0) {
+                        val first = results[index]
+                        results[index] =
+                            VisitedElementSetResolveResult(element, first.isValidResult || validResult, visitedElementSet, reach)
+                    }
+                }
+            }
+        } else {
             psiElementSet.add(element)
             val visitedElementSetResolveResult = VisitedElementSetResolveResult(element, validResult, visitedElementSet, reach)
             val existingVisitedElementSetResolveResultList = visitedElementSetResolveResultListByName[name]
