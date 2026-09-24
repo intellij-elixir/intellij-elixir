@@ -10,8 +10,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveResult
 import org.elixir_lang.navigation.isDecompiled
-import org.elixir_lang.psi.call.Call
-import org.elixir_lang.structure_view.element.Delegation
+import org.elixir_lang.psi.DelegationPrecedence
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 
 object Resolver {
@@ -44,6 +43,10 @@ object Resolver {
     } else {
         preferIsValidResult(resolveResultList)
     }
+
+    /** One result for each [key], in order of first appearance: a valid one where any of them is, else the first. */
+    fun <T : ResolveResult, K> onePerKeyPreferringValid(resolveResultList: List<T>, key: (T) -> K): List<T> =
+        resolveResultList.groupBy(key).values.map { same -> same.firstOrNull { it.isValidResult } ?: same.first() }
 
     fun <T : ResolveResult> preferIsValidResult(resolveResultList: List<T>): List<T> =
         filterIsValidResult(resolveResultList).takeIf(List<T>::isNotEmpty) ?: resolveResultList
@@ -90,13 +93,9 @@ object Resolver {
     ): List<T> =
         filter(list)
             .takeIf { filtered ->
-                filtered.isNotEmpty() && !filtered.all { isDelegation(listElementToPsiElement(it)) }
+                DelegationPrecedence.standsIn(filtered, listElementToPsiElement)
             }
             ?: list
-
-    @RequiresReadLock
-    private fun isDelegation(element: PsiElement?): Boolean =
-        (element as? Call)?.let { Delegation.`is`(it) } ?: false
 
     private fun <T : ResolveResult> filterIsValidResult(resolveResultList: List<T>): List<T> =
         resolveResultList.filter(ResolveResult::isValidResult)

@@ -10,6 +10,7 @@ import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.model.psi.protocol.ProtocolFunction
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallableDeclaration
+import org.elixir_lang.psi.DelegationPrecedence
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.reference.Callable
 
@@ -74,16 +75,15 @@ private fun offeredDeclarations(call: Call): List<FunctionSymbol> =
  */
 @RequiresReadLock
 internal fun functionSymbolsReached(resolved: List<ResolveResult>, arity: Int): Collection<Symbol> {
-    // A use resolving to a `defdelegate` names it, though the scope walk also follows its `to:`: the delegation is
-    // what a rename renames, and Go To follows `to:` from it.
-    val delegations = resolved
-        .mapNotNull { it.element as? Call }
-        .filter { CallableDeclaration.isForm(it, CallableDeclaration.Form.DELEGATION) }
-        .flatMap { FunctionSymbol.fromDelegation(it) }
-        .filter { it.arity == arity }
-        .map { it.reachedFromAUse() }
-    if (delegations.isNotEmpty()) return delegations
+    // The scope walk also follows a `defdelegate`'s `to:`; Go To follows it from the delegation the use names.
+    return DelegationPrecedence.named<Symbol>(resolved.mapNotNull { it.element }, arity, FunctionSymbol::fromDelegation) {
+        declaredSymbolsReached(resolved, arity)
+    }
+}
 
+/** The symbols [resolved] reaches at [arity] that are not a `defdelegate`'s. */
+@RequiresReadLock
+private fun declaredSymbolsReached(resolved: List<ResolveResult>, arity: Int): List<Symbol> {
     val clauses = resolved
         .mapNotNull { result ->
             when (val element = result.element) {

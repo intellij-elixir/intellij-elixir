@@ -10,8 +10,8 @@ import org.elixir_lang.psi.ElixirAtom
 
 /**
  * A `defdelegate` reached as a Symbol keeps the rules a call already follows: an `apply/3` reaches what it delegates
- * to, and the delegation only when that is all there is; an MFA names one arity; and the `defdelegate` head is its
- * declaration, never a usage of itself.
+ * to first, then the delegation; an MFA names one arity; and the `defdelegate` head is its declaration, never a usage
+ * of itself.
  */
 class DelegatedMfaTest : PlatformTestCase() {
     private val source = """
@@ -53,7 +53,7 @@ class DelegatedMfaTest : PlatformTestCase() {
 
         assertEquals(
             """
-            :snoc -> [def snoc(q, x), do: {q, x}] [2]
+            :snoc -> [def snoc(q, x), do: {q, x}, defdelegate snoc(q, x), to: Target] [2]
             :lost -> [defdelegate lost(q, x), to: Missing] [2]
             :spread -> [def spread(a, b \\ nil, c \\ nil), do: {a, b, c}] [2]
             """.trimIndent(),

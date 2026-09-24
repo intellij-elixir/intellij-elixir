@@ -9,8 +9,8 @@ import com.intellij.psi.*
 import com.intellij.psi.impl.source.resolve.ResolveCache
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.code_insight.completion.callDefinitionClauseLookupElements
-import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallableDeclaration
+import org.elixir_lang.psi.DelegationPrecedence
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.literalName
@@ -81,22 +81,21 @@ class AtomReference(
             .flatMap { modular ->
                 CallDefinitionClauseMultiResolve.resolveResults(name, arity, false, modular)
             }
-            .mapNotNull { visitedResult -> visitedResult.element?.takeIf { reachable(it, name) } }
-            .let { elements -> elements.filter(::isDelegation).ifEmpty { elements } }
-            .flatMap { element ->
-                when (element) {
-                    is Call ->
-                        if (isDelegation(element)) {
-                            AtomSymbol.fromDeclaration(element).map { it.reachedFromAUse() }
-                        } else {
-                            AtomSymbol.fromDeclaration(element)
+            .mapNotNull { visitedResult -> visitedResult.element.takeIf { reachable(it, name) } }
+            .let { elements ->
+                DelegationPrecedence.named(elements, arity, AtomSymbol::fromDeclaration) {
+                    elements
+                        .flatMap { element ->
+                            when (element) {
+                                is Call -> AtomSymbol.fromDeclaration(element)
+                                is BeamCallDefinition -> AtomSymbol.fromBeamCallDefinition(element)
+                                else -> emptyList()
+                            }
                         }
-                    is BeamCallDefinition -> AtomSymbol.fromBeamCallDefinition(element)
-                    else -> emptyList()
+                        // A definition covering several arities yields a symbol per arity; the MFA names one.
+                        .filter { it.arity == arity }
                 }
             }
-            // A definition covering several arities yields a symbol per arity; the MFA names one.
-            .filter { it.arity == arity }
             .distinct()
     }
 
@@ -115,28 +114,20 @@ class AtomReference(
                 .flatMap { modular ->
                     CallDefinitionClauseMultiResolve.resolveResults(name, reference.arity, incompleteCode, modular)
                 }
-                .filter { visitedResult -> visitedResult.element?.let { reachable(it, name) } == true }
+                .filter { visitedResult -> reachable(visitedResult.element, name) }
+                .let { results -> DelegationPrecedence.navigated(results) { it.element } }
+                .map { visitedResult -> PsiElementResolveResult(visitedResult.element, visitedResult.isValidResult) }
+                // A compiled function's arities share one decompiled head: keep the arity called, whichever came first.
                 .let { results ->
-                    val kept = delegationsLast(results.mapNotNull { it.element }).toSet()
-                    results.filter { it.element in kept }
+                    ReferenceResolver.onePerKeyPreferringValid(results) {
+                        it.element.containingFile?.virtualFile to it.element.textRange
+                    }
                 }
-                .map { visitedResult -> PsiElementResolveResult(visitedResult.element!!, visitedResult.isValidResult) }
-                .distinctBy { it.element?.containingFile?.virtualFile to it.element?.textRange }
                 .toTypedArray()
         }
     }
 }
 
-/**
- * [elements] without the `defdelegate`s when anything else is among them: an `apply/3` of a delegated function reaches
- * what it delegates to, as a call does, and the delegation itself only when that is all there is.
- */
-@RequiresReadLock
-private fun delegationsLast(elements: List<PsiElement>): List<PsiElement> = elements.filterNot(::isDelegation).ifEmpty { elements }
-
-@RequiresReadLock
-private fun isDelegation(element: PsiElement): Boolean =
-    element is Call && CallableDeclaration.isForm(element, CallableDeclaration.Form.DELEGATION)
 
 /**
  * Whether an MFA tuple or `apply/3` naming [name] reaches [element]: a remotely callable function of that name,

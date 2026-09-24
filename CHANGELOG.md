@@ -142,6 +142,7 @@
   - **An `import` inside an `if` in a module body, written after a call, or injected by a `use` after it, no longer reaches calls outside its block or before it.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
   - **Definitions, attributes and types in a module body now belong to their module when under `if`, `case`, `with` or Elixir's other block forms, piped, or in a function passed to any call.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
   - **A call at an arity nothing declares names the arities that exist, and a misspelled remote call suggests what the compiler would.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **Quick documentation at `apply(Mod, :fun, args)` shows a `defdelegate`'s own `@doc`, as at a call.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
 - [#4146](https://github.com/intellij-elixir/intellij-elixir/pull/4146) [@sh41](https://github.com/sh41)
   - **Building a project no longer fails with `UnsupportedClassVersionError` from the plugin's JPS classes when the project SDK is older than the IDE's JDK.** Fixes [#3996](https://github.com/intellij-elixir/intellij-elixir/issues/3996).
 - [#4160](https://github.com/intellij-elixir/intellij-elixir/pull/4160) [@sh41](https://github.com/sh41)

@@ -33,6 +33,9 @@ class ElixirPsiUsage(
      */
     enum class Purpose { ALL, FIND, RENAME }
 
+    /** This usage at the same range of [file], as a decompiled mirror's is re-anchored to its compiled file. */
+    fun anchoredIn(file: PsiFile): ElixirPsiUsage = ElixirPsiUsage(file, range, declaration, usageType, usageTextByName, purpose)
+
     override fun createPointer(): Pointer<out PsiUsage> {
         val declaration = this.declaration // capture for the restore lambda
         val usageType = this.usageType
