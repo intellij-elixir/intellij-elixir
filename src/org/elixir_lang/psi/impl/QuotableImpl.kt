@@ -4,9 +4,12 @@ package org.elixir_lang.psi.impl
 
 import com.ericsson.otp.erlang.*
 import com.intellij.lang.ASTNode
+import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.ModificationTracker
 import com.intellij.psi.*
 import com.intellij.psi.impl.source.tree.Factory
+import com.intellij.psi.stubs.StubBuildCachedValuesManager
+import com.intellij.psi.stubs.StubBuildCachedValuesManager.StubBuildCachedValue
 import com.intellij.psi.tree.IElementType
 import com.intellij.psi.tree.TokenSet
 import com.intellij.psi.util.CachedValueProvider
@@ -792,8 +795,7 @@ object QuotableImpl {
                 /* build_op({_Kind, Line, 'in'}, {UOp, _, [Left]}, Right) when ?rearrange_uop(UOp) ->
                      {UOp, meta(Line), [{'in', meta(Line), [Left, Right]}]}; */
                 if (leftOperator == rearrangedUnaryOperator) {
-                    val unaryOperatorArguments = leftExpression.elementAt(2)
-                    val originalUnaryOperand = when (unaryOperatorArguments) {
+                    val originalUnaryOperand = when (val unaryOperatorArguments = leftExpression.elementAt(2)) {
                         is OtpErlangString -> {
                             OtpErlangLong(unaryOperatorArguments.stringValue().codePointAt(0).toLong())
                         }
@@ -1767,48 +1769,57 @@ object QuotableImpl {
      * stubs, and asking the file for its tree then loads it again, which the platform stops with an exception.
      */
     private fun uncountedNewlines(file: PsiFile, node: ASTNode): UncountedNewlines =
-        CachedValuesManager.getCachedValue(file) {
-            val literalSigilLine = mutableListOf<Int>()
-            val character = mutableListOf<Int>()
-            val root = generateSequence(node) { it.treeParent }.last()
-            var current: ASTNode? = root
+        // A stub build can quote, where the platform flags a plain cached value. The stub-build value is held on the file
+        // itself: the platform's other overloads hold it on the file's node, which loads a stub-backed tree.
+        if (StubBuildCachedValuesManager.isBuildingStubs) {
+            StubBuildCachedValuesManager.getCachedValueIfBuildingStubs(file, UNCOUNTED_NEWLINES, node, ::scanUncountedNewlines)
+        } else {
+            CachedValuesManager.getCachedValue(file) {
+                // Not `file` itself: a physical PSI dependency asks for InjectedLanguageManager, which ParsingTestCase's
+                // mock project does not register.
+                CachedValueProvider.Result.create(scanUncountedNewlines(node), ModificationTracker { file.modificationStamp })
+            }
+        }
 
-            while (current != null) {
-                when (current.elementType) {
-                    ElixirTypes.ESCAPED_EOL -> {
-                        val parent = current.treeParent
+    private val UNCOUNTED_NEWLINES = Key.create<StubBuildCachedValue<UncountedNewlines>>("ELIXIR_UNCOUNTED_NEWLINES.stub.building")
 
-                        if (parent?.elementType == ElixirTypes.CHAR_TOKEN) {
-                            character.add(current.startOffset)
-                        } else if (parent?.treeParent?.psi.let { it is SigilLine && it !is Interpolated }) {
-                            literalSigilLine.add(current.startOffset)
-                        }
+    private fun scanUncountedNewlines(node: ASTNode): UncountedNewlines {
+        val literalSigilLine = mutableListOf<Int>()
+        val character = mutableListOf<Int>()
+        val root = generateSequence(node) { it.treeParent }.last()
+        var current: ASTNode? = root
+
+        while (current != null) {
+            when (current.elementType) {
+                ElixirTypes.ESCAPED_EOL -> {
+                    val parent = current.treeParent
+
+                    if (parent?.elementType == ElixirTypes.CHAR_TOKEN) {
+                        character.add(current.startOffset)
+                    } else if (parent?.treeParent?.psi.let { it is SigilLine && it !is Interpolated }) {
+                        literalSigilLine.add(current.startOffset)
                     }
-
-                    ElixirTypes.CHAR_TOKEN ->
-                        if (current.lastChildNode.let { it.elementType != ElixirTypes.ESCAPED_EOL && it.textContains('\n') }) {
-                            character.add(current.startOffset)
-                        }
                 }
 
-                var next = current.firstChildNode
-                var ancestor: ASTNode = current
-
-                while (next == null && ancestor !== root) {
-                    next = ancestor.treeNext
-                    ancestor = ancestor.treeParent
-                }
-
-                current = next
+                ElixirTypes.CHAR_TOKEN ->
+                    if (current.lastChildNode.let { it.elementType != ElixirTypes.ESCAPED_EOL && it.textContains('\n') }) {
+                        character.add(current.startOffset)
+                    }
             }
 
-            // Not `file` itself: a physical PSI dependency asks for InjectedLanguageManager, which ParsingTestCase's
-            // mock project does not register.
-            CachedValueProvider.Result.create(
-                UncountedNewlines(literalSigilLine.toIntArray(), character.toIntArray()),
-                ModificationTracker { file.modificationStamp }
-            )
+            var next = current.firstChildNode
+            var ancestor: ASTNode = current
+
+            while (next == null && ancestor !== root) {
+                next = ancestor.treeNext
+                ancestor = ancestor.treeParent
+            }
+
+            current = next
         }
+
+        return UncountedNewlines(literalSigilLine.toIntArray(), character.toIntArray())
+    }
 
     private fun lineNumberKeywordTuple(node: ASTNode): OtpErlangTuple =
             keywordTuple(
@@ -2013,7 +2024,7 @@ object QuotableImpl {
                         parent.addHexadecimalEscapeSequenceCodePoints(codePointList, child)
                     }
                 } else {
-                    TODO("Can't quote " + child)
+                    TODO("Can't quote $child")
                 }
             }
 
