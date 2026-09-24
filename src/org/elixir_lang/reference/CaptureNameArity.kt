@@ -9,9 +9,8 @@ import com.intellij.psi.PsiReferenceBase
 import com.intellij.psi.ResolveResult
 import com.intellij.psi.ResolveState
 import com.intellij.psi.impl.source.resolve.ResolveCache
-import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.code_insight.completion.callDefinitionClauseLookupElements
-import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.psi.operation.Prefix
@@ -67,18 +66,18 @@ class CaptureNameArity(element: NonNumeric, val nameElement: Call, val arity: Ar
         }
 
     /**
-     * Keeps only the completion candidates that have a clause whose arity interval contains the
-     * requested [arity] (a capture must name an existing `name/arity`); candidates whose arity cannot
-     * be determined are kept, matching the resolver's lenient behaviour.
+     * Keeps only the completion candidates that define the name at the requested [arity] (a capture must name an
+     * existing `name/arity`); candidates whose definitions cannot be read are kept, matching the resolver's lenient
+     * behaviour.
      */
     private fun Iterable<LookupElement>.ofRequestedArity(): List<LookupElement> = filter { lookupElement ->
-        val nameArityInterval = when (val candidate = lookupElement.psiElement) {
-            is Call -> CallDefinitionClause.nameArityInterval(candidate, ResolveState.initial())
-            is BeamCallDefinition -> candidate.nameArityInterval
-            else -> null
-        }
+        val state = ResolveState.initial()
+        val definitions = lookupElement.psiElement
+            ?.let { CallableDeclaration.declaredOf(it, state) }
+            ?.definitions(state)
+            ?.filter { it.name == lookupElement.lookupString }
 
-        nameArityInterval == null || arity in nameArityInterval.arityInterval
+        definitions.isNullOrEmpty() || definitions.any { it.accepts(arity) }
     }
 
     override fun multiResolve(incompleteCode: Boolean): Array<ResolveResult> =

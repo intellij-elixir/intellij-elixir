@@ -288,7 +288,7 @@ class RejectedCallTest : PlatformTestCase() {
         end
 
         defmodule Outer do
-          def outer, do: :ok
+          defdelegate outer, to: Mod, as: :own
 
           defmodule Inner do
             def inner, do: :ok
@@ -318,6 +318,131 @@ class RejectedCallTest : PlatformTestCase() {
             }
         )
     }
+
+    /** A qualified call reaches only what its module exports, not what a local call inside it could. */
+    fun testAQualifiedCallDoesNotResolveThroughItsModulesImplicitImports() {
+        myFixture.configureByText("qualified.ex", kernelAndNesting + "\n\ndefmodule Caller do\n  def calls(x), do: {Mod.is_nil(x), Outer.Inner.outer()}\nend\n")
+
+        assertEquals(listOf(false, false), listOf("is_nil(x)", "outer()").map { validAt(it, incompleteCode = false) })
+    }
+
+    /**
+     * A remote call reaches what a `defdelegate` delegates to only when the module holds the delegation: not through
+     * an `import`, nor from the module it is nested in; nor what a `use` there injects. Elixir says each is undefined.
+     */
+    fun testARemoteCallReachesADelegationsTargetOnlyThroughADelegationItsModuleHolds() {
+        val definitions = """
+            defmodule Other do
+              def x(a), do: a
+            end
+
+            defmodule Helpers do
+              defdelegate x(a), to: Other
+            end
+
+            defmodule Injector do
+              defmacro __using__(_) do
+                quote do
+                  def child_spec(a), do: a
+                end
+              end
+            end
+
+            defmodule Mod do
+              import Helpers
+            end
+
+            defmodule Outer do
+              defdelegate y(a), to: Other, as: :x
+              use Injector
+
+              defmodule Inner do
+              end
+            end
+        """.trimIndent()
+
+        myFixture.configureByText(
+            "remote_reach.ex",
+            "$definitions\n\ndefmodule Caller do\n  def calls, do: {Mod.x(1), Outer.Inner.y(1), Outer.Inner.child_spec(1)}\nend\n"
+        )
+
+        assertEquals(
+            listOf("x(1)" to false, "y(1)" to false, "child_spec(1)" to false),
+            listOf("x(1)", "y(1)", "child_spec(1)").map { it to validAt(it, incompleteCode = false) }
+        )
+    }
+
+    /** A private function is not reached remotely at the arity it declares either: the compiler says it is undefined or private. */
+    fun testARemoteCallDoesNotReachAPrivateFunction() {
+        myFixture.configureByText(
+            "private.ex",
+            "defmodule Definer do\n  defp priv(a), do: a\n  def pub(a), do: priv(a)\nend\n\n" +
+                "defmodule Caller do\n  def calls, do: Definer.priv(1)\nend\n"
+        )
+
+        assertFalse(validAt("priv(1)", incompleteCode = false))
+    }
+
+    /** An MFA tuple and `apply/3` reach what the module exports, as a remote call does: not what it imports. */
+    fun testAnMfaReachesOnlyWhatItsModuleExports() {
+        myFixture.configureByText(
+            "mfa_reach.ex",
+            kernelAndNesting.replace("  def is_atom(term), do: term\n", "  def is_atom(term), do: term\n  def hd(list), do: list\n") +
+                "\n\ndefmodule Helpers do\n  def helper(a), do: a\nend\n\n" +
+                "defmodule Importer do\n  import Helpers\nend\n\n" +
+                "defmodule Caller do\n  def calls(l), do: {{Mod, :hd, 1}, apply(Mod, :hd, [l]), {Importer, :helper, 1}}\nend\n"
+        )
+
+        assertEquals(
+            listOf(":hd, 1" to false, ":hd, [l]" to false, ":helper, 1" to false),
+            listOf(":hd, 1", ":hd, [l]", ":helper, 1").map { it to validAt(it, incompleteCode = false) }
+        )
+    }
+
+    /** The implicit `import Kernel` brings in only what `Kernel` exports, as an explicit `import` does. */
+    fun testTheImplicitKernelImportBringsInNoPrivateFunction() {
+        myFixture.configureByText(
+            "implicit_private.ex",
+            "defmodule Kernel do\n  def public_helper(a), do: private_helper(a)\n  defp private_helper(a), do: a\nend\n\n" +
+                "defmodule Caller do\n  def calls, do: {public_helper(1), private_helper(1)}\nend\n"
+        )
+
+        assertEquals(
+            listOf("public_helper(1)" to true, "private_helper(1)" to false),
+            listOf("public_helper(1)", "private_helper(1)").map { it to validAt(it, incompleteCode = false) }
+        )
+    }
+
+    /** The implicit `import Kernel` brings in every form `Kernel` exports, a `defdelegate` as a `def`. */
+    fun testTheImplicitKernelImportBringsInADelegation() {
+        myFixture.configureByText(
+            "implicit_delegation.ex",
+            "defmodule Doubler do\n  def double(a), do: a * 2\nend\n\n" +
+                "defmodule Kernel do\n  defdelegate double(a), to: Doubler\nend\n\n" +
+                "defmodule Caller do\n  def calls, do: double(1)\nend\n"
+        )
+
+        assertTrue(validAt("double(1)", incompleteCode = false))
+    }
+
+    /** A function a delegation in the same module delegates to is exported still, however the walk first reaches it. */
+    fun testWhatADelegationDelegatesToInItsOwnModuleIsStillExported() =
+        assertEquals(
+            listOf("Does not resolve to anything. Did you mean: y/1?"),
+            saidAbout(
+                "M.yy",
+                """
+                defmodule M do
+                  defdelegate x(a), to: M, as: :y
+                  def y(a), do: a
+                end
+
+                defmodule Caller do
+                  def calls, do: M.yy(1)
+                end
+                """.trimIndent()
+            )
+        )
 
     /** A name the call only starts is not a valid result, even when the walk follows the delegation it starts. */
     fun testAPrefixOfADelegationsNameIsNeverAValidResult() {

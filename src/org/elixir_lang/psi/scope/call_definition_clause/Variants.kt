@@ -16,13 +16,20 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
 import org.elixir_lang.psi.mix.Generator
 import org.elixir_lang.psi.scope.CallDefinitionClause
+import org.elixir_lang.psi.scope.Reach
 
 /**
  * [appendParentheses] is threaded through so a capture's `&name/arity` (which reuses this same walk,
  * see [org.elixir_lang.reference.CaptureNameArity]) stays a bare name - a capture names a function, it
  * does not call one.
+ *
+ * [remote] offers only what the module walked from [Reach.exports], as a remote use sees it: a bare name, as a capture
+ * or MFA tuple writes one, names a function.
  */
-class Variants(private val appendParentheses: Boolean) : CallDefinitionClause() {
+class Variants(private val appendParentheses: Boolean, private val remote: Boolean = false) : CallDefinitionClause() {
+    // What a module imports it does not export.
+    override val followsImports: Boolean get() = !remote
+
     private var lookupElementByPsiElementName: MutableMap<Pair<PsiElement, String>, LookupElement> = mutableMapOf()
 
     private val lookupElementCollection: Collection<LookupElement>
@@ -49,13 +56,17 @@ class Variants(private val appendParentheses: Boolean) : CallDefinitionClause() 
 
     override fun execute(element: BeamCallDefinition, state: ResolveState): Boolean {
         // BEAM-decompiled call definitions are never the entrance clause (which is always source),
-        // so the entrance guard from executeOnCallDefinitionClause does not apply here.
-        if (element.isExported()) {
+        // so the entrance guard from executeOnCallDefinitionClause does not apply here. An `import`
+        // brings in only what is exported.
+        if (!remote || exported(element, state)) {
             addCallDefinitionToLookupElementByPsiElement(element)
         }
 
         return true
     }
+
+    private fun exported(element: PsiElement, state: ResolveState): Boolean =
+        Reach.exports(Reach.of(element, state), element, runtime = !appendParentheses)
 
     private fun addCallDefinitionToLookupElementByPsiElement(element: BeamCallDefinition) {
         // MaybeExported documents exportedName() as null only when isExported() is false, which the
@@ -70,6 +81,9 @@ class Variants(private val appendParentheses: Boolean) : CallDefinitionClause() 
     }
 
     override fun executeOnCallback(element: AtUnqualifiedNoParenthesesCall<*>, state: ResolveState): Boolean {
+        // A `@callback` declares what another module defines, so its own module does not export it.
+        if (remote) return true
+
         addDeclarations(element, CallableDeclaration.Form.CALLBACK, state) { declaration ->
             LookupElementBuilder.createWithSmartPointer(declaration.name, element)
                 .withRenderer(org.elixir_lang.code_insight.lookup.element_renderer.Callback(declaration.name))
@@ -127,6 +141,8 @@ class Variants(private val appendParentheses: Boolean) : CallDefinitionClause() 
         state: ResolveState,
         lookupElement: (CallableDeclaration.Declaration) -> LookupElementBuilder,
     ) {
+        if (remote && !exported(call, state)) return
+
         val compileTime = CallableDeclaration.Declared.Source(call, form).capabilities?.compileTime
 
         for (declaration in CallableDeclaration.declarations(call, form, state)) {
@@ -172,12 +188,18 @@ class Variants(private val appendParentheses: Boolean) : CallDefinitionClause() 
         fun lookupElementList(entrance: ElixirIdentifier, appendParentheses: Boolean = true): List<LookupElement> =
             lookupElementList(entrance, null, appendParentheses)
 
+        /** What a remote use of [modular] can name: what it [Reach.exports], each declaration once per name. */
+        fun remoteLookupElementList(modular: Call, appendParentheses: Boolean): List<LookupElement> =
+            lookupElementList(modular, null, appendParentheses, remote = true, maxScope = modular)
+
         private fun lookupElementList(
             entrance: PsiElement,
             entranceCallDefinitionClause: Call?,
-            appendParentheses: Boolean
+            appendParentheses: Boolean,
+            remote: Boolean = false,
+            maxScope: PsiElement = entrance.containingFile
         ): List<LookupElement> {
-            val variants = Variants(appendParentheses)
+            val variants = Variants(appendParentheses, remote)
 
             val resolveState = ResolveState
                     .initial()
@@ -192,7 +214,7 @@ class Variants(private val appendParentheses: Boolean) : CallDefinitionClause() 
             PsiTreeUtil.treeWalkUp(
                     variants,
                     entrance,
-                    entrance.containingFile,
+                    maxScope,
                     resolveState
             )
             val lookupElementList = ArrayList<LookupElement>()

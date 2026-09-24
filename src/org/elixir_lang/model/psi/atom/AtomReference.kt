@@ -16,6 +16,8 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.literalName
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
+import org.elixir_lang.psi.scope.Reach
+import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
 import org.elixir_lang.psi.scope.call_definition_clause.MultiResolve as CallDefinitionClauseMultiResolve
 import org.elixir_lang.reference.Resolver as ReferenceResolver
 
@@ -81,7 +83,7 @@ class AtomReference(
             .flatMap { modular ->
                 CallDefinitionClauseMultiResolve.resolveResults(name, arity, false, modular)
             }
-            .mapNotNull { visitedResult -> visitedResult.element.takeIf { reachable(it, name) } }
+            .mapNotNull { visitedResult -> visitedResult.element.takeIf { reachable(visitedResult, name) } }
             .let { elements ->
                 DelegationPrecedence.named(elements, arity, AtomSymbol::fromDeclaration) {
                     elements
@@ -114,7 +116,7 @@ class AtomReference(
                 .flatMap { modular ->
                     CallDefinitionClauseMultiResolve.resolveResults(name, reference.arity, incompleteCode, modular)
                 }
-                .filter { visitedResult -> reachable(visitedResult.element, name) }
+                .filter { visitedResult -> reachable(visitedResult, name) }
                 .let { results -> DelegationPrecedence.navigated(results) { it.element } }
                 .map { visitedResult -> PsiElementResolveResult(visitedResult.element, visitedResult.isValidResult) }
                 // A compiled function's arities share one decompiled head: keep the arity called, whichever came first.
@@ -130,13 +132,14 @@ class AtomReference(
 
 
 /**
- * Whether an MFA tuple or `apply/3` naming [name] reaches [element]: a remotely callable function of that name,
+ * Whether an MFA tuple or `apply/3` naming [name] reaches [result]: a function of that name the module reaches remotely,
  * whichever form - source or compiled - defines it.
  */
 @RequiresReadLock
-private fun reachable(element: PsiElement, name: String): Boolean {
+private fun reachable(result: VisitedElementSetResolveResult, name: String): Boolean {
     val state = ResolveState.initial()
-    val declared = CallableDeclaration.declaredOf(element, state) ?: return false
+    val declared = CallableDeclaration.declaredOf(result.element, state) ?: return false
 
-    return declared.capabilities?.remoteCallable == true && declared.definitions(state).any { it.name == name }
+    return Reach.remotelyReaches(result.reach, result.element, runtime = true) &&
+        declared.definitions(state).any { it.name == name }
 }

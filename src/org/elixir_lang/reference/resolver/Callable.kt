@@ -17,6 +17,7 @@ import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.call.qualification.qualifiedToModulars
+import org.elixir_lang.psi.scope.Reach
 import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
 import org.elixir_lang.structure_view.element.Delegation
 
@@ -203,6 +204,8 @@ object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Cal
                     incompleteCode,
                     modular
                 )
+                    // The walk from the module also reaches what a local call inside it could; `Mod.fun` reaches less.
+                    .filter { Reach.remotelyReaches(it.reach, it.element, runtime = false) }
             }
         } else {
             emptyList()

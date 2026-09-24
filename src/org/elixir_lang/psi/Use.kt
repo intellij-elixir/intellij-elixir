@@ -36,7 +36,7 @@ object Use {
 
         // don't descend back into `use` when the entrance is the alias to the `use` like `MyAlias` in `use MyAlias`.
         if (!useCall.isAncestor(resolveState.get(ENTRANCE))) {
-            val useCallResolveState = resolveState.putVisitedElement(useCall).reachedThrough(Reach.USE)
+            val useCallResolveState = resolveState.putVisitedElement(useCall).reachedThrough(Reach.USE, useCall)
 
             outer@ for (modular in modulars(useCall)) {
                 ProgressManager.checkCanceled()

@@ -2,6 +2,7 @@ package org.elixir_lang.psi
 
 import org.elixir_lang.psi.scope.Reach.Companion.reachedThrough
 import org.elixir_lang.psi.scope.Reach
+import org.elixir_lang.psi.scope.WhileIn.whileIn
 import com.intellij.openapi.util.Key
 import com.intellij.psi.ElementDescriptionLocation
 import com.intellij.psi.PsiElement
@@ -11,6 +12,7 @@ import com.intellij.psi.util.isAncestor
 import com.intellij.usageView.UsageViewNodeTextLocation
 import com.intellij.usageView.UsageViewTypeLocation
 import com.intellij.util.Function
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Arity
 import org.elixir_lang.Name
 import org.elixir_lang.NameArityInterval
@@ -40,6 +42,7 @@ object Import {
         private val only: Map<Name, Set<Arity>>?,
         private val selector: Selector?,
         private val except: Map<Name, Set<Arity>>,
+        private val underscored: Boolean = false,
     ) {
         private enum class Selector { FUNCTIONS, MACROS, SIGILS }
 
@@ -57,7 +60,7 @@ object Import {
             }
 
         private fun admitsName(name: Name, compileTime: Boolean?): Boolean =
-            !name.startsWith("_") &&
+            (underscored || !name.startsWith("_")) &&
                 when (selector) {
                     null -> true
                     Selector.FUNCTIONS -> compileTime != true
@@ -67,6 +70,9 @@ object Import {
 
         companion object {
             private val EVERYTHING = Filter(null, null, emptyMap())
+
+            /** What the implicit `import Kernel` and `import Kernel.SpecialForms` bring in: the special forms named `__x__` too. */
+            val IMPLICIT = Filter(null, null, emptyMap(), underscored = true)
 
             /** The filter [importCall]'s options make. */
             fun of(importCall: Call): Filter =
@@ -151,7 +157,7 @@ object Import {
 
             if (modulars.isNotEmpty()) {
                 val filter = Filter.of(importCall)
-                val importCallResolveState = resolveState.putVisitedElement(importCall).put(FILTER, filter).reachedThrough(Reach.IMPORT)
+                val importCallResolveState = resolveState.putVisitedElement(importCall).put(FILTER, filter).reachedThrough(Reach.IMPORT, importCall)
 
                 for (modular in modulars) {
                     val childResolveState = importCallResolveState.putVisitedElement(modular)
@@ -202,12 +208,9 @@ object Import {
         resolveState: ResolveState,
         keepProcessing: (PsiElement, ResolveState) -> Boolean
     ): Boolean =
-        importedModular
-            .callDefinitions()
-            .map { treeWalkUpImportedModularChildExpression(filter, it, resolveState, keepProcessing) }
-            .takeWhile { it }
-            .lastOrNull()
-            ?: true
+        whileIn(importedModular.callDefinitions()) {
+            treeWalkUpImportedModularChildExpression(filter, it, resolveState, keepProcessing)
+        }
 
     private fun treeWalkUpImportedModularChildExpression(
         filter: Filter,
@@ -215,19 +218,13 @@ object Import {
         resolveState: ResolveState,
         keepProcessing: (Call, ResolveState) -> Boolean
     ): Boolean {
-        val form = CallableDeclaration.formOf(importedCall, resolveState) ?: return true
-        val declared = CallableDeclaration.Declared.Source(importedCall, form)
+        val declared = CallableDeclaration.declaredOf(importedCall, resolveState) as? CallableDeclaration.Declared.Source
+            ?: return true
 
-        val capabilities = declared.capabilities
-
-        // `import` brings in only what another module may call.
-        return if (capabilities?.public == true &&
-            declared.definitions(resolveState).any {
-                filter.admits(it.name, it.nameArityInterval().arityInterval, capabilities.compileTime)
-            }) {
+        return if (bringsIn(declared, filter, resolveState)) {
             keepProcessing(
                 importedCall,
-                resolveState.put(CallableDeclaration.CLASSIFIED, CallableDeclaration.Classified(importedCall, form))
+                resolveState.put(CallableDeclaration.CLASSIFIED, CallableDeclaration.Classified(importedCall, declared.form))
             )
         } else {
             true
@@ -239,16 +236,29 @@ object Import {
         importedCall: BeamCallDefinition,
         resolveState: ResolveState,
         keepProcessing: (PsiElement, ResolveState) -> Boolean
-    ): Boolean {
-        val capabilities = CallableDeclaration.capabilitiesOf(importedCall, resolveState)
-        val nameArityInterval = importedCall.nameArityInterval
-
-        return if (capabilities?.public == true &&
-            filter.admits(nameArityInterval.name, nameArityInterval.arityInterval, capabilities.compileTime)) {
+    ): Boolean =
+        if (bringsIn(CallableDeclaration.Declared.Compiled(importedCall), filter, resolveState)) {
             keepProcessing(importedCall, resolveState)
         } else {
             true
         }
+
+    /** What the implicit `import` of [modular] - `Kernel` or `Kernel.SpecialForms` - brings in, as an `import` does. */
+    @RequiresReadLock
+    fun treeWalkUpImplicitly(
+        modular: PsiElement,
+        resolveState: ResolveState,
+        keepProcessing: (PsiElement, ResolveState) -> Boolean
+    ): Boolean = treeWalkUpImportedModular(modular, Filter.IMPLICIT, resolveState, keepProcessing)
+
+    /** Whether an `import` with [filter] brings in [declared]: what another module may call, and [filter] admits. */
+    private fun bringsIn(declared: CallableDeclaration.Declared, filter: Filter, state: ResolveState): Boolean {
+        val capabilities = declared.capabilities ?: return false
+
+        return capabilities.public &&
+            declared.definitions(state).any {
+                filter.admits(it.name, it.nameArityInterval().arityInterval, capabilities.compileTime)
+            }
     }
 
     fun elementDescription(call: Call, location: ElementDescriptionLocation): String? =
