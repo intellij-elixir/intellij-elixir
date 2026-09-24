@@ -81,7 +81,8 @@ fun complaintOf(description: String): String =
     when {
         // Alone, or followed by the suggestions: `Does not resolve to anything. Did you mean: snoc/2, snoc/3?`
         description.startsWith("Does not resolve to anything") -> Complaint.UNRESOLVED.name
-        description == "Only resolves to invalid results" -> Complaint.ARITY_MISMATCH.name
+        // Alone, or followed by the arities: `Only resolves to invalid results; defined as snoc/2`
+        description.startsWith("Only resolves to invalid results") -> Complaint.ARITY_MISMATCH.name
         // `Will not compile: snoc is not defined for 1 argument; defined as snoc/2`
         description.startsWith("Will not compile: ") && "; defined as " in description -> Complaint.ARITY_MISMATCH.name
         description.startsWith("Module '") -> Complaint.UNRESOLVED_MODULE.name
