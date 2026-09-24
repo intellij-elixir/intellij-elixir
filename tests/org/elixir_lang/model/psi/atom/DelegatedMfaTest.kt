@@ -10,8 +10,8 @@ import org.elixir_lang.psi.ElixirAtom
 
 /**
  * A `defdelegate` reached as a Symbol keeps the rules a call already follows: an `apply/3` reaches what it delegates
- * to, and the delegation only when that is all there is; an MFA names one arity; and the `defdelegate` head is its
- * declaration, never a usage of itself.
+ * to first, then the delegation; an MFA names one arity; and the `defdelegate` head is its declaration, never a usage
+ * of itself.
  */
 class DelegatedMfaTest : PlatformTestCase() {
     private val source = """
@@ -53,12 +53,68 @@ class DelegatedMfaTest : PlatformTestCase() {
 
         assertEquals(
             """
-            :snoc -> [def snoc(q, x), do: {q, x}] [2]
+            :snoc -> [def snoc(q, x), do: {q, x}, defdelegate snoc(q, x), to: Target] [2]
             :lost -> [defdelegate lost(q, x), to: Missing] [2]
             :spread -> [def spread(a, b \\ nil, c \\ nil), do: {a, b, c}] [2]
             """.trimIndent(),
             actual
         )
+    }
+
+    /** A delegation at another arity does not hide the definition at the arity an MFA names. */
+    fun testAnApplyReachesTheDefinitionBesideADelegationAtAnotherArity() {
+        myFixture.configureByText(
+            "other_arity.ex",
+            """
+            defmodule Target do
+              def snoc(q), do: q
+            end
+
+            defmodule OtherArity do
+              defdelegate snoc(q), to: Target
+              def snoc(q, x), do: {q, x}
+            end
+
+            defmodule Caller do
+              def applies(a, b), do: apply(OtherArity, :snoc, [a, b])
+            end
+            """.trimIndent()
+        )
+
+        val caller = myFixture.file.text.indexOf("defmodule Caller")
+        val atom = PsiTreeUtil.findChildrenOfType(myFixture.file, ElixirAtom::class.java).single { it.textOffset > caller }
+        val symbols = (atom.reference as PsiSymbolReference).resolveReference()
+            .filterIsInstance<AtomSymbol>()
+            .map { "${it.name}/${it.arity}" }
+
+        assertEquals(listOf("snoc/2"), symbols)
+    }
+
+    /** Renaming the definition renames the MFA atom naming it, beside a delegation at another arity it leaves alone. */
+    fun testRenamingTheDefinitionBesideADelegationAtAnotherArityRenamesTheAtom() {
+        myFixture.configureByText(
+            "other_arity_rename.ex",
+            """
+            defmodule Target do
+              def snoc(q), do: q
+            end
+
+            defmodule OtherArity do
+              defdelegate snoc(q), to: Target
+              def sn<caret>oc(q, x), do: {q, x}
+            end
+
+            defmodule Caller do
+              def applies(a, b), do: apply(OtherArity, :snoc, [a, b])
+            end
+            """.trimIndent()
+        )
+
+        myFixture.renameTargetAtCaret("renamed")
+
+        val text = myFixture.editor.document.text
+        assertTrue(text, "apply(OtherArity, :renamed, [a, b])" in text)
+        assertTrue(text, "defdelegate snoc(q), to: Target\n" in text)
     }
 
     fun testADelegationIsNotAUsageOfItself() {

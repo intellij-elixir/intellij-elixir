@@ -2,14 +2,12 @@ package org.elixir_lang.reference.resolver
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.util.RecursionManager
-import com.intellij.psi.PsiCompiledElement
 import com.intellij.psi.PsiElementResolveResult
 import com.intellij.psi.ResolveResult
 import com.intellij.psi.impl.source.resolve.ResolveCache
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
-import com.intellij.psi.util.PsiUtilCore
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Arity
 import org.elixir_lang.errorreport.Logger
@@ -77,7 +75,7 @@ object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Cal
                 listOf(terminalResolveResult) + pathResolveResultList
             }
             // deduplicate shared `defdelegate`, `import`, or `use`
-            .groupBy { resolveResultKey(it) }
+            .groupBy(org.elixir_lang.reference.Resolver::declarationKey)
             .map { (_, resolveResults) ->
                 resolveResults.maxByOrNull { if (it.isValidResult) 1 else 0 } ?: resolveResults.first()
             }
@@ -99,20 +97,6 @@ object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Cal
         }
 
         return deduplicated
-    }
-
-    // A compiled element's navigationElement is its mirror, and building that decompiles the whole module.
-    private fun resolveResultKey(resolveResult: PsiElementResolveResult): Any {
-        if (resolveResult.element is PsiCompiledElement) return resolveResult.element
-
-        val element = resolveResult.element.navigationElement
-        val filePath = element.containingFile?.virtualFile?.path ?: ""
-        val range = element.textRange
-        val startOffset = range?.startOffset ?: -1
-        val endOffset = range?.endOffset ?: -1
-        val elementType = PsiUtilCore.getElementType(element)?.toString() ?: ""
-
-        return "$filePath#$startOffset:$endOffset:$elementType"
     }
 
     private fun resolveAll(element: Call, resolvedPrimaryArity: Arity, incompleteCode: Boolean) =

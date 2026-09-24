@@ -29,12 +29,12 @@ class AtomSymbol private constructor(
     override val range: TextRange,
     val moduleName: String,
     val name: String,
-    val arity: Int,
+    override val arity: Int,
     val macro: Boolean,
     private val displayText: String? = null,
-    /** Reached from a use of a `defdelegate`, so Go To follows its `to:`; not part of its identity. */
+    /** Go To follows the `defdelegate`'s `to:` from it, as [followingDelegation] marks; not part of its identity. */
     val followsDelegation: Boolean = false
-) : ElixirSymbolWithUsages, NavigationTarget, SearchTarget {
+) : ElixirSymbolWithUsages, NavigationTarget, SearchTarget, org.elixir_lang.psi.DelegationSymbol<AtomSymbol> {
     override val searchText: String get() = name
     override val targetName: String get() = name
 
@@ -60,8 +60,7 @@ class AtomSymbol private constructor(
             NavigationRequest.sourceNavigationRequest(file, range)
         }
 
-    /** This symbol as a use reaches it: a `defdelegate`'s Go To follows its `to:`. */
-    fun reachedFromAUse(): AtomSymbol = AtomSymbol(file, range, moduleName, name, arity, macro, displayText, true)
+    override fun followingDelegation(): AtomSymbol = AtomSymbol(file, range, moduleName, name, arity, macro, displayText, true)
 
     override val maximalSearchScope: SearchScope? get() = null
 

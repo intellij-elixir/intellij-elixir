@@ -45,13 +45,13 @@ class FunctionSymbol private constructor(
     override val range: TextRange,
     val moduleName: String,
     val name: String,
-    val arity: Int,
+    override val arity: Int,
     val macro: Boolean,
-    /** Reached from a use of a `defdelegate`, so Go To follows its `to:`; not part of its identity. */
+    /** Go To follows the `defdelegate`'s `to:` from it, as [followingDelegation] marks; not part of its identity. */
     val followsDelegation: Boolean = false,
     /** Reached from a call at an arity nothing declares, which does not compile; not part of its identity. */
     val rejectedCall: Boolean = false
-) : ElixirSymbolWithUsages, NavigationTarget, SearchTarget {
+) : ElixirSymbolWithUsages, NavigationTarget, SearchTarget, org.elixir_lang.psi.DelegationSymbol<FunctionSymbol> {
 
     override val searchText: String get() = name
     override val targetName: String get() = name
@@ -76,8 +76,7 @@ class FunctionSymbol private constructor(
         (if (followsDelegation) delegatedTo().firstOrNull()?.navigationRequest() else null)
             ?: NavigationRequest.sourceNavigationRequest(file, range)
 
-    /** This symbol as a use reaches it: a `defdelegate`'s Go To follows its `to:`. */
-    fun reachedFromAUse(): FunctionSymbol = FunctionSymbol(file, range, moduleName, name, arity, macro, true)
+    override fun followingDelegation(): FunctionSymbol = FunctionSymbol(file, range, moduleName, name, arity, macro, true)
 
     /** This symbol as a call that does not compile offers it: to search for and label, not to rename. */
     fun offeredToARejectedCall(): FunctionSymbol = FunctionSymbol(file, range, moduleName, name, arity, macro, false, true)

@@ -750,17 +750,14 @@ internal object ElixirUsageQueries {
             if (call.isCalling(symbol.moduleName, symbol.name, symbol.arity)) return ElixirPsiUsage.Purpose.ALL
 
             val resolved = Callable(call).multiResolve(false).filter { it.isValidResult }.mapNotNull { it.element as? Call }
-            // A call of a `defdelegate` names the delegation, though the scope walk also follows its `to:`: it is a use of
-            // what the delegation delegates to that a rename of that leaves alone.
-            val delegations = resolved
-                .filter { CallableDeclaration.isForm(it, CallableDeclaration.Form.DELEGATION) }
-                .flatMap { FunctionSymbol.fromDelegation(it) }
+            val named = DelegationPrecedence.named<FunctionSymbol>(resolved, symbol.arity, FunctionSymbol::fromDelegation) {
+                resolved.flatMap { FunctionSymbol.fromDeclaration(it) }
+            }
 
+            // A call is a use of what the delegation it names delegates to, which a rename of that leaves alone.
             return when {
-                delegations.isEmpty() ->
-                    ElixirPsiUsage.Purpose.ALL.takeIf { resolved.flatMap { FunctionSymbol.fromDeclaration(it) }.any { it == symbol } }
-                delegations.any { it == symbol } -> ElixirPsiUsage.Purpose.ALL
-                delegations.any { symbol in it.delegatedTo() } -> ElixirPsiUsage.Purpose.FIND
+                symbol in named -> ElixirPsiUsage.Purpose.ALL
+                named.any { it.followsDelegation && symbol in it.delegatedTo() } -> ElixirPsiUsage.Purpose.FIND
                 else -> null
             }
         }

@@ -257,16 +257,12 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
      * documentation shows. Otherwise prefer source clauses, falling back to BEAM stubs.
      */
     private fun bestDocumented(elements: List<PsiElement>): PsiElement? =
-        elements
-            .filterIsInstance<Call>()
-            .firstOrNull {
-                CallableDeclaration.isForm(it, CallableDeclaration.Form.DELEGATION) &&
-                    SourceFileDocsHelper.fetchDocs(it) != null
-            }
-            ?: elements.filterIsInstance<Call>().firstOrNull {
-                CallableDeclaration.isForm(it, CallableDeclaration.Form.CLAUSE)
-            }
-            ?: elements.filterIsInstance<BeamCallDefinition>().firstOrNull()
+        DelegationPrecedence.documented(
+            elements,
+            { SourceFileDocsHelper.fetchDocs(it) != null },
+            elements.filterIsInstance<Call>().filter { CallableDeclaration.isForm(it, CallableDeclaration.Form.CLAUSE) } +
+                elements.filterIsInstance<BeamCallDefinition>()
+        )
 
     private tailrec fun getCustomDocumentationElement(contextElement: PsiElement): PsiElement? = when {
         contextElement is LeafPsiElement || contextElement is ElixirIdentifier || contextElement is ElixirRelativeIdentifier ->
