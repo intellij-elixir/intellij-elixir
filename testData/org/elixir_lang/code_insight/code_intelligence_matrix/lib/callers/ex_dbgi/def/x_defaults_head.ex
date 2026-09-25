@@ -13,4 +13,7 @@ defmodule Callers.ExDbgi.Def.XDefaultsHead do
   def at_apply(a, b), do: apply(ExDbgi.Def.XDefaultsHead, :ex_dbgi_def_x_defaults_head_snoc, [a, b]) # @apply
   def at_no_arguments(_a, _b), do: ExDbgi.Def.XDefaultsHead.ex_dbgi_def_x_defaults_head_snoc # @no_arguments
   def at_arity_1(a, _b), do: ExDbgi.Def.XDefaultsHead.ex_dbgi_def_x_defaults_head_snoc(a) # @arity_1
+  def at_capture_1(a, b), do: {&ExDbgi.Def.XDefaultsHead.ex_dbgi_def_x_defaults_head_snoc/1, a, b} # @capture_1
+  def at_apply_1(a, _b), do: apply(ExDbgi.Def.XDefaultsHead, :ex_dbgi_def_x_defaults_head_snoc, [a]) # @apply_1
+  def at_mfa_1(a, b), do: {{ExDbgi.Def.XDefaultsHead, :ex_dbgi_def_x_defaults_head_snoc, 1}, a, b} # @mfa_1
 end

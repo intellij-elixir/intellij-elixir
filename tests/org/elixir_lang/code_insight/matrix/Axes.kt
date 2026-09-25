@@ -107,7 +107,10 @@ fun namedArities(description: String): List<String> =
     NAME_ARITY.findAll(description).map { nfc(it.value) }.distinct().sorted().toList()
 
 /** The sites whose text is a call a user could be typing; a capture, `apply`'s atom and a non-call are not. */
-private val NOT_TYPED_CALLS = setOf("capture", "apply", "apply_quoted", "variable", "atom", "keyword")
+private val NOT_TYPED_CALLS = setOf("capture", "apply", "apply_quoted", "variable", "atom", "keyword", "capture_1", "apply_1", "mfa_1")
+
+/** The sites that name the function with an atom: `apply`'s argument and an MFA tuple's middle element. */
+private val ATOM_NAMED = setOf("apply", "apply_quoted", "apply_1", "mfa_1")
 
 /** The site written without an argument list, which is a different shape in the parser. */
 const val NO_ARGUMENTS = "no_arguments"
@@ -197,8 +200,8 @@ object Crossing {
                 Applicability.NotApplicable("no module declares that name, so there is nothing completion could insert; that it offers nothing is asked by completionOffered")
             feature == Feature.COMPLETION_INSERTED && place is Place.Marked && importsNothing(scenario, place) ->
                 Applicability.NotApplicable("the caller's directives bring no function in, so there is nothing completion could insert; that it offers nothing is asked by completionOffered")
-            feature == Feature.HIGHLIGHTING && place.id in setOf("apply", "apply_quoted") ->
-                Applicability.NotApplicable("`apply`'s argument is highlighted as an atom")
+            feature == Feature.HIGHLIGHTING && place.id in ATOM_NAMED ->
+                Applicability.NotApplicable("a function named by an atom is highlighted as an atom")
             (feature == Feature.STRUCTURE_VIEW || feature == Feature.BREADCRUMBS) && place !is Place.Head ->
                 Applicability.NotApplicable("structure view and breadcrumbs describe declarations")
             feature == Feature.STRUCTURE_VIEW && place is Place.Head && place.clause > 0 ->
