@@ -30,10 +30,7 @@ class GeneralAtomReference(atom: ElixirAtom) :
             .resolveWithCaching(this, Resolver, false, incompleteCode)
     }
 
-    override fun resolve(): PsiElement? =
-        ReferenceResolver.preferred(myElement, false, multiResolve(false).toList())
-            .firstOrNull()
-            ?.element
+    override fun resolve(): PsiElement? = ReferenceResolver.resolved(myElement, multiResolve(false).toList())
 
     private object Resolver : ResolveCache.PolyVariantResolver<GeneralAtomReference> {
         override fun resolve(reference: GeneralAtomReference, incompleteCode: Boolean): Array<ResolveResult> =

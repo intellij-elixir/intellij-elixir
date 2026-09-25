@@ -150,6 +150,15 @@ class DelegatedApplyQuickDocumentationTest : QuickDocumentationTestCase() {
         assertEquals(listOf("1", "2"), links)
     }
 
+    /** A name that only starts a delegation's names nothing, so it documents nothing. */
+    fun testQuickDocAtAPrefixOfADelegationsNameShowsNothing() {
+        myFixture.addFileToProject("prefix_target.ex", "defmodule Prefix.Target do\n  def snoc(q, x), do: {q, x}\nend\n")
+        myFixture.addFileToProject("prefix_delegator.ex", "defmodule Prefix do\n  defdelegate snoc(q, x), to: Prefix.Target\nend\n")
+        myFixture.configureByText("prefix_caller.ex", "defmodule PrefixCaller do\n  def calls(a), do: Prefix.sn<caret>o(a, a)\nend\n")
+
+        assertNull(quickDocumentationAtCaret())
+    }
+
     /** An atom naming a module, not a function, still documents the module. */
     fun testQuickDocAtAModuleAtomDocumentsTheModule() {
         myFixture.addFileToProject(

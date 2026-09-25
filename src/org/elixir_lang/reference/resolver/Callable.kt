@@ -19,7 +19,6 @@ import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.call.qualification.qualifiedToModulars
 import org.elixir_lang.psi.scope.Reach
 import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
-import org.elixir_lang.structure_view.element.Delegation
 
 object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Callable> {
     override fun resolve(callable: org.elixir_lang.reference.Callable, incompleteCode: Boolean): Array<ResolveResult> {
@@ -55,31 +54,13 @@ object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Cal
             )
         }
 
+    /**
+     * The declarations reached, once each. The `import`, `use` or `defdelegate` a declaration was reached through is how,
+     * not what, a call resolves to; [org.elixir_lang.psi.scope.Reach] records it, and each result keeps it.
+     */
     private fun expand(visitedElementSetResolveResultList: List<VisitedElementSetResolveResult>): List<PsiElementResolveResult> =
-        visitedElementSetResolveResultList
-            .flatMap { visitedElementSetResolveResult ->
-                val visitedElementSet = visitedElementSetResolveResult.visitedElementSet
-                val validResult = visitedElementSetResolveResult.isValidResult
-
-                val pathResolveResultList =
-                    visitedElementSet
-                        .filter { visitedElement ->
-                            visitedElement.let { it as? Call }?.let { visitedCall ->
-                                Delegation.`is`(visitedCall) || Import.`is`(visitedCall) || Use.`is`(visitedCall)
-                            } ?: false
-                        }
-                        .map { PsiElementResolveResult(it, validResult) }
-
-                // Kept whole, so its `Reach` stays readable.
-                val terminalResolveResult: PsiElementResolveResult = visitedElementSetResolveResult
-
-                listOf(terminalResolveResult) + pathResolveResultList
-            }
-            // deduplicate shared `defdelegate`, `import`, or `use`
-            .groupBy { resolveResultKey(it) }
-            .map { (_, resolveResults) ->
-                resolveResults.maxByOrNull { if (it.isValidResult) 1 else 0 } ?: resolveResults.first()
-            }
+        org.elixir_lang.reference.Resolver
+            .onePerKeyPreferringValid(visitedElementSetResolveResultList) { resolveResultKey(it) }
             .let(::deduplicateEquivalentResults)
 
     private fun deduplicateEquivalentResults(resolveResults: List<PsiElementResolveResult>): List<PsiElementResolveResult> {

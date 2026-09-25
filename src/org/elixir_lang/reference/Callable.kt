@@ -116,7 +116,7 @@ class Callable : PsiReferenceBase<Call>, PsiPolyVariantReference {
      *
      * @return the target element, or null if it was not possible to resolve the reference to a valid target.
      */
-    override fun resolve(): PsiElement? = multiResolve(false).singleOrNull()?.element
+    override fun resolve(): PsiElement? = Resolver.resolved(myElement, multiResolve(false).toList())
 
     /*
      * Protected Instance Methods

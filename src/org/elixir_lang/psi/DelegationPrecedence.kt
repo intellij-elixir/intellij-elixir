@@ -20,8 +20,8 @@ interface DelegationSymbol<out S> {
 
 /**
  * Which of a `defdelegate` and what it delegates to a use means, where resolution reaches both. A use names the
- * delegation, which rename and Find Usages act on, and Go To follows it to what it delegates to; navigation lands on
- * what it delegates to first; quick documentation documents the delegation.
+ * delegation, which rename, Find Usages and `resolve()` act on, and Go To follows it to what it delegates to; navigation
+ * lands on what it delegates to first; quick documentation documents the delegation.
  */
 object DelegationPrecedence {
     @RequiresReadLock
@@ -51,6 +51,11 @@ object DelegationPrecedence {
     @RequiresReadLock
     fun <T> navigated(reached: List<T>, element: (T) -> PsiElement?): List<T> =
         reached.partition { isDelegation(element(it)) }.let { (delegations, others) -> others + delegations }
+
+    /** [reached] in the order a use names them, as `resolve()` answers: the delegations, then what they delegate to. */
+    @RequiresReadLock
+    fun <T> namedFirst(reached: List<T>, element: (T) -> PsiElement?): List<T> =
+        reached.partition { isDelegation(element(it)) }.let { (delegations, others) -> delegations + others }
 
     /** Whether [narrowed] can stand in for what was reached: a list of delegations alone names no definition. */
     @RequiresReadLock

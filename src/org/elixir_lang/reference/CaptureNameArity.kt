@@ -18,7 +18,7 @@ import org.elixir_lang.psi.operation.capture.NonNumeric
 import org.elixir_lang.psi.qualification.Qualified
 import org.elixir_lang.psi.qualification.Unqualified
 import org.elixir_lang.psi.scope.call_definition_clause.Variants
-import org.elixir_lang.reference.resolver.CaptureNameArity as Resolver
+import org.elixir_lang.reference.resolver.CaptureNameArity as CaptureNameArityResolver
 
 typealias Arity = Int
 
@@ -83,7 +83,7 @@ class CaptureNameArity(element: NonNumeric, val nameElement: Call, val arity: Ar
     override fun multiResolve(incompleteCode: Boolean): Array<ResolveResult> =
        resolveWithCaching(myElement.project, this, incompleteCode)
 
-    override fun resolve(): PsiElement? = multiResolve(false).singleOrNull()?.element
+    override fun resolve(): PsiElement? = Resolver.resolved(myElement, multiResolve(false).toList())
 
     private fun resolveWithCaching(
             project: Project,
@@ -93,6 +93,6 @@ class CaptureNameArity(element: NonNumeric, val nameElement: Call, val arity: Ar
         ApplicationManager.getApplication().assertReadAccessAllowed()
         return ResolveCache
             .getInstance(project)
-            .resolveWithCaching(captureNameArity, Resolver, false, incompleteCode)
+            .resolveWithCaching(captureNameArity, CaptureNameArityResolver, false, incompleteCode)
     }
 }

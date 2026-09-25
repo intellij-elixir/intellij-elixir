@@ -51,7 +51,7 @@ class Module(qualifiableAlias: QualifiableAlias) :
             )
     }
 
-    override fun resolve(): PsiElement? = multiResolve(false).singleOrNull()?.element
+    override fun resolve(): PsiElement? = Resolver.resolved(myElement, multiResolve(false).toList())
 }
 
 private fun textRange(qualifiableAlias: QualifiableAlias): TextRange = when (qualifiableAlias) {

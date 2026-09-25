@@ -482,6 +482,38 @@ class RejectedCallTest : PlatformTestCase() {
         assertFalse(validAt("sno(a, a)", incompleteCode = true))
     }
 
+    /** A lone invalid candidate explains why a use does not compile; it is not what the use resolves to. */
+    fun testResolveIsNothingWhenNoResultIsValid() {
+        val uses = listOf(
+            "a call" to source.replace("Delegator.snoc(a)", "Delegator.sno(a, a)"),
+            "a @spec" to source.replace("  def snoc(q, x), do: {q, x}\n", "  @spec sno(term, term) :: term\n  def snoc(q, x), do: {q, x}\n")
+        )
+
+        for ((use, text) in uses) {
+            myFixture.configureByText("resolve_prefix.ex", text)
+            val reference = referenceAt(text.indexOf("sno("))
+
+            assertTrue("$use: expected an invalid candidate", reference.multiResolve(false).isNotEmpty())
+            assertNull(use, reference.resolve())
+        }
+    }
+
+    /** A call and an MFA tuple naming a delegation resolve alike: to the delegation they name, not where Go To lands. */
+    fun testACallAndAnMfaNamingADelegationResolveToIt() {
+        val text = source.replace("Delegator.snoc(a)", "{Delegator.snoc(a, a), {Delegator, :snoc, 2}}")
+        myFixture.configureByText("resolve_alike.ex", text)
+
+        assertEquals(
+            listOf("defdelegate snoc(q, x), to: Target", "defdelegate snoc(q, x), to: Target"),
+            listOf(":snoc", "snoc(a, a)").map { referenceAt(text.indexOf(it)).resolve()?.text }
+        )
+    }
+
+    private fun referenceAt(offset: Int): com.intellij.psi.PsiPolyVariantReference =
+        generateSequence(myFixture.file.findElementAt(offset)) { it.parent }
+            .mapNotNull { it.reference as? com.intellij.psi.PsiPolyVariantReference }
+            .first()
+
     private fun validAt(fragment: String, incompleteCode: Boolean): Boolean {
         val offset = myFixture.file.text.indexOf(fragment)
         assertTrue("`$fragment` not found", offset >= 0)

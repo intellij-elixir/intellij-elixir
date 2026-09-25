@@ -27,6 +27,17 @@ object Resolver {
     }
 
     /**
+     * What a reference at [element] resolves to: the first [preferred] valid result, or nothing. [preferred] keeps invalid
+     * results when none is valid, as candidates that explain why a use does not compile; a candidate is not a target.
+     * Where several are valid, a delegation the use names comes before what it delegates to.
+     */
+    fun <T : ResolveResult> resolved(element: PsiElement, resolveResultList: List<T>): PsiElement? =
+        DelegationPrecedence
+            .namedFirst(preferred(element, false, resolveResultList.filter(ResolveResult::isValidResult)), ResolveResult::getElement)
+            .firstOrNull()
+            ?.element
+
+    /**
      * Applies the same source-over-decompiled and same-module preference logic as [preferred],
      * but operates on a raw list of [PsiElement]s rather than [ResolveResult]s.
      */

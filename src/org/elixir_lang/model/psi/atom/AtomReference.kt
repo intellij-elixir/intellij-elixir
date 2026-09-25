@@ -55,10 +55,7 @@ class AtomReference(
             .resolveWithCaching(this, Resolver, false, incompleteCode)
     }
 
-    override fun resolve(): PsiElement? =
-        ReferenceResolver.preferred(myElement, false, multiResolve(false).toList())
-            .firstOrNull()
-            ?.element
+    override fun resolve(): PsiElement? = ReferenceResolver.resolved(myElement, multiResolve(false).toList())
 
     override fun isSoft(): Boolean = true
 

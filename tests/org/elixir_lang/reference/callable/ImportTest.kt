@@ -22,7 +22,7 @@ class ImportTest : PlatformTestCase() {
         val polyVariantReference = reference as PsiPolyVariantReference?
 
         val resolveResults = polyVariantReference!!.multiResolve(false)
-        assertEquals(2, resolveResults.size)
+        assertEquals(1, resolveResults.size)
 
         val firstResolveResult = resolveResults[0]
         assertTrue(firstResolveResult.isValidResult)
@@ -30,11 +30,6 @@ class ImportTest : PlatformTestCase() {
         assertEquals("""def imported() do
     imported(1)
   end""", firstResolved!!.text)
-
-        val secondResolveResult = resolveResults[1]
-        assertTrue(secondResolveResult.isValidResult)
-        val secondResolved = secondResolveResult.element
-        assertEquals("import Imported", secondResolved!!.text)
     }
 
     fun testImportModuleExceptNameArity() {
@@ -55,7 +50,7 @@ class ImportTest : PlatformTestCase() {
         val polyVariantReference = reference as PsiPolyVariantReference?
 
         val resolveResults = polyVariantReference!!.multiResolve(false)
-        assertEquals(2, resolveResults.size)
+        assertEquals(1, resolveResults.size)
 
         val firstResolveResult = resolveResults[0]
         assertTrue(firstResolveResult.isValidResult)
@@ -63,11 +58,6 @@ class ImportTest : PlatformTestCase() {
         assertEquals("""def imported() do
     imported(1)
   end""", firstResolved!!.text)
-
-        val secondResolveResult = resolveResults[1]
-        assertTrue(secondResolveResult.isValidResult)
-        val secondResolved = secondResolveResult.element
-        assertEquals("import Imported, except: [unimported: 0]", secondResolved!!.text)
     }
 
     fun testImportModuleOnlyNameArity() {
@@ -88,7 +78,7 @@ class ImportTest : PlatformTestCase() {
         val polyVariantReference = reference as PsiPolyVariantReference?
 
         val resolveResults = polyVariantReference!!.multiResolve(false)
-        assertEquals(2, resolveResults.size)
+        assertEquals(1, resolveResults.size)
     }
 
     override fun getTestDataPath(): String = "testData/org/elixir_lang/reference/callable/import"
