@@ -50,6 +50,7 @@ enum class Feature(val testName: String, val edits: Boolean = false) {
     COMPLETION_OFFERED("completionOffered", edits = true),
     COMPLETION_INSERTED("completionInserted", edits = true),
     RENAME("rename", edits = true),
+    INCOMPLETE_RESOLUTION("incompleteResolution"),
 }
 
 /**
@@ -178,6 +179,8 @@ object Crossing {
         val backing = Backing.of(scenario)
 
         return when {
+            feature == Feature.INCOMPLETE_RESOLUTION && !(place is Place.Marked && rejectedByName(scenario, place)) ->
+                Applicability.NotApplicable("asked only where the compiler rejected the name itself, which no amount of typing makes valid")
             place is Place.Marked && privateUse(place.id) ->
                 Applicability.NotApplicable("a call made only to keep an arity used; it is a use to find and rename, but asks nothing `local` does not")
             scenario.world == LOOKALIKE_ABSENT && !rejected(scenario, place) ->
@@ -246,6 +249,13 @@ object Crossing {
     /** A call the compiler rejected, which is where it says what it thinks was meant. */
     private fun rejected(scenario: Scenario, place: Place): Boolean =
         place is Place.Marked && scenario.sites.firstOrNull { it.id == place.id }?.diagnostic != null
+
+    /**
+     * A call the compiler rejected for its name rather than its arity: a name nothing declares, or one the call cannot
+     * see at any arity - private from outside, or not brought in by the caller's directives.
+     */
+    private fun rejectedByName(scenario: Scenario, place: Place.Marked): Boolean =
+        rejected(scenario, place) && (undeclared(scenario, place) || importsNothing(scenario, place))
 
     /** A bare call under directives that bring nothing of the declaring module in: a `require`, or a transitive import. */
     private fun importsNothing(scenario: Scenario, place: Place.Marked): Boolean =
