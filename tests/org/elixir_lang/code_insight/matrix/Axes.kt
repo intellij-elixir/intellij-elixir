@@ -51,6 +51,7 @@ enum class Feature(val testName: String, val edits: Boolean = false) {
     COMPLETION_INSERTED("completionInserted", edits = true),
     RENAME("rename", edits = true),
     INCOMPLETE_RESOLUTION("incompleteResolution"),
+    GO_TO_RELATED("goToRelated"),
 }
 
 /**
@@ -179,6 +180,8 @@ object Crossing {
         val backing = Backing.of(scenario)
 
         return when {
+            feature == Feature.GO_TO_RELATED && !(place is Place.Head && backing in setOf(Backing.EX_DBGI, Backing.EX_DOCS, Backing.EX_GEN)) ->
+                Applicability.NotApplicable("Go To Related goes from an Elixir source declaration to its compiled module's decompiled definition, so it asks only where both exist")
             feature == Feature.INCOMPLETE_RESOLUTION && !(place is Place.Marked && rejectedByName(scenario, place)) ->
                 Applicability.NotApplicable("asked only where the compiler rejected the name itself, which no amount of typing makes valid")
             place is Place.Marked && privateUse(place.id) ->
