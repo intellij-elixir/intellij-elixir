@@ -1064,7 +1064,11 @@ defmodule Matrix do
   defp parameter({name, _, context}) when is_atom(name) and is_atom(context), do: to_string(name)
   defp parameter(other), do: Macro.to_string(other)
 
-  # A guard as the scenarios write it: a local call on variables, such as `is_list(q)`.
+  # A guard as the scenarios write it: a local call on variables, such as `is_list(q)`, joined by `or`/`and` infix, as
+  # the source spells them; left-associated, so no parentheses are ever needed.
+  defp guard_string({operator, _, [left, right]}) when operator in [:or, :and],
+    do: "#{guard_string(left)} #{operator} #{guard_string(right)}"
+
   defp guard_string({name, _, arguments}) when is_atom(name) and is_list(arguments),
     do: "#{name}(#{Enum.map_join(arguments, ", ", &guard_string/1)})"
 

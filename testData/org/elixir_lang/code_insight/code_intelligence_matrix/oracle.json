@@ -26094,7 +26094,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_w1_snoc",
               "parameters": [
                 "q",
@@ -26275,7 +26275,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_w2_snoc",
               "parameters": [
                 "q",
@@ -26294,7 +26294,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(or(is_list(q), is_list(x)), is_list(y))",
+              "guard": "is_list(q) or is_list(x) or is_list(y)",
               "name": "src_defguard_w2_snoc",
               "parameters": [
                 "q",
@@ -26742,7 +26742,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_w3_snoc",
               "parameters": [
                 "q",
@@ -26752,7 +26752,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_w3_xsnoc",
               "parameters": [
                 "q",
@@ -26762,7 +26762,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_w3_snoc_x",
               "parameters": [
                 "q",
@@ -26772,7 +26772,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_w3_snoc?",
               "parameters": [
                 "q",
@@ -26782,7 +26782,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_w3_snoc!",
               "parameters": [
                 "q",
@@ -26792,7 +26792,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_w3_snoć",
               "parameters": [
                 "q",
@@ -27106,7 +27106,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_w4_snoc",
               "parameters": [
                 "q",
@@ -27125,7 +27125,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(or(is_list(q), is_list(x)), is_list(y))",
+              "guard": "is_list(q) or is_list(x) or is_list(y)",
               "name": "src_defguard_w4_snoc",
               "parameters": [
                 "q",
@@ -27136,7 +27136,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_w4_xsnoc",
               "parameters": [
                 "q",
@@ -27146,7 +27146,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_w4_snoc_x",
               "parameters": [
                 "q",
@@ -27156,7 +27156,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_w4_snoc?",
               "parameters": [
                 "q",
@@ -27166,7 +27166,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_w4_snoc!",
               "parameters": [
                 "q",
@@ -27176,7 +27176,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_w4_snoć",
               "parameters": [
                 "q",
@@ -27448,7 +27448,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_x_arity_snoc",
               "parameters": [
                 "q",
@@ -27458,7 +27458,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(or(is_list(q), is_list(x)), is_list(y))",
+              "guard": "is_list(q) or is_list(x) or is_list(y)",
               "name": "src_defguard_x_arity_snoc",
               "parameters": [
                 "q",
@@ -27636,7 +27636,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_x_arity_absent_snoc",
               "parameters": [
                 "q",
@@ -27899,7 +27899,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_x_case_snoc",
               "parameters": [
                 "q",
@@ -28045,7 +28045,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_x_cond_snoc",
               "parameters": [
                 "q",
@@ -28191,7 +28191,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_x_conditional_snoc",
               "parameters": [
                 "q",
@@ -28337,7 +28337,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_x_for_snoc",
               "parameters": [
                 "q",
@@ -28556,7 +28556,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_x_lookalike_absent_snoc",
               "parameters": [
                 "q",
@@ -28566,7 +28566,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_x_lookalike_absent_xsnoc",
               "parameters": [
                 "q",
@@ -28576,7 +28576,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_x_lookalike_absent_snoc_x",
               "parameters": [
                 "q",
@@ -28586,7 +28586,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_x_lookalike_absent_snoc?",
               "parameters": [
                 "q",
@@ -28596,7 +28596,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_x_lookalike_absent_snoc!",
               "parameters": [
                 "q",
@@ -28606,7 +28606,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_x_lookalike_absent_snoć",
               "parameters": [
                 "q",
@@ -28876,7 +28876,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_x_nfc_snoć",
               "parameters": [
                 "q",
@@ -29044,7 +29044,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_x_not_a_call_snoc",
               "parameters": [
                 "q",
@@ -29217,7 +29217,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_x_other_module_snoc",
               "parameters": [
                 "q",
@@ -29267,7 +29267,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_x_other_module_snoc",
               "parameters": [
                 "q",
@@ -29417,7 +29417,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_x_try_snoc",
               "parameters": [
                 "q",
@@ -29563,7 +29563,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguard_x_unless_snoc",
               "parameters": [
                 "q",
@@ -29709,7 +29709,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_w1_snoc",
               "parameters": [
                 "q",
@@ -29827,7 +29827,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_w2_snoc",
               "parameters": [
                 "q",
@@ -29846,7 +29846,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(or(is_list(q), is_list(x)), is_list(y))",
+              "guard": "is_list(q) or is_list(x) or is_list(y)",
               "name": "src_defguardp_w2_snoc",
               "parameters": [
                 "q",
@@ -30065,7 +30065,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_w3_snoc",
               "parameters": [
                 "q",
@@ -30075,7 +30075,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_w3_xsnoc",
               "parameters": [
                 "q",
@@ -30085,7 +30085,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_w3_snoc_x",
               "parameters": [
                 "q",
@@ -30095,7 +30095,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_w3_snoc?",
               "parameters": [
                 "q",
@@ -30105,7 +30105,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_w3_snoc!",
               "parameters": [
                 "q",
@@ -30115,7 +30115,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_w3_snoć",
               "parameters": [
                 "q",
@@ -30369,7 +30369,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_w4_snoc",
               "parameters": [
                 "q",
@@ -30388,7 +30388,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(or(is_list(q), is_list(x)), is_list(y))",
+              "guard": "is_list(q) or is_list(x) or is_list(y)",
               "name": "src_defguardp_w4_snoc",
               "parameters": [
                 "q",
@@ -30399,7 +30399,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_w4_xsnoc",
               "parameters": [
                 "q",
@@ -30409,7 +30409,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_w4_snoc_x",
               "parameters": [
                 "q",
@@ -30419,7 +30419,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_w4_snoc?",
               "parameters": [
                 "q",
@@ -30429,7 +30429,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_w4_snoc!",
               "parameters": [
                 "q",
@@ -30439,7 +30439,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_w4_snoć",
               "parameters": [
                 "q",
@@ -30637,7 +30637,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_x_arity_snoc",
               "parameters": [
                 "q",
@@ -30647,7 +30647,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(or(is_list(q), is_list(x)), is_list(y))",
+              "guard": "is_list(q) or is_list(x) or is_list(y)",
               "name": "src_defguardp_x_arity_snoc",
               "parameters": [
                 "q",
@@ -30750,7 +30750,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_x_arity_absent_snoc",
               "parameters": [
                 "q",
@@ -30878,7 +30878,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_x_case_snoc",
               "parameters": [
                 "q",
@@ -30964,7 +30964,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_x_cond_snoc",
               "parameters": [
                 "q",
@@ -31050,7 +31050,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_x_conditional_snoc",
               "parameters": [
                 "q",
@@ -31136,7 +31136,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_x_for_snoc",
               "parameters": [
                 "q",
@@ -31292,7 +31292,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_x_lookalike_absent_snoc",
               "parameters": [
                 "q",
@@ -31302,7 +31302,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_x_lookalike_absent_xsnoc",
               "parameters": [
                 "q",
@@ -31312,7 +31312,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_x_lookalike_absent_snoc_x",
               "parameters": [
                 "q",
@@ -31322,7 +31322,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_x_lookalike_absent_snoc?",
               "parameters": [
                 "q",
@@ -31332,7 +31332,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_x_lookalike_absent_snoc!",
               "parameters": [
                 "q",
@@ -31342,7 +31342,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_x_lookalike_absent_snoć",
               "parameters": [
                 "q",
@@ -31498,7 +31498,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_x_nfc_snoć",
               "parameters": [
                 "q",
@@ -31584,7 +31584,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_x_try_snoc",
               "parameters": [
                 "q",
@@ -31670,7 +31670,7 @@
             {
               "defaults": 0,
               "definer": "defguardp",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "src_defguardp_x_unless_snoc",
               "parameters": [
                 "q",
@@ -67823,7 +67823,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_w1_snoc",
               "parameters": [
                 "q",
@@ -68004,7 +68004,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_w2_snoc",
               "parameters": [
                 "q",
@@ -68023,7 +68023,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(or(is_list(q), is_list(x)), is_list(y))",
+              "guard": "is_list(q) or is_list(x) or is_list(y)",
               "name": "ex_dbgi_defguard_w2_snoc",
               "parameters": [
                 "q",
@@ -68471,7 +68471,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_w3_snoc",
               "parameters": [
                 "q",
@@ -68481,7 +68481,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_w3_xsnoc",
               "parameters": [
                 "q",
@@ -68491,7 +68491,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_w3_snoc_x",
               "parameters": [
                 "q",
@@ -68501,7 +68501,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_w3_snoc?",
               "parameters": [
                 "q",
@@ -68511,7 +68511,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_w3_snoc!",
               "parameters": [
                 "q",
@@ -68521,7 +68521,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_w3_snoć",
               "parameters": [
                 "q",
@@ -68835,7 +68835,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_w4_snoc",
               "parameters": [
                 "q",
@@ -68854,7 +68854,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(or(is_list(q), is_list(x)), is_list(y))",
+              "guard": "is_list(q) or is_list(x) or is_list(y)",
               "name": "ex_dbgi_defguard_w4_snoc",
               "parameters": [
                 "q",
@@ -68865,7 +68865,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_w4_xsnoc",
               "parameters": [
                 "q",
@@ -68875,7 +68875,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_w4_snoc_x",
               "parameters": [
                 "q",
@@ -68885,7 +68885,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_w4_snoc?",
               "parameters": [
                 "q",
@@ -68895,7 +68895,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_w4_snoc!",
               "parameters": [
                 "q",
@@ -68905,7 +68905,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_w4_snoć",
               "parameters": [
                 "q",
@@ -69177,7 +69177,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_x_arity_snoc",
               "parameters": [
                 "q",
@@ -69187,7 +69187,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(or(is_list(q), is_list(x)), is_list(y))",
+              "guard": "is_list(q) or is_list(x) or is_list(y)",
               "name": "ex_dbgi_defguard_x_arity_snoc",
               "parameters": [
                 "q",
@@ -69365,7 +69365,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_x_arity_absent_snoc",
               "parameters": [
                 "q",
@@ -69701,7 +69701,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_x_lookalike_absent_snoc",
               "parameters": [
                 "q",
@@ -69711,7 +69711,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_x_lookalike_absent_xsnoc",
               "parameters": [
                 "q",
@@ -69721,7 +69721,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_x_lookalike_absent_snoc_x",
               "parameters": [
                 "q",
@@ -69731,7 +69731,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_x_lookalike_absent_snoc?",
               "parameters": [
                 "q",
@@ -69741,7 +69741,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_x_lookalike_absent_snoc!",
               "parameters": [
                 "q",
@@ -69751,7 +69751,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_x_lookalike_absent_snoć",
               "parameters": [
                 "q",
@@ -70021,7 +70021,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_x_nfc_snoć",
               "parameters": [
                 "q",
@@ -70189,7 +70189,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_x_not_a_call_snoc",
               "parameters": [
                 "q",
@@ -70362,7 +70362,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_x_other_module_snoc",
               "parameters": [
                 "q",
@@ -70412,7 +70412,7 @@
             {
               "defaults": 0,
               "definer": "defguard",
-              "guard": "or(is_list(q), is_list(x))",
+              "guard": "is_list(q) or is_list(x)",
               "name": "ex_dbgi_defguard_x_other_module_snoc",
               "parameters": [
                 "q",
