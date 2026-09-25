@@ -3,4 +3,5 @@ defmodule Callers.ErlAbst.Defp.XArityAbsentBroken do
 
   def at_private_remote(a, b), do: :erl_abst_defp_x_arity_absent.snoc(a, b) # @private_remote
   def at_private_remote_arity_1(a, _b), do: :erl_abst_defp_x_arity_absent.snoc(a) # @private_remote_arity_1
+  def at_private_remote_arity_3(a, b), do: :erl_abst_defp_x_arity_absent.snoc(a, b, a) # @private_remote_arity_3
 end
