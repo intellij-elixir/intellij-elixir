@@ -884,6 +884,37 @@ private class Group(val scenario: Scenario) {
      * `DocumentationResult` and never reaches the HTML; how the matching arity is marked out; and the anchors'
      * naming scheme, which is the implementation's to choose so long as the header's links resolve.
      */
+    /**
+     * A source `defdelegate` with no `@doc` of its own says where the work is done: after its own head, a line
+     * `Delegates to <a href="psi_element://Target.name/arity">` - the target's full arity, the one the delegation calls
+     * it at - and then the target's own documentation, naming the target's module and head. A delegation whose target
+     * does not resolve has nothing to link, so it says nothing of one; a compiled one is an ordinary compiled definition.
+     */
+    private fun checkDelegatedDocumentation(module: DeclaringModule, documented: Binding, html: String) {
+        if (module.compiled || module.delegateTo == null) return
+
+        val (_, definition) = definition(documented)
+        val target = scenario.modules.firstOrNull { it.module == module.delegateTo }
+
+        if (target == null) {
+            assertFalse("Quick Documentation at ${place.id} links a target that does not resolve: $html", html.contains("Delegates to"))
+            return
+        }
+
+        val targetName = module.delegateAs.orEmpty() + definition.name
+        val href = "psi_element://${target.module}.${nfc(targetName)}/${definition.maxArity}"
+        val delegates = html.indexOf("Delegates to <a href=\"$href\"")
+
+        assertTrue("Quick Documentation at ${place.id} does not say it delegates to `$href`: $html", delegates >= 0)
+
+        val targetSignature = nfc(Expected.heads(target, targetName, definition.maxArity).first().signature)
+        val after = html.substring(delegates)
+        assertTrue(
+            "Quick Documentation at ${place.id} does not follow the delegation with `${target.module}`'s `$targetSignature`: $html",
+            after.contains("<b>${target.module}</b>") && after.contains(targetSignature)
+        )
+    }
+
     private fun checkQuickDocumentation(binding: Binding?) {
         openAt(place)
         val html = myFixture.quickDocumentationAtCaret(project)?.let { nfc(it.replace('\n', ' ')) }
@@ -908,6 +939,7 @@ private class Group(val scenario: Scenario) {
             signatures.filter { html!!.contains(it) }.sortedBy { html!!.indexOf(it) }
         )
         assertTrue("Quick Documentation does not show `${module.module}`: $html", html!!.contains(module.module))
+        checkDelegatedDocumentation(module, documented, html)
 
         if (signatures.size > 1) {
             val entries = signatures.associateWith { html.indexOf(it, html.indexOf(it) + 1) }
