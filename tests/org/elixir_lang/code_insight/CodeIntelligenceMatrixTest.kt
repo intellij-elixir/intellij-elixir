@@ -403,6 +403,13 @@ private class Group(val scenario: Scenario) {
         val start = document.getLineStartOffset(line)
         val end = document.getLineEndOffset(line)
 
+        if (DUMP_HIGHLIGHTS) {
+            println("highlights on line ${line + 1}, caret at $caret (`${document.charsSequence.subSequence(caret, minOf(caret + 30, end))}`):")
+            highlights().filter { it.startOffset >= start && it.endOffset <= end }.forEach {
+                println("  ${it.startOffset}..${it.endOffset} `${document.charsSequence.subSequence(it.startOffset, it.endOffset)}` ${it.severity} ${it.description}")
+            }
+        }
+
         return highlights()
             .filter { it.severity >= HighlightSeverity.WARNING }
             .filter { it.startOffset >= start && it.endOffset <= end && caret in it.startOffset..it.endOffset }
@@ -1242,6 +1249,12 @@ private class Group(val scenario: Scenario) {
 
         /** Where [Group.timed] appends one row per phase: the file `MATRIX_TIMING` names, or nowhere when unset. */
         private val TIMING: File? = System.getenv("MATRIX_TIMING")?.takeIf(String::isNotBlank)?.let(::File)
+
+        /** The cells whose names `MATRIX_ONLY` matches, a regex, when it is set: to ask a handful without the rest. */
+        private val ONLY: Regex? = System.getenv("MATRIX_ONLY")?.takeIf(String::isNotBlank)?.let(::Regex)
+
+        /** Whether to print every highlight on the caret's line where a cell reads them, to see what it is judged on. */
+        private val DUMP_HIGHLIGHTS: Boolean = !System.getenv("MATRIX_DUMP_HIGHLIGHTS").isNullOrBlank()
         /**
          * The scenario being asked, and the only one holding a fixture: scenarios define the same files, and a closed
          * scenario's group is dropped rather than kept for the rest of the run.
@@ -1252,6 +1265,7 @@ private class Group(val scenario: Scenario) {
         fun cellsOf(scenario: Scenario): List<Pair<Place, Feature>> = Crossing.places(scenario).flatMap { place ->
             Feature.entries
                 .filter { Crossing.applicability(scenario, it, place) is Applicability.Applicable }
+                .filter { feature -> ONLY?.containsMatchIn(Cell(scenario, feature, place).testName) ?: true }
                 .map { place to it }
         }
 
