@@ -73,4 +73,20 @@ object EEx {
             emptyList()
         }
     }
+
+    /** The defined function's parameter names: each `args` atom's, and `argN` for an element that is no literal atom. */
+    @RequiresReadLock
+    fun parameterNames(call: Call): kotlin.collections.List<String>? =
+        argumentList(call)?.mapIndexed { index, element ->
+            (element.stripAccessExpression() as? ElixirAtom)?.literalName() ?: "arg${index + 1}"
+        }
+
+    /** The defined function's head, `name(a, b)`; `null` when the name or the `args` list is not literal. */
+    @RequiresReadLock
+    fun head(call: Call): String? {
+        val name = declaredName(call) ?: return null
+        val parameters = parameterNames(call) ?: return null
+
+        return "$name(${parameters.joinToString(", ")})"
+    }
 }

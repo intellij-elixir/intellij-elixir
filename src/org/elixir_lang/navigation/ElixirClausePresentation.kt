@@ -19,7 +19,7 @@ import org.elixir_lang.psi.call.Call
  * ```
  * - [elementText] is the clause head (definer + name + argument patterns), so sibling clauses that
  *   share a name/arity are told apart by their patterns.
- * - [containerText] is the implementing type: the `defimpl … for:` target, defaulting to the enclosing
+ * - [containerText] is the implementing type: the `defimpl ... for:` target, defaulting to the enclosing
  *   `defmodule` when `for:` is implicit (as in `defimpl String.Chars do` nested in a module).
  */
 object ElixirClausePresentation {
@@ -34,7 +34,7 @@ object ElixirClausePresentation {
         }
     }
 
-    /** The type that implements the protocol: the `defimpl … for:` target, else the enclosing `defmodule`. */
+    /** The type that implements the protocol: the `defimpl ... for:` target, else the enclosing `defmodule`. */
     @RequiresReadLock
     fun containerText(call: Call): String? {
         val enclosingModular = enclosingModularMacroCall(call) ?: return null
@@ -62,7 +62,7 @@ object ElixirClausePresentation {
             ?.let { moduleName(it) }
 
     @RequiresReadLock
-    private fun moduleName(module: Call): String? = runCatching { Module.name(module) }.getOrNull()
+    private fun moduleName(module: Call): String? = Module.nameOrNull(module)
 
     /** Collapse whitespace and tighten bracket spacing, mirroring the structure-view head presentation. */
     private fun normalizeSignature(text: String): String =

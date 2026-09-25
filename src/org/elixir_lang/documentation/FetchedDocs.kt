@@ -4,6 +4,7 @@ import com.ericsson.otp.erlang.OtpErlangBinary
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.psi.PsiElement
+import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.Doc
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.MarkdownByLanguage
@@ -53,7 +54,7 @@ sealed class FetchedDocs(open val module: String) {
             fun fromCallDefinitionClauseCall(
                 module: String,
                 call: Call,
-                head: PsiElement
+                head: String
             ): FunctionOrMacroDocumentation {
                 val callDefinitionAttributeListByName = callDefinitionAttributeListByName(call)
                 val deprecated = callDefinitionAttributeListByName[DEPRECATED]?.joinModuleAttributeQuoteText()
@@ -62,7 +63,7 @@ sealed class FetchedDocs(open val module: String) {
                     ?.let { MarkdownByLanguage.english(it) }
                 val impls = callDefinitionAttributeListByName[IMPL].moduleAttributeValueTextList()
                 val specs = callDefinitionAttributeListByName[SPEC].moduleAttributeValueTextList()
-                val heads = listOf(head.text)
+                val heads = listOf(head)
 
                 return FunctionOrMacroDocumentation(module, deprecated, doc, impls, specs, heads)
             }
@@ -104,10 +105,8 @@ private fun callDefinitionAttributeListByName(callDefinitionCall: Call): Map<Str
     callDefinitionCall
         .prevSiblingSequence()
         .drop(1)
-        // A defdelegate ends the run of attributes belonging to whatever follows it, exactly as a def
-        // does. Without it the walk runs past any number of delegations and attaches an @doc written
-        // for one of them to a later, undocumented definition.
-        .takeWhile { it !is Call || CallableDeclaration.headBindingFormOf(it) == null }
+        // Every declaration takes the attributes written above it.
+        .takeWhile { it !is Call || !CallableDeclaration.declares(it, ResolveState.initial()) }
         .filterIsInstance<AtUnqualifiedNoParenthesesCall<*>>()
         .filter { CALL_DEFINITION_ATTRIBUTE_NAME_SET.contains(it.atIdentifier.identifierName()) }
         .groupBy { it.atIdentifier.identifierName() }

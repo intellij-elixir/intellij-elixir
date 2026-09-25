@@ -13,9 +13,9 @@ import org.elixir_lang.psi.call.Call
  * declaration of the [FunctionSymbol] symbol(s), so the platform's "Declaration or Usages" flow treats the caret as a
  * declaration (-> Show Usages) rather than navigating.
  *
- * Clauses inside a `defprotocol` are owned by [org.elixir_lang.model.psi.protocol.ProtocolFunction] (guarded in [FunctionSymbol.fromClause]).
+ * Clauses inside a `defprotocol` are owned by [org.elixir_lang.model.psi.protocol.ProtocolFunction] (guarded in [FunctionSymbol.fromDeclaration]).
  * The declaration is anchored on the declaring call with the name's range. The platform asks each ancestor of the
- * caret and keeps only declarations it declares, so only [element] itself is classified.
+ * caret and keeps only declarations it declares, so only `element` itself is classified.
  *
  * A clause with default arguments (`def foo(a, b \\ 1)`) yields several [FunctionSymbol]s (one per
  * arity in the clause's interval) that all share the **same** name range. Exposing each as its own

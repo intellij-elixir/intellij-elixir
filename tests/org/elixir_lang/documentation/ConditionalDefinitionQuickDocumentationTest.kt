@@ -33,6 +33,32 @@ class ConditionalDefinitionQuickDocumentationTest : QuickDocumentationTestCase()
         assertTrue("Expected the else branch's docs, got: $documentation", documentation?.contains("Else snocs.") == true)
     }
 
+    /** A clause in the other branch whose arities overlap is another function, so its `@doc` is not merged in. */
+    fun testAClauseInTheOtherBranchIsNotMergedIntoTheDocs() {
+        myFixture.configureByText(
+            "documented.ex",
+            """
+            defmodule Documented do
+              if Code.ensure_loaded?(Kernel) do
+                @doc "Two."
+                def f(a, b \\ 1), do: {a, b}
+              else
+                @doc "One."
+                def f(a), do: a
+              end
+            end
+
+            defmodule Caller do
+              def calls(a), do: Documented.<caret>f(a)
+            end
+            """.trimIndent()
+        )
+
+        val documentation = quickDocumentationAtCaret().orEmpty()
+
+        assertTrue("Expected the head's docs alone, got: $documentation", "Two." in documentation && "One." !in documentation)
+    }
+
     private fun assertDocumented(doc: String, definition: () -> String) {
         myFixture.configureByText(
             "documented.ex",

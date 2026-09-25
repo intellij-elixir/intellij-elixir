@@ -38,23 +38,58 @@ class UsedTest : PlatformTestCase() {
             """.trimIndent()
         )
 
-        var user: Module? = null
+        assertEquals(listOf("injected_function/0", "injected_macro/0"), usedBy("User"))
+    }
 
-        fun walk(element: StructureViewTreeElement) {
-            if (element is Module && (element.value as? Call)?.let { org.elixir_lang.psi.Module.name(it) } == "User") {
-                user = element
-            }
+    /** `use` calls a `defmacro __using__/1`; a `defmacrop` one it cannot call, so Show Used lists nothing from it. */
+    fun testAPrivateUsingInjectsNothing() {
+        myFixture.configureByText(
+            "private_using.ex",
+            """
+            defmodule Injector do
+              defmacrop __using__(_) do
+                quote do
+                  def injected_function, do: 1
+                end
+              end
+            end
 
-            for (child in element.children) {
-                if (child is StructureViewTreeElement) walk(child)
-            }
-        }
+            defmodule User do
+              use Injector
+            end
+            """.trimIndent()
+        )
 
-        walk(Model(myFixture.file as ElixirFile, null).root)
+        assertEquals(emptyList<String>(), usedBy("User"))
+    }
 
-        val listed = Used().provideNodes(user!!).filterIsInstance<CallDefinition>().map { it.name }.sorted()
+    /** A `use` naming its module by a dotted alias, with or without options, lists what that module injects. */
+    fun testADottedAliasListsWhatItsModuleInjects() {
+        myFixture.configureByText(
+            "dotted_used.ex",
+            """
+            defmodule A.Injector do
+              defmacro __using__(_) do
+                quote do
+                  def injected_function, do: 1
+                end
+              end
+            end
 
-        assertEquals(listOf("injected_function/0", "injected_macro/0"), listed)
+            defmodule Plain do
+              use A.Injector
+            end
+
+            defmodule WithOptions do
+              use A.Injector, :controller
+            end
+            """.trimIndent()
+        )
+
+        assertEquals(
+            listOf(listOf("injected_function/0"), listOf("injected_function/0")),
+            listOf("Plain", "WithOptions").map(::usedBy)
+        )
     }
 
     /** `defoverridable` marks a macro overridable as it does a function. */
@@ -71,10 +106,26 @@ class UsedTest : PlatformTestCase() {
             """.trimIndent()
         )
 
-        val definitions = mutableListOf<CallDefinition>()
+        assertEquals(
+            listOf("fixed_function/0 false", "overridable_function/0 true", "overridable_macro/0 true"),
+            structureElements().filterIsInstance<CallDefinition>().map { "${it.name} ${it.isOverridable}" }.sorted()
+        )
+    }
+
+    /** What Show Used lists for the module named [moduleName], sorted. */
+    private fun usedBy(moduleName: String): List<String> {
+        val module = structureElements()
+            .filterIsInstance<Module>()
+            .single { (it.value as? Call)?.let { call -> org.elixir_lang.psi.Module.name(call) } == moduleName }
+
+        return Used().provideNodes(module).filterIsInstance<CallDefinition>().map { it.name }.sorted()
+    }
+
+    private fun structureElements(): List<StructureViewTreeElement> {
+        val elements = mutableListOf<StructureViewTreeElement>()
 
         fun walk(element: StructureViewTreeElement) {
-            if (element is CallDefinition) definitions.add(element)
+            elements.add(element)
 
             for (child in element.children) {
                 if (child is StructureViewTreeElement) walk(child)
@@ -83,9 +134,6 @@ class UsedTest : PlatformTestCase() {
 
         walk(Model(myFixture.file as ElixirFile, null).root)
 
-        assertEquals(
-            listOf("fixed_function/0 false", "overridable_function/0 true", "overridable_macro/0 true"),
-            definitions.map { "${it.name} ${it.isOverridable}" }.sorted()
-        )
+        return elements
     }
 }

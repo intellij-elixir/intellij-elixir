@@ -25,7 +25,7 @@ class ClauseKindTest : PlatformTestCase() {
 
         val module = myFixture.file.children.filterIsInstance<Call>().single()
         val actual = module.macroChildCallSequence().joinToString("\n") { clause ->
-            val functionSymbol = FunctionSymbol.fromClause(clause).single()
+            val functionSymbol = FunctionSymbol.fromDeclaration(clause).single()
             val atomSymbol = AtomSymbol.fromClause(clause).single()
             val type = ElementDescriptionUtil.getElementDescription(clause, UsageViewTypeLocation.INSTANCE)
 

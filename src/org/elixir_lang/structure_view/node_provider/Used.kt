@@ -7,15 +7,10 @@ import com.intellij.ide.util.treeView.smartTree.ActionPresentation
 import com.intellij.ide.util.treeView.smartTree.ActionPresentationData
 import com.intellij.ide.util.treeView.smartTree.TreeElement
 import com.intellij.openapi.actionSystem.Shortcut
-import com.intellij.psi.PsiFile
 import com.intellij.psi.ResolveState
 import com.intellij.util.IncorrectOperationException
 import org.elixir_lang.NameArity
-import org.elixir_lang.psi.ElixirAccessExpression
-import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.structure_view.element.*
 import org.elixir_lang.structure_view.element.modular.Module
 import org.elixir_lang.structure_view.element.modular.Module.Companion.addClausesToCallDefinition
@@ -78,125 +73,44 @@ class Used : FileStructureNodeProvider<TreeElement>, ActionShortcutProvider {
         private fun key(definition: CallDefinition): Pair<NameArity, Timed.Time> =
             NameArity(definition.name(), definition.arity) to definition.time()
 
-        private fun provideNodesFromChild(child: TreeElement): Collection<TreeElement> {
-            var nodes: MutableCollection<TreeElement>? = null
-
-            if (child is Use) {
-                val finalArguments = child.call().finalArguments()!!
-
-                if (finalArguments.isNotEmpty()) {
-                    val firstFinalArgument = finalArguments[0]
-
-                    if (firstFinalArgument is ElixirAccessExpression) {
-                        val accessExpressionChild = firstFinalArgument.stripAccessExpression()
-
-                        if (accessExpressionChild is QualifiableAlias) {
-                            val reference = accessExpressionChild.getReference()
-
-                            if (reference != null) {
-                                var ancestor = reference.resolve()
-
-                                while (ancestor != null && ancestor !is PsiFile) {
-                                    if (ancestor is Call) {
-                                        val call = ancestor
-
-                                        if (org.elixir_lang.psi.Module.`is`(call)) {
-                                            val module = Module(call)
-                                            val childCalls = org.elixir_lang.psi.CallDefinitionClause.modularChildCalls(call).toTypedArray()
-
-                                            val macroByNameArity = HashMap<NameArity, CallDefinition>(childCalls.size)
-
-                                            for (childCall in childCalls) {
-                                                /* portion of {@link org.elixir_lang.structure_view.element.enclosingModular.Module#childCallTreeElements}
-                                                   dealing with macros, restricted to __using__/1 */
-                                                val definer = org.elixir_lang.psi.CallableDeclaration.definerOf(childCall)
-
-                                                if (definer?.capabilities?.compileTime == true) {
-                                                    val nameArityInterval =
-                                                        org.elixir_lang.psi.CallDefinitionClause.nameArityInterval(
-                                                            childCall,
-                                                            ResolveState.initial()
-                                                        )
-
-                                                    if (nameArityInterval != null) {
-                                                        val name = nameArityInterval.name
-                                                        val arityInterval = nameArityInterval.arityInterval
-
-                                                        if (name == USING && arityInterval.contains(1)) {
-                                                            addClausesToCallDefinition(
-                                                                childCall,
-                                                                name,
-                                                                arityInterval,
-                                                                macroByNameArity,
-                                                                module,
-                                                                definer
-                                                            ) { _ -> }
-                                                        }
-                                                    }
-                                                }
-                                            }
-
-                                            if (macroByNameArity.size > 0) {
-                                                val macro: CallDefinition?
-                                                var matchingClause: CallDefinitionClause? = null
-
-                                                if (finalArguments.size <= 1) {
-                                                    /* `use <ALIAS>` will calls `__using__/1` even though there is
-                                                       no additional argument, but it obviously can't select a clause. */
-                                                    val nameArity = NameArity(USING, 1)
-                                                    macro = macroByNameArity[nameArity]
-                                                    val macroClauseList = macro!!.clauseList()
-
-                                                    if (macroClauseList.size == 1) {
-                                                        matchingClause = macroClauseList[0]
-                                                    } else {
-                                                        // TODO match default argument clause/head to non-default argument clause that would be executed.
-                                                    }
-                                                }
-
-                                                if (matchingClause != null) {
-                                                    val callDefinitionClauseChildren = matchingClause.children
-                                                    val length = callDefinitionClauseChildren.size
-
-                                                    if (length > 0) {
-                                                        val lastCallDefinitionClauseChild =
-                                                            callDefinitionClauseChildren[length - 1]
-
-                                                        if (lastCallDefinitionClauseChild is Quote) {
-                                                            val injectedQuote =
-                                                                lastCallDefinitionClauseChild.used(child)
-                                                            val injectedQuoteChildren = injectedQuote.children
-                                                            nodes = ArrayList(injectedQuoteChildren.size)
-
-                                                            for (injectedQuoteChild in injectedQuoteChildren) {
-                                                                if (injectedQuoteChild !is Overridable) {
-                                                                    nodes.add(injectedQuoteChild)
-                                                                }
-                                                            }
-
-                                                            break
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        } else {
-                                            break
-                                        }
-                                    }
-
-                                    ancestor = ancestor.parent
-                                }
-                            }
-                        }
-                    }
+        /** What [child] injects, when it is a `use` of a module in source. */
+        private fun provideNodesFromChild(child: TreeElement): Collection<TreeElement> =
+            (child as? Use)
+                ?.let { use ->
+                    org.elixir_lang.psi.Use.modulars(use.call())
+                        .filterIsInstance<Call>()
+                        .filter { org.elixir_lang.psi.Module.`is`(it) }
+                        .firstNotNullOfOrNull { injectedBy(it, use) }
                 }
+                .orEmpty()
+
+        /**
+         * What [modular]'s `__using__/1` injects through [use], when it has one clause: that clause runs whatever
+         * [use] passes, while which of several runs is not worked out.
+         */
+        private fun injectedBy(modular: Call, use: Use): List<TreeElement>? {
+            val module = Module(modular)
+            val macroByNameArity = HashMap<NameArity, CallDefinition>()
+
+            for (definer in org.elixir_lang.psi.Using.definers(modular)) {
+                val definerForm = org.elixir_lang.psi.CallableDeclaration.definerOf(definer) ?: continue
+                val nameArityInterval = org.elixir_lang.psi.CallDefinitionClause
+                    .nameArityInterval(definer, ResolveState.initial()) ?: continue
+
+                addClausesToCallDefinition(
+                    definer,
+                    nameArityInterval.name,
+                    nameArityInterval.arityInterval,
+                    macroByNameArity,
+                    module,
+                    definerForm
+                ) { _ -> }
             }
 
-            if (nodes == null) {
-                nodes = mutableListOf()
-            }
+            val clause = macroByNameArity[NameArity(USING, 1)]?.clauseList()?.singleOrNull() ?: return null
+            val quote = clause.children.lastOrNull() as? Quote ?: return null
 
-            return nodes
+            return quote.used(use).children.filterNot { it is Overridable }
         }
 
         fun provideNodesFromChildren(children: Collection<TreeElement>): Collection<TreeElement> =

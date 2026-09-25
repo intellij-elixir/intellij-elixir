@@ -63,8 +63,7 @@ public class Parameter {
         CallableDeclaration.Form form = CallableDeclaration.INSTANCE.headBindingFormOf(ancestor);
 
         if (form != null) {
-            CallableDeclaration.Definer definer = CallableDeclaration.INSTANCE.definerOf(ancestor);
-            Type nameType = definer != null && definer.getCapabilities().getCompileTime() ? Type.MACRO_NAME : Type.FUNCTION_NAME;
+            Type nameType = CallableDeclaration.INSTANCE.isCompileTime(ancestor) ? Type.MACRO_NAME : Type.FUNCTION_NAME;
 
             parameterizedParameter = new Parameter(
                     parameter.defaultValue,

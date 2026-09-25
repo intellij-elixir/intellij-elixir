@@ -65,7 +65,7 @@ fun resolvesToMacro(call: Call): Boolean {
 
 /** Whether [resolved] declares a macro that [call] calls, not the signature [call] is part of. */
 private fun isMacroCalledBy(resolved: Call, call: Call): Boolean =
-    CallableDeclaration.definerOf(resolved)?.capabilities?.quotesArguments == true && !resolved.isAncestor(call)
+    CallableDeclaration.syntacticCapabilitiesOf(resolved)?.quotesArguments == true && !resolved.isAncestor(call)
 
 fun resolvesToModularName(call: Call, state: ResolveState, modularName: String): Boolean =
         // it is not safe to call `multiResolve` on the call's reference if that `call` is currently being resolved.

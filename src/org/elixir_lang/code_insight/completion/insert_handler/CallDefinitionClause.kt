@@ -16,12 +16,9 @@ import org.elixir_lang.code_insight.Signature
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause as CallDefinitionClausePsi
 import org.elixir_lang.psi.CallableDeclaration
-import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.Exception as ElixirException
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.literalName
-import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.mix.Generator as MixGenerator
 import org.elixir_lang.psi.operation.InMatch
 import org.elixir_lang.psi.operation.Type
@@ -179,13 +176,7 @@ object CallDefinitionClause : InsertHandler<LookupElement> {
             else -> emptyList()
         }
 
-    /** One placeholder per `args` element, even one with no fixed name: the list's length is the arity. */
-    private fun eexFunctionFromParameters(call: Call): List<String> =
-        EEx.argumentList(call)
-            ?.mapIndexed { index, element ->
-                (element.stripAccessExpression() as? ElixirAtom)?.literalName() ?: "arg${index + 1}"
-            }
-            .orEmpty()
+    private fun eexFunctionFromParameters(call: Call): List<String> = EEx.parameterNames(call).orEmpty()
 
     private fun embedParameters(call: Call): List<String> = MixGenerator.Embed.of(call)?.parameters.orEmpty()
 }

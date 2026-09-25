@@ -26,4 +26,8 @@ object Module {
     @RequiresReadLock
     @Contract(pure = true)
     fun name(call: Call): String = call.primaryArguments()!!.first()!!.text
+
+    /** [name], or `null` for a module call written without one. */
+    @RequiresReadLock
+    fun nameOrNull(call: Call): String? = call.primaryArguments()?.firstOrNull()?.text
 }

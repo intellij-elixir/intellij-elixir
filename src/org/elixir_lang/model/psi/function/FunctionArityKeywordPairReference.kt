@@ -5,7 +5,6 @@ import com.intellij.model.psi.PsiSymbolReference
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
-import com.intellij.psi.ResolveState
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.stubs.StubIndex
 import com.intellij.util.concurrency.annotations.RequiresReadLock
@@ -14,9 +13,9 @@ import org.elixir_lang.model.psi.callback.BehaviourMembership
 import org.elixir_lang.model.psi.callback.Callback
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
-import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.QuotableKeywordPair
+import org.elixir_lang.psi.Using
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
@@ -94,7 +93,6 @@ class FunctionArityKeywordPairReference(
                 if (behaviourModule !is Call) continue
                 CallDefinitionClause.modularChildCalls(behaviourModule)
                     .filterIsInstance<AtUnqualifiedNoParenthesesCall<*>>()
-                    .filter { CallableDeclaration.isForm(it, CallableDeclaration.Form.CALLBACK) }
                     .forEach { attr ->
                         Callback.fromModuleAttribute(attr).forEach { callback ->
                             if (callback.name == occurrence.name && callback.arity == occurrence.arity) {
@@ -115,12 +113,7 @@ class FunctionArityKeywordPairReference(
      */
     @RequiresReadLock
     private fun defoverridableBehaviourNames(hostCall: Call): Set<String> {
-        val usingDefiner = generateSequence(hostCall.parent) { it.parent }
-            .filterIsInstance<Call>()
-            .firstOrNull { call ->
-                CallableDeclaration.isForm(call, CallableDeclaration.Form.CLAUSE) &&
-                    CallDefinitionClause.nameArityInterval(call, ResolveState.initial())?.name == "__using__"
-            }
+        val usingDefiner = Using.enclosingDefiner(hostCall)
 
         return if (usingDefiner != null) {
             val definingModule = CallDefinitionClause.enclosingModularMacroCall(usingDefiner)

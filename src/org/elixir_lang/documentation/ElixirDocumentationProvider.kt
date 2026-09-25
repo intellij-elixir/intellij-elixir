@@ -19,7 +19,6 @@ import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.Hidden
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.MarkdownByLanguage
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.None
 import org.elixir_lang.beam.psi.BeamFileImpl
-import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
 import org.elixir_lang.psi.ModuleAttribute.isDocumentationName
@@ -258,16 +257,8 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             // A `defdelegate` head is a declaration with no reference of its own, so it is documented as a call of it is.
             ?: CallableDeclaration.delegationHeadedBy(call)?.let { org.elixir_lang.reference.Callable(call) }
 
-    /**
-     * The element whose documentation a reference resolving to [elements] shows, the same at a call and at an MFA atom:
-     * the delegation it names, as [DelegationPrecedence.documented] decides; otherwise source clauses, then BEAM stubs.
-     */
-    private fun bestDocumented(elements: List<PsiElement>): PsiElement? =
-        DelegationPrecedence.documented(
-            elements,
-            elements.filterIsInstance<Call>().filter { CallableDeclaration.isForm(it, CallableDeclaration.Form.CLAUSE) } +
-                elements.filterIsInstance<BeamCallDefinition>()
-        )
+    /** The element whose documentation a reference resolving to [elements] shows, the same at a call and at an MFA atom. */
+    private fun bestDocumented(elements: List<PsiElement>): PsiElement? = DelegationPrecedence.documented(elements)
 
     /**
      * Every delegation of [delegation]'s name in its module, ascending by arity: each its own `@doc`, or its head and a
@@ -293,7 +284,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             .maxByOrNull { it.arityInterval?.namingArity ?: 0 }
             ?: return null
         // A delegation a `quote` injects has no module of its own yet, so no symbol; it still links its target.
-        val symbol = FunctionSymbol.fromDelegation(delegation).maxByOrNull { it.arity }
+        val symbol = FunctionSymbol.fromDeclaration(delegation).maxByOrNull { it.arity }
         val target = (
             symbol?.delegatedTo()
                 ?: FunctionSymbol.delegatedTo(delegation, declaration.name, declaration.arityInterval?.namingArity ?: 0)

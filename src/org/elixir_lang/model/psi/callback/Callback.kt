@@ -4,7 +4,6 @@ import com.intellij.find.usages.api.SearchTarget
 import com.intellij.find.usages.api.UsageHandler
 import com.intellij.icons.AllIcons
 import com.intellij.model.Pointer
-import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.util.TextRange
 import com.intellij.platform.backend.navigation.NavigationRequest
 import com.intellij.platform.backend.navigation.NavigationTarget
@@ -114,12 +113,7 @@ class Callback(
             val nameArity = CallDefinitionHead.nameArityInterval(head, ResolveState.initial()) ?: return emptyList()
             val nameId = CallbackElement.nameIdentifier(attr) ?: return emptyList()
             val modular = org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall(attr) ?: return emptyList()
-            // `Module.name` is the raw first-argument (alias) text and can throw on malformed input;
-            // this string is only used for symbol identity/presentation.
-            // `runCatching.getOrElse` is used so ProcessCanceledException is re-thrown (never swallowed).
-            val moduleName = runCatching { org.elixir_lang.psi.Module.name(modular) }
-                .getOrElse { if (it is ProcessCanceledException) throw it else null }
-                ?: return emptyList()
+            val moduleName = org.elixir_lang.psi.Module.nameOrNull(modular) ?: return emptyList()
             val macro = org.elixir_lang.psi.impl.ElixirPsiImplUtil.moduleAttributeName(attr) == "@macrocallback"
 
             return nameArity.arityInterval.closed().map { arity ->

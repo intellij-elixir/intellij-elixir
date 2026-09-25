@@ -9,7 +9,6 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.model.psi.protocol.ProtocolFunction
 import org.elixir_lang.psi.CallDefinitionClause
-import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.DelegationPrecedence
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.reference.Callable
@@ -20,7 +19,7 @@ import org.elixir_lang.reference.Callable
  *
  * Resolution delegates to the existing [Callable] scope-walking infrastructure (which handles
  * qualified calls, unqualified calls, captures, etc.) and wraps each resolved
- * `CallDefinitionClause` as a [FunctionSymbol] via [FunctionSymbol.fromClause], or - when the clause
+ * `CallDefinitionClause` as a [FunctionSymbol] via [FunctionSymbol.fromDeclaration], or - when the clause
  * is directly inside a `defprotocol` - as a [ProtocolFunction] via [ProtocolFunction.fromClause].
  *
  * This delegation is the intended, permanent design, not a stopgap: it mirrors the platform's own
@@ -83,15 +82,17 @@ private fun sourceOrMirror(element: PsiElement?): Call? =
  * The function symbols a call or capture resolving to [resolved] reaches at [arity], in one precedence order: clauses,
  * then `defprotocol` functions, then what declares a function without a clause.
  */
+@Suppress("UnstableApiUsage")
 @RequiresReadLock
 internal fun functionSymbolsReached(resolved: List<ResolveResult>, arity: Int): Collection<Symbol> {
     // The scope walk also follows a `defdelegate`'s `to:`; Go To follows it from the delegation the use names.
-    return DelegationPrecedence.named<Symbol>(resolved.mapNotNull { it.element }, arity, FunctionSymbol::fromDelegation) {
+    return DelegationPrecedence.named(resolved.mapNotNull { it.element }, arity, FunctionSymbol::fromDeclaration) {
         declaredSymbolsReached(resolved, arity)
     }
 }
 
 /** The symbols [resolved] reaches at [arity] that are not a `defdelegate`'s. */
+@Suppress("UnstableApiUsage")
 @RequiresReadLock
 private fun declaredSymbolsReached(resolved: List<ResolveResult>, arity: Int): List<Symbol> {
     val clauses = resolved
@@ -102,7 +103,7 @@ private fun declaredSymbolsReached(resolved: List<ResolveResult>, arity: Int): L
     if (functionSymbols.isNotEmpty()) return functionSymbols
 
     // Clauses directly inside a `defprotocol` are owned by ProtocolFunction, not FunctionSymbol
-    // (FunctionSymbol.fromClause returns empty for them). A qualified protocol call
+    // (FunctionSymbol.fromDeclaration returns empty for them). A qualified protocol call
     // `Protocol.function(args)` therefore resolves here.
     val protocolFunctions = clauses.flatMap { ProtocolFunction.at(it, arity) }
     if (protocolFunctions.isNotEmpty()) return protocolFunctions

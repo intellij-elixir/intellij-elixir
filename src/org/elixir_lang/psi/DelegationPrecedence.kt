@@ -1,7 +1,9 @@
 package org.elixir_lang.psi
 
 import com.intellij.psi.PsiElement
+import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.psi.call.Call
 
 /** A function's symbol, which a use can name at an arity and which can be marked to have Go To follow a delegation. */
@@ -66,9 +68,13 @@ object DelegationPrecedence {
 
     /**
      * What quick documentation shows for [reached]: a delegation the use names, which shows its own `@doc` or links what
-     * it delegates to; else the first of [others].
+     * it delegates to; else the first source declaration that defines the function, then the first compiled one, then a
+     * `@callback`, which defines nothing in its own module.
      */
     @RequiresReadLock
-    fun documented(reached: List<PsiElement>, others: List<PsiElement>): PsiElement? =
-        reached.filterIsInstance<Call>().firstOrNull(::isDelegation) ?: others.firstOrNull()
+    fun documented(reached: List<PsiElement>): PsiElement? =
+        reached.firstOrNull(::isDelegation)
+            ?: reached.firstOrNull { it is Call && CallableDeclaration.definitions(it, ResolveState.initial()).isNotEmpty() }
+            ?: reached.firstOrNull { it is BeamCallDefinition }
+            ?: reached.firstOrNull { it is Call && CallableDeclaration.declares(it, ResolveState.initial()) }
 }

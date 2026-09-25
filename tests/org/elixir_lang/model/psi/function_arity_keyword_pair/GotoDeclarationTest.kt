@@ -77,6 +77,29 @@ class GotoDeclarationTest : PlatformTestCase() {
         )
     }
 
+    /**
+     * `use` runs only a `defmacro __using__`: a `def __using__` injects nothing and `use` cannot call a
+     * `defmacrop __using__`. So when the quote declares no `@behaviour` of its own, a `defoverridable` key names the
+     * defining module's callback only inside the first.
+     */
+    fun testDefoverridableKeyResolvesToCallbackOnlyInsideADefmacroUsing() {
+        myFixture.copyFileToProject("kernel.ex")
+        val source = java.io.File(testDataPath, "goto_defoverridable.ex").readText()
+            .replace("      @behaviour GotoOverridableBehaviour\n\n", "")
+        assertFalse(source.contains("@behaviour"))
+
+        fun callbacksInside(definer: String): List<String> {
+            myFixture.configureByText("goto_defoverridable.ex", source.replace("defmacro __using__", definer))
+
+            return resolvedSymbolsAtCaret().filterIsInstance<Callback>().map { "${it.moduleName}.${it.name}" }
+        }
+
+        assertEquals(
+            listOf(listOf("GotoOverridableBehaviour.perform"), emptyList(), emptyList()),
+            listOf("defmacro __using__", "def __using__", "defmacrop __using__").map(::callbacksInside)
+        )
+    }
+
     /** Ctrl-Click on a keyword key - an element with a symbol reference - should choose Go To Declaration. */
     fun testCtrlClickOnImportOnlyKeyChoosesGotoDeclaration() {
         myFixture.configureByFiles("goto_import_only.ex")
@@ -90,11 +113,11 @@ class GotoDeclarationTest : PlatformTestCase() {
     }
 
     /**
-     * Configures [files] (caret on a keyword key), then returns the symbols the reference covering the
+     * Configures [files], if any (caret on a keyword key), then returns the symbols the reference covering the
      * caret resolves to, via the platform [PsiSymbolReferenceService].
      */
     private fun resolvedSymbolsAtCaret(vararg files: String): List<Symbol> {
-        myFixture.configureByFiles(*files)
+        if (files.isNotEmpty()) myFixture.configureByFiles(*files)
         val offset = myFixture.caretOffset
         val host = myFixture.enclosingCallAtCaret()!!
         return PsiSymbolReferenceService.getService()

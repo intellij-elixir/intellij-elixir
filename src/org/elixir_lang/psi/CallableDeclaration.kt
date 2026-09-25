@@ -77,9 +77,6 @@ object CallableDeclaration {
         /** Callable from another module; a visibility the call does not say could be public, so it counts as public. */
         val public: Boolean get() = visibility != Visibility.PRIVATE
 
-        /** What `apply/3` or an MFA tuple reaches from another module. */
-        val remoteCallable: Boolean get() = runtimeFunction && public
-
         /** What the usage view calls it: what is expanded at compile time, a guard too, is a macro. */
         val usageViewType: String get() = if (compileTime) "macro" else "function"
 
@@ -270,9 +267,38 @@ object CallableDeclaration {
             Form.GENERATOR_EMBED -> listOfNotNull(generatorEmbed(call))
         }
 
+    /** What a declaring call names in its module: its [declarations], under [moduleName], spelled at [nameElement]. */
+    class Named(
+        val form: Form,
+        val nameElement: PsiElement,
+        val modular: Call,
+        val moduleName: String,
+        val declarations: List<Declaration>,
+        val compileTime: Boolean
+    )
+
+    /** [Named] for [call]; `null` for a form with no one name of its own, or outside a named module. */
+    @RequiresReadLock
+    fun named(call: Call): Named? {
+        val state = ResolveState.initial()
+        val form = formOf(call, state) ?: return null
+        val nameElement = nameElement(call, form) ?: return null
+        val modular = CallDefinitionClause.enclosingModularMacroCall(call) ?: return null
+        val moduleName = Module.nameOrNull(modular) ?: return null
+
+        return Named(form, nameElement, modular, moduleName, declarations(call, form, state), capabilitiesOf(call, form)?.compileTime == true)
+    }
+
     /** What [element] - a source call or a compiled definition alike - can do, `null` when it declares nothing. */
     @RequiresReadLock
     fun capabilitiesOf(element: PsiElement, state: ResolveState): Capabilities? = declaredOf(element, state)?.capabilities
+
+    /**
+     * [capabilitiesOf] from the forms recognised without resolving, for a resolver deciding how to read a call's
+     * arguments, which must not resolve again.
+     */
+    @RequiresReadLock
+    fun syntacticCapabilitiesOf(call: Call): Capabilities? = syntacticFormOf(call)?.let { capabilitiesOf(call, it) }
 
     /** Whether [element] declares a macro, or anything else only callable at compile time. */
     @RequiresReadLock
@@ -398,7 +424,7 @@ object CallableDeclaration {
 
     /**
      * How [call] reads in a label: its `def*` and head, as `defdelegate name(a)`, and an EEx function as the `def` it
-     * compiles to; `null` for a form with no head, or an EEx function whose kind or arguments are not literal.
+     * compiles to; `null` for a form with no head, or an EEx function whose kind, name or `args` list is not literal.
      */
     @RequiresReadLock
     fun label(call: Call): String? =
@@ -410,12 +436,9 @@ object CallableDeclaration {
 
     private fun eexLabel(call: Call): String? {
         val kind = EEx.kind(call) ?: return null
-        val name = EEx.declaredName(call) ?: return null
-        val parameters = EEx.argumentList(call)
-            ?.map { (it.stripAccessExpression() as? ElixirAtom)?.literalName() ?: return null }
-            ?: return null
+        val head = EEx.head(call) ?: return null
 
-        return "$kind $name(${parameters.joinToString(", ")})"
+        return "$kind $head"
     }
 
     /** The clause or `defdelegate` whose head [call] is, guarded or not; `null` when it heads none. */
