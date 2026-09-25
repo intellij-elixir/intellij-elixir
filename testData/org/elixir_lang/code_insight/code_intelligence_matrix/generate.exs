@@ -834,8 +834,10 @@ defmodule Matrix do
 
   # The standard library modules a form declares functions through, as the pinned Elixir compiled them: a real
   # project always has them, compiled, in its SDK, and the plugin only knows `EEx.function_from_string` declares
-  # something once `EEx` resolves. Copied rather than referenced so every CI leg attaches the same bytes.
-  @sdk_modules [EEx, Mix.Generator]
+  # something once `EEx` resolves. Copied rather than referenced so every CI leg attaches the same bytes. `Kernel` and
+  # `Kernel.SpecialForms` are every module's implicit imports: without them `apply/3` and `quote` resolve to nothing, and
+  # a diagnostic at a call inside `apply(...)` reads the editor's complaint about `apply` itself.
+  @sdk_modules [EEx, Mix.Generator, Kernel, Kernel.SpecialForms]
 
   defp sdk do
     directory = Path.join(["_build", "dev", "lib", "elixir_sdk", "ebin"])
