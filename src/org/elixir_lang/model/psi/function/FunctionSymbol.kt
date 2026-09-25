@@ -111,15 +111,8 @@ class FunctionSymbol private constructor(
         val delegation = CallableDeclaration.declarationNamedAt(file, range)
             ?.takeIf { CallableDeclaration.isForm(it, CallableDeclaration.Form.DELEGATION) }
             ?: return emptyList()
-        val targets = MultiResolve.delegatedTargets(delegation, name, usedArity, incompleteCode = false)
 
-        return targets.definitions
-            .filter { it.isValid }
-            .map { PsiElementResolveResult(it.definition) }
-            .toList()
-            .let { functionSymbolsReached(it, targets.arity) }
-            .filterIsInstance<FunctionSymbol>()
-            .filterNot { it.sameFunction(this) }
+        return delegatedTo(delegation, name, usedArity).filterNot { it.sameFunction(this) }
     }
 
     // --- SearchTarget ---
@@ -153,6 +146,22 @@ class FunctionSymbol private constructor(
     }
 
     companion object {
+        /**
+         * What [delegation], used as [name] at [usedArity], delegates to. A delegation needs no symbol of its own for
+         * this, as one a `quote` injects has none.
+         */
+        @RequiresReadLock
+        fun delegatedTo(delegation: Call, name: String, usedArity: Int): List<FunctionSymbol> {
+            val targets = MultiResolve.delegatedTargets(delegation, name, usedArity, incompleteCode = false)
+
+            return targets.definitions
+                .filter { it.isValid }
+                .map { PsiElementResolveResult(it.definition) }
+                .toList()
+                .let { functionSymbolsReached(it, targets.arity) }
+                .filterIsInstance<FunctionSymbol>()
+        }
+
         /**
          * A pointer to the symbol named at [range], anchored to the declaration spelling that name rather than to the
          * name itself: an in-place (Shift+F6) rename replaces the name's leaf and collapses a plain range marker, so the

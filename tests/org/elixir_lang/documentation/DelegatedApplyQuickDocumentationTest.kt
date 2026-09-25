@@ -119,6 +119,49 @@ class DelegatedApplyQuickDocumentationTest : QuickDocumentationTestCase() {
         }
     }
 
+    /** A delegation without its own `@doc` shows its head and links what it delegates to, whose docs follow. */
+    fun testQuickDocOfAnUndocumentedDelegationLinksItsTarget() {
+        val shown = docsAtEachUse("Linked", "").getValue("full")!!
+
+        assertTrue("Expected the delegation's head, got: $shown", "snoc(q, x \\\\ nil)" in shown)
+        assertTrue("Expected a link to the target, got: $shown", "psi_element://Linked.Target.snoc/2" in shown)
+        assertTrue("Expected the target's head, got: $shown", "snoc(q, x)" in shown)
+
+        val linked = ElixirDocumentationProvider()
+            .getDocumentationElementForLink(psiManager, "Linked.Target.snoc/2", myFixture.file)
+        assertTrue("Expected the link to reach the target, got ${linked?.text}", linked?.text?.startsWith("def snoc(q, x)") == true)
+    }
+
+    /** An operator's name is text in the link, not markup. */
+    fun testTheLinkToAnOperatorsTargetIsEscaped() {
+        myFixture.addFileToProject("operator_target.ex", "defmodule Operator.Target do\n  def left <~> right, do: {left, right}\nend\n")
+        myFixture.configureByText("operator.ex", "defmodule Operator do\n  defdelegate left <~> right, to: Operator.Target\nend\n")
+        val delegation = com.intellij.psi.util.PsiTreeUtil.findChildrenOfType(myFixture.file, org.elixir_lang.psi.call.Call::class.java)
+            .single { it.text.startsWith("defdelegate") }
+
+        val shown = ElixirDocumentationProvider().generateDoc(delegation, null)
+
+        assertTrue("Expected the escaped link text, got: $shown", "<code>Operator.Target.&lt;~&gt;/2</code>" in shown.orEmpty())
+    }
+
+    /** A name with a delegation at each of several arities documents every one, ascending. */
+    fun testQuickDocOfANameWithSeveralDelegationsListsEveryArity() {
+        myFixture.addFileToProject(
+            "arities_target.ex",
+            "defmodule Arities.Target do\n  def snoc(q), do: q\n  def snoc(q, x), do: {q, x}\nend\n"
+        )
+        myFixture.addFileToProject(
+            "arities_delegator.ex",
+            "defmodule Arities do\n  defdelegate snoc(q, x), to: Arities.Target\n  defdelegate snoc(q), to: Arities.Target\nend\n"
+        )
+        myFixture.configureByText("arities_caller.ex", "defmodule AritiesCaller do\n  def calls(a), do: Arities.sn<caret>oc(a, a)\nend\n")
+
+        val shown = quickDocumentationAtCaret()!!
+        val links = Regex("psi_element://Arities\\.Target\\.snoc/(\\d)").findAll(shown).map { it.groupValues[1] }.toList()
+
+        assertEquals(listOf("1", "2"), links)
+    }
+
     /** An atom naming a module, not a function, still documents the module. */
     fun testQuickDocAtAModuleAtomDocumentsTheModule() {
         myFixture.addFileToProject(
@@ -143,5 +186,22 @@ class DelegatedApplyQuickDocumentationTest : QuickDocumentationTestCase() {
         val documentation = quickDocumentationAtCaret()
 
         assertTrue("Expected the module's @moduledoc, got: $documentation", documentation?.contains("The documented module.") == true)
+    }
+
+    /** A delegation a `use` injects has no module of its own in its `quote`, and still shows what it delegates to. */
+    fun testQuickDocOfAnInjectedDelegationShowsItsTargetsDocs() {
+        myFixture.addFileToProject("injected_target.ex", "defmodule InjectedTarget do\n  @doc \"Injected target docs.\"\n  def x(a), do: a\nend\n")
+        myFixture.addFileToProject(
+            "injector.ex",
+            "defmodule Injector do\n  defmacro __using__(_) do\n    quote do\n      defdelegate x(a), to: InjectedTarget\n    end\n  end\nend\n"
+        )
+        myFixture.configureByText(
+            "injected_caller.ex",
+            "defmodule Injected do\n  use Injector\nend\n\ndefmodule InjectedCaller do\n  def run, do: Injected.<caret>x(1)\nend\n"
+        )
+
+        val documentation = quickDocumentationAtCaret()
+
+        assertTrue("Expected the target's @doc, got: $documentation", documentation?.contains("Injected target docs.") == true)
     }
 }
