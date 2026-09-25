@@ -471,6 +471,27 @@ private fun CodeInsightTestFixture.psiUsagesAtCaret(
     }).get()
 }
 
+/**
+ * Find Usages from every search target at the caret, together: where the IDE offers a chooser of several targets, what
+ * a user can reach is each target's usages in turn, so these are all of them, each position once.
+ */
+@Suppress("UnstableApiUsage")
+fun CodeInsightTestFixture.everyTargetPsiUsagesAtCaret(project: Project): List<PsiUsage> {
+    val targetFile = symbolResolutionFile(project)
+    val offset = caretOffset
+    val allOptions = AllSearchOptions(
+        UsageOptions.createOptions(GlobalSearchScope.allScope(project)),
+        textSearch = false
+    )
+    return ApplicationManager.getApplication().executeOnPooledThread(Callable {
+        ReadAction.nonBlocking(Callable {
+            searchTargets(targetFile, offset)
+                .flatMap { target -> buildQuery(project, target, allOptions).findAll().filterIsInstance<PsiUsage>() }
+                .distinctBy { Triple(it.file, it.range, it.declaration) }
+        }).executeSynchronously()
+    }).get()
+}
+
 /** Number of Find Usages results at the caret that are *not* the declaration itself. */
 fun CodeInsightTestFixture.nonDeclarationUsageCountAtCaret(project: Project): Int =
     psiUsagesAtCaret(project).filterNot { it.declaration }.size
