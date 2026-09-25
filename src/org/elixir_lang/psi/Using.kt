@@ -1,6 +1,7 @@
 package org.elixir_lang.psi
 
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.ResolveState
 import com.intellij.psi.search.GlobalSearchScope
@@ -362,7 +363,17 @@ object Using {
     private const val ARITY = 1
     private const val USING = "__using__"
 
-    private fun isDefiner(call: Call): Boolean =
+    /** The nearest `defmacro __using__/1` enclosing [element], or `null`. */
+    @RequiresReadLock
+    fun enclosingDefiner(element: PsiElement): Call? =
+        generateSequence(element.parent) { it.parent }
+            .takeWhile { it !is PsiFile }
+            .filterIsInstance<Call>()
+            .firstOrNull(::isDefiner)
+
+    /** Whether [call] is a `defmacro __using__/1`, what `use` calls. */
+    @RequiresReadLock
+    fun isDefiner(call: Call): Boolean =
         CallableDeclaration.definerOf(call) == CallableDeclaration.Definer.DEFMACRO &&
                 nameArityInterval(call, ResolveState.initial())?.let { nameArityRange ->
                     nameArityRange.name == USING && nameArityRange.arityInterval.contains(ARITY)

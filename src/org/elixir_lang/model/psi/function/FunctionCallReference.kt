@@ -20,7 +20,7 @@ import org.elixir_lang.reference.Callable
  *
  * Resolution delegates to the existing [Callable] scope-walking infrastructure (which handles
  * qualified calls, unqualified calls, captures, etc.) and wraps each resolved
- * `CallDefinitionClause` as a [FunctionSymbol] via [FunctionSymbol.fromClause], or - when the clause
+ * `CallDefinitionClause` as a [FunctionSymbol] via [FunctionSymbol.fromDeclaration], or - when the clause
  * is directly inside a `defprotocol` - as a [ProtocolFunction] via [ProtocolFunction.fromClause].
  *
  * This delegation is the intended, permanent design, not a stopgap: it mirrors the platform's own
@@ -74,7 +74,7 @@ private fun offeredDeclarations(call: Call): List<FunctionSymbol> =
 @RequiresReadLock
 internal fun functionSymbolsReached(resolved: List<ResolveResult>, arity: Int): Collection<Symbol> {
     // The scope walk also follows a `defdelegate`'s `to:`; Go To follows it from the delegation the use names.
-    return DelegationPrecedence.named<Symbol>(resolved.mapNotNull { it.element }, arity, FunctionSymbol::fromDelegation) {
+    return DelegationPrecedence.named<Symbol>(resolved.mapNotNull { it.element }, arity, FunctionSymbol::fromDeclaration) {
         declaredSymbolsReached(resolved, arity)
     }
 }
@@ -87,7 +87,7 @@ private fun declaredSymbolsReached(resolved: List<ResolveResult>, arity: Int): L
             when (val element = result.element) {
                 // A source `def`/`defmacro` clause is already a `Call`, while a decompiled beam function exposes
                 // the equivalent clause as its navigation element (the `.beam` mirror), so both flow through the
-                // same `FunctionSymbol.fromClause` pipeline and compare equal by module/name/arity/macro.
+                // same `FunctionSymbol.fromDeclaration` pipeline and compare equal by module/name/arity/macro.
                 is Call -> element
                 is BeamCallDefinition -> element.navigationElement as? Call
                 else -> null
@@ -99,7 +99,7 @@ private fun declaredSymbolsReached(resolved: List<ResolveResult>, arity: Int): L
     if (functionSymbols.isNotEmpty()) return functionSymbols
 
     // Clauses directly inside a `defprotocol` are owned by ProtocolFunction, not FunctionSymbol
-    // (FunctionSymbol.fromClause returns empty for them). A qualified protocol call
+    // (FunctionSymbol.fromDeclaration returns empty for them). A qualified protocol call
     // `Protocol.function(args)` therefore resolves here.
     val protocolFunctions = clauses.flatMap { ProtocolFunction.at(it, arity) }
     if (protocolFunctions.isNotEmpty()) return protocolFunctions

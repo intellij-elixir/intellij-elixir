@@ -263,7 +263,7 @@ internal object ElixirUsageQueries {
             if (!CallableDeclaration.defines(defClause, callback.name, callback.arity, callback.macro)) return emptyList()
 
             val implements =
-                    when (val usingDefiner = defClause.enclosingUsingDefiner()) {
+                    when (val usingDefiner = Using.enclosingDefiner(defClause)) {
                         // Default implementation: a `def` inside a `__using__` quote whose module is the
                         // behaviour itself, or which injects `@behaviour B`.
                         is Call -> {
@@ -918,7 +918,7 @@ internal object ElixirUsageQueries {
          */
         @RequiresReadLock
         private fun delegatedHeadUsages(delegation: Call, nameElement: PsiElement, symbol: FunctionSymbol): List<PsiUsage> {
-            if (FunctionSymbol.fromDelegation(delegation).none { it.delegatedTo().any(symbol::sameFunction) }) return emptyList()
+            if (FunctionSymbol.fromDeclaration(delegation).none { it.delegatedTo().any(symbol::sameFunction) }) return emptyList()
             if (CallableDeclaration.delegationAsValue(delegation) != null) return emptyList()
             val offset = CallableDeclaration.delegationAsOffset(delegation) ?: return emptyList()
 
@@ -943,7 +943,7 @@ internal object ElixirUsageQueries {
                 .firstOrNull { CallableDeclaration.isForm(it, CallableDeclaration.Form.DELEGATION) }
                 ?.takeIf { CallableDeclaration.delegationAs(it) == atom }
                 ?: return null
-            if (FunctionSymbol.fromDelegation(delegation).none { it.delegatedTo().any(symbol::sameFunction) }) return null
+            if (FunctionSymbol.fromDeclaration(delegation).none { it.delegatedTo().any(symbol::sameFunction) }) return null
 
             return ElixirPsiUsage.create(atom, atom.nameRangeInAtom(), usageType = CALL)
         }
@@ -1205,21 +1205,11 @@ private val VALUE_READ = UsageType { "Value read" }
 
 private val VALUE_WRITE = UsageType { "Value write" }
 
-private const val USING = "__using__"
-
 private fun PsiElement.enclosingCalls(): Sequence<Call> =
         generateSequence(parent) { it.parent }.takeWhile { it !is PsiFile }.filterIsInstance<Call>()
 
 @RequiresReadLock
 private fun Call.matchesFunctionFamily(symbol: FunctionSymbol): Boolean = FunctionSymbol.functionOf(this) == symbol.function
-
-/** Nearest enclosing `defmacro __using__/1` clause, or `null`. */
-@RequiresReadLock
-private fun Call.enclosingUsingDefiner(): Call? =
-        enclosingCalls().firstOrNull { call ->
-            CallDefinitionClause.`is`(call) &&
-                    CallDefinitionClause.nameArityInterval(call, ResolveState.initial())?.name == USING
-        }
 
 @RequiresReadLock
 private fun Call.enclosingSpecAttributeIfHead(): AtUnqualifiedNoParenthesesCall<*>? {

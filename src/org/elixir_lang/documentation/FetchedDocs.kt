@@ -53,7 +53,7 @@ sealed class FetchedDocs(open val module: String) {
             fun fromCallDefinitionClauseCall(
                 module: String,
                 call: Call,
-                head: PsiElement
+                head: String
             ): FunctionOrMacroDocumentation {
                 val callDefinitionAttributeListByName = callDefinitionAttributeListByName(call)
                 val deprecated = callDefinitionAttributeListByName[DEPRECATED]?.joinModuleAttributeQuoteText()
@@ -62,7 +62,7 @@ sealed class FetchedDocs(open val module: String) {
                     ?.let { MarkdownByLanguage.english(it) }
                 val impls = callDefinitionAttributeListByName[IMPL].moduleAttributeValueTextList()
                 val specs = callDefinitionAttributeListByName[SPEC].moduleAttributeValueTextList()
-                val heads = listOf(head.text)
+                val heads = listOf(head)
 
                 return FunctionOrMacroDocumentation(module, deprecated, doc, impls, specs, heads)
             }

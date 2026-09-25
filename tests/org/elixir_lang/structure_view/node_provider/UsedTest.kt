@@ -57,6 +57,42 @@ class UsedTest : PlatformTestCase() {
         assertEquals(listOf("injected_function/0", "injected_macro/0"), listed)
     }
 
+    /** `use` calls a `defmacro __using__/1`; a `defmacrop` one it cannot call, so Show Used lists nothing from it. */
+    fun testAPrivateUsingInjectsNothing() {
+        myFixture.configureByText(
+            "private_using.ex",
+            """
+            defmodule Injector do
+              defmacrop __using__(_) do
+                quote do
+                  def injected_function, do: 1
+                end
+              end
+            end
+
+            defmodule User do
+              use Injector
+            end
+            """.trimIndent()
+        )
+
+        var user: Module? = null
+
+        fun walk(element: StructureViewTreeElement) {
+            if (element is Module && (element.value as? Call)?.let { org.elixir_lang.psi.Module.name(it) } == "User") {
+                user = element
+            }
+
+            for (child in element.children) {
+                if (child is StructureViewTreeElement) walk(child)
+            }
+        }
+
+        walk(Model(myFixture.file as ElixirFile, null).root)
+
+        assertEquals(emptyList<String>(), Used().provideNodes(user!!).filterIsInstance<CallDefinition>().map { it.name })
+    }
+
     /** `defoverridable` marks a macro overridable as it does a function. */
     fun testDefoverridableMarksMacrosAsWellAsFunctions() {
         myFixture.configureByText(

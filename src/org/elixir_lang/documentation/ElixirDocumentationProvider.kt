@@ -280,7 +280,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 DelegationPrecedence.isDelegation(sibling) &&
                     CallableDeclaration.definitions(sibling, ResolveState.initial()).any { it.name in names }
             }
-            ?.sortedBy { FunctionSymbol.fromDelegation(it).maxOfOrNull(FunctionSymbol::arity) ?: 0 }
+            ?.sortedBy { FunctionSymbol.fromDeclaration(it).maxOfOrNull(FunctionSymbol::arity) ?: 0 }
             ?: listOf(delegation)
 
         return delegations.mapNotNull(::oneDelegationDoc).joinToString("").ifEmpty { null }
@@ -290,7 +290,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
     private fun oneDelegationDoc(delegation: Call): String? {
         SourceFileDocsHelper.fetchDocs(delegation)?.let { return formatDocs(delegation.project, it) }
 
-        val symbol = FunctionSymbol.fromDelegation(delegation).maxByOrNull { it.arity } ?: return null
+        val symbol = FunctionSymbol.fromDeclaration(delegation).maxByOrNull { it.arity } ?: return null
         val target = symbol.delegatedTo().firstOrNull()
         val head = CallableDeclaration.delegationHead(delegation)?.text?.let(StringUtil::escapeXmlEntities) ?: symbol.name
         val html = StringBuilder()

@@ -109,29 +109,23 @@ class Used : FileStructureNodeProvider<TreeElement>, ActionShortcutProvider {
                                             for (childCall in childCalls) {
                                                 /* portion of {@link org.elixir_lang.structure_view.element.enclosingModular.Module#childCallTreeElements}
                                                    dealing with macros, restricted to __using__/1 */
-                                                val definer = org.elixir_lang.psi.CallableDeclaration.definerOf(childCall)
-
-                                                if (definer?.capabilities?.compileTime == true) {
+                                                if (org.elixir_lang.psi.Using.isDefiner(childCall)) {
+                                                    val definer = org.elixir_lang.psi.CallableDeclaration.definerOf(childCall)
                                                     val nameArityInterval =
                                                         org.elixir_lang.psi.CallDefinitionClause.nameArityInterval(
                                                             childCall,
                                                             ResolveState.initial()
                                                         )
 
-                                                    if (nameArityInterval != null) {
-                                                        val name = nameArityInterval.name
-                                                        val arityInterval = nameArityInterval.arityInterval
-
-                                                        if (name == USING && arityInterval.contains(1)) {
-                                                            addClausesToCallDefinition(
-                                                                childCall,
-                                                                name,
-                                                                arityInterval,
-                                                                macroByNameArity,
-                                                                module,
-                                                                definer
-                                                            ) { _ -> }
-                                                        }
+                                                    if (definer != null && nameArityInterval != null) {
+                                                        addClausesToCallDefinition(
+                                                            childCall,
+                                                            nameArityInterval.name,
+                                                            nameArityInterval.arityInterval,
+                                                            macroByNameArity,
+                                                            module,
+                                                            definer
+                                                        ) { _ -> }
                                                     }
                                                 }
                                             }

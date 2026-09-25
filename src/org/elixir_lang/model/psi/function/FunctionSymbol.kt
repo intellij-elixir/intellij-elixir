@@ -20,6 +20,7 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.ElixirSymbolWithUsages
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallableDeclaration
+import org.elixir_lang.psi.DelegationPrecedence
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.nameTextRange
@@ -109,7 +110,7 @@ class FunctionSymbol private constructor(
     @RequiresReadLock
     fun delegatedTo(): List<FunctionSymbol> {
         val delegation = CallableDeclaration.declarationNamedAt(file, range)
-            ?.takeIf { CallableDeclaration.isForm(it, CallableDeclaration.Form.DELEGATION) }
+            ?.takeIf(DelegationPrecedence::isDelegation)
             ?: return emptyList()
         val targets = MultiResolve.delegatedTargets(delegation, name, usedArity, incompleteCode = false)
 
@@ -198,17 +199,11 @@ class FunctionSymbol private constructor(
             )
 
         /**
-         * Build the [FunctionSymbol] symbol(s) for a `def`/`defp`/`defmacro`/`defmacrop` clause in a regular
-         * module (not inside a `defprotocol` - those are `ProtocolFunction`).
-         *
-         * Returns empty list if:
-         * - [clause] is not a call-definition clause, or
-         * - the clause is directly inside a `defprotocol` (use `ProtocolFunction.fromClause` instead), or
-         * - the module name or name/arity cannot be determined.
+         * The symbols a `def`/`defp`/`defmacro`/`defmacrop` [clause] declares in a regular module; none directly inside a
+         * `defprotocol` (those are `ProtocolFunction`s), or when the module name or name/arity cannot be determined.
          */
-        @RequiresReadLock
-        fun fromClause(clause: Call): List<FunctionSymbol> {
-            val definer = CallableDeclaration.definerOf(clause) ?: return emptyList()
+        private fun fromClause(clause: Call): List<FunctionSymbol> {
+            val capabilities = CallableDeclaration.capabilitiesOf(clause, ResolveState.initial()) ?: return emptyList()
             val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(clause) ?: return emptyList()
             // Protocol function declarations are owned by ProtocolFunction, not FunctionSymbol.
             if (Protocol.`is`(enclosingModular)) return emptyList()
@@ -217,7 +212,7 @@ class FunctionSymbol private constructor(
                 ?: return emptyList()
             val nameArity = CallDefinitionClause.functionNameArityInterval(clause, ResolveState.initial()) ?: return emptyList()
             val nameId = CallDefinitionClause.nameIdentifier(clause) ?: return emptyList()
-            val macro = definer.capabilities.compileTime
+            val macro = capabilities.compileTime
             // For a decompiled beam function, this clause lives in an in-memory mirror file built from the `.beam`'s
             // decompiled text; its `originalFile` is the navigable compiled file whose virtual file opens the
             // decompiled editor at these offsets. For a source function `originalFile` is the file itself (no-op).
@@ -254,18 +249,8 @@ class FunctionSymbol private constructor(
             return listOf(of(call.containingFile.originalFile, nameAtom, moduleName, name, arity, CallableDeclaration.isCompileTime(call)))
         }
 
-        /**
-         * The symbols a `defdelegate` declares in its own module.
-         *
-         * A delegation declares a function whether or not `to:` resolves, and [fromClause] cannot
-         * express it because [CallableDeclaration.Form.DELEGATION] and [CallableDeclaration.Form.CLAUSE] are
-         * separate forms.
-         */
-        @RequiresReadLock
-        fun fromDelegation(delegation: Call): List<FunctionSymbol> {
-            if (!CallableDeclaration.isForm(delegation, CallableDeclaration.Form.DELEGATION)) {
-                return emptyList()
-            }
+        /** The symbols a `defdelegate` declares in its own module, whether or not `to:` resolves. */
+        private fun fromDelegation(delegation: Call): List<FunctionSymbol> {
             val head = CallableDeclaration.delegationHead(delegation) ?: return emptyList()
             val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(delegation) ?: return emptyList()
             if (Protocol.`is`(enclosingModular)) return emptyList()

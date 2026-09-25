@@ -7,8 +7,8 @@ import java.io.File
 
 /**
  * "Does this call put a function or macro name in scope" is answered by [CallableDeclaration] alone. A file under
- * `src/org/elixir_lang` that names two or more of the declaring predicates - directly, or through an import that
- * lets it call one bare - is answering it again by hand, which is how three scope walkers came to disagree about
+ * `src/org/elixir_lang` that names two or more of the declaring forms - through their predicates, directly or through
+ * an import that lets it call one bare, or through `isForm` - is answering it again by hand, which is how three scope walkers came to disagree about
  * which forms declare. A site that treats each form differently dispatches on the form, exhaustively.
  *
  * [CallableDeclaration.formOf] resolves a reference for two of the six forms, so a caller on the stub-building path
@@ -40,15 +40,9 @@ class CallableDeclarationGuardTest {
     fun `only CallableDeclaration decides whether a declaration is a function or a macro`() {
         assertTrue("expected $ROOT to exist - is the working directory the project root?", ROOT.isDirectory)
 
-        val deciding = ROOT.walkTopDown()
-            .filter { it.isFile && it.extension in SOURCE_EXTENSIONS }
-            .map { it.relativeTo(ROOT).invariantSeparatorsPath to it }
+        val deciding = sourceFiles()
             .filter { (path, _) -> path !in KIND_MECHANISM }
-            .filter { (_, file) ->
-                val code = file.readLines()
-                    .filterNot { COMMENT_LINE.containsMatchIn(it) }
-                    .joinToString("\n") { it.replace(TRAILING_COMMENT, "") }
-
+            .filter { (_, code) ->
                 KIND_QUALIFIED.containsMatchIn(code) ||
                     KIND_IMPORT.containsMatchIn(code) ||
                     CLAUSE_ALIAS_IMPORT.findAll(code).any { import ->
@@ -56,9 +50,8 @@ class CallableDeclarationGuardTest {
                             .containsMatchIn(code)
                     }
             }
-            .map { (path, _) -> path }
+            .keys
             .sorted()
-            .toList()
 
         assertEquals("Ask CallableDeclaration.capabilitiesOf instead of naming the clause kind predicates:", "", deciding.joinToString("\n"))
     }
@@ -68,38 +61,44 @@ class CallableDeclarationGuardTest {
     fun `only CallableDeclaration decides what a compiled definition can do from its time`() {
         assertTrue("expected $ROOT to exist - is the working directory the project root?", ROOT.isDirectory)
 
-        val deciding = ROOT.walkTopDown()
-            .filter { it.isFile && it.extension in SOURCE_EXTENSIONS }
-            .map { it.relativeTo(ROOT).invariantSeparatorsPath to it }
-            .filter { (path, _) -> path !in KIND_MECHANISM }
-            .filter { (_, file) ->
-                val code = file.readLines()
-                    .filterNot { COMMENT_LINE.containsMatchIn(it) }
-                    .joinToString("\n") { it.replace(TRAILING_COMMENT, "") }
-
-                COMPILED_TIME.containsMatchIn(code)
-            }
-            .map { (path, _) -> path }
+        val deciding = sourceFiles()
+            .filter { (path, code) -> path !in KIND_MECHANISM && COMPILED_TIME.containsMatchIn(code) }
+            .keys
             .sorted()
-            .toList()
 
         assertEquals("Ask CallableDeclaration.capabilitiesOf instead of reading a compiled definition's time:", "", deciding.joinToString("\n"))
     }
 
-    private fun enumeratingFiles(): Map<String, List<String>> =
+    /** Each source file under [ROOT] by its path relative to it, comments stripped. */
+    private fun sourceFiles(): Map<String, String> =
         ROOT.walkTopDown()
-            .filter { it.isFile && it.extension in SOURCE_EXTENSIONS && it.name != MECHANISM }
+            .filter { it.isFile && it.extension in SOURCE_EXTENSIONS }
             .associate { file ->
-                val code = file.readLines()
-                    .filterNot { COMMENT_LINE.containsMatchIn(it) }
-                    .joinToString("\n") { it.replace(TRAILING_COMMENT, "") }
-                val named = PREDICATES.filter { predicate ->
+                file.relativeTo(ROOT).invariantSeparatorsPath to
+                    file.readLines()
+                        .filterNot { COMMENT_LINE.containsMatchIn(it) }
+                        .joinToString("\n") { it.replace(TRAILING_COMMENT, "") }
+            }
+
+    /**
+     * A form is named by its predicate, by `isForm(call, Form.X)` or `Declared.Source(call, Form.X)`, or - for a clause -
+     * by any `definerOf(call)`, since only a clause has a definer.
+     */
+    private fun enumeratingFiles(): Map<String, List<String>> =
+        sourceFiles()
+            .filterKeys { it !in FORM_EXEMPT }
+            .mapValues { (_, code) ->
+                val predicates = PREDICATES.filter { predicate ->
                     predicate.enumerating.containsMatchIn(code) ||
                         (predicate.importedMember.containsMatchIn(code) && predicate.bareCall.containsMatchIn(code)) ||
                         predicate.callsThroughAlias(code)
                 }.map { it.name }
+                val forms = IS_FORM.findAll(code)
+                    .flatMap { FORM_LITERAL.findAll(it.groupValues[1]) }
+                    .map { FORM_PREDICATE.getValue(it.groupValues[1]) }
+                val definer = if (DEFINER_TEST.containsMatchIn(code)) listOf("clause") else emptyList()
 
-                file.relativeTo(ROOT).invariantSeparatorsPath to named
+                (predicates + forms + definer).distinct()
             }
             .filterValues { it.size >= 2 }
 
@@ -131,8 +130,8 @@ class CallableDeclarationGuardTest {
 
         // Kotlin's `Owner.Companion.member` and Java's `Owner.INSTANCE.member` for an `object` member.
         private const val COMPANION = """(\s*\.\s*(?:Companion|INSTANCE))?"""
-        // Requires the call's open parenthesis, so a method reference passed as a predicate is not seen, as at
-        // `documentation/ElixirDocumentationProvider.kt:184`.
+        // Requires the call's open parenthesis, so a method reference passed as a predicate is not seen, as in
+        // `documentation/ElixirDocumentationProvider.kt`.
         private const val IS = """\s*\.\s*`?is`?\s*\("""
         private val BARE_IS = Regex("""(?<![.\w])`?is`?\s*\(""")
 
@@ -184,6 +183,27 @@ class CallableDeclarationGuardTest {
                 "isEmbed",
             ),
         )
+        val FORM_EXEMPT = setOf(
+            "psi/$MECHANISM",
+            // Stub building may not resolve, and asks only whether a call's stub can hold a modular's children.
+            "psi/stub/type/call/Stub.java",
+            // Asks whether an occurrence is a clause's own name - a head, not a call - and which `defdelegate` an
+            // `as:` atom belongs to; neither enumerates what declares.
+            "model/psi/ElixirUsageQueries.kt",
+        )
+        // The arguments of an `isForm(...)` or `Declared.Source(...)` call, through one level of nested parentheses.
+        val IS_FORM = Regex("""(?:isForm|Declared\s*\.\s*Source)\s*\(((?:[^()]|\([^()]*\))*)\)""")
+        val FORM_PREDICATE = mapOf(
+            "CLAUSE" to "clause",
+            "CALLBACK" to "callback",
+            "DELEGATION" to "delegation",
+            "EXCEPTION" to "exception",
+            "EEX_FUNCTION_FROM" to "eex",
+            "GENERATOR_EMBED" to "generator",
+        )
+        val FORM_LITERAL = Regex("""Form\s*\.\s*(${FORM_PREDICATE.keys.joinToString("|")})\b""")
+        // Any `definerOf`, called or referenced: only a clause has a definer, however its answer is then tested.
+        val DEFINER_TEST = Regex("""\bdefinerOf\b""")
         val KIND_MECHANISM = setOf("psi/CallDefinitionClause.kt", "psi/$MECHANISM")
         private const val KIND = """`?is(?:Function|Macro|Guard|Public\w*|Private\w*)`?"""
         private const val CLAUSE = """org\.elixir_lang\.psi\.CallDefinitionClause"""

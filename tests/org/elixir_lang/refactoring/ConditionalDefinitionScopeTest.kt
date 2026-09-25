@@ -128,7 +128,7 @@ class ConditionalDefinitionScopeTest : PlatformTestCase() {
         val calls = com.intellij.psi.util.PsiTreeUtil.findChildrenOfType(myFixture.file, org.elixir_lang.psi.call.Call::class.java)
         val modules = calls
             .filter { it.text.startsWith("def snoc") }
-            .map { org.elixir_lang.model.psi.function.FunctionSymbol.fromClause(it).firstOrNull()?.moduleName }
+            .map { org.elixir_lang.model.psi.function.FunctionSymbol.fromDeclaration(it).firstOrNull()?.moduleName }
         val listed = calls
             .filter { org.elixir_lang.psi.Module.`is`(it) }
             .map { module ->
