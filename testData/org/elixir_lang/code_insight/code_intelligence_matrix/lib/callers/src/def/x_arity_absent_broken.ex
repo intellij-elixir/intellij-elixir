@@ -11,4 +11,5 @@ defmodule Callers.Src.Def.XArityAbsentBroken do
   def at_undeclared(a, b), do: Src.Def.XArityAbsent.src_def_x_arity_absent_undeclared(a, b) # @undeclared
   def at_lookalike_prefix(a, b), do: Src.Def.XArityAbsent.src_def_x_arity_absent_sno(a, b) # @lookalike_prefix
   def at_undeclared_no_arguments(_a, _b), do: Src.Def.XArityAbsent.src_def_x_arity_absent_undeclared # @undeclared_no_arguments
+  def at_kernel_name(a, _b), do: Src.Def.XArityAbsent.is_nil(a) # @kernel_name
 end

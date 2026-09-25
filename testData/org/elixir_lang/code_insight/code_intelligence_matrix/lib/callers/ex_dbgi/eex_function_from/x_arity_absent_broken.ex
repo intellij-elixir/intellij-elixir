@@ -11,4 +11,5 @@ defmodule Callers.ExDbgi.EexFunctionFrom.XArityAbsentBroken do
   def at_undeclared(a, b), do: ExDbgi.EexFunctionFrom.XArityAbsent.ex_dbgi_eex_function_from_x_arity_absent_undeclared(a, b) # @undeclared
   def at_lookalike_prefix(a, b), do: ExDbgi.EexFunctionFrom.XArityAbsent.ex_dbgi_eex_function_from_x_arity_absent_sno(a, b) # @lookalike_prefix
   def at_undeclared_no_arguments(_a, _b), do: ExDbgi.EexFunctionFrom.XArityAbsent.ex_dbgi_eex_function_from_x_arity_absent_undeclared # @undeclared_no_arguments
+  def at_kernel_name(a, _b), do: ExDbgi.EexFunctionFrom.XArityAbsent.is_nil(a) # @kernel_name
 end
