@@ -1506,7 +1506,7 @@ defmodule Matrix do
       # `\s*$` matches a bodiless head, which declares the defaults and defines nothing.
       # An EEx function's name is the atom after its kind, and its parameters the atoms in its last list.
       case Regex.run(~r/^\s*(def|defp|defmacro|defmacrop) unquote\(:([^\s)]+)\)\((.*?)\)(?: when |, do:)/u, text, return: :index) ||
-             Regex.run(~r/^\s*(def|defp|defmacro|defmacrop|defguard|defguardp|defdelegate) ([^\s(]+)\((.*?)\)(?: when |, do:|, to:|\s*$)/u, text, return: :index) ||
+             Regex.run(~r/^\s*(def|defp|defmacro|defmacrop|defguard|defguardp|defdelegate) ([^\s(]+)\((.*?)\)(?: when |, do:|, to:|, \[to:|\s*$)/u, text, return: :index) ||
              Regex.run(~r/^\s*EEx\.function_from_string\(:(def|defp), :([^\s,]+), .*, \[(.*)\]\)$/u, text, return: :index) do
         [_, {definer_start, definer_length}, {name_start, name_length}, {parameters_start, parameters_length}] ->
           name = binary_part(text, name_start, name_length)
