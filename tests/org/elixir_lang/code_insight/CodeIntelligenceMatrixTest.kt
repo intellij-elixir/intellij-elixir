@@ -500,9 +500,9 @@ private class Group(val scenario: Scenario) {
             val name = "${nfc(definition.name)}/${definition.maxArity}"
             // Every head the declaration writes, which for a defaults world is one more than `Definition.clauses`:
             // the bodiless head is not a clause, but the structure view still shows it under the definition.
-            // A `@spec` of the definition is shown under it too, as the other thing written about it - at any arity it
-            // covers, since a definition with defaults is one function at each.
-            val specs = scenario.sites.count { specName(it.id) && it.file == module.source && nfc(it.name) == nfc(definition.name) && it.arity in definition.minArity..definition.maxArity }
+            // A `@spec` of the definition is shown under it too, as the other thing written about it. One of a lower arity a
+            // default covers is shown under that arity's own entry, which is how the view lists a definition with defaults.
+            val specs = scenario.sites.count { specName(it.id) && it.file == module.source && nfc(it.name) == nfc(definition.name) && it.arity == definition.maxArity }
             val heads = Expected.heads(module, definition.name, definition.maxArity).size + specs
             assertTrue(
                 "Structure view has no `$name` with $heads head(s) and spec(s); it has ${entries.filter { it.first.contains('/') }}",
