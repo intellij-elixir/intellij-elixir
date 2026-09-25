@@ -7,7 +7,9 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiCompiledFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
+import com.intellij.navigation.GotoRelatedItem
 import com.intellij.navigation.GotoRelatedProvider
+import com.intellij.openapi.extensions.ExtensionPointName
 import com.intellij.psi.PsiManager
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.ResolveState
@@ -680,9 +682,9 @@ private class Group(val scenario: Scenario) {
             opened = false
             val declaration = main.declarations.filter { it.name == head.name && it.arity == head.arity }[head.clause]
             val element = myFixture.file.findElementAt(offsetOf(file, declaration.line, declaration.column) + 1)!!
-            val related = GotoRelatedProvider.EP_NAME.extensionList
-                .flatMap { provider -> provider.getItems(element) }
-                .mapNotNull { it.element?.let(::describeLine) }
+            val related = GOTO_RELATED_PROVIDERS.extensionList
+                .flatMap { provider: GotoRelatedProvider -> provider.getItems(element) }
+                .mapNotNull { item: GotoRelatedItem -> item.element?.let { describeLine(it) } }
                 .distinct()
                 .sorted()
             val definition = main.definitions.first { nfc(it.name) == nfc(head.name) && head.arity in it.minArity..it.maxArity }
@@ -1334,6 +1336,9 @@ private class Group(val scenario: Scenario) {
 
         /** Where [Group.timed] appends one row per phase: the file `MATRIX_TIMING` names, or nowhere when unset. */
         private val TIMING: File? = System.getenv("MATRIX_TIMING")?.takeIf(String::isNotBlank)?.let(::File)
+
+        /** Go To Related's providers, by the extension point's name: its `EP_NAME` is not public in every platform. */
+        private val GOTO_RELATED_PROVIDERS = ExtensionPointName.create<GotoRelatedProvider>("com.intellij.gotoRelatedProvider")
 
         /** The cells whose names `MATRIX_ONLY` matches, a regex, when it is set: to ask a handful without the rest. */
         private val ONLY: Regex? = System.getenv("MATRIX_ONLY")?.takeIf(String::isNotBlank)?.let(::Regex)
