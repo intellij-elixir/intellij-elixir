@@ -84,7 +84,8 @@ defmodule Matrix do
   @function_forms ["def", "defp", "defdelegate", "defdelegate_compiled", "defdelegate_unresolvable", "defdelegate_as", "eex_function_from"]
 
   # A `@spec` names one arity, so the worlds where that is one name at one arity and at two.
-  @spec_worlds ["w1", "x_arity"]
+  # A definition with defaults is one function at several arities, so a `@spec` of any of them is about it.
+  @spec_worlds ["w1", "x_arity", "x_defaults", "x_defaults_head"]
 
   # EEx declares one clause per name and arity, with no guard and no defaults, so only the worlds made of those.
   @eex_worlds ["w1", "x_arity", "x_other_module", "x_not_a_call", "x_arity_absent", "x_arity_zero", "x_arity_separate"]
@@ -120,6 +121,10 @@ defmodule Matrix do
           {"unqualified_arity_3", 0, "snoc", 3, :unqualified}
         ]
 
+    # The non-call uses of a lower arity a definition with defaults covers: a capture, `apply`'s atom and an MFA tuple
+    # name `snoc/1` as surely as a call does, and a rename that finds only the calls leaves them naming nothing.
+    lower_arity_uses = [{"capture_1", 0, "snoc", 1, :capture}, {"apply_1", 0, "snoc", 1, :apply}, {"mfa_1", 0, "snoc", 1, :mfa}]
+
     lookalike_calls =
       for {id, name} <- [{"xsnoc", "xsnoc"}, {"snoc_x", "snoc_x"}, {"snoc_question", "snoc?"}, {"snoc_bang", "snoc!"}, {"snoc_combining", @decomposed}],
           do: {"lookalike_" <> id, 0, name, 2, :qualified}
@@ -132,7 +137,7 @@ defmodule Matrix do
       "x_arity" => %{modules: [[snoc_2, {"snoc", [{["q", "x", "y"], nil}]}]], calls: one_calls ++ [{"arity_3", 0, "snoc", 3, :qualified}, {"unqualified_arity_3", 0, "snoc", 3, :unqualified}]},
       "x_other_module" => %{modules: [[snoc_2], [snoc_2]], calls: one_calls ++ [{"other_qualified", 1, "snoc", 2, :qualified}]},
       "x_not_a_call" => %{modules: [[snoc_2]], calls: one_calls ++ [{"variable", 0, "snoc", 0, :variable}, {"atom", 0, "snoc", 0, :atom}, {"keyword", 0, "snoc", 0, :keyword}]},
-      "x_defaults" => %{modules: [[{"snoc", [{["q", {"x", "nil"}], nil}]}]], calls: one_calls ++ [{"default_arity", 0, "snoc", 1, :qualified}]},
+      "x_defaults" => %{modules: [[{"snoc", [{["q", {"x", "nil"}], nil}]}]], calls: one_calls ++ [{"default_arity", 0, "snoc", 1, :qualified}] ++ lower_arity_uses},
       # Only `snoc/2` exists, so a call at any other arity has exactly one candidate and none of them match it.
       "x_arity_absent" => %{
         modules: [[snoc_2]],
@@ -167,7 +172,7 @@ defmodule Matrix do
               {"unqualified_arity_1", 0, "snoc", 1, :unqualified}
             ]
       },
-      "x_defaults_head" => %{modules: [[defaults_head]], calls: spread_calls},
+      "x_defaults_head" => %{modules: [[defaults_head]], calls: spread_calls ++ lower_arity_uses},
       "x_arity_separate" => %{modules: [separate], calls: spread_calls},
       # Every way `snoc` is written, spelled the other way from its declaration: normalisation is the language's,
       # so no gesture may depend on which of the two equal spellings it was handed.
@@ -299,6 +304,11 @@ defmodule Matrix do
   # definition covers the arity an `only:` keeps and the one it leaves out.
   @import_worlds ["w2", "x_defaults", "x_defaults_head", "x_arity_separate"]
 
+  # A private definition's remote calls: at the arity it declares and at one it does not. The compiler reads both as
+  # "undefined or private", and names no private arity - so neither may the editor.
+  @private_remote_worlds ["x_arity_absent"]
+  @private_remote_calls [{"private_remote", 0, "snoc", 2, :qualified}, {"private_remote_arity_1", 0, "snoc", 1, :qualified}]
+
   defp scenario(backing, form, world, spec) do
     spec = scope(spec, backing, form, world)
     names = module_names(backing, form, world, length(spec.modules))
@@ -315,19 +325,23 @@ defmodule Matrix do
 
     calls =
       cond do
+        form[:private] && world in @private_remote_worlds ->
+          @private_remote_calls
+
         form[:private] ->
           []
 
         true ->
           Enum.reject(spec.calls, fn {_, _, _, _, shape} ->
-            (form[:macro] && shape in [:capture, :apply, :apply_quoted]) ||
+            (form[:macro] && shape in [:capture, :apply, :apply_quoted, :mfa]) ||
               (backing.language == :erlang && shape in [:aliased, :aliased_as])
           end)
       end
     # A call at an arity nothing defines cannot share a file with the rest: made locally it is a compile error, so
     # it would take the whole module down with it. It gets its own caller, compiled expecting to fail, and what the
     # compiler says about it is the oracle for what the IDE should say.
-    {calls, broken} = Enum.split_with(calls, &defined?(&1, worlds_modules))
+    # From another module a private definition is not there at any arity, so the compiler rejects each of these.
+    {calls, broken} = if form[:private], do: {[], calls}, else: Enum.split_with(calls, &defined?(&1, worlds_modules))
 
     caller_path = Path.join(["lib", "callers", backing.id, form.id, Macro.underscore(world) <> ".ex"])
     caller = render_caller(backing, form, world, names, calls)
@@ -336,6 +350,8 @@ defmodule Matrix do
     caller_events = compile_elixir(caller_path, caller)
 
     {broken_paths, broken_sites} = broken_caller(backing, form, world, names, broken)
+    # Nothing of a private definition is callable from outside, which is what an empty `visible` says.
+    broken_sites = if form[:private], do: Enum.map(broken_sites, &Map.put(&1, "visible", [])), else: broken_sites
 
     {import_paths, import_sites} =
       if world in @import_worlds and !form[:private],
@@ -1056,7 +1072,16 @@ defmodule Matrix do
     clauses =
       for {name, clauses} <- definitions, {clause, index} <- Enum.with_index(clauses) do
         {parameters, guard, head?} = clause_parts(clause)
-        spec = if form[:spec] and index == 0, do: "  @spec #{name}(#{Enum.map_join(parameters, ", ", fn _ -> "term()" end)}) :: term() # @spec_#{length(parameters)}\n", else: ""
+        defaults = Enum.count(parameters, &is_tuple/1)
+
+        # One `@spec` per arity the definition covers: with defaults it is one function at each of them.
+        spec =
+          if form[:spec] and index == 0,
+            do:
+              Enum.map_join((length(parameters) - defaults)..length(parameters)//1, fn arity ->
+                "  @spec #{name}(#{Enum.join(List.duplicate("term()", arity), ", ")}) :: term() # @spec_#{arity}\n"
+              end),
+            else: ""
         written = if form[:unquote_name], do: "unquote(:#{name})", else: name
         rendered = Enum.map_join(parameters, ", ", fn {parameter, default} -> "#{parameter} \\\\ #{default}"; parameter -> parameter end)
         variables = Enum.map(parameters, fn {parameter, _} -> parameter; parameter -> parameter end)
@@ -1193,6 +1218,7 @@ defmodule Matrix do
   defp call(:capture, backing, module, name, arity), do: "{&#{module}.#{call_name(backing, name)}/#{arity}, a, b}"
   defp call(:apply, _backing, module, name, arity), do: "apply(#{module}, :#{name}, [#{arguments(arity)}])"
   defp call(:apply_quoted, _backing, module, name, arity), do: "apply(#{module}, :\"#{name}\", [#{arguments(arity)}])"
+  defp call(:mfa, _backing, module, name, arity), do: "{{#{module}, :#{name}, #{arity}}, a, b}"
   defp call(:variable, _backing, _module, name, _arity), do: "(fn #{name} -> #{name} end).({a, b})"
   defp call(:atom, _backing, _module, name, _arity), do: "{:#{name}, a, b}"
   defp call(:keyword, _backing, _module, name, _arity), do: "[#{name}: a, b: b]"
@@ -1270,8 +1296,8 @@ defmodule Matrix do
   # The compiler binds nothing at the atom in `apply(M, :name, [...])`, but the plugin treats that atom as a
   # reference to M.name/length([...]), and so does this oracle. A variable, a bare atom and a keyword key bind to no
   # definition.
-  defp binding(_events, _path, _line, name, shape, backing, module, arity) when shape in [:apply, :apply_quoted],
-    do: %{"module" => reference(backing, module), "name" => nfc(name), "arity" => arity, "kind" => "apply"}
+  defp binding(_events, _path, _line, name, shape, backing, module, arity) when shape in [:apply, :apply_quoted, :mfa],
+    do: %{"module" => reference(backing, module), "name" => nfc(name), "arity" => arity, "kind" => to_string(shape)}
 
   defp binding(_events, _path, _line, _name, shape, _backing, _module, _arity) when shape in [:variable, :atom, :keyword], do: nil
 
