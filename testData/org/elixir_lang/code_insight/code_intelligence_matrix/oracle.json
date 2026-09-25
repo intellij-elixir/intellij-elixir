@@ -16314,6 +16314,20 @@
           "line": 5,
           "name": "snoc",
           "visible": []
+        },
+        {
+          "arity": 3,
+          "binding": null,
+          "column": 66,
+          "diagnostic": {
+            "message": "Src.Defp.XArityAbsent.snoc/3 is undefined or private",
+            "severity": "warning"
+          },
+          "file": "lib/callers/src/defp/x_arity_absent_broken.ex",
+          "id": "private_remote_arity_3",
+          "line": 6,
+          "name": "snoc",
+          "visible": []
         }
       ],
       "world": "x_arity_absent"
@@ -24420,6 +24434,20 @@
           "line": 5,
           "name": "snoc",
           "visible": []
+        },
+        {
+          "arity": 3,
+          "binding": null,
+          "column": 71,
+          "diagnostic": {
+            "message": "Src.Defmacrop.XArityAbsent.snoc/3 is undefined or private",
+            "severity": "warning"
+          },
+          "file": "lib/callers/src/defmacrop/x_arity_absent_broken.ex",
+          "id": "private_remote_arity_3",
+          "line": 6,
+          "name": "snoc",
+          "visible": []
         }
       ],
       "world": "x_arity_absent"
@@ -30795,6 +30823,20 @@
           "file": "lib/callers/src/defguardp/x_arity_absent_broken.ex",
           "id": "private_remote_arity_1",
           "line": 5,
+          "name": "snoc",
+          "visible": []
+        },
+        {
+          "arity": 3,
+          "binding": null,
+          "column": 71,
+          "diagnostic": {
+            "message": "Src.Defguardp.XArityAbsent.snoc/3 is undefined or private",
+            "severity": "warning"
+          },
+          "file": "lib/callers/src/defguardp/x_arity_absent_broken.ex",
+          "id": "private_remote_arity_3",
+          "line": 6,
           "name": "snoc",
           "visible": []
         }
@@ -62507,6 +62549,20 @@
           "line": 5,
           "name": "snoc",
           "visible": []
+        },
+        {
+          "arity": 3,
+          "binding": null,
+          "column": 69,
+          "diagnostic": {
+            "message": "ExDbgi.Defp.XArityAbsent.snoc/3 is undefined or private",
+            "severity": "warning"
+          },
+          "file": "lib/callers/ex_dbgi/defp/x_arity_absent_broken.ex",
+          "id": "private_remote_arity_3",
+          "line": 6,
+          "name": "snoc",
+          "visible": []
         }
       ],
       "world": "x_arity_absent"
@@ -90621,6 +90677,20 @@
           "line": 5,
           "name": "snoc",
           "visible": []
+        },
+        {
+          "arity": 3,
+          "binding": null,
+          "column": 69,
+          "diagnostic": {
+            "message": "ExDocs.Defp.XArityAbsent.snoc/3 is undefined or private",
+            "severity": "warning"
+          },
+          "file": "lib/callers/ex_docs/defp/x_arity_absent_broken.ex",
+          "id": "private_remote_arity_3",
+          "line": 6,
+          "name": "snoc",
+          "visible": []
         }
       ],
       "world": "x_arity_absent"
@@ -118725,6 +118795,20 @@
           "line": 5,
           "name": "snoc",
           "visible": []
+        },
+        {
+          "arity": 3,
+          "binding": null,
+          "column": 68,
+          "diagnostic": {
+            "message": "ExGen.Defp.XArityAbsent.snoc/3 is undefined or private",
+            "severity": "warning"
+          },
+          "file": "lib/callers/ex_gen/defp/x_arity_absent_broken.ex",
+          "id": "private_remote_arity_3",
+          "line": 6,
+          "name": "snoc",
+          "visible": []
         }
       ],
       "world": "x_arity_absent"
@@ -144549,6 +144633,20 @@
           "file": "lib/callers/erl_abst/defp/x_arity_absent_broken.ex",
           "id": "private_remote_arity_1",
           "line": 5,
+          "name": "snoc",
+          "visible": []
+        },
+        {
+          "arity": 3,
+          "binding": null,
+          "column": 74,
+          "diagnostic": {
+            "message": ":erl_abst_defp_x_arity_absent.snoc/3 is undefined or private",
+            "severity": "warning"
+          },
+          "file": "lib/callers/erl_abst/defp/x_arity_absent_broken.ex",
+          "id": "private_remote_arity_3",
+          "line": 6,
           "name": "snoc",
           "visible": []
         }
