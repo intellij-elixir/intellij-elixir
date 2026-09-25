@@ -6,5 +6,12 @@ defmodule Src.Defp.XAritySeparate do
 
   def local_site(a, b), do: src_defp_x_arity_separate_snoc(a, b) # @local
 
-  def uses(a, b), do: {src_defp_x_arity_separate_snoc(), src_defp_x_arity_separate_snoc(a), a, b}
+  def uses(a, b) do
+    {
+      src_defp_x_arity_separate_snoc(), # @uses_0
+      src_defp_x_arity_separate_snoc(a), # @uses_1
+      a,
+      b
+    }
+  end
 end

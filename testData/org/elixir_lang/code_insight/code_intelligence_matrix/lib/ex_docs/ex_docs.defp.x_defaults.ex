@@ -4,5 +4,11 @@ defmodule ExDocs.Defp.XDefaults do
 
   def local_site(a, b), do: ex_docs_defp_x_defaults_snoc(a, b) # @local
 
-  def uses(a, b), do: {ex_docs_defp_x_defaults_snoc(a), a, b}
+  def uses(a, b) do
+    {
+      ex_docs_defp_x_defaults_snoc(a), # @uses_0
+      a,
+      b
+    }
+  end
 end

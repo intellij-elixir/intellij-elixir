@@ -9,5 +9,15 @@ defmodule ExDocs.Defp.XLookalikeAbsent do
 
   def local_site(a, b), do: ex_docs_defp_x_lookalike_absent_snoc(a, b) # @local
 
-  def uses(a, b), do: {ex_docs_defp_x_lookalike_absent_xsnoc(a, b), ex_docs_defp_x_lookalike_absent_snoc_x(a, b), ex_docs_defp_x_lookalike_absent_snoc?(a, b), ex_docs_defp_x_lookalike_absent_snoc!(a, b), ex_docs_defp_x_lookalike_absent_snoć(a, b), a, b}
+  def uses(a, b) do
+    {
+      ex_docs_defp_x_lookalike_absent_xsnoc(a, b), # @uses_0
+      ex_docs_defp_x_lookalike_absent_snoc_x(a, b), # @uses_1
+      ex_docs_defp_x_lookalike_absent_snoc?(a, b), # @uses_2
+      ex_docs_defp_x_lookalike_absent_snoc!(a, b), # @uses_3
+      ex_docs_defp_x_lookalike_absent_snoć(a, b), # @uses_4
+      a,
+      b
+    }
+  end
 end

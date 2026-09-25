@@ -7,5 +7,11 @@ defmodule Src.Defp.XArity do
 
   def local_site(a, b), do: src_defp_x_arity_snoc(a, b) # @local
 
-  def uses(a, b), do: {src_defp_x_arity_snoc(a, b, a), a, b}
+  def uses(a, b) do
+    {
+      src_defp_x_arity_snoc(a, b, a), # @uses_0
+      a,
+      b
+    }
+  end
 end

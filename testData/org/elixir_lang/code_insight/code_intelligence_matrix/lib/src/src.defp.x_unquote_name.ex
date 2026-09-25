@@ -4,5 +4,10 @@ defmodule Src.Defp.XUnquoteName do
 
   def local_site(a, b), do: src_defp_x_unquote_name_snoc(a, b) # @local
 
-  def uses(a, b), do: {a, b}
+  def uses(a, b) do
+    {
+      a,
+      b
+    }
+  end
 end

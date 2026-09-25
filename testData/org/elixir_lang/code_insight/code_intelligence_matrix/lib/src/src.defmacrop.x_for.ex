@@ -6,5 +6,10 @@ defmodule Src.Defmacrop.XFor do
 
   def local_site(a, b), do: src_defmacrop_x_for_snoc(a, b) # @local
 
-  def uses(a, b), do: {a, b}
+  def uses(a, b) do
+    {
+      a,
+      b
+    }
+  end
 end
