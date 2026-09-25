@@ -9,5 +9,15 @@ defmodule Src.Defguardp.XLookalikeAbsent do
 
   def local_site(a, b), do: src_defguardp_x_lookalike_absent_snoc(a, b) # @local
 
-  def uses(a, b), do: {src_defguardp_x_lookalike_absent_xsnoc(a, b), src_defguardp_x_lookalike_absent_snoc_x(a, b), src_defguardp_x_lookalike_absent_snoc?(a, b), src_defguardp_x_lookalike_absent_snoc!(a, b), src_defguardp_x_lookalike_absent_snoć(a, b), a, b}
+  def uses(a, b) do
+    {
+      src_defguardp_x_lookalike_absent_xsnoc(a, b), # @uses_0
+      src_defguardp_x_lookalike_absent_snoc_x(a, b), # @uses_1
+      src_defguardp_x_lookalike_absent_snoc?(a, b), # @uses_2
+      src_defguardp_x_lookalike_absent_snoc!(a, b), # @uses_3
+      src_defguardp_x_lookalike_absent_snoć(a, b), # @uses_4
+      a,
+      b
+    }
+  end
 end

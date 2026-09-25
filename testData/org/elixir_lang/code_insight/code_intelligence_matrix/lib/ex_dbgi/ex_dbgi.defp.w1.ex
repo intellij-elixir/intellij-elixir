@@ -4,5 +4,10 @@ defmodule ExDbgi.Defp.W1 do
 
   def local_site(a, b), do: ex_dbgi_defp_w1_snoc(a, b) # @local
 
-  def uses(a, b), do: {a, b}
+  def uses(a, b) do
+    {
+      a,
+      b
+    }
+  end
 end

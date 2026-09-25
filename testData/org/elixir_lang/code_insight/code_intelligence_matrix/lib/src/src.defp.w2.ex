@@ -7,5 +7,12 @@ defmodule Src.Defp.W2 do
 
   def local_site(a, b), do: src_defp_w2_snoc(a, b) # @local
 
-  def uses(a, b), do: {src_defp_w2_snoc(a), src_defp_w2_snoc(a, b, a), a, b}
+  def uses(a, b) do
+    {
+      src_defp_w2_snoc(a), # @uses_0
+      src_defp_w2_snoc(a, b, a), # @uses_1
+      a,
+      b
+    }
+  end
 end

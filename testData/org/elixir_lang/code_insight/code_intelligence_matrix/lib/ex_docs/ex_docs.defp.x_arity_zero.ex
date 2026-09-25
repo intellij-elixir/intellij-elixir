@@ -5,5 +5,11 @@ defmodule ExDocs.Defp.XArityZero do
 
   def local_site(a, b), do: ex_docs_defp_x_arity_zero_snoc(a, b) # @local
 
-  def uses(a, b), do: {ex_docs_defp_x_arity_zero_snoc(), a, b}
+  def uses(a, b) do
+    {
+      ex_docs_defp_x_arity_zero_snoc(), # @uses_0
+      a,
+      b
+    }
+  end
 end

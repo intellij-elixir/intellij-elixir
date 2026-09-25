@@ -6,5 +6,12 @@ defmodule Src.Defguardp.W2 do
 
   def local_site(a, b), do: src_defguardp_w2_snoc(a, b) # @local
 
-  def uses(a, b), do: {src_defguardp_w2_snoc(a), src_defguardp_w2_snoc(a, b, a), a, b}
+  def uses(a, b) do
+    {
+      src_defguardp_w2_snoc(a), # @uses_0
+      src_defguardp_w2_snoc(a, b, a), # @uses_1
+      a,
+      b
+    }
+  end
 end

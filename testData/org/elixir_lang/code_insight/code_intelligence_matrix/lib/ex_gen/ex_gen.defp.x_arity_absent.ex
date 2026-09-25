@@ -4,5 +4,10 @@ defmodule ExGen.Defp.XArityAbsent do
 
   def local_site(a, b), do: ex_gen_defp_x_arity_absent_snoc(a, b) # @local
 
-  def uses(a, b), do: {a, b}
+  def uses(a, b) do
+    {
+      a,
+      b
+    }
+  end
 end

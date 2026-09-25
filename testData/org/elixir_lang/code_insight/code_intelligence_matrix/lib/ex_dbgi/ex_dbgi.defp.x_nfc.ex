@@ -4,5 +4,10 @@ defmodule ExDbgi.Defp.XNfc do
 
   def local_site(a, b), do: ex_dbgi_defp_x_nfc_snoć(a, b) # @local
 
-  def uses(a, b), do: {a, b}
+  def uses(a, b) do
+    {
+      a,
+      b
+    }
+  end
 end
