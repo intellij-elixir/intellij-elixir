@@ -156,6 +156,12 @@ sealed interface Place {
 /** The call inside the declaring module; the only site not in the caller. */
 const val LOCAL = "local"
 
+/**
+ * A call a private form's module makes only so the compiler does not call an arity unused, marked `uses_<n>`. It is a
+ * use like any other, which Find Usages and rename must reach, but asks nothing [LOCAL] does not.
+ */
+fun privateUse(id: String): Boolean = id.startsWith("uses_")
+
 data class Cell(val scenario: Scenario, val feature: Feature, val place: Place) {
     val testName: String
         get() = "${feature.testName}[${scenario.backing},${scenario.form},${scenario.world},${place.id}]"
@@ -172,6 +178,8 @@ object Crossing {
         val backing = Backing.of(scenario)
 
         return when {
+            place is Place.Marked && privateUse(place.id) ->
+                Applicability.NotApplicable("a call made only to keep an arity used; it is a use to find and rename, but asks nothing `local` does not")
             scenario.world == LOOKALIKE_ABSENT && !rejected(scenario, place) ->
                 Applicability.NotApplicable("$LOOKALIKE_ABSENT asks only where the compiler rejected a call; everywhere else it is w3's question again")
             place is Place.Marked && place.id == LOCAL && !backing.hasBodies ->

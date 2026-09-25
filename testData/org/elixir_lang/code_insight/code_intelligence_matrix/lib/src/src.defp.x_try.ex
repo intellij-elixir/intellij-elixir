@@ -8,5 +8,10 @@ defmodule Src.Defp.XTry do
 
   def local_site(a, b), do: src_defp_x_try_snoc(a, b) # @local
 
-  def uses(a, b), do: {a, b}
+  def uses(a, b) do
+    {
+      a,
+      b
+    }
+  end
 end

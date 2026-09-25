@@ -6,5 +6,10 @@ defmodule Src.Defp.XConditional do
 
   def local_site(a, b), do: src_defp_x_conditional_snoc(a, b) # @local
 
-  def uses(a, b), do: {a, b}
+  def uses(a, b) do
+    {
+      a,
+      b
+    }
+  end
 end

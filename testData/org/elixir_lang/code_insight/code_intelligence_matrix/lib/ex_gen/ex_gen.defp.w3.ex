@@ -9,5 +9,15 @@ defmodule ExGen.Defp.W3 do
 
   def local_site(a, b), do: ex_gen_defp_w3_snoc(a, b) # @local
 
-  def uses(a, b), do: {ex_gen_defp_w3_xsnoc(a, b), ex_gen_defp_w3_snoc_x(a, b), ex_gen_defp_w3_snoc?(a, b), ex_gen_defp_w3_snoc!(a, b), ex_gen_defp_w3_snoć(a, b), a, b}
+  def uses(a, b) do
+    {
+      ex_gen_defp_w3_xsnoc(a, b), # @uses_0
+      ex_gen_defp_w3_snoc_x(a, b), # @uses_1
+      ex_gen_defp_w3_snoc?(a, b), # @uses_2
+      ex_gen_defp_w3_snoc!(a, b), # @uses_3
+      ex_gen_defp_w3_snoć(a, b), # @uses_4
+      a,
+      b
+    }
+  end
 end

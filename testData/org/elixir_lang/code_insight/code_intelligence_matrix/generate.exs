@@ -1169,7 +1169,19 @@ defmodule Matrix do
         ""
       end
 
-    uses = if primary && form[:private], do: "\n\n  def uses(a, b), do: {#{private_uses(definitions, primary, :elixir)}}", else: ""
+    # One call per line, each marked, so every use it makes is a site the oracle binds: a rename has to reach them.
+    uses =
+      if primary && form[:private] do
+        calls =
+          definitions
+          |> private_use_calls(primary)
+          |> Enum.with_index()
+          |> Enum.map_join(fn {{name, arity}, index} -> "\n      #{nfc(name)}(#{Enum.join(Enum.take(["a", "b", "a"], arity), ", ")}), # @uses_#{index}" end)
+
+        "\n\n  def uses(a, b) do\n    {#{calls}\n      a,\n      b\n    }\n  end"
+      else
+        ""
+      end
 
     # A delegate's target has no `local_site/2`; this gives it an ASCII-named definition too, so how its `.beam` was
     # built can be checked apart from how the decompiler reads the world's own names.
@@ -1189,19 +1201,10 @@ defmodule Matrix do
     """
   end
 
-  # Every private definition and arity other than what `local_site` calls, so the compiler warns about none.
+  # The calls of `private_use_calls/2` on one line, as Erlang's `uses/2` makes them.
   defp private_uses(definitions, primary, language) do
-    {primary_name, _} = primary
-
     definitions
-    |> Enum.flat_map(fn {name, [first | _]} ->
-      {parameters, _, _} = clause_parts(first)
-      defaults = Enum.count(parameters, &is_tuple/1)
-      # `local_site` always passes two arguments, whatever the primary's own arity, so that is the one call already
-      # made. Excluding the primary's full arity instead only coincided while every primary took two parameters.
-      for arity <- (length(parameters) - defaults)..length(parameters), {name, arity} != {primary_name, local_arity(definitions, primary)}, do: {name, arity}
-    end)
-    |> Enum.uniq()
+    |> private_use_calls(primary)
     |> Enum.map_join(", ", fn {name, arity} ->
       arguments = ["a", "b", "a"] |> Enum.take(arity)
 
@@ -1215,6 +1218,21 @@ defmodule Matrix do
       uses -> uses <> ", "
     end
     |> Kernel.<>(if(language == :elixir, do: "a, b", else: "A, B"))
+  end
+
+  # Every private definition and arity other than what `local_site` calls, so the compiler warns about none.
+  defp private_use_calls(definitions, primary) do
+    {primary_name, _} = primary
+
+    definitions
+    |> Enum.flat_map(fn {name, [first | _]} ->
+      {parameters, _, _} = clause_parts(first)
+      defaults = Enum.count(parameters, &is_tuple/1)
+      # `local_site` always passes two arguments, whatever the primary's own arity, so that is the one call already
+      # made. Excluding the primary's full arity instead only coincided while every primary took two parameters.
+      for arity <- (length(parameters) - defaults)..length(parameters), {name, arity} != {primary_name, local_arity(definitions, primary)}, do: {name, arity}
+    end)
+    |> Enum.uniq()
   end
 
   defp render_caller(backing, form, world, names, calls) do
@@ -1381,33 +1399,51 @@ defmodule Matrix do
   # the compiler binds to nothing but names one arity of one function all the same.
   defp marked_sites(path, source, events, backing, module) do
     for {text, line} <- source |> String.split("\n") |> Enum.with_index(1),
-        [_, id] <- [Regex.run(~r/# @(local_forward|spec_\d+)$/, text)] do
-      if id == "local_forward" do
-        [_, name] = Regex.run(~r/do: ([^\s(]+)\(/u, text)
+        [_, id] <- [Regex.run(~r/# @(local_forward|spec_\d+|uses_\d+)$/, text)] do
+      cond do
+        String.starts_with?(id, "uses_") ->
+          [_, {name_start, name_length}, {arguments_start, arguments_length}] = Regex.run(~r/^\s*([^\s(]+)\(([^)]*)\)/u, text, return: :index)
+          name = binary_part(text, name_start, name_length)
+          arguments = binary_part(text, arguments_start, arguments_length)
+          arity = if arguments == "", do: 0, else: arguments |> String.split(",") |> length()
 
-        %{
-          "id" => id,
-          "file" => path,
-          "line" => line,
-          "column" => name_column(text, name),
-          "name" => nfc(name),
-          "arity" => 2,
-          "binding" => binding(events, path, line, nfc(name), :local, backing, module, 2)
-        }
-      else
-        [_, {name_start, name_length}] = Regex.run(~r/@spec ([^\s(]+)\(/u, text, return: :index)
-        name = binary_part(text, name_start, name_length)
-        arity = id |> String.replace_prefix("spec_", "") |> String.to_integer()
+          %{
+            "id" => id,
+            "file" => path,
+            "line" => line,
+            "column" => utf16_length(binary_part(text, 0, name_start)) + 1,
+            "name" => nfc(name),
+            "arity" => arity,
+            "binding" => binding(events, path, line, nfc(name), :local, backing, module, arity)
+          }
 
-        %{
-          "id" => id,
-          "file" => path,
-          "line" => line,
-          "column" => utf16_length(binary_part(text, 0, name_start)) + 1,
-          "name" => nfc(name),
-          "arity" => arity,
-          "binding" => %{"module" => reference(backing, module), "name" => nfc(name), "arity" => arity, "kind" => "spec"}
-        }
+        id == "local_forward" ->
+          [_, name] = Regex.run(~r/do: ([^\s(]+)\(/u, text)
+
+          %{
+            "id" => id,
+            "file" => path,
+            "line" => line,
+            "column" => name_column(text, name),
+            "name" => nfc(name),
+            "arity" => 2,
+            "binding" => binding(events, path, line, nfc(name), :local, backing, module, 2)
+          }
+
+        true ->
+          [_, {name_start, name_length}] = Regex.run(~r/@spec ([^\s(]+)\(/u, text, return: :index)
+          name = binary_part(text, name_start, name_length)
+          arity = id |> String.replace_prefix("spec_", "") |> String.to_integer()
+
+          %{
+            "id" => id,
+            "file" => path,
+            "line" => line,
+            "column" => utf16_length(binary_part(text, 0, name_start)) + 1,
+            "name" => nfc(name),
+            "arity" => arity,
+            "binding" => %{"module" => reference(backing, module), "name" => nfc(name), "arity" => arity, "kind" => "spec"}
+          }
       end
     end
   end

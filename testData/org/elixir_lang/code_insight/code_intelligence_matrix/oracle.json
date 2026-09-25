@@ -12981,6 +12981,34 @@
           "name": "src_defp_w2_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_function",
+            "module": "Src.Defp.W2",
+            "name": "src_defp_w2_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.w2.ex",
+          "id": "uses_0",
+          "line": 12,
+          "name": "src_defp_w2_snoc"
+        },
+        {
+          "arity": 3,
+          "binding": {
+            "arity": 3,
+            "kind": "local_function",
+            "module": "Src.Defp.W2",
+            "name": "src_defp_w2_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.w2.ex",
+          "id": "uses_1",
+          "line": 13,
+          "name": "src_defp_w2_snoc"
+        },
+        {
           "arity": 2,
           "binding": null,
           "column": 34,
@@ -13219,6 +13247,76 @@
           "id": "local",
           "line": 10,
           "name": "src_defp_w3_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.W3",
+            "name": "src_defp_w3_xsnoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.w3.ex",
+          "id": "uses_0",
+          "line": 14,
+          "name": "src_defp_w3_xsnoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.W3",
+            "name": "src_defp_w3_snoc_x"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.w3.ex",
+          "id": "uses_1",
+          "line": 15,
+          "name": "src_defp_w3_snoc_x"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.W3",
+            "name": "src_defp_w3_snoc?"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.w3.ex",
+          "id": "uses_2",
+          "line": 16,
+          "name": "src_defp_w3_snoc?"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.W3",
+            "name": "src_defp_w3_snoc!"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.w3.ex",
+          "id": "uses_3",
+          "line": 17,
+          "name": "src_defp_w3_snoc!"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.W3",
+            "name": "src_defp_w3_snoć"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.w3.ex",
+          "id": "uses_4",
+          "line": 18,
+          "name": "src_defp_w3_snoć"
         }
       ],
       "world": "w3"
@@ -13491,6 +13589,104 @@
           "id": "local",
           "line": 13,
           "name": "src_defp_w4_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_function",
+            "module": "Src.Defp.W4",
+            "name": "src_defp_w4_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.w4.ex",
+          "id": "uses_0",
+          "line": 17,
+          "name": "src_defp_w4_snoc"
+        },
+        {
+          "arity": 3,
+          "binding": {
+            "arity": 3,
+            "kind": "local_function",
+            "module": "Src.Defp.W4",
+            "name": "src_defp_w4_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.w4.ex",
+          "id": "uses_1",
+          "line": 18,
+          "name": "src_defp_w4_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.W4",
+            "name": "src_defp_w4_xsnoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.w4.ex",
+          "id": "uses_2",
+          "line": 19,
+          "name": "src_defp_w4_xsnoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.W4",
+            "name": "src_defp_w4_snoc_x"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.w4.ex",
+          "id": "uses_3",
+          "line": 20,
+          "name": "src_defp_w4_snoc_x"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.W4",
+            "name": "src_defp_w4_snoc?"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.w4.ex",
+          "id": "uses_4",
+          "line": 21,
+          "name": "src_defp_w4_snoc?"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.W4",
+            "name": "src_defp_w4_snoc!"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.w4.ex",
+          "id": "uses_5",
+          "line": 22,
+          "name": "src_defp_w4_snoc!"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.W4",
+            "name": "src_defp_w4_snoć"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.w4.ex",
+          "id": "uses_6",
+          "line": 23,
+          "name": "src_defp_w4_snoć"
         }
       ],
       "world": "w4"
@@ -13629,6 +13825,20 @@
           "file": "lib/src/src.defp.x_arity.ex",
           "id": "spec_3",
           "line": 5,
+          "name": "src_defp_x_arity_snoc"
+        },
+        {
+          "arity": 3,
+          "binding": {
+            "arity": 3,
+            "kind": "local_function",
+            "module": "Src.Defp.XArity",
+            "name": "src_defp_x_arity_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.x_arity.ex",
+          "id": "uses_0",
+          "line": 12,
           "name": "src_defp_x_arity_snoc"
         }
       ],
@@ -13882,6 +14092,34 @@
           "name": "src_defp_x_arity_separate_snoc"
         },
         {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "local_function",
+            "module": "Src.Defp.XAritySeparate",
+            "name": "src_defp_x_arity_separate_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.x_arity_separate.ex",
+          "id": "uses_0",
+          "line": 11,
+          "name": "src_defp_x_arity_separate_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_function",
+            "module": "Src.Defp.XAritySeparate",
+            "name": "src_defp_x_arity_separate_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.x_arity_separate.ex",
+          "id": "uses_1",
+          "line": 12,
+          "name": "src_defp_x_arity_separate_snoc"
+        },
+        {
           "arity": 2,
           "binding": null,
           "column": 34,
@@ -14020,6 +14258,20 @@
           "file": "lib/src/src.defp.x_arity_zero.ex",
           "id": "local",
           "line": 6,
+          "name": "src_defp_x_arity_zero_snoc"
+        },
+        {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "local_function",
+            "module": "Src.Defp.XArityZero",
+            "name": "src_defp_x_arity_zero_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.x_arity_zero.ex",
+          "id": "uses_0",
+          "line": 10,
           "name": "src_defp_x_arity_zero_snoc"
         }
       ],
@@ -14399,6 +14651,20 @@
           "name": "src_defp_x_defaults_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_function",
+            "module": "Src.Defp.XDefaults",
+            "name": "src_defp_x_defaults_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.x_defaults.ex",
+          "id": "uses_0",
+          "line": 11,
+          "name": "src_defp_x_defaults_snoc"
+        },
+        {
           "arity": 2,
           "binding": null,
           "column": 34,
@@ -14598,6 +14864,34 @@
           "file": "lib/src/src.defp.x_defaults_head.ex",
           "id": "spec_2",
           "line": 5,
+          "name": "src_defp_x_defaults_head_snoc"
+        },
+        {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "local_function",
+            "module": "Src.Defp.XDefaultsHead",
+            "name": "src_defp_x_defaults_head_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.x_defaults_head.ex",
+          "id": "uses_0",
+          "line": 14,
+          "name": "src_defp_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_function",
+            "module": "Src.Defp.XDefaultsHead",
+            "name": "src_defp_x_defaults_head_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.x_defaults_head.ex",
+          "id": "uses_1",
+          "line": 15,
           "name": "src_defp_x_defaults_head_snoc"
         },
         {
@@ -14925,6 +15219,76 @@
           "id": "local",
           "line": 10,
           "name": "src_defp_x_lookalike_absent_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.XLookalikeAbsent",
+            "name": "src_defp_x_lookalike_absent_xsnoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.x_lookalike_absent.ex",
+          "id": "uses_0",
+          "line": 14,
+          "name": "src_defp_x_lookalike_absent_xsnoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.XLookalikeAbsent",
+            "name": "src_defp_x_lookalike_absent_snoc_x"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.x_lookalike_absent.ex",
+          "id": "uses_1",
+          "line": 15,
+          "name": "src_defp_x_lookalike_absent_snoc_x"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.XLookalikeAbsent",
+            "name": "src_defp_x_lookalike_absent_snoc?"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.x_lookalike_absent.ex",
+          "id": "uses_2",
+          "line": 16,
+          "name": "src_defp_x_lookalike_absent_snoc?"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.XLookalikeAbsent",
+            "name": "src_defp_x_lookalike_absent_snoc!"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.x_lookalike_absent.ex",
+          "id": "uses_3",
+          "line": 17,
+          "name": "src_defp_x_lookalike_absent_snoc!"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.XLookalikeAbsent",
+            "name": "src_defp_x_lookalike_absent_snoć"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.x_lookalike_absent.ex",
+          "id": "uses_4",
+          "line": 18,
+          "name": "src_defp_x_lookalike_absent_snoć"
         }
       ],
       "world": "x_lookalike_absent"
@@ -20751,6 +21115,34 @@
           "name": "src_defmacrop_w2_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.W2",
+            "name": "src_defmacrop_w2_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.w2.ex",
+          "id": "uses_0",
+          "line": 12,
+          "name": "src_defmacrop_w2_snoc"
+        },
+        {
+          "arity": 3,
+          "binding": {
+            "arity": 3,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.W2",
+            "name": "src_defmacrop_w2_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.w2.ex",
+          "id": "uses_1",
+          "line": 13,
+          "name": "src_defmacrop_w2_snoc"
+        },
+        {
           "arity": 2,
           "binding": null,
           "column": 34,
@@ -20989,6 +21381,76 @@
           "id": "local",
           "line": 10,
           "name": "src_defmacrop_w3_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.W3",
+            "name": "src_defmacrop_w3_xsnoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.w3.ex",
+          "id": "uses_0",
+          "line": 14,
+          "name": "src_defmacrop_w3_xsnoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.W3",
+            "name": "src_defmacrop_w3_snoc_x"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.w3.ex",
+          "id": "uses_1",
+          "line": 15,
+          "name": "src_defmacrop_w3_snoc_x"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.W3",
+            "name": "src_defmacrop_w3_snoc?"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.w3.ex",
+          "id": "uses_2",
+          "line": 16,
+          "name": "src_defmacrop_w3_snoc?"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.W3",
+            "name": "src_defmacrop_w3_snoc!"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.w3.ex",
+          "id": "uses_3",
+          "line": 17,
+          "name": "src_defmacrop_w3_snoc!"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.W3",
+            "name": "src_defmacrop_w3_snoć"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.w3.ex",
+          "id": "uses_4",
+          "line": 18,
+          "name": "src_defmacrop_w3_snoć"
         }
       ],
       "world": "w3"
@@ -21261,6 +21723,104 @@
           "id": "local",
           "line": 13,
           "name": "src_defmacrop_w4_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.W4",
+            "name": "src_defmacrop_w4_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.w4.ex",
+          "id": "uses_0",
+          "line": 17,
+          "name": "src_defmacrop_w4_snoc"
+        },
+        {
+          "arity": 3,
+          "binding": {
+            "arity": 3,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.W4",
+            "name": "src_defmacrop_w4_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.w4.ex",
+          "id": "uses_1",
+          "line": 18,
+          "name": "src_defmacrop_w4_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.W4",
+            "name": "src_defmacrop_w4_xsnoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.w4.ex",
+          "id": "uses_2",
+          "line": 19,
+          "name": "src_defmacrop_w4_xsnoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.W4",
+            "name": "src_defmacrop_w4_snoc_x"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.w4.ex",
+          "id": "uses_3",
+          "line": 20,
+          "name": "src_defmacrop_w4_snoc_x"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.W4",
+            "name": "src_defmacrop_w4_snoc?"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.w4.ex",
+          "id": "uses_4",
+          "line": 21,
+          "name": "src_defmacrop_w4_snoc?"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.W4",
+            "name": "src_defmacrop_w4_snoc!"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.w4.ex",
+          "id": "uses_5",
+          "line": 22,
+          "name": "src_defmacrop_w4_snoc!"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.W4",
+            "name": "src_defmacrop_w4_snoć"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.w4.ex",
+          "id": "uses_6",
+          "line": 23,
+          "name": "src_defmacrop_w4_snoć"
         }
       ],
       "world": "w4"
@@ -21371,6 +21931,20 @@
           "file": "lib/src/src.defmacrop.x_arity.ex",
           "id": "local",
           "line": 6,
+          "name": "src_defmacrop_x_arity_snoc"
+        },
+        {
+          "arity": 3,
+          "binding": {
+            "arity": 3,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.XArity",
+            "name": "src_defmacrop_x_arity_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.x_arity.ex",
+          "id": "uses_0",
+          "line": 10,
           "name": "src_defmacrop_x_arity_snoc"
         }
       ],
@@ -21624,6 +22198,34 @@
           "name": "src_defmacrop_x_arity_separate_snoc"
         },
         {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.XAritySeparate",
+            "name": "src_defmacrop_x_arity_separate_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.x_arity_separate.ex",
+          "id": "uses_0",
+          "line": 11,
+          "name": "src_defmacrop_x_arity_separate_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.XAritySeparate",
+            "name": "src_defmacrop_x_arity_separate_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.x_arity_separate.ex",
+          "id": "uses_1",
+          "line": 12,
+          "name": "src_defmacrop_x_arity_separate_snoc"
+        },
+        {
           "arity": 2,
           "binding": null,
           "column": 34,
@@ -21762,6 +22364,20 @@
           "file": "lib/src/src.defmacrop.x_arity_zero.ex",
           "id": "local",
           "line": 6,
+          "name": "src_defmacrop_x_arity_zero_snoc"
+        },
+        {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.XArityZero",
+            "name": "src_defmacrop_x_arity_zero_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.x_arity_zero.ex",
+          "id": "uses_0",
+          "line": 10,
           "name": "src_defmacrop_x_arity_zero_snoc"
         }
       ],
@@ -22113,6 +22729,20 @@
           "name": "src_defmacrop_x_defaults_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.XDefaults",
+            "name": "src_defmacrop_x_defaults_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.x_defaults.ex",
+          "id": "uses_0",
+          "line": 9,
+          "name": "src_defmacrop_x_defaults_snoc"
+        },
+        {
           "arity": 2,
           "binding": null,
           "column": 34,
@@ -22270,6 +22900,34 @@
           "file": "lib/src/src.defmacrop.x_defaults_head.ex",
           "id": "local",
           "line": 7,
+          "name": "src_defmacrop_x_defaults_head_snoc"
+        },
+        {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.XDefaultsHead",
+            "name": "src_defmacrop_x_defaults_head_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.x_defaults_head.ex",
+          "id": "uses_0",
+          "line": 11,
+          "name": "src_defmacrop_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.XDefaultsHead",
+            "name": "src_defmacrop_x_defaults_head_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.x_defaults_head.ex",
+          "id": "uses_1",
+          "line": 12,
           "name": "src_defmacrop_x_defaults_head_snoc"
         },
         {
@@ -22597,6 +23255,76 @@
           "id": "local",
           "line": 10,
           "name": "src_defmacrop_x_lookalike_absent_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.XLookalikeAbsent",
+            "name": "src_defmacrop_x_lookalike_absent_xsnoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.x_lookalike_absent.ex",
+          "id": "uses_0",
+          "line": 14,
+          "name": "src_defmacrop_x_lookalike_absent_xsnoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.XLookalikeAbsent",
+            "name": "src_defmacrop_x_lookalike_absent_snoc_x"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.x_lookalike_absent.ex",
+          "id": "uses_1",
+          "line": 15,
+          "name": "src_defmacrop_x_lookalike_absent_snoc_x"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.XLookalikeAbsent",
+            "name": "src_defmacrop_x_lookalike_absent_snoc?"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.x_lookalike_absent.ex",
+          "id": "uses_2",
+          "line": 16,
+          "name": "src_defmacrop_x_lookalike_absent_snoc?"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.XLookalikeAbsent",
+            "name": "src_defmacrop_x_lookalike_absent_snoc!"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.x_lookalike_absent.ex",
+          "id": "uses_3",
+          "line": 17,
+          "name": "src_defmacrop_x_lookalike_absent_snoc!"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.XLookalikeAbsent",
+            "name": "src_defmacrop_x_lookalike_absent_snoć"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.x_lookalike_absent.ex",
+          "id": "uses_4",
+          "line": 18,
+          "name": "src_defmacrop_x_lookalike_absent_snoć"
         }
       ],
       "world": "x_lookalike_absent"
@@ -26782,6 +27510,34 @@
           "name": "src_defguardp_w2_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_macro",
+            "module": "Src.Defguardp.W2",
+            "name": "src_defguardp_w2_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defguardp.w2.ex",
+          "id": "uses_0",
+          "line": 11,
+          "name": "src_defguardp_w2_snoc"
+        },
+        {
+          "arity": 3,
+          "binding": {
+            "arity": 3,
+            "kind": "local_macro",
+            "module": "Src.Defguardp.W2",
+            "name": "src_defguardp_w2_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defguardp.w2.ex",
+          "id": "uses_1",
+          "line": 12,
+          "name": "src_defguardp_w2_snoc"
+        },
+        {
           "arity": 2,
           "binding": null,
           "column": 34,
@@ -27020,6 +27776,76 @@
           "id": "local",
           "line": 10,
           "name": "src_defguardp_w3_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defguardp.W3",
+            "name": "src_defguardp_w3_xsnoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defguardp.w3.ex",
+          "id": "uses_0",
+          "line": 14,
+          "name": "src_defguardp_w3_xsnoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defguardp.W3",
+            "name": "src_defguardp_w3_snoc_x"
+          },
+          "column": 7,
+          "file": "lib/src/src.defguardp.w3.ex",
+          "id": "uses_1",
+          "line": 15,
+          "name": "src_defguardp_w3_snoc_x"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defguardp.W3",
+            "name": "src_defguardp_w3_snoc?"
+          },
+          "column": 7,
+          "file": "lib/src/src.defguardp.w3.ex",
+          "id": "uses_2",
+          "line": 16,
+          "name": "src_defguardp_w3_snoc?"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defguardp.W3",
+            "name": "src_defguardp_w3_snoc!"
+          },
+          "column": 7,
+          "file": "lib/src/src.defguardp.w3.ex",
+          "id": "uses_3",
+          "line": 17,
+          "name": "src_defguardp_w3_snoc!"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defguardp.W3",
+            "name": "src_defguardp_w3_snoć"
+          },
+          "column": 7,
+          "file": "lib/src/src.defguardp.w3.ex",
+          "id": "uses_4",
+          "line": 18,
+          "name": "src_defguardp_w3_snoć"
         }
       ],
       "world": "w3"
@@ -27274,6 +28100,104 @@
           "id": "local",
           "line": 12,
           "name": "src_defguardp_w4_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_macro",
+            "module": "Src.Defguardp.W4",
+            "name": "src_defguardp_w4_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defguardp.w4.ex",
+          "id": "uses_0",
+          "line": 16,
+          "name": "src_defguardp_w4_snoc"
+        },
+        {
+          "arity": 3,
+          "binding": {
+            "arity": 3,
+            "kind": "local_macro",
+            "module": "Src.Defguardp.W4",
+            "name": "src_defguardp_w4_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defguardp.w4.ex",
+          "id": "uses_1",
+          "line": 17,
+          "name": "src_defguardp_w4_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defguardp.W4",
+            "name": "src_defguardp_w4_xsnoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defguardp.w4.ex",
+          "id": "uses_2",
+          "line": 18,
+          "name": "src_defguardp_w4_xsnoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defguardp.W4",
+            "name": "src_defguardp_w4_snoc_x"
+          },
+          "column": 7,
+          "file": "lib/src/src.defguardp.w4.ex",
+          "id": "uses_3",
+          "line": 19,
+          "name": "src_defguardp_w4_snoc_x"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defguardp.W4",
+            "name": "src_defguardp_w4_snoc?"
+          },
+          "column": 7,
+          "file": "lib/src/src.defguardp.w4.ex",
+          "id": "uses_4",
+          "line": 20,
+          "name": "src_defguardp_w4_snoc?"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defguardp.W4",
+            "name": "src_defguardp_w4_snoc!"
+          },
+          "column": 7,
+          "file": "lib/src/src.defguardp.w4.ex",
+          "id": "uses_5",
+          "line": 21,
+          "name": "src_defguardp_w4_snoc!"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defguardp.W4",
+            "name": "src_defguardp_w4_snoć"
+          },
+          "column": 7,
+          "file": "lib/src/src.defguardp.w4.ex",
+          "id": "uses_6",
+          "line": 22,
+          "name": "src_defguardp_w4_snoć"
         }
       ],
       "world": "w4"
@@ -27384,6 +28308,20 @@
           "file": "lib/src/src.defguardp.x_arity.ex",
           "id": "local",
           "line": 6,
+          "name": "src_defguardp_x_arity_snoc"
+        },
+        {
+          "arity": 3,
+          "binding": {
+            "arity": 3,
+            "kind": "local_macro",
+            "module": "Src.Defguardp.XArity",
+            "name": "src_defguardp_x_arity_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defguardp.x_arity.ex",
+          "id": "uses_0",
+          "line": 10,
           "name": "src_defguardp_x_arity_snoc"
         }
       ],
@@ -28051,6 +28989,76 @@
           "id": "local",
           "line": 10,
           "name": "src_defguardp_x_lookalike_absent_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defguardp.XLookalikeAbsent",
+            "name": "src_defguardp_x_lookalike_absent_xsnoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defguardp.x_lookalike_absent.ex",
+          "id": "uses_0",
+          "line": 14,
+          "name": "src_defguardp_x_lookalike_absent_xsnoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defguardp.XLookalikeAbsent",
+            "name": "src_defguardp_x_lookalike_absent_snoc_x"
+          },
+          "column": 7,
+          "file": "lib/src/src.defguardp.x_lookalike_absent.ex",
+          "id": "uses_1",
+          "line": 15,
+          "name": "src_defguardp_x_lookalike_absent_snoc_x"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defguardp.XLookalikeAbsent",
+            "name": "src_defguardp_x_lookalike_absent_snoc?"
+          },
+          "column": 7,
+          "file": "lib/src/src.defguardp.x_lookalike_absent.ex",
+          "id": "uses_2",
+          "line": 16,
+          "name": "src_defguardp_x_lookalike_absent_snoc?"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defguardp.XLookalikeAbsent",
+            "name": "src_defguardp_x_lookalike_absent_snoc!"
+          },
+          "column": 7,
+          "file": "lib/src/src.defguardp.x_lookalike_absent.ex",
+          "id": "uses_3",
+          "line": 17,
+          "name": "src_defguardp_x_lookalike_absent_snoc!"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defguardp.XLookalikeAbsent",
+            "name": "src_defguardp_x_lookalike_absent_snoć"
+          },
+          "column": 7,
+          "file": "lib/src/src.defguardp.x_lookalike_absent.ex",
+          "id": "uses_4",
+          "line": 18,
+          "name": "src_defguardp_x_lookalike_absent_snoć"
         }
       ],
       "world": "x_lookalike_absent"
@@ -52592,6 +53600,20 @@
           "id": "local",
           "line": 8,
           "name": "src_generator_embed_x_embed_snoc_template"
+        },
+        {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "local_function",
+            "module": "Src.GeneratorEmbed.XEmbed",
+            "name": "src_generator_embed_x_embed_snoc_text"
+          },
+          "column": 7,
+          "file": "lib/src/src.generator_embed.x_embed.ex",
+          "id": "uses_0",
+          "line": 12,
+          "name": "src_generator_embed_x_embed_snoc_text"
         }
       ],
       "world": "x_embed"
@@ -57538,6 +58560,34 @@
           "name": "ex_dbgi_defp_w2_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.W2",
+            "name": "ex_dbgi_defp_w2_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.w2.ex",
+          "id": "uses_0",
+          "line": 12,
+          "name": "ex_dbgi_defp_w2_snoc"
+        },
+        {
+          "arity": 3,
+          "binding": {
+            "arity": 3,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.W2",
+            "name": "ex_dbgi_defp_w2_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.w2.ex",
+          "id": "uses_1",
+          "line": 13,
+          "name": "ex_dbgi_defp_w2_snoc"
+        },
+        {
           "arity": 2,
           "binding": null,
           "column": 34,
@@ -57776,6 +58826,76 @@
           "id": "local",
           "line": 10,
           "name": "ex_dbgi_defp_w3_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.W3",
+            "name": "ex_dbgi_defp_w3_xsnoc"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.w3.ex",
+          "id": "uses_0",
+          "line": 14,
+          "name": "ex_dbgi_defp_w3_xsnoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.W3",
+            "name": "ex_dbgi_defp_w3_snoc_x"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.w3.ex",
+          "id": "uses_1",
+          "line": 15,
+          "name": "ex_dbgi_defp_w3_snoc_x"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.W3",
+            "name": "ex_dbgi_defp_w3_snoc?"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.w3.ex",
+          "id": "uses_2",
+          "line": 16,
+          "name": "ex_dbgi_defp_w3_snoc?"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.W3",
+            "name": "ex_dbgi_defp_w3_snoc!"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.w3.ex",
+          "id": "uses_3",
+          "line": 17,
+          "name": "ex_dbgi_defp_w3_snoc!"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.W3",
+            "name": "ex_dbgi_defp_w3_snoć"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.w3.ex",
+          "id": "uses_4",
+          "line": 18,
+          "name": "ex_dbgi_defp_w3_snoć"
         }
       ],
       "world": "w3"
@@ -58048,6 +59168,104 @@
           "id": "local",
           "line": 13,
           "name": "ex_dbgi_defp_w4_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.W4",
+            "name": "ex_dbgi_defp_w4_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.w4.ex",
+          "id": "uses_0",
+          "line": 17,
+          "name": "ex_dbgi_defp_w4_snoc"
+        },
+        {
+          "arity": 3,
+          "binding": {
+            "arity": 3,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.W4",
+            "name": "ex_dbgi_defp_w4_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.w4.ex",
+          "id": "uses_1",
+          "line": 18,
+          "name": "ex_dbgi_defp_w4_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.W4",
+            "name": "ex_dbgi_defp_w4_xsnoc"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.w4.ex",
+          "id": "uses_2",
+          "line": 19,
+          "name": "ex_dbgi_defp_w4_xsnoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.W4",
+            "name": "ex_dbgi_defp_w4_snoc_x"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.w4.ex",
+          "id": "uses_3",
+          "line": 20,
+          "name": "ex_dbgi_defp_w4_snoc_x"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.W4",
+            "name": "ex_dbgi_defp_w4_snoc?"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.w4.ex",
+          "id": "uses_4",
+          "line": 21,
+          "name": "ex_dbgi_defp_w4_snoc?"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.W4",
+            "name": "ex_dbgi_defp_w4_snoc!"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.w4.ex",
+          "id": "uses_5",
+          "line": 22,
+          "name": "ex_dbgi_defp_w4_snoc!"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.W4",
+            "name": "ex_dbgi_defp_w4_snoć"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.w4.ex",
+          "id": "uses_6",
+          "line": 23,
+          "name": "ex_dbgi_defp_w4_snoć"
         }
       ],
       "world": "w4"
@@ -58158,6 +59376,20 @@
           "file": "lib/ex_dbgi/ex_dbgi.defp.x_arity.ex",
           "id": "local",
           "line": 6,
+          "name": "ex_dbgi_defp_x_arity_snoc"
+        },
+        {
+          "arity": 3,
+          "binding": {
+            "arity": 3,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.XArity",
+            "name": "ex_dbgi_defp_x_arity_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.x_arity.ex",
+          "id": "uses_0",
+          "line": 10,
           "name": "ex_dbgi_defp_x_arity_snoc"
         }
       ],
@@ -58411,6 +59643,34 @@
           "name": "ex_dbgi_defp_x_arity_separate_snoc"
         },
         {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.XAritySeparate",
+            "name": "ex_dbgi_defp_x_arity_separate_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.x_arity_separate.ex",
+          "id": "uses_0",
+          "line": 11,
+          "name": "ex_dbgi_defp_x_arity_separate_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.XAritySeparate",
+            "name": "ex_dbgi_defp_x_arity_separate_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.x_arity_separate.ex",
+          "id": "uses_1",
+          "line": 12,
+          "name": "ex_dbgi_defp_x_arity_separate_snoc"
+        },
+        {
           "arity": 2,
           "binding": null,
           "column": 34,
@@ -58550,6 +59810,20 @@
           "id": "local",
           "line": 6,
           "name": "ex_dbgi_defp_x_arity_zero_snoc"
+        },
+        {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.XArityZero",
+            "name": "ex_dbgi_defp_x_arity_zero_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.x_arity_zero.ex",
+          "id": "uses_0",
+          "line": 10,
+          "name": "ex_dbgi_defp_x_arity_zero_snoc"
         }
       ],
       "world": "x_arity_zero"
@@ -58639,6 +59913,20 @@
           "file": "lib/ex_dbgi/ex_dbgi.defp.x_defaults.ex",
           "id": "local",
           "line": 5,
+          "name": "ex_dbgi_defp_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.XDefaults",
+            "name": "ex_dbgi_defp_x_defaults_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.x_defaults.ex",
+          "id": "uses_0",
+          "line": 9,
           "name": "ex_dbgi_defp_x_defaults_snoc"
         },
         {
@@ -58799,6 +60087,34 @@
           "file": "lib/ex_dbgi/ex_dbgi.defp.x_defaults_head.ex",
           "id": "local",
           "line": 7,
+          "name": "ex_dbgi_defp_x_defaults_head_snoc"
+        },
+        {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.XDefaultsHead",
+            "name": "ex_dbgi_defp_x_defaults_head_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.x_defaults_head.ex",
+          "id": "uses_0",
+          "line": 11,
+          "name": "ex_dbgi_defp_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.XDefaultsHead",
+            "name": "ex_dbgi_defp_x_defaults_head_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.x_defaults_head.ex",
+          "id": "uses_1",
+          "line": 12,
           "name": "ex_dbgi_defp_x_defaults_head_snoc"
         },
         {
@@ -59040,6 +60356,76 @@
           "id": "local",
           "line": 10,
           "name": "ex_dbgi_defp_x_lookalike_absent_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.XLookalikeAbsent",
+            "name": "ex_dbgi_defp_x_lookalike_absent_xsnoc"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.x_lookalike_absent.ex",
+          "id": "uses_0",
+          "line": 14,
+          "name": "ex_dbgi_defp_x_lookalike_absent_xsnoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.XLookalikeAbsent",
+            "name": "ex_dbgi_defp_x_lookalike_absent_snoc_x"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.x_lookalike_absent.ex",
+          "id": "uses_1",
+          "line": 15,
+          "name": "ex_dbgi_defp_x_lookalike_absent_snoc_x"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.XLookalikeAbsent",
+            "name": "ex_dbgi_defp_x_lookalike_absent_snoc?"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.x_lookalike_absent.ex",
+          "id": "uses_2",
+          "line": 16,
+          "name": "ex_dbgi_defp_x_lookalike_absent_snoc?"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.XLookalikeAbsent",
+            "name": "ex_dbgi_defp_x_lookalike_absent_snoc!"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.x_lookalike_absent.ex",
+          "id": "uses_3",
+          "line": 17,
+          "name": "ex_dbgi_defp_x_lookalike_absent_snoc!"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDbgi.Defp.XLookalikeAbsent",
+            "name": "ex_dbgi_defp_x_lookalike_absent_snoć"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.defp.x_lookalike_absent.ex",
+          "id": "uses_4",
+          "line": 18,
+          "name": "ex_dbgi_defp_x_lookalike_absent_snoć"
         }
       ],
       "world": "x_lookalike_absent"
@@ -80388,6 +81774,20 @@
           "id": "local",
           "line": 8,
           "name": "ex_dbgi_generator_embed_x_embed_snoc_template"
+        },
+        {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "local_function",
+            "module": "ExDbgi.GeneratorEmbed.XEmbed",
+            "name": "ex_dbgi_generator_embed_x_embed_snoc_text"
+          },
+          "column": 7,
+          "file": "lib/ex_dbgi/ex_dbgi.generator_embed.x_embed.ex",
+          "id": "uses_0",
+          "line": 12,
+          "name": "ex_dbgi_generator_embed_x_embed_snoc_text"
         }
       ],
       "world": "x_embed"
@@ -85284,6 +86684,34 @@
           "name": "ex_docs_defp_w2_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.W2",
+            "name": "ex_docs_defp_w2_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.w2.ex",
+          "id": "uses_0",
+          "line": 12,
+          "name": "ex_docs_defp_w2_snoc"
+        },
+        {
+          "arity": 3,
+          "binding": {
+            "arity": 3,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.W2",
+            "name": "ex_docs_defp_w2_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.w2.ex",
+          "id": "uses_1",
+          "line": 13,
+          "name": "ex_docs_defp_w2_snoc"
+        },
+        {
           "arity": 2,
           "binding": null,
           "column": 34,
@@ -85522,6 +86950,76 @@
           "id": "local",
           "line": 10,
           "name": "ex_docs_defp_w3_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.W3",
+            "name": "ex_docs_defp_w3_xsnoc"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.w3.ex",
+          "id": "uses_0",
+          "line": 14,
+          "name": "ex_docs_defp_w3_xsnoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.W3",
+            "name": "ex_docs_defp_w3_snoc_x"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.w3.ex",
+          "id": "uses_1",
+          "line": 15,
+          "name": "ex_docs_defp_w3_snoc_x"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.W3",
+            "name": "ex_docs_defp_w3_snoc?"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.w3.ex",
+          "id": "uses_2",
+          "line": 16,
+          "name": "ex_docs_defp_w3_snoc?"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.W3",
+            "name": "ex_docs_defp_w3_snoc!"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.w3.ex",
+          "id": "uses_3",
+          "line": 17,
+          "name": "ex_docs_defp_w3_snoc!"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.W3",
+            "name": "ex_docs_defp_w3_snoć"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.w3.ex",
+          "id": "uses_4",
+          "line": 18,
+          "name": "ex_docs_defp_w3_snoć"
         }
       ],
       "world": "w3"
@@ -85784,6 +87282,104 @@
           "id": "local",
           "line": 13,
           "name": "ex_docs_defp_w4_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.W4",
+            "name": "ex_docs_defp_w4_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.w4.ex",
+          "id": "uses_0",
+          "line": 17,
+          "name": "ex_docs_defp_w4_snoc"
+        },
+        {
+          "arity": 3,
+          "binding": {
+            "arity": 3,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.W4",
+            "name": "ex_docs_defp_w4_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.w4.ex",
+          "id": "uses_1",
+          "line": 18,
+          "name": "ex_docs_defp_w4_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.W4",
+            "name": "ex_docs_defp_w4_xsnoc"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.w4.ex",
+          "id": "uses_2",
+          "line": 19,
+          "name": "ex_docs_defp_w4_xsnoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.W4",
+            "name": "ex_docs_defp_w4_snoc_x"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.w4.ex",
+          "id": "uses_3",
+          "line": 20,
+          "name": "ex_docs_defp_w4_snoc_x"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.W4",
+            "name": "ex_docs_defp_w4_snoc?"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.w4.ex",
+          "id": "uses_4",
+          "line": 21,
+          "name": "ex_docs_defp_w4_snoc?"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.W4",
+            "name": "ex_docs_defp_w4_snoc!"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.w4.ex",
+          "id": "uses_5",
+          "line": 22,
+          "name": "ex_docs_defp_w4_snoc!"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.W4",
+            "name": "ex_docs_defp_w4_snoć"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.w4.ex",
+          "id": "uses_6",
+          "line": 23,
+          "name": "ex_docs_defp_w4_snoć"
         }
       ],
       "world": "w4"
@@ -85894,6 +87490,20 @@
           "file": "lib/ex_docs/ex_docs.defp.x_arity.ex",
           "id": "local",
           "line": 6,
+          "name": "ex_docs_defp_x_arity_snoc"
+        },
+        {
+          "arity": 3,
+          "binding": {
+            "arity": 3,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.XArity",
+            "name": "ex_docs_defp_x_arity_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.x_arity.ex",
+          "id": "uses_0",
+          "line": 10,
           "name": "ex_docs_defp_x_arity_snoc"
         }
       ],
@@ -86147,6 +87757,34 @@
           "name": "ex_docs_defp_x_arity_separate_snoc"
         },
         {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.XAritySeparate",
+            "name": "ex_docs_defp_x_arity_separate_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.x_arity_separate.ex",
+          "id": "uses_0",
+          "line": 11,
+          "name": "ex_docs_defp_x_arity_separate_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.XAritySeparate",
+            "name": "ex_docs_defp_x_arity_separate_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.x_arity_separate.ex",
+          "id": "uses_1",
+          "line": 12,
+          "name": "ex_docs_defp_x_arity_separate_snoc"
+        },
+        {
           "arity": 2,
           "binding": null,
           "column": 34,
@@ -86286,6 +87924,20 @@
           "id": "local",
           "line": 6,
           "name": "ex_docs_defp_x_arity_zero_snoc"
+        },
+        {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.XArityZero",
+            "name": "ex_docs_defp_x_arity_zero_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.x_arity_zero.ex",
+          "id": "uses_0",
+          "line": 10,
+          "name": "ex_docs_defp_x_arity_zero_snoc"
         }
       ],
       "world": "x_arity_zero"
@@ -86384,6 +88036,20 @@
           "file": "lib/ex_docs/ex_docs.defp.x_defaults.ex",
           "id": "local",
           "line": 5,
+          "name": "ex_docs_defp_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.XDefaults",
+            "name": "ex_docs_defp_x_defaults_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.x_defaults.ex",
+          "id": "uses_0",
+          "line": 9,
           "name": "ex_docs_defp_x_defaults_snoc"
         },
         {
@@ -86540,6 +88206,34 @@
           "file": "lib/ex_docs/ex_docs.defp.x_defaults_head.ex",
           "id": "local",
           "line": 7,
+          "name": "ex_docs_defp_x_defaults_head_snoc"
+        },
+        {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.XDefaultsHead",
+            "name": "ex_docs_defp_x_defaults_head_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.x_defaults_head.ex",
+          "id": "uses_0",
+          "line": 11,
+          "name": "ex_docs_defp_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.XDefaultsHead",
+            "name": "ex_docs_defp_x_defaults_head_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.x_defaults_head.ex",
+          "id": "uses_1",
+          "line": 12,
           "name": "ex_docs_defp_x_defaults_head_snoc"
         },
         {
@@ -86781,6 +88475,76 @@
           "id": "local",
           "line": 10,
           "name": "ex_docs_defp_x_lookalike_absent_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.XLookalikeAbsent",
+            "name": "ex_docs_defp_x_lookalike_absent_xsnoc"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.x_lookalike_absent.ex",
+          "id": "uses_0",
+          "line": 14,
+          "name": "ex_docs_defp_x_lookalike_absent_xsnoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.XLookalikeAbsent",
+            "name": "ex_docs_defp_x_lookalike_absent_snoc_x"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.x_lookalike_absent.ex",
+          "id": "uses_1",
+          "line": 15,
+          "name": "ex_docs_defp_x_lookalike_absent_snoc_x"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.XLookalikeAbsent",
+            "name": "ex_docs_defp_x_lookalike_absent_snoc?"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.x_lookalike_absent.ex",
+          "id": "uses_2",
+          "line": 16,
+          "name": "ex_docs_defp_x_lookalike_absent_snoc?"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.XLookalikeAbsent",
+            "name": "ex_docs_defp_x_lookalike_absent_snoc!"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.x_lookalike_absent.ex",
+          "id": "uses_3",
+          "line": 17,
+          "name": "ex_docs_defp_x_lookalike_absent_snoc!"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExDocs.Defp.XLookalikeAbsent",
+            "name": "ex_docs_defp_x_lookalike_absent_snoć"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.defp.x_lookalike_absent.ex",
+          "id": "uses_4",
+          "line": 18,
+          "name": "ex_docs_defp_x_lookalike_absent_snoć"
         }
       ],
       "world": "x_lookalike_absent"
@@ -108089,6 +109853,20 @@
           "id": "local",
           "line": 8,
           "name": "ex_docs_generator_embed_x_embed_snoc_template"
+        },
+        {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "local_function",
+            "module": "ExDocs.GeneratorEmbed.XEmbed",
+            "name": "ex_docs_generator_embed_x_embed_snoc_text"
+          },
+          "column": 7,
+          "file": "lib/ex_docs/ex_docs.generator_embed.x_embed.ex",
+          "id": "uses_0",
+          "line": 12,
+          "name": "ex_docs_generator_embed_x_embed_snoc_text"
         }
       ],
       "world": "x_embed"
@@ -113010,6 +114788,34 @@
           "name": "ex_gen_defp_w2_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_function",
+            "module": "ExGen.Defp.W2",
+            "name": "ex_gen_defp_w2_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.w2.ex",
+          "id": "uses_0",
+          "line": 12,
+          "name": "ex_gen_defp_w2_snoc"
+        },
+        {
+          "arity": 3,
+          "binding": {
+            "arity": 3,
+            "kind": "local_function",
+            "module": "ExGen.Defp.W2",
+            "name": "ex_gen_defp_w2_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.w2.ex",
+          "id": "uses_1",
+          "line": 13,
+          "name": "ex_gen_defp_w2_snoc"
+        },
+        {
           "arity": 2,
           "binding": null,
           "column": 34,
@@ -113248,6 +115054,76 @@
           "id": "local",
           "line": 10,
           "name": "ex_gen_defp_w3_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExGen.Defp.W3",
+            "name": "ex_gen_defp_w3_xsnoc"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.w3.ex",
+          "id": "uses_0",
+          "line": 14,
+          "name": "ex_gen_defp_w3_xsnoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExGen.Defp.W3",
+            "name": "ex_gen_defp_w3_snoc_x"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.w3.ex",
+          "id": "uses_1",
+          "line": 15,
+          "name": "ex_gen_defp_w3_snoc_x"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExGen.Defp.W3",
+            "name": "ex_gen_defp_w3_snoc?"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.w3.ex",
+          "id": "uses_2",
+          "line": 16,
+          "name": "ex_gen_defp_w3_snoc?"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExGen.Defp.W3",
+            "name": "ex_gen_defp_w3_snoc!"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.w3.ex",
+          "id": "uses_3",
+          "line": 17,
+          "name": "ex_gen_defp_w3_snoc!"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExGen.Defp.W3",
+            "name": "ex_gen_defp_w3_snoć"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.w3.ex",
+          "id": "uses_4",
+          "line": 18,
+          "name": "ex_gen_defp_w3_snoć"
         }
       ],
       "world": "w3"
@@ -113510,6 +115386,104 @@
           "id": "local",
           "line": 13,
           "name": "ex_gen_defp_w4_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_function",
+            "module": "ExGen.Defp.W4",
+            "name": "ex_gen_defp_w4_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.w4.ex",
+          "id": "uses_0",
+          "line": 17,
+          "name": "ex_gen_defp_w4_snoc"
+        },
+        {
+          "arity": 3,
+          "binding": {
+            "arity": 3,
+            "kind": "local_function",
+            "module": "ExGen.Defp.W4",
+            "name": "ex_gen_defp_w4_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.w4.ex",
+          "id": "uses_1",
+          "line": 18,
+          "name": "ex_gen_defp_w4_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExGen.Defp.W4",
+            "name": "ex_gen_defp_w4_xsnoc"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.w4.ex",
+          "id": "uses_2",
+          "line": 19,
+          "name": "ex_gen_defp_w4_xsnoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExGen.Defp.W4",
+            "name": "ex_gen_defp_w4_snoc_x"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.w4.ex",
+          "id": "uses_3",
+          "line": 20,
+          "name": "ex_gen_defp_w4_snoc_x"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExGen.Defp.W4",
+            "name": "ex_gen_defp_w4_snoc?"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.w4.ex",
+          "id": "uses_4",
+          "line": 21,
+          "name": "ex_gen_defp_w4_snoc?"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExGen.Defp.W4",
+            "name": "ex_gen_defp_w4_snoc!"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.w4.ex",
+          "id": "uses_5",
+          "line": 22,
+          "name": "ex_gen_defp_w4_snoc!"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExGen.Defp.W4",
+            "name": "ex_gen_defp_w4_snoć"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.w4.ex",
+          "id": "uses_6",
+          "line": 23,
+          "name": "ex_gen_defp_w4_snoć"
         }
       ],
       "world": "w4"
@@ -113620,6 +115594,20 @@
           "file": "lib/ex_gen/ex_gen.defp.x_arity.ex",
           "id": "local",
           "line": 6,
+          "name": "ex_gen_defp_x_arity_snoc"
+        },
+        {
+          "arity": 3,
+          "binding": {
+            "arity": 3,
+            "kind": "local_function",
+            "module": "ExGen.Defp.XArity",
+            "name": "ex_gen_defp_x_arity_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.x_arity.ex",
+          "id": "uses_0",
+          "line": 10,
           "name": "ex_gen_defp_x_arity_snoc"
         }
       ],
@@ -113873,6 +115861,34 @@
           "name": "ex_gen_defp_x_arity_separate_snoc"
         },
         {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "local_function",
+            "module": "ExGen.Defp.XAritySeparate",
+            "name": "ex_gen_defp_x_arity_separate_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.x_arity_separate.ex",
+          "id": "uses_0",
+          "line": 11,
+          "name": "ex_gen_defp_x_arity_separate_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_function",
+            "module": "ExGen.Defp.XAritySeparate",
+            "name": "ex_gen_defp_x_arity_separate_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.x_arity_separate.ex",
+          "id": "uses_1",
+          "line": 12,
+          "name": "ex_gen_defp_x_arity_separate_snoc"
+        },
+        {
           "arity": 2,
           "binding": null,
           "column": 34,
@@ -114012,6 +116028,20 @@
           "id": "local",
           "line": 6,
           "name": "ex_gen_defp_x_arity_zero_snoc"
+        },
+        {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "local_function",
+            "module": "ExGen.Defp.XArityZero",
+            "name": "ex_gen_defp_x_arity_zero_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.x_arity_zero.ex",
+          "id": "uses_0",
+          "line": 10,
+          "name": "ex_gen_defp_x_arity_zero_snoc"
         }
       ],
       "world": "x_arity_zero"
@@ -114110,6 +116140,20 @@
           "file": "lib/ex_gen/ex_gen.defp.x_defaults.ex",
           "id": "local",
           "line": 5,
+          "name": "ex_gen_defp_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_function",
+            "module": "ExGen.Defp.XDefaults",
+            "name": "ex_gen_defp_x_defaults_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.x_defaults.ex",
+          "id": "uses_0",
+          "line": 9,
           "name": "ex_gen_defp_x_defaults_snoc"
         },
         {
@@ -114266,6 +116310,34 @@
           "file": "lib/ex_gen/ex_gen.defp.x_defaults_head.ex",
           "id": "local",
           "line": 7,
+          "name": "ex_gen_defp_x_defaults_head_snoc"
+        },
+        {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "local_function",
+            "module": "ExGen.Defp.XDefaultsHead",
+            "name": "ex_gen_defp_x_defaults_head_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.x_defaults_head.ex",
+          "id": "uses_0",
+          "line": 11,
+          "name": "ex_gen_defp_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_function",
+            "module": "ExGen.Defp.XDefaultsHead",
+            "name": "ex_gen_defp_x_defaults_head_snoc"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.x_defaults_head.ex",
+          "id": "uses_1",
+          "line": 12,
           "name": "ex_gen_defp_x_defaults_head_snoc"
         },
         {
@@ -114507,6 +116579,76 @@
           "id": "local",
           "line": 10,
           "name": "ex_gen_defp_x_lookalike_absent_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExGen.Defp.XLookalikeAbsent",
+            "name": "ex_gen_defp_x_lookalike_absent_xsnoc"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.x_lookalike_absent.ex",
+          "id": "uses_0",
+          "line": 14,
+          "name": "ex_gen_defp_x_lookalike_absent_xsnoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExGen.Defp.XLookalikeAbsent",
+            "name": "ex_gen_defp_x_lookalike_absent_snoc_x"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.x_lookalike_absent.ex",
+          "id": "uses_1",
+          "line": 15,
+          "name": "ex_gen_defp_x_lookalike_absent_snoc_x"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExGen.Defp.XLookalikeAbsent",
+            "name": "ex_gen_defp_x_lookalike_absent_snoc?"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.x_lookalike_absent.ex",
+          "id": "uses_2",
+          "line": 16,
+          "name": "ex_gen_defp_x_lookalike_absent_snoc?"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExGen.Defp.XLookalikeAbsent",
+            "name": "ex_gen_defp_x_lookalike_absent_snoc!"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.x_lookalike_absent.ex",
+          "id": "uses_3",
+          "line": 17,
+          "name": "ex_gen_defp_x_lookalike_absent_snoc!"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "ExGen.Defp.XLookalikeAbsent",
+            "name": "ex_gen_defp_x_lookalike_absent_snoć"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.defp.x_lookalike_absent.ex",
+          "id": "uses_4",
+          "line": 18,
+          "name": "ex_gen_defp_x_lookalike_absent_snoć"
         }
       ],
       "world": "x_lookalike_absent"
@@ -135899,6 +138041,20 @@
           "id": "local",
           "line": 8,
           "name": "ex_gen_generator_embed_x_embed_snoc_template"
+        },
+        {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "local_function",
+            "module": "ExGen.GeneratorEmbed.XEmbed",
+            "name": "ex_gen_generator_embed_x_embed_snoc_text"
+          },
+          "column": 7,
+          "file": "lib/ex_gen/ex_gen.generator_embed.x_embed.ex",
+          "id": "uses_0",
+          "line": 12,
+          "name": "ex_gen_generator_embed_x_embed_snoc_text"
         }
       ],
       "world": "x_embed"

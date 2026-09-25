@@ -7,5 +7,11 @@ defmodule ExDbgi.GeneratorEmbed.XEmbed do
 
   def local_site(a, _b), do: ex_dbgi_generator_embed_x_embed_snoc_template(a) # @local
 
-  def uses(a, b), do: {ex_dbgi_generator_embed_x_embed_snoc_text(), a, b}
+  def uses(a, b) do
+    {
+      ex_dbgi_generator_embed_x_embed_snoc_text(), # @uses_0
+      a,
+      b
+    }
+  end
 end
