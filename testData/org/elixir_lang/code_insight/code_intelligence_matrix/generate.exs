@@ -337,10 +337,14 @@ defmodule Matrix do
   # definition covers the arity an `only:` keeps and the one it leaves out.
   @import_worlds ["w2", "x_defaults", "x_defaults_head", "x_arity_separate"]
 
-  # A private definition's remote calls: at the arity it declares and at one it does not. The compiler reads both as
+  # A private definition's remote calls: at the arity it declares and at fewer and more arguments than that. The compiler reads both as
   # "undefined or private", and names no private arity - so neither may the editor.
   @private_remote_worlds ["x_arity_absent"]
-  @private_remote_calls [{"private_remote", 0, "snoc", 2, :qualified}, {"private_remote_arity_1", 0, "snoc", 1, :qualified}]
+  @private_remote_calls [
+    {"private_remote", 0, "snoc", 2, :qualified},
+    {"private_remote_arity_1", 0, "snoc", 1, :qualified},
+    {"private_remote_arity_3", 0, "snoc", 3, :qualified}
+  ]
 
   defp scenario(backing, form, world, spec) do
     spec = scope(spec, backing, form, world)
