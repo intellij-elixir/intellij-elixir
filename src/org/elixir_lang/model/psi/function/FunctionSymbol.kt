@@ -31,8 +31,8 @@ import org.elixir_lang.structure_view.element.Delegation
 import java.util.*
 
 /**
- * Symbol representing a single `def`/`defp`/`defmacro`/`defmacrop`/`defguard`/`defguardp` clause
- * in a regular module (not inside a `defprotocol` - those are `ProtocolFunction`).
+ * Symbol for one arity of a function or macro a module declares - by a clause, a `defdelegate` or an EEx
+ * `function_from_*` - outside a `defprotocol`, whose are [org.elixir_lang.model.psi.protocol.ProtocolFunction]s.
  *
  * "Usages" are the call sites that invoke it, computed by `ElixirSymbolUsageSearcher`.
  *
@@ -50,7 +50,11 @@ class FunctionSymbol private constructor(
     /** Go To follows the `defdelegate`'s `to:` from it, as [followingDelegation] marks; not part of its identity. */
     val followsDelegation: Boolean = false,
     /** Reached from a call at an arity nothing declares, which does not compile; not part of its identity. */
-    val rejectedCall: Boolean = false
+    val rejectedCall: Boolean = false,
+    /** The [org.elixir_lang.psi.ArityInterval.functionArity] of its declaration, `null` when open; [function] reads it. */
+    val functionArity: Int? = arity,
+    /** The arity a use named it at, above [arity] for an [open] function; [delegatedTo] reads it. Not part of its identity. */
+    private val usedArity: Int = arity
 ) : ElixirSymbolWithUsages, NavigationTarget, SearchTarget, org.elixir_lang.psi.DelegationSymbol<FunctionSymbol> {
 
     override val searchText: String get() = name
@@ -63,9 +67,11 @@ class FunctionSymbol private constructor(
         val macro = this.macro
         val followsDelegation = this.followsDelegation
         val rejectedCall = this.rejectedCall
+        val functionArity = this.functionArity
+        val usedArity = this.usedArity
 
         return declarationPointer(file, range) { restoredFile, restoredRange ->
-            FunctionSymbol(restoredFile, restoredRange, moduleName, name, arity, macro, followsDelegation, rejectedCall)
+            FunctionSymbol(restoredFile, restoredRange, moduleName, name, arity, macro, followsDelegation, rejectedCall, functionArity, usedArity)
         }
     }
 
@@ -76,30 +82,44 @@ class FunctionSymbol private constructor(
         (if (followsDelegation) delegatedTo().firstOrNull()?.navigationRequest() else null)
             ?: NavigationRequest.sourceNavigationRequest(file, range)
 
-    override fun followingDelegation(): FunctionSymbol = FunctionSymbol(file, range, moduleName, name, arity, macro, true)
+    override fun followingDelegation(usedArity: Int): FunctionSymbol =
+        FunctionSymbol(file, range, moduleName, name, arity, macro, true, false, functionArity, usedArity)
 
     /** This symbol as a call that does not compile offers it: to search for and label, not to rename. */
-    fun offeredToARejectedCall(): FunctionSymbol = FunctionSymbol(file, range, moduleName, name, arity, macro, false, true)
+    fun offeredToARejectedCall(): FunctionSymbol =
+        FunctionSymbol(file, range, moduleName, name, arity, macro, false, true, functionArity)
+
+    /**
+     * The function this symbol is one arity of: a bodiless head's defaults and the clauses after it are one function, so
+     * a use of any of its arities is a use of it. An open head's only symbol is at its minimum, and it is no other's.
+     */
+    val function: Function get() = Function(moduleName, name, macro, functionArity ?: arity, open)
+
+    data class Function(val moduleName: String, val name: String, val macro: Boolean, val arity: Int, val open: Boolean)
+
+    override val open: Boolean get() = functionArity == null
+
+    /** Whether [other] is one arity of the same [function]. */
+    fun sameFunction(other: FunctionSymbol): Boolean = other.function == function
 
     override fun validator(): RenameValidator =
         if (rejectedCall) RejectedCallValidator else super<ElixirSymbolWithUsages>.validator()
 
-    /** What the `defdelegate` declaring this symbol delegates to at its arity; empty for any other declaration. */
+    /** What the `defdelegate` declaring this symbol delegates to when used as it was; empty for any other declaration. */
     @RequiresReadLock
     fun delegatedTo(): List<FunctionSymbol> {
         val delegation = CallableDeclaration.declarationNamedAt(file, range)
             ?.takeIf { CallableDeclaration.isForm(it, CallableDeclaration.Form.DELEGATION) }
             ?: return emptyList()
-        val resolved = MultiResolve.delegatedTargets(delegation, name, arity, incompleteCode = false)
-            .flatten()
+        val targets = MultiResolve.delegatedTargets(delegation, name, usedArity, incompleteCode = false)
+
+        return targets.definitions
             .filter { it.isValid }
             .map { PsiElementResolveResult(it.definition) }
             .toList()
-
-        // Told apart by where they are, not by equality: under an `if` both would name the `if` as their module.
-        return functionSymbolsReached(resolved, arity)
+            .let { functionSymbolsReached(it, targets.arity) }
             .filterIsInstance<FunctionSymbol>()
-            .filterNot { it.file == file && it.range == range }
+            .filterNot { it.sameFunction(this) }
     }
 
     // --- SearchTarget ---
@@ -153,12 +173,29 @@ class FunctionSymbol private constructor(
         }
 
         /** The symbol whose name [nameElement] spells, its range read from the name alone. */
-        fun of(file: PsiFile, nameElement: PsiElement, moduleName: String, name: String, arity: Int, macro: Boolean) =
-            FunctionSymbol(file, nameTextRange(nameElement), moduleName, name, arity, macro)
+        fun of(
+            file: PsiFile,
+            nameElement: PsiElement,
+            moduleName: String,
+            name: String,
+            arity: Int,
+            macro: Boolean,
+            functionArity: Int? = arity
+        ) = FunctionSymbol(file, nameTextRange(nameElement), moduleName, name, arity, macro, functionArity = functionArity)
+
+        /** What [declaration] declares at [arity], which is what a use at that arity names. */
+        @RequiresReadLock
+        fun at(declaration: Call, arity: Int): List<FunctionSymbol> = fromDeclaration(declaration).filter { it.namedAt(arity) }
+        /** The [Function] [call] declares, `null` when it declares none. */
+        @RequiresReadLock
+        fun functionOf(call: Call): Function? = fromDeclaration(call).firstOrNull()?.function
 
         /** The function an [AtomSymbol] names, anchored where it is. */
         fun of(atom: AtomSymbol) =
-            FunctionSymbol(atom.file, atom.range, atom.moduleName, atom.name, atom.arity, atom.macro, atom.followsDelegation)
+            FunctionSymbol(
+                atom.file, atom.range, atom.moduleName, atom.name, atom.arity, atom.macro, atom.followsDelegation,
+                functionArity = atom.functionArity, usedArity = atom.usedArity
+            )
 
         /**
          * Build the [FunctionSymbol] symbol(s) for a `def`/`defp`/`defmacro`/`defmacrop` clause in a regular
@@ -178,7 +215,7 @@ class FunctionSymbol private constructor(
             val moduleName = runCatching { org.elixir_lang.psi.Module.name(enclosingModular) }
                 .getOrElse { if (it is ProcessCanceledException) throw it else null }
                 ?: return emptyList()
-            val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return emptyList()
+            val nameArity = CallDefinitionClause.functionNameArityInterval(clause, ResolveState.initial()) ?: return emptyList()
             val nameId = CallDefinitionClause.nameIdentifier(clause) ?: return emptyList()
             val macro = definer.capabilities.compileTime
             // For a decompiled beam function, this clause lives in an in-memory mirror file built from the `.beam`'s
@@ -186,7 +223,7 @@ class FunctionSymbol private constructor(
             // decompiled editor at these offsets. For a source function `originalFile` is the file itself (no-op).
             val declarationFile = clause.containingFile.originalFile
             return nameArity.arityInterval.closed().map { arity ->
-                of(declarationFile, nameId, moduleName, nameArity.name, arity, macro)
+                of(declarationFile, nameId, moduleName, nameArity.name, arity, macro, nameArity.arityInterval.functionArity)
             }
         }
 
@@ -241,7 +278,7 @@ class FunctionSymbol private constructor(
             val macro = CallableDeclaration.isCompileTime(delegation)
 
             return nameArity.arityInterval.closed().map { arity ->
-                of(declarationFile, nameId, moduleName, nameArity.name, arity, macro)
+                of(declarationFile, nameId, moduleName, nameArity.name, arity, macro, nameArity.arityInterval.functionArity)
             }
         }
     }

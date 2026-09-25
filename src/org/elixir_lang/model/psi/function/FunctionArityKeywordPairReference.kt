@@ -75,8 +75,8 @@ class FunctionArityKeywordPairReference(
 
         return modulars.flatMap { modular ->
             CallDefinitionClause.modularChildCalls(modular)
-                .flatMap { FunctionSymbol.fromDeclaration(it) }
-                .filter { it.name == occurrence.name && it.arity == occurrence.arity }
+                .flatMap { FunctionSymbol.at(it, occurrence.arity) }
+                .filter { it.name == occurrence.name }
                 .toList()
         }
     }

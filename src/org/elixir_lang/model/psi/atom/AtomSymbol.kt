@@ -33,10 +33,15 @@ class AtomSymbol private constructor(
     val macro: Boolean,
     private val displayText: String? = null,
     /** Go To follows the `defdelegate`'s `to:` from it, as [followingDelegation] marks; not part of its identity. */
-    val followsDelegation: Boolean = false
+    val followsDelegation: Boolean = false,
+    /** The [org.elixir_lang.psi.ArityInterval.functionArity] of its declaration; not part of its identity. */
+    val functionArity: Int? = arity,
+    /** The arity a use named it at, above [arity] for an [open] function; not part of its identity. */
+    val usedArity: Int = arity
 ) : ElixirSymbolWithUsages, NavigationTarget, SearchTarget, org.elixir_lang.psi.DelegationSymbol<AtomSymbol> {
     override val searchText: String get() = name
     override val targetName: String get() = name
+    override val open: Boolean get() = functionArity == null
 
     override fun createPointer(): Pointer<out AtomSymbol> {
         val moduleName = this.moduleName
@@ -45,9 +50,11 @@ class AtomSymbol private constructor(
         val macro = this.macro
         val displayText = this.displayText
         val followsDelegation = this.followsDelegation
+        val functionArity = this.functionArity
+        val usedArity = this.usedArity
 
         return org.elixir_lang.model.psi.function.FunctionSymbol.declarationPointer(file, range) { restoredFile, restoredRange ->
-            AtomSymbol(restoredFile, restoredRange, moduleName, name, arity, macro, displayText, followsDelegation)
+            AtomSymbol(restoredFile, restoredRange, moduleName, name, arity, macro, displayText, followsDelegation, functionArity, usedArity = usedArity)
         }
     }
 
@@ -60,7 +67,8 @@ class AtomSymbol private constructor(
             NavigationRequest.sourceNavigationRequest(file, range)
         }
 
-    override fun followingDelegation(): AtomSymbol = AtomSymbol(file, range, moduleName, name, arity, macro, displayText, true)
+    override fun followingDelegation(usedArity: Int): AtomSymbol =
+        AtomSymbol(file, range, moduleName, name, arity, macro, displayText, true, functionArity, usedArity)
 
     override val maximalSearchScope: SearchScope? get() = null
 
@@ -77,16 +85,15 @@ class AtomSymbol private constructor(
     private fun clausePresentationText(): String? =
         displayText ?: CallableDeclaration.declarationNamedAt(file, range)?.let(CallableDeclaration::label)
 
+    /** By what it names, as a [org.elixir_lang.model.psi.function.FunctionSymbol] is: a head and its clauses are one target. */
     override fun equals(other: Any?): Boolean =
         other is AtomSymbol &&
             other.moduleName == moduleName &&
             other.name == name &&
             other.arity == arity &&
-            other.macro == macro &&
-            other.file.virtualFile == file.virtualFile &&
-            other.range == range
+            other.macro == macro
 
-    override fun hashCode(): Int = Objects.hash(moduleName, name, arity, macro, file.virtualFile, range)
+    override fun hashCode(): Int = Objects.hash(moduleName, name, arity, macro)
 
     override fun toString(): String = "AtomSymbol($moduleName.$name/$arity, macro=$macro)"
 
@@ -105,8 +112,9 @@ class AtomSymbol private constructor(
             name: String,
             arity: Int,
             macro: Boolean,
-            displayText: String? = null
-        ) = AtomSymbol(file, nameTextRange(nameElement), moduleName, name, arity, macro, displayText)
+            displayText: String? = null,
+            functionArity: Int? = arity
+        ) = AtomSymbol(file, nameTextRange(nameElement), moduleName, name, arity, macro, displayText, functionArity = functionArity)
 
         /** The atom naming a [FunctionSymbol], anchored where it is. */
         fun of(function: org.elixir_lang.model.psi.function.FunctionSymbol) =
@@ -117,7 +125,8 @@ class AtomSymbol private constructor(
                 function.name,
                 function.arity,
                 function.macro,
-                followsDelegation = function.followsDelegation
+                followsDelegation = function.followsDelegation,
+                functionArity = function.functionArity
             )
 
         @RequiresReadLock
@@ -127,11 +136,13 @@ class AtomSymbol private constructor(
             val moduleName = runCatching { org.elixir_lang.psi.Module.name(enclosingModular) }
                 .getOrElse { if (it is ProcessCanceledException) throw it else null }
                 ?: return emptyList()
-            val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return emptyList()
+            val nameArity = CallDefinitionClause.functionNameArityInterval(clause, ResolveState.initial()) ?: return emptyList()
             val nameId = CallDefinitionClause.nameIdentifier(clause) ?: return emptyList()
             val macro = definer.capabilities.compileTime
+            val functionArity = nameArity.arityInterval.functionArity
+
             return nameArity.arityInterval.closed().map { arity ->
-                of(clause.containingFile, nameId, moduleName, nameArity.name, arity, macro)
+                of(clause.containingFile, nameId, moduleName, nameArity.name, arity, macro, functionArity = functionArity)
             }
         }
 
@@ -148,6 +159,15 @@ class AtomSymbol private constructor(
                 org.elixir_lang.model.psi.function.FunctionSymbol.fromDeclaration(call).map(::of)
             }
 
+        /** What a source or compiled [declaration] declares at [arity], which is what an MFA naming that arity names. */
+        @RequiresReadLock
+        fun at(declaration: PsiElement, arity: Int): List<AtomSymbol> =
+            when (declaration) {
+                is Call -> fromDeclaration(declaration)
+                is BeamCallDefinition -> fromBeamCallDefinition(declaration)
+                else -> emptyList()
+            }.filter { it.namedAt(arity) }
+
         @RequiresReadLock
         fun fromBeamCallDefinition(callDefinition: BeamCallDefinition): List<AtomSymbol> {
             val navigationClause = callDefinition.navigationElement as? Call
@@ -162,15 +182,11 @@ class AtomSymbol private constructor(
             val moduleName = callDefinition.parent.name
             val nameArity = callDefinition.nameArityInterval
             val macro = CallableDeclaration.isCompileTime(callDefinition)
+            val functionArity = nameArity.arityInterval.functionArity
+
             return nameArity.arityInterval.closed().map { arity ->
-                of(callDefinition.containingFile, callDefinition, moduleName, nameArity.name, arity, macro, presentationText)
+                of(callDefinition.containingFile, callDefinition, moduleName, nameArity.name, arity, macro, presentationText, functionArity)
             }
         }
-
-        fun matches(symbol: AtomSymbol, moduleName: String, name: String, arity: Int, macro: Boolean): Boolean =
-            symbol.moduleName == moduleName &&
-                symbol.name == name &&
-                symbol.arity == arity &&
-                symbol.macro == macro
     }
 }

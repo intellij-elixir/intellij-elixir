@@ -8,6 +8,7 @@ import org.elixir_lang.code_insight.enclosingCallAtCaret
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.structure_view.Model
 import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
+import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
 import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
 import org.elixir_lang.code_insight.gotoDeclarationLinesAtCaret
@@ -146,6 +147,67 @@ class ConditionalDefinitionScopeTest : PlatformTestCase() {
         )
     }
 
+    /**
+     * Clauses in different branches do not compile together, so defaults in one do not make a clause in the other
+     * part of the same function: only one branch's `f` is defined, as Elixir compiles it.
+     */
+    fun testDefaultsInOneBranchDoNotTakeInAClauseInAnother() {
+        myFixture.configureByText(
+            "branches.ex",
+            """
+            defmodule Branches do
+              if Code.ensure_loaded?(Kernel) do
+                def f(a, b \\ 1), do: {a, b}
+              else
+                def f(a), do: a
+              end
+            end
+
+            defmodule Caller do
+              def two(a), do: Branches.f(a, a)
+              def one(a), do: Branches.f(a)
+            end
+            """.trimIndent()
+        )
+
+        fun goToFrom(call: String): List<String> {
+            myFixture.editor.caretModel.moveToOffset(myFixture.file.text.indexOf(call) + "Branches.".length + 1)
+
+            return myFixture.gotoDeclarationLinesAtCaret()
+        }
+
+        assertEquals(listOf("""def f(a, b \\ 1), do: {a, b}"""), goToFrom("Branches.f(a, a)"))
+        assertEquals(listOf("def f(a), do: a", """def f(a, b \\ 1), do: {a, b}"""), goToFrom("Branches.f(a)"))
+    }
+
+    /** A head with defaults in the module body gives them to the clauses of either branch under it. */
+    fun testDefaultsInTheModuleBodyTakeInTheClausesOfEveryBranch() {
+        myFixture.configureByText(
+            "branches.ex",
+            """
+            defmodule Branches do
+              def f(a, b \\ 1)
+
+              if Code.ensure_loaded?(Kernel) do
+                def f(a, b), do: {:then, a, b}
+              else
+                def f(a, b), do: {:else, a, b}
+              end
+            end
+
+            defmodule Caller do
+              def one(a), do: Branches.f(a)
+            end
+            """.trimIndent()
+        )
+        myFixture.editor.caretModel.moveToOffset(myFixture.file.text.indexOf("Branches.f(a)") + "Branches.".length + 1)
+
+        assertEquals(
+            listOf("""def f(a, b \\ 1)""", "def f(a, b), do: {:else, a, b}", "def f(a, b), do: {:then, a, b}"),
+            myFixture.gotoDeclarationLinesAtCaret()
+        )
+    }
+
     fun testGoToFromAnImportedCallReachesADefinitionInACaseClause() {
         val cased = """
             defmodule Definer do
@@ -164,10 +226,14 @@ class ConditionalDefinitionScopeTest : PlatformTestCase() {
         HeadlessDataManager.fallbackToProductionDataManager(myFixture.testRootDisposable)
         myFixture.configureByText("cased.ex", cased.replace("do: snoc(a, b)", "do: sn<caret>oc(a, b)"))
 
-        val destination = myFixture.gotoDeclarationDestinationAtCaret()
+        val document = myFixture.editor.document
+        val landed = myFixture.gotoDeclarationTargetsAtCaret().orEmpty()
+            .mapNotNull { it.destination }
+            .map { document.getText(TextRange(document.getLineStartOffset(document.getLineNumber(it.textOffset)), document.getLineEndOffset(document.getLineNumber(it.textOffset)))).trim() }
+            .sorted()
 
-        assertNotNull("Go To Declaration went nowhere", destination)
-        assertTrue("landed on ${destination!!.text}", destination.text.startsWith("snoc") || destination.text.startsWith("def snoc"))
+        // Either branch's definition is the function, as from a local call.
+        assertEquals(listOf("false -> def snoc(q, x), do: q", "true -> def snoc(q, x), do: {q, x}"), landed)
     }
 
     /** Everything that lists what a module declares sees a definition under a conditional, as the compiler does. */
@@ -463,6 +529,26 @@ class ConditionalDefinitionScopeTest : PlatformTestCase() {
         val documentation = myFixture.quickDocumentationAtCaret(project).orEmpty()
 
         assertTrue("got: $documentation", "Defined in a loop." in documentation)
+    }
+
+    /** A bodiless head with defaults and its clause in such a function are one function, as anywhere in the module. */
+    fun testGoToFromACallLandsOnTheHeadAndClauseInAFunctionPassedToEnum() {
+        HeadlessDataManager.fallbackToProductionDataManager(myFixture.testRootDisposable)
+        myFixture.configureByText(
+            "generated_head.ex",
+            """
+            defmodule Gen do
+              Enum.each([:a], fn _ ->
+                def f(a, b \\ 1)
+                def f(a, b), do: {a, b}
+              end)
+
+              def calls, do: <caret>f(1)
+            end
+            """.trimIndent()
+        )
+
+        assertEquals(listOf("def f(a, b \\\\ 1)", "def f(a, b), do: {a, b}"), myFixture.gotoDeclarationLinesAtCaret().sorted())
     }
 
     /** A function bound in a `quote` is called there, so what it defines is the `quote`'s, as for `Phoenix` route helpers. */

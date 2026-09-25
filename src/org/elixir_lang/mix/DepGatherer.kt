@@ -4,11 +4,9 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
-import com.intellij.psi.ResolveState
 import org.elixir_lang.NameArity
 import org.elixir_lang.package_manager.DepGatherer
 import org.elixir_lang.psi.*
-import org.elixir_lang.psi.CallDefinitionClause.nameArityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.foldChildrenWhile
 import org.elixir_lang.psi.impl.call.macroChildCalls
@@ -78,7 +76,7 @@ private fun <R> Array<Call>.foldDepsDefinersWhile(
         for (childCall in this) {
             ProgressManager.checkCanceled()
 
-            if (isDefining(childCall, depsNameArity)) {
+            if (CallableDeclaration.defines(childCall, depsNameArity.name, depsNameArity.arity, compileTime = false)) {
                 final = operation(childCall, final.accumulator)
 
                 if (!final.`continue`) {
@@ -95,7 +93,7 @@ private fun Array<Call>.projectKeywordList(): QuotableKeywordList? {
     for (call in this) {
         ProgressManager.checkCanceled()
 
-        if (isDefiningProject(call)) {
+        if (Project.definesProject(call)) {
             call.lastKeywordList()?.let { return it }
         }
     }
@@ -110,7 +108,7 @@ private fun Array<Call>.depsNameArity(): NameArity? {
     var nameArity: NameArity? = null
 
     for (call in this) {
-        if (isDefiningProject(call)) {
+        if (Project.definesProject(call)) {
             nameArity = call.lastKeywordList()?.depsNameArity()
 
             if (nameArity != null) {
@@ -121,33 +119,6 @@ private fun Array<Call>.depsNameArity(): NameArity? {
 
     return nameArity
 }
-
-private fun isDefining(call: Call, nameArity: NameArity): Boolean =
-        if (CallableDeclaration.definerOf(call)?.capabilities?.runtimeFunction == true) {
-            nameArityInterval(call, ResolveState.initial())?.let { definedNameArityInterval ->
-                if (definedNameArityInterval.name == nameArity.name &&
-                        definedNameArityInterval.arityInterval.contains(nameArity.arity)) {
-                    true
-                } else {
-                    null
-                }
-            }
-        } else {
-            null
-        } ?: false
-
-private fun isDefiningProject(call: Call): Boolean =
-        if (CallableDeclaration.definerOf(call)?.capabilities?.remoteCallable == true) {
-            nameArityInterval(call, ResolveState.initial())?.let { nameArityRange ->
-                if (nameArityRange.name == "project" && nameArityRange.arityInterval.contains(0)) {
-                    true
-                } else {
-                    null
-                }
-            }
-        } else {
-            null
-        } ?: false
 
 private fun Call.lastKeywordList(): QuotableKeywordList? =
         foldChildrenWhile(null as QuotableKeywordList?) { projectChild, acc ->

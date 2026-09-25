@@ -124,5 +124,9 @@ class ProtocolFunction(
                 ProtocolFunction(clause.containingFile, nameId.textRange, protocolName, nameArity.name, arity, macro)
             }
         }
+
+        /** What [clause] declares at [arity], which is what a use at that arity names. */
+        @RequiresReadLock
+        fun at(clause: Call, arity: Int): List<ProtocolFunction> = fromClause(clause).filter { it.arity == arity }
     }
 }

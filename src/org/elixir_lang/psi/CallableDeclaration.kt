@@ -89,6 +89,18 @@ object CallableDeclaration {
                 usableInGuards -> Presentation.GUARD
                 else -> Presentation.FUNCTION
             }
+
+        companion object {
+            /** What a function called at run time can do: it quotes nothing and no guard may call it. */
+            fun runtime(visibility: Visibility?, overridable: Boolean): Capabilities =
+                Capabilities(
+                    quotesArguments = false,
+                    compileTime = false,
+                    usableInGuards = false,
+                    visibility = visibility,
+                    overridable = overridable
+                )
+        }
     }
 
     /** How a declaration is shown: one a guard may call is shown as a guard, one that quotes its arguments as a macro. */
@@ -243,7 +255,7 @@ object CallableDeclaration {
     @RequiresReadLock
     fun declarations(call: Call, form: Form, state: ResolveState): List<Declaration> =
         when (form) {
-            Form.CLAUSE -> listOfNotNull(CallDefinitionClause.nameArityInterval(call, state)?.let(::declaration))
+            Form.CLAUSE -> listOfNotNull(CallDefinitionClause.functionNameArityInterval(call, state)?.let(::declaration))
             Form.CALLBACK -> listOfNotNull(
                 (call as? AtUnqualifiedNoParenthesesCall<*>)
                     ?.let { Callback.headCall(it) }
@@ -265,6 +277,19 @@ object CallableDeclaration {
     /** Whether [element] declares a macro, or anything else only callable at compile time. */
     @RequiresReadLock
     fun isCompileTime(element: PsiElement): Boolean = capabilitiesOf(element, ResolveState.initial())?.compileTime == true
+
+    /**
+     * Whether [element] defines [name]/[arity], a macro if [compileTime] - as what implements a callback or protocol
+     * function, or handles a message, does.
+     */
+    @RequiresReadLock
+    fun defines(element: PsiElement, name: String, arity: Int, compileTime: Boolean): Boolean {
+        val state = ResolveState.initial()
+        val declared = declaredOf(element, state) ?: return false
+
+        return declared.capabilities?.compileTime == compileTime &&
+            declared.definitions(state).any { it.name == name && it.accepts(arity) }
+    }
 
     /**
      * [element] classified once - a source call or a compiled definition alike - `null` when it declares nothing. The
@@ -304,15 +329,21 @@ object CallableDeclaration {
             Form.CLAUSE -> definerOf(call)?.capabilities
             Form.CALLBACK ->
                 if (Callback.Kind.of(call) == Callback.Kind.MACROCALLBACK) {
-                    Capabilities(true, true, false, Visibility.PUBLIC, false)
+                    Capabilities(
+                        quotesArguments = true,
+                        compileTime = true,
+                        usableInGuards = false,
+                        visibility = Visibility.PUBLIC,
+                        overridable = false
+                    )
                 } else {
-                    Capabilities(false, false, false, Visibility.PUBLIC, false)
+                    Capabilities.runtime(Visibility.PUBLIC, overridable = false)
                 }
-            Form.DELEGATION -> Capabilities(false, false, false, Visibility.PUBLIC, true)
+            Form.DELEGATION -> Capabilities.runtime(Visibility.PUBLIC, overridable = true)
             // `defoverridable` straight after `defexception` finds its functions not yet defined.
-            Form.EXCEPTION -> Capabilities(false, false, false, Visibility.PUBLIC, false)
-            Form.EEX_FUNCTION_FROM -> Capabilities(false, false, false, EEx.visibility(call), true)
-            Form.GENERATOR_EMBED -> Capabilities(false, false, false, Visibility.PRIVATE, true)
+            Form.EXCEPTION -> Capabilities.runtime(Visibility.PUBLIC, overridable = false)
+            Form.EEX_FUNCTION_FROM -> Capabilities.runtime(EEx.visibility(call), overridable = true)
+            Form.GENERATOR_EMBED -> Capabilities.runtime(Visibility.PRIVATE, overridable = true)
         }
 
     /**
@@ -344,7 +375,7 @@ object CallableDeclaration {
             // an EEx function or embed needs resolving to be told apart, so `syntacticFormOf` never names one
             null, Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED -> null
             Form.CLAUSE, Form.DELEGATION -> nameElement(call, form)
-            Form.CALLBACK -> org.elixir_lang.structure_view.element.Callback.nameIdentifier(call)
+            Form.CALLBACK -> Callback.nameIdentifier(call)
             Form.EXCEPTION -> call.functionNameElement()
         }
 

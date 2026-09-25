@@ -62,7 +62,9 @@ enum class Reach {
         fun remotelyReaches(reach: Reach, element: PsiElement, runtime: Boolean): Boolean =
             reach.remote && callableFromAnotherModule(element, runtime)
 
-        private fun callableFromAnotherModule(element: PsiElement, runtime: Boolean): Boolean {
+        /** [callableFromAnotherModule] of what [element] declares, if it declares anything. */
+        @RequiresReadLock
+        fun callableFromAnotherModule(element: PsiElement, runtime: Boolean): Boolean {
             val state = ResolveState.initial()
 
             return CallableDeclaration.declaredOf(element, state)?.let { callableFromAnotherModule(it, state, runtime) } == true

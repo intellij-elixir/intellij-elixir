@@ -3,7 +3,6 @@ package org.elixir_lang.model.psi.generic_server
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiElement
-import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.CallableDeclaration
@@ -87,10 +86,7 @@ internal object GenServerDispatch {
 
     @RequiresReadLock
     private fun clauseMatches(clause: Call, dispatch: Dispatch, messageName: String): Boolean {
-        val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return false
-        if (nameArity.name != dispatch.handlerName) return false
-        if (dispatch.handlerArity !in nameArity.arityInterval) return false
-        if (CallableDeclaration.definerOf(clause)?.capabilities?.runtimeFunction != true) return false
+        if (!CallableDeclaration.defines(clause, dispatch.handlerName, dispatch.handlerArity, compileTime = false)) return false
         val head = CallDefinitionClause.head(clause) as? Call ?: return false
         val firstParam = head.primaryArguments()?.firstOrNull()?.stripAccessExpression() ?: return false
         val paramAtom = firstParam as? ElixirAtom ?: return false

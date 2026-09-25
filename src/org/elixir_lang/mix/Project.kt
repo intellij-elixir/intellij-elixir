@@ -16,17 +16,27 @@ import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileVisitor
 import com.intellij.util.concurrency.annotations.RequiresEdt
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.mix.project.CANONICAL_FOLDER_MARKS
 import org.elixir_lang.mix.project.FolderMark
 import org.elixir_lang.mix.project.OtpApp
 import org.elixir_lang.mix.sync.MixDepsSyncService
 import org.elixir_lang.mix.sync.SyncRequest
+import org.elixir_lang.psi.CallableDeclaration
+import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.scope.Reach
 import java.io.EOFException
 import java.io.File
 
 object Project {
     const val MIX_EXS = "mix.exs"
+
+    /** Whether [call] defines the public `project/0` Mix reads a project's configuration from. */
+    @RequiresReadLock
+    fun definesProject(call: Call): Boolean =
+        CallableDeclaration.defines(call, "project", 0, compileTime = false) &&
+            Reach.callableFromAnotherModule(call, runtime = true)
     // Qualified because an explicit import outranks a declaration in the same file: the bare name
     // resolves to the imported com.intellij.openapi.project.Project.
     private val LOG = Logger.getInstance(org.elixir_lang.mix.Project::class.java)

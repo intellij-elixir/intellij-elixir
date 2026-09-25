@@ -7,14 +7,11 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiFileSystemItem
 import com.intellij.psi.PsiManager
-import com.intellij.psi.ResolveState
 import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.util.concurrency.annotations.RequiresReadLock
-import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.file.containsFileWithSuffix
-import org.elixir_lang.psi.CallDefinitionClause.nameArityInterval
 import org.elixir_lang.psi.ElixirAccessExpression
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.ElixirLine
@@ -127,11 +124,7 @@ object Test {
             .modulars()
             .asSequence()
             .flatMap { it.macroChildCallList().asSequence() }
-            .filter { call ->
-                CallableDeclaration.definerOf(call)?.capabilities?.remoteCallable == true && nameArityInterval(call, ResolveState.initial())?.let { (name, arityInterval) ->
-                    name == "project" && arityInterval.contains(0)
-                } == true
-            }
+            .filter(Project::definesProject)
             .flatMap { it.doBlock?.stab?.stabBody?.children?.asSequence() ?: emptySequence() }
             .filterIsInstance<ElixirAccessExpression>()
             .mapNotNull(ElixirAccessExpression::getList)
