@@ -71,6 +71,9 @@ defmodule Matrix do
       # The other ways the options are written: as a list, and `as:` as a module attribute. Each asks whether the plugin
       # reads the option or only its commonest spelling. A quoted `as:` atom is not among them: Elixir warns about quotes
       # an ASCII name does not need, and a name that needs them is not one a `def` can declare.
+      # A `to:` module that only imports the function rather than defining it: Elixir compiles the delegation to a remote
+      # call of `Target.snoc/2`, which does not exist, so nothing resolves through it.
+      %{id: "defdelegate_imports", definer: "defdelegate", delegate: :imports},
       %{id: "defdelegate_list", definer: "defdelegate", delegate: :same, options: :list},
       %{id: "defdelegate_as_list", definer: "defdelegate", delegate: :same, as: "delegated_", options: :list},
       %{id: "defdelegate_as_attribute", definer: "defdelegate", delegate: :same, as: "delegated_", as_written: :attribute},
@@ -248,6 +251,12 @@ defmodule Matrix do
     do: "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback"
 
   def not_applicable(%{language: :erlang}, form, _world) when form.id not in ["def", "defp"], do: "Erlang has only functions"
+
+  def not_applicable(%{compiled: true}, %{delegate: :imports}, _world),
+    do: "a compiled delegator is an ordinary compiled function; what its target imports is the source's question"
+
+  def not_applicable(_backing, %{delegate: :imports}, world) when world != "w1",
+    do: "a target that only imports the function asks nothing w1 does not"
 
   def not_applicable(%{compiled: true}, form, _world) when is_map_key(form, :options) or is_map_key(form, :as_written),
     do: "how the options were spelled is gone once compiled; that is defdelegate_as's question again"
@@ -735,6 +744,17 @@ defmodule Matrix do
       case form[:delegate] do
         nil -> {nil, []}
         :missing -> {module <> ".Missing", []}
+
+        :imports ->
+          source = module <> ".Source"
+          target = module <> ".Target"
+          imported = strip_defaults(definitions)
+
+          {target,
+           [
+             compile_one(backing, %{id: "def", definer: "def"}, world, source, imported, nil, nil),
+             compile_one(backing, %{id: "def", definer: "def", imports: {source, imported}}, world, target, [], nil, nil)
+           ]}
         :same -> {module <> ".Target", [compile_one(backing, %{id: "def", definer: "def"}, world, module <> ".Target", (strip_defaults(definitions) ++ target_extras(world, definitions)) |> delegated_names(form), nil, nil)]}
         :compiled -> {module <> ".Target", [compile_one(@delegate_target_backing, %{id: "def", definer: "def"}, world, module <> ".Target", strip_defaults(definitions) ++ target_extras(world, definitions), nil, nil)]}
       end
@@ -1139,6 +1159,16 @@ defmodule Matrix do
     if form[:options] == :list, do: "[#{options}]", else: options
   end
 
+  defp import_only({module, definitions}) do
+    only =
+      definitions
+      |> Enum.map(fn {name, [first | _]} -> "#{name}: #{first |> clause_parts() |> elem(0) |> length()}" end)
+      |> Enum.uniq()
+      |> Enum.join(", ")
+
+    "import #{module}, only: [#{only}], warn: false"
+  end
+
   defp delegate_attribute(%{as_written: :attribute, as: prefix}, name), do: "  @target :#{prefix}#{name}\n"
   defp delegate_attribute(_form, _name), do: ""
 
@@ -1227,6 +1257,8 @@ defmodule Matrix do
       cond do
         form[:eex] -> "  require EEx\n\n"
         form[:embed] -> "  require Mix.Generator\n\n"
+        # Brought in and never called here: `warn: false`, or the compiler would call the import unused.
+        form[:imports] -> "  " <> import_only(form.imports) <> "\n\n"
         true -> ""
       end
 
@@ -1367,6 +1399,8 @@ defmodule Matrix do
     {modules, diagnostics} = Code.with_diagnostics(fn -> Code.compile_string(source, path) end)
     # An unresolvable delegate's target is missing on purpose.
     diagnostics = Enum.reject(diagnostics, &(&1.message =~ ~r/^\S+\.Missing\.\S+ is undefined \(module \S+\.Missing is not available/))
+    # A target that only imports the function does not define it, on purpose.
+    diagnostics = Enum.reject(diagnostics, &(&1.message =~ ~r/^\S+\.DefdelegateImports\.\S+\.Target\.\S+ is undefined or private/))
     if diagnostics != [], do: raise("#{path} compiled with diagnostics: #{inspect(diagnostics)}")
     {modules, Matrix.Events.take()}
   end
