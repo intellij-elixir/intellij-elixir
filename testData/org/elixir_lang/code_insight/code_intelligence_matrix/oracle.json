@@ -53967,7 +53967,16 @@
           "beam": null,
           "clauseSource": null,
           "complete": true,
-          "declarations": [],
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 15,
+              "definer": "defdelegate",
+              "line": 3,
+              "name": "src_defdelegate_list_w1_snoc"
+            }
+          ],
           "definitions": [
             {
               "clauses": 1,
@@ -54172,7 +54181,16 @@
           "beam": null,
           "clauseSource": null,
           "complete": true,
-          "declarations": [],
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 15,
+              "definer": "defdelegate",
+              "line": 3,
+              "name": "src_defdelegate_as_list_w1_snoc"
+            }
+          ],
           "definitions": [
             {
               "clauses": 1,
