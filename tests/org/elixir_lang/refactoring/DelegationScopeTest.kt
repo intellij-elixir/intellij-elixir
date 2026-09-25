@@ -1,12 +1,10 @@
 package org.elixir_lang.refactoring
 
 import com.intellij.ide.impl.HeadlessDataManager
-import com.intellij.openapi.util.TextRange
 import org.elixir_lang.PlatformTestCase
-import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
+import org.elixir_lang.code_insight.gotoDeclarationLineAtCaret
 import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
-import org.elixir_lang.code_insight.gotoDeclarationLineAtCaret
 
 /**
  * A use of a `defdelegate` names the delegation, which Go To follows to its target, wherever the delegation is written
@@ -198,15 +196,10 @@ class DelegationScopeTest : PlatformTestCase() {
         HeadlessDataManager.fallbackToProductionDataManager(myFixture.testRootDisposable)
         configure(source, caretAt)
 
-        val destination = myFixture.gotoDeclarationDestinationAtCaret()
+        val line = myFixture.gotoDeclarationLineAtCaret()
 
-        assertNotNull("Go To Declaration from `$caretAt` went nowhere", destination)
-        val document = myFixture.editor.document
-        val line = document.getLineNumber(destination!!.textOffset)
-        assertEquals(
-            targetLine,
-            document.getText(TextRange(document.getLineStartOffset(line), document.getLineEndOffset(line))).trim()
-        )
+        assertNotNull("Go To Declaration from `$caretAt` went nowhere", line)
+        assertEquals(targetLine, line)
     }
 
     private fun configure(source: String, caretAt: String) {

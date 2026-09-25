@@ -4,6 +4,7 @@ import com.intellij.find.usages.impl.searchTargets
 import com.intellij.ide.impl.HeadlessDataManager
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
+import org.elixir_lang.code_insight.lineAt
 import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
 
@@ -34,13 +35,9 @@ class EExFunctionSymbolTest : PlatformTestCase() {
     fun testFindUsagesAtTheDeclarationFindsEveryUseOfThatArityAlone() {
         configure(":<caret>render, \"")
 
-        val document = myFixture.editor.document
         val lines = myFixture.psiUsagesAtCaret(project)
             .filterNot { it.declaration }
-            .map { usage ->
-                val line = document.getLineNumber(usage.range.startOffset)
-                document.getText(com.intellij.openapi.util.TextRange(document.getLineStartOffset(line), document.getLineEndOffset(line))).trim()
-            }
+            .map { myFixture.lineAt(it.range.startOffset) }
             .sorted()
 
         assertEquals(
