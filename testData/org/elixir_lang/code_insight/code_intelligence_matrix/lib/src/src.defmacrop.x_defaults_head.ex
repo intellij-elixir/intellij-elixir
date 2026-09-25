@@ -6,5 +6,12 @@ defmodule Src.Defmacrop.XDefaultsHead do
 
   def local_site(a, b), do: src_defmacrop_x_defaults_head_snoc(a, b) # @local
 
-  def uses(a, b), do: {src_defmacrop_x_defaults_head_snoc(), src_defmacrop_x_defaults_head_snoc(a), a, b}
+  def uses(a, b) do
+    {
+      src_defmacrop_x_defaults_head_snoc(), # @uses_0
+      src_defmacrop_x_defaults_head_snoc(a), # @uses_1
+      a,
+      b
+    }
+  end
 end

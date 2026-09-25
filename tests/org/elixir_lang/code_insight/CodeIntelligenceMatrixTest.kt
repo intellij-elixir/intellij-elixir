@@ -71,6 +71,7 @@ import org.elixir_lang.code_insight.matrix.Site
 import org.elixir_lang.code_insight.matrix.UNAVAILABLE_PHRASE
 import org.elixir_lang.code_insight.matrix.nfc
 import org.elixir_lang.code_insight.matrix.sees
+import org.elixir_lang.code_insight.matrix.privateUse
 import org.elixir_lang.code_insight.matrix.specName
 import org.elixir_lang.documentation.quickDocumentationAtCaret
 import org.elixir_lang.psi.CallDefinitionClause
@@ -1030,7 +1031,7 @@ private class Group(val scenario: Scenario) {
 
         return scenario.sites
             .filter { site -> site.binding?.let { it.module == module.module && definition.covers(it) } == true }
-            .filter { it.id != LOCAL || Crossing.hasLocalCall(scenario) }
+            .filter { (it.id != LOCAL && !privateUse(it.id)) || Crossing.hasLocalCall(scenario) }
             .map { it.id }
             .sorted()
     }

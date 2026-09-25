@@ -12,5 +12,17 @@ defmodule Src.Defp.W4 do
 
   def local_site(a, b), do: src_defp_w4_snoc(a, b) # @local
 
-  def uses(a, b), do: {src_defp_w4_snoc(a), src_defp_w4_snoc(a, b, a), src_defp_w4_xsnoc(a, b), src_defp_w4_snoc_x(a, b), src_defp_w4_snoc?(a, b), src_defp_w4_snoc!(a, b), src_defp_w4_snoć(a, b), a, b}
+  def uses(a, b) do
+    {
+      src_defp_w4_snoc(a), # @uses_0
+      src_defp_w4_snoc(a, b, a), # @uses_1
+      src_defp_w4_xsnoc(a, b), # @uses_2
+      src_defp_w4_snoc_x(a, b), # @uses_3
+      src_defp_w4_snoc?(a, b), # @uses_4
+      src_defp_w4_snoc!(a, b), # @uses_5
+      src_defp_w4_snoć(a, b), # @uses_6
+      a,
+      b
+    }
+  end
 end

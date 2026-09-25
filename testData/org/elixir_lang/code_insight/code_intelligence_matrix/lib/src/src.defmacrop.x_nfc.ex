@@ -4,5 +4,10 @@ defmodule Src.Defmacrop.XNfc do
 
   def local_site(a, b), do: src_defmacrop_x_nfc_snoć(a, b) # @local
 
-  def uses(a, b), do: {a, b}
+  def uses(a, b) do
+    {
+      a,
+      b
+    }
+  end
 end

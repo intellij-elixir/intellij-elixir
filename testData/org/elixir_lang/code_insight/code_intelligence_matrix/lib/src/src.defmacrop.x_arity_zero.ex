@@ -5,5 +5,11 @@ defmodule Src.Defmacrop.XArityZero do
 
   def local_site(a, b), do: src_defmacrop_x_arity_zero_snoc(a, b) # @local
 
-  def uses(a, b), do: {src_defmacrop_x_arity_zero_snoc(), a, b}
+  def uses(a, b) do
+    {
+      src_defmacrop_x_arity_zero_snoc(), # @uses_0
+      a,
+      b
+    }
+  end
 end

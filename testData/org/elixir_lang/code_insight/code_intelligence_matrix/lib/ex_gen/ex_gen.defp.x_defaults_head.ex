@@ -6,5 +6,12 @@ defmodule ExGen.Defp.XDefaultsHead do
 
   def local_site(a, b), do: ex_gen_defp_x_defaults_head_snoc(a, b) # @local
 
-  def uses(a, b), do: {ex_gen_defp_x_defaults_head_snoc(), ex_gen_defp_x_defaults_head_snoc(a), a, b}
+  def uses(a, b) do
+    {
+      ex_gen_defp_x_defaults_head_snoc(), # @uses_0
+      ex_gen_defp_x_defaults_head_snoc(a), # @uses_1
+      a,
+      b
+    }
+  end
 end
