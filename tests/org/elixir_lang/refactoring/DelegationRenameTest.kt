@@ -306,6 +306,78 @@ class DelegationRenameTest : PlatformTestCase() {
 
     private val listedOptions = source.replace("defdelegate snoc(q, x), to: Target", "defdelegate snoc(q, x), [to: Target]")
 
+    /** A `defdelegate` implementing a protocol function is renamed with it, and keeps delegating to the same target. */
+    fun testRenamingAProtocolFunctionPinsAnImplementingDelegationsTarget() =
+        assertRenamed(
+            "def si<caret>ze(t)\nend",
+            "count",
+            "def size(t)\n" to "def count(t)\n",
+            "defdelegate size(t), to: ListSize" to "defdelegate count(t), to: ListSize, as: :size",
+            source = """
+                defprotocol Sizer do
+                  def size(t)
+                end
+
+                defmodule ListSize do
+                  def size(t), do: length(t)
+                end
+
+                defimpl Sizer, for: List do
+                  defdelegate size(t), to: ListSize
+                end
+            """.trimIndent()
+        )
+
+    /** A `defdelegate` implementing a callback is renamed with it, and keeps delegating to the same target. */
+    fun testRenamingACallbackPinsAnImplementingDelegationsTarget() =
+        assertRenamed(
+            "@callback per<caret>form()",
+            "run",
+            "@callback perform()" to "@callback run()",
+            "defdelegate perform(), to: Impl" to "defdelegate run(), to: Impl, as: :perform",
+            source = """
+                defmodule Worker do
+                  @callback perform() :: any
+                end
+
+                defmodule Impl do
+                  def perform, do: :ok
+                end
+
+                defmodule Job do
+                  @behaviour Worker
+
+                  defdelegate perform(), to: Impl
+                end
+            """.trimIndent()
+        )
+
+    /** A `defdelegate` to another implementation of the callback is renamed with it and adds no `as:`: both move. */
+    fun testRenamingACallbackRenamesADelegationToAnotherImplementationWithoutAs() =
+        assertRenamed(
+            "@callback per<caret>form()",
+            "run",
+            "@callback perform()" to "@callback run()",
+            "def perform, do: :ok" to "def run, do: :ok",
+            "defdelegate perform(), to: Impl" to "defdelegate run(), to: Impl",
+            source = """
+                defmodule Worker do
+                  @callback perform() :: any
+                end
+
+                defmodule Impl do
+                  @behaviour Worker
+                  def perform, do: :ok
+                end
+
+                defmodule Job do
+                  @behaviour Worker
+
+                  defdelegate perform(), to: Impl
+                end
+            """.trimIndent()
+        )
+
     private fun configure(caretAt: String, text: String = source) {
         myFixture.configureByText("delegation_rename.ex", text.replace(caretAt.replace("<caret>", ""), caretAt))
     }

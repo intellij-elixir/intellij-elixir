@@ -15,6 +15,7 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.psi.*
 import com.intellij.psi.impl.source.tree.LeafPsiElement
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.Hidden
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.MarkdownByLanguage
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.None
@@ -277,6 +278,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
     }
 
     /** One delegation's own `@doc`, or its head and a link to what it delegates to, followed by that function's docs. */
+    @RequiresReadLock
     private fun oneDelegationDoc(delegation: Call): String? {
         SourceFileDocsHelper.fetchDocs(delegation)?.let { return formatDocs(delegation.project, it) }
 
@@ -521,6 +523,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             .generateHtml()
     }
 
+    @RequiresReadLock
     private fun fetchDocs(element: PsiElement): FetchedDocs? =
     // For compiled Beam elements, prefer docs from the decompiled source mirror so hover uses
         // the cached inline docs from decompilation.

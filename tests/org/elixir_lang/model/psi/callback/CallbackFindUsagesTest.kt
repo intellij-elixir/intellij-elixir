@@ -31,6 +31,66 @@ class CallbackFindUsagesTest : PlatformTestCase() {
         )
     }
 
+    /** A `defdelegate` defines the public function a callback names, so it implements the callback as a `def` does. */
+    @Suppress("UnstableApiUsage")
+    fun testADelegationImplementingACallbackIsFound() {
+        myFixture.configureByText(
+            "delegation_impl.ex",
+            """
+            defmodule Worker do
+              @callback per<caret>form() :: any
+            end
+
+            defmodule Impl do
+              def perform, do: :ok
+            end
+
+            defmodule Job do
+              @behaviour Worker
+
+              defdelegate perform(), to: Impl
+            end
+            """.trimIndent()
+        )
+        val text = myFixture.file.text
+
+        val lines = myFixture.singleTargetPsiUsagesAtCaret(project)
+            .filterNot { it.declaration }
+            .map { usage -> text.substring(0, usage.range.startOffset).count { it == '\n' } + 1 }
+        val delegationLine = text.substring(0, text.indexOf("defdelegate perform")).count { it == '\n' } + 1
+
+        assertTrue("usages at lines $lines", delegationLine in lines)
+    }
+
+    /** A `defdelegate` in a `defimpl` defines the protocol function, so it implements it as a `def` does. */
+    @Suppress("UnstableApiUsage")
+    fun testADelegationImplementingAProtocolFunctionIsFound() {
+        myFixture.configureByText(
+            "protocol_delegation_impl.ex",
+            """
+            defprotocol Sizer do
+              def si<caret>ze(t)
+            end
+
+            defmodule ListSize do
+              def size(t), do: length(t)
+            end
+
+            defimpl Sizer, for: List do
+              defdelegate size(t), to: ListSize
+            end
+            """.trimIndent()
+        )
+        val text = myFixture.file.text
+
+        val lines = myFixture.singleTargetPsiUsagesAtCaret(project)
+            .filterNot { it.declaration }
+            .map { usage -> text.substring(0, usage.range.startOffset).count { it == '\n' } + 1 }
+        val delegationLine = text.substring(0, text.indexOf("defdelegate size")).count { it == '\n' } + 1
+
+        assertTrue("usages at lines $lines", delegationLine in lines)
+    }
+
     fun testLiteralBehaviourImplementationIsFound() {
         assertTrue(
             "Expected the implementing def (via literal @behaviour) among the callback's usages",

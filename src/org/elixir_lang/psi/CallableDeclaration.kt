@@ -19,6 +19,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.call.keywordArgument
+import org.elixir_lang.psi.impl.call.keywordArguments
 import org.elixir_lang.psi.impl.literalName
 import org.elixir_lang.psi.impl.nameTextRange
 import org.elixir_lang.psi.impl.stripAccessExpression
@@ -348,6 +349,7 @@ object CallableDeclaration {
         call.functionName()?.let { Definer.of(it) }?.takeIf { CallDefinitionClause.isCallingDefiner(call, it.keyword) }
 
     /** Its export says whether it is a macro, and its stub whether its docs mark it `guard: true`. */
+    @RequiresReadLock
     private fun capabilitiesOf(definition: BeamCallDefinition): Capabilities {
         val compileTime = definition.time == Timed.Time.COMPILE
 
@@ -399,6 +401,18 @@ object CallableDeclaration {
             Form.EEX_FUNCTION_FROM -> EEx.declaredNameAtom(call)
             Form.CALLBACK, Form.EXCEPTION, Form.GENERATOR_EMBED -> null
         }
+
+    /** The declaration [leaf] spells the name of; `null` when [leaf] is anything else, a call in a body or an argument. */
+    @RequiresReadLock
+    fun declarationNamedBy(leaf: PsiElement): Call? {
+        val state = ResolveState.initial()
+
+        return generateSequence(leaf.parent) { it.parent }
+            .takeWhile { it !is PsiFile }
+            .filterIsInstance<Call>()
+            .firstOrNull { declares(it, state) }
+            ?.takeIf { declaration -> nameElement(declaration, state)?.let { PsiTreeUtil.isAncestor(it, leaf, false) } == true }
+    }
 
     /**
      * What `getNameIdentifier` returns for a declaring call. It is asked while stubs are built, so it knows only the
@@ -503,14 +517,7 @@ object CallableDeclaration {
      */
     @RequiresReadLock
     fun delegationAsOffset(delegation: Call): Int? =
-        when (val options = delegation.finalArguments()?.lastOrNull()?.stripAccessExpression()) {
-            is ElixirList -> options.children.singleOrNull()?.let(::lastKeywordPairEnd)
-            null -> null
-            else -> lastKeywordPairEnd(options)
-        }
-
-    private fun lastKeywordPairEnd(options: PsiElement): Int? =
-        (options as? QuotableKeywordList)?.quotableKeywordPairList()?.lastOrNull()?.textRange?.endOffset
+        delegation.keywordArguments()?.quotableKeywordPairList()?.lastOrNull()?.textRange?.endOffset
 
     /** The one head of a `defdelegate`; a list of heads declares nothing here yet (#4040). */
     @RequiresReadLock

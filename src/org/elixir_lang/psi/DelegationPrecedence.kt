@@ -6,8 +6,8 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.psi.call.Call
 
-/** A function's symbol, which a use can name at an arity and which can be marked to have Go To follow a delegation. */
-interface DelegationSymbol<out S> {
+/** A function's symbol at one arity, which a use can name. */
+interface ArityNamed {
     val arity: Int
 
     /** Whether the function also takes more arguments than [arity]: its head ends in `unquote_splicing`. */
@@ -15,7 +15,10 @@ interface DelegationSymbol<out S> {
 
     /** Whether a use at [arity] names this symbol: at its own arity, or above it for an [open] function. */
     fun namedAt(arity: Int): Boolean = arity == this.arity || open && arity > this.arity
+}
 
+/** An [ArityNamed] symbol that can be marked to have Go To follow a delegation. */
+interface DelegationSymbol<out S> : ArityNamed {
     /** This symbol, used at [usedArity], with Go To following the `defdelegate`'s `to:` from it. */
     fun followingDelegation(usedArity: Int): S
 }
