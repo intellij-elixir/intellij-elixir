@@ -8,6 +8,7 @@ import com.intellij.psi.PsiCompiledFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
+import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.EdtTestUtil
@@ -271,6 +272,7 @@ private class Group(val scenario: Scenario) {
             Feature.COMPLETION_OFFERED -> checkCompletionOffered()
             Feature.COMPLETION_INSERTED -> checkCompletionInserted()
             Feature.RENAME -> checkRename(binding)
+            Feature.INCOMPLETE_RESOLUTION -> checkIncompleteResolution()
         }
     }
 
@@ -628,6 +630,21 @@ private class Group(val scenario: Scenario) {
         }
 
         assertEquals("Renaming ${definition.name} to $newName from ${place.id} changed the wrong text", emptyList<String>(), wrong)
+    }
+
+    /**
+     * Resolved as code still being typed - how completion and parameter info resolve it - a call the compiler rejected for
+     * its name has no valid result either: a name that only starts like a declared one, or one the call cannot see, is
+     * not made right by typing more of the arguments. Candidates it is offered stay invalid.
+     */
+    private fun checkIncompleteResolution() {
+        openAt(place)
+        val reference = myFixture.file.findReferenceAt(myFixture.caretOffset) as? PsiPolyVariantReference
+        val valid = reference?.multiResolve(true).orEmpty()
+            .filter { it.isValidResult }
+            .map { result -> result.element?.let { "${it.containingFile?.name}: ${it.text.lineSequence().first().take(80)}" } ?: "an element-less result" }
+
+        assertEquals("Resolving ${place.id} as code being typed found valid results", emptyList<String>(), valid)
     }
 
     // -- Typing a call ----------------------------------------------------------------------
