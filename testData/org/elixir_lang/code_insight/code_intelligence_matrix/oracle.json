@@ -274,6 +274,384 @@
     },
     {
       "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "w2"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "w3"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "w4"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_arity"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_arity_absent"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_arity_separate"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_arity_zero"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_case"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_cond"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_conditional"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_defaults"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_defaults_head"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_embed"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_for"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_nfc"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_not_a_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_other_module"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_try"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_unless"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_unquote_name"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "w2"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "w3"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "w4"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_arity"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_arity_absent"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_arity_separate"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_arity_zero"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_case"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_cond"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_conditional"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_defaults"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_defaults_head"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_embed"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_for"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_nfc"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_not_a_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_other_module"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_try"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_unless"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_unquote_name"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "w2"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "w3"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "w4"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_arity"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_arity_absent"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_arity_separate"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_arity_zero"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_case"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_cond"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_conditional"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_defaults"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_defaults_head"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_embed"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_for"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_nfc"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_not_a_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_other_module"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_try"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_unless"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_unquote_name"
+    },
+    {
+      "backing": "src",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "w2"
@@ -1312,6 +1690,402 @@
     },
     {
       "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w1"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w2"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w3"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w4"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_absent"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_separate"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_zero"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_case"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_cond"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_conditional"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_defaults"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_defaults_head"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_embed"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_for"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_nfc"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_not_a_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_other_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_try"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_unquote_name"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w1"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w2"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w3"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w4"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_absent"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_separate"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_zero"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_case"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_cond"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_conditional"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_defaults"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_defaults_head"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_embed"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_for"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_nfc"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_not_a_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_other_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_try"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_unquote_name"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w1"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w2"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w3"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w4"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_absent"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_separate"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_zero"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_case"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_cond"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_conditional"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_defaults"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_defaults_head"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_embed"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_for"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_nfc"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_not_a_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_other_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_try"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_unquote_name"
+    },
+    {
+      "backing": "ex_dbgi",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "w2"
@@ -2350,6 +3124,402 @@
     },
     {
       "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w1"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w2"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w3"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w4"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_absent"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_separate"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_zero"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_case"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_cond"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_conditional"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_defaults"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_defaults_head"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_embed"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_for"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_nfc"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_not_a_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_other_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_try"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_unquote_name"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w1"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w2"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w3"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w4"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_absent"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_separate"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_zero"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_case"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_cond"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_conditional"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_defaults"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_defaults_head"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_embed"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_for"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_nfc"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_not_a_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_other_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_try"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_unquote_name"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w1"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w2"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w3"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w4"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_absent"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_separate"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_zero"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_case"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_cond"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_conditional"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_defaults"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_defaults_head"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_embed"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_for"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_nfc"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_not_a_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_other_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_try"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_unquote_name"
+    },
+    {
+      "backing": "ex_docs",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "w2"
@@ -3384,6 +4554,402 @@
       "backing": "ex_gen",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_unquote_name"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w1"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w2"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w3"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w4"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_absent"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_separate"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_zero"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_case"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_cond"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_conditional"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_defaults"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_defaults_head"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_embed"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_for"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_nfc"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_not_a_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_other_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_try"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_unquote_name"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w1"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w2"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w3"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w4"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_absent"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_separate"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_zero"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_case"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_cond"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_conditional"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_defaults"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_defaults_head"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_embed"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_for"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_nfc"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_not_a_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_other_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_try"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_unquote_name"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w1"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w2"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w3"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "w4"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_absent"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_separate"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_arity_zero"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_case"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_cond"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_conditional"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_defaults"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_defaults_head"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_embed"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_for"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_nfc"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_not_a_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_other_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_try"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_unquote_name"
     },
     {
@@ -4804,6 +6370,402 @@
     },
     {
       "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "w1"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "w2"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "w3"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "w4"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "x_arity"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "x_arity_absent"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "x_arity_separate"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "x_arity_zero"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "x_case"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "x_cond"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "x_conditional"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "x_defaults"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "x_defaults_head"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "x_embed"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "x_for"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "x_nfc"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "x_not_a_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "x_try"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "x_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "x_unquote_name"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "w1"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "w2"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "w3"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "w4"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "x_arity"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "x_arity_absent"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "x_arity_separate"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "x_arity_zero"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "x_case"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "x_cond"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "x_conditional"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "x_defaults"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "x_defaults_head"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "x_embed"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "x_for"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "x_nfc"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "x_not_a_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "x_try"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "x_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "x_unquote_name"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "w1"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "w2"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "w3"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "w4"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "x_arity"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "x_arity_absent"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "x_arity_separate"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "x_arity_zero"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "x_case"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "x_cond"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "x_conditional"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "x_defaults"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "x_defaults_head"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "x_embed"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "x_for"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "x_nfc"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "x_not_a_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "x_try"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "x_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "x_unquote_name"
+    },
+    {
+      "backing": "erl_abst",
       "form": "eex_function_from",
       "reason": "Erlang has only functions",
       "world": "w1"
@@ -6377,6 +8339,402 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_as",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_unquote_name"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "w1"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "w2"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "w3"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "w4"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_arity"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_arity_absent"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_arity_separate"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_arity_zero"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_case"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_cond"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_conditional"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_defaults"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_defaults_head"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_embed"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_for"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_nfc"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_not_a_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_try"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_unquote_name"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "w1"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "w2"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "w3"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "w4"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_arity"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_arity_absent"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_arity_separate"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_arity_zero"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_case"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_cond"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_conditional"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_defaults"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_defaults_head"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_embed"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_for"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_nfc"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_not_a_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_try"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_unquote_name"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "w1"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "w2"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "w3"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "w4"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_arity"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_arity_absent"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_arity_separate"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_arity_zero"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_case"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_cond"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_conditional"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_defaults"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_defaults_head"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_embed"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_for"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_nfc"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_not_a_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_try"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_unquote_name"
     },
@@ -51597,6 +53955,630 @@
         }
       ],
       "world": "x_other_module"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/defdelegate_list/w1.ex",
+      "form": "defdelegate_list",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defdelegate_list_w1_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": "Src.DefdelegateList.W1.Target",
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defdelegate",
+              "guard": null,
+              "name": "src_defdelegate_list_w1_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.DefdelegateList.W1",
+          "source": "lib/src/src.defdelegate_list.w1.ex",
+          "spec": "lib/src/src.defdelegate_list.w1.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "src_defdelegate_list_w1_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defdelegate_list_w1_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defdelegate_list_w1_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.DefdelegateList.W1.Target",
+          "source": "lib/src/src.defdelegate_list.w1.target.ex",
+          "spec": "lib/src/src.defdelegate_list.w1.target.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.DefdelegateList.W1",
+            "name": "src_defdelegate_list_w1_snoc"
+          },
+          "column": 54,
+          "file": "lib/callers/src/defdelegate_list/w1.ex",
+          "id": "qualified",
+          "line": 7,
+          "name": "src_defdelegate_list_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.DefdelegateList.W1",
+            "name": "src_defdelegate_list_w1_snoc"
+          },
+          "column": 32,
+          "file": "lib/callers/src/defdelegate_list/w1.ex",
+          "id": "aliased",
+          "line": 8,
+          "name": "src_defdelegate_list_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.DefdelegateList.W1",
+            "name": "src_defdelegate_list_w1_snoc"
+          },
+          "column": 40,
+          "file": "lib/callers/src/defdelegate_list/w1.ex",
+          "id": "aliased_as",
+          "line": 9,
+          "name": "src_defdelegate_list_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_function",
+            "module": "Src.DefdelegateList.W1",
+            "name": "src_defdelegate_list_w1_snoc"
+          },
+          "column": 33,
+          "file": "lib/callers/src/defdelegate_list/w1.ex",
+          "id": "unqualified",
+          "line": 10,
+          "name": "src_defdelegate_list_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_function",
+            "module": "Src.DefdelegateList.W1",
+            "name": "src_defdelegate_list_w1_snoc"
+          },
+          "column": 31,
+          "file": "lib/callers/src/defdelegate_list/w1.ex",
+          "id": "pipe",
+          "line": 11,
+          "name": "src_defdelegate_list_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.DefdelegateList.W1",
+            "name": "src_defdelegate_list_w1_snoc"
+          },
+          "column": 54,
+          "file": "lib/callers/src/defdelegate_list/w1.ex",
+          "id": "capture",
+          "line": 12,
+          "name": "src_defdelegate_list_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "apply",
+            "module": "Src.DefdelegateList.W1",
+            "name": "src_defdelegate_list_w1_snoc"
+          },
+          "column": 58,
+          "file": "lib/callers/src/defdelegate_list/w1.ex",
+          "id": "apply",
+          "line": 13,
+          "name": "src_defdelegate_list_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.DefdelegateList.W1",
+            "name": "src_defdelegate_list_w1_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defdelegate_list.w1.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defdelegate_list_w1_snoc"
+        }
+      ],
+      "world": "w1"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/defdelegate_as_list/w1.ex",
+      "form": "defdelegate_as_list",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defdelegate_as_list_w1_snoc"
+            }
+          ],
+          "delegateAs": "delegated_",
+          "delegateTo": "Src.DefdelegateAsList.W1.Target",
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defdelegate",
+              "guard": null,
+              "name": "src_defdelegate_as_list_w1_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.DefdelegateAsList.W1",
+          "source": "lib/src/src.defdelegate_as_list.w1.ex",
+          "spec": "lib/src/src.defdelegate_as_list.w1.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "delegated_src_defdelegate_as_list_w1_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "delegated_src_defdelegate_as_list_w1_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "delegated_src_defdelegate_as_list_w1_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.DefdelegateAsList.W1.Target",
+          "source": "lib/src/src.defdelegate_as_list.w1.target.ex",
+          "spec": "lib/src/src.defdelegate_as_list.w1.target.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.DefdelegateAsList.W1",
+            "name": "src_defdelegate_as_list_w1_snoc"
+          },
+          "column": 56,
+          "file": "lib/callers/src/defdelegate_as_list/w1.ex",
+          "id": "qualified",
+          "line": 7,
+          "name": "src_defdelegate_as_list_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.DefdelegateAsList.W1",
+            "name": "src_defdelegate_as_list_w1_snoc"
+          },
+          "column": 32,
+          "file": "lib/callers/src/defdelegate_as_list/w1.ex",
+          "id": "aliased",
+          "line": 8,
+          "name": "src_defdelegate_as_list_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.DefdelegateAsList.W1",
+            "name": "src_defdelegate_as_list_w1_snoc"
+          },
+          "column": 40,
+          "file": "lib/callers/src/defdelegate_as_list/w1.ex",
+          "id": "aliased_as",
+          "line": 9,
+          "name": "src_defdelegate_as_list_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_function",
+            "module": "Src.DefdelegateAsList.W1",
+            "name": "src_defdelegate_as_list_w1_snoc"
+          },
+          "column": 33,
+          "file": "lib/callers/src/defdelegate_as_list/w1.ex",
+          "id": "unqualified",
+          "line": 10,
+          "name": "src_defdelegate_as_list_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_function",
+            "module": "Src.DefdelegateAsList.W1",
+            "name": "src_defdelegate_as_list_w1_snoc"
+          },
+          "column": 31,
+          "file": "lib/callers/src/defdelegate_as_list/w1.ex",
+          "id": "pipe",
+          "line": 11,
+          "name": "src_defdelegate_as_list_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.DefdelegateAsList.W1",
+            "name": "src_defdelegate_as_list_w1_snoc"
+          },
+          "column": 56,
+          "file": "lib/callers/src/defdelegate_as_list/w1.ex",
+          "id": "capture",
+          "line": 12,
+          "name": "src_defdelegate_as_list_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "apply",
+            "module": "Src.DefdelegateAsList.W1",
+            "name": "src_defdelegate_as_list_w1_snoc"
+          },
+          "column": 60,
+          "file": "lib/callers/src/defdelegate_as_list/w1.ex",
+          "id": "apply",
+          "line": 13,
+          "name": "src_defdelegate_as_list_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.DefdelegateAsList.W1",
+            "name": "src_defdelegate_as_list_w1_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defdelegate_as_list.w1.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defdelegate_as_list_w1_snoc"
+        }
+      ],
+      "world": "w1"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/defdelegate_as_attribute/w1.ex",
+      "form": "defdelegate_as_attribute",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 15,
+              "definer": "defdelegate",
+              "line": 4,
+              "name": "src_defdelegate_as_attribute_w1_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defdelegate_as_attribute_w1_snoc"
+            }
+          ],
+          "delegateAs": "delegated_",
+          "delegateTo": "Src.DefdelegateAsAttribute.W1.Target",
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defdelegate",
+              "guard": null,
+              "name": "src_defdelegate_as_attribute_w1_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.DefdelegateAsAttribute.W1",
+          "source": "lib/src/src.defdelegate_as_attribute.w1.ex",
+          "spec": "lib/src/src.defdelegate_as_attribute.w1.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "delegated_src_defdelegate_as_attribute_w1_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "delegated_src_defdelegate_as_attribute_w1_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "delegated_src_defdelegate_as_attribute_w1_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.DefdelegateAsAttribute.W1.Target",
+          "source": "lib/src/src.defdelegate_as_attribute.w1.target.ex",
+          "spec": "lib/src/src.defdelegate_as_attribute.w1.target.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.DefdelegateAsAttribute.W1",
+            "name": "src_defdelegate_as_attribute_w1_snoc"
+          },
+          "column": 61,
+          "file": "lib/callers/src/defdelegate_as_attribute/w1.ex",
+          "id": "qualified",
+          "line": 7,
+          "name": "src_defdelegate_as_attribute_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.DefdelegateAsAttribute.W1",
+            "name": "src_defdelegate_as_attribute_w1_snoc"
+          },
+          "column": 32,
+          "file": "lib/callers/src/defdelegate_as_attribute/w1.ex",
+          "id": "aliased",
+          "line": 8,
+          "name": "src_defdelegate_as_attribute_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.DefdelegateAsAttribute.W1",
+            "name": "src_defdelegate_as_attribute_w1_snoc"
+          },
+          "column": 40,
+          "file": "lib/callers/src/defdelegate_as_attribute/w1.ex",
+          "id": "aliased_as",
+          "line": 9,
+          "name": "src_defdelegate_as_attribute_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_function",
+            "module": "Src.DefdelegateAsAttribute.W1",
+            "name": "src_defdelegate_as_attribute_w1_snoc"
+          },
+          "column": 33,
+          "file": "lib/callers/src/defdelegate_as_attribute/w1.ex",
+          "id": "unqualified",
+          "line": 10,
+          "name": "src_defdelegate_as_attribute_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_function",
+            "module": "Src.DefdelegateAsAttribute.W1",
+            "name": "src_defdelegate_as_attribute_w1_snoc"
+          },
+          "column": 31,
+          "file": "lib/callers/src/defdelegate_as_attribute/w1.ex",
+          "id": "pipe",
+          "line": 11,
+          "name": "src_defdelegate_as_attribute_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.DefdelegateAsAttribute.W1",
+            "name": "src_defdelegate_as_attribute_w1_snoc"
+          },
+          "column": 61,
+          "file": "lib/callers/src/defdelegate_as_attribute/w1.ex",
+          "id": "capture",
+          "line": 12,
+          "name": "src_defdelegate_as_attribute_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "apply",
+            "module": "Src.DefdelegateAsAttribute.W1",
+            "name": "src_defdelegate_as_attribute_w1_snoc"
+          },
+          "column": 65,
+          "file": "lib/callers/src/defdelegate_as_attribute/w1.ex",
+          "id": "apply",
+          "line": 13,
+          "name": "src_defdelegate_as_attribute_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.DefdelegateAsAttribute.W1",
+            "name": "src_defdelegate_as_attribute_w1_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defdelegate_as_attribute.w1.ex",
+          "id": "local",
+          "line": 6,
+          "name": "src_defdelegate_as_attribute_w1_snoc"
+        }
+      ],
+      "world": "w1"
     },
     {
       "backing": "src",
