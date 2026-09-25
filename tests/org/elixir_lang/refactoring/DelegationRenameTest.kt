@@ -65,6 +65,82 @@ class DelegationRenameTest : PlatformTestCase() {
         assertEquals("def snoc(q, x), do: {q, x}", destinationLine())
     }
 
+    /** A delegation with defaults fills them in and calls what it delegates to at its full arity, whichever arity it was used at. */
+    fun testGoToDeclarationFromALowerArityOfADelegationWithDefaultsFollowsItAtItsFullArity() {
+        val defaults = """
+            defmodule Target do
+              def snoc(q, x), do: {q, x}
+            end
+
+            defmodule Delegator do
+              defdelegate snoc(q, x \\ nil), to: Target
+            end
+
+            defmodule Caller do
+              def calls(a), do: {Delegator.snoc(a), apply(Delegator, :snoc, [a]), {Delegator, :snoc, 1}}
+            end
+        """.trimIndent()
+
+        assertEquals(
+            List(3) { "def snoc(q, x), do: {q, x}" },
+            listOf("{Delegator.sn<caret>oc(a)", "apply(Delegator, :sn<caret>oc", "{Delegator, :sn<caret>oc, 1}").map { caretAt ->
+                configure(caretAt, defaults)
+                destinationLine()
+            }
+        )
+    }
+
+    /** A delegation with defaults calls its target at full arity, not at another arity the target also defines. */
+    fun testGoToDeclarationFromALowerArityLandsOnTheFullArityNotAnother() {
+        val source = """
+            defmodule Target do
+              def snoc(q), do: q
+              def snoc(q, x), do: {q, x}
+              def other(q), do: q
+              def other(q, x), do: {q, x}
+            end
+
+            defmodule Delegator do
+              defdelegate snoc(q, x \\ nil), to: Target
+              defdelegate aliased(q, x \\ nil), to: Target, as: :other
+            end
+
+            defmodule Caller do
+              def calls(a), do: {Delegator.snoc(a), Delegator.aliased(a)}
+            end
+        """.trimIndent()
+
+        assertEquals(
+            listOf("def snoc(q, x), do: {q, x}", "def other(q, x), do: {q, x}"),
+            listOf("{Delegator.sn<caret>oc(a)", "Delegator.ali<caret>ased(a)").map { caretAt ->
+                configure(caretAt, source)
+                destinationLine()
+            }
+        )
+    }
+
+    /** A head whose arity is open passes every argument on, so its target is called at the arity used. */
+    fun testGoToDeclarationFromACallOfAnOpenDelegationLandsOnTheTargetAtTheArityUsed() {
+        val source = """
+            defmodule Target do
+              def f, do: :none
+              def f(a, b, c), do: {a, b, c}
+            end
+
+            defmodule Delegator do
+              defdelegate f(unquote_splicing(args)), to: Target
+            end
+
+            defmodule Caller do
+              def calls(a), do: Delegator.f(a, a, a)
+            end
+        """.trimIndent()
+
+        configure("Delegator.<caret>f(a, a, a)", source)
+
+        assertEquals("def f(a, b, c), do: {a, b, c}", destinationLine())
+    }
+
     fun testGoToDeclarationFromACallOfAnUnresolvableDelegationLandsOnIt() {
         configure("Delegator.lo<caret>st(a)")
 
@@ -157,6 +233,39 @@ class DelegationRenameTest : PlatformTestCase() {
             source = source
                 .replace("  defdelegate lost(q), to: Missing\n", "  defdelegate lost(q), to: Missing\n  defdelegate dynamic(q), to: Target, as: @target\n")
                 .replace("Delegator.lost(a)}", "Delegator.lost(a), Delegator.dynamic(a)}")
+        )
+
+    /** Each arity a head with defaults declares is the one function renamed, so an import key naming any of them is. */
+    fun testRenamingADelegationWithDefaultsRenamesImportKeysAtEveryArity() =
+        assertRenamed(
+            "sn<caret>oc(a, b)",
+            "renamed",
+            "defdelegate snoc(q, x \\\\ nil), to: Target" to "defdelegate renamed(q, x \\\\ nil), to: Target, as: :snoc",
+            "only: [snoc: 1]" to "only: [renamed: 1]",
+            "do: snoc(a)" to "do: renamed(a)",
+            "except: [snoc: 1]" to "except: [renamed: 1]",
+            "do: snoc(a, b)" to "do: renamed(a, b)",
+            source = """
+                defmodule Target do
+                  def snoc(q, x), do: {q, x}
+                end
+
+                defmodule Delegator do
+                  defdelegate snoc(q, x \\ nil), to: Target
+                end
+
+                defmodule OnlyCaller do
+                  import Delegator, only: [snoc: 1]
+
+                  def calls(a), do: snoc(a)
+                end
+
+                defmodule ExceptCaller do
+                  import Delegator, except: [snoc: 1]
+
+                  def calls(a, b), do: snoc(a, b)
+                end
+            """.trimIndent()
         )
 
     private val listedOptions = source.replace("defdelegate snoc(q, x), to: Target", "defdelegate snoc(q, x), [to: Target]")

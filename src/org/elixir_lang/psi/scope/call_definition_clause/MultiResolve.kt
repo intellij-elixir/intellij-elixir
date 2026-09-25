@@ -122,7 +122,7 @@ private constructor(
     private fun addTargets(delegation: Call, headName: String, delegationState: ResolveState, candidatesOnly: Boolean = false) {
         val state = delegationState.reachedThrough(Reach.DELEGATION_TARGET, delegation)
 
-        for (targets in delegatedTargets(delegation, headName, resolvedPrimaryArity, incompleteCode)) {
+        for (targets in delegatedTargets(delegation, headName, resolvedPrimaryArity, incompleteCode).byModule) {
             for ((definition, targetName, valid) in targets) {
                 when (definition) {
                     is Call -> addToResolveResults(definition, targetName, valid && !candidatesOnly, state)
@@ -192,23 +192,36 @@ private constructor(
         /** A definition a `defdelegate` delegates to: what it is, the name it has there, and whether it fits the arity. */
         data class DelegatedTarget(val definition: PsiElement, val name: String, val isValid: Boolean)
 
+        /** What a `defdelegate` used at one arity calls: its target's definitions at [arity], one list per `to:` module. */
+        class DelegatedTargets(val arity: Int, val byModule: Sequence<List<DelegatedTarget>>) {
+            val definitions: Sequence<DelegatedTarget> get() = byModule.flatten()
+        }
+
         /**
-         * What [delegation] delegates to at [arity], one list per module its `to:` names: [headName], or its `as:`
-         * name, as that module exports it ([Reach.remotelyReaches]). Lazy, so a caller can stop at the first module that
-         * resolves. The walk starts at that module, so it does not depend on where the delegation is written.
+         * What [delegation] delegates to when used at [arity]: [headName], or its `as:` name, as the modules its `to:`
+         * names export it ([Reach.remotelyReaches]). A delegation with defaults fills them in and calls its target at the
+         * most arguments the head it was used through declares; an open head passes the arity used on. Lazy, so a caller
+         * can stop at the first module that resolves. The walk starts at that module, so it does not depend on where the
+         * delegation is written.
          */
         @JvmStatic
-        fun delegatedTargets(delegation: Call, headName: String, arity: Int, incompleteCode: Boolean): Sequence<List<DelegatedTarget>> {
-            val definingModuleName = delegation.keywordArgument("to") ?: return emptySequence()
+        fun delegatedTargets(delegation: Call, headName: String, arity: Int, incompleteCode: Boolean): DelegatedTargets {
+            val targetArity = CallableDeclaration.declarations(delegation, CallableDeclaration.Form.DELEGATION, ResolveState.initial())
+                .firstOrNull { it.accepts(arity) }
+                ?.arityInterval
+                ?.functionArity
+                ?: arity
+            val definingModuleName = delegation.keywordArgument("to") ?: return DelegatedTargets(targetArity, emptySequence())
             // An `as:` that names nothing fixed targets nothing.
-            val nameInDefiningModule = CallableDeclaration.delegatedName(delegation, headName) ?: return emptySequence()
+            val nameInDefiningModule = CallableDeclaration.delegatedName(delegation, headName)
+                ?: return DelegatedTargets(targetArity, emptySequence())
 
-            return definingModuleName
+            return DelegatedTargets(targetArity, definingModuleName
                 .maybeModularNameToModulars(delegation.containingFile, useCall = null, incompleteCode = incompleteCode)
                 .asSequence()
                 .map { modular ->
                     // Call recursively to get all the proper `for` and `use` handling.
-                    resolveResults(nameInDefiningModule, arity, incompleteCode, modular).mapNotNull { result ->
+                    resolveResults(nameInDefiningModule, targetArity, incompleteCode, modular).mapNotNull { result ->
                         // A delegation calls its target remotely, so it reaches only what the module exports; anything
                         // but a source or compiled definition is not something a delegation can target.
                         result.element
@@ -216,7 +229,7 @@ private constructor(
                             ?.takeIf { Reach.remotelyReaches(result.reach, it, runtime = false) }
                             ?.let { DelegatedTarget(it, nameInDefiningModule, result.isValidResult) }
                     }
-                }
+                })
         }
 
         @JvmOverloads

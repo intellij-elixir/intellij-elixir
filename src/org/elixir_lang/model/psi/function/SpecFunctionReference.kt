@@ -31,6 +31,7 @@ class SpecFunctionReference(
             .multiResolve(false)
             .filter { it.isValidResult }
             .mapNotNull { it.element as? Call }
-            .flatMap { FunctionSymbol.fromDeclaration(it) }
-            .distinct()
+            .flatMap { FunctionSymbol.at(it, typeHeadCall.resolvedFinalArity()) }
+            // Equal symbols at different declarations are the head and clauses Go To lands on.
+            .distinctBy { it.file to it.range }
 }

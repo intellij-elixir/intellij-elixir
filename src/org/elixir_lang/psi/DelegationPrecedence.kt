@@ -8,15 +8,20 @@ import org.elixir_lang.psi.call.Call
 interface DelegationSymbol<out S> {
     val arity: Int
 
-    /** This symbol, with Go To following the `defdelegate`'s `to:` from it. */
-    fun followingDelegation(): S
+    /** Whether the function also takes more arguments than [arity]: its head ends in `unquote_splicing`. */
+    val open: Boolean get() = false
+
+    /** Whether a use at [arity] names this symbol: at its own arity, or above it for an [open] function. */
+    fun namedAt(arity: Int): Boolean = arity == this.arity || open && arity > this.arity
+
+    /** This symbol, used at [usedArity], with Go To following the `defdelegate`'s `to:` from it. */
+    fun followingDelegation(usedArity: Int): S
 }
 
 /**
  * Which of a `defdelegate` and what it delegates to a use means, where resolution reaches both. A use names the
  * delegation, which rename and Find Usages act on, and Go To follows it to what it delegates to; navigation lands on
- * what it delegates to first; quick documentation shows the delegation's own `@doc` where it has one, as that says what
- * the function means there. Every site asks this, for its purpose.
+ * what it delegates to first; quick documentation shows the delegation's own `@doc` where it has one.
  */
 object DelegationPrecedence {
     @RequiresReadLock
@@ -38,8 +43,8 @@ object DelegationPrecedence {
             .filterIsInstance<Call>()
             .filter(::isDelegation)
             .flatMap(symbolsOf)
-            .filter { it.arity == arity }
-            .map { it.followingDelegation() }
+            .filter { it.namedAt(arity) }
+            .map { it.followingDelegation(arity) }
             .ifEmpty { others() }
 
     /** [reached] in the order navigation lands on them: what the delegations delegate to, then the delegations. */

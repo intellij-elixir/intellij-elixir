@@ -12,10 +12,8 @@ import org.elixir_lang.code_insight.completion.callDefinitionClauseLookupElement
 import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.DelegationPrecedence
 import org.elixir_lang.psi.ElixirAtom
-import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.literalName
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
-import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.psi.scope.Reach
 import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
 import org.elixir_lang.psi.scope.call_definition_clause.MultiResolve as CallDefinitionClauseMultiResolve
@@ -86,19 +84,11 @@ class AtomReference(
             .mapNotNull { visitedResult -> visitedResult.element.takeIf { reachable(visitedResult, name) } }
             .let { elements ->
                 DelegationPrecedence.named(elements, arity, AtomSymbol::fromDeclaration) {
-                    elements
-                        .flatMap { element ->
-                            when (element) {
-                                is Call -> AtomSymbol.fromDeclaration(element)
-                                is BeamCallDefinition -> AtomSymbol.fromBeamCallDefinition(element)
-                                else -> emptyList()
-                            }
-                        }
-                        // A definition covering several arities yields a symbol per arity; the MFA names one.
-                        .filter { it.arity == arity }
+                    elements.flatMap { AtomSymbol.at(it, arity) }
                 }
             }
-            .distinct()
+            // Equal symbols at different declarations are the head and clauses Go To lands on.
+            .distinctBy { it.file to it.range }
     }
 
     private object Resolver : ResolveCache.PolyVariantResolver<AtomReference> {

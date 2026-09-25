@@ -238,9 +238,9 @@ class CallDefinition(val modular: Modular, private val time: Timed.Time, private
                 org.elixir_lang.psi.CallDefinitionClause.nameArityInterval(call, ResolveState.initial())
                     ?.let { nameArityInterval ->
                         val name = nameArityInterval.name
-                        /* arity is assumed to be max arity in the range because that's how {@code h} and
+                        /* arity is the function's, the most arguments, because that's how {@code h} and
                            ExDoc treat functions with defaults. */
-                        val arity = nameArityInterval.arityInterval.closed().last
+                        val arity = nameArityInterval.arityInterval.let { it.functionArity ?: it.minimum }
                         val time = CallDefinitionClause.time(definer)
 
                         CallDefinition(modular, time, name, arity)

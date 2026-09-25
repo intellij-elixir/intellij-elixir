@@ -18,14 +18,11 @@ import org.elixir_lang.beam.psi.stubs.ModuleStub
 import org.elixir_lang.beam.psi.stubs.ModuleStubElementTypes
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirUnmatchedAtUnqualifiedNoParenthesesCall
-import org.elixir_lang.psi.Modular.callDefinitionClauseCallWhile
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.macroChildCallSequence
 import org.elixir_lang.psi.impl.getModuleName
-import org.elixir_lang.psi.putInitialVisitedElement
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.Type
-import org.jetbrains.annotations.Contract
 import org.jetbrains.annotations.NonNls
 
 // See com.intellij.psi.impl.compiled.ClsClassImpl
@@ -206,29 +203,7 @@ class ModuleImpl<T : ModuleStub<*>?>(private val stub: T) : ModuleElementImpl(),
             }
         }
 
-        @Contract(pure = true)
-        private fun callDefinitionClauseByArityByName(mirror: TreeElement): Map<String, Map<Int, Call>> {
-            val mirrorPsi = mirror.psi
-
-            return if (mirrorPsi is Call) {
-                val initialResolveState = ResolveState.initial().putInitialVisitedElement(mirrorPsi)
-                val callDefinitionByArityByName = mutableMapOf<String, MutableMap<Int, Call>>()
-
-                callDefinitionClauseCallWhile(
-                    mirrorPsi,
-                    initialResolveState
-                ) { call: Call, accResolvedState: ResolveState ->
-                    CallDefinitionClause.putNameArityInterval(
-                        call, accResolvedState, callDefinitionByArityByName, CallDefinitionClause.firstWins
-                    )
-
-                    true
-                }
-
-                callDefinitionByArityByName
-            } else {
-                emptyMap()
-            }
-        }
+        private fun callDefinitionClauseByArityByName(mirror: TreeElement): Map<String, Map<Int, Call>> =
+            (mirror.psi as? Call)?.let(CallDefinitionClause::firstClauseByArityByName) ?: emptyMap()
     }
 }

@@ -444,6 +444,34 @@ class RejectedCallTest : PlatformTestCase() {
             )
         )
 
+    /**
+     * A head ending in `unquote_splicing` takes any number of further arguments, so a call with more than its minimum
+     * compiles: it renames, and is labelled what it calls.
+     */
+    fun testACallAboveAnOpenHeadsMinimumArityIsNotRejected() {
+        val forms = listOf(
+            "def" to "def snoc(a, unquote_splicing(rest)), do: a",
+            "defdelegate" to "defdelegate snoc(a, unquote_splicing(rest)), to: Target"
+        )
+
+        for ((form, declaration) in forms) {
+            val text = "defmodule Target do\n  def snoc(a, b, c), do: {a, b, c}\nend\n\n" +
+                "defmodule Open$form do\n  $declaration\nend\n\n" +
+                "defmodule Caller$form do\n  def calls(a), do: Open$form.sn<caret>oc(a, a, a)\nend\n"
+            myFixture.configureByText("open_$form.ex", text)
+
+            assertEquals(
+                "$form: label",
+                listOf(declaration.substringBefore(", do:").substringBefore(", to:")),
+                searchTargets(myFixture.file, myFixture.caretOffset).map { it.presentation().presentableText }
+            )
+
+            myFixture.renameTargetAtCaret("cons")
+
+            assertTrue("$form: the call is renamed", myFixture.editor.document.text.contains("Open$form.cons(a, a, a)"))
+        }
+    }
+
     /** A name the call only starts is not a valid result, even when the walk follows the delegation it starts. */
     fun testAPrefixOfADelegationsNameIsNeverAValidResult() {
         myFixture.configureByText(

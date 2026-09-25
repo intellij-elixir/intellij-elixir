@@ -65,6 +65,13 @@ data class ArityInterval(val minimum: Arity, val maximum: Arity?) {
                 (minimum..minimum)
             }
 
+    /**
+     * The arity naming the function a declaration of this interval belongs to: its highest, which a bodiless head with
+     * defaults and the clauses after it share, and Elixir rejects two declarations whose defaults overlap. `null` for an
+     * open interval, which has no highest.
+     */
+    val functionArity: Arity? get() = maximum
+
     operator fun contains(candidate: Arity): Boolean {
         return minimum <= candidate && (maximum == null || candidate <= maximum)
     }

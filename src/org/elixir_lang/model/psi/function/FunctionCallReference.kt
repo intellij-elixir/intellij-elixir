@@ -56,17 +56,15 @@ class FunctionCallReference(
 }
 
 /**
- * What a call that resolves to nothing valid can still be offered: the arities each declaration it names declares, of
- * whatever form, marked as offered to a call that does not compile.
+ * What a call that resolves to nothing valid can still be offered: each declaration it names that has a [FunctionSymbol],
+ * marked as offered to a call that does not compile. A `defexception`, a `Mix.Generator` embed or a compiled definition
+ * has none yet, so it is named in the inspection's message but not offered here.
  */
 @RequiresReadLock
 private fun offeredDeclarations(call: Call): List<FunctionSymbol> =
     RejectedCall.named(call)
-        .mapNotNull { named -> (named.declaration as? Call)?.let { it to named.arities } }
         // A declaration with defaults is one declaration, offered once, at the most arguments the call could mean.
-        .mapNotNull { (declaration, arities) ->
-            FunctionSymbol.fromDeclaration(declaration).filter { it.arity in arities }.maxByOrNull { it.arity }
-        }
+        .mapNotNull { named -> (named.declaration as? Call)?.let { FunctionSymbol.at(it, named.arities.max()) }?.firstOrNull() }
         .map { it.offeredToARejectedCall() }
 
 /**
@@ -97,26 +95,18 @@ private fun declaredSymbolsReached(resolved: List<ResolveResult>, arity: Int): L
         }
         .filter { CallDefinitionClause.`is`(it) }
 
-    // Only navigate to the clause(s) whose arity matches this specific call site.
-    // fromClause() expands multi-arity defs (via default args); without this filter,
-    // Ctrl+Click on `foo(x)` would offer both `foo/1` and `foo/2` as targets.
-    val functionSymbols = clauses
-        .flatMap { FunctionSymbol.fromClause(it) }
-        .filter { it.arity == arity }
+    val functionSymbols = clauses.flatMap { FunctionSymbol.at(it, arity) }
     if (functionSymbols.isNotEmpty()) return functionSymbols
 
     // Clauses directly inside a `defprotocol` are owned by ProtocolFunction, not FunctionSymbol
     // (FunctionSymbol.fromClause returns empty for them). A qualified protocol call
     // `Protocol.function(args)` therefore resolves here.
-    val protocolFunctions = clauses
-        .flatMap { ProtocolFunction.fromClause(it) }
-        .filter { it.arity == arity }
+    val protocolFunctions = clauses.flatMap { ProtocolFunction.at(it, arity) }
     if (protocolFunctions.isNotEmpty()) return protocolFunctions
 
     // Last, what declares a function without a clause, such as an EEx `function_from_*`.
     return resolved
         .mapNotNull { it.element as? Call }
         .filterNot { it in clauses }
-        .flatMap { FunctionSymbol.fromDeclaration(it) }
-        .filter { it.arity == arity }
+        .flatMap { FunctionSymbol.at(it, arity) }
 }

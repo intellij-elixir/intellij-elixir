@@ -1,6 +1,7 @@
 package org.elixir_lang.code_insight
 
 import com.intellij.psi.ResolveState
+import org.elixir_lang.model.psi.function.FunctionSymbol
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
 
@@ -28,7 +29,7 @@ fun preferFunctionHeads(clauses: Iterable<Call>): Map<String, Call> =
         .mapValues { (_, group) -> preferFunctionHead(group) }
 
 /**
- * Like [preferFunctionHeads] but groups by **(name, maximum arity)**, preserving separate entries
+ * Like [preferFunctionHeads] but groups by function ([FunctionSymbol.function]), preserving separate entries
  * for functions with the same name but different arities (e.g., `foo/1` and `foo/2`), while a head
  * with defaults and the clauses after it stay one.
  *
@@ -47,8 +48,8 @@ fun preferFunctionHeadsByArity(clauses: Iterable<Call>, name: String?): List<Cal
                 ?.let { it to call }
         }
         .filter { (nameArityInterval, _) -> name == null || nameArityInterval.name == name }
-        // A head's defaults and the clauses after it are one function, whose most arguments they share.
-        .groupBy({ (nameArityInterval, _) -> nameArityInterval.name to nameArityInterval.arityInterval.maximum }, { it.second })
+        // A clause with no symbol of its own, such as a protocol's, stands for its own name and arities.
+        .groupBy({ (nameArityInterval, call) -> FunctionSymbol.functionOf(call) ?: nameArityInterval }, { it.second })
         .map { (_, group) -> preferFunctionHead(group) }
 
 /**

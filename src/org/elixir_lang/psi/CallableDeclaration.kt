@@ -236,7 +236,7 @@ object CallableDeclaration {
     @RequiresReadLock
     fun declarations(call: Call, form: Form, state: ResolveState): List<Declaration> =
         when (form) {
-            Form.CLAUSE -> listOfNotNull(CallDefinitionClause.nameArityInterval(call, state)?.let(::declaration))
+            Form.CLAUSE -> listOfNotNull(CallDefinitionClause.functionNameArityInterval(call, state)?.let(::declaration))
             Form.CALLBACK -> listOfNotNull(
                 (call as? AtUnqualifiedNoParenthesesCall<*>)
                     ?.let { Callback.headCall(it) }
@@ -258,6 +258,19 @@ object CallableDeclaration {
     /** Whether [element] declares a macro, or anything else only callable at compile time. */
     @RequiresReadLock
     fun isCompileTime(element: PsiElement): Boolean = capabilitiesOf(element, ResolveState.initial())?.compileTime == true
+
+    /**
+     * Whether [element] defines [name]/[arity], a macro if [compileTime] - as what implements a callback or protocol
+     * function, or handles a message, does.
+     */
+    @RequiresReadLock
+    fun defines(element: PsiElement, name: String, arity: Int, compileTime: Boolean): Boolean {
+        val state = ResolveState.initial()
+        val declared = declaredOf(element, state) ?: return false
+
+        return declared.capabilities?.compileTime == compileTime &&
+            declared.definitions(state).any { it.name == name && it.accepts(arity) }
+    }
 
     /**
      * [element] classified once - a source call or a compiled definition alike - `null` when it declares nothing. The

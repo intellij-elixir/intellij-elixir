@@ -193,14 +193,12 @@ object Import {
         resolveState: ResolveState,
         keepProcessing: (PsiElement, ResolveState) -> Boolean
     ): Boolean =
-        // Looks through the conditionals a definition may be under, as the module's own walk does.
+        // Looks through the conditionals a definition may be under, and finishes the module, as its own walk does: a
+        // bodiless head and the clauses after it are one function.
         CallDefinitionClause.modularChildCalls(importedModular)
-            .asSequence()
             .filter { !resolveState.hasBeenVisited(it) }
             .map { treeWalkUpImportedModularChildExpression(filter, it, resolveState, keepProcessing) }
-            .takeWhile { it }
-            .lastOrNull()
-            ?: true
+            .all { it }
 
     private fun treeWalkUpImportedModular(
         importedModular: BeamModule,

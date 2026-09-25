@@ -194,30 +194,116 @@ object CallDefinitionClause {
     fun nameArityInterval(call: Call, state: ResolveState): NameArityInterval? =
             head(call)?.let { CallDefinitionHead.nameArityInterval(it, state) }
 
-    /** A [putNameArityInterval] `write` policy that keeps the first clause seen for a repeated `(name, arity)`. */
-    val firstWins: (byArity: MutableMap<Int, Call>, arity: Int, call: Call) -> Unit =
-            { byArity, arity, call -> byArity.putIfAbsent(arity, call) }
-
     /**
-     * Adds [call] to [byArityByName] under its name, once per arity in its arity interval, via [write] - so a
-     * caller building a name/arity lookup across many clauses picks once whether a repeated (name, arity) keeps
-     * the first clause seen or the last, instead of every call site reimplementing this walk.
+     * The name and arities of the function [call] is a clause of: those of the bodiless head it follows, whose defaults
+     * its clauses share and which Elixir requires to come first in their group, with only module attributes between;
+     * otherwise its own [nameArityInterval].
+     *
+     * Read from [enclosingModularMacroCall]'s [functions], so every clause of a module is worked out once, for every
+     * [state]: the state only [NameArityInterval.adjusted]s a name's arities, the same for each of its clauses.
      */
     @RequiresReadLock
-    fun putNameArityInterval(
-            call: Call,
-            state: ResolveState,
-            byArityByName: MutableMap<String, MutableMap<Int, Call>>,
-            write: (byArity: MutableMap<Int, Call>, arity: Int, call: Call) -> Unit
-    ) {
-        nameArityInterval(call, state)?.let { nameArityInterval ->
-            val byArity = byArityByName.getOrPut(nameArityInterval.name) { mutableMapOf() }
-            nameArityInterval.arityInterval.closed().forEach { arity ->
-                ProgressManager.checkCanceled()
-                write(byArity, arity, call)
+    fun functionNameArityInterval(call: Call, state: ResolveState): NameArityInterval? {
+        val functions = enclosingModularMacroCall(call)?.let(::functions)
+        val function = if (functions != null && call in functions) functions[call] else nameArityInterval(call, ResolveState.initial())
+
+        return function?.adjusted(state)
+    }
+
+    /**
+     * The clause that stands for each name at each arity in [modular]'s module scope: the one a compiled definition's
+     * decompiled source is. Of a function's clauses, as [functions] groups them, that is the first whose own arities
+     * are the function's - its head, or the clause carrying the defaults that a decompiled module's lower-arity
+     * clauses fall under.
+     */
+    @RequiresReadLock
+    fun firstClauseByArityByName(modular: Call): Map<String, Map<Int, Call>> {
+        val representatives = LinkedHashMap<NameArityInterval, Call>()
+
+        for ((clause, function) in functions(modular)) {
+            function ?: continue
+            val current = representatives[function]
+
+            if (current == null ||
+                (nameArityInterval(current, ResolveState.initial()) != function &&
+                    nameArityInterval(clause, ResolveState.initial()) == function)
+            ) {
+                representatives[function] = clause
             }
         }
+
+        val byArityByName = mutableMapOf<String, MutableMap<Int, Call>>()
+
+        for ((function, clause) in representatives) {
+            val byArity = byArityByName.getOrPut(function.name) { mutableMapOf() }
+
+            function.arityInterval.closed().forEach { arity ->
+                ProgressManager.checkCanceled()
+                firstWins(byArity, arity, clause)
+            }
+        }
+
+        return byArityByName
     }
+
+    /**
+     * Each clause in [modular]'s module scope, in document order, with the function it is a clause of, worked out in
+     * one pass and cached: a clause with a body after a bodiless head of the same name and function arity, with only
+     * module attributes between, is that head's; a clause at arities another same-named function's defaults cover, in
+     * the same block, is that function's, as Elixir rejects the pair as two (a decompiled module whose docs give the
+     * defaults only at the higher arity writes the lower one so), while in another branch it may be the one compiled;
+     * any other clause is its own.
+     */
+    private fun functions(modular: Call): Map<Call, NameArityInterval?> =
+        CachedValuesManager.getCachedValue(modular) {
+            val functions = LinkedHashMap<Call, NameArityInterval?>()
+
+            for (call in modularChildCalls(modular)) {
+                ProgressManager.checkCanceled()
+                if (!`is`(call)) continue
+
+                functions[call] = nameArityInterval(call, ResolveState.initial())?.let { own ->
+                    previousClause(call)
+                        ?.takeIf { call.hasDoBlockOrKeyword() }
+                        ?.let { functions[it] }
+                        ?.takeIf { it.isFunctionOf(own) }
+                        ?: own
+                }
+            }
+
+            val clausesWithDefaults = functions.entries.filter { it.value?.hasDefaults() == true }
+
+            for (clause in functions.keys.toList()) {
+                val function = functions[clause]?.takeUnless { it.hasDefaults() } ?: continue
+                clausesWithDefaults
+                    .firstOrNull { (withDefaults, covering) -> withDefaults.parent == clause.parent && covering?.covers(function) == true }
+                    ?.let { functions[clause] = it.value }
+            }
+
+            CachedValueProvider.Result.create(functions, PsiModificationTracker.MODIFICATION_COUNT)
+        }
+
+    private fun NameArityInterval.hasDefaults(): Boolean =
+        arityInterval.maximum?.let { it > arityInterval.minimum } == true
+
+    private fun NameArityInterval.covers(other: NameArityInterval): Boolean =
+        name == other.name && other.arityInterval.maximum?.let { maximum ->
+            other.arityInterval.minimum in arityInterval && maximum in arityInterval
+        } == true
+
+    /** The call before [call], past module attributes, if it is a clause. */
+    private fun previousClause(call: Call): Call? =
+        generateSequence(call.prevSibling) { it.prevSibling }
+            .filterIsInstance<Call>()
+            .firstOrNull { it !is AtUnqualifiedNoParenthesesCall<*> }
+            ?.takeIf { `is`(it) }
+
+    private fun NameArityInterval.isFunctionOf(clause: NameArityInterval): Boolean =
+        name == clause.name && arityInterval.functionArity == clause.arityInterval.functionArity
+
+    /** Keeps the first clause seen for a repeated `(name, arity)`. */
+    val firstWins: (byArity: MutableMap<Int, Call>, arity: Int, call: Call) -> Unit =
+            { byArity, arity, call -> byArity.putIfAbsent(arity, call) }
 
     @RequiresReadLock
     fun nameIdentifier(call: Call): PsiElement? = head(call)?.let { CallDefinitionHead.nameIdentifier(it) }
