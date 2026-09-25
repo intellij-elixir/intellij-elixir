@@ -84,6 +84,18 @@ defmodule Matrix do
   @function_forms ["def", "defp", "defdelegate", "defdelegate_compiled", "defdelegate_unresolvable", "defdelegate_as", "eex_function_from"]
 
   # A `@spec` names one arity, so the worlds where that is one name at one arity and at two.
+  # How a module body can wrap its definitions at compile time, as `{opening lines, closing lines}`; every one of them
+  # still defines what it wraps in the module.
+  @wrappers %{
+    "x_conditional" => {["if Code.ensure_loaded?(Kernel) do"], ["end"]},
+    "x_unless" => {["unless Code.ensure_loaded?(Matrix.Absent) do"], ["end"]},
+    "x_case" => {["case Code.ensure_loaded?(Kernel) do", "  _ ->"], ["end"]},
+    "x_cond" => {["cond do", "  Code.ensure_loaded?(Kernel) ->"], ["end"]},
+    "x_try" => {["try do"], ["rescue", "  _ -> nil", "end"]},
+    "x_for" => {["for _ <- [:once] do"], ["end"]}
+  }
+  @wrapper_worlds Map.keys(@wrappers)
+
   # A definition with defaults is one function at several arities, so a `@spec` of any of them is about it.
   @spec_worlds ["w1", "x_arity", "x_defaults", "x_defaults_head"]
 
@@ -157,7 +169,10 @@ defmodule Matrix do
               {"undeclared", 0, "undeclared", 2, :qualified},
               # A prefix of the declared name, which is not a call of it at any arity.
               {"lookalike_prefix", 0, "sno", 2, :qualified},
-              {"undeclared_no_arguments", 0, "undeclared", 0, :no_arguments}
+              {"undeclared_no_arguments", 0, "undeclared", 0, :no_arguments},
+              # A name only Kernel defines: a qualified call reaches what its module exports, never what the module
+              # itself could call bare.
+              {"kernel_name", 0, "is_nil", 1, :qualified}
             ]
       },
       # `snoc/0` genuinely exists, so `M.snoc` is correct rather than a mistake, and `M.snoc(a)` has two candidates
@@ -186,6 +201,12 @@ defmodule Matrix do
       # The definition written under a module-level `if`, which is how code that is only sometimes compiled is
       # declared; and written with its name `unquote`d, which is how a macro that defines functions names them.
       "x_conditional" => %{modules: [[snoc_2]], calls: one_calls},
+      # The other compile-time wrappers a module body can put a definition under; each still defines it in the module.
+      "x_unless" => %{modules: [[snoc_2]], calls: one_calls},
+      "x_case" => %{modules: [[snoc_2]], calls: one_calls},
+      "x_cond" => %{modules: [[snoc_2]], calls: one_calls},
+      "x_try" => %{modules: [[snoc_2]], calls: one_calls},
+      "x_for" => %{modules: [[snoc_2]], calls: one_calls},
       "x_unquote_name" => %{modules: [[snoc_2]], calls: one_calls},
       # What a Mix.Generator embed declares. Both are private, so their only calls are the module's own: `local_site`
       # calls the template, and `uses` the text.
@@ -225,7 +246,7 @@ defmodule Matrix do
   def not_applicable(_backing, %{as: _}, world) when world not in @delegate_as_worlds,
     do: "`as:` renames only the target's function; this world's question is defdelegate's"
 
-  def not_applicable(%{compiled: true}, _form, world) when world in ["x_conditional", "x_unquote_name"],
+  def not_applicable(%{compiled: true}, _form, world) when world in ["x_unquote_name" | @wrapper_worlds],
     do: "compiled, the definition is an ordinary one; only its source is written differently"
 
   def not_applicable(_backing, form, "x_unquote_name") when form.id not in ["def", "defp", "defmacro", "defmacrop"],
@@ -354,7 +375,7 @@ defmodule Matrix do
     broken_sites = if form[:private], do: Enum.map(broken_sites, &Map.put(&1, "visible", [])), else: broken_sites
 
     {import_paths, import_sites} =
-      if world in @import_worlds and !form[:private],
+      if world in @import_worlds,
         do: import_callers(backing, form, world, names, elem(primary, 0)),
         else: {[], []}
 
@@ -378,8 +399,19 @@ defmodule Matrix do
   #
   # `import_transitive` imports a module that itself imports the declaring one: an import is lexical and is not
   # passed on, so nothing reaches the caller. `require_only` makes macros callable qualified but imports nothing.
-  defp import_variants(reference, name) do
+  defp import_variants(reference, _name, %{private: true}) do
     [
+      # Nothing private is imported, by any directive.
+      {"import_whole", "import #{reference}", [{"import_whole", 2}]},
+      {"import_functions", "import #{reference}, only: :functions", [{"import_functions", 2}]}
+    ]
+  end
+
+  defp import_variants(reference, name, _form) do
+    [
+      # The selector forms of `only:`: a function is imported by `:functions` and not `:macros`, a macro the other way.
+      {"import_functions", "import #{reference}, only: :functions", [{"import_functions", 2}]},
+      {"import_macros", "import #{reference}, only: :macros", [{"import_macros", 2}]},
       {"import_only", "import #{reference}, only: [#{name}: 1]", [{"import_only_1", 1}, {"import_only_2", 2}]},
       {"import_except", "import #{reference}, except: [#{name}: 1]", [{"import_except_2", 2}, {"import_except_1", 1}]},
       {"import_transitive", {:transitive, "import #{reference}"}, [{"import_transitive", 2}]},
@@ -387,7 +419,7 @@ defmodule Matrix do
     ]
   end
 
-  # The callers of `import_variants/2`: every call that compiles shares one file, a module per directive; every call
+  # The callers of `import_variants/3`: every call that compiles shares one file, a module per directive; every call
   # the compiler rejects gets a file of its own, because the first rejected call ends the compilation that would
   # have reported the next. The `only:`/`except:` key is a site too - it names a function, and renaming that
   # function has to rename it - bound to the name and arity it names.
@@ -395,7 +427,7 @@ defmodule Matrix do
     reference = reference(backing, hd(names))
     namespace = "Callers.#{Macro.camelize(backing.prefix)}.#{Macro.camelize(form.id)}.#{Macro.camelize(world)}"
     directory = Path.join(["lib", "callers", backing.id, form.id])
-    variants = import_variants(reference, name)
+    variants = import_variants(reference, name, form)
 
     probed =
       Enum.map(variants, fn {id, directive, calls} ->
@@ -630,6 +662,9 @@ defmodule Matrix do
   # Rename, already the most expensive - would pay for it. Module names already carry the scenario (`Src.Def.W1`),
   # so only function names need this. `local_site`, `uses` and `target_marker` are never search targets, so they
   # keep their bare names.
+  # Names a call means as Kernel's, which scoping them would turn into just another name nothing declares.
+  @kernel_names ["is_nil"]
+
   defp scope(spec, backing, form, world) do
     prefix = "#{backing.id}_#{form.id}_#{world}_"
 
@@ -639,7 +674,10 @@ defmodule Matrix do
           Enum.map(spec.modules, fn definitions ->
             Enum.map(definitions, fn {name, clauses} -> {prefix <> name, clauses} end)
           end),
-        calls: Enum.map(spec.calls, fn {id, module, name, arity, shape} -> {id, module, prefix <> name, arity, shape} end)
+        calls:
+          Enum.map(spec.calls, fn {id, module, name, arity, shape} ->
+            {id, module, if(name in @kernel_names, do: name, else: prefix <> name), arity, shape}
+          end)
     }
   end
 
@@ -715,7 +753,7 @@ defmodule Matrix do
   defp compile_one(backing, form, world, module, definitions, primary, target) do
     form =
       Map.merge(form, %{
-        conditional: world == "x_conditional",
+        wrapper: Map.get(@wrappers, world),
         unquote_name: world == "x_unquote_name",
         spec: primary != nil and backing.id == "src" and world in @spec_worlds and form.id in @function_forms,
         local_forward: primary != nil and backing.id == "src" and world == "w1" and form.id in @function_forms
@@ -1102,11 +1140,15 @@ defmodule Matrix do
         |> then(&(spec <> &1))
       end
 
-    # Under a module-level `if`, which is how a definition that is only sometimes compiled is written.
+    # Under a module-level `if` and the like, which is how a definition that is only sometimes compiled is written.
     clauses =
-      if form[:conditional],
-        do: ["  if Code.ensure_loaded?(Kernel) do" | Enum.map(clauses, &String.replace(&1, ~r/^/m, "  "))] ++ ["  end"],
-        else: clauses
+      case form[:wrapper] do
+        {opening, closing} ->
+          Enum.map(opening, &("  " <> &1)) ++ Enum.map(clauses, &String.replace(&1, ~r/^/m, "  ")) ++ Enum.map(closing, &("  " <> &1))
+
+        nil ->
+          clauses
+      end
 
     # A call made before the definition it calls, which a resolver walking the module top-down meets first.
     forward =
