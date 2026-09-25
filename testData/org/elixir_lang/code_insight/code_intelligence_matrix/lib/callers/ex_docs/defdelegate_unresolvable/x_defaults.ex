@@ -12,4 +12,7 @@ defmodule Callers.ExDocs.DefdelegateUnresolvable.XDefaults do
   def at_capture(a, b), do: {&ExDocs.DefdelegateUnresolvable.XDefaults.ex_docs_defdelegate_unresolvable_x_defaults_snoc/2, a, b} # @capture
   def at_apply(a, b), do: apply(ExDocs.DefdelegateUnresolvable.XDefaults, :ex_docs_defdelegate_unresolvable_x_defaults_snoc, [a, b]) # @apply
   def at_default_arity(a, _b), do: ExDocs.DefdelegateUnresolvable.XDefaults.ex_docs_defdelegate_unresolvable_x_defaults_snoc(a) # @default_arity
+  def at_capture_1(a, b), do: {&ExDocs.DefdelegateUnresolvable.XDefaults.ex_docs_defdelegate_unresolvable_x_defaults_snoc/1, a, b} # @capture_1
+  def at_apply_1(a, _b), do: apply(ExDocs.DefdelegateUnresolvable.XDefaults, :ex_docs_defdelegate_unresolvable_x_defaults_snoc, [a]) # @apply_1
+  def at_mfa_1(a, b), do: {{ExDocs.DefdelegateUnresolvable.XDefaults, :ex_docs_defdelegate_unresolvable_x_defaults_snoc, 1}, a, b} # @mfa_1
 end

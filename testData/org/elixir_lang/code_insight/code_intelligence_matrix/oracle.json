@@ -7653,7 +7653,7 @@
               "clause": 0,
               "column": 7,
               "definer": "def",
-              "line": 3,
+              "line": 5,
               "name": "src_def_x_defaults_snoc"
             }
           ],
@@ -7808,6 +7808,48 @@
           "name": "src_def_x_defaults_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "Src.Def.XDefaults",
+            "name": "src_def_x_defaults_snoc"
+          },
+          "column": 51,
+          "file": "lib/callers/src/def/x_defaults.ex",
+          "id": "capture_1",
+          "line": 15,
+          "name": "src_def_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "Src.Def.XDefaults",
+            "name": "src_def_x_defaults_snoc"
+          },
+          "column": 56,
+          "file": "lib/callers/src/def/x_defaults.ex",
+          "id": "apply_1",
+          "line": 16,
+          "name": "src_def_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "Src.Def.XDefaults",
+            "name": "src_def_x_defaults_snoc"
+          },
+          "column": 49,
+          "file": "lib/callers/src/def/x_defaults.ex",
+          "id": "mfa_1",
+          "line": 17,
+          "name": "src_def_x_defaults_snoc"
+        },
+        {
           "arity": 2,
           "binding": {
             "arity": 2,
@@ -7818,7 +7860,35 @@
           "column": 29,
           "file": "lib/src/src.def.x_defaults.ex",
           "id": "local",
-          "line": 5,
+          "line": 7,
+          "name": "src_def_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "spec",
+            "module": "Src.Def.XDefaults",
+            "name": "src_def_x_defaults_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.def.x_defaults.ex",
+          "id": "spec_1",
+          "line": 3,
+          "name": "src_def_x_defaults_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "spec",
+            "module": "Src.Def.XDefaults",
+            "name": "src_def_x_defaults_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.def.x_defaults.ex",
+          "id": "spec_2",
+          "line": 4,
           "name": "src_def_x_defaults_snoc"
         },
         {
@@ -8002,7 +8072,7 @@
               "clause": 0,
               "column": 7,
               "definer": "def",
-              "line": 3,
+              "line": 6,
               "name": "src_def_x_defaults_head_snoc"
             },
             {
@@ -8010,7 +8080,7 @@
               "clause": 1,
               "column": 7,
               "definer": "def",
-              "line": 4,
+              "line": 7,
               "name": "src_def_x_defaults_head_snoc"
             },
             {
@@ -8018,7 +8088,7 @@
               "clause": 2,
               "column": 7,
               "definer": "def",
-              "line": 5,
+              "line": 8,
               "name": "src_def_x_defaults_head_snoc"
             }
           ],
@@ -8207,6 +8277,48 @@
           "name": "src_def_x_defaults_head_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "Src.Def.XDefaultsHead",
+            "name": "src_def_x_defaults_head_snoc"
+          },
+          "column": 55,
+          "file": "lib/callers/src/def/x_defaults_head.ex",
+          "id": "capture_1",
+          "line": 16,
+          "name": "src_def_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "Src.Def.XDefaultsHead",
+            "name": "src_def_x_defaults_head_snoc"
+          },
+          "column": 60,
+          "file": "lib/callers/src/def/x_defaults_head.ex",
+          "id": "apply_1",
+          "line": 17,
+          "name": "src_def_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "Src.Def.XDefaultsHead",
+            "name": "src_def_x_defaults_head_snoc"
+          },
+          "column": 53,
+          "file": "lib/callers/src/def/x_defaults_head.ex",
+          "id": "mfa_1",
+          "line": 18,
+          "name": "src_def_x_defaults_head_snoc"
+        },
+        {
           "arity": 2,
           "binding": {
             "arity": 2,
@@ -8217,7 +8329,49 @@
           "column": 29,
           "file": "lib/src/src.def.x_defaults_head.ex",
           "id": "local",
-          "line": 7,
+          "line": 10,
+          "name": "src_def_x_defaults_head_snoc"
+        },
+        {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "spec",
+            "module": "Src.Def.XDefaultsHead",
+            "name": "src_def_x_defaults_head_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.def.x_defaults_head.ex",
+          "id": "spec_0",
+          "line": 3,
+          "name": "src_def_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "spec",
+            "module": "Src.Def.XDefaultsHead",
+            "name": "src_def_x_defaults_head_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.def.x_defaults_head.ex",
+          "id": "spec_1",
+          "line": 4,
+          "name": "src_def_x_defaults_head_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "spec",
+            "module": "Src.Def.XDefaultsHead",
+            "name": "src_def_x_defaults_head_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.def.x_defaults_head.ex",
+          "id": "spec_2",
+          "line": 5,
           "name": "src_def_x_defaults_head_snoc"
         },
         {
@@ -8985,7 +9139,7 @@
           "arity": 2,
           "binding": {
             "arity": 2,
-            "kind": "apply",
+            "kind": "apply_quoted",
             "module": "Src.Def.XNfc",
             "name": "src_def_x_nfc_snoć"
           },
@@ -10532,7 +10686,9 @@
     },
     {
       "backing": "src",
-      "brokenCallers": [],
+      "brokenCallers": [
+        "lib/callers/src/defp/x_arity_absent_broken.ex"
+      ],
       "caller": "lib/callers/src/defp/x_arity_absent.ex",
       "form": "defp",
       "importCallers": [],
@@ -10612,6 +10768,34 @@
           "id": "local",
           "line": 5,
           "name": "src_defp_x_arity_absent_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 58,
+          "diagnostic": {
+            "message": "Src.Defp.XArityAbsent.snoc/2 is undefined or private",
+            "severity": "warning"
+          },
+          "file": "lib/callers/src/defp/x_arity_absent_broken.ex",
+          "id": "private_remote",
+          "line": 4,
+          "name": "snoc",
+          "visible": []
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 67,
+          "diagnostic": {
+            "message": "Src.Defp.XArityAbsent.snoc/1 is undefined or private",
+            "severity": "warning"
+          },
+          "file": "lib/callers/src/defp/x_arity_absent_broken.ex",
+          "id": "private_remote_arity_1",
+          "line": 5,
+          "name": "snoc",
+          "visible": []
         }
       ],
       "world": "x_arity_absent"
@@ -10956,7 +11140,7 @@
               "clause": 0,
               "column": 8,
               "definer": "defp",
-              "line": 3,
+              "line": 5,
               "name": "src_defp_x_defaults_snoc"
             }
           ],
@@ -11019,7 +11203,35 @@
           "column": 29,
           "file": "lib/src/src.defp.x_defaults.ex",
           "id": "local",
-          "line": 5,
+          "line": 7,
+          "name": "src_defp_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "spec",
+            "module": "Src.Defp.XDefaults",
+            "name": "src_defp_x_defaults_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.defp.x_defaults.ex",
+          "id": "spec_1",
+          "line": 3,
+          "name": "src_defp_x_defaults_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "spec",
+            "module": "Src.Defp.XDefaults",
+            "name": "src_defp_x_defaults_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.defp.x_defaults.ex",
+          "id": "spec_2",
+          "line": 4,
           "name": "src_defp_x_defaults_snoc"
         }
       ],
@@ -11042,7 +11254,7 @@
               "clause": 0,
               "column": 8,
               "definer": "defp",
-              "line": 3,
+              "line": 6,
               "name": "src_defp_x_defaults_head_snoc"
             },
             {
@@ -11050,7 +11262,7 @@
               "clause": 1,
               "column": 8,
               "definer": "defp",
-              "line": 4,
+              "line": 7,
               "name": "src_defp_x_defaults_head_snoc"
             },
             {
@@ -11058,7 +11270,7 @@
               "clause": 2,
               "column": 8,
               "definer": "defp",
-              "line": 5,
+              "line": 8,
               "name": "src_defp_x_defaults_head_snoc"
             }
           ],
@@ -11141,7 +11353,49 @@
           "column": 29,
           "file": "lib/src/src.defp.x_defaults_head.ex",
           "id": "local",
-          "line": 7,
+          "line": 10,
+          "name": "src_defp_x_defaults_head_snoc"
+        },
+        {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "spec",
+            "module": "Src.Defp.XDefaultsHead",
+            "name": "src_defp_x_defaults_head_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.defp.x_defaults_head.ex",
+          "id": "spec_0",
+          "line": 3,
+          "name": "src_defp_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "spec",
+            "module": "Src.Defp.XDefaultsHead",
+            "name": "src_defp_x_defaults_head_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.defp.x_defaults_head.ex",
+          "id": "spec_1",
+          "line": 4,
+          "name": "src_defp_x_defaults_head_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "spec",
+            "module": "Src.Defp.XDefaultsHead",
+            "name": "src_defp_x_defaults_head_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.defp.x_defaults_head.ex",
+          "id": "spec_2",
+          "line": 5,
           "name": "src_defp_x_defaults_head_snoc"
         }
       ],
@@ -16706,7 +16960,9 @@
     },
     {
       "backing": "src",
-      "brokenCallers": [],
+      "brokenCallers": [
+        "lib/callers/src/defmacrop/x_arity_absent_broken.ex"
+      ],
       "caller": "lib/callers/src/defmacrop/x_arity_absent.ex",
       "form": "defmacrop",
       "importCallers": [],
@@ -16786,6 +17042,34 @@
           "id": "local",
           "line": 5,
           "name": "src_defmacrop_x_arity_absent_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 63,
+          "diagnostic": {
+            "message": "Src.Defmacrop.XArityAbsent.snoc/2 is undefined or private",
+            "severity": "warning"
+          },
+          "file": "lib/callers/src/defmacrop/x_arity_absent_broken.ex",
+          "id": "private_remote",
+          "line": 4,
+          "name": "snoc",
+          "visible": []
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 72,
+          "diagnostic": {
+            "message": "Src.Defmacrop.XArityAbsent.snoc/1 is undefined or private",
+            "severity": "warning"
+          },
+          "file": "lib/callers/src/defmacrop/x_arity_absent_broken.ex",
+          "id": "private_remote_arity_1",
+          "line": 5,
+          "name": "snoc",
+          "visible": []
         }
       ],
       "world": "x_arity_absent"
@@ -21328,7 +21612,9 @@
     },
     {
       "backing": "src",
-      "brokenCallers": [],
+      "brokenCallers": [
+        "lib/callers/src/defguardp/x_arity_absent_broken.ex"
+      ],
       "caller": "lib/callers/src/defguardp/x_arity_absent.ex",
       "form": "defguardp",
       "importCallers": [],
@@ -21408,6 +21694,34 @@
           "id": "local",
           "line": 5,
           "name": "src_defguardp_x_arity_absent_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 63,
+          "diagnostic": {
+            "message": "Src.Defguardp.XArityAbsent.snoc/2 is undefined or private",
+            "severity": "warning"
+          },
+          "file": "lib/callers/src/defguardp/x_arity_absent_broken.ex",
+          "id": "private_remote",
+          "line": 4,
+          "name": "snoc",
+          "visible": []
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 72,
+          "diagnostic": {
+            "message": "Src.Defguardp.XArityAbsent.snoc/1 is undefined or private",
+            "severity": "warning"
+          },
+          "file": "lib/callers/src/defguardp/x_arity_absent_broken.ex",
+          "id": "private_remote_arity_1",
+          "line": 5,
+          "name": "snoc",
+          "visible": []
         }
       ],
       "world": "x_arity_absent"
@@ -25484,7 +25798,7 @@
               "clause": 0,
               "column": 15,
               "definer": "defdelegate",
-              "line": 3,
+              "line": 5,
               "name": "src_defdelegate_x_defaults_snoc"
             }
           ],
@@ -25679,6 +25993,48 @@
           "name": "src_defdelegate_x_defaults_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "Src.Defdelegate.XDefaults",
+            "name": "src_defdelegate_x_defaults_snoc"
+          },
+          "column": 59,
+          "file": "lib/callers/src/defdelegate/x_defaults.ex",
+          "id": "capture_1",
+          "line": 15,
+          "name": "src_defdelegate_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "Src.Defdelegate.XDefaults",
+            "name": "src_defdelegate_x_defaults_snoc"
+          },
+          "column": 64,
+          "file": "lib/callers/src/defdelegate/x_defaults.ex",
+          "id": "apply_1",
+          "line": 16,
+          "name": "src_defdelegate_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "Src.Defdelegate.XDefaults",
+            "name": "src_defdelegate_x_defaults_snoc"
+          },
+          "column": 57,
+          "file": "lib/callers/src/defdelegate/x_defaults.ex",
+          "id": "mfa_1",
+          "line": 17,
+          "name": "src_defdelegate_x_defaults_snoc"
+        },
+        {
           "arity": 2,
           "binding": {
             "arity": 2,
@@ -25689,7 +26045,35 @@
           "column": 29,
           "file": "lib/src/src.defdelegate.x_defaults.ex",
           "id": "local",
-          "line": 5,
+          "line": 7,
+          "name": "src_defdelegate_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "spec",
+            "module": "Src.Defdelegate.XDefaults",
+            "name": "src_defdelegate_x_defaults_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.defdelegate.x_defaults.ex",
+          "id": "spec_1",
+          "line": 3,
+          "name": "src_defdelegate_x_defaults_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "spec",
+            "module": "Src.Defdelegate.XDefaults",
+            "name": "src_defdelegate_x_defaults_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.defdelegate.x_defaults.ex",
+          "id": "spec_2",
+          "line": 4,
           "name": "src_defdelegate_x_defaults_snoc"
         },
         {
@@ -25873,7 +26257,7 @@
               "clause": 0,
               "column": 15,
               "definer": "defdelegate",
-              "line": 3,
+              "line": 6,
               "name": "src_defdelegate_x_defaults_head_snoc"
             }
           ],
@@ -26082,6 +26466,48 @@
           "name": "src_defdelegate_x_defaults_head_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "Src.Defdelegate.XDefaultsHead",
+            "name": "src_defdelegate_x_defaults_head_snoc"
+          },
+          "column": 63,
+          "file": "lib/callers/src/defdelegate/x_defaults_head.ex",
+          "id": "capture_1",
+          "line": 16,
+          "name": "src_defdelegate_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "Src.Defdelegate.XDefaultsHead",
+            "name": "src_defdelegate_x_defaults_head_snoc"
+          },
+          "column": 68,
+          "file": "lib/callers/src/defdelegate/x_defaults_head.ex",
+          "id": "apply_1",
+          "line": 17,
+          "name": "src_defdelegate_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "Src.Defdelegate.XDefaultsHead",
+            "name": "src_defdelegate_x_defaults_head_snoc"
+          },
+          "column": 61,
+          "file": "lib/callers/src/defdelegate/x_defaults_head.ex",
+          "id": "mfa_1",
+          "line": 18,
+          "name": "src_defdelegate_x_defaults_head_snoc"
+        },
+        {
           "arity": 2,
           "binding": {
             "arity": 2,
@@ -26092,6 +26518,48 @@
           "column": 29,
           "file": "lib/src/src.defdelegate.x_defaults_head.ex",
           "id": "local",
+          "line": 8,
+          "name": "src_defdelegate_x_defaults_head_snoc"
+        },
+        {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "spec",
+            "module": "Src.Defdelegate.XDefaultsHead",
+            "name": "src_defdelegate_x_defaults_head_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.defdelegate.x_defaults_head.ex",
+          "id": "spec_0",
+          "line": 3,
+          "name": "src_defdelegate_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "spec",
+            "module": "Src.Defdelegate.XDefaultsHead",
+            "name": "src_defdelegate_x_defaults_head_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.defdelegate.x_defaults_head.ex",
+          "id": "spec_1",
+          "line": 4,
+          "name": "src_defdelegate_x_defaults_head_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "spec",
+            "module": "Src.Defdelegate.XDefaultsHead",
+            "name": "src_defdelegate_x_defaults_head_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.defdelegate.x_defaults_head.ex",
+          "id": "spec_2",
           "line": 5,
           "name": "src_defdelegate_x_defaults_head_snoc"
         },
@@ -27060,7 +27528,7 @@
           "arity": 2,
           "binding": {
             "arity": 2,
-            "kind": "apply",
+            "kind": "apply_quoted",
             "module": "Src.Defdelegate.XNfc",
             "name": "src_defdelegate_x_nfc_snoć"
           },
@@ -31352,7 +31820,7 @@
               "clause": 0,
               "column": 15,
               "definer": "defdelegate",
-              "line": 3,
+              "line": 5,
               "name": "src_defdelegate_compiled_x_defaults_snoc"
             }
           ],
@@ -31547,6 +32015,48 @@
           "name": "src_defdelegate_compiled_x_defaults_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "Src.DefdelegateCompiled.XDefaults",
+            "name": "src_defdelegate_compiled_x_defaults_snoc"
+          },
+          "column": 67,
+          "file": "lib/callers/src/defdelegate_compiled/x_defaults.ex",
+          "id": "capture_1",
+          "line": 15,
+          "name": "src_defdelegate_compiled_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "Src.DefdelegateCompiled.XDefaults",
+            "name": "src_defdelegate_compiled_x_defaults_snoc"
+          },
+          "column": 72,
+          "file": "lib/callers/src/defdelegate_compiled/x_defaults.ex",
+          "id": "apply_1",
+          "line": 16,
+          "name": "src_defdelegate_compiled_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "Src.DefdelegateCompiled.XDefaults",
+            "name": "src_defdelegate_compiled_x_defaults_snoc"
+          },
+          "column": 65,
+          "file": "lib/callers/src/defdelegate_compiled/x_defaults.ex",
+          "id": "mfa_1",
+          "line": 17,
+          "name": "src_defdelegate_compiled_x_defaults_snoc"
+        },
+        {
           "arity": 2,
           "binding": {
             "arity": 2,
@@ -31557,7 +32067,35 @@
           "column": 29,
           "file": "lib/src/src.defdelegate_compiled.x_defaults.ex",
           "id": "local",
-          "line": 5,
+          "line": 7,
+          "name": "src_defdelegate_compiled_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "spec",
+            "module": "Src.DefdelegateCompiled.XDefaults",
+            "name": "src_defdelegate_compiled_x_defaults_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.defdelegate_compiled.x_defaults.ex",
+          "id": "spec_1",
+          "line": 3,
+          "name": "src_defdelegate_compiled_x_defaults_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "spec",
+            "module": "Src.DefdelegateCompiled.XDefaults",
+            "name": "src_defdelegate_compiled_x_defaults_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.defdelegate_compiled.x_defaults.ex",
+          "id": "spec_2",
+          "line": 4,
           "name": "src_defdelegate_compiled_x_defaults_snoc"
         },
         {
@@ -31741,7 +32279,7 @@
               "clause": 0,
               "column": 15,
               "definer": "defdelegate",
-              "line": 3,
+              "line": 6,
               "name": "src_defdelegate_compiled_x_defaults_head_snoc"
             }
           ],
@@ -31950,6 +32488,48 @@
           "name": "src_defdelegate_compiled_x_defaults_head_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "Src.DefdelegateCompiled.XDefaultsHead",
+            "name": "src_defdelegate_compiled_x_defaults_head_snoc"
+          },
+          "column": 71,
+          "file": "lib/callers/src/defdelegate_compiled/x_defaults_head.ex",
+          "id": "capture_1",
+          "line": 16,
+          "name": "src_defdelegate_compiled_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "Src.DefdelegateCompiled.XDefaultsHead",
+            "name": "src_defdelegate_compiled_x_defaults_head_snoc"
+          },
+          "column": 76,
+          "file": "lib/callers/src/defdelegate_compiled/x_defaults_head.ex",
+          "id": "apply_1",
+          "line": 17,
+          "name": "src_defdelegate_compiled_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "Src.DefdelegateCompiled.XDefaultsHead",
+            "name": "src_defdelegate_compiled_x_defaults_head_snoc"
+          },
+          "column": 69,
+          "file": "lib/callers/src/defdelegate_compiled/x_defaults_head.ex",
+          "id": "mfa_1",
+          "line": 18,
+          "name": "src_defdelegate_compiled_x_defaults_head_snoc"
+        },
+        {
           "arity": 2,
           "binding": {
             "arity": 2,
@@ -31960,6 +32540,48 @@
           "column": 29,
           "file": "lib/src/src.defdelegate_compiled.x_defaults_head.ex",
           "id": "local",
+          "line": 8,
+          "name": "src_defdelegate_compiled_x_defaults_head_snoc"
+        },
+        {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "spec",
+            "module": "Src.DefdelegateCompiled.XDefaultsHead",
+            "name": "src_defdelegate_compiled_x_defaults_head_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.defdelegate_compiled.x_defaults_head.ex",
+          "id": "spec_0",
+          "line": 3,
+          "name": "src_defdelegate_compiled_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "spec",
+            "module": "Src.DefdelegateCompiled.XDefaultsHead",
+            "name": "src_defdelegate_compiled_x_defaults_head_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.defdelegate_compiled.x_defaults_head.ex",
+          "id": "spec_1",
+          "line": 4,
+          "name": "src_defdelegate_compiled_x_defaults_head_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "spec",
+            "module": "Src.DefdelegateCompiled.XDefaultsHead",
+            "name": "src_defdelegate_compiled_x_defaults_head_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.defdelegate_compiled.x_defaults_head.ex",
+          "id": "spec_2",
           "line": 5,
           "name": "src_defdelegate_compiled_x_defaults_head_snoc"
         },
@@ -32928,7 +33550,7 @@
           "arity": 2,
           "binding": {
             "arity": 2,
-            "kind": "apply",
+            "kind": "apply_quoted",
             "module": "Src.DefdelegateCompiled.XNfc",
             "name": "src_defdelegate_compiled_x_nfc_snoć"
           },
@@ -36386,7 +37008,7 @@
               "clause": 0,
               "column": 15,
               "definer": "defdelegate",
-              "line": 3,
+              "line": 5,
               "name": "src_defdelegate_unresolvable_x_defaults_snoc"
             }
           ],
@@ -36541,6 +37163,48 @@
           "name": "src_defdelegate_unresolvable_x_defaults_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "Src.DefdelegateUnresolvable.XDefaults",
+            "name": "src_defdelegate_unresolvable_x_defaults_snoc"
+          },
+          "column": 71,
+          "file": "lib/callers/src/defdelegate_unresolvable/x_defaults.ex",
+          "id": "capture_1",
+          "line": 15,
+          "name": "src_defdelegate_unresolvable_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "Src.DefdelegateUnresolvable.XDefaults",
+            "name": "src_defdelegate_unresolvable_x_defaults_snoc"
+          },
+          "column": 76,
+          "file": "lib/callers/src/defdelegate_unresolvable/x_defaults.ex",
+          "id": "apply_1",
+          "line": 16,
+          "name": "src_defdelegate_unresolvable_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "Src.DefdelegateUnresolvable.XDefaults",
+            "name": "src_defdelegate_unresolvable_x_defaults_snoc"
+          },
+          "column": 69,
+          "file": "lib/callers/src/defdelegate_unresolvable/x_defaults.ex",
+          "id": "mfa_1",
+          "line": 17,
+          "name": "src_defdelegate_unresolvable_x_defaults_snoc"
+        },
+        {
           "arity": 2,
           "binding": {
             "arity": 2,
@@ -36551,7 +37215,35 @@
           "column": 29,
           "file": "lib/src/src.defdelegate_unresolvable.x_defaults.ex",
           "id": "local",
-          "line": 5,
+          "line": 7,
+          "name": "src_defdelegate_unresolvable_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "spec",
+            "module": "Src.DefdelegateUnresolvable.XDefaults",
+            "name": "src_defdelegate_unresolvable_x_defaults_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.defdelegate_unresolvable.x_defaults.ex",
+          "id": "spec_1",
+          "line": 3,
+          "name": "src_defdelegate_unresolvable_x_defaults_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "spec",
+            "module": "Src.DefdelegateUnresolvable.XDefaults",
+            "name": "src_defdelegate_unresolvable_x_defaults_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.defdelegate_unresolvable.x_defaults.ex",
+          "id": "spec_2",
+          "line": 4,
           "name": "src_defdelegate_unresolvable_x_defaults_snoc"
         },
         {
@@ -36735,7 +37427,7 @@
               "clause": 0,
               "column": 15,
               "definer": "defdelegate",
-              "line": 3,
+              "line": 6,
               "name": "src_defdelegate_unresolvable_x_defaults_head_snoc"
             }
           ],
@@ -36904,6 +37596,48 @@
           "name": "src_defdelegate_unresolvable_x_defaults_head_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "Src.DefdelegateUnresolvable.XDefaultsHead",
+            "name": "src_defdelegate_unresolvable_x_defaults_head_snoc"
+          },
+          "column": 75,
+          "file": "lib/callers/src/defdelegate_unresolvable/x_defaults_head.ex",
+          "id": "capture_1",
+          "line": 16,
+          "name": "src_defdelegate_unresolvable_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "Src.DefdelegateUnresolvable.XDefaultsHead",
+            "name": "src_defdelegate_unresolvable_x_defaults_head_snoc"
+          },
+          "column": 80,
+          "file": "lib/callers/src/defdelegate_unresolvable/x_defaults_head.ex",
+          "id": "apply_1",
+          "line": 17,
+          "name": "src_defdelegate_unresolvable_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "Src.DefdelegateUnresolvable.XDefaultsHead",
+            "name": "src_defdelegate_unresolvable_x_defaults_head_snoc"
+          },
+          "column": 73,
+          "file": "lib/callers/src/defdelegate_unresolvable/x_defaults_head.ex",
+          "id": "mfa_1",
+          "line": 18,
+          "name": "src_defdelegate_unresolvable_x_defaults_head_snoc"
+        },
+        {
           "arity": 2,
           "binding": {
             "arity": 2,
@@ -36914,6 +37648,48 @@
           "column": 29,
           "file": "lib/src/src.defdelegate_unresolvable.x_defaults_head.ex",
           "id": "local",
+          "line": 8,
+          "name": "src_defdelegate_unresolvable_x_defaults_head_snoc"
+        },
+        {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "spec",
+            "module": "Src.DefdelegateUnresolvable.XDefaultsHead",
+            "name": "src_defdelegate_unresolvable_x_defaults_head_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.defdelegate_unresolvable.x_defaults_head.ex",
+          "id": "spec_0",
+          "line": 3,
+          "name": "src_defdelegate_unresolvable_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "spec",
+            "module": "Src.DefdelegateUnresolvable.XDefaultsHead",
+            "name": "src_defdelegate_unresolvable_x_defaults_head_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.defdelegate_unresolvable.x_defaults_head.ex",
+          "id": "spec_1",
+          "line": 4,
+          "name": "src_defdelegate_unresolvable_x_defaults_head_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "spec",
+            "module": "Src.DefdelegateUnresolvable.XDefaultsHead",
+            "name": "src_defdelegate_unresolvable_x_defaults_head_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.defdelegate_unresolvable.x_defaults_head.ex",
+          "id": "spec_2",
           "line": 5,
           "name": "src_defdelegate_unresolvable_x_defaults_head_snoc"
         },
@@ -37682,7 +38458,7 @@
           "arity": 2,
           "binding": {
             "arity": 2,
-            "kind": "apply",
+            "kind": "apply_quoted",
             "module": "Src.DefdelegateUnresolvable.XNfc",
             "name": "src_defdelegate_unresolvable_x_nfc_snoć"
           },
@@ -39316,7 +40092,7 @@
               "clause": 0,
               "column": 15,
               "definer": "defdelegate",
-              "line": 3,
+              "line": 5,
               "name": "src_defdelegate_as_x_defaults_snoc"
             }
           ],
@@ -39511,6 +40287,48 @@
           "name": "src_defdelegate_as_x_defaults_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "Src.DefdelegateAs.XDefaults",
+            "name": "src_defdelegate_as_x_defaults_snoc"
+          },
+          "column": 61,
+          "file": "lib/callers/src/defdelegate_as/x_defaults.ex",
+          "id": "capture_1",
+          "line": 15,
+          "name": "src_defdelegate_as_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "Src.DefdelegateAs.XDefaults",
+            "name": "src_defdelegate_as_x_defaults_snoc"
+          },
+          "column": 66,
+          "file": "lib/callers/src/defdelegate_as/x_defaults.ex",
+          "id": "apply_1",
+          "line": 16,
+          "name": "src_defdelegate_as_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "Src.DefdelegateAs.XDefaults",
+            "name": "src_defdelegate_as_x_defaults_snoc"
+          },
+          "column": 59,
+          "file": "lib/callers/src/defdelegate_as/x_defaults.ex",
+          "id": "mfa_1",
+          "line": 17,
+          "name": "src_defdelegate_as_x_defaults_snoc"
+        },
+        {
           "arity": 2,
           "binding": {
             "arity": 2,
@@ -39521,7 +40339,35 @@
           "column": 29,
           "file": "lib/src/src.defdelegate_as.x_defaults.ex",
           "id": "local",
-          "line": 5,
+          "line": 7,
+          "name": "src_defdelegate_as_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "spec",
+            "module": "Src.DefdelegateAs.XDefaults",
+            "name": "src_defdelegate_as_x_defaults_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.defdelegate_as.x_defaults.ex",
+          "id": "spec_1",
+          "line": 3,
+          "name": "src_defdelegate_as_x_defaults_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "spec",
+            "module": "Src.DefdelegateAs.XDefaults",
+            "name": "src_defdelegate_as_x_defaults_snoc"
+          },
+          "column": 9,
+          "file": "lib/src/src.defdelegate_as.x_defaults.ex",
+          "id": "spec_2",
+          "line": 4,
           "name": "src_defdelegate_as_x_defaults_snoc"
         },
         {
@@ -44756,6 +45602,48 @@
           "name": "ex_dbgi_def_x_defaults_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "ExDbgi.Def.XDefaults",
+            "name": "ex_dbgi_def_x_defaults_snoc"
+          },
+          "column": 54,
+          "file": "lib/callers/ex_dbgi/def/x_defaults.ex",
+          "id": "capture_1",
+          "line": 15,
+          "name": "ex_dbgi_def_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "ExDbgi.Def.XDefaults",
+            "name": "ex_dbgi_def_x_defaults_snoc"
+          },
+          "column": 59,
+          "file": "lib/callers/ex_dbgi/def/x_defaults.ex",
+          "id": "apply_1",
+          "line": 16,
+          "name": "ex_dbgi_def_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "ExDbgi.Def.XDefaults",
+            "name": "ex_dbgi_def_x_defaults_snoc"
+          },
+          "column": 52,
+          "file": "lib/callers/ex_dbgi/def/x_defaults.ex",
+          "id": "mfa_1",
+          "line": 17,
+          "name": "ex_dbgi_def_x_defaults_snoc"
+        },
+        {
           "arity": 2,
           "binding": {
             "arity": 2,
@@ -45152,6 +46040,48 @@
           "file": "lib/callers/ex_dbgi/def/x_defaults_head.ex",
           "id": "arity_1",
           "line": 15,
+          "name": "ex_dbgi_def_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "ExDbgi.Def.XDefaultsHead",
+            "name": "ex_dbgi_def_x_defaults_head_snoc"
+          },
+          "column": 58,
+          "file": "lib/callers/ex_dbgi/def/x_defaults_head.ex",
+          "id": "capture_1",
+          "line": 16,
+          "name": "ex_dbgi_def_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "ExDbgi.Def.XDefaultsHead",
+            "name": "ex_dbgi_def_x_defaults_head_snoc"
+          },
+          "column": 63,
+          "file": "lib/callers/ex_dbgi/def/x_defaults_head.ex",
+          "id": "apply_1",
+          "line": 17,
+          "name": "ex_dbgi_def_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "ExDbgi.Def.XDefaultsHead",
+            "name": "ex_dbgi_def_x_defaults_head_snoc"
+          },
+          "column": 56,
+          "file": "lib/callers/ex_dbgi/def/x_defaults_head.ex",
+          "id": "mfa_1",
+          "line": 18,
           "name": "ex_dbgi_def_x_defaults_head_snoc"
         },
         {
@@ -45933,7 +46863,7 @@
           "arity": 2,
           "binding": {
             "arity": 2,
-            "kind": "apply",
+            "kind": "apply_quoted",
             "module": "ExDbgi.Def.XNfc",
             "name": "ex_dbgi_def_x_nfc_snoć"
           },
@@ -47240,7 +48170,9 @@
     },
     {
       "backing": "ex_dbgi",
-      "brokenCallers": [],
+      "brokenCallers": [
+        "lib/callers/ex_dbgi/defp/x_arity_absent_broken.ex"
+      ],
       "caller": "lib/callers/ex_dbgi/defp/x_arity_absent.ex",
       "form": "defp",
       "importCallers": [],
@@ -47320,6 +48252,34 @@
           "id": "local",
           "line": 5,
           "name": "ex_dbgi_defp_x_arity_absent_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 61,
+          "diagnostic": {
+            "message": "ExDbgi.Defp.XArityAbsent.snoc/2 is undefined or private",
+            "severity": "warning"
+          },
+          "file": "lib/callers/ex_dbgi/defp/x_arity_absent_broken.ex",
+          "id": "private_remote",
+          "line": 4,
+          "name": "snoc",
+          "visible": []
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 70,
+          "diagnostic": {
+            "message": "ExDbgi.Defp.XArityAbsent.snoc/1 is undefined or private",
+            "severity": "warning"
+          },
+          "file": "lib/callers/ex_dbgi/defp/x_arity_absent_broken.ex",
+          "id": "private_remote_arity_1",
+          "line": 5,
+          "name": "snoc",
+          "visible": []
         }
       ],
       "world": "x_arity_absent"
@@ -58420,6 +59380,48 @@
           "name": "ex_dbgi_defdelegate_x_defaults_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "ExDbgi.Defdelegate.XDefaults",
+            "name": "ex_dbgi_defdelegate_x_defaults_snoc"
+          },
+          "column": 62,
+          "file": "lib/callers/ex_dbgi/defdelegate/x_defaults.ex",
+          "id": "capture_1",
+          "line": 15,
+          "name": "ex_dbgi_defdelegate_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "ExDbgi.Defdelegate.XDefaults",
+            "name": "ex_dbgi_defdelegate_x_defaults_snoc"
+          },
+          "column": 67,
+          "file": "lib/callers/ex_dbgi/defdelegate/x_defaults.ex",
+          "id": "apply_1",
+          "line": 16,
+          "name": "ex_dbgi_defdelegate_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "ExDbgi.Defdelegate.XDefaults",
+            "name": "ex_dbgi_defdelegate_x_defaults_snoc"
+          },
+          "column": 60,
+          "file": "lib/callers/ex_dbgi/defdelegate/x_defaults.ex",
+          "id": "mfa_1",
+          "line": 17,
+          "name": "ex_dbgi_defdelegate_x_defaults_snoc"
+        },
+        {
           "arity": 2,
           "binding": {
             "arity": 2,
@@ -58820,6 +59822,48 @@
           "file": "lib/callers/ex_dbgi/defdelegate/x_defaults_head.ex",
           "id": "arity_1",
           "line": 15,
+          "name": "ex_dbgi_defdelegate_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "ExDbgi.Defdelegate.XDefaultsHead",
+            "name": "ex_dbgi_defdelegate_x_defaults_head_snoc"
+          },
+          "column": 66,
+          "file": "lib/callers/ex_dbgi/defdelegate/x_defaults_head.ex",
+          "id": "capture_1",
+          "line": 16,
+          "name": "ex_dbgi_defdelegate_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "ExDbgi.Defdelegate.XDefaultsHead",
+            "name": "ex_dbgi_defdelegate_x_defaults_head_snoc"
+          },
+          "column": 71,
+          "file": "lib/callers/ex_dbgi/defdelegate/x_defaults_head.ex",
+          "id": "apply_1",
+          "line": 17,
+          "name": "ex_dbgi_defdelegate_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "ExDbgi.Defdelegate.XDefaultsHead",
+            "name": "ex_dbgi_defdelegate_x_defaults_head_snoc"
+          },
+          "column": 64,
+          "file": "lib/callers/ex_dbgi/defdelegate/x_defaults_head.ex",
+          "id": "mfa_1",
+          "line": 18,
           "name": "ex_dbgi_defdelegate_x_defaults_head_snoc"
         },
         {
@@ -59801,7 +60845,7 @@
           "arity": 2,
           "binding": {
             "arity": 2,
-            "kind": "apply",
+            "kind": "apply_quoted",
             "module": "ExDbgi.Defdelegate.XNfc",
             "name": "ex_dbgi_defdelegate_x_nfc_snoć"
           },
@@ -63174,6 +64218,48 @@
           "name": "ex_dbgi_defdelegate_unresolvable_x_defaults_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "ExDbgi.DefdelegateUnresolvable.XDefaults",
+            "name": "ex_dbgi_defdelegate_unresolvable_x_defaults_snoc"
+          },
+          "column": 74,
+          "file": "lib/callers/ex_dbgi/defdelegate_unresolvable/x_defaults.ex",
+          "id": "capture_1",
+          "line": 15,
+          "name": "ex_dbgi_defdelegate_unresolvable_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "ExDbgi.DefdelegateUnresolvable.XDefaults",
+            "name": "ex_dbgi_defdelegate_unresolvable_x_defaults_snoc"
+          },
+          "column": 79,
+          "file": "lib/callers/ex_dbgi/defdelegate_unresolvable/x_defaults.ex",
+          "id": "apply_1",
+          "line": 16,
+          "name": "ex_dbgi_defdelegate_unresolvable_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "ExDbgi.DefdelegateUnresolvable.XDefaults",
+            "name": "ex_dbgi_defdelegate_unresolvable_x_defaults_snoc"
+          },
+          "column": 72,
+          "file": "lib/callers/ex_dbgi/defdelegate_unresolvable/x_defaults.ex",
+          "id": "mfa_1",
+          "line": 17,
+          "name": "ex_dbgi_defdelegate_unresolvable_x_defaults_snoc"
+        },
+        {
           "arity": 2,
           "binding": {
             "arity": 2,
@@ -63534,6 +64620,48 @@
           "file": "lib/callers/ex_dbgi/defdelegate_unresolvable/x_defaults_head.ex",
           "id": "arity_1",
           "line": 15,
+          "name": "ex_dbgi_defdelegate_unresolvable_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "ExDbgi.DefdelegateUnresolvable.XDefaultsHead",
+            "name": "ex_dbgi_defdelegate_unresolvable_x_defaults_head_snoc"
+          },
+          "column": 78,
+          "file": "lib/callers/ex_dbgi/defdelegate_unresolvable/x_defaults_head.ex",
+          "id": "capture_1",
+          "line": 16,
+          "name": "ex_dbgi_defdelegate_unresolvable_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "ExDbgi.DefdelegateUnresolvable.XDefaultsHead",
+            "name": "ex_dbgi_defdelegate_unresolvable_x_defaults_head_snoc"
+          },
+          "column": 83,
+          "file": "lib/callers/ex_dbgi/defdelegate_unresolvable/x_defaults_head.ex",
+          "id": "apply_1",
+          "line": 17,
+          "name": "ex_dbgi_defdelegate_unresolvable_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "ExDbgi.DefdelegateUnresolvable.XDefaultsHead",
+            "name": "ex_dbgi_defdelegate_unresolvable_x_defaults_head_snoc"
+          },
+          "column": 76,
+          "file": "lib/callers/ex_dbgi/defdelegate_unresolvable/x_defaults_head.ex",
+          "id": "mfa_1",
+          "line": 18,
           "name": "ex_dbgi_defdelegate_unresolvable_x_defaults_head_snoc"
         },
         {
@@ -64315,7 +65443,7 @@
           "arity": 2,
           "binding": {
             "arity": 2,
-            "kind": "apply",
+            "kind": "apply_quoted",
             "module": "ExDbgi.DefdelegateUnresolvable.XNfc",
             "name": "ex_dbgi_defdelegate_unresolvable_x_nfc_snoć"
           },
@@ -66103,6 +67231,48 @@
           "file": "lib/callers/ex_dbgi/defdelegate_as/x_defaults.ex",
           "id": "default_arity",
           "line": 14,
+          "name": "ex_dbgi_defdelegate_as_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "ExDbgi.DefdelegateAs.XDefaults",
+            "name": "ex_dbgi_defdelegate_as_x_defaults_snoc"
+          },
+          "column": 64,
+          "file": "lib/callers/ex_dbgi/defdelegate_as/x_defaults.ex",
+          "id": "capture_1",
+          "line": 15,
+          "name": "ex_dbgi_defdelegate_as_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "ExDbgi.DefdelegateAs.XDefaults",
+            "name": "ex_dbgi_defdelegate_as_x_defaults_snoc"
+          },
+          "column": 69,
+          "file": "lib/callers/ex_dbgi/defdelegate_as/x_defaults.ex",
+          "id": "apply_1",
+          "line": 16,
+          "name": "ex_dbgi_defdelegate_as_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "ExDbgi.DefdelegateAs.XDefaults",
+            "name": "ex_dbgi_defdelegate_as_x_defaults_snoc"
+          },
+          "column": 62,
+          "file": "lib/callers/ex_dbgi/defdelegate_as/x_defaults.ex",
+          "id": "mfa_1",
+          "line": 17,
           "name": "ex_dbgi_defdelegate_as_x_defaults_snoc"
         },
         {
@@ -71265,6 +72435,48 @@
           "name": "ex_docs_def_x_defaults_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "ExDocs.Def.XDefaults",
+            "name": "ex_docs_def_x_defaults_snoc"
+          },
+          "column": 54,
+          "file": "lib/callers/ex_docs/def/x_defaults.ex",
+          "id": "capture_1",
+          "line": 15,
+          "name": "ex_docs_def_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "ExDocs.Def.XDefaults",
+            "name": "ex_docs_def_x_defaults_snoc"
+          },
+          "column": 59,
+          "file": "lib/callers/ex_docs/def/x_defaults.ex",
+          "id": "apply_1",
+          "line": 16,
+          "name": "ex_docs_def_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "ExDocs.Def.XDefaults",
+            "name": "ex_docs_def_x_defaults_snoc"
+          },
+          "column": 52,
+          "file": "lib/callers/ex_docs/def/x_defaults.ex",
+          "id": "mfa_1",
+          "line": 17,
+          "name": "ex_docs_def_x_defaults_snoc"
+        },
+        {
           "arity": 2,
           "binding": {
             "arity": 2,
@@ -71641,6 +72853,48 @@
           "file": "lib/callers/ex_docs/def/x_defaults_head.ex",
           "id": "arity_1",
           "line": 15,
+          "name": "ex_docs_def_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "ExDocs.Def.XDefaultsHead",
+            "name": "ex_docs_def_x_defaults_head_snoc"
+          },
+          "column": 58,
+          "file": "lib/callers/ex_docs/def/x_defaults_head.ex",
+          "id": "capture_1",
+          "line": 16,
+          "name": "ex_docs_def_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "ExDocs.Def.XDefaultsHead",
+            "name": "ex_docs_def_x_defaults_head_snoc"
+          },
+          "column": 63,
+          "file": "lib/callers/ex_docs/def/x_defaults_head.ex",
+          "id": "apply_1",
+          "line": 17,
+          "name": "ex_docs_def_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "ExDocs.Def.XDefaultsHead",
+            "name": "ex_docs_def_x_defaults_head_snoc"
+          },
+          "column": 56,
+          "file": "lib/callers/ex_docs/def/x_defaults_head.ex",
+          "id": "mfa_1",
+          "line": 18,
           "name": "ex_docs_def_x_defaults_head_snoc"
         },
         {
@@ -72422,7 +73676,7 @@
           "arity": 2,
           "binding": {
             "arity": 2,
-            "kind": "apply",
+            "kind": "apply_quoted",
             "module": "ExDocs.Def.XNfc",
             "name": "ex_docs_def_x_nfc_snoć"
           },
@@ -73709,7 +74963,9 @@
     },
     {
       "backing": "ex_docs",
-      "brokenCallers": [],
+      "brokenCallers": [
+        "lib/callers/ex_docs/defp/x_arity_absent_broken.ex"
+      ],
       "caller": "lib/callers/ex_docs/defp/x_arity_absent.ex",
       "form": "defp",
       "importCallers": [],
@@ -73789,6 +75045,34 @@
           "id": "local",
           "line": 5,
           "name": "ex_docs_defp_x_arity_absent_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 61,
+          "diagnostic": {
+            "message": "ExDocs.Defp.XArityAbsent.snoc/2 is undefined or private",
+            "severity": "warning"
+          },
+          "file": "lib/callers/ex_docs/defp/x_arity_absent_broken.ex",
+          "id": "private_remote",
+          "line": 4,
+          "name": "snoc",
+          "visible": []
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 70,
+          "diagnostic": {
+            "message": "ExDocs.Defp.XArityAbsent.snoc/1 is undefined or private",
+            "severity": "warning"
+          },
+          "file": "lib/callers/ex_docs/defp/x_arity_absent_broken.ex",
+          "id": "private_remote_arity_1",
+          "line": 5,
+          "name": "snoc",
+          "visible": []
         }
       ],
       "world": "x_arity_absent"
@@ -84854,6 +86138,48 @@
           "name": "ex_docs_defdelegate_x_defaults_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "ExDocs.Defdelegate.XDefaults",
+            "name": "ex_docs_defdelegate_x_defaults_snoc"
+          },
+          "column": 62,
+          "file": "lib/callers/ex_docs/defdelegate/x_defaults.ex",
+          "id": "capture_1",
+          "line": 15,
+          "name": "ex_docs_defdelegate_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "ExDocs.Defdelegate.XDefaults",
+            "name": "ex_docs_defdelegate_x_defaults_snoc"
+          },
+          "column": 67,
+          "file": "lib/callers/ex_docs/defdelegate/x_defaults.ex",
+          "id": "apply_1",
+          "line": 16,
+          "name": "ex_docs_defdelegate_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "ExDocs.Defdelegate.XDefaults",
+            "name": "ex_docs_defdelegate_x_defaults_snoc"
+          },
+          "column": 60,
+          "file": "lib/callers/ex_docs/defdelegate/x_defaults.ex",
+          "id": "mfa_1",
+          "line": 17,
+          "name": "ex_docs_defdelegate_x_defaults_snoc"
+        },
+        {
           "arity": 2,
           "binding": {
             "arity": 2,
@@ -85254,6 +86580,48 @@
           "file": "lib/callers/ex_docs/defdelegate/x_defaults_head.ex",
           "id": "arity_1",
           "line": 15,
+          "name": "ex_docs_defdelegate_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "ExDocs.Defdelegate.XDefaultsHead",
+            "name": "ex_docs_defdelegate_x_defaults_head_snoc"
+          },
+          "column": 66,
+          "file": "lib/callers/ex_docs/defdelegate/x_defaults_head.ex",
+          "id": "capture_1",
+          "line": 16,
+          "name": "ex_docs_defdelegate_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "ExDocs.Defdelegate.XDefaultsHead",
+            "name": "ex_docs_defdelegate_x_defaults_head_snoc"
+          },
+          "column": 71,
+          "file": "lib/callers/ex_docs/defdelegate/x_defaults_head.ex",
+          "id": "apply_1",
+          "line": 17,
+          "name": "ex_docs_defdelegate_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "ExDocs.Defdelegate.XDefaultsHead",
+            "name": "ex_docs_defdelegate_x_defaults_head_snoc"
+          },
+          "column": 64,
+          "file": "lib/callers/ex_docs/defdelegate/x_defaults_head.ex",
+          "id": "mfa_1",
+          "line": 18,
           "name": "ex_docs_defdelegate_x_defaults_head_snoc"
         },
         {
@@ -86235,7 +87603,7 @@
           "arity": 2,
           "binding": {
             "arity": 2,
-            "kind": "apply",
+            "kind": "apply_quoted",
             "module": "ExDocs.Defdelegate.XNfc",
             "name": "ex_docs_defdelegate_x_nfc_snoć"
           },
@@ -89608,6 +90976,48 @@
           "name": "ex_docs_defdelegate_unresolvable_x_defaults_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "ExDocs.DefdelegateUnresolvable.XDefaults",
+            "name": "ex_docs_defdelegate_unresolvable_x_defaults_snoc"
+          },
+          "column": 74,
+          "file": "lib/callers/ex_docs/defdelegate_unresolvable/x_defaults.ex",
+          "id": "capture_1",
+          "line": 15,
+          "name": "ex_docs_defdelegate_unresolvable_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "ExDocs.DefdelegateUnresolvable.XDefaults",
+            "name": "ex_docs_defdelegate_unresolvable_x_defaults_snoc"
+          },
+          "column": 79,
+          "file": "lib/callers/ex_docs/defdelegate_unresolvable/x_defaults.ex",
+          "id": "apply_1",
+          "line": 16,
+          "name": "ex_docs_defdelegate_unresolvable_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "ExDocs.DefdelegateUnresolvable.XDefaults",
+            "name": "ex_docs_defdelegate_unresolvable_x_defaults_snoc"
+          },
+          "column": 72,
+          "file": "lib/callers/ex_docs/defdelegate_unresolvable/x_defaults.ex",
+          "id": "mfa_1",
+          "line": 17,
+          "name": "ex_docs_defdelegate_unresolvable_x_defaults_snoc"
+        },
+        {
           "arity": 2,
           "binding": {
             "arity": 2,
@@ -89968,6 +91378,48 @@
           "file": "lib/callers/ex_docs/defdelegate_unresolvable/x_defaults_head.ex",
           "id": "arity_1",
           "line": 15,
+          "name": "ex_docs_defdelegate_unresolvable_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "ExDocs.DefdelegateUnresolvable.XDefaultsHead",
+            "name": "ex_docs_defdelegate_unresolvable_x_defaults_head_snoc"
+          },
+          "column": 78,
+          "file": "lib/callers/ex_docs/defdelegate_unresolvable/x_defaults_head.ex",
+          "id": "capture_1",
+          "line": 16,
+          "name": "ex_docs_defdelegate_unresolvable_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "ExDocs.DefdelegateUnresolvable.XDefaultsHead",
+            "name": "ex_docs_defdelegate_unresolvable_x_defaults_head_snoc"
+          },
+          "column": 83,
+          "file": "lib/callers/ex_docs/defdelegate_unresolvable/x_defaults_head.ex",
+          "id": "apply_1",
+          "line": 17,
+          "name": "ex_docs_defdelegate_unresolvable_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "ExDocs.DefdelegateUnresolvable.XDefaultsHead",
+            "name": "ex_docs_defdelegate_unresolvable_x_defaults_head_snoc"
+          },
+          "column": 76,
+          "file": "lib/callers/ex_docs/defdelegate_unresolvable/x_defaults_head.ex",
+          "id": "mfa_1",
+          "line": 18,
           "name": "ex_docs_defdelegate_unresolvable_x_defaults_head_snoc"
         },
         {
@@ -90749,7 +92201,7 @@
           "arity": 2,
           "binding": {
             "arity": 2,
-            "kind": "apply",
+            "kind": "apply_quoted",
             "module": "ExDocs.DefdelegateUnresolvable.XNfc",
             "name": "ex_docs_defdelegate_unresolvable_x_nfc_snoć"
           },
@@ -92537,6 +93989,48 @@
           "file": "lib/callers/ex_docs/defdelegate_as/x_defaults.ex",
           "id": "default_arity",
           "line": 14,
+          "name": "ex_docs_defdelegate_as_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "ExDocs.DefdelegateAs.XDefaults",
+            "name": "ex_docs_defdelegate_as_x_defaults_snoc"
+          },
+          "column": 64,
+          "file": "lib/callers/ex_docs/defdelegate_as/x_defaults.ex",
+          "id": "capture_1",
+          "line": 15,
+          "name": "ex_docs_defdelegate_as_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "ExDocs.DefdelegateAs.XDefaults",
+            "name": "ex_docs_defdelegate_as_x_defaults_snoc"
+          },
+          "column": 69,
+          "file": "lib/callers/ex_docs/defdelegate_as/x_defaults.ex",
+          "id": "apply_1",
+          "line": 16,
+          "name": "ex_docs_defdelegate_as_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "ExDocs.DefdelegateAs.XDefaults",
+            "name": "ex_docs_defdelegate_as_x_defaults_snoc"
+          },
+          "column": 62,
+          "file": "lib/callers/ex_docs/defdelegate_as/x_defaults.ex",
+          "id": "mfa_1",
+          "line": 17,
           "name": "ex_docs_defdelegate_as_x_defaults_snoc"
         },
         {
@@ -97708,6 +99202,48 @@
           "name": "ex_gen_def_x_defaults_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "ExGen.Def.XDefaults",
+            "name": "ex_gen_def_x_defaults_snoc"
+          },
+          "column": 53,
+          "file": "lib/callers/ex_gen/def/x_defaults.ex",
+          "id": "capture_1",
+          "line": 15,
+          "name": "ex_gen_def_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "ExGen.Def.XDefaults",
+            "name": "ex_gen_def_x_defaults_snoc"
+          },
+          "column": 58,
+          "file": "lib/callers/ex_gen/def/x_defaults.ex",
+          "id": "apply_1",
+          "line": 16,
+          "name": "ex_gen_def_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "ExGen.Def.XDefaults",
+            "name": "ex_gen_def_x_defaults_snoc"
+          },
+          "column": 51,
+          "file": "lib/callers/ex_gen/def/x_defaults.ex",
+          "id": "mfa_1",
+          "line": 17,
+          "name": "ex_gen_def_x_defaults_snoc"
+        },
+        {
           "arity": 2,
           "binding": {
             "arity": 2,
@@ -98100,6 +99636,48 @@
           "file": "lib/callers/ex_gen/def/x_defaults_head.ex",
           "id": "arity_1",
           "line": 15,
+          "name": "ex_gen_def_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "ExGen.Def.XDefaultsHead",
+            "name": "ex_gen_def_x_defaults_head_snoc"
+          },
+          "column": 57,
+          "file": "lib/callers/ex_gen/def/x_defaults_head.ex",
+          "id": "capture_1",
+          "line": 16,
+          "name": "ex_gen_def_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "ExGen.Def.XDefaultsHead",
+            "name": "ex_gen_def_x_defaults_head_snoc"
+          },
+          "column": 62,
+          "file": "lib/callers/ex_gen/def/x_defaults_head.ex",
+          "id": "apply_1",
+          "line": 17,
+          "name": "ex_gen_def_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "ExGen.Def.XDefaultsHead",
+            "name": "ex_gen_def_x_defaults_head_snoc"
+          },
+          "column": 55,
+          "file": "lib/callers/ex_gen/def/x_defaults_head.ex",
+          "id": "mfa_1",
+          "line": 18,
           "name": "ex_gen_def_x_defaults_head_snoc"
         },
         {
@@ -98881,7 +100459,7 @@
           "arity": 2,
           "binding": {
             "arity": 2,
-            "kind": "apply",
+            "kind": "apply_quoted",
             "module": "ExGen.Def.XNfc",
             "name": "ex_gen_def_x_nfc_snoć"
           },
@@ -100168,7 +101746,9 @@
     },
     {
       "backing": "ex_gen",
-      "brokenCallers": [],
+      "brokenCallers": [
+        "lib/callers/ex_gen/defp/x_arity_absent_broken.ex"
+      ],
       "caller": "lib/callers/ex_gen/defp/x_arity_absent.ex",
       "form": "defp",
       "importCallers": [],
@@ -100248,6 +101828,34 @@
           "id": "local",
           "line": 5,
           "name": "ex_gen_defp_x_arity_absent_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 60,
+          "diagnostic": {
+            "message": "ExGen.Defp.XArityAbsent.snoc/2 is undefined or private",
+            "severity": "warning"
+          },
+          "file": "lib/callers/ex_gen/defp/x_arity_absent_broken.ex",
+          "id": "private_remote",
+          "line": 4,
+          "name": "snoc",
+          "visible": []
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 69,
+          "diagnostic": {
+            "message": "ExGen.Defp.XArityAbsent.snoc/1 is undefined or private",
+            "severity": "warning"
+          },
+          "file": "lib/callers/ex_gen/defp/x_arity_absent_broken.ex",
+          "id": "private_remote_arity_1",
+          "line": 5,
+          "name": "snoc",
+          "visible": []
         }
       ],
       "world": "x_arity_absent"
@@ -111347,6 +112955,48 @@
           "name": "ex_gen_defdelegate_x_defaults_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "ExGen.Defdelegate.XDefaults",
+            "name": "ex_gen_defdelegate_x_defaults_snoc"
+          },
+          "column": 61,
+          "file": "lib/callers/ex_gen/defdelegate/x_defaults.ex",
+          "id": "capture_1",
+          "line": 15,
+          "name": "ex_gen_defdelegate_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "ExGen.Defdelegate.XDefaults",
+            "name": "ex_gen_defdelegate_x_defaults_snoc"
+          },
+          "column": 66,
+          "file": "lib/callers/ex_gen/defdelegate/x_defaults.ex",
+          "id": "apply_1",
+          "line": 16,
+          "name": "ex_gen_defdelegate_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "ExGen.Defdelegate.XDefaults",
+            "name": "ex_gen_defdelegate_x_defaults_snoc"
+          },
+          "column": 59,
+          "file": "lib/callers/ex_gen/defdelegate/x_defaults.ex",
+          "id": "mfa_1",
+          "line": 17,
+          "name": "ex_gen_defdelegate_x_defaults_snoc"
+        },
+        {
           "arity": 2,
           "binding": {
             "arity": 2,
@@ -111763,6 +113413,48 @@
           "file": "lib/callers/ex_gen/defdelegate/x_defaults_head.ex",
           "id": "arity_1",
           "line": 15,
+          "name": "ex_gen_defdelegate_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "ExGen.Defdelegate.XDefaultsHead",
+            "name": "ex_gen_defdelegate_x_defaults_head_snoc"
+          },
+          "column": 65,
+          "file": "lib/callers/ex_gen/defdelegate/x_defaults_head.ex",
+          "id": "capture_1",
+          "line": 16,
+          "name": "ex_gen_defdelegate_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "ExGen.Defdelegate.XDefaultsHead",
+            "name": "ex_gen_defdelegate_x_defaults_head_snoc"
+          },
+          "column": 70,
+          "file": "lib/callers/ex_gen/defdelegate/x_defaults_head.ex",
+          "id": "apply_1",
+          "line": 17,
+          "name": "ex_gen_defdelegate_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "ExGen.Defdelegate.XDefaultsHead",
+            "name": "ex_gen_defdelegate_x_defaults_head_snoc"
+          },
+          "column": 63,
+          "file": "lib/callers/ex_gen/defdelegate/x_defaults_head.ex",
+          "id": "mfa_1",
+          "line": 18,
           "name": "ex_gen_defdelegate_x_defaults_head_snoc"
         },
         {
@@ -112744,7 +114436,7 @@
           "arity": 2,
           "binding": {
             "arity": 2,
-            "kind": "apply",
+            "kind": "apply_quoted",
             "module": "ExGen.Defdelegate.XNfc",
             "name": "ex_gen_defdelegate_x_nfc_snoć"
           },
@@ -116126,6 +117818,48 @@
           "name": "ex_gen_defdelegate_unresolvable_x_defaults_snoc"
         },
         {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "ExGen.DefdelegateUnresolvable.XDefaults",
+            "name": "ex_gen_defdelegate_unresolvable_x_defaults_snoc"
+          },
+          "column": 73,
+          "file": "lib/callers/ex_gen/defdelegate_unresolvable/x_defaults.ex",
+          "id": "capture_1",
+          "line": 15,
+          "name": "ex_gen_defdelegate_unresolvable_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "ExGen.DefdelegateUnresolvable.XDefaults",
+            "name": "ex_gen_defdelegate_unresolvable_x_defaults_snoc"
+          },
+          "column": 78,
+          "file": "lib/callers/ex_gen/defdelegate_unresolvable/x_defaults.ex",
+          "id": "apply_1",
+          "line": 16,
+          "name": "ex_gen_defdelegate_unresolvable_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "ExGen.DefdelegateUnresolvable.XDefaults",
+            "name": "ex_gen_defdelegate_unresolvable_x_defaults_snoc"
+          },
+          "column": 71,
+          "file": "lib/callers/ex_gen/defdelegate_unresolvable/x_defaults.ex",
+          "id": "mfa_1",
+          "line": 17,
+          "name": "ex_gen_defdelegate_unresolvable_x_defaults_snoc"
+        },
+        {
           "arity": 2,
           "binding": {
             "arity": 2,
@@ -116502,6 +118236,48 @@
           "file": "lib/callers/ex_gen/defdelegate_unresolvable/x_defaults_head.ex",
           "id": "arity_1",
           "line": 15,
+          "name": "ex_gen_defdelegate_unresolvable_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "ExGen.DefdelegateUnresolvable.XDefaultsHead",
+            "name": "ex_gen_defdelegate_unresolvable_x_defaults_head_snoc"
+          },
+          "column": 77,
+          "file": "lib/callers/ex_gen/defdelegate_unresolvable/x_defaults_head.ex",
+          "id": "capture_1",
+          "line": 16,
+          "name": "ex_gen_defdelegate_unresolvable_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "ExGen.DefdelegateUnresolvable.XDefaultsHead",
+            "name": "ex_gen_defdelegate_unresolvable_x_defaults_head_snoc"
+          },
+          "column": 82,
+          "file": "lib/callers/ex_gen/defdelegate_unresolvable/x_defaults_head.ex",
+          "id": "apply_1",
+          "line": 17,
+          "name": "ex_gen_defdelegate_unresolvable_x_defaults_head_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "ExGen.DefdelegateUnresolvable.XDefaultsHead",
+            "name": "ex_gen_defdelegate_unresolvable_x_defaults_head_snoc"
+          },
+          "column": 75,
+          "file": "lib/callers/ex_gen/defdelegate_unresolvable/x_defaults_head.ex",
+          "id": "mfa_1",
+          "line": 18,
           "name": "ex_gen_defdelegate_unresolvable_x_defaults_head_snoc"
         },
         {
@@ -117283,7 +119059,7 @@
           "arity": 2,
           "binding": {
             "arity": 2,
-            "kind": "apply",
+            "kind": "apply_quoted",
             "module": "ExGen.DefdelegateUnresolvable.XNfc",
             "name": "ex_gen_defdelegate_unresolvable_x_nfc_snoć"
           },
@@ -119080,6 +120856,48 @@
           "file": "lib/callers/ex_gen/defdelegate_as/x_defaults.ex",
           "id": "default_arity",
           "line": 14,
+          "name": "ex_gen_defdelegate_as_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "ExGen.DefdelegateAs.XDefaults",
+            "name": "ex_gen_defdelegate_as_x_defaults_snoc"
+          },
+          "column": 63,
+          "file": "lib/callers/ex_gen/defdelegate_as/x_defaults.ex",
+          "id": "capture_1",
+          "line": 15,
+          "name": "ex_gen_defdelegate_as_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "apply",
+            "module": "ExGen.DefdelegateAs.XDefaults",
+            "name": "ex_gen_defdelegate_as_x_defaults_snoc"
+          },
+          "column": 68,
+          "file": "lib/callers/ex_gen/defdelegate_as/x_defaults.ex",
+          "id": "apply_1",
+          "line": 16,
+          "name": "ex_gen_defdelegate_as_x_defaults_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "mfa",
+            "module": "ExGen.DefdelegateAs.XDefaults",
+            "name": "ex_gen_defdelegate_as_x_defaults_snoc"
+          },
+          "column": 61,
+          "file": "lib/callers/ex_gen/defdelegate_as/x_defaults.ex",
+          "id": "mfa_1",
+          "line": 17,
           "name": "ex_gen_defdelegate_as_x_defaults_snoc"
         },
         {
@@ -124741,7 +126559,9 @@
     },
     {
       "backing": "erl_abst",
-      "brokenCallers": [],
+      "brokenCallers": [
+        "lib/callers/erl_abst/defp/x_arity_absent_broken.ex"
+      ],
       "caller": "lib/callers/erl_abst/defp/x_arity_absent.ex",
       "form": "defp",
       "importCallers": [],
@@ -124792,6 +126612,34 @@
           "id": "local",
           "line": 7,
           "name": "erl_abst_defp_x_arity_absent_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 66,
+          "diagnostic": {
+            "message": ":erl_abst_defp_x_arity_absent.snoc/2 is undefined or private",
+            "severity": "warning"
+          },
+          "file": "lib/callers/erl_abst/defp/x_arity_absent_broken.ex",
+          "id": "private_remote",
+          "line": 4,
+          "name": "snoc",
+          "visible": []
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 75,
+          "diagnostic": {
+            "message": ":erl_abst_defp_x_arity_absent.snoc/1 is undefined or private",
+            "severity": "warning"
+          },
+          "file": "lib/callers/erl_abst/defp/x_arity_absent_broken.ex",
+          "id": "private_remote_arity_1",
+          "line": 5,
+          "name": "snoc",
+          "visible": []
         }
       ],
       "world": "x_arity_absent"
