@@ -2,6 +2,7 @@ package org.elixir_lang.psi
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.util.Computable
+import com.intellij.psi.PsiElement
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function
 import org.elixir_lang.psi.call.name.Module
@@ -22,6 +23,11 @@ object Module {
                             .getApplication()
                             .runReadAction(Computable { !CallableDeclaration.isHead(call) })) ||
                     call.isCalling(Module.MODULE, Function.CREATE, 3)
+
+    /** [element] if it is a `defmodule`, else the nearest `defmodule` around it. */
+    @RequiresReadLock
+    fun enclosing(element: PsiElement): Call? =
+        generateSequence(element) { it.parent }.filterIsInstance<Call>().firstOrNull { `is`(it) }
 
     @RequiresReadLock
     @Contract(pure = true)

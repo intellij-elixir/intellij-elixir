@@ -41,6 +41,17 @@ object CallDefinitionClause {
             }
 
     /**
+     * [element] if it is a modular, else the modular it is written in: [enclosingModularMacroCall] followed past each
+     * boundary it stops at - a definition, `quote` or `do` block - which module scope does not cross.
+     */
+    @RequiresReadLock
+    @JvmStatic
+    fun enclosingModular(element: PsiElement): Call? =
+        generateSequence((element as? Call) ?: PsiTreeUtil.getParentOfType(element, Call::class.java)) {
+            enclosingModularMacroCall(it)
+        }.firstOrNull(::isModular)
+
+    /**
      * Whether [call] stops module scope for what is inside it: a definition's body, a `quote`, or a `do` block that is
      * not one of Elixir's own [isModuleScopeConstruct]s, as a macro may put it in a `def` as ExUnit's `test` does.
      * Decided without resolving, so stub building may ask; telling macros apart would resolve while listing the module.

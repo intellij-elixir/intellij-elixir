@@ -57,6 +57,23 @@ class GenServerDispatchTest : PlatformTestCase() {
         assertRequestNavigatesToHandler("handle_call", ":pop")
     }
 
+    /** A `defimpl` is a module too, so a send inside one reaches the handler it defines. */
+    fun testARequestInsideADefimplNavigatesToItsHandler() {
+        myFixture.configureByText(
+            "stack_impl.ex",
+            """
+                defimpl Poppable, for: Stack do
+                  def pop(pid), do: GenServer.call(pid, :<caret>pop)
+
+                  def handle_call(:pop, _from, [head | tail]) do
+                    {:reply, head, tail}
+                  end
+                end
+            """.trimIndent()
+        )
+        assertRequestNavigatesToHandler("handle_call", ":pop")
+    }
+
     /** `:"pop"` is the same atom as `:pop`, so it reaches the same handler. */
     fun testQuotedRequestNavigatesToTheBareAtomsHandler() {
         myFixture.configureByText(

@@ -570,10 +570,7 @@ internal object ElixirUsageQueries {
         }
 
         private fun hasEnclosingModuleAlias(element: PsiElement, targetFqn: String): Boolean {
-            val enclosingModule = generateSequence(element) { it.parent }
-                .filterIsInstance<Call>()
-                .firstOrNull { Module.`is`(it) }
-                ?: return false
+            val enclosingModule = Module.enclosing(element) ?: return false
 
             return PsiTreeUtil.findChildrenOfType(enclosingModule, Call::class.java).any { call ->
                 (call.isCalling(KERNEL, ALIAS) ||

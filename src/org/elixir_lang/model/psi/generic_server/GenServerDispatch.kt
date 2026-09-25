@@ -46,7 +46,7 @@ internal object GenServerDispatch {
         // The message is always the second argument (index 1) of the send site.
         if (arguments.size < 2 || !PsiTreeUtil.isAncestor(arguments[1], atom, false)) return emptyList()
 
-        val module = enclosingModule(sendCall) ?: return emptyList()
+        val module = CallDefinitionClause.enclosingModular(sendCall) ?: return emptyList()
 
         return Modular
             .callDefinitionClauseCallSequence(module)
@@ -77,12 +77,6 @@ internal object GenServerDispatch {
         call.isCalling(PROCESS, "send_after", 3) -> Dispatch("handle_info", 2)
         else -> null
     }
-
-    @RequiresReadLock
-    private fun enclosingModule(call: Call): Call? =
-        generateSequence(call.parent) { it.parent }
-            .filterIsInstance<Call>()
-            .firstOrNull { org.elixir_lang.psi.Module.`is`(it) }
 
     @RequiresReadLock
     private fun clauseMatches(clause: Call, dispatch: Dispatch, messageName: String): Boolean {

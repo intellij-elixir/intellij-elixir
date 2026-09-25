@@ -22,9 +22,6 @@ import org.elixir_lang.util.foldWhile
 import org.jetbrains.annotations.Contract
 
 @RequiresReadLock
-fun PsiElement.ancestorSequence() = generateSequence(this) { it.parent }
-
-@RequiresReadLock
 fun PsiElement.document(): Document? = containingFile.viewProvider.document
 
 private val isModuleName = { c: PsiElement -> c is MaybeModuleName && c.isModuleName }

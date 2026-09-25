@@ -106,9 +106,7 @@ internal class TargetElementEvaluator : TargetElementEvaluatorEx2() {
                     // Suppress legacy references on `defmodule` heads (Symbol-owned): covers both the whole
                     // Call element and the `defmodule` keyword leaf (functionNameElement), which otherwise
                     // resolves to Kernel.defmodule in .beam and causes spurious navigation.
-                    val enclosingModuleCall = generateSequence(referenceElement) { it.parent }
-                        .filterIsInstance<Call>()
-                        .firstOrNull { org.elixir_lang.psi.Module.`is`(it) }
+                    val enclosingModuleCall = org.elixir_lang.psi.Module.enclosing(referenceElement)
                     val isOnDefmoduleHead = enclosingModuleCall != null &&
                             (referenceElement == enclosingModuleCall ||
                                     PsiTreeUtil.isAncestor(

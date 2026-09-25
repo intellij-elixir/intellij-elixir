@@ -7,9 +7,7 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.psi.Module as BeamModule
 import org.elixir_lang.psi.CallableDeclaration
-import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
-import org.elixir_lang.psi.stub.type.call.Stub.isModular
 
 /** How resolution reached a declaration from the module it started in. */
 enum class Reach {
@@ -119,6 +117,6 @@ enum class Reach {
         }
 
         private fun homeModular(entrance: PsiElement): PsiElement? =
-            generateSequence(entrance) { it.parent }.firstOrNull { it is BeamModule || (it is Call && isModular(it)) }
+            org.elixir_lang.psi.CallDefinitionClause.enclosingModular(entrance) ?: PsiTreeUtil.getParentOfType(entrance, BeamModule::class.java, false)
     }
 }

@@ -8,16 +8,12 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.Module
-import org.elixir_lang.psi.call.Call
 
 @Suppress("UnstableApiUsage")
 internal class ModuleSymbolDeclarationProvider : PsiSymbolDeclarationProvider {
     @RequiresReadLock
     override fun getDeclarations(element: PsiElement, offsetInElement: Int): Collection<PsiSymbolDeclaration> {
-        val moduleCall = generateSequence(element) { it.parent }
-            .filterIsInstance<Call>()
-            .firstOrNull { Module.`is`(it) }
-            ?: return emptyList()
+        val moduleCall = Module.enclosing(element) ?: return emptyList()
 
         val nameElement = ModuleSymbol.moduleNameElement(moduleCall) ?: return emptyList()
         // Fire when: (a) caret is on a descendant of the module name alias, OR

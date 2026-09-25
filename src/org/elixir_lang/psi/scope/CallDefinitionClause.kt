@@ -21,7 +21,6 @@ import org.elixir_lang.psi.call.name.Module.KERNEL_SPECIAL_FORMS
 import org.elixir_lang.psi.ex_unit.Case
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.hasDoBlockOrKeyword
-import org.elixir_lang.psi.impl.ancestorSequence
 import org.elixir_lang.psi.impl.call.*
 import org.elixir_lang.psi.impl.siblingExpressions
 import org.elixir_lang.psi.scope.WhileIn.whileIn
@@ -286,7 +285,7 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
         } ?: false
 
     private fun modularContains(modular: Call, contained: PsiElement): Boolean =
-        contained.ancestorSequence().filterIsInstance<Call>().firstOrNull { isModular(it) } == modular
+        org.elixir_lang.psi.CallDefinitionClause.enclosingModular(contained) == modular
 
     private fun implicitImports(element: PsiElement, state: ResolveState): Boolean {
         val project = element.project

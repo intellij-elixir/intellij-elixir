@@ -157,6 +157,7 @@
   - **The `@doc` above an EEx `function_from_*` function no longer shows on the definition after it.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
   - **Show Used lists what `use A.Injector` and a `use` given options inject.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
   - **A variable written in a call to a `@macrocallback` is bound by it, as in a call to a `defmacro`.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **Go To Related from a `defdelegate` lands on its decompiled function instead of the module, and finds the decompiled source of a dependency or the SDK.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
 - [#4146](https://github.com/intellij-elixir/intellij-elixir/pull/4146) [@sh41](https://github.com/sh41)
   - **Building a project no longer fails with `UnsupportedClassVersionError` from the plugin's JPS classes when the project SDK is older than the IDE's JDK.** Fixes [#3996](https://github.com/intellij-elixir/intellij-elixir/issues/3996).
 - [#4160](https://github.com/intellij-elixir/intellij-elixir/pull/4160) [@sh41](https://github.com/sh41)
