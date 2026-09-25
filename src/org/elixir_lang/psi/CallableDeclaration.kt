@@ -283,12 +283,22 @@ object CallableDeclaration {
      * function, or handles a message, does.
      */
     @RequiresReadLock
-    fun defines(element: PsiElement, name: String, arity: Int, compileTime: Boolean): Boolean {
-        val state = ResolveState.initial()
-        val declared = declaredOf(element, state) ?: return false
+    fun defines(element: PsiElement, name: String, arity: Int, compileTime: Boolean): Boolean =
+        capabilitiesOf(element, ResolveState.initial())?.compileTime == compileTime && definesAt(element, name, arity) == true
 
-        return declared.capabilities?.compileTime == compileTime &&
-            declared.definitions(state).any { it.name == name && it.accepts(arity) }
+    /** Whether [element] defines [name] at [arity]; `null` when it declares nothing by that name. */
+    @RequiresReadLock
+    fun definesAt(element: PsiElement, name: String, arity: Int): Boolean? =
+        definitionsNamed(element, name).takeIf { it.isNotEmpty() }?.any { it.accepts(arity) }
+
+    /** Whether [element] defines [name] at any arity. */
+    @RequiresReadLock
+    fun definesName(element: PsiElement, name: String): Boolean = definitionsNamed(element, name).isNotEmpty()
+
+    private fun definitionsNamed(element: PsiElement, name: String): List<Declaration> {
+        val state = ResolveState.initial()
+
+        return declaredOf(element, state)?.definitions(state).orEmpty().filter { it.name == name }
     }
 
     /**

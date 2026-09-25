@@ -9,6 +9,7 @@ import com.intellij.psi.PsiElementResolveResult
 import com.intellij.psi.ResolveResult
 import com.intellij.psi.impl.source.resolve.ResolveCache
 import com.intellij.psi.stubs.StubIndex
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.psi.Alias
 import org.elixir_lang.psi.NamedElement
@@ -50,6 +51,14 @@ object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Modul
         return expanded.toTypedArray()
     }
 
+    /**
+     * Whether [element] is an `alias`, `require` or `use` a module was reached through: listed with the module, so Go To
+     * offers it, but not what the name resolves to.
+     */
+    @RequiresReadLock
+    fun isPath(element: PsiElement): Boolean =
+        (element as? Call)?.let { Alias.`is`(it) || Require.`is`(it) || Use.`is`(it) } ?: false
+
     private fun expand(visitedElementSetResolveResultList: List<VisitedElementSetResolveResult>): List<PsiElementResolveResult> =
         visitedElementSetResolveResultList
             .flatMap { visitedElementSetResolveResult ->
@@ -58,11 +67,7 @@ object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Modul
 
                 val pathResolveResultList =
                     visitedElementSet
-                        .filter { visitedElement ->
-                            visitedElement.let { it as? Call }?.let { visitedCall ->
-                                Alias.`is`(visitedCall) || Require.`is`(visitedCall) || Use.`is`(visitedCall)
-                            } ?: false
-                        }
+                        .filter(::isPath)
                         .map { PsiElementResolveResult(it, validResult) }
 
                 val terminalResolveResult = PsiElementResolveResult(

@@ -55,10 +55,7 @@ class AtomReference(
             .resolveWithCaching(this, Resolver, false, incompleteCode)
     }
 
-    override fun resolve(): PsiElement? =
-        ReferenceResolver.preferred(myElement, false, multiResolve(false).toList())
-            .firstOrNull()
-            ?.element
+    override fun resolve(): PsiElement? = ReferenceResolver.resolved(myElement, multiResolve(false).toList())
 
     override fun isSoft(): Boolean = true
 
@@ -121,10 +118,6 @@ class AtomReference(
  * whichever form - source or compiled - defines it, or what a delegation of that name delegates to, under its own name.
  */
 @RequiresReadLock
-private fun reachable(result: VisitedElementSetResolveResult, name: String): Boolean {
-    val state = ResolveState.initial()
-    val declared = CallableDeclaration.declaredOf(result.element, state) ?: return false
-
-    return Reach.remotelyReaches(result.reach, result.element, runtime = true) &&
-        (result.reach.delegationTarget || declared.definitions(state).any { it.name == name })
-}
+private fun reachable(result: VisitedElementSetResolveResult, name: String): Boolean =
+    Reach.remotelyReaches(result.reach, result.element, runtime = true) &&
+        (result.reach.delegationTarget || CallableDeclaration.definesName(result.element, name))

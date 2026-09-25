@@ -35,13 +35,13 @@ class CallableDeclarationResolutionTest : PlatformTestCase() {
 
         assertEquals(
             """
-            clause(1) -> def clause(a), do: a | use Using
-            delegated(1, 2) -> defdelegate delegated(a, b), to: Unresolvable | use Using
-            exception(message: "x") -> defexception [:message] | use Using
-            message(%{}) -> defexception [:message] | use Using
-            from_string(1) -> EEx.function_from_string(:def, :from_string, "<%= a %>", [:a]) | use Using
-            log_template(a: 1) -> Mix.Generator.embed_template(:log, "Log") | use Using
-            error_text() -> Mix.Generator.embed_text(:error, "Error") | use Using
+            clause(1) -> def clause(a), do: a
+            delegated(1, 2) -> defdelegate delegated(a, b), to: Unresolvable
+            exception(message: "x") -> defexception [:message]
+            message(%{}) -> defexception [:message]
+            from_string(1) -> EEx.function_from_string(:def, :from_string, "<%= a %>", [:a])
+            log_template(a: 1) -> Mix.Generator.embed_template(:log, "Log")
+            error_text() -> Mix.Generator.embed_text(:error, "Error")
             """.trimIndent(),
             resolutions("clause(1)", "delegated(1, 2)", "exception(message: \"x\")", "message(%{})",
                 "from_string(1)", "log_template(a: 1)", "error_text()")
@@ -58,12 +58,12 @@ class CallableDeclarationResolutionTest : PlatformTestCase() {
 
         assertEquals(
             """
-            plain(1) -> def plain(x), do: x | import Views
+            plain(1) -> def plain(x), do: x
             secret(1) -> nothing
-            greet("x") -> EEx.function_from_string(:def, :greet, "<%= name %>", [:name]) | import Views
+            greet("x") -> EEx.function_from_string(:def, :greet, "<%= name %>", [:name])
             hidden() -> nothing
             banner_text() -> nothing
-            message(%{}) -> defexception [:message] | import Views
+            message(%{}) -> defexception [:message]
             hook() -> nothing
             """.trimIndent(),
             resolutions("plain(1)", "secret(1)", "greet(\"x\")", "hidden()", "banner_text()", "message(%{})", "hook()")
@@ -96,9 +96,9 @@ class CallableDeclarationResolutionTest : PlatformTestCase() {
 
         assertEquals(
             """
-            exception(message: "x") -> defexception [:message] | import Errors, only: [exception: 1, pad: 1]
+            exception(message: "x") -> defexception [:message]
             message(%{}) -> nothing
-            pad(1) -> def pad(a, b \\ 1), do: {a, b} | import Errors, only: [exception: 1, pad: 1]
+            pad(1) -> def pad(a, b \\ 1), do: {a, b}
             pad(1, 2) -> nothing
             """.trimIndent(),
             resolutions("exception(message: \"x\")", "message(%{})", "pad(1)", "pad(1, 2)")
@@ -125,7 +125,7 @@ class CallableDeclarationResolutionTest : PlatformTestCase() {
         assertEquals(
             """
             pad(1) -> nothing
-            pad(1, 2) -> def pad(a, b \\ 1), do: {a, b} | import Padding, except: [pad: 1]
+            pad(1, 2) -> def pad(a, b \\ 1), do: {a, b}
             """.trimIndent(),
             resolutions("pad(1)", "pad(1, 2)")
         )

@@ -353,12 +353,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                         val callName = contextElement.functionName()
                         val exactNameElements = allResults
                             .mapNotNull(ResolveResult::getElement)
-                            .filter { element ->
-                                CallableDeclaration.declaredOf(element, ResolveState.initial())
-                                    ?.definitions(ResolveState.initial())
-                                    .orEmpty()
-                                    .any { it.name == callName }
-                            }
+                            .filter { element -> callName != null && CallableDeclaration.definesName(element, callName) }
                         bestDocumented(exactNameElements)
                     }
                 }

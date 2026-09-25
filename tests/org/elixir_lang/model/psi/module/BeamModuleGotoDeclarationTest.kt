@@ -39,6 +39,18 @@ class BeamModuleGotoDeclarationTest : BeamLibraryTestCase() {
         assertNavigatesToDecompiledCode()
     }
 
+    /** The `alias` a use goes through is how it was reached, not what it names, even though it is source. */
+    fun testAnAliasedCompiledModuleResolvesToTheModuleNotTheAlias() {
+        myFixture.configureByText(
+            "aliased_beam_module.ex",
+            "defmodule Aliased do\n  alias Code, as: C\n  def f, do: <caret>C.eval_string(\"1\")\nend\n"
+        )
+
+        val resolved = myFixture.file.findReferenceAt(myFixture.caretOffset)?.resolve()
+
+        assertEquals("Elixir.Code.beam", resolved?.containingFile?.name)
+    }
+
     private fun assertNavigatesToDecompiledCode() {
         val target = myFixture.gotoDeclarationDestinationAtCaret()
         assertNotNull("Go To Declaration should navigate into the decompiled Code module", target)

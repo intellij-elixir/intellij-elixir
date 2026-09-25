@@ -1,5 +1,6 @@
 package org.elixir_lang.psi.scope.call_definition_clause
 
+import com.intellij.openapi.util.RecursionManager
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.scope.Reach.Companion.reachedThrough
 import org.elixir_lang.psi.scope.Reach
@@ -219,9 +220,12 @@ private constructor(
                 .maybeModularNameToModulars(delegation.containingFile, useCall = null, incompleteCode = incompleteCode)
                 .asSequence()
                 .map { modular ->
-                    // Call recursively to get all the proper `for` and `use` handling.
+                    // Call recursively to get all the proper `for` and `use` handling; a delegation reached again while
+                    // following it, as when two modules delegate to each other, delegates to nothing more.
                     // A delegation calls its target remotely; only a source or compiled definition is a target.
-                    remoteResults(nameInDefiningModule, targetArity, incompleteCode, modular, runtime = false).mapNotNull { result ->
+                    RecursionManager.doPreventingRecursion(delegation, false) {
+                        remoteResults(nameInDefiningModule, targetArity, incompleteCode, modular, runtime = false)
+                    }.orEmpty().mapNotNull { result ->
                         result.element
                             .takeIf { it is Call || it is BeamCallDefinition }
                             ?.let { DelegatedTarget(it, nameInDefiningModule, result.isValidResult) }

@@ -79,8 +79,20 @@ class FunctionSymbol private constructor(
     override fun computePresentation(): TargetPresentation = presentation()
 
     override fun navigationRequest(): NavigationRequest? =
-        (if (followsDelegation) delegatedTo().firstOrNull()?.navigationRequest() else null)
-            ?: NavigationRequest.sourceNavigationRequest(file, range)
+        (landing() ?: this).let { NavigationRequest.sourceNavigationRequest(it.file, it.range) }
+
+    /** Where following delegations from this symbol ends; `null` if they delegate round to one already followed. */
+    private fun landing(): FunctionSymbol? {
+        val followed = mutableSetOf<FunctionSymbol>()
+        var symbol = this
+
+        while (symbol.followsDelegation) {
+            if (!followed.add(symbol)) return null
+            symbol = symbol.delegatedTo().firstOrNull() ?: return symbol
+        }
+
+        return symbol
+    }
 
     override fun followingDelegation(usedArity: Int): FunctionSymbol =
         FunctionSymbol(file, range, moduleName, name, arity, macro, true, false, functionArity, usedArity)

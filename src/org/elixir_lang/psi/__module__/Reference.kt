@@ -30,7 +30,7 @@ class Reference(call: Call, val useCall: Call?) : PsiReferenceBase<Call>(call), 
      *
      * @return the target element, or `null` if it was not possible to resolve the reference to a valid target.
      */
-    override fun resolve(): PsiElement? = multiResolve(false).singleOrNull()?.element
+    override fun resolve(): PsiElement? = org.elixir_lang.reference.Resolver.resolved(myElement, multiResolve(false).toList())
 }
 
 private class ResolveWithCachingComputable(
