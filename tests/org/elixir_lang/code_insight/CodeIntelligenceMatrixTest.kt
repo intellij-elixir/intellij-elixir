@@ -7,6 +7,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiCompiledFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
+import com.intellij.navigation.GotoRelatedProvider
 import com.intellij.psi.PsiManager
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.ResolveState
@@ -273,6 +274,7 @@ private class Group(val scenario: Scenario) {
             Feature.COMPLETION_INSERTED -> checkCompletionInserted()
             Feature.RENAME -> checkRename(binding)
             Feature.INCOMPLETE_RESOLUTION -> checkIncompleteResolution()
+            Feature.GO_TO_RELATED -> checkGoToRelated()
         }
     }
 
@@ -662,6 +664,43 @@ private class Group(val scenario: Scenario) {
         assertEquals("Resolving ${place.id} as code being typed found valid results", emptyList<String>(), valid)
     }
 
+    /**
+     * Go To Related from a declaration in a module's source, where the module is also in the project compiled, offers
+     * the decompiled definition of the same function: every decompiled head of that name at an arity the source's
+     * definition covers. The compiled scenario's source is added only for this, and removed again, so no other cell
+     * sees a module twice.
+     */
+    private fun checkGoToRelated() {
+        val head = place as Place.Head
+        val main = scenario.main
+        val file = myFixture.copyFileToProject(main.source)
+
+        try {
+            myFixture.configureFromExistingVirtualFile(file)
+            opened = false
+            val declaration = main.declarations.filter { it.name == head.name && it.arity == head.arity }[head.clause]
+            val element = myFixture.file.findElementAt(offsetOf(file, declaration.line, declaration.column) + 1)!!
+            val related = GotoRelatedProvider.EP_NAME.extensionList
+                .flatMap { provider -> provider.getItems(element) }
+                .mapNotNull { it.element?.let(::describeLine) }
+                .distinct()
+                .sorted()
+            val definition = main.definitions.first { nfc(it.name) == nfc(head.name) && head.arity in it.minArity..it.maxArity }
+            val mirror = mirror(main)
+            val expected = (definition.minArity..definition.maxArity)
+                .flatMap { mirrorHeads(mirror, definition.name, it) }
+                .map(::describeLine)
+                .distinct()
+                .sorted()
+
+            assertEquals("Go To Related from ${place.id} does not offer the decompiled definition", expected, related)
+        } finally {
+            FileEditorManager.getInstance(project).let { manager -> manager.openFiles.forEach(manager::closeFile) }
+            WriteCommandAction.runWriteCommandAction(project) { file.delete(this) }
+            opened = false
+        }
+    }
+
     // -- Typing a call ----------------------------------------------------------------------
 
     private class TypedLine(val index: Int, val before: String)
@@ -894,7 +933,7 @@ private class Group(val scenario: Scenario) {
         if (module.compiled || module.delegateTo == null) return
 
         val (_, definition) = definition(documented)
-        val target = scenario.modules.firstOrNull { it.module == module.delegateTo }
+        val target = delegatedTarget(module, definition)
 
         if (target == null) {
             assertFalse("Quick Documentation at ${place.id} links a target that does not resolve: $html", html.contains("Delegates to"))
@@ -1104,12 +1143,25 @@ private class Group(val scenario: Scenario) {
     }
 
     /**
+     * The module a delegation of [definition] reaches, when the scenario has it and it defines the delegated function at
+     * the arity the delegation calls it with. A `to:` module that only imports the function does not define it, so
+     * nothing is reached through the delegation, as Elixir leaves `Target.name/arity` undefined.
+     */
+    private fun delegatedTarget(module: DeclaringModule, definition: Definition): DeclaringModule? {
+        val name = nfc(module.delegateAs.orEmpty() + definition.name)
+
+        return scenario.modules
+            .firstOrNull { it.module == module.delegateTo }
+            ?.takeIf { target -> target.definitions.any { nfc(it.name) == name && definition.maxArity in it.minArity..it.maxArity } }
+    }
+
+    /**
      * Where Go To Declaration from a call of [binding] lands: a delegate's target where its target resolves and the
      * delegate's `.beam`, if any, still records it, and otherwise the definition's own heads.
      */
     private fun goToDeclarationLines(binding: Binding): List<String> {
         val (module, definition) = definition(binding)
-        val target = scenario.modules.firstOrNull { it.module == module.delegateTo }
+        val target = delegatedTarget(module, definition)
 
         return if (target != null && !(module.compiled && backing in setOf(Backing.EX_GEN, Backing.ERL_GEN))) {
             // A delegate fills in its own defaults and calls the target with every argument, so a call at any arity
