@@ -163,18 +163,9 @@ internal object ElixirUsageQueries {
                 queries += delegationAsQueries(target)
             }
 
-            is AtomSymbol -> {
-                // An AtomSymbol IS a function reference (module/name/arity/macro, anchored at the
-                // def clause's name identifier - see AtomSymbol.fromClause), so renaming from the
-                // atom must rename everything renaming from the def would: the declaration
-                // family, call sites, specs, captures, keyword pairs - and the atoms themselves,
-                // which FunctionCallSiteMapper's own atomUsage branch already finds. Reuse the
-                // function queries via the field-for-field equivalent FunctionSymbol.
-                val functionSymbol = FunctionSymbol.of(target)
-                queries += functionDeclarationFamilyQuery(project, functionSymbol, searchScope)
-                queries += functionCallSiteQuery(project, functionSymbol, searchScope)
-                queries += delegationAsQueries(functionSymbol)
-            }
+            // An atom names what its declaration's own symbol does, so renaming from it renames everything renaming
+            // from that symbol would, the atoms included.
+            is AtomSymbol -> queries += usageQueries(project, target.named(), searchScope)
 
             is ModuleSymbol -> {
                 queries += moduleUsageQuery(project, target, searchScope)
@@ -337,6 +328,9 @@ internal object ElixirUsageQueries {
         override fun mapOccurrence(occurrence: LeafOccurrence): Collection<PsiUsage> {
             val protocolFunction = protocolFunctionPointer.dereference() ?: return emptyList()
             val (_, leaf, _) = occurrence
+
+            // An MFA atom naming it: `apply(Protocol, :name, args)` or `{Protocol, :name, arity}`.
+            atomNaming(leaf) { it.protocol && it.named() == protocolFunction }?.let { return listOf(it) }
 
             // Nearest enclosing call. A call site is an invocation, not a definition clause.
             val call = leaf.enclosingCalls().firstOrNull() ?: return emptyList()
@@ -949,27 +943,8 @@ internal object ElixirUsageQueries {
         }
 
         @RequiresReadLock
-        private fun atomUsage(leaf: PsiElement, symbol: FunctionSymbol): PsiUsage? {
-            val atom = PsiTreeUtil.getParentOfType(leaf, ElixirAtom::class.java, false) ?: return null
-            val references = PsiSymbolReferenceService.getService()
-                .getReferences(atom)
-                .filterIsInstance<AtomReference>()
-            if (references.isEmpty()) return null
-
-            val matches = references.any { reference ->
-                reference.resolveReference()
-                    .filterIsInstance<AtomSymbol>()
-                    .any { FunctionSymbol.of(it).sameFunction(symbol) }
-            }
-            if (!matches) return null
-
-            return ElixirPsiUsage.create(
-                leaf,
-                TextRange(0, leaf.textLength),
-                declaration = false,
-                usageType = CALL
-            )
-        }
+        private fun atomUsage(leaf: PsiElement, symbol: FunctionSymbol): PsiUsage? =
+            atomNaming(leaf) { !it.protocol && FunctionSymbol.of(it).sameFunction(symbol) }
     }
 
     private class TypeUsageMapper(
@@ -1204,6 +1179,22 @@ private val MODULE_ATTRIBUTE_WRITE = UsageType { "Module attribute accumulate or
 private val VALUE_READ = UsageType { "Value read" }
 
 private val VALUE_WRITE = UsageType { "Value write" }
+
+/** A use at [leaf] where it is in an MFA atom naming a symbol [names] accepts. */
+@RequiresReadLock
+private fun atomNaming(leaf: PsiElement, names: (AtomSymbol) -> Boolean): PsiUsage? {
+    val atom = PsiTreeUtil.getParentOfType(leaf, ElixirAtom::class.java, false) ?: return null
+    val matches = PsiSymbolReferenceService.getService()
+        .getReferences(atom)
+        .filterIsInstance<AtomReference>()
+        .any { reference -> reference.resolveReference().filterIsInstance<AtomSymbol>().any(names) }
+
+    return if (matches) {
+        ElixirPsiUsage.create(leaf, TextRange(0, leaf.textLength), declaration = false, usageType = CALL)
+    } else {
+        null
+    }
+}
 
 private fun PsiElement.enclosingCalls(): Sequence<Call> =
         generateSequence(parent) { it.parent }.takeWhile { it !is PsiFile }.filterIsInstance<Call>()

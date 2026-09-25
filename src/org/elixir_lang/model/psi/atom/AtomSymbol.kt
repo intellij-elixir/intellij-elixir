@@ -5,17 +5,16 @@ import com.intellij.find.usages.api.SearchTarget
 import com.intellij.find.usages.api.UsageHandler
 import com.intellij.icons.AllIcons
 import com.intellij.model.Pointer
-import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.util.TextRange
 import com.intellij.platform.backend.navigation.NavigationRequest
 import com.intellij.platform.backend.navigation.NavigationTarget
 import com.intellij.platform.backend.presentation.TargetPresentation
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
-import com.intellij.psi.ResolveState
 import com.intellij.psi.search.SearchScope
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.ElixirSymbolWithUsages
+import org.elixir_lang.model.psi.protocol.ProtocolFunction
 import org.elixir_lang.navigation.ElixirClausePresentation
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallableDeclaration
@@ -36,6 +35,8 @@ class AtomSymbol private constructor(
     val followsDelegation: Boolean = false,
     /** The [org.elixir_lang.psi.ArityInterval.functionArity] of its declaration; not part of its identity. */
     val functionArity: Int? = arity,
+    /** Names a `defprotocol` function, a [ProtocolFunction], rather than a [org.elixir_lang.model.psi.function.FunctionSymbol]. */
+    val protocol: Boolean = false,
     /** The arity a use named it at, above [arity] for an [open] function; not part of its identity. */
     val usedArity: Int = arity
 ) : ElixirSymbolWithUsages, NavigationTarget, SearchTarget, org.elixir_lang.psi.DelegationSymbol<AtomSymbol> {
@@ -51,10 +52,11 @@ class AtomSymbol private constructor(
         val displayText = this.displayText
         val followsDelegation = this.followsDelegation
         val functionArity = this.functionArity
+        val protocol = this.protocol
         val usedArity = this.usedArity
 
         return org.elixir_lang.model.psi.function.FunctionSymbol.declarationPointer(file, range) { restoredFile, restoredRange ->
-            AtomSymbol(restoredFile, restoredRange, moduleName, name, arity, macro, displayText, followsDelegation, functionArity, usedArity = usedArity)
+            AtomSymbol(restoredFile, restoredRange, moduleName, name, arity, macro, displayText, followsDelegation, functionArity, protocol, usedArity)
         }
     }
 
@@ -68,7 +70,7 @@ class AtomSymbol private constructor(
         }
 
     override fun followingDelegation(usedArity: Int): AtomSymbol =
-        AtomSymbol(file, range, moduleName, name, arity, macro, displayText, true, functionArity, usedArity)
+        AtomSymbol(file, range, moduleName, name, arity, macro, displayText, true, functionArity, protocol, usedArity)
 
     override val maximalSearchScope: SearchScope? get() = null
 
@@ -98,10 +100,15 @@ class AtomSymbol private constructor(
     override fun toString(): String = "AtomSymbol($moduleName.$name/$arity, macro=$macro)"
 
     @RequiresReadLock
-    fun declarationElement(): PsiElement? =
-        generateSequence(file.findElementAt(range.startOffset)) { it.parent }
-            .filterIsInstance<Call>()
-            .firstOrNull { CallDefinitionClause.`is`(it) }
+    fun declarationElement(): PsiElement? = CallableDeclaration.declarationNamedAt(file, range)
+
+    /** The symbol this atom names, as its declaration's owner has it. */
+    fun named(): ElixirSymbolWithUsages =
+        if (protocol) {
+            ProtocolFunction(file, range, moduleName, name, arity, macro)
+        } else {
+            org.elixir_lang.model.psi.function.FunctionSymbol.of(this)
+        }
 
     companion object {
         /** The symbol whose name [nameElement] spells, its range read from the name alone. */
@@ -129,35 +136,26 @@ class AtomSymbol private constructor(
                 functionArity = function.functionArity
             )
 
-        @RequiresReadLock
-        fun fromClause(clause: Call): List<AtomSymbol> {
-            val definer = CallableDeclaration.definerOf(clause) ?: return emptyList()
-            val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(clause) ?: return emptyList()
-            val moduleName = runCatching { org.elixir_lang.psi.Module.name(enclosingModular) }
-                .getOrElse { if (it is ProcessCanceledException) throw it else null }
-                ?: return emptyList()
-            val nameArity = CallDefinitionClause.functionNameArityInterval(clause, ResolveState.initial()) ?: return emptyList()
-            val nameId = CallDefinitionClause.nameIdentifier(clause) ?: return emptyList()
-            val macro = definer.capabilities.compileTime
-            val functionArity = nameArity.arityInterval.functionArity
-
-            return nameArity.arityInterval.closed().map { arity ->
-                of(clause.containingFile, nameId, moduleName, nameArity.name, arity, macro, functionArity = functionArity)
-            }
-        }
+        /** The atom naming a [ProtocolFunction], anchored where it is. */
+        fun of(function: ProtocolFunction) =
+            AtomSymbol(
+                function.file,
+                function.range,
+                function.protocolName,
+                function.name,
+                function.arity,
+                function.macro,
+                protocol = true
+            )
 
         /**
-         * The symbols [call] declares, whichever form declares a function with a name it spells: a clause, a
-         * `defdelegate` or an EEx `function_from_*`. A clause's come from [fromClause], which, unlike a
-         * [org.elixir_lang.model.psi.function.FunctionSymbol], also covers a protocol's clauses.
+         * The symbols [call] declares, as whichever symbol owns it names them: a [ProtocolFunction] for a `defprotocol`'s
+         * clause, else a [org.elixir_lang.model.psi.function.FunctionSymbol] for any form.
          */
         @RequiresReadLock
         fun fromDeclaration(call: Call): List<AtomSymbol> =
-            if (CallableDeclaration.definerOf(call) != null) {
-                fromClause(call)
-            } else {
+            ProtocolFunction.fromClause(call).map(::of) +
                 org.elixir_lang.model.psi.function.FunctionSymbol.fromDeclaration(call).map(::of)
-            }
 
         /** What a source or compiled [declaration] declares at [arity], which is what an MFA naming that arity names. */
         @RequiresReadLock
