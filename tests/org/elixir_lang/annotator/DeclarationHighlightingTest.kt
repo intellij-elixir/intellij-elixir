@@ -1,12 +1,8 @@
 package org.elixir_lang.annotator
 
-import com.intellij.openapi.editor.colors.EditorColorsManager
-import com.intellij.openapi.editor.colors.TextAttributesKey
-import com.intellij.openapi.editor.markup.TextAttributes
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import org.elixir_lang.ElixirFileType
 import org.elixir_lang.ElixirSyntaxHighlighter
-import java.awt.Color
 
 /**
  * Every declaring form highlights where it spells the declared name, and every call to what it declares, by the
@@ -26,26 +22,19 @@ class DeclarationHighlightingTest : BasePlatformTestCase() {
         ElixirSyntaxHighlighter.GUARD_DECLARATION,
         ElixirSyntaxHighlighter.GUARD_CALL
     )
-    private val original = mutableMapOf<TextAttributesKey, TextAttributes?>()
+    private lateinit var foregrounds: DistinctForegrounds
 
     override fun getTestDataPath(): String = "testData/org/elixir_lang/psi/callable_declaration"
 
     override fun setUp() {
         super.setUp()
 
-        val scheme = EditorColorsManager.getInstance().globalScheme
-
-        keys.forEachIndexed { index, key ->
-            original[key] = scheme.getAttributes(key)
-            scheme.setAttributes(key, TextAttributes().apply { foregroundColor = Color(1, 2, 3 + index) })
-        }
+        foregrounds = DistinctForegrounds(keys)
     }
 
     override fun tearDown() {
         try {
-            val scheme = EditorColorsManager.getInstance().globalScheme
-
-            original.forEach { (key, attributes) -> scheme.setAttributes(key, attributes) }
+            foregrounds.restore()
         } finally {
             super.tearDown()
         }
@@ -97,7 +86,7 @@ class DeclarationHighlightingTest : BasePlatformTestCase() {
         fun keyAt(offset: Int, name: String): String =
             infos
                 .filter { it.startOffset <= offset && it.endOffset >= offset + name.length }
-                .mapNotNull { info -> keys.firstOrNull { key -> keyColor(key) == info.forcedTextAttributes?.foregroundColor } }
+                .mapNotNull { info -> foregrounds.keyOf(info.forcedTextAttributes?.foregroundColor) }
                 .joinToString { it.externalName }
                 .ifEmpty { "none" }
 
@@ -143,7 +132,4 @@ class DeclarationHighlightingTest : BasePlatformTestCase() {
             actual
         )
     }
-
-    private fun keyColor(key: TextAttributesKey): Color? =
-        EditorColorsManager.getInstance().globalScheme.getAttributes(key).foregroundColor
 }

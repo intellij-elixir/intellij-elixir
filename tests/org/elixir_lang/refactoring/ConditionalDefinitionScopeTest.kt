@@ -2,16 +2,14 @@ package org.elixir_lang.refactoring
 
 import com.intellij.ide.impl.HeadlessDataManager
 import com.intellij.ide.structureView.StructureViewTreeElement
-import com.intellij.openapi.util.TextRange
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.enclosingCallAtCaret
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.structure_view.Model
-import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
-import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
+import org.elixir_lang.code_insight.gotoDeclarationLineAtCaret
+import org.elixir_lang.code_insight.gotoDeclarationLinesAtCaret
 import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
-import org.elixir_lang.code_insight.gotoDeclarationLinesAtCaret
 import org.elixir_lang.documentation.quickDocumentationAtCaret
 
 /**
@@ -198,11 +196,7 @@ class ConditionalDefinitionScopeTest : PlatformTestCase() {
         HeadlessDataManager.fallbackToProductionDataManager(myFixture.testRootDisposable)
         myFixture.configureByText("cased.ex", cased.replace("do: snoc(a, b)", "do: sn<caret>oc(a, b)"))
 
-        val document = myFixture.editor.document
-        val landed = myFixture.gotoDeclarationTargetsAtCaret().orEmpty()
-            .mapNotNull { it.destination }
-            .map { document.getText(TextRange(document.getLineStartOffset(document.getLineNumber(it.textOffset)), document.getLineEndOffset(document.getLineNumber(it.textOffset)))).trim() }
-            .sorted()
+        val landed = myFixture.gotoDeclarationLinesAtCaret()
 
         // Either branch's definition is the function, as from a local call.
         assertEquals(listOf("false -> def snoc(q, x), do: q", "true -> def snoc(q, x), do: {q, x}"), landed)
@@ -375,11 +369,7 @@ class ConditionalDefinitionScopeTest : PlatformTestCase() {
 
         fun lineOfDestination(caretAt: String): String? {
             myFixture.configureByText("attributed.ex", text.replace(caretAt.replace("<caret>", ""), caretAt))
-            val destination = myFixture.gotoDeclarationDestinationAtCaret() ?: return null
-            val document = myFixture.editor.document
-            val line = document.getLineNumber(destination.textOffset)
-
-            return document.getText(TextRange(document.getLineStartOffset(line), document.getLineEndOffset(line))).trim()
+            return myFixture.gotoDeclarationLineAtCaret()
         }
 
         assertEquals("@limit 3", lineOfDestination("do: @li<caret>mit"))
@@ -766,15 +756,10 @@ class ConditionalDefinitionScopeTest : PlatformTestCase() {
         assertEquals("`$plain` must occur once", 1, declared.split(plain).size - 1)
         myFixture.configureByText("declared.ex", declared.replace(plain, caretAt))
 
-        val destination = myFixture.gotoDeclarationDestinationAtCaret()
+        val line = myFixture.gotoDeclarationLineAtCaret()
 
-        assertNotNull("Go To Declaration from `$caretAt` went nowhere", destination)
-        val document = myFixture.editor.document
-        val line = document.getLineNumber(destination!!.textOffset)
-        assertEquals(
-            targetLine,
-            document.getText(TextRange(document.getLineStartOffset(line), document.getLineEndOffset(line))).trim()
-        )
+        assertNotNull("Go To Declaration from `$caretAt` went nowhere", line)
+        assertEquals(targetLine, line)
     }
 
     private fun line(fragment: String): Int = source.substring(0, source.indexOf(fragment)).count { it == '\n' } + 1
@@ -789,14 +774,9 @@ class ConditionalDefinitionScopeTest : PlatformTestCase() {
         HeadlessDataManager.fallbackToProductionDataManager(myFixture.testRootDisposable)
         configure(caretAt)
 
-        val destination = myFixture.gotoDeclarationDestinationAtCaret()
+        val line = myFixture.gotoDeclarationLineAtCaret()
 
-        assertNotNull("Go To Declaration from `$caretAt` went nowhere", destination)
-        val document = myFixture.editor.document
-        val line = document.getLineNumber(destination!!.textOffset)
-        assertEquals(
-            targetLine,
-            document.getText(TextRange(document.getLineStartOffset(line), document.getLineEndOffset(line))).trim()
-        )
+        assertNotNull("Go To Declaration from `$caretAt` went nowhere", line)
+        assertEquals(targetLine, line)
     }
 }

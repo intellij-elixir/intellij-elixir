@@ -1,11 +1,7 @@
 package org.elixir_lang.annotator
 
-import com.intellij.openapi.editor.colors.EditorColorsManager
-import com.intellij.openapi.editor.colors.TextAttributesKey
-import com.intellij.openapi.editor.markup.TextAttributes
 import org.elixir_lang.ElixirSyntaxHighlighter
 import org.elixir_lang.beam.BeamLibraryTestCase
-import java.awt.Color
 import java.io.File
 
 /**
@@ -22,7 +18,7 @@ class CompiledGuardHighlightingTest : BeamLibraryTestCase() {
         ElixirSyntaxHighlighter.MACRO_CALL,
         ElixirSyntaxHighlighter.GUARD_CALL
     )
-    private val original = mutableMapOf<TextAttributesKey, TextAttributes?>()
+    private lateinit var foregrounds: DistinctForegrounds
 
     override fun getTestDataPath(): String = "testData/org/elixir_lang/beam/parser"
 
@@ -32,22 +28,12 @@ class CompiledGuardHighlightingTest : BeamLibraryTestCase() {
     override fun setUp() {
         super.setUp()
 
-        val scheme = EditorColorsManager.getInstance().globalScheme
-
-        original[ElixirSyntaxHighlighter.PREDEFINED_CALL] = scheme.getAttributes(ElixirSyntaxHighlighter.PREDEFINED_CALL)
-        scheme.setAttributes(ElixirSyntaxHighlighter.PREDEFINED_CALL, TextAttributes())
-
-        keys.forEachIndexed { index, key ->
-            original[key] = scheme.getAttributes(key)
-            scheme.setAttributes(key, TextAttributes().apply { foregroundColor = Color(7, 8, 9 + index) })
-        }
+        foregrounds = DistinctForegrounds(keys, listOf(ElixirSyntaxHighlighter.PREDEFINED_CALL))
     }
 
     override fun tearDown() {
         try {
-            val scheme = EditorColorsManager.getInstance().globalScheme
-
-            original.forEach { (key, attributes) -> scheme.setAttributes(key, attributes) }
+            foregrounds.restore()
         } finally {
             super.tearDown()
         }
@@ -65,14 +51,13 @@ class CompiledGuardHighlightingTest : BeamLibraryTestCase() {
 
         val infos = myFixture.doHighlighting()
         val text = myFixture.file.text
-        val scheme = EditorColorsManager.getInstance().globalScheme
 
         val actual = listOf("is_nil", "to_string", "is_atom", "inspect").joinToString("\n") { name ->
             val offset = text.indexOf("$name(")
 
             "$name -> " + infos
                 .filter { it.startOffset <= offset && it.endOffset >= offset + name.length }
-                .mapNotNull { info -> keys.firstOrNull { scheme.getAttributes(it).foregroundColor == info.forcedTextAttributes?.foregroundColor } }
+                .mapNotNull { info -> foregrounds.keyOf(info.forcedTextAttributes?.foregroundColor) }
                 .joinToString { it.externalName }
                 .ifEmpty { "none" }
         }

@@ -2,9 +2,8 @@ package org.elixir_lang.model.psi.function
 
 import com.intellij.find.usages.impl.searchTargets
 import com.intellij.lang.annotation.HighlightSeverity
-import com.intellij.openapi.util.TextRange
 import org.elixir_lang.PlatformTestCase
-import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
+import org.elixir_lang.code_insight.gotoDeclarationLineAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
 import org.elixir_lang.code_insight.renameTargetsAtCaret
 import org.elixir_lang.inspection.References
@@ -211,11 +210,7 @@ class RejectedCallTest : PlatformTestCase() {
                 assertEquals(
                     "$definer, $description: Go To Declaration",
                     listOf(declaration),
-                    listOfNotNull(myFixture.gotoDeclarationDestinationAtCaret()).map { destination ->
-                        val document = myFixture.editor.document
-                        val line = document.getLineNumber(destination.textOffset)
-                        document.getText(TextRange(document.getLineStartOffset(line), document.getLineEndOffset(line))).trim()
-                    }
+                    listOfNotNull(myFixture.gotoDeclarationLineAtCaret())
                 )
                 val refusal = runCatching { myFixture.renameTargetAtCaret("renamed") }.exceptionOrNull()
                 assertTrue("$definer, $description: rename is refused, got $refusal", refusal is IllegalArgumentException)

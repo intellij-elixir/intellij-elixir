@@ -1,10 +1,8 @@
 package org.elixir_lang.documentation
 
-import com.intellij.openapi.editor.colors.EditorColorsManager
-import com.intellij.openapi.editor.colors.TextAttributesKey
-import com.intellij.openapi.editor.markup.TextAttributes
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import org.elixir_lang.ElixirSyntaxHighlighter
+import org.elixir_lang.annotator.DistinctForegrounds
 import java.awt.Color
 
 /**
@@ -17,24 +15,17 @@ class RenderedDocDeclarationHighlightingTest : BasePlatformTestCase() {
         ElixirSyntaxHighlighter.MACRO_DECLARATION,
         ElixirSyntaxHighlighter.GUARD_DECLARATION
     )
-    private val original = mutableMapOf<TextAttributesKey, TextAttributes?>()
+    private lateinit var foregrounds: DistinctForegrounds
 
     override fun setUp() {
         super.setUp()
 
-        val scheme = EditorColorsManager.getInstance().globalScheme
-
-        keys.forEachIndexed { index, key ->
-            original[key] = scheme.getAttributes(key)
-            scheme.setAttributes(key, TextAttributes().apply { foregroundColor = Color(4, 5, 6 + index) })
-        }
+        foregrounds = DistinctForegrounds(keys)
     }
 
     override fun tearDown() {
         try {
-            val scheme = EditorColorsManager.getInstance().globalScheme
-
-            original.forEach { (key, attributes) -> scheme.setAttributes(key, attributes) }
+            foregrounds.restore()
         } finally {
             super.tearDown()
         }
@@ -57,12 +48,11 @@ class RenderedDocDeclarationHighlightingTest : BasePlatformTestCase() {
             ranges.add(Triple(iterator.rangeStart, iterator.rangeEnd, iterator.textAttributes.foregroundColor))
         }
 
-        val scheme = EditorColorsManager.getInstance().globalScheme
         val actual = listOf("function_clause", "macro_clause", "guard_clause", "private_guard_clause").joinToString("\n") { name ->
             val start = code.indexOf("$name(")
             val key = ranges
                 .filter { (rangeStart, rangeEnd) -> rangeStart <= start && rangeEnd >= start + name.length }
-                .firstNotNullOfOrNull { (_, _, color) -> keys.firstOrNull { scheme.getAttributes(it).foregroundColor == color } }
+                .firstNotNullOfOrNull { (_, _, color) -> foregrounds.keyOf(color) }
 
             "$name -> ${key?.externalName ?: "none"}"
         }

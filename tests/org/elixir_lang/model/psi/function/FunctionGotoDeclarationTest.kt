@@ -2,13 +2,12 @@ package org.elixir_lang.model.psi.function
 
 import com.intellij.ide.impl.HeadlessDataManager
 import com.intellij.model.psi.PsiSymbolReferenceService
-import com.intellij.openapi.util.TextRange
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.assertGotoDeclarationChosenAtCaret
 import org.elixir_lang.code_insight.assertGotoDeclarationLandsIn
 import org.elixir_lang.code_insight.assertNoNavigationAtCaret
 import org.elixir_lang.code_insight.enclosingCallAtCaret
-import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
+import org.elixir_lang.code_insight.gotoDeclarationLinesAtCaret
 import org.elixir_lang.psi.CallDefinitionClause
 
 /**
@@ -112,15 +111,8 @@ class FunctionGotoDeclarationTest : PlatformTestCase() {
             uses.associate { (use, _) -> use to expected },
             uses.associate { (use, caretAt) ->
                 myFixture.configureByText("head_and_clauses.ex", source.replace(caretAt.replace("<caret>", ""), caretAt))
-                val document = myFixture.editor.document
 
-                use to myFixture.gotoDeclarationTargetsAtCaret().orEmpty()
-                    .mapNotNull { it.destination }
-                    .map { destination ->
-                        val line = document.getLineNumber(destination.textOffset)
-                        document.getText(TextRange(document.getLineStartOffset(line), document.getLineEndOffset(line))).trim()
-                    }
-                    .sorted()
+                use to myFixture.gotoDeclarationLinesAtCaret()
             }
         )
     }
@@ -139,17 +131,9 @@ class FunctionGotoDeclarationTest : PlatformTestCase() {
             end
             """.trimIndent()
         )
-        val document = myFixture.editor.document
-
         assertEquals(
             listOf("def snoc(a \\\\ nil, b \\\\ nil)", "def snoc(a, b), do: {a, b}"),
-            myFixture.gotoDeclarationTargetsAtCaret().orEmpty()
-                .mapNotNull { it.destination }
-                .map { destination ->
-                    val line = document.getLineNumber(destination.textOffset)
-                    document.getText(TextRange(document.getLineStartOffset(line), document.getLineEndOffset(line))).trim()
-                }
-                .sorted()
+            myFixture.gotoDeclarationLinesAtCaret()
         )
     }
 

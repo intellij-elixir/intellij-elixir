@@ -1,10 +1,9 @@
 package org.elixir_lang.refactoring
 
 import com.intellij.ide.impl.HeadlessDataManager
-import com.intellij.openapi.util.TextRange
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.GtduNavigation
-import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
+import org.elixir_lang.code_insight.gotoDeclarationLineAtCaret
 import org.elixir_lang.code_insight.gtduNavigationAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
 
@@ -274,12 +273,7 @@ class DelegationRenameTest : PlatformTestCase() {
         myFixture.configureByText("delegation_rename.ex", text.replace(caretAt.replace("<caret>", ""), caretAt))
     }
 
-    private fun destinationLine(): String? =
-        myFixture.gotoDeclarationDestinationAtCaret()?.let { destination ->
-            val document = myFixture.editor.document
-            val line = document.getLineNumber(destination.textOffset)
-            document.getText(TextRange(document.getLineStartOffset(line), document.getLineEndOffset(line))).trim()
-        }
+    private fun destinationLine(): String? = myFixture.gotoDeclarationLineAtCaret()
 
     private fun assertRenamed(caretAt: String, newName: String, vararg edits: Pair<String, String>, source: String = this.source) {
         configure(caretAt, source)
