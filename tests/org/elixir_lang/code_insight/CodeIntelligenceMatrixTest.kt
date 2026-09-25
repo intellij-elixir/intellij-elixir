@@ -463,6 +463,14 @@ private class Group(val scenario: Scenario) {
                 suggested,
                 said.flatMap(::namedArities).distinct().sorted()
             )
+        } else if (expected == listOf(Complaint.UNRESOLVED.name)) {
+            // The compiler names nothing - "undefined or private" of a private function says no more - so naming an arity
+            // tells the developer of a function they cannot call.
+            assertEquals(
+                "The editor's complaint about ${place.id} names what the compiler does not: $said",
+                emptyList<String>(),
+                said.flatMap(::namedArities).distinct().sorted()
+            )
         } else if (expected == listOf(Complaint.ARITY_MISMATCH.name)) {
             // Every arity a candidate covers, defaults included, less any an `import only:`/`except:` hides from
             // this site: naming the one arity the developer can call here is the answer, not the definition's widest.
