@@ -821,7 +821,8 @@ private class Group(val scenario: Scenario) {
     private fun checkFindUsages(binding: Binding?) {
         openAt(place)
         val targets = myFixture.searchTargetCountAtCaret()
-        val found = myFixture.psiUsagesAtCaret(project).filterNot { it.declaration }.map { usage ->
+        // With several targets the IDE asks which; what a user can reach is every target's usages, one after another.
+        val found = myFixture.everyTargetPsiUsagesAtCaret(project).filterNot { it.declaration }.map { usage ->
             usageSite(usage.file, usage.range.startOffset)
         }.sorted()
 
