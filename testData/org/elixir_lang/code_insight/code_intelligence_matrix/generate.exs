@@ -68,6 +68,12 @@ defmodule Matrix do
       %{id: "defdelegate_unresolvable", definer: "defdelegate", delegate: :missing},
       # `as:` names the target's function, which here is called something else: `delegated_` and the head's name.
       %{id: "defdelegate_as", definer: "defdelegate", delegate: :same, as: "delegated_"},
+      # The other ways the options are written: as a list, and `as:` as a module attribute. Each asks whether the plugin
+      # reads the option or only its commonest spelling. A quoted `as:` atom is not among them: Elixir warns about quotes
+      # an ASCII name does not need, and a name that needs them is not one a `def` can declare.
+      %{id: "defdelegate_list", definer: "defdelegate", delegate: :same, options: :list},
+      %{id: "defdelegate_as_list", definer: "defdelegate", delegate: :same, as: "delegated_", options: :list},
+      %{id: "defdelegate_as_attribute", definer: "defdelegate", delegate: :same, as: "delegated_", as_written: :attribute},
       # A function declared by a call rather than a `def`: `EEx.function_from_string(:def, :snoc, template, [:q, :x])`.
       %{id: "eex_function_from", definer: "def", eex: true},
       # `Mix.Generator.embed_template(:snoc, ...)` declares `snoc_template/1`, `embed_text(:snoc, ...)` `snoc_text/0`: the
@@ -242,6 +248,12 @@ defmodule Matrix do
     do: "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback"
 
   def not_applicable(%{language: :erlang}, form, _world) when form.id not in ["def", "defp"], do: "Erlang has only functions"
+
+  def not_applicable(%{compiled: true}, form, _world) when is_map_key(form, :options) or is_map_key(form, :as_written),
+    do: "how the options were spelled is gone once compiled; that is defdelegate_as's question again"
+
+  def not_applicable(_backing, form, world) when (is_map_key(form, :options) or is_map_key(form, :as_written)) and world != "w1",
+    do: "how the options are spelled asks nothing w1 does not"
 
   def not_applicable(_backing, %{as: _}, world) when world not in @delegate_as_worlds,
     do: "`as:` renames only the target's function; this world's question is defdelegate's"
@@ -1104,6 +1116,22 @@ defmodule Matrix do
     """
   end
 
+  # `to:` and any `as:`, in the spelling the form asks about.
+  defp delegate_options(form, name, target) do
+    as =
+      case {form[:as], form[:as_written]} do
+        {nil, _} -> []
+        {_prefix, :attribute} -> ["as: @target"]
+        {prefix, nil} -> ["as: :#{prefix}#{name}"]
+      end
+
+    options = Enum.join(["to: #{target}" | as], ", ")
+    if form[:options] == :list, do: "[#{options}]", else: options
+  end
+
+  defp delegate_attribute(%{as_written: :attribute, as: prefix}, name), do: "  @target :#{prefix}#{name}\n"
+  defp delegate_attribute(_form, _name), do: ""
+
   defp erlang_atom(name), do: if(name =~ ~r/^[a-z][a-zA-Z0-9_]*$/, do: name, else: "'#{name}'")
 
   defp render_elixir(form, module, definitions, primary, target) do
@@ -1128,8 +1156,7 @@ defmodule Matrix do
         cond do
           # A bodiless head declares the defaults for the clauses that follow and defines nothing itself.
           head? -> "  #{form.definer} #{name}(#{rendered})"
-          form[:delegate] && form[:as] -> "  defdelegate #{name}(#{rendered}), to: #{target}, as: :#{form.as}#{name}"
-          form[:delegate] -> "  defdelegate #{name}(#{rendered}), to: #{target}"
+          form[:delegate] -> "#{delegate_attribute(form, name)}  defdelegate #{name}(#{rendered}), #{delegate_options(form, name, target)}"
           form[:embed] && String.ends_with?(name, "_template") -> "  Mix.Generator.embed_template(:#{String.replace_suffix(name, "_template", "")}, \"<%= @q %>\")"
           form[:embed] -> "  Mix.Generator.embed_text(:#{String.replace_suffix(name, "_text", "")}, \"text\")"
           form[:eex] -> "  EEx.function_from_string(:#{form.definer}, :#{name}, \"<%= inspect({#{Enum.join(variables, ", ")}}) %>\", [#{Enum.map_join(variables, ", ", &(":" <> &1))}])"
