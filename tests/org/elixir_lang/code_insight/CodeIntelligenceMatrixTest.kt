@@ -1057,6 +1057,8 @@ private class Group(val scenario: Scenario) {
         return scenario.sites
             .filter { site -> site.binding?.let { it.module == module.module && definition.covers(it) } == true }
             .filter { (it.id != LOCAL && !privateUse(it.id)) || Crossing.hasLocalCall(scenario) }
+            // A compiled module is searched through its mirror, where only `local`'s call can be told apart.
+            .filter { !privateUse(it.id) || !module.compiled }
             .map { it.id }
             .sorted()
     }
