@@ -2,7 +2,10 @@ package org.elixir_lang.documentation
 
 import com.ericsson.otp.erlang.OtpErlangBinary
 import com.ericsson.otp.erlang.OtpErlangObject
+import com.intellij.codeInsight.documentation.DocumentationManagerProtocol
 import com.intellij.lang.documentation.DocumentationMarkup
+import com.intellij.openapi.util.text.StringUtil
+import org.elixir_lang.model.psi.function.FunctionSymbol
 import com.intellij.lang.documentation.DocumentationProvider
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.editor.Editor
@@ -38,7 +41,11 @@ private val LOG = logger<ElixirDocumentationProvider>()
 
 internal class ElixirDocumentationProvider : DocumentationProvider {
     override fun generateDoc(element: PsiElement, originalElement: PsiElement?): String? =
-        fetchDocs(element)?.let { formatDocs(element.project, it) }
+        if (DelegationPrecedence.isDelegation(element)) {
+            delegationDoc(element as Call)
+        } else {
+            fetchDocs(element)?.let { formatDocs(element.project, it) }
+        }
 
     override fun generateHoverDoc(element: PsiElement, originalElement: PsiElement?): String? =
         generateDoc(element, originalElement)
@@ -251,18 +258,62 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             ?: CallableDeclaration.delegationHeadedBy(call)?.let { org.elixir_lang.reference.Callable(call) }
 
     /**
-     * The element whose documentation a reference resolving to [elements] shows, the same at a call and at an MFA atom.
-     * A defdelegate carrying its own @doc outranks what it delegates to: the delegating module is saying what the
-     * function means here, which is why the @doc was written. One without its own @doc is skipped so the to: target's
-     * documentation shows. Otherwise prefer source clauses, falling back to BEAM stubs.
+     * The element whose documentation a reference resolving to [elements] shows, the same at a call and at an MFA atom:
+     * the delegation it names, as [DelegationPrecedence.documented] decides; otherwise source clauses, then BEAM stubs.
      */
     private fun bestDocumented(elements: List<PsiElement>): PsiElement? =
         DelegationPrecedence.documented(
             elements,
-            { SourceFileDocsHelper.fetchDocs(it) != null },
             elements.filterIsInstance<Call>().filter { CallableDeclaration.isForm(it, CallableDeclaration.Form.CLAUSE) } +
                 elements.filterIsInstance<BeamCallDefinition>()
         )
+
+    /**
+     * Every delegation of [delegation]'s name in its module, ascending by arity, as a `def`'s quick docs list every
+     * arity: each its own `@doc`, or its head and a link to what it delegates to, followed by that function's docs.
+     */
+    private fun delegationDoc(delegation: Call): String? {
+        val names = CallableDeclaration.definitions(delegation, ResolveState.initial()).map { it.name }.toSet()
+        val delegations = enclosingModularMacroCall(delegation)
+            ?.let(CallDefinitionClause::modularChildCalls)
+            ?.filter { sibling ->
+                DelegationPrecedence.isDelegation(sibling) &&
+                    CallableDeclaration.definitions(sibling, ResolveState.initial()).any { it.name in names }
+            }
+            ?.sortedBy { FunctionSymbol.fromDelegation(it).maxOfOrNull(FunctionSymbol::arity) ?: 0 }
+            ?: listOf(delegation)
+
+        return delegations.mapNotNull(::oneDelegationDoc).joinToString("").ifEmpty { null }
+    }
+
+    /** One delegation's own `@doc`, or its head and a link to what it delegates to, followed by that function's docs. */
+    private fun oneDelegationDoc(delegation: Call): String? {
+        SourceFileDocsHelper.fetchDocs(delegation)?.let { return formatDocs(delegation.project, it) }
+
+        val symbol = FunctionSymbol.fromDelegation(delegation).maxByOrNull { it.arity } ?: return null
+        val target = symbol.delegatedTo().firstOrNull()
+        val head = CallableDeclaration.delegationHead(delegation)?.text?.let(StringUtil::escapeXmlEntities) ?: symbol.name
+        val html = StringBuilder()
+            .append(DocumentationMarkup.DEFINITION_START)
+            .append("<i>module</i> <b>").append(symbol.moduleName).append("</b>\n")
+            .append(head).append("\n")
+            .append(DocumentationMarkup.DEFINITION_END)
+
+        if (target != null) {
+            val link = "${target.moduleName}.${target.name}/${target.arity}"
+            html
+                .append(DocumentationMarkup.CONTENT_START)
+                .append("Delegates to <a href=\"").append(DocumentationManagerProtocol.PSI_ELEMENT_PROTOCOL).append(link)
+                .append("\"><code>").append(link).append("</code></a>.")
+                .append(DocumentationMarkup.CONTENT_END)
+
+            CallableDeclaration.declarationNamedAt(target.file, target.range)
+                ?.let(::fetchDocs)
+                ?.let { html.append(formatDocs(delegation.project, it)) }
+        }
+
+        return html.toString()
+    }
 
     private tailrec fun getCustomDocumentationElement(contextElement: PsiElement): PsiElement? = when {
         contextElement is LeafPsiElement || contextElement is ElixirIdentifier || contextElement is ElixirRelativeIdentifier ->
@@ -299,13 +350,10 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                         val exactNameElements = allResults
                             .mapNotNull(ResolveResult::getElement)
                             .filter { element ->
-                                when (element) {
-                                    is BeamCallDefinition -> element.exportedName() == callName
-                                    is Call -> CallDefinitionClause.nameArityInterval(element, ResolveState.initial())
-                                        ?.name == callName
-
-                                    else -> false
-                                }
+                                CallableDeclaration.declaredOf(element, ResolveState.initial())
+                                    ?.definitions(ResolveState.initial())
+                                    .orEmpty()
+                                    .any { it.name == callName }
                             }
                         bestDocumented(exactNameElements)
                     }

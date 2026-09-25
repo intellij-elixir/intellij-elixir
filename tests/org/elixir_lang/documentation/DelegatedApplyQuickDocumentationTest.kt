@@ -119,6 +119,37 @@ class DelegatedApplyQuickDocumentationTest : QuickDocumentationTestCase() {
         }
     }
 
+    /** A delegation without its own `@doc` shows its head and links what it delegates to, whose docs follow. */
+    fun testQuickDocOfAnUndocumentedDelegationLinksItsTarget() {
+        val shown = docsAtEachUse("Linked", "").getValue("full")!!
+
+        assertTrue("Expected the delegation's head, got: $shown", "snoc(q, x \\\\ nil)" in shown)
+        assertTrue("Expected a link to the target, got: $shown", "psi_element://Linked.Target.snoc/2" in shown)
+        assertTrue("Expected the target's head, got: $shown", "snoc(q, x)" in shown)
+
+        val linked = ElixirDocumentationProvider()
+            .getDocumentationElementForLink(psiManager, "Linked.Target.snoc/2", myFixture.file)
+        assertTrue("Expected the link to reach the target, got ${linked?.text}", linked?.text?.startsWith("def snoc(q, x)") == true)
+    }
+
+    /** A name with a delegation at each of several arities documents every one, ascending, as a `def`'s quick docs do. */
+    fun testQuickDocOfANameWithSeveralDelegationsListsEveryArity() {
+        myFixture.addFileToProject(
+            "arities_target.ex",
+            "defmodule Arities.Target do\n  def snoc(q), do: q\n  def snoc(q, x), do: {q, x}\nend\n"
+        )
+        myFixture.addFileToProject(
+            "arities_delegator.ex",
+            "defmodule Arities do\n  defdelegate snoc(q, x), to: Arities.Target\n  defdelegate snoc(q), to: Arities.Target\nend\n"
+        )
+        myFixture.configureByText("arities_caller.ex", "defmodule AritiesCaller do\n  def calls(a), do: Arities.sn<caret>oc(a, a)\nend\n")
+
+        val shown = quickDocumentationAtCaret()!!
+        val links = Regex("psi_element://Arities\\.Target\\.snoc/(\\d)").findAll(shown).map { it.groupValues[1] }.toList()
+
+        assertEquals(listOf("1", "2"), links)
+    }
+
     /** An atom naming a module, not a function, still documents the module. */
     fun testQuickDocAtAModuleAtomDocumentsTheModule() {
         myFixture.addFileToProject(

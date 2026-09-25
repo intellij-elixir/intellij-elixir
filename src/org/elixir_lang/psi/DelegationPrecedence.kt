@@ -21,7 +21,7 @@ interface DelegationSymbol<out S> {
 /**
  * Which of a `defdelegate` and what it delegates to a use means, where resolution reaches both. A use names the
  * delegation, which rename and Find Usages act on, and Go To follows it to what it delegates to; navigation lands on
- * what it delegates to first; quick documentation shows the delegation's own `@doc` where it has one.
+ * what it delegates to first; quick documentation documents the delegation.
  */
 object DelegationPrecedence {
     @RequiresReadLock
@@ -57,8 +57,11 @@ object DelegationPrecedence {
     fun <T> standsIn(narrowed: List<T>, element: (T) -> PsiElement?): Boolean =
         narrowed.any { !isDelegation(element(it)) }
 
-    /** What quick documentation shows for [reached]: a delegation with its own `@doc`, else the first of [others]. */
+    /**
+     * What quick documentation shows for [reached]: a delegation the use names, which shows its own `@doc` or links what
+     * it delegates to; else the first of [others].
+     */
     @RequiresReadLock
-    fun documented(reached: List<PsiElement>, hasOwnDoc: (Call) -> Boolean, others: List<PsiElement>): PsiElement? =
-        reached.filterIsInstance<Call>().firstOrNull { isDelegation(it) && hasOwnDoc(it) } ?: others.firstOrNull()
+    fun documented(reached: List<PsiElement>, others: List<PsiElement>): PsiElement? =
+        reached.filterIsInstance<Call>().firstOrNull(::isDelegation) ?: others.firstOrNull()
 }

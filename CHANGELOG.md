@@ -147,6 +147,7 @@
   - **Parameter info for a call of a `defdelegate` shows the delegation's head, also where its target only imports the function.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
   - **Parameter info for a function whose defaults are declared in a bodiless head shows that head's signature alone.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
   - **A function with defaults is one function at every arity it declares: Find Usages and rename reach its captures, `@spec`s, MFA atoms, `import` keys and callback implementations at each, and Go To offers its head and every clause.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **Quick documentation for a `defdelegate` without its own `@doc` shows its head and a link to what it delegates to, followed by that function's docs.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
 - [#4146](https://github.com/intellij-elixir/intellij-elixir/pull/4146) [@sh41](https://github.com/sh41)
   - **Building a project no longer fails with `UnsupportedClassVersionError` from the plugin's JPS classes when the project SDK is older than the IDE's JDK.** Fixes [#3996](https://github.com/intellij-elixir/intellij-elixir/issues/3996).
 - [#4160](https://github.com/intellij-elixir/intellij-elixir/pull/4160) [@sh41](https://github.com/sh41)
