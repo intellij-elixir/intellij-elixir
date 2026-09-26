@@ -1,5 +1,5 @@
 package org.elixir_lang.mix
-import com.intellij.openapi.application.EDT
+import com.intellij.openapi.application.UI
 import com.intellij.openapi.application.readAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.logger
@@ -13,6 +13,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
+import com.intellij.openapi.progress.coroutineToIndicator
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -247,7 +248,7 @@ class DepsCheckerService(private val project: Project, private val cs: Coroutine
 
         val result = checkDepsStatus(reason) ?: return
 
-        withContext(Dispatchers.EDT) {
+        withContext(Dispatchers.UI) {
             if (project.isDisposed) return@withContext
             when (result) {
                 is DepsCheckResult.Error -> Notifier.mixDepsCheckFailed(project, result.rootName, result.message)
@@ -308,7 +309,10 @@ class DepsCheckerService(private val project: Project, private val cs: Coroutine
             val sdk = readAction { findElixirSdkForRoot(project, root) }
             sdkNameByRootUrl[root.url] = sdk?.name
             rootStatusCache[root.url] = when (
-                val statusResult = withContext(Dispatchers.IO) { depsStatusResult(project, root, sdk) }
+                // `coroutineToIndicator`, so the blocking wait on `mix deps` ends when this coroutine is cancelled.
+                val statusResult = withContext(Dispatchers.IO) {
+                    coroutineToIndicator { depsStatusResult(project, root, sdk) }
+                }
             ) {
                 is DepsStatusResult.Available ->
                     if (statusResult.status.hasNonOk) CachedRootStatus.NonOk else CachedRootStatus.Ok
