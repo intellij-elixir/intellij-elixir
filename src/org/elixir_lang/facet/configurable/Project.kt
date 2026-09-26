@@ -16,6 +16,7 @@ import com.intellij.util.ui.JBUI
 import org.elixir_lang.Facet
 import org.elixir_lang.facet.Configurable
 import org.elixir_lang.facet.Type
+import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.sdk.ProcessOutput
 import java.awt.BorderLayout
 import java.awt.Component
@@ -34,7 +35,7 @@ class Project(project: Project) : ModuleAwareProjectConfigurable<Configurable>(p
         // page there. But a project created in IntelliJ keeps its ELIXIR_MODULE module ids when
         // opened in a small IDE (RubyMine, etc.), where there is no module-SDK UI - the facet SDK is
         // then the only per-module mechanism, so include every module when running in a small IDE.
-        ProcessOutput.isSmallIde || ModuleType.get(module).id != "ELIXIR_MODULE"
+        ProcessOutput.isSmallIde || ModuleType.get(module).id != ELIXIR_MODULE_TYPE_ID
 
     override fun createComponent(): JComponent {
         // The per-module SDK dropdowns read the shared ProjectSdksModel, which SdksService populates

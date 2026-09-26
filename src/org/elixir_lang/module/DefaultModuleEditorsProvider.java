@@ -10,6 +10,8 @@ import com.intellij.openapi.roots.ui.configuration.OutputEditor;
 
 import javax.swing.*;
 
+import static org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID;
+
 /**
  * Created by zyuyou on 15/6/5.
  *
@@ -19,7 +21,7 @@ public class DefaultModuleEditorsProvider implements ModuleConfigurationEditorPr
   @Override
   public ModuleConfigurationEditor[] createEditors(ModuleConfigurationState state) {
     Module module = state.getCurrentRootModel().getModule();
-    if(ModuleType.get(module) instanceof ElixirModuleType){
+    if(ModuleType.get(module).getId().equals(ELIXIR_MODULE_TYPE_ID)){
       return new ModuleConfigurationEditor[]{
           new ElixirContentEntriesEditor(module.getName(), state),
           new OutputEditorEx(state),

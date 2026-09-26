@@ -5,10 +5,10 @@ import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleType
 import org.elixir_lang.Facet
 import org.elixir_lang.Icons
-import org.elixir_lang.module.ElixirModuleType
 import javax.swing.Icon
+import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 
-class Type : FacetType<Facet, Configuration>(Facet.ID, ID, "Elixir") {
+internal class Type : FacetType<Facet, Configuration>(Facet.ID, ID, "Elixir") {
     override fun createDefaultConfiguration(): Configuration = Configuration()
 
     override fun createFacet(
@@ -19,7 +19,7 @@ class Type : FacetType<Facet, Configuration>(Facet.ID, ID, "Elixir") {
     ): Facet = Facet(this, module, name, configuration, underlyingFacet)
 
     override fun isSuitableModuleType(moduleType: ModuleType<*>): Boolean =
-        moduleType.id != ElixirModuleType.MODULE_TYPE_ID
+        moduleType.id != ELIXIR_MODULE_TYPE_ID
 
     override fun getIcon(): Icon = Icons.LANGUAGE
 

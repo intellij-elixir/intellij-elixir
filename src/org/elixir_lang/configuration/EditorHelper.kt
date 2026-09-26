@@ -5,6 +5,7 @@ import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleTypeManager
 import com.intellij.openapi.project.Project
 import java.util.function.Consumer
+import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 
 object EditorHelper {
     @JvmStatic
@@ -17,7 +18,7 @@ object EditorHelper {
     ) {
         // 1. Safe Module Filling (WebStorm safe)
         // We look up the type dynamically. If null (WebStorm), we pass null.
-        val elixirModuleType = ModuleTypeManager.getInstance().findByID("ELIXIR_MODULE")
+        val elixirModuleType = ModuleTypeManager.getInstance().findByID(ELIXIR_MODULE_TYPE_ID)
         modulesComboBox.fillModules(project, elixirModuleType)
 
         // 2. centralized Module Selection Logic

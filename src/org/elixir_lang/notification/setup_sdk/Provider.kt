@@ -17,6 +17,7 @@ import com.intellij.ui.EditorNotificationPanel
 import com.intellij.ui.EditorNotificationProvider
 import org.elixir_lang.ElixirFileType
 import org.elixir_lang.ElixirLanguage
+import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.sdk.ProcessOutput
 import org.elixir_lang.sdk.elixir.ElixirSdkLookup
 import org.elixir_lang.sdk.elixir.SdkSettingsOpener
@@ -52,7 +53,7 @@ internal class Provider : EditorNotificationProvider {
         // This panel remains as a persistent per-file indicator for manual setup, but is a candidate
         // for removal in the future if the Experimental Widget becomes stable.
         return when {
-            module != null && ModuleType.get(module).id == "ELIXIR_MODULE" ->
+            module != null && ModuleType.get(module).id == ELIXIR_MODULE_TYPE_ID ->
                 Function { createModulePanel(project, module) }
             module != null && ProcessOutput.isSmallIde ->
                 Function { createSmallIDEFacetPanel(project, module) }

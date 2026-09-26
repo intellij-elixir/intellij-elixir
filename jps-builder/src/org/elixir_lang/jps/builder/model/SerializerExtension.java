@@ -4,6 +4,7 @@ import com.intellij.openapi.diagnostic.Logger;
 import org.elixir_lang.jps.builder.compiler_options.Serializer;
 import org.elixir_lang.jps.builder.mix.SettingsSerializer;
 import org.elixir_lang.jps.builder.sdk_type.Elixir;
+import org.elixir_lang.jps.shared.ElixirModuleTypeId;
 import org.elixir_lang.jps.shared.ElixirSdkTypeId;
 import org.jdom.Attribute;
 import org.jdom.Element;
@@ -29,7 +30,7 @@ public class SerializerExtension extends JpsModelSerializerExtension {
     @NotNull
     @Override
     public List<? extends JpsModulePropertiesSerializer<?>> getModulePropertiesSerializers() {
-        return Collections.singletonList(new JpsModulePropertiesSerializer<JpsDummyElement>(ModuleType.INSTANCE, "ELIXIR_MODULE", null) {
+        return Collections.singletonList(new JpsModulePropertiesSerializer<JpsDummyElement>(ModuleType.INSTANCE, ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID, null) {
             @Override
             public JpsDummyElement loadProperties(@Nullable Element componentElement) {
                 return JpsElementFactory.getInstance().createDummyElement();
