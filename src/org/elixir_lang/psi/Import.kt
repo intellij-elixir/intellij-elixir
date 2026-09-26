@@ -216,6 +216,21 @@ object Import {
         resolveState: ResolveState,
         keepProcessing: (Call, ResolveState) -> Boolean
     ): Boolean {
+        // What a `use` injects is the module's own, so the `import` brings it in too; an `import` it injects is not.
+        if (Use.`is`(importedCall)) {
+            var keepGoing = true
+
+            // Finishes the quote, as the module's own listing is finished, so a head's clauses after it are reached.
+            Use.treeWalkUp(importedCall, definitionsOnly(resolveState)) { injected, injectedState ->
+                (injected as? Call)?.let {
+                    keepGoing = treeWalkUpImportedModularChildExpression(filter, it, injectedState, keepProcessing) && keepGoing
+                }
+                true
+            }
+
+            return keepGoing
+        }
+
         val declared = CallableDeclaration.declaredOf(importedCall, resolveState) as? CallableDeclaration.Declared.Source
             ?: return true
 

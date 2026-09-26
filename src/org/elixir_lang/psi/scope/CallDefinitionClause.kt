@@ -198,7 +198,11 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
                 true
             }
             Use.`is`(element) -> {
-                Use.treeWalkUp(element, state, ::execute)
+                // Finishes the quote, as a module's own children are, so a head's clauses after it are reached.
+                Use.treeWalkUp(element, state) { injected, injectedState ->
+                    execute(injected, injectedState)
+                    true
+                }
 
                 true
             }
