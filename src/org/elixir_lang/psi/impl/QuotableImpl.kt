@@ -4,10 +4,12 @@ package org.elixir_lang.psi.impl
 
 import com.ericsson.otp.erlang.*
 import com.intellij.lang.ASTNode
+import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.ModificationTracker
 import com.intellij.psi.*
 import com.intellij.psi.impl.source.tree.Factory
-import com.intellij.psi.tree.IElementType
+import com.intellij.psi.stubs.StubBuildCachedValuesManager
+import com.intellij.psi.stubs.StubBuildCachedValuesManager.StubBuildCachedValue
 import com.intellij.psi.tree.TokenSet
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
@@ -792,8 +794,7 @@ object QuotableImpl {
                 /* build_op({_Kind, Line, 'in'}, {UOp, _, [Left]}, Right) when ?rearrange_uop(UOp) ->
                      {UOp, meta(Line), [{'in', meta(Line), [Left, Right]}]}; */
                 if (leftOperator == rearrangedUnaryOperator) {
-                    val unaryOperatorArguments = leftExpression.elementAt(2)
-                    val originalUnaryOperand = when (unaryOperatorArguments) {
+                    val originalUnaryOperand = when (val unaryOperatorArguments = leftExpression.elementAt(2)) {
                         is OtpErlangString -> {
                             OtpErlangLong(unaryOperatorArguments.stringValue().codePointAt(0).toLong())
                         }
@@ -911,7 +912,7 @@ object QuotableImpl {
         )
 
         val callMetadata = OtpErlangList(arrayOf<OtpErlangObject>(
-                keywordTuple("no_parens", true),
+                trueKeywordTuple("no_parens"),
                 lineNumberKeywordTuple(relativeIdentifier.node)
         ))
 
@@ -957,7 +958,7 @@ object QuotableImpl {
         val metadataElements = if (doBlock != null) {
             arrayOf(line)
         } else {
-            arrayOf(keywordTuple("no_parens", true), line)
+            arrayOf(trueKeywordTuple("no_parens"), line)
         }
 
         val quotedBlockCallMetadata = OtpErlangList(metadataElements)
@@ -1351,14 +1352,10 @@ object QuotableImpl {
         val heredocLineList = heredocLiteral.heredocLineList
 
         for (line in heredocLineList) {
-            queueChildNodes(line, ElixirTypes.FRAGMENT, prefixLength, alignedNodeQueue)
+            queueChildNodes(line, prefixLength, alignedNodeQueue)
         }
 
-        val mergedNodeQueue = mergeFragments(
-                alignedNodeQueue,
-                ElixirTypes.FRAGMENT,
-                heredocLiteral.manager
-        )
+        val mergedNodeQueue = mergeFragments(alignedNodeQueue, heredocLiteral.manager)
 
         return quotedChildNodes(heredocLiteral, *mergedNodeQueue.toTypedArray())
     }
@@ -1654,7 +1651,7 @@ object QuotableImpl {
 
         val sigilName = sigil.sigilName()
         val quotedModifiers = sigil.sigilModifiers.quote()
-        val sigilMetadata = OtpErlangList(arrayOf<OtpErlangObject>(keywordTuple("delimiter", sigil.sigilDelimiter()), sigilLine))
+        val sigilMetadata = OtpErlangList(arrayOf<OtpErlangObject>(delimiterKeywordTuple(sigil.sigilDelimiter()), sigilLine))
 
         return quotedFunctionCall(
                 "sigil_$sigilName",
@@ -1712,12 +1709,7 @@ object QuotableImpl {
         )
     }
 
-    private fun keywordTuple(key: String, value: Boolean): OtpErlangTuple {
-        val keyAtom = OtpErlangAtom(key)
-        val valueAtom = OtpErlangAtom(value)
-
-        return keywordTuple(keyAtom, valueAtom)
-    }
+    private fun trueKeywordTuple(key: String): OtpErlangTuple = keywordTuple(OtpErlangAtom(key), OtpErlangAtom(true))
 
     private fun keywordTuple(key: String, value: Int): OtpErlangTuple {
         val keyAtom = OtpErlangAtom(key)
@@ -1726,12 +1718,8 @@ object QuotableImpl {
         return keywordTuple(keyAtom, valueInt)
     }
 
-    private fun keywordTuple(key: String, value: String): OtpErlangTuple {
-        val keyAtom  = OtpErlangAtom(key)
-        val valueBinary = OtpErlangBinary(value.toByteArray())
-
-        return keywordTuple(keyAtom, valueBinary)
-    }
+    private fun delimiterKeywordTuple(delimiter: String): OtpErlangTuple =
+            keywordTuple(OtpErlangAtom("delimiter"), OtpErlangBinary(delimiter.toByteArray()))
 
     private fun keywordTuple(key: OtpErlangAtom, value: OtpErlangObject): OtpErlangTuple =
             OtpErlangTuple(arrayOf(key, value))
@@ -1767,48 +1755,57 @@ object QuotableImpl {
      * stubs, and asking the file for its tree then loads it again, which the platform stops with an exception.
      */
     private fun uncountedNewlines(file: PsiFile, node: ASTNode): UncountedNewlines =
-        CachedValuesManager.getCachedValue(file) {
-            val literalSigilLine = mutableListOf<Int>()
-            val character = mutableListOf<Int>()
-            val root = generateSequence(node) { it.treeParent }.last()
-            var current: ASTNode? = root
+        // A stub build can quote, where the platform flags a plain cached value. The stub-build value is held on the file
+        // itself: the platform's other overloads hold it on the file's node, which loads a stub-backed tree.
+        if (StubBuildCachedValuesManager.isBuildingStubs) {
+            StubBuildCachedValuesManager.getCachedValueIfBuildingStubs(file, UNCOUNTED_NEWLINES, node, ::scanUncountedNewlines)
+        } else {
+            CachedValuesManager.getCachedValue(file) {
+                // Not `file` itself: a physical PSI dependency asks for InjectedLanguageManager, which ParsingTestCase's
+                // mock project does not register.
+                CachedValueProvider.Result.create(scanUncountedNewlines(node), ModificationTracker { file.modificationStamp })
+            }
+        }
 
-            while (current != null) {
-                when (current.elementType) {
-                    ElixirTypes.ESCAPED_EOL -> {
-                        val parent = current.treeParent
+    private val UNCOUNTED_NEWLINES = Key.create<StubBuildCachedValue<UncountedNewlines>>("ELIXIR_UNCOUNTED_NEWLINES.stub.building")
 
-                        if (parent?.elementType == ElixirTypes.CHAR_TOKEN) {
-                            character.add(current.startOffset)
-                        } else if (parent?.treeParent?.psi.let { it is SigilLine && it !is Interpolated }) {
-                            literalSigilLine.add(current.startOffset)
-                        }
+    private fun scanUncountedNewlines(node: ASTNode): UncountedNewlines {
+        val literalSigilLine = mutableListOf<Int>()
+        val character = mutableListOf<Int>()
+        val root = generateSequence(node) { it.treeParent }.last()
+        var current: ASTNode? = root
+
+        while (current != null) {
+            when (current.elementType) {
+                ElixirTypes.ESCAPED_EOL -> {
+                    val parent = current.treeParent
+
+                    if (parent?.elementType == ElixirTypes.CHAR_TOKEN) {
+                        character.add(current.startOffset)
+                    } else if (parent?.treeParent?.psi.let { it is SigilLine && it !is Interpolated }) {
+                        literalSigilLine.add(current.startOffset)
                     }
-
-                    ElixirTypes.CHAR_TOKEN ->
-                        if (current.lastChildNode.let { it.elementType != ElixirTypes.ESCAPED_EOL && it.textContains('\n') }) {
-                            character.add(current.startOffset)
-                        }
                 }
 
-                var next = current.firstChildNode
-                var ancestor: ASTNode = current
-
-                while (next == null && ancestor !== root) {
-                    next = ancestor.treeNext
-                    ancestor = ancestor.treeParent
-                }
-
-                current = next
+                ElixirTypes.CHAR_TOKEN ->
+                    if (current.lastChildNode.let { it.elementType != ElixirTypes.ESCAPED_EOL && it.textContains('\n') }) {
+                        character.add(current.startOffset)
+                    }
             }
 
-            // Not `file` itself: a physical PSI dependency asks for InjectedLanguageManager, which ParsingTestCase's
-            // mock project does not register.
-            CachedValueProvider.Result.create(
-                UncountedNewlines(literalSigilLine.toIntArray(), character.toIntArray()),
-                ModificationTracker { file.modificationStamp }
-            )
+            var next = current.firstChildNode
+            var ancestor: ASTNode = current
+
+            while (next == null && ancestor !== root) {
+                next = ancestor.treeNext
+                ancestor = ancestor.treeParent
+            }
+
+            current = next
         }
+
+        return UncountedNewlines(literalSigilLine.toIntArray(), character.toIntArray())
+    }
 
     private fun lineNumberKeywordTuple(node: ASTNode): OtpErlangTuple =
             keywordTuple(
@@ -1860,7 +1857,7 @@ object QuotableImpl {
         if (fromBrackets) {
             OtpErlangList(
                 arrayOf<OtpErlangObject>(
-                    keywordTuple("from_brackets", true),
+                    trueKeywordTuple("from_brackets"),
                     lineNumberKeywordTuple(bracketArguments.node)
                 )
             )
@@ -1899,7 +1896,7 @@ object QuotableImpl {
         return quotedFunctionCall(
             quotedQualifiedIdentifier,
             OtpErlangList(
-                arrayOf(keywordTuple("from_interpolation", true), *metadata.elements())
+                arrayOf(trueKeywordTuple("from_interpolation"), *metadata.elements())
             ),
             *arguments
         )
@@ -2013,7 +2010,7 @@ object QuotableImpl {
                         parent.addHexadecimalEscapeSequenceCodePoints(codePointList, child)
                     }
                 } else {
-                    TODO("Can't quote " + child)
+                    TODO("Can't quote $child")
                 }
             }
 
@@ -2122,11 +2119,10 @@ object QuotableImpl {
 
     private fun queueChildNodes(
         line: HeredocLineable,
-        fragmentType: IElementType,
         prefixLength: Int,
         heredocDescendantNodes: Queue<ASTNode>
     ) {
-        val excessWhitespace = line.heredocLinePrefix.excessWhitespace(fragmentType, prefixLength)
+        val excessWhitespace = line.heredocLinePrefix.excessWhitespace(ElixirTypes.FRAGMENT, prefixLength)
 
         if (excessWhitespace != null) {
             heredocDescendantNodes.add(excessWhitespace)
@@ -2141,14 +2137,13 @@ object QuotableImpl {
     @Contract(pure = true)
     private fun mergeFragments(
             unmergedNodes: Deque<ASTNode>,
-            fragmentType: IElementType,
             manager: PsiManager
     ): Queue<ASTNode> {
         val mergedNodes = LinkedList<ASTNode>()
         var fragmentStringBuilder: StringBuilder? = null
 
         for (unmergedNode in unmergedNodes) {
-            if (unmergedNode.elementType === fragmentType) {
+            if (unmergedNode.elementType === ElixirTypes.FRAGMENT) {
                 if (fragmentStringBuilder == null) {
                     fragmentStringBuilder = StringBuilder()
                 }
@@ -2156,26 +2151,25 @@ object QuotableImpl {
                 val fragment = unmergedNode.text
                 fragmentStringBuilder.append(fragment)
             } else {
-                addMergedFragments(mergedNodes, fragmentType, fragmentStringBuilder, manager)
+                addMergedFragments(mergedNodes, fragmentStringBuilder, manager)
                 fragmentStringBuilder = null
                 mergedNodes.add(unmergedNode)
             }
         }
 
-        addMergedFragments(mergedNodes, fragmentType, fragmentStringBuilder, manager)
+        addMergedFragments(mergedNodes, fragmentStringBuilder, manager)
 
         return mergedNodes
     }
 
     private fun addMergedFragments(
             mergedNodes: Queue<ASTNode>,
-            fragmentType: IElementType,
             fragmentStringBuilder: StringBuilder?,
             manager: PsiManager
     ) {
         if (fragmentStringBuilder != null) {
             val charListFragment = Factory.createSingleLeafElement(
-                    fragmentType,
+                    ElixirTypes.FRAGMENT,
                     fragmentStringBuilder.toString(),
                     0,
                     fragmentStringBuilder.length, null,

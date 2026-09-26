@@ -5,6 +5,8 @@ import com.intellij.openapi.roots.ProjectRootModificationTracker
 import com.intellij.openapi.util.Key
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
+import com.intellij.psi.stubs.StubBuildCachedValuesManager
+import com.intellij.psi.stubs.StubBuildCachedValuesManager.StubBuildCachedValue
 import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
@@ -34,6 +36,8 @@ object ElixirLanguageLevelResolver {
 
     private val CACHE_KEY = Key.create<CachedValue<ElixirLanguageLevel>>("ELIXIR_LANGUAGE_LEVEL")
 
+    private val STUB_BUILD_KEY = Key.create<StubBuildCachedValue<ElixirLanguageLevel>>("ELIXIR_LANGUAGE_LEVEL.stub.building")
+
     /**
      * The language level for [element], or [ElixirLanguageLevel.FALLBACK] when its Elixir version cannot be
      * determined.
@@ -47,6 +51,12 @@ object ElixirLanguageLevelResolver {
         element.project.getUserData(OVERRIDE_KEY)?.let { return it }
 
         val file = element.containingFile ?: return ElixirLanguageLevel.FALLBACK
+
+        // Parsing for a stub build reads this, where the platform flags a plain cached value. The stub-build value is held
+        // on the file itself: the platform's other overloads hold it on the file's node, which loads a stub-backed tree.
+        if (StubBuildCachedValuesManager.isBuildingStubs) {
+            return StubBuildCachedValuesManager.getCachedValueIfBuildingStubs(file, STUB_BUILD_KEY, file, ::resolve)
+        }
 
         return CachedValuesManager.getCachedValue(file, CACHE_KEY) {
             // Invalidated on root changes, so pointing a module at a different Elixir SDK - or
