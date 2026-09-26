@@ -7,7 +7,10 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.EEx
 import org.elixir_lang.Name
 import org.elixir_lang.NameArityInterval
+import org.elixir_lang.call.Visibility
+import org.elixir_lang.navigation.ElixirClausePresentation
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.call.name.Function
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.literalName
 import org.elixir_lang.psi.impl.stripAccessExpression
@@ -15,6 +18,8 @@ import org.elixir_lang.psi.mix.Generator
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.Callback
 import org.elixir_lang.structure_view.element.Delegation
+import org.elixir_lang.structure_view.element.Timed
+import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 
 /**
  * Whether a call puts function or macro names in scope, and which names at which arities. Every walker that needs
@@ -36,6 +41,109 @@ object CallableDeclaration {
         fun accepts(arity: Int): Boolean = arityInterval?.let { arity in it } ?: true
 
         fun nameArityInterval(): NameArityInterval = NameArityInterval(name, arityInterval ?: ArityInterval(0, null))
+    }
+
+    /**
+     * What a declaration can do. A site asks the capability it means rather than which `def*` wrote the declaration:
+     * a guard is expanded at compile time, as a macro is, but evaluates its arguments, as a function does.
+     *
+     * @property quotesArguments whether a call receives its arguments unevaluated, so a bare variable in them may be
+     *   a new binding.
+     * @property compileTime whether it is expanded at compile time: a `MACRO-` export, which a caller in another
+     *   module must `require`, and which implements a `@macrocallback`.
+     * @property usableInGuards whether a guard may call it: a `defguard`, or a compiled definition marked
+     *   `guard: true`, as `Kernel.is_atom/1` is.
+     * @property visibility `null` when the call does not say, as for an EEx kind that is not a literal atom.
+     * @property overridable whether `defoverridable` can name it straight after it is declared.
+     */
+    data class Capabilities(
+        val quotesArguments: Boolean,
+        val compileTime: Boolean,
+        val usableInGuards: Boolean,
+        val visibility: Visibility?,
+        val overridable: Boolean
+    ) {
+        /** Called at run time: by a local call, `apply/3`, a capture or a dispatch by name. */
+        val runtimeFunction: Boolean get() = !compileTime
+
+        /** Callable from another module; a visibility the call does not say could be public, so it counts as public. */
+        val public: Boolean get() = visibility != Visibility.PRIVATE
+
+        /** What `apply/3` or an MFA tuple reaches from another module. */
+        val remoteCallable: Boolean get() = runtimeFunction && public
+
+        val presentation: Presentation
+            get() = when {
+                quotesArguments -> Presentation.MACRO
+                usableInGuards -> Presentation.GUARD
+                else -> Presentation.FUNCTION
+            }
+    }
+
+    /** How a declaration is shown: one a guard may call is shown as a guard, one that quotes its arguments as a macro. */
+    enum class Presentation { FUNCTION, MACRO, GUARD }
+
+    /** The `def*` a clause is written with, which alone decides the clause's [Capabilities]; its visibility is always known. */
+    enum class Definer(
+        val keyword: String,
+        quotesArguments: Boolean,
+        compileTime: Boolean,
+        usableInGuards: Boolean,
+        val visibility: Visibility
+    ) {
+        DEF(Function.DEF, false, false, false, Visibility.PUBLIC),
+        DEFP(Function.DEFP, false, false, false, Visibility.PRIVATE),
+        DEFMEMO(Function.DEFMEMO, false, false, false, Visibility.PUBLIC),
+        DEFMEMOP(Function.DEFMEMOP, false, false, false, Visibility.PRIVATE),
+        DEFMACRO(Function.DEFMACRO, true, true, false, Visibility.PUBLIC),
+        DEFMACROP(Function.DEFMACROP, true, true, false, Visibility.PRIVATE),
+        DEFGUARD(Function.DEFGUARD, false, true, true, Visibility.PUBLIC),
+        DEFGUARDP(Function.DEFGUARDP, false, true, true, Visibility.PRIVATE);
+
+        val capabilities = Capabilities(quotesArguments, compileTime, usableInGuards, visibility, overridable = true)
+
+        companion object {
+            private val BY_KEYWORD = entries.associateBy { it.keyword }
+
+            fun of(keyword: String): Definer? = BY_KEYWORD[keyword]
+
+            /**
+             * The `def*` a clause with [capabilities] is written with, as a compiled definition is shown. A guard-safe
+             * function, as `Kernel.is_atom/1` is, is written with `def`.
+             */
+            fun writing(capabilities: Capabilities): Definer? =
+                entries.firstOrNull { definer ->
+                    definer.capabilities.compileTime == capabilities.compileTime &&
+                        definer.capabilities.public == capabilities.public &&
+                        (!capabilities.compileTime || definer.capabilities.usableInGuards == capabilities.usableInGuards)
+                }
+        }
+    }
+
+    /**
+     * A declaration classified once, whether a source call or a compiled definition, so its capabilities and what it
+     * defines are read without classifying it again.
+     */
+    sealed class Declared {
+        abstract val capabilities: Capabilities?
+
+        @RequiresReadLock
+        abstract fun definitions(state: ResolveState): List<Declaration>
+
+        class Source(val call: Call, val form: Form) : Declared() {
+            @get:RequiresReadLock
+            override val capabilities: Capabilities? get() = capabilitiesOf(call, form)
+
+            override fun definitions(state: ResolveState): List<Declaration> = definitions(call, form, state)
+        }
+
+        class Compiled(val definition: BeamCallDefinition) : Declared() {
+            @get:RequiresReadLock
+            override val capabilities: Capabilities get() = capabilitiesOf(definition)
+
+            override fun definitions(state: ResolveState): List<Declaration> =
+                listOf(declaration(definition.nameArityInterval))
+        }
     }
 
     private val HEAD_BINDING = listOf(Form.CLAUSE, Form.DELEGATION)
@@ -123,6 +231,112 @@ object CallableDeclaration {
             Form.EEX_FUNCTION_FROM -> listOfNotNull(eexFunctionFrom(call))
             Form.GENERATOR_EMBED -> listOfNotNull(generatorEmbed(call))
         }
+
+    /** What [element] - a source call or a compiled definition alike - can do, `null` when it declares nothing. */
+    @RequiresReadLock
+    fun capabilitiesOf(element: PsiElement, state: ResolveState): Capabilities? = declaredOf(element, state)?.capabilities
+
+    /** Whether [element] declares a macro, or anything else only callable at compile time. */
+    @RequiresReadLock
+    fun isCompileTime(element: PsiElement): Boolean = capabilitiesOf(element, ResolveState.initial())?.compileTime == true
+
+    /**
+     * [element] classified once - a source call or a compiled definition alike - `null` when it declares nothing. The
+     * one question every site asks, whatever a reference resolved to.
+     */
+    @RequiresReadLock
+    fun declaredOf(element: PsiElement, state: ResolveState): Declared? =
+        when (element) {
+            is Call -> formOf(element, state)?.let { Declared.Source(element, it) }
+            is BeamCallDefinition -> Declared.Compiled(element)
+            else -> null
+        }
+
+    /**
+     * The [Definer] of a clause, `null` when [call] is none. `CallDefinitionClause.is` is this, so it resolves
+     * nothing and is safe during stub building.
+     */
+    @RequiresReadLock
+    fun definerOf(call: Call): Definer? =
+        call.functionName()?.let { Definer.of(it) }?.takeIf { CallDefinitionClause.isCallingDefiner(call, it.keyword) }
+
+    /** Its export says whether it is a macro, and its stub whether its docs mark it `guard: true`. */
+    private fun capabilitiesOf(definition: BeamCallDefinition): Capabilities {
+        val compileTime = definition.time == Timed.Time.COMPILE
+
+        return Capabilities(
+            quotesArguments = compileTime && !definition.isGuard,
+            compileTime = compileTime,
+            usableInGuards = definition.isGuard,
+            visibility = if (definition.isExported) Visibility.PUBLIC else Visibility.PRIVATE,
+            overridable = false
+        )
+    }
+
+    private fun capabilitiesOf(call: Call, form: Form): Capabilities? =
+        when (form) {
+            Form.CLAUSE -> definerOf(call)?.capabilities
+            Form.CALLBACK ->
+                if (Callback.Kind.of(call) == Callback.Kind.MACROCALLBACK) {
+                    Capabilities(true, true, false, Visibility.PUBLIC, false)
+                } else {
+                    Capabilities(false, false, false, Visibility.PUBLIC, false)
+                }
+            Form.DELEGATION -> Capabilities(false, false, false, Visibility.PUBLIC, true)
+            // `defoverridable` straight after `defexception` finds its functions not yet defined.
+            Form.EXCEPTION -> Capabilities(false, false, false, Visibility.PUBLIC, false)
+            Form.EEX_FUNCTION_FROM -> Capabilities(false, false, false, EEx.visibility(call), true)
+            Form.GENERATOR_EMBED -> Capabilities(false, false, false, Visibility.PRIVATE, true)
+        }
+
+    /**
+     * The element spelling the name [call] declares - a clause's or `defdelegate` head's identifier, an EEx function's
+     * name atom - or `null` for a form with no one name of its own. A declared name's range, pointer and highlight
+     * are all read from it.
+     */
+    @RequiresReadLock
+    @JvmOverloads
+    fun nameElement(call: Call, state: ResolveState = ResolveState.initial()): PsiElement? =
+        formOf(call, state)?.let { nameElement(call, it) }
+
+    private fun nameElement(call: Call, form: Form): PsiElement? =
+        when (form) {
+            Form.CLAUSE -> CallDefinitionClause.nameIdentifier(call)
+            Form.DELEGATION -> Delegation.nameIdentifier(call)
+            Form.EEX_FUNCTION_FROM -> EEx.declaredNameAtom(call)
+            Form.CALLBACK, Form.EXCEPTION, Form.GENERATOR_EMBED -> null
+        }
+
+    /**
+     * How [call] reads in a label: its `def*` and head, as `defdelegate name(a)`, and an EEx function as the `def` it
+     * compiles to; `null` for a form with no head, or an EEx function whose kind or arguments are not literal.
+     */
+    @RequiresReadLock
+    fun label(call: Call): String? =
+        when (formOf(call, ResolveState.initial())) {
+            Form.CLAUSE, Form.DELEGATION -> ElixirClausePresentation.elementText(call)
+            Form.EEX_FUNCTION_FROM -> eexLabel(call)
+            else -> null
+        }
+
+    private fun eexLabel(call: Call): String? {
+        val kind = EEx.kind(call) ?: return null
+        val name = EEx.declaredName(call) ?: return null
+        val parameters = EEx.argumentList(call)
+            ?.map { (it.stripAccessExpression() as? ElixirAtom)?.literalName() ?: return null }
+            ?: return null
+
+        return "$kind $name(${parameters.joinToString(", ")})"
+    }
+
+    /** The `defdelegate` whose head [call] is, `null` when it heads none: a head is a declaration, not a call. */
+    @RequiresReadLock
+    fun delegationHeadedBy(call: Call): Call? =
+        com.intellij.psi.util.PsiTreeUtil.getParentOfType(call, Call::class.java)
+            ?.takeIf { isForm(it, Form.DELEGATION) }
+            ?.takeIf { delegation ->
+                delegationHead(delegation)?.let { org.elixir_lang.structure_view.element.CallDefinitionHead.strip(it) } == call
+            }
 
     /** The one head of a `defdelegate`; a list of heads declares nothing here yet (#4040). */
     @RequiresReadLock

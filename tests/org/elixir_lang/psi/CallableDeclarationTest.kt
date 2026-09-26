@@ -24,31 +24,33 @@ class CallableDeclarationTest : PlatformTestCase() {
             val syntacticForm = CallableDeclaration.syntacticFormOf(call)
             val declarations = form?.let { CallableDeclaration.declarations(call, it, state) }.orEmpty()
 
+            val capabilities = CallableDeclaration.capabilitiesOf(call, state)?.let { " (${render(it)})" }.orEmpty()
+
             ("${call.text.lineSequence().first()} -> ${form ?: "-"} | ${syntacticForm ?: "-"} " +
-                declarations.joinToString(", ") { render(it) }).trimEnd()
+                declarations.joinToString(", ") { render(it) }).trimEnd() + capabilities
         }
 
         assertEquals(
             """
             require EEx -> - | -
             require Mix.Generator -> - | -
-            def public_function(a), do: a -> CLAUSE | CLAUSE public_function/1
-            defp private_function(a, b \\ 1), do: {a, b} -> CLAUSE | CLAUSE private_function/1..2
-            defmacro public_macro(a), do: a -> CLAUSE | CLAUSE public_macro/1
-            defmacrop private_macro(a), do: a -> CLAUSE | CLAUSE private_macro/1
-            defguard is_small(a) when a < 10 -> CLAUSE | CLAUSE is_small/1
-            defguardp is_large(a) when a > 10 -> CLAUSE | CLAUSE is_large/1
-            @callback function_callback(integer) :: atom -> CALLBACK | CALLBACK function_callback/1
-            @macrocallback macro_callback(term) :: Macro.t() -> CALLBACK | CALLBACK macro_callback/1
-            defdelegate delegated(a, b), to: Target -> DELEGATION | DELEGATION delegated/2
-            defexception [:message] -> EXCEPTION | EXCEPTION exception/1, message/1
-            EEx.function_from_string(:def, :from_string, "<%= a %>", [:a]) -> EEX_FUNCTION_FROM | - from_string/1
-            EEx.function_from_file(:defp, :from_file, "sample.eex") -> EEX_FUNCTION_FROM | - from_file/0
-            Mix.Generator.embed_template(:log, "Log") -> GENERATOR_EMBED | - log_template/1
-            Mix.Generator.embed_text(:error, "Error") -> GENERATOR_EMBED | - error_text/0
-            EEx.function_from_string(:def, :"quoted_from_string", "") -> EEX_FUNCTION_FROM | - quoted_from_string/0
-            EEx.function_from_string(:def, :"#{:interpolated}_from_string", "") -> EEX_FUNCTION_FROM | -
-            Mix.Generator.embed_text(:"quoted", "Quoted") -> GENERATOR_EMBED | - quoted_text/0
+            def public_function(a), do: a -> CLAUSE | CLAUSE public_function/1 (evaluates runtime public overridable)
+            defp private_function(a, b \\ 1), do: {a, b} -> CLAUSE | CLAUSE private_function/1..2 (evaluates runtime private overridable)
+            defmacro public_macro(a), do: a -> CLAUSE | CLAUSE public_macro/1 (quotes compile-time public overridable)
+            defmacrop private_macro(a), do: a -> CLAUSE | CLAUSE private_macro/1 (quotes compile-time private overridable)
+            defguard is_small(a) when a < 10 -> CLAUSE | CLAUSE is_small/1 (evaluates compile-time guard-usable public overridable)
+            defguardp is_large(a) when a > 10 -> CLAUSE | CLAUSE is_large/1 (evaluates compile-time guard-usable private overridable)
+            @callback function_callback(integer) :: atom -> CALLBACK | CALLBACK function_callback/1 (evaluates runtime public)
+            @macrocallback macro_callback(term) :: Macro.t() -> CALLBACK | CALLBACK macro_callback/1 (quotes compile-time public)
+            defdelegate delegated(a, b), to: Target -> DELEGATION | DELEGATION delegated/2 (evaluates runtime public overridable)
+            defexception [:message] -> EXCEPTION | EXCEPTION exception/1, message/1 (evaluates runtime public)
+            EEx.function_from_string(:def, :from_string, "<%= a %>", [:a]) -> EEX_FUNCTION_FROM | - from_string/1 (evaluates runtime public overridable)
+            EEx.function_from_file(:defp, :from_file, "sample.eex") -> EEX_FUNCTION_FROM | - from_file/0 (evaluates runtime private overridable)
+            Mix.Generator.embed_template(:log, "Log") -> GENERATOR_EMBED | - log_template/1 (evaluates runtime private overridable)
+            Mix.Generator.embed_text(:error, "Error") -> GENERATOR_EMBED | - error_text/0 (evaluates runtime private overridable)
+            EEx.function_from_string(:def, :"quoted_from_string", "") -> EEX_FUNCTION_FROM | - quoted_from_string/0 (evaluates runtime public overridable)
+            EEx.function_from_string(:def, :"#{:interpolated}_from_string", "") -> EEX_FUNCTION_FROM | - (evaluates runtime public overridable)
+            Mix.Generator.embed_text(:"quoted", "Quoted") -> GENERATOR_EMBED | - quoted_text/0 (evaluates runtime private overridable)
             import Enum -> - | -
             alias Target, as: T -> - | -
             use Target -> - | -
@@ -111,8 +113,41 @@ class CallableDeclarationTest : PlatformTestCase() {
         assertEquals("a\"b/0", actual)
     }
 
+    /** A protocol's bodyless `def` is a public runtime function; an EEx kind that is not a literal says no visibility. */
+    fun testAKindIsReadFromWhatTheCallSays() {
+        myFixture.copyFileToProject("eex.ex")
+        myFixture.configureByText(
+            "kinds.ex",
+            """
+            defprotocol Sized do
+              def size(data)
+            end
+
+            defmodule Templates do
+              require EEx
+
+              for kind <- [:def, :defp] do
+                EEx.function_from_string(kind, :render, "")
+              end
+            end
+            """.trimIndent()
+        )
+
+        val state = ResolveState.initial()
+        val actual = listOf("def size", "EEx.function_from_string").joinToString("\n") { prefix ->
+            val call = PsiTreeUtil.findChildrenOfType(myFixture.file, Call::class.java).first { it.text.startsWith(prefix) }
+
+            "$prefix -> ${CallableDeclaration.capabilitiesOf(call, state)?.let { render(it) }}"
+        }
+
+        assertEquals(
+            "def size -> evaluates runtime public overridable\nEEx.function_from_string -> evaluates runtime ? overridable",
+            actual
+        )
+    }
+
     /**
-     * `headBindingFormOf ⊆ syntacticFormOf ⊆ formOf`, and [CallableDeclaration.syntacticFormOf] never answers a form
+     * `headBindingFormOf ⊆ syntacticFormOf ⊆ formOf`, [CallableDeclaration.definerOf] answers exactly the clauses, and [CallableDeclaration.syntacticFormOf] never answers a form
      * that needed a reference resolved. Every call in the fixtures, not just the module body's, and every violation
      * is collected rather than asserted so one bad row does not hide the rest.
      */
@@ -131,6 +166,8 @@ class CallableDeclarationTest : PlatformTestCase() {
                     "$source: headBindingFormOf $headBindingForm, syntacticFormOf ${syntacticForm ?: "-"}"
                 syntacticForm != null && form != syntacticForm ->
                     "$source: syntacticFormOf $syntacticForm, formOf ${form ?: "-"}"
+                (CallableDeclaration.definerOf(call) != null) != (form == CallableDeclaration.Form.CLAUSE) ->
+                    "$source: definerOf ${CallableDeclaration.definerOf(call) ?: "-"}, formOf ${form ?: "-"}"
                 syntacticForm?.requiresResolution == true ->
                     "$source: syntacticFormOf answered $syntacticForm, which formOf recognises only by resolving"
                 else -> CallableDeclaration.Form.entries
@@ -141,6 +178,15 @@ class CallableDeclarationTest : PlatformTestCase() {
 
         assertEquals("", violations.joinToString("\n"))
     }
+
+    private fun render(capabilities: CallableDeclaration.Capabilities): String =
+        listOfNotNull(
+            if (capabilities.quotesArguments) "quotes" else "evaluates",
+            if (capabilities.compileTime) "compile-time" else "runtime",
+            "guard-usable".takeIf { capabilities.usableInGuards },
+            capabilities.visibility?.name?.lowercase() ?: "?",
+            "overridable".takeIf { capabilities.overridable }
+        ).joinToString(" ")
 
     private fun render(declaration: CallableDeclaration.Declaration): String {
         val interval = declaration.arityInterval ?: return "${declaration.name}/?"

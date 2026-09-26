@@ -104,4 +104,7 @@ class CallDefinitionImpl<T : CallDefinitionStub<*>>(private val stub: T) : Modul
 
     override val parameters: List<String>
         get() = stub.parameters()
+
+    override val isGuard: Boolean
+        get() = stub.isGuard
 }
