@@ -5,7 +5,6 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.util.PsiTreeUtil;
 import org.elixir_lang.psi.*;
 import org.elixir_lang.psi.call.Call;
-import org.elixir_lang.structure_view.element.Delegation;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -61,19 +60,17 @@ public class Parameter {
     private static Parameter putParameterized(@NotNull final Parameter parameter, final @NotNull Call ancestor) {
         Parameter parameterizedParameter;
 
-        if (CallDefinitionClause.isFunction(ancestor) || Delegation.is(ancestor)) {
+        CallableDeclaration.Form form = CallableDeclaration.INSTANCE.headBindingFormOf(ancestor);
+
+        if (form != null) {
+            CallableDeclaration.Definer definer = CallableDeclaration.INSTANCE.definerOf(ancestor);
+            Type nameType = definer != null && definer.getCapabilities().getCompileTime() ? Type.MACRO_NAME : Type.FUNCTION_NAME;
+
             parameterizedParameter = new Parameter(
                     parameter.defaultValue,
                     parameter.entrance,
                     notNullize(parameter.parameterized, ancestor),
-                    notNullize(parameter.type, Type.FUNCTION_NAME)
-            );
-        } else if (CallDefinitionClause.isMacro(ancestor)) {
-            parameterizedParameter = new Parameter(
-                    parameter.defaultValue,
-                    parameter.entrance,
-                    notNullize(parameter.parameterized, ancestor),
-                    notNullize(parameter.type, Type.MACRO_NAME)
+                    notNullize(parameter.type, nameType)
             );
         } else if (ancestor.hasDoBlockOrKeyword()) {
             parameterizedParameter = new Parameter(

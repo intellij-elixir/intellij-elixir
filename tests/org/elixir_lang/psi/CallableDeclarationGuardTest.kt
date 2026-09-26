@@ -142,7 +142,6 @@ class CallableDeclarationGuardTest {
         val TRAILING_COMMENT = Regex("""\s//.*$""")
 
         val NOT_YET_ASKING = setOf(
-            "annotator/Parameter.java",
             "navigation/ChooseByNameContributor.kt",
             "psi/ElementDescriptionProvider.kt",
             "psi/impl/PsiNameIdentifierOwnerImpl.kt",
