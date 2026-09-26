@@ -12,6 +12,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.operation.Match
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.scope.variable.MultiResolve
+import org.elixir_lang.psi.scope.NameMatch
 
 @Suppress("UnstableApiUsage")
 class VariableReference(
@@ -71,7 +72,7 @@ class VariableReference(
 
             return PsiTreeUtil.findChildrenOfType(head, Call::class.java)
                 .asSequence()
-                .filter { call -> VariableSymbol.variableName(call) == name }
+                .filter { call -> VariableSymbol.variableName(call)?.let { NameMatch.same(it, call, name, element) } == true }
                 .mapNotNull { call -> VariableSymbol.fromDeclaration(call) }
                 .distinct()
                 .toList()
@@ -97,7 +98,7 @@ class VariableReference(
                     PsiTreeUtil.findChildrenOfType(left, Call::class.java).asSequence()
                 }
                 .firstOrNull { leftCall ->
-                    VariableSymbol.variableName(leftCall) == name &&
+                    VariableSymbol.variableName(leftCall)?.let { NameMatch.same(it, leftCall, name, element) } == true &&
                         generateSequence(leftCall as PsiElement) { it.parent }
                             .filterIsInstance<org.elixir_lang.psi.UnaryOperation>()
                             .any { unary ->

@@ -8,11 +8,20 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.PsiReference
+import com.intellij.psi.ResolveResult
+import org.elixir_lang.annotator.Injection
+import org.elixir_lang.name_arity.PresentationData
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.scope.call_definition_clause.CallDefinitionResolveResult
 
 class References : LocalInspectionTool() {
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean, session: LocalInspectionToolSession): PsiElementVisitor {
+        // A doc-embedded code sample is illustrative, not compiled with the module; skip it before even
+        // computing a reference, since a smart pointer into injected PSI can fail to restore later even
+        // when nothing is ever registered against it.
+        if (Injection.of(holder.file) == Injection.UNCOMPILED) return PsiElementVisitor.EMPTY_VISITOR
+
         return object : ElixirVisitor() {
             override fun visitElement(element: PsiElement) {
                 when (element) {
@@ -100,8 +109,34 @@ class References : LocalInspectionTool() {
                 if (resolveResults.isEmpty()) {
                     holder.registerProblem(element, "Does not resolve to anything", ProblemHighlightType.ERROR)
                 } else if (!resolveResults.any { it.isValidResult } && !expectOnlyInvalid(element)) {
-                    holder.registerProblem(element, "Only resolves to invalid results", ProblemHighlightType.ERROR)
+                    holder.registerProblem(element, wrongArityMessage(resolveResults), ProblemHighlightType.ERROR)
                 }
+            }
+
+            private fun wrongArityMessage(resolveResults: Array<out ResolveResult>): String =
+                declaredArities(resolveResults)
+                    .takeIf { it.isNotEmpty() }
+                    ?.let { "Only resolves to invalid results. Did you mean: ${it.joinToString(", ")}?" }
+                    ?: "Only resolves to invalid results"
+
+            // The arities resolution checked the call against. Complete resolution returns only definitions of
+            // exactly the call's name, however each was spelled, so one spelling names them all; an open
+            // interval (`unquote_splicing`) accepts its minimum and anything above it.
+            private fun declaredArities(resolveResults: Array<out ResolveResult>): List<String> {
+                val nameArityIntervals = resolveResults.filterIsInstance<CallDefinitionResolveResult>().map { it.nameArityInterval }
+                val name = nameArityIntervals.firstOrNull()?.name ?: return emptyList()
+
+                return nameArityIntervals
+                    .asSequence()
+                    .flatMap { (_, arityInterval) ->
+                        arityInterval.maximum
+                            ?.let { maximum -> (arityInterval.minimum..maximum).asSequence().map { arity -> arity to false } }
+                            ?: sequenceOf(arityInterval.minimum to true)
+                    }
+                    .distinct()
+                    .sortedWith(compareBy({ (arity, _) -> arity }, { (_, open) -> open }))
+                    .map { (arity, open) -> PresentationData.presentableText(name, arity) + if (open) "+" else "" }
+                    .toList()
             }
 
             private fun expectOnlyInvalid(element: PsiElement): Boolean =

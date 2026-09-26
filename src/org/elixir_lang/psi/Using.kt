@@ -37,7 +37,10 @@ object Using {
             is Call -> treeWalkUp(using, use, resolveState, keepProcessing)
             /* Unreachable while `isDefiner` compares a decompiled definition's always-null `name`, which leaves
                `definers` empty for a beam module. Giving `CallDefinitionImpl` a `getName()` arms this, so the two
-               have to change together. */
+               have to change together. Also unreachable via `ModuleWalker.definers` (`Ecto.Schema`/`ExUnit.Case`
+               membership): it recognizes a compiled macro (`CallableTable.matchesCompiledIn`) without ever
+               handing one back as a `Call` to walk into - deliberately, since a `.beam` macro has no decompiled
+               body here to walk. */
             is BeamCallDefinition -> TODO()
             else -> true
         }

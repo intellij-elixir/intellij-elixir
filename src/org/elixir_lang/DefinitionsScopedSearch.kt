@@ -16,6 +16,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.macroChildCallList
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.psi.outerMostQualifiableAlias
+import org.elixir_lang.psi.scope.NameMatch
 
 internal class DefinitionsScopedSearch :
     QueryExecutorBase<PsiElement, DefinitionsScopedSearch.SearchParameters>(/* requireReadAction = */ true) {
@@ -80,7 +81,7 @@ internal class DefinitionsScopedSearch :
                                         if (CallDefinitionClause.`is`(defimplChild)) {
                                             CallDefinitionClause.nameArityInterval(defimplChild, ResolveState.initial())
                                                 ?.let { implNameArityInterval ->
-                                                    if (implNameArityInterval.name == protocolNameArityInterval.name &&
+                                                    if (NameMatch.same(implNameArityInterval.name, defimplChild, protocolNameArityInterval.name, call) &&
                                                         implNameArityInterval.arityInterval.overlaps(protocolNameArityInterval.arityInterval)
                                                     ) {
                                                         if (!consumer.process(defimplChild)) {
@@ -102,7 +103,7 @@ internal class DefinitionsScopedSearch :
 
                                         val implNameArityInterval = callDefinition.nameArityInterval
 
-                                        if (implNameArityInterval.name == protocolNameArityInterval.name &&
+                                        if (NameMatch.same(implNameArityInterval.name, callDefinition, protocolNameArityInterval.name, call) &&
                                             implNameArityInterval.arityInterval.overlaps(protocolNameArityInterval.arityInterval)
                                         ) {
                                             if (!consumer.process(callDefinition)) {
@@ -135,7 +136,7 @@ internal class DefinitionsScopedSearch :
         val moduleImpl = callDefinitionImpl.parent
 
         if (Protocol.`is`(moduleImpl)) {
-            val name = callDefinitionImpl.name
+            val name = callDefinitionImpl.name?.let { NameMatch.query(it, callDefinitionImpl) } ?: return
             val arity = callDefinitionImpl.exportedArity(ResolveState.initial())
 
             Protocol.processImplementations(moduleImpl) { defimpl ->
@@ -151,7 +152,7 @@ internal class DefinitionsScopedSearch :
                             if (CallDefinitionClause.`is`(defimplChild)) {
                                 CallDefinitionClause.nameArityInterval(defimplChild, ResolveState.initial())
                                     ?.let { implNameArityInterval ->
-                                        if (implNameArityInterval.name == name &&
+                                        if (NameMatch.of(name, implNameArityInterval.name, defimplChild) == NameMatch.EXACT &&
                                             implNameArityInterval.arityInterval.contains(arity)
                                         ) {
                                             if (!consumer.process(defimplChild)) {
@@ -172,7 +173,7 @@ internal class DefinitionsScopedSearch :
 
                             val implNameArityInterval = callDefinition.nameArityInterval
 
-                            if (implNameArityInterval.name == name &&
+                            if (NameMatch.of(name, implNameArityInterval.name, callDefinition) == NameMatch.EXACT &&
                                 implNameArityInterval.arityInterval.contains(arity)
                             ) {
                                 if (!consumer.process(callDefinition)) {

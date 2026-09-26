@@ -3,8 +3,8 @@ package org.elixir_lang.code_insight.lookup.element_renderer
 import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.codeInsight.lookup.LookupElementPresentation
 import com.intellij.codeInsight.lookup.LookupElementRenderer
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.call.finalArguments
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 
 /**
@@ -40,10 +40,8 @@ class Delegation(private val name: String) : LookupElementRenderer<LookupElement
     /** The head as written, whitespace-normalised, e.g. `values(map)`. */
     @RequiresReadLock
     private fun headText(delegationCall: Call): String? =
-        delegationCall
-            .finalArguments()
-            ?.takeIf { it.size == 2 }
-            ?.get(0)
+        CallableDeclaration
+            .delegationHead(delegationCall)
             ?.text
             ?.replace(WHITESPACE_RUN, " ")
 
