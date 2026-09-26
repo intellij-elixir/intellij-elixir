@@ -240,7 +240,7 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
                 ?.filter(ResolveResult::isValidResult)
                 ?.mapNotNull(ResolveResult::getElement)
                 ?.filterIsInstance<Call>()
-                ?.filter { org.elixir_lang.psi.CallDefinitionClause.isMacro(it) }
+                ?.filter { org.elixir_lang.psi.CallableDeclaration.definerOf(it)?.capabilities?.quotesArguments == true }
                 ?.let { macroDefinitions ->
                     whileIn(macroDefinitions) { macroDefinition ->
                         executeOnUnknownMacroDefinition(macroDefinition, state)

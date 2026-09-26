@@ -8,8 +8,6 @@ import com.intellij.psi.ResolveState
 import org.elixir_lang.NameArity
 import org.elixir_lang.package_manager.DepGatherer
 import org.elixir_lang.psi.*
-import org.elixir_lang.psi.CallDefinitionClause.isFunction
-import org.elixir_lang.psi.CallDefinitionClause.isPublicFunction
 import org.elixir_lang.psi.CallDefinitionClause.nameArityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.foldChildrenWhile
@@ -125,7 +123,7 @@ private fun Array<Call>.depsNameArity(): NameArity? {
 }
 
 private fun isDefining(call: Call, nameArity: NameArity): Boolean =
-        if (isFunction(call)) {
+        if (CallableDeclaration.definerOf(call)?.capabilities?.runtimeFunction == true) {
             nameArityInterval(call, ResolveState.initial())?.let { definedNameArityInterval ->
                 if (definedNameArityInterval.name == nameArity.name &&
                         definedNameArityInterval.arityInterval.contains(nameArity.arity)) {
@@ -139,7 +137,7 @@ private fun isDefining(call: Call, nameArity: NameArity): Boolean =
         } ?: false
 
 private fun isDefiningProject(call: Call): Boolean =
-        if (isPublicFunction(call)) {
+        if (CallableDeclaration.definerOf(call)?.capabilities?.remoteCallable == true) {
             nameArityInterval(call, ResolveState.initial())?.let { nameArityRange ->
                 if (nameArityRange.name == "project" && nameArityRange.arityInterval.contains(0)) {
                     true

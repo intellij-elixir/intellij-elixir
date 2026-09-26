@@ -32,6 +32,60 @@ class CallableDeclarationGuardTest {
         )
     }
 
+    /**
+     * What a declaration can do is answered by [CallableDeclaration.capabilitiesOf] alone; nothing names the clause
+     * kind predicates it replaced outside the mechanism.
+     */
+    @Test
+    fun `only CallableDeclaration decides whether a declaration is a function or a macro`() {
+        assertTrue("expected $ROOT to exist - is the working directory the project root?", ROOT.isDirectory)
+
+        val deciding = ROOT.walkTopDown()
+            .filter { it.isFile && it.extension in SOURCE_EXTENSIONS }
+            .map { it.relativeTo(ROOT).invariantSeparatorsPath to it }
+            .filter { (path, _) -> path !in KIND_MECHANISM }
+            .filter { (_, file) ->
+                val code = file.readLines()
+                    .filterNot { COMMENT_LINE.containsMatchIn(it) }
+                    .joinToString("\n") { it.replace(TRAILING_COMMENT, "") }
+
+                KIND_QUALIFIED.containsMatchIn(code) ||
+                    KIND_IMPORT.containsMatchIn(code) ||
+                    CLAUSE_ALIAS_IMPORT.findAll(code).any { import ->
+                        Regex("""(?<![A-Za-z_])${import.groupValues[1]}$COMPANION\s*(?:\.|::)\s*$KIND\b""")
+                            .containsMatchIn(code)
+                    }
+            }
+            .map { (path, _) -> path }
+            .sorted()
+            .toList()
+
+        assertEquals("Ask CallableDeclaration.capabilitiesOf instead of naming the clause kind predicates:", "", deciding.joinToString("\n"))
+    }
+
+    /** A compiled definition's capabilities come from `CallableDeclaration.capabilitiesOf` too, not from its `time`. */
+    @Test
+    fun `only CallableDeclaration decides what a compiled definition can do from its time`() {
+        assertTrue("expected $ROOT to exist - is the working directory the project root?", ROOT.isDirectory)
+
+        val deciding = ROOT.walkTopDown()
+            .filter { it.isFile && it.extension in SOURCE_EXTENSIONS }
+            .map { it.relativeTo(ROOT).invariantSeparatorsPath to it }
+            .filter { (path, _) -> path !in KIND_MECHANISM }
+            .filter { (_, file) ->
+                val code = file.readLines()
+                    .filterNot { COMMENT_LINE.containsMatchIn(it) }
+                    .joinToString("\n") { it.replace(TRAILING_COMMENT, "") }
+
+                COMPILED_TIME.containsMatchIn(code)
+            }
+            .map { (path, _) -> path }
+            .sorted()
+            .toList()
+
+        assertEquals("Ask CallableDeclaration.capabilitiesOf instead of reading a compiled definition's time:", "", deciding.joinToString("\n"))
+    }
+
     private fun enumeratingFiles(): Map<String, List<String>> =
         ROOT.walkTopDown()
             .filter { it.isFile && it.extension in SOURCE_EXTENSIONS && it.name != MECHANISM }
@@ -130,6 +184,15 @@ class CallableDeclarationGuardTest {
                 "isEmbed",
             ),
         )
+        val KIND_MECHANISM = setOf("psi/CallDefinitionClause.kt", "psi/$MECHANISM")
+        private const val KIND = """`?is(?:Function|Macro|Guard|Public\w*|Private\w*)`?"""
+        private const val CLAUSE = """org\.elixir_lang\.psi\.CallDefinitionClause"""
+        val KIND_QUALIFIED = Regex("""(?<![A-Za-z_])CallDefinitionClause$COMPANION\s*(?:\.|::)\s*$KIND\b""")
+        val KIND_IMPORT = Regex("""import\s+(?:static\s+)?$CLAUSE(?:\.Companion|\.INSTANCE)?\.$KIND\b""")
+        // A compiled definition's `time` property - `definition.time == Timed.Time.COMPILE`, `when (definition.time)` -
+        // unlike a structure-view element's `time()`.
+        val COMPILED_TIME = Regex("""\.time\s*==\s*(?:Timed\.)?Time\.|when\s*\(\s*[\w.]+\.time\s*\)""")
+        val CLAUSE_ALIAS_IMPORT =Regex("""import\s+(?:static\s+)?$CLAUSE\s+as\s+(\w+)""")
         val COMMENT_LINE = Regex("""^\s*(//|\*|/\*)""")
         val TRAILING_COMMENT = Regex("""\s//.*$""")
     }
