@@ -1,5 +1,11 @@
 package org.elixir_lang
 
+import org.elixir_lang.psi.CallableDeclaration
+import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.impl.nameTextRange
+import com.intellij.openapi.util.TextRange
+import com.intellij.psi.ResolveState
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import com.intellij.lexer.Lexer
 import com.intellij.openapi.fileTypes.SyntaxHighlighterBase
 import com.intellij.openapi.editor.colors.TextAttributesKey
@@ -146,6 +152,35 @@ class ElixirSyntaxHighlighter : SyntaxHighlighterBase() {
         val FUNCTION_DECLARATION = TextAttributesKey.createTextAttributesKey(
                 "ELIXIR_FUNCTION_DECLARATION",
                 DefaultLanguageHighlighterColors.FUNCTION_DECLARATION
+        )
+        /** The key a declared name is highlighted with, by how its declaration is presented. */
+        fun declarationKey(presentation: CallableDeclaration.Presentation): TextAttributesKey =
+                when (presentation) {
+                    CallableDeclaration.Presentation.FUNCTION -> FUNCTION_DECLARATION
+                    CallableDeclaration.Presentation.MACRO -> MACRO_DECLARATION
+                    CallableDeclaration.Presentation.GUARD -> GUARD_DECLARATION
+                }
+
+        /** The range of the name [call] declares and the key it is highlighted with; `null` when it declares no name of its own. */
+        @RequiresReadLock
+        fun declaredName(call: Call): Pair<TextRange, TextAttributesKey>? {
+            val declared = CallableDeclaration.declaredOf(call, ResolveState.initial()) as? CallableDeclaration.Declared.Source
+                ?: return null
+            val nameElement = declared.nameElement ?: return null
+            val capabilities = declared.capabilities ?: return null
+
+            return nameTextRange(nameElement) to declarationKey(capabilities.presentation)
+        }
+
+        @JvmField
+        val GUARD_CALL = TextAttributesKey.createTextAttributesKey(
+                "ELIXIR_GUARD_CALL",
+                FUNCTION_CALL
+        )
+        @JvmField
+        val GUARD_DECLARATION = TextAttributesKey.createTextAttributesKey(
+                "ELIXIR_GUARD_DECLARATION",
+                FUNCTION_DECLARATION
         )
         @JvmField
         val IDENTIFIER = TextAttributesKey.createTextAttributesKey(

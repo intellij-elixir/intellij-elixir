@@ -243,6 +243,10 @@ end
   <predefined-call><macro-call>defmacro</macro-call></predefined-call> m() do
     <predefined-call><macro-call>__CALLER__</macro-call></predefined-call>
   end
+
+  <predefined-call><macro-call>defguard</macro-call></predefined-call> <guard-declaration>is_small</guard-declaration>(<parameter>a</parameter>) when <parameter>a</parameter> < 10
+
+  <predefined-call><macro-call>def</macro-call></predefined-call> small?(<parameter>a</parameter>) when <guard-call>is_small</guard-call>(<parameter>a</parameter>), <atom>do:</atom> true
 end
 
 # Functions

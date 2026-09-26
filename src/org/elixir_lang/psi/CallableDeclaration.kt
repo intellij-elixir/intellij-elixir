@@ -138,6 +138,9 @@ object CallableDeclaration {
             override val capabilities: Capabilities? get() = capabilitiesOf(call, form)
 
             override fun definitions(state: ResolveState): List<Declaration> = definitions(call, form, state)
+
+            /** [CallableDeclaration.nameElement] without classifying [call] again. */
+            val nameElement: PsiElement? @RequiresReadLock get() = nameElement(call, form)
         }
 
         class Compiled(val definition: BeamCallDefinition) : Declared() {
