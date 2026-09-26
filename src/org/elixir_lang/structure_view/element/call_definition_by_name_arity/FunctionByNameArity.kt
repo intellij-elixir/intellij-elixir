@@ -22,6 +22,17 @@ class FunctionByNameArity(size: Int, treeElementList: MutableList<TreeElement>, 
     fun addDelegationToTreeElementList(delegationCall: Call) =
             addToTreeElementList(Delegation(modular, delegationCall))
 
+    /** The function [eexFunctionFrom] declares is one entry with its clauses and `@spec`s, when its name is literal. */
+    fun addEExFunctionFromToCallDefinition(eexFunctionFrom: EExFunctionFrom) {
+        val nameArity = eexFunctionFrom.nameArity()
+
+        if (nameArity != null) {
+            putNew(nameArity).eexFunctionFrom(eexFunctionFrom)
+        } else {
+            treeElementList.add(eexFunctionFrom)
+        }
+    }
+
     fun addSpecificationToCallDefinition(moduleAttributeDefinition: Call) {
         assert(moduleAttributeDefinition is AtUnqualifiedNoParenthesesCall<*>)
 

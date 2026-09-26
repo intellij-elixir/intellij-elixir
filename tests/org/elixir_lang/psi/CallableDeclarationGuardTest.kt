@@ -9,10 +9,7 @@ import java.io.File
  * "Does this call put a function or macro name in scope" is answered by [CallableDeclaration] alone. A file under
  * `src/org/elixir_lang` that names two or more of the declaring predicates - directly, or through an import that
  * lets it call one bare - is answering it again by hand, which is how three scope walkers came to disagree about
- * which forms declare.
- *
- * [NOT_YET_ASKING] lists the files that still do. Migrating one deletes its row; a row whose file no longer
- * enumerates fails too, so the list only shrinks.
+ * which forms declare. A site that treats each form differently dispatches on the form, exhaustively.
  *
  * [CallableDeclaration.formOf] resolves a reference for two of the six forms, so a caller on the stub-building path
  * must not ask it. The failure message says which to ask instead; this guard only counts predicate names.
@@ -31,12 +28,7 @@ class CallableDeclarationGuardTest {
             only a parameter-binding head matters:
             """.trimIndent(),
             "",
-            (enumerating.keys - NOT_YET_ASKING).sorted().joinToString("\n") { "$it: ${enumerating.getValue(it)}" }
-        )
-        assertEquals(
-            "No longer enumerating; delete the row:",
-            "",
-            (NOT_YET_ASKING - enumerating.keys).sorted().joinToString("\n")
+            enumerating.keys.sorted().joinToString("\n") { "$it: ${enumerating.getValue(it)}" }
         )
     }
 
@@ -140,12 +132,5 @@ class CallableDeclarationGuardTest {
         )
         val COMMENT_LINE = Regex("""^\s*(//|\*|/\*)""")
         val TRAILING_COMMENT = Regex("""\s//.*$""")
-
-        val NOT_YET_ASKING = setOf(
-            "navigation/ChooseByNameContributor.kt",
-            "psi/ElementDescriptionProvider.kt",
-            "psi/impl/PsiNameIdentifierOwnerImpl.kt",
-            "structure_view/ChildCall.kt",
-        )
     }
 }

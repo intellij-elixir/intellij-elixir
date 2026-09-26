@@ -4,6 +4,7 @@ import com.intellij.ide.util.treeView.smartTree.TreeElement
 import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.operation.Or
 import org.elixir_lang.structure_view.element.CallDefinitionHead
@@ -59,7 +60,7 @@ object ChildCall {
     class Entry(
         val name: String,
         val matches: (Call, ResolveState) -> Boolean,
-        val handle: ((Accumulator, Call) -> Unit)?,
+        val handle: ((Accumulator, Call, ResolveState) -> Unit)?,
         val suitable: Boolean = true
     )
 
@@ -68,65 +69,34 @@ object ChildCall {
             "or",
             matches = { call, _ -> call is Or },
             suitable = false,
-            handle = { accumulator, call -> accumulator.childCallQueue.addAll(orOperandCalls(call as Or)) }
+            handle = { accumulator, call, _ -> accumulator.childCallQueue.addAll(orOperandCalls(call as Or)) }
         ),
         Entry(
-            "callback",
-            matches = { call, _ -> Callback.`is`(call) },
-            handle = { accumulator, call ->
-                Callback.fromCall(accumulator.modular, call)?.let { accumulator.treeElementList.add(it) }
-            }
-        ),
-        Entry(
-            "delegation",
-            matches = { call, _ -> Delegation.`is`(call) },
-            handle = { accumulator, call -> accumulator.functionByNameArity.addDelegationToTreeElementList(call) }
-        ),
-        Entry(
-            "exception",
-            matches = { call, _ -> org.elixir_lang.psi.Exception.`is`(call) },
-            handle = { accumulator, call ->
-                accumulator.functionByNameArity.exception = Exception(call)
-            }
-        ),
-        Entry(
-            "function",
-            matches = { call, _ -> org.elixir_lang.psi.CallDefinitionClause.isFunction(call) },
-            handle = { accumulator, call -> accumulator.functionByNameArity.addClausesToCallDefinition(call) }
+            "declaration",
+            matches = { call, state -> CallableDeclaration.formOf(call, state) != null },
+            handle = ::declaration
         ),
         Entry(
             "specification",
             matches = { call, _ -> CallDefinitionSpecification.`is`(call) },
-            handle = { accumulator, call -> accumulator.functionByNameArity.addSpecificationToCallDefinition(call) }
-        ),
-        Entry(
-            "eex function_from",
-            matches = { call, state -> org.elixir_lang.EEx.isFunctionFrom(call, state) },
-            handle = { accumulator, call ->
-                accumulator.treeElementList.add(EExFunctionFrom(accumulator.modular, call))
-            }
+            handle = { accumulator, call, _ -> accumulator.functionByNameArity.addSpecificationToCallDefinition(call) }
         ),
         Entry(
             "implementation",
             matches = { call, _ -> org.elixir_lang.psi.Implementation.`is`(call) },
-            handle = { accumulator, call ->
+            handle = { accumulator, call, _ ->
                 accumulator.treeElementList.add(Implementation(accumulator.modular, call))
             }
         ),
         Entry(
-            "macro",
-            matches = { call, _ -> org.elixir_lang.psi.CallDefinitionClause.isMacro(call) },
-            handle = { accumulator, call -> accumulator.macroByNameArity.addClausesToCallDefinition(call) }
-        ),
-        Entry(
             "module",
             matches = { call, _ -> org.elixir_lang.psi.Module.`is`(call) },
-            handle = { accumulator, call -> accumulator.treeElementList.add(Module(accumulator.modular, call)) }
+            handle = { accumulator, call, _ -> accumulator.treeElementList.add(Module(accumulator.modular, call)) }
         ),
         Entry(
             "overridable",
             matches = { call, _ -> Overridable.`is`(call) },
-            handle = { accumulator, call ->
+            handle = { accumulator, call, _ ->
                 val overridable = Overridable(accumulator.modular, call)
                 accumulator.overridableSet.add(overridable)
                 accumulator.treeElementList.add(overridable)
@@ -135,29 +105,29 @@ object ChildCall {
         Entry(
             "protocol",
             matches = { call, _ -> org.elixir_lang.psi.Protocol.`is`(call) },
-            handle = { accumulator, call -> accumulator.treeElementList.add(Protocol(accumulator.modular, call)) }
+            handle = { accumulator, call, _ -> accumulator.treeElementList.add(Protocol(accumulator.modular, call)) }
         ),
         Entry(
             "quote",
             matches = { call, _ -> org.elixir_lang.psi.QuoteMacro.`is`(call) },
-            handle = { accumulator, call -> accumulator.treeElementList.add(Quote(accumulator.modular, call)) }
+            handle = { accumulator, call, _ -> accumulator.treeElementList.add(Quote(accumulator.modular, call)) }
         ),
         Entry(
             "structure",
             matches = { call, _ -> Structure.`is`(call) },
-            handle = { accumulator, call -> accumulator.treeElementList.add(Structure(call)) }
+            handle = { accumulator, call, _ -> accumulator.treeElementList.add(Structure(call)) }
         ),
         Entry(
             "type",
             matches = { call, _ -> Type.`is`(call) },
-            handle = { accumulator, call ->
+            handle = { accumulator, call, _ ->
                 Type.fromCall(accumulator.modular, call)?.let { accumulator.treeElementList.add(it) }
             }
         ),
         Entry(
             "use",
             matches = { call, _ -> org.elixir_lang.psi.Use.`is`(call) },
-            handle = { accumulator, call ->
+            handle = { accumulator, call, _ ->
                 val use = Use(accumulator.modular, call)
                 accumulator.useSet.add(use)
                 accumulator.treeElementList.add(use)
@@ -166,12 +136,12 @@ object ChildCall {
         Entry(
             "ex_unit describe",
             matches = { call, _ -> org.elixir_lang.psi.ex_unit.Case.isDescribe(call, ResolveState.initial()) },
-            handle = { accumulator, call -> accumulator.treeElementList.add(Describe(accumulator.modular, call)) }
+            handle = { accumulator, call, _ -> accumulator.treeElementList.add(Describe(accumulator.modular, call)) }
         ),
         Entry(
             "ex_unit test",
             matches = { call, _ -> org.elixir_lang.psi.ex_unit.Case.isTest(call, ResolveState.initial()) },
-            handle = { accumulator, call -> accumulator.treeElementList.add(Test(accumulator.modular, call)) }
+            handle = { accumulator, call, _ -> accumulator.treeElementList.add(Test(accumulator.modular, call)) }
         ),
         Entry(
             "call definition head",
@@ -181,7 +151,7 @@ object ChildCall {
         Entry(
             "unknown",
             matches = { call, _ -> Unknown.`is`(call) },
-            handle = { accumulator, call -> accumulator.treeElementList.add(Unknown(accumulator.modular, call)) }
+            handle = { accumulator, call, _ -> accumulator.treeElementList.add(Unknown(accumulator.modular, call)) }
         )
     )
 
@@ -195,7 +165,7 @@ object ChildCall {
 
         ENTRIES
             .firstOrNull { entry -> entry.handle != null && entry.matches(call, resolveState) }
-            ?.let { entry -> entry.handle!!(accumulator, call) }
+            ?.let { entry -> entry.handle!!(accumulator, call, resolveState) }
     }
 
     @RequiresReadLock
@@ -203,6 +173,25 @@ object ChildCall {
         ThreadingAssertions.assertReadAccess()
 
         return ENTRIES.any { entry -> entry.suitable && entry.matches(call, resolveState) }
+    }
+
+    /** Every declaring form, so a new one fails to compile here until it is shown. */
+    private fun declaration(accumulator: Accumulator, call: Call, state: ResolveState) {
+        when (CallableDeclaration.formOf(call, state)) {
+            null -> Unit
+            CallableDeclaration.Form.CLAUSE ->
+                if (CallableDeclaration.isCompileTime(call)) {
+                    accumulator.macroByNameArity.addClausesToCallDefinition(call)
+                } else {
+                    accumulator.functionByNameArity.addClausesToCallDefinition(call)
+                }
+            CallableDeclaration.Form.CALLBACK ->
+                Callback.fromCall(accumulator.modular, call)?.let { accumulator.treeElementList.add(it) }
+            CallableDeclaration.Form.DELEGATION -> accumulator.functionByNameArity.addDelegationToTreeElementList(call)
+            CallableDeclaration.Form.EXCEPTION -> accumulator.functionByNameArity.exception = Exception(call)
+            CallableDeclaration.Form.EEX_FUNCTION_FROM, CallableDeclaration.Form.GENERATOR_EMBED ->
+                accumulator.functionByNameArity.addEExFunctionFromToCallDefinition(EExFunctionFrom(accumulator.modular, call))
+        }
     }
 
     private fun orOperandCalls(or: Or): List<Call> =

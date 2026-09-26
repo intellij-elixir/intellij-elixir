@@ -311,6 +311,21 @@ object CallableDeclaration {
             Form.CALLBACK, Form.EXCEPTION, Form.GENERATOR_EMBED -> null
         }
 
+    /**
+     * What `getNameIdentifier` returns for a declaring call. It is asked while stubs are built, so it knows only the
+     * forms recognised without resolving: [nameElement] where that has an answer, a `@callback`'s head name, and the
+     * call's own name for `defexception`.
+     */
+    @RequiresReadLock
+    fun syntacticNameIdentifier(call: Call): PsiElement? =
+        when (val form = syntacticFormOf(call)) {
+            // an EEx function or embed needs resolving to be told apart, so `syntacticFormOf` never names one
+            null, Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED -> null
+            Form.CLAUSE, Form.DELEGATION -> nameElement(call, form)
+            Form.CALLBACK -> org.elixir_lang.structure_view.element.Callback.nameIdentifier(call)
+            Form.EXCEPTION -> call.functionNameElement()
+        }
+
     /** The declaration whose [nameElement] spells the name at [range] in [file], `null` when none does. */
     @RequiresReadLock
     fun declarationNamedAt(file: PsiFile, range: TextRange): Call? =

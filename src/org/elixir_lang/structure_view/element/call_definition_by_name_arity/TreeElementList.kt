@@ -23,15 +23,22 @@ open class TreeElementList(
 ) : HashMap<NameArity, CallDefinition>(size), CallDefinitionByNameArity {
     @RequiresReadLock
     fun addClausesToCallDefinition(call: Call) {
+        val definer = org.elixir_lang.psi.CallableDeclaration.definerOf(call) ?: return
+
         org.elixir_lang.psi.CallDefinitionClause.nameArityInterval(call, ResolveState.initial())
                 ?.let { (name, arityInterval) ->
-                    addClausesToCallDefinition(call, name, arityInterval)
+                    addClausesToCallDefinition(call, definer, name, arityInterval)
                 }
     }
 
-    private fun addClausesToCallDefinition(call: Call, name: Name, arityInterval: ArityInterval) {
+    private fun addClausesToCallDefinition(
+            call: Call,
+            definer: org.elixir_lang.psi.CallableDeclaration.Definer,
+            name: Name,
+            arityInterval: ArityInterval
+    ) {
         for (arity in arityInterval.closed()) {
-            NameArity(name, arity).let { putNew(it) }.clause(call)
+            NameArity(name, arity).let { putNew(it) }.clause(call, definer)
         }
     }
 
