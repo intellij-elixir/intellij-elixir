@@ -90,7 +90,7 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
 
         val refusal: Throwable? = runSuspendOnPooledThread {
             runCatching {
-                ReadAction.computeBlocking<Unit, Throwable> {
+                ReadAction.runBlocking<Throwable> {
                     SdkVersionFileWatcher.watch(setOf(home), testRootDisposable) {}
                 }
             }.exceptionOrNull()
