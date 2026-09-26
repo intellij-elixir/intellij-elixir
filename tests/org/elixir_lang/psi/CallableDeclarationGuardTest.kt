@@ -145,7 +145,6 @@ class CallableDeclarationGuardTest {
             "navigation/ChooseByNameContributor.kt",
             "psi/ElementDescriptionProvider.kt",
             "psi/impl/PsiNameIdentifierOwnerImpl.kt",
-            "reference/Callable.kt",
             "structure_view/ChildCall.kt",
         )
     }

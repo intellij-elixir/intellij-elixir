@@ -44,7 +44,7 @@ fun Call.computeReference(): PsiReference? =
            and instead let the dedicated module-attribute reference path handle it */
     // Any element in the head of a call-definition clause is a declaration name, not a call site.
     // Protocol heads were already guarded this way; now the full CDC family is covered.
-    if (CallDefinitionClause.isHead(this)) {
+    if (CallDefinitionClause.isHead(this) || CallableDeclaration.delegationHeadedBy(this) != null) {
         null
     } else if (!this.isModuleAttributeNameElement() &&
         // if a bitstring segment option then the option is a pseudo-function

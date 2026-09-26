@@ -10,7 +10,6 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.Named
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
 import org.elixir_lang.psi.impl.call.keywordArgument
-import org.elixir_lang.psi.impl.literalName
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.psi.scope.ResolveResultOrderedSet
 import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
@@ -65,40 +64,17 @@ private constructor(
                     // will fail at runtime to call the delegated function
                     addToResolveResults(element, headName, headValidResult, state)
 
-                    element.keywordArgument("to")?.let { definingModuleName ->
-                        val modulars = definingModuleName.maybeModularNameToModulars(element.containingFile, useCall = null, incompleteCode = incompleteCode)
+                    // A delegation reaches its target at the arity it declares, by the name it declares: `defdelegate
+                    // snoc(a, b)` passes `snoc(a, b)` on, and not `sno(a, b)`, which only starts its name. One of another
+                    // arity - `defdelegate snoc(a)` for a `snoc/2` call - does not pass the call on, so what it delegates
+                    // to is only a candidate, added once the walk is over and found nothing valid: a valid `snoc/2`
+                    // reached through it would end the walk before the delegation that does declare `snoc/2`.
+                    val named = this.name == null || headName == this.name
 
-                        val nameInDefiningModule = nameInDefiningModule(element, headName)
-
-                        if (modulars.isNotEmpty() && nameInDefiningModule != null) {
-                            for (modular in modulars) {
-                                // Call recursively to get all the proper `for` and `use` handling.
-                                val modularResolveResults = resolveResults(nameInDefiningModule, resolvedPrimaryArity, incompleteCode, modular)
-
-                                for (modularResultResult in modularResolveResults) {
-                                    when (val modularResultResultElement = modularResultResult.element) {
-                                        is Call -> addToResolveResults(
-                                            modularResultResultElement,
-                                            nameInDefiningModule,
-                                            modularResultResult.isValidResult,
-                                            state
-                                        )
-                                        is BeamCallDefinition -> addToResolveResults(
-                                            modularResultResultElement,
-                                            nameInDefiningModule,
-                                            modularResultResult.isValidResult,
-                                            state
-                                        )
-                                        // Anything else is not a definition a delegation can target.
-                                        else -> Unit
-                                    }
-                                }
-
-                                if (!keepProcessing()) {
-                                    break
-                                }
-                            }
-                        }
+                    if (incompleteCode || (named && validArity)) {
+                        addTargets(element, headName, state)
+                    } else if (named) {
+                        otherArityDelegations += OtherArityDelegation(element, headName, state)
                     }
                 }
             }
@@ -132,7 +108,6 @@ private constructor(
         declaration.accepts(resolvedPrimaryArity) &&
             Import.admits(state, declaration.name, ArityInterval(resolvedPrimaryArity, resolvedPrimaryArity), compileTime)
 
-
     private fun addIfNameOrArityToResolveResults(call: Call, name: String, validArity: Boolean, state: ResolveState): Boolean =
             if ((this.name == null && (incompleteCode || validArity)) ||
                     (this.name != null && name.startsWith(this.name))) {
@@ -156,8 +131,37 @@ private constructor(
             true
         }
 
+    private fun addTargets(delegation: Call, headName: String, state: ResolveState, candidatesOnly: Boolean = false) {
+        for (targets in delegatedTargets(delegation, headName, resolvedPrimaryArity, incompleteCode)) {
+            for ((definition, targetName, valid) in targets) {
+                when (definition) {
+                    is Call -> addToResolveResults(definition, targetName, valid && !candidatesOnly, state)
+                    is BeamCallDefinition -> addToResolveResults(definition, targetName, valid && !candidatesOnly, state)
+                }
+            }
+
+            if (!keepProcessing()) {
+                break
+            }
+        }
+    }
+
+    private class OtherArityDelegation(val delegation: Call, val headName: String, val state: ResolveState)
+
+    private val otherArityDelegations = mutableListOf<OtherArityDelegation>()
+
     override fun keepProcessing(): Boolean = resolveResultOrderedSet.keepProcessing(incompleteCode)
-    fun resolveResults(): List<VisitedElementSetResolveResult> = resolveResultOrderedSet.toList()
+
+    fun resolveResults(): List<VisitedElementSetResolveResult> {
+        for (other in otherArityDelegations) {
+            if (!keepProcessing()) break
+
+            addTargets(other.delegation, other.headName, other.state, candidatesOnly = true)
+        }
+        otherArityDelegations.clear()
+
+        return resolveResultOrderedSet.toList()
+    }
 
     private val resolveResultOrderedSet = ResolveResultOrderedSet()
 
@@ -182,6 +186,34 @@ private constructor(
     }
 
     companion object {
+        /** A definition a `defdelegate` delegates to: what it is, the name it has there, and whether it fits the arity. */
+        data class DelegatedTarget(val definition: PsiElement, val name: String, val isValid: Boolean)
+
+        /**
+         * What [delegation] delegates to at [arity], one list per module its `to:` names: [headName], or its `as:`
+         * name, defined there. Lazy, so a caller can stop at the first module that resolves. The walk starts at that
+         * module, so it does not depend on where the delegation is written.
+         */
+        @JvmStatic
+        fun delegatedTargets(delegation: Call, headName: String, arity: Int, incompleteCode: Boolean): Sequence<List<DelegatedTarget>> {
+            val definingModuleName = delegation.keywordArgument("to") ?: return emptySequence()
+            // An `as:` that names nothing fixed targets nothing.
+            val nameInDefiningModule = CallableDeclaration.delegatedName(delegation, headName) ?: return emptySequence()
+
+            return definingModuleName
+                .maybeModularNameToModulars(delegation.containingFile, useCall = null, incompleteCode = incompleteCode)
+                .asSequence()
+                .map { modular ->
+                    // Call recursively to get all the proper `for` and `use` handling.
+                    resolveResults(nameInDefiningModule, arity, incompleteCode, modular).mapNotNull { result ->
+                        // Anything but a source or compiled definition is not something a delegation can target.
+                        result.element
+                            .takeIf { it is Call || it is BeamCallDefinition }
+                            ?.let { DelegatedTarget(it, nameInDefiningModule, result.isValidResult) }
+                    }
+                }
+        }
+
         @JvmOverloads
         @JvmStatic
         fun resolveResults(name: String?,
@@ -208,10 +240,3 @@ private constructor(
         }
     }
 }
-
-/** The `as:` name, the head's when there is no `as:`, or `null` when `as:` names nothing fixed - which targets nothing. */
-private fun nameInDefiningModule(delegation: Call, headName: String): String? =
-    when (val asArgument = delegation.keywordArgument("as")) {
-        null -> headName
-        else -> (asArgument as? ElixirAtom)?.literalName()
-    }

@@ -17,6 +17,7 @@ import com.intellij.refactoring.rename.api.RenameTarget
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.ElixirSymbolWithUsages
 import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.call.Call
 import java.util.*
@@ -119,7 +120,7 @@ class ProtocolFunction(
                 ?: return emptyList()
             val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return emptyList()
             val nameId = CallDefinitionClause.nameIdentifier(clause) ?: return emptyList()
-            val macro = CallDefinitionClause.isMacro(clause)
+            val macro = CallableDeclaration.isCompileTime(clause)
             return nameArity.arityInterval.closed().map { arity ->
                 ProtocolFunction(clause.containingFile, nameId.textRange, protocolName, nameArity.name, arity, macro)
             }

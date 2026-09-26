@@ -10,6 +10,7 @@ import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.stubs.StubIndex
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.Implementation
 import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.call.Call
@@ -37,7 +38,7 @@ class ProtocolImplReference(
     override fun resolveReference(): Collection<Symbol> {
         if (!CallDefinitionClause.`is`(call)) return emptyList()
         val nameArity = CallDefinitionClause.nameArityInterval(call, ResolveState.initial()) ?: return emptyList()
-        val macro = CallDefinitionClause.isMacro(call)
+        val macro = CallableDeclaration.isCompileTime(call)
 
         // Walk up to the defimpl - confirmed present by ProtocolImplReferenceProvider
         val defimpl = CallDefinitionClause.enclosingModularMacroCall(call) ?: return emptyList()

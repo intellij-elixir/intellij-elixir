@@ -247,6 +247,26 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             ?.let { it as? CaptureNameArity }
             ?.takeIf { it.nameElement == call }
             ?: call.getReference() as? PsiPolyVariantReference
+            // A `defdelegate` head is a declaration with no reference of its own, so it is documented as a call of it is.
+            ?: CallableDeclaration.delegationHeadedBy(call)?.let { org.elixir_lang.reference.Callable(call) }
+
+    /**
+     * The element whose documentation a reference resolving to [elements] shows, the same at a call and at an MFA atom.
+     * A defdelegate carrying its own @doc outranks what it delegates to: the delegating module is saying what the
+     * function means here, which is why the @doc was written. One without its own @doc is skipped so the to: target's
+     * documentation shows. Otherwise prefer source clauses, falling back to BEAM stubs.
+     */
+    private fun bestDocumented(elements: List<PsiElement>): PsiElement? =
+        elements
+            .filterIsInstance<Call>()
+            .firstOrNull {
+                CallableDeclaration.isForm(it, CallableDeclaration.Form.DELEGATION) &&
+                    SourceFileDocsHelper.fetchDocs(it) != null
+            }
+            ?: elements.filterIsInstance<Call>().firstOrNull {
+                CallableDeclaration.isForm(it, CallableDeclaration.Form.CLAUSE)
+            }
+            ?: elements.filterIsInstance<BeamCallDefinition>().firstOrNull()
 
     private tailrec fun getCustomDocumentationElement(contextElement: PsiElement): PsiElement? = when {
         contextElement is LeafPsiElement || contextElement is ElixirIdentifier || contextElement is ElixirRelativeIdentifier ->
@@ -258,9 +278,11 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 ?.multiResolve(false)
                 ?.filter(ResolveResult::isValidResult)
                 ?.mapNotNull(ResolveResult::getElement)
-                ?.filterIsInstance<PsiNamedElement>()
-                ?.let { Resolver.preferSource(it) }
-                ?.firstOrNull()
+                ?.let { elements ->
+                    // An atom naming a module, not a function, documents what it names.
+                    bestDocumented(elements)
+                        ?: Resolver.preferSource(elements.filterIsInstance<PsiNamedElement>()).firstOrNull()
+                }
         }
 
         contextElement is Call -> {
@@ -272,28 +294,11 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                         .filter(ResolveResult::isValidResult)
                         .mapNotNull(ResolveResult::getElement)
 
-                    // A defdelegate carrying its own @doc outranks what it delegates to: the delegating
-                    // module is saying what the function means here, which is why the @doc was written.
-                    // One without its own @doc is skipped so the to: target's documentation shows.
-                    // Otherwise prefer source Call elements (CallDefinitionClause), falling back to BEAM
-                    // stubs (CallDefinitionImpl).
-                    fun bestMatch(elements: List<PsiElement>): PsiElement? =
-                        elements
-                            .filterIsInstance<Call>()
-                            .firstOrNull {
-                                CallableDeclaration.isForm(it, CallableDeclaration.Form.DELEGATION) &&
-                                    SourceFileDocsHelper.fetchDocs(it) != null
-                            }
-                            ?: elements.filterIsInstance<Call>().firstOrNull {
-                                CallableDeclaration.isForm(it, CallableDeclaration.Form.CLAUSE)
-                            }
-                            ?: elements.filterIsInstance<BeamCallDefinition>().firstOrNull()
-
                     // If no exact arity match (validResult), fall back to results with an exact name match
                     // from the same module (e.g., Enum.map/2 when call site has wrong arity).
                     // multiResolve uses startsWith for name matching (for completion), so we must
                     // filter to exact name matches to avoid showing docs for map_size when hovering map.
-                    bestMatch(validElements) ?: run {
+                    bestDocumented(validElements) ?: run {
                         val callName = contextElement.functionName()
                         val exactNameElements = allResults
                             .mapNotNull(ResolveResult::getElement)
@@ -306,7 +311,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                                     else -> false
                                 }
                             }
-                        bestMatch(exactNameElements)
+                        bestDocumented(exactNameElements)
                     }
                 }
         }

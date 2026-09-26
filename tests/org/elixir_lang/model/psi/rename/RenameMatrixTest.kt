@@ -108,9 +108,18 @@ class RenameMatrixTest : PlatformTestCase() {
     /** `defmacro` and its call through `import`. */
     fun testMacroImport() = doTestFromEveryOccurrence("macro_import", "renamee", "fresh", expectedCarets = 2)
 
-    /** `defdelegate renamee(x), to: Target` stays in sync with the target def. */
+    /**
+     * Renaming the target `def` keeps `defdelegate renamee(x), to: Target` delegating to it with `as:`, and renaming
+     * the delegation keeps its target the same way.
+     */
     fun testFunctionDefdelegate() =
-        doTestFromEveryOccurrence("function_defdelegate", "renamee", "fresh", expectedCarets = 2)
+        doTestFromEveryOccurrence(
+            "function_defdelegate",
+            "renamee",
+            "fresh",
+            expectedCarets = 2,
+            goldenOverrides = mapOf(1 to "function_defdelegate_head_after.ex")
+        )
 
     /** `apply(Mod, :renamee, [x])` atom follows the function. */
     fun testFunctionApplyAtom() =
@@ -222,11 +231,11 @@ class RenameMatrixTest : PlatformTestCase() {
     fun testVariableComprehensionTestName() =
         doTestFromEveryOccurrence("variable_comprehension_test_name", "renamee", "fresh", expectedCarets = 3)
 
-    /** A case pattern binding inside `result = case … do … end`: a pattern, although right of a match. */
+    /** A case pattern binding inside `result = case ... do ... end`: a pattern, although right of a match. */
     fun testVariableCasePatternInMatch() =
         doTestFromEveryOccurrence("variable_case_pattern_in_match", "renamee", "fresh", expectedCarets = 2)
 
-    /** An `fn` parameter inside `f = fn renamee -> … end`. */
+    /** An `fn` parameter inside `f = fn renamee -> ... end`. */
     fun testVariableFnParameterInMatch() =
         doTestFromEveryOccurrence("variable_fn_parameter_in_match", "renamee", "fresh", expectedCarets = 2)
 

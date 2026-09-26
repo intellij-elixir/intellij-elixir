@@ -6,11 +6,11 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
-import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
 
 /**
- * Reference from the function head in `@spec foo(...) :: ...` to the defining `def foo(...)`.
+ * Reference from the function head in `@spec foo(...) :: ...` to the declaration of `foo`: a `def`, `defdelegate` or
+ * EEx function.
  *
  * This keeps `@spec`-to-definition navigation on the Symbol API path and lets usages of
  * `FunctionSymbol` distinguish specification usages from executable call sites.
@@ -31,7 +31,6 @@ class SpecFunctionReference(
             .multiResolve(false)
             .filter { it.isValidResult }
             .mapNotNull { it.element as? Call }
-            .filter { CallDefinitionClause.`is`(it) }
-            .flatMap { FunctionSymbol.fromClause(it) }
+            .flatMap { FunctionSymbol.fromDeclaration(it) }
             .distinct()
 }
