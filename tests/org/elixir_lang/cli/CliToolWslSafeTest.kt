@@ -80,7 +80,7 @@ class CliToolWslSafeTest : UnitTestCase() {
 
         /**
          * `\\wsl$\` is the historical prefix and `\\wsl.localhost\` the current one; both are accepted
-         * regardless of which the host prefers. The first is the asdf home #2499 quotes verbatim.
+         * regardless of which the host prefers. The first is the asdf home from #2499, under the tests' distribution name.
          */
         private val WSL_HOMES = listOf(
             "\\\\wsl$\\IntellijElixirWSLDistribution\\home\\joey\\.asdf\\installs\\erlang\\25.3.2.7",

@@ -6,8 +6,7 @@ import org.junit.Assert
 
 /**
  * Four checks over every `.beam` in the resolved Elixir and Erlang SDKs, all read from one [SdkStdlibSweep] per SDK.
- * They are one class because that sweep is cached per JVM and the test task spreads classes over several JVMs: as
- * separate classes each landed on its own fork and paid the whole decompile again.
+ * They are one class because that sweep is cached per JVM, and the test task keeps a class on one fork.
  *
  * - **Parseable:** the decompiled source parses as valid Elixir (no [PsiErrorElement]), the check
  *   [DecompilerTest.assertParseable] applies to its golden fixtures, scaled to the whole stdlib so decompiler gaps

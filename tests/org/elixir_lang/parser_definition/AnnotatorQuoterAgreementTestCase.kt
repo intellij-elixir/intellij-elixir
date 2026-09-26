@@ -30,8 +30,6 @@ import java.nio.file.Path
  * of Elixir's own tests: under the release of the Elixir under test, the annotators must report nothing where that
  * Elixir accepts the source, and where they report, give that Elixir's message. Elixir's hints after the first line are
  * left to hovers.
- *
- * The cases share one [SharedFixture]: a fixture per case cost more than the check.
  */
 @Suppress("JUnitMalformedDeclaration") // Built only by `suite()`.
 class AnnotatorQuoterAgreementTestCase private constructor(
