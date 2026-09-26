@@ -123,6 +123,8 @@
   - **An SDK with no home, or a relative one, is no longer read as though the IDE's own directory were its installation.**
   - **An Erlang SDK read while its installation was still writing `OTP_VERSION` is read again once the file is complete, instead of showing no version until the IDE restarts.**
   - **An SDK installed or upgraded while the IDE is open now shows its version, instead of none or a stale one until the IDE restarts.**
+- [#4187](https://github.com/intellij-elixir/intellij-elixir/pull/4187) [@sh41](https://github.com/sh41)
+  - **Stopping a run configuration on Windows no longer tries a `kill` that cannot signal it, and elsewhere signals the BEAM found when it is stopped, not when it started.**
 - [#4167](https://github.com/intellij-elixir/intellij-elixir/pull/4167) [@sh41](https://github.com/sh41)
   - **Go to Declaration on a compiled function with more than one clause for the same arity now lands on the first clause, not the last.** Refs [#4164](https://github.com/intellij-elixir/intellij-elixir/issues/4164).
 - [#4146](https://github.com/intellij-elixir/intellij-elixir/pull/4146) [@sh41](https://github.com/sh41)

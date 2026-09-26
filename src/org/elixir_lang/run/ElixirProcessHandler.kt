@@ -15,7 +15,7 @@ class ElixirProcessHandler(
 ) :
     KillableColoredProcessHandler(process, commandLineString) {
 
-    private val targetPid: Long? = ProcessTargetPid.select(process, exePath)
+    private val targetPid: Long? by lazy { ProcessTargetPid.select(process, exePath) }
     private val terminator: DoubleSignalTerminator = ElixirDoubleSignalTerminator { targetPid }
 
     override fun destroyProcessImpl() {

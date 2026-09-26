@@ -5,7 +5,7 @@ import java.io.File
 
 internal object ProcessTargetPid {
     private val logger = Logger.getInstance(ProcessTargetPid::class.java)
-    private val ERL_EXECUTABLES = setOf("erl", "erl.exe", "beam.smp", "beam.smp.exe")
+    private val ERL_EXECUTABLES = setOf("erl", "beam.smp")
 
     fun select(process: Process, exePath: String?): Long? {
         val exeName = exePath?.let { File(it).name.lowercase() }
