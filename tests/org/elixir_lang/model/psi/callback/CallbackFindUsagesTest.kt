@@ -18,7 +18,7 @@ import org.elixir_lang.psi.call.Call
  * `FindUsagesAction` and then polls for a `UsageView`, which is unreliable headless (the view is never
  * surfaced even though target arbitration is correct - verified separately: exactly one `SEARCH_TARGET`
  * = `perform/0`, no ambiguity popup). Asserting on the query's usages is deterministic and still
- * behavior-level: real caret → real symbol → real searcher → real usages. Assertions never touch
+ * behavior-level: real caret -> real symbol -> real searcher -> real usages. Assertions never touch
  * internal resolver classes, so they survive refactoring.
  */
 class CallbackFindUsagesTest : PlatformTestCase() {
@@ -45,10 +45,38 @@ class CallbackFindUsagesTest : PlatformTestCase() {
         )
     }
 
+    /** The `defmacro __using__` a default `def` sits in is what makes it the behaviour's, with no `@behaviour`. */
+    fun testDefaultImplementationInUsingIsFoundWithoutAnInjectedBehaviour() {
+        assertTrue(
+            "Expected the default def inside the behaviour's own __using__ among the callback's usages",
+            implementationDefUsageCount("usages_default_impl_without_behaviour.ex", "kernel.ex") >= 1
+        )
+    }
+
+    /** `use` calls `defmacro __using__/1`; a `def __using__` is an ordinary function, so what it quotes is not a default. */
+    fun testADefNamedUsingIsNotWhatUseCalls() {
+        myFixture.configureByText(
+            "def_using.ex",
+            """
+            defmodule DefUsing do
+              @callback per<caret>form() :: any
+
+              def __using__(_) do
+                quote do
+                  def perform, do: :default
+                end
+              end
+            end
+            """.trimIndent()
+        )
+
+        assertEquals(0, implementationDefUsageCountInConfigured())
+    }
+
     /**
      * Ctrl-Click decision (the original thrust): on a `@callback` - a declaration/`SearchTarget` - the
      * "Go To Declaration or Usages" handler that Ctrl-Click uses
-     * (`GotoDeclarationAction implements CtrlMouseAction` → `GotoDeclarationOrUsageHandler2`) chooses
+     * (`GotoDeclarationAction implements CtrlMouseAction` -> `GotoDeclarationOrUsageHandler2`) chooses
      * **Show Usages** rather than doing nothing or navigating to itself.
      */
     fun testCtrlClickOnCallbackChoosesShowUsages() {
@@ -74,7 +102,12 @@ class CallbackFindUsagesTest : PlatformTestCase() {
     @Suppress("UnstableApiUsage")
     private fun implementationDefUsageCount(vararg files: String): Int {
         myFixture.configureByFiles(*files)
-        return myFixture.singleTargetPsiUsagesAtCaret(project)
+        return implementationDefUsageCountInConfigured()
+    }
+
+    @Suppress("UnstableApiUsage")
+    private fun implementationDefUsageCountInConfigured(): Int =
+        myFixture.singleTargetPsiUsagesAtCaret(project)
             .filterNot { it.declaration }
             .count { usage ->
                 val element = usage.file.findElementAt(usage.range.startOffset)
@@ -82,5 +115,4 @@ class CallbackFindUsagesTest : PlatformTestCase() {
                     .filterIsInstance<Call>()
                     .any { CallDefinitionClause.`is`(it) }
             }
-    }
 }

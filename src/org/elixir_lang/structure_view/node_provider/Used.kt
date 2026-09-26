@@ -15,7 +15,6 @@ import org.elixir_lang.psi.ElixirAccessExpression
 import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.call.macroChildCalls
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.structure_view.element.*
 import org.elixir_lang.structure_view.element.modular.Module
@@ -55,28 +54,29 @@ class Used : FileStructureNodeProvider<TreeElement>, ActionShortcutProvider {
         const val ID = "SHOW_USED"
         private const val USING = "__using__"
 
+        /**
+         * What a `use` injects, less what the module redefines. `defoverridable` names a macro as well as a function,
+         * so a redefinition hides an injected definition of the same name, arity and time.
+         */
         private fun filterOverridden(
             nodesFromChildren: Collection<TreeElement>,
             children: Collection<TreeElement>
         ): Collection<TreeElement> {
-            val childFunctionByNameArity = functionByNameArity(children)
+            val childDefinitionByKey = definitionByKey(children)
 
             return nodesFromChildren
                 .filterIsInstance<CallDefinition>()
-                // only functions work with `defoverridable`
-                .filter { it.time() == Timed.Time.RUN }
-                .filterNot {
-                    val nameArity = NameArity(it.name(), it.arity)
-
-                    childFunctionByNameArity.containsKey(nameArity)
-                }
+                .filterNot { key(it) in childDefinitionByKey }
         }
 
-        fun functionByNameArity(children: Collection<TreeElement>): Map<NameArity, CallDefinition> =
+        /** The call definitions among [children], by name, arity and time, as a redefinition must match all three. */
+        fun definitionByKey(children: Collection<TreeElement>): Map<Pair<NameArity, Timed.Time>, CallDefinition> =
             children
                 .filterIsInstance<CallDefinition>()
-                .filter { it.time() == Timed.Time.RUN }
-                .associateBy { NameArity(it.name(), it.arity) }
+                .associateBy(::key)
+
+        private fun key(definition: CallDefinition): Pair<NameArity, Timed.Time> =
+            NameArity(definition.name(), definition.arity) to definition.time()
 
         private fun provideNodesFromChild(child: TreeElement): Collection<TreeElement> {
             var nodes: MutableCollection<TreeElement>? = null
@@ -102,34 +102,30 @@ class Used : FileStructureNodeProvider<TreeElement>, ActionShortcutProvider {
 
                                         if (org.elixir_lang.psi.Module.`is`(call)) {
                                             val module = Module(call)
-                                            val childCalls = call.macroChildCalls()
+                                            val childCalls = org.elixir_lang.psi.CallDefinitionClause.modularChildCalls(call).toTypedArray()
 
                                             val macroByNameArity = HashMap<NameArity, CallDefinition>(childCalls.size)
 
                                             for (childCall in childCalls) {
                                                 /* portion of {@link org.elixir_lang.structure_view.element.enclosingModular.Module#childCallTreeElements}
                                                    dealing with macros, restricted to __using__/1 */
-                                                if (org.elixir_lang.psi.CallDefinitionClause.isMacro(childCall)) {
+                                                if (org.elixir_lang.psi.Using.isDefiner(childCall)) {
+                                                    val definer = org.elixir_lang.psi.CallableDeclaration.definerOf(childCall)
                                                     val nameArityInterval =
                                                         org.elixir_lang.psi.CallDefinitionClause.nameArityInterval(
                                                             childCall,
                                                             ResolveState.initial()
                                                         )
 
-                                                    if (nameArityInterval != null) {
-                                                        val name = nameArityInterval.name
-                                                        val arityInterval = nameArityInterval.arityInterval
-
-                                                        if (name == USING && arityInterval.contains(1)) {
-                                                            addClausesToCallDefinition(
-                                                                childCall,
-                                                                name,
-                                                                arityInterval,
-                                                                macroByNameArity,
-                                                                module,
-                                                                Timed.Time.COMPILE
-                                                            ) { _ -> }
-                                                        }
+                                                    if (definer != null && nameArityInterval != null) {
+                                                        addClausesToCallDefinition(
+                                                            childCall,
+                                                            nameArityInterval.name,
+                                                            nameArityInterval.arityInterval,
+                                                            macroByNameArity,
+                                                            module,
+                                                            definer
+                                                        ) { _ -> }
                                                     }
                                                 }
                                             }

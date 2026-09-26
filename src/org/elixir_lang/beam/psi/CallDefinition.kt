@@ -13,4 +13,7 @@ interface CallDefinition : BeamSymbol, MaybeExported {
 
     /** The first clause's parameters as the stub stores them. */
     val parameters: List<String>
+
+    /** Whether its docs mark it `guard: true`. */
+    val isGuard: Boolean
 }

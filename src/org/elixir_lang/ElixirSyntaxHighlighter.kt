@@ -1,5 +1,6 @@
 package org.elixir_lang
 
+import org.elixir_lang.psi.CallableDeclaration
 import com.intellij.lexer.Lexer
 import com.intellij.openapi.fileTypes.SyntaxHighlighterBase
 import com.intellij.openapi.editor.colors.TextAttributesKey
@@ -146,6 +147,24 @@ class ElixirSyntaxHighlighter : SyntaxHighlighterBase() {
         val FUNCTION_DECLARATION = TextAttributesKey.createTextAttributesKey(
                 "ELIXIR_FUNCTION_DECLARATION",
                 DefaultLanguageHighlighterColors.FUNCTION_DECLARATION
+        )
+        /** The key a declared name is highlighted with, by how its declaration is presented. */
+        fun declarationKey(presentation: CallableDeclaration.Presentation): TextAttributesKey =
+                when (presentation) {
+                    CallableDeclaration.Presentation.FUNCTION -> FUNCTION_DECLARATION
+                    CallableDeclaration.Presentation.MACRO -> MACRO_DECLARATION
+                    CallableDeclaration.Presentation.GUARD -> GUARD_DECLARATION
+                }
+
+        @JvmField
+        val GUARD_CALL = TextAttributesKey.createTextAttributesKey(
+                "ELIXIR_GUARD_CALL",
+                FUNCTION_CALL
+        )
+        @JvmField
+        val GUARD_DECLARATION = TextAttributesKey.createTextAttributesKey(
+                "ELIXIR_GUARD_DECLARATION",
+                FUNCTION_DECLARATION
         )
         @JvmField
         val IDENTIFIER = TextAttributesKey.createTextAttributesKey(

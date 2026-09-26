@@ -5,6 +5,7 @@ import com.intellij.openapi.module.ModuleUtilCore
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiComment
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiNamedElement
 import com.intellij.psi.PsiWhiteSpace
 import com.intellij.psi.impl.source.tree.CompositeElement
@@ -20,7 +21,6 @@ import org.elixir_lang.psi.call.name.Function.CREATE
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.call.maybeModularNameToModulars
 import org.elixir_lang.psi.operation.Infix
-import org.elixir_lang.psi.operation.Match
 import org.elixir_lang.psi.scope.WhileIn.whileIn
 import org.elixir_lang.util.AccumulatorContinue
 import org.elixir_lang.util.foldWhile
@@ -38,33 +38,18 @@ tailrec fun PsiElement.selfOrEnclosingMacroCall(): Call? =
         is ElixirDoBlock ->
             parent.let { it as? Call }
 
+        // Whatever runs a function - the call it is passed to, or the `=` binding it - runs it where that call is. One
+        // written as a statement in a `do` body is in that body.
         is ElixirAnonymousFunction -> {
-            val generator = when (val grandParent = parent.let { it as? ElixirAccessExpression }?.parent) {
-                // `defhelper = fn` in
-                //  defhelper = quote @anno do
-                //      defhelper = fn helper, vars, opts, bins, segs, trailing_slash? ->
-                //        def unquote(:"#{helper}_path")(conn_or_endpoint, unquote(Macro.escape(opts)), unquote_splicing(vars)) do
-                //          unquote(:"#{helper}_path")(conn_or_endpoint, unquote(Macro.escape(opts)), unquote_splicing(vars), [])
-                //        end
-                is Match -> grandParent
+            val path = generateSequence(parent) { it.parent }.takeWhile { it !is Call && it !is PsiFile }.toList()
+            val carrier = path.lastOrNull()?.parent as? Call ?: parent as? Call
+            val body = path.firstOrNull { it is ElixirDoBlock || (it is QuotableKeywordPair && it.hasKeywordKey("do")) }
 
-                is Arguments -> {
-                    grandParent.parent.let { it as? ElixirMatchedParenthesesArguments }?.parent
-                        .let { it as? Call }?.let { call ->
-                            if (call.resolvedModuleName() == "Enum" &&
-                                call.functionName() in arrayOf("each", "map", "reduce")
-                            ) {
-                                call
-                            } else {
-                                null
-                            }
-                        }
-                }
-
-                else -> null
+            when {
+                body != null -> body.selfOrEnclosingMacroCall()
+                carrier == null -> parent.selfOrEnclosingMacroCall()
+                else -> carrier.parent?.selfOrEnclosingMacroCall()
             }
-
-            generator?.parent?.selfOrEnclosingMacroCall()
         }
 
         is Arguments,

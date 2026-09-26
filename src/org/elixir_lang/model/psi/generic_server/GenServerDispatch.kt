@@ -3,15 +3,16 @@ package org.elixir_lang.model.psi.generic_server
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiElement
-import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.navigation.ElixirClausePresentation
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.Modular
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
+import org.elixir_lang.psi.impl.literalName
 import org.elixir_lang.psi.impl.stripAccessExpression
 
 /**
@@ -38,8 +39,7 @@ internal object GenServerDispatch {
      */
     @RequiresReadLock
     fun handlerTargetsForRequestAtom(atom: ElixirAtom): List<GenServerHandlerTarget> {
-        if (atom.line != null) return emptyList()
-        val messageName = atom.node.lastChildNode?.text ?: return emptyList()
+        val messageName = atom.literalName() ?: return emptyList()
 
         val (sendCall, dispatch) = enclosingSendSite(atom) ?: return emptyList()
         val arguments = sendCall.finalArguments() ?: return emptyList()
@@ -86,15 +86,11 @@ internal object GenServerDispatch {
 
     @RequiresReadLock
     private fun clauseMatches(clause: Call, dispatch: Dispatch, messageName: String): Boolean {
-        val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return false
-        if (nameArity.name != dispatch.handlerName) return false
-        if (dispatch.handlerArity !in nameArity.arityInterval) return false
-        if (CallDefinitionClause.isMacro(clause)) return false
+        if (!CallableDeclaration.defines(clause, dispatch.handlerName, dispatch.handlerArity, compileTime = false)) return false
         val head = CallDefinitionClause.head(clause) as? Call ?: return false
         val firstParam = head.primaryArguments()?.firstOrNull()?.stripAccessExpression() ?: return false
         val paramAtom = firstParam as? ElixirAtom ?: return false
-        if (paramAtom.line != null) return false
-        return paramAtom.node.lastChildNode?.text == messageName
+        return paramAtom.literalName() == messageName
     }
 
     @RequiresReadLock

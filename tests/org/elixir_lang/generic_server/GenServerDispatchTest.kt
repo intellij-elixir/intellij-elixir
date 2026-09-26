@@ -57,6 +57,26 @@ class GenServerDispatchTest : PlatformTestCase() {
         assertRequestNavigatesToHandler("handle_call", ":pop")
     }
 
+    /** `:"pop"` is the same atom as `:pop`, so it reaches the same handler. */
+    fun testQuotedRequestNavigatesToTheBareAtomsHandler() {
+        myFixture.configureByText(
+            "stack.ex",
+            """
+                defmodule Stack do
+                  use GenServer
+
+                  def pop(pid), do: GenServer.call(pid, :"<caret>pop")
+
+                  @impl true
+                  def handle_call(:pop, _from, [head | tail]) do
+                    {:reply, head, tail}
+                  end
+                end
+            """.trimIndent()
+        )
+        assertRequestNavigatesToHandler("handle_call", ":pop")
+    }
+
     fun testGenServerCastRequestNavigatesToHandleCastClause() {
         myFixture.configureByText(
             "stack.ex",

@@ -4,6 +4,7 @@ import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.ResolveResult
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.isAncestor
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
@@ -59,7 +60,7 @@ fun resolvesToMacro(call: Call): Boolean {
             ?.any { resolveResult ->
                 resolveResult.isValidResult &&
                         (resolveResult.element as? Call)?.let { resolved ->
-                            CallDefinitionClause.isMacro(resolved) &&
+                            CallableDeclaration.definerOf(resolved)?.capabilities?.quotesArguments == true &&
                                     // don't treat the signature as a call of the macro
                                     !resolved.isAncestor(call)
                         } == true
@@ -77,7 +78,7 @@ fun resolvesToModularName(call: Call, state: ResolveState, modularName: String):
                 safeMultiResolve(reference, false).any { resolveResult ->
                     if (resolveResult.isValidResult) {
                         resolveResult.element?.let { it as? Call }?.let { resolved ->
-                            CallDefinitionClause.isMacro(resolved) &&
+                            CallableDeclaration.isCompileTime(resolved) &&
                                     // don't treat the signature as a call of the function
                                     !resolved.isAncestor(call) &&
                                     enclosingModularMacroCall(resolved)?.name == modularName

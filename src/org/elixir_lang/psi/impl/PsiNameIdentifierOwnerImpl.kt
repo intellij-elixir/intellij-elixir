@@ -7,8 +7,6 @@ import org.elixir_lang.module.RegisterAttribute
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.operation.Operation
 import org.elixir_lang.structure_view.element.CallDefinitionSpecification
-import org.elixir_lang.structure_view.element.Callback
-import org.elixir_lang.structure_view.element.Delegation
 import org.elixir_lang.structure_view.element.Type
 import org.elixir_lang.structure_view.element.modular.Module
 
@@ -58,10 +56,8 @@ object PsiNameIdentifierOwnerImpl {
                     val operation = named as Operation
                     operation.operator()
                 }
-                CallDefinitionClause.`is`(named) -> CallDefinitionClause.nameIdentifier(named)
+                CallableDeclaration.syntacticFormOf(named) != null -> CallableDeclaration.syntacticNameIdentifier(named)
                 CallDefinitionSpecification.`is`(named) -> CallDefinitionSpecification.nameIdentifier(named)
-                Callback.`is`(named) -> Callback.nameIdentifier(named)
-                Delegation.`is`(named) -> Delegation.nameIdentifier(named)
                 /* have to set to null so that {@code else} clause doesn't return the {@code defimpl} element as the
                    name identifier */
                 Implementation.`is`(named) -> null

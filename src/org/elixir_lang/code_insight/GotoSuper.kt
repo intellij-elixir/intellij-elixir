@@ -15,7 +15,6 @@ import org.elixir_lang.psi.CallDefinitionClause.nameArityInterval
 import org.elixir_lang.psi.Implementation
 import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.call.macroChildCallList
 import org.elixir_lang.psi.stub.index.ModularName
 
 
@@ -54,7 +53,7 @@ internal class GotoSuper : CodeInsightActionHandler {
                 .asSequence()
                 .filterIsInstance<Call>()
                 .flatMap { defprotocol ->
-                    defprotocol.macroChildCallList().asSequence()
+                    org.elixir_lang.psi.CallDefinitionClause.modularChildCalls(defprotocol).asSequence()
                 }
                 .filter(CallDefinitionClause::`is`)
                 .filter { protocolCallDefinitionClause ->

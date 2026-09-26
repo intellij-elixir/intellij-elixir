@@ -18,7 +18,6 @@ import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.psi.util.PsiTreeUtil
-import com.intellij.refactoring.rename.api.RenameTarget
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.ElixirSymbolWithUsages
 import org.elixir_lang.psi.ElixirVariable
@@ -41,7 +40,7 @@ class VariableSymbol(
     override val range: TextRange,
     val name: String,
     val kind: Kind
-) : ElixirSymbolWithUsages, NavigationTarget, SearchTarget, RenameTarget {
+) : ElixirSymbolWithUsages, NavigationTarget, SearchTarget {
     enum class Kind {
         PARAMETER,
         VARIABLE,

@@ -13,10 +13,10 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.ResolveState
 import com.intellij.psi.SmartPointerManager
 import com.intellij.psi.search.SearchScope
-import com.intellij.refactoring.rename.api.RenameTarget
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.ElixirSymbolWithUsages
 import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.call.Call
 import java.util.*
@@ -41,7 +41,7 @@ class ProtocolFunction(
     val name: String,
     val arity: Int,
     val macro: Boolean
-) : ElixirSymbolWithUsages, NavigationTarget, SearchTarget, RenameTarget {
+) : ElixirSymbolWithUsages, NavigationTarget, SearchTarget {
 
     override val searchText: String get() = name
     override val targetName: String get() = name
@@ -119,10 +119,14 @@ class ProtocolFunction(
                 ?: return emptyList()
             val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return emptyList()
             val nameId = CallDefinitionClause.nameIdentifier(clause) ?: return emptyList()
-            val macro = CallDefinitionClause.isMacro(clause)
+            val macro = CallableDeclaration.isCompileTime(clause)
             return nameArity.arityInterval.closed().map { arity ->
                 ProtocolFunction(clause.containingFile, nameId.textRange, protocolName, nameArity.name, arity, macro)
             }
         }
+
+        /** What [clause] declares at [arity], which is what a use at that arity names. */
+        @RequiresReadLock
+        fun at(clause: Call, arity: Int): List<ProtocolFunction> = fromClause(clause).filter { it.arity == arity }
     }
 }

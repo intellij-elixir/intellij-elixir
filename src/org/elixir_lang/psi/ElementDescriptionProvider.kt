@@ -1,5 +1,6 @@
 package org.elixir_lang.psi
 
+import com.intellij.psi.ResolveState
 import com.intellij.psi.ElementDescriptionLocation
 import com.intellij.psi.PsiElement
 import com.intellij.usageView.UsageViewLongNameLocation
@@ -169,19 +170,9 @@ internal class ElementDescriptionProvider : com.intellij.psi.ElementDescriptionP
     ): String? =
         when (location) {
             UsageViewNodeTextLocation.INSTANCE -> {
-                val macro = when (callDefinitionImpl.time) {
-                    Timed.Time.COMPILE -> if (callDefinitionImpl.isExported) {
-                        "defmacro"
-                    } else {
-                        "defmacrop"
-                    }
-                    Timed.Time.RUN -> if (callDefinitionImpl.isExported) {
-                        "def"
-                    } else {
-                        "defp"
-                    }
-                }
-                val name = callDefinitionImpl.name
+                val capabilities = CallableDeclaration.capabilitiesOf(callDefinitionImpl, ResolveState.initial()) ?: return null
+                val macro = CallableDeclaration.Definer.writing(capabilities)?.keyword ?: return null
+                val name = callDefinitionImpl.exportedName()
                 val parameterCount = callDefinitionImpl.nameArityInterval.arityInterval.closed().last
                 val parameters = (0 until parameterCount).joinToString(", ") { i -> "p${i}" }
 
@@ -189,20 +180,36 @@ internal class ElementDescriptionProvider : com.intellij.psi.ElementDescriptionP
             }
             UsageViewLongNameLocation.INSTANCE, UsageViewShortNameLocation.INSTANCE ->
                 callDefinitionImpl.nameArityInterval.toString()
-            UsageViewTypeLocation.INSTANCE -> when (callDefinitionImpl.time) {
-                Timed.Time.COMPILE -> "macro"
-                Timed.Time.RUN -> "function"
-            }
+            UsageViewTypeLocation.INSTANCE ->
+                if (CallableDeclaration.isCompileTime(callDefinitionImpl)) "macro" else "function"
             else -> null
         }
 
     private fun getElementDescription(call: Call, location: ElementDescriptionLocation): String? =
+        when (val form = CallableDeclaration.formOf(call, ResolveState.initial())) {
+            null -> getNonDeclarationDescription(call, location)
+            else -> getDeclarationDescription(call, form, location)
+        }
+
+    /** Every declaring form, so a new one fails to compile here until it is described. */
+    private fun getDeclarationDescription(
+        call: Call,
+        form: CallableDeclaration.Form,
+        location: ElementDescriptionLocation
+    ): String? =
+        when (form) {
+            CallableDeclaration.Form.CLAUSE -> CallDefinitionClause.elementDescription(call, location)
+            CallableDeclaration.Form.CALLBACK -> Callback.elementDescription(call, location)
+            CallableDeclaration.Form.DELEGATION -> Delegation.elementDescription(location)
+            CallableDeclaration.Form.EXCEPTION ->
+                org.elixir_lang.structure_view.element.Exception.elementDescription(call, location)
+            CallableDeclaration.Form.EEX_FUNCTION_FROM, CallableDeclaration.Form.GENERATOR_EMBED ->
+                if (location === UsageViewTypeLocation.INSTANCE) "function" else null
+        }
+
+    private fun getNonDeclarationDescription(call: Call, location: ElementDescriptionLocation): String? =
         when {
-            CallDefinitionClause.`is`(call) -> CallDefinitionClause.elementDescription(call, location)
             CallDefinitionSpecification.`is`(call) -> CallDefinitionSpecification.elementDescription(call, location)
-            Callback.`is`(call) -> Callback.elementDescription(call, location)
-            Delegation.`is`(call) -> Delegation.elementDescription(location)
-            Exception.`is`(call) -> org.elixir_lang.structure_view.element.Exception.elementDescription(call, location)
             Implementation.`is`(call) -> Implementation.elementDescription(location)
             Import.`is`(call) -> Import.elementDescription(call, location)
             org.elixir_lang.psi.Module.`is`(call) -> Module.elementDescription(call, location)

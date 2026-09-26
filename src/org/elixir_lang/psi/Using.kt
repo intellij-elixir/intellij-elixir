@@ -1,6 +1,7 @@
 package org.elixir_lang.psi
 
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.ResolveState
 import com.intellij.psi.search.GlobalSearchScope
@@ -14,7 +15,6 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.*
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.call.macroChildCallSequence
 import org.elixir_lang.psi.impl.call.stabBodyChildExpressions
 import org.elixir_lang.psi.impl.childExpressions
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
@@ -22,7 +22,6 @@ import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.operation.Match
 import org.elixir_lang.psi.scope.WhileIn.whileIn
 import org.elixir_lang.psi.stub.index.ModularName
-import org.elixir_lang.structure_view.element.Timed
 import org.elixir_lang.util.AccumulatorContinue
 
 object Using {
@@ -216,7 +215,7 @@ object Using {
                                             modular,
                                             modularResolveState
                                         ) { callDefinitionClauseCall, accResolveState ->
-                                            if (CallDefinitionClause.isFunction(callDefinitionClauseCall)) {
+                                            if (CallableDeclaration.definerOf(callDefinitionClauseCall)?.capabilities?.remoteCallable == true) {
                                                 treeWalkUp(
                                                     callDefinitionClauseCall,
                                                     useCall,
@@ -296,8 +295,8 @@ object Using {
 
     @RequiresReadLock
     fun definers(modularCall: Call): Sequence<Call> =
-        modularCall
-            .macroChildCallSequence()
+        org.elixir_lang.psi.CallDefinitionClause.modularChildCalls(modularCall)
+            .asSequence()
             .filter { isDefiner(it) }
 
     fun definers(moduleImpl: BeamModule): Sequence<BeamCallDefinition> =
@@ -326,7 +325,7 @@ object Using {
             is Call -> {
                 val updatedState = resolveState.putVisitedElement(modular)
                 modular.name == EXUNIT_CASE_TEMPLATE ||
-                modular.macroChildCallSequence()
+                org.elixir_lang.psi.CallDefinitionClause.modularChildCalls(modular).asSequence()
                     .filter { Use.`is`(it) }
                     .any { useCall ->
                         Use.modulars(useCall).any { inner ->
@@ -364,15 +363,25 @@ object Using {
     private const val ARITY = 1
     private const val USING = "__using__"
 
-    private fun isDefiner(call: Call): Boolean =
-        call.isCalling(KERNEL, DEFMACRO) &&
+    /** The nearest `defmacro __using__/1` enclosing [element], or `null`. */
+    @RequiresReadLock
+    fun enclosingDefiner(element: PsiElement): Call? =
+        generateSequence(element.parent) { it.parent }
+            .takeWhile { it !is PsiFile }
+            .filterIsInstance<Call>()
+            .firstOrNull(::isDefiner)
+
+    /** Whether [call] is a `defmacro __using__/1`, what `use` calls. */
+    @RequiresReadLock
+    fun isDefiner(call: Call): Boolean =
+        CallableDeclaration.definerOf(call) == CallableDeclaration.Definer.DEFMACRO &&
                 nameArityInterval(call, ResolveState.initial())?.let { nameArityRange ->
                     nameArityRange.name == USING && nameArityRange.arityInterval.contains(ARITY)
                 }
                 ?: false
 
     private fun isDefiner(callDefinitionImpl: BeamCallDefinition): Boolean =
-        callDefinitionImpl.time == Timed.Time.COMPILE &&
-                callDefinitionImpl.name == USING &&
-                callDefinitionImpl.exportedArity(ResolveState.initial()) == ARITY
+        callDefinitionImpl.name == USING &&
+                callDefinitionImpl.exportedArity(ResolveState.initial()) == ARITY &&
+                CallableDeclaration.isCompileTime(callDefinitionImpl)
 }

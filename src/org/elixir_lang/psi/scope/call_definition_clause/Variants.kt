@@ -2,6 +2,7 @@ package org.elixir_lang.psi.scope.call_definition_clause
 
 import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.codeInsight.lookup.LookupElementBuilder
+import com.intellij.codeInsight.lookup.LookupElementRenderer
 import com.intellij.openapi.util.Key
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
@@ -10,21 +11,25 @@ import org.elixir_lang.annotator.Parameter
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.code_insight.completion.insert_handler.CallDefinitionClause as CallDefinitionClauseInsertHandler
 import org.elixir_lang.psi.*
+import org.elixir_lang.NameArity
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.call.Named
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
-import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.stripAccessExpression
+import org.elixir_lang.psi.mix.Generator
 import org.elixir_lang.psi.scope.CallDefinitionClause
-import org.elixir_lang.structure_view.element.CallDefinitionHead
-import org.elixir_lang.structure_view.element.Callback
+import org.elixir_lang.psi.scope.Reach
 
 /**
  * [appendParentheses] is threaded through so a capture's `&name/arity` (which reuses this same walk,
  * see [org.elixir_lang.reference.CaptureNameArity]) stays a bare name - a capture names a function, it
  * does not call one.
+ *
+ * [remote] offers only what the module walked from [Reach.exports], as a remote use sees it: a bare name, as a capture
+ * or MFA tuple writes one, names a function.
  */
-class Variants(private val appendParentheses: Boolean) : CallDefinitionClause() {
+class Variants(private val appendParentheses: Boolean, private val remote: Boolean = false) : CallDefinitionClause() {
+    // What a module imports it does not export.
+    override val followsImports: Boolean get() = !remote
+
     private var lookupElementByPsiElementName: MutableMap<Pair<PsiElement, String>, LookupElement> = mutableMapOf()
 
     private val lookupElementCollection: Collection<LookupElement>
@@ -39,8 +44,11 @@ class Variants(private val appendParentheses: Boolean) : CallDefinitionClause() 
     override fun executeOnCallDefinitionClause(element: Call, state: ResolveState): Boolean {
         val entranceCallDefinitionClause = state.get(ENTRANCE_CALL_DEFINITION_CLAUSE)
 
-        if ((entranceCallDefinitionClause == null || !element.isEquivalentTo(entranceCallDefinitionClause)) && element is Named) {
-            addCallDefinitionClauseToLookupElementByPsiElement(element)
+        if (entranceCallDefinitionClause == null || !element.isEquivalentTo(entranceCallDefinitionClause)) {
+            addDeclarations(element, CallableDeclaration.Form.CLAUSE, state) { declaration ->
+                LookupElementBuilder.createWithSmartPointer(declaration.name, element)
+                    .withRenderer(org.elixir_lang.code_insight.lookup.element_renderer.CallDefinitionClause(declaration.name))
+            }
         }
 
         return true
@@ -48,13 +56,17 @@ class Variants(private val appendParentheses: Boolean) : CallDefinitionClause() 
 
     override fun execute(element: BeamCallDefinition, state: ResolveState): Boolean {
         // BEAM-decompiled call definitions are never the entrance clause (which is always source),
-        // so the entrance guard from executeOnCallDefinitionClause does not apply here.
-        if (element.isExported()) {
+        // so the entrance guard from executeOnCallDefinitionClause does not apply here. An `import`
+        // brings in only what is exported.
+        if (!remote || exported(element, state)) {
             addCallDefinitionToLookupElementByPsiElement(element)
         }
 
         return true
     }
+
+    private fun exported(element: PsiElement, state: ResolveState): Boolean =
+        Reach.exports(Reach.of(element, state), element, runtime = !appendParentheses)
 
     private fun addCallDefinitionToLookupElementByPsiElement(element: BeamCallDefinition) {
         // MaybeExported documents exportedName() as null only when isExported() is false, which the
@@ -68,114 +80,80 @@ class Variants(private val appendParentheses: Boolean) : CallDefinitionClause() 
         }
     }
 
-    private fun addCallDefinitionClauseToLookupElementByPsiElement(named: Named) {
-        named.name?.let { name ->
-            lookupElementByPsiElementName.computeIfAbsent(named to name) { (element, name) ->
-                LookupElementBuilder.createWithSmartPointer(
-                        name,
-                        element
-                ).withRenderer(
-                        org.elixir_lang.code_insight.lookup.element_renderer.CallDefinitionClause(name)
-                ).withInsertHandlerIfAppendingParentheses()
-            }
-        }
-    }
-
     override fun executeOnCallback(element: AtUnqualifiedNoParenthesesCall<*>, state: ResolveState): Boolean {
-        Callback.headCall(element)
-                ?.let { it as? Named }
-                ?.let { addCallbackToLookupElementByPsiElement(element, it) }
+        // A `@callback` declares what another module defines, so its own module does not export it.
+        if (remote) return true
+
+        addDeclarations(element, CallableDeclaration.Form.CALLBACK, state) { declaration ->
+            LookupElementBuilder.createWithSmartPointer(declaration.name, element)
+                .withRenderer(org.elixir_lang.code_insight.lookup.element_renderer.Callback(declaration.name))
+        }
 
         return true
     }
 
-    private fun addCallbackToLookupElementByPsiElement(element: AtUnqualifiedNoParenthesesCall<*>, head: Named) =
-            head.name?.let { name ->
-                lookupElementByPsiElementName.computeIfAbsent(head to name) { (_, name) ->
-                    LookupElementBuilder.createWithSmartPointer(
-                            name,
-                            element
-                    ).withRenderer(
-                            org.elixir_lang.code_insight.lookup.element_renderer.Callback(name)
-                    ).withInsertHandlerIfAppendingParentheses()
-                }
-            }
-
     override fun executeOnDelegation(element: Call, state: ResolveState): Boolean {
-        element.finalArguments()?.takeIf { it.size == 2 }?.let { arguments ->
-            val head = arguments[0]
-
-            CallDefinitionHead.nameArityInterval(head, state)?.let { headNameArityInterval ->
-                val headName = headNameArityInterval.name
-
-                lookupElementByPsiElementName.computeIfAbsent(head to headName) { (_, headName) ->
-                    LookupElementBuilder.createWithSmartPointer(
-                            headName,
-                            element
-                    ).withRenderer(
-                            org.elixir_lang.code_insight.lookup.element_renderer.Delegation(headName)
-                    ).withInsertHandlerIfAppendingParentheses()
-                }
-            }
+        addDeclarations(element, CallableDeclaration.Form.DELEGATION, state) { declaration ->
+            LookupElementBuilder.createWithSmartPointer(declaration.name, element)
+                .withRenderer(org.elixir_lang.code_insight.lookup.element_renderer.Delegation(declaration.name))
         }
 
         return true
     }
 
     override fun executeOnEExFunctionFrom(element: Call, state: ResolveState): Boolean {
-        element.finalArguments()?.let { arguments ->
-            arguments[1].stripAccessExpression().let { it as? ElixirAtom }?.node?.lastChildNode?.text?.let { name ->
-                lookupElementByPsiElementName.computeIfAbsent(element to name) { (_, name) ->
-                    LookupElementBuilder.createWithSmartPointer(
-                            name,
-                            element
-                    ).withRenderer(
-                            org.elixir_lang.code_insight.lookup.element_renderer.EExFunctionFrom(name)
-                    ).withInsertHandlerIfAppendingParentheses()
-                }
-            }
-       }
+        addDeclarations(element, CallableDeclaration.Form.EEX_FUNCTION_FROM, state) { declaration ->
+            LookupElementBuilder.createWithSmartPointer(declaration.name, element)
+                .withRenderer(org.elixir_lang.code_insight.lookup.element_renderer.EExFunctionFrom(declaration.name))
+        }
 
         return true
     }
 
     override fun executeOnException(element: Call, state: ResolveState): Boolean {
-        Exception.NAME_ARITY_LIST.forEach { nameArity ->
-            val name = nameArity.name
+        addDeclarations(element, CallableDeclaration.Form.EXCEPTION, state) { declaration ->
+            val nameArity = NameArity(declaration.name, declaration.arityInterval?.minimum ?: 0)
 
-            lookupElementByPsiElementName.computeIfAbsent(element to name) { (element, name) ->
-                LookupElementBuilder.createWithSmartPointer(
-                        name,
-                        element
-                ).withRenderer(
-                        org.elixir_lang.code_insight.lookup.element_renderer.exception.CallDefinitionClause(nameArity)
-                ).withInsertHandlerIfAppendingParentheses()
-            }
+            LookupElementBuilder.createWithSmartPointer(declaration.name, element)
+                .withRenderer(org.elixir_lang.code_insight.lookup.element_renderer.exception.CallDefinitionClause(nameArity))
         }
 
         return true
     }
 
     override fun executeOnMixGeneratorEmbed(element: Call, state: ResolveState): Boolean {
-        element.finalArguments()?.first()?.stripAccessExpression()?.let { it as? ElixirAtom }?.node?.lastChildNode?.text?.let { prefix ->
-            val suffix = element.functionName()!!.removePrefix("embed_")
-            val name = "${prefix}_${suffix}"
-            // `Generator.isEmbed` admits only these two names.
-            val renderer = when (suffix) {
-                "template" -> org.elixir_lang.code_insight.lookup.element_renderer.mix.generator.EmbedTemplate(name)
-                "text" -> org.elixir_lang.code_insight.lookup.element_renderer.mix.generator.EmbedText(name)
-                else -> null
-            } ?: return true
+        val renderer: (String) -> LookupElementRenderer<LookupElement> = when (Generator.Embed.of(element)) {
+            Generator.Embed.TEMPLATE -> { name -> org.elixir_lang.code_insight.lookup.element_renderer.mix.generator.EmbedTemplate(name) }
+            Generator.Embed.TEXT -> { name -> org.elixir_lang.code_insight.lookup.element_renderer.mix.generator.EmbedText(name) }
+            null -> return true
+        }
 
-            lookupElementByPsiElementName.computeIfAbsent(element to name) { (element, name) ->
-                LookupElementBuilder
-                        .createWithSmartPointer(name, element)
-                        .withRenderer(renderer)
-                        .withInsertHandlerIfAppendingParentheses()
-            }
+        addDeclarations(element, CallableDeclaration.Form.GENERATOR_EMBED, state) { declaration ->
+            LookupElementBuilder.createWithSmartPointer(declaration.name, element).withRenderer(renderer(declaration.name))
         }
 
         return true
+    }
+
+    private fun addDeclarations(
+        call: Call,
+        form: CallableDeclaration.Form,
+        state: ResolveState,
+        lookupElement: (CallableDeclaration.Declaration) -> LookupElementBuilder,
+    ) {
+        if (remote && !exported(call, state)) return
+
+        val compileTime = CallableDeclaration.Declared.Source(call, form).capabilities?.compileTime
+
+        for (declaration in CallableDeclaration.declarations(call, form, state)) {
+            if (Import.admits(state, declaration.name, declaration.nameArityInterval().arityInterval, compileTime)) {
+                lookupElementByPsiElementName.computeIfAbsent(call to declaration.name) {
+                    lookupElement(declaration).withInsertHandlerIfAppendingParentheses().also {
+                        it.putUserData(CallDefinitionClauseInsertHandler.FORM, form)
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -210,12 +188,18 @@ class Variants(private val appendParentheses: Boolean) : CallDefinitionClause() 
         fun lookupElementList(entrance: ElixirIdentifier, appendParentheses: Boolean = true): List<LookupElement> =
             lookupElementList(entrance, null, appendParentheses)
 
+        /** What a remote use of [modular] can name: what it [Reach.exports], each declaration once per name. */
+        fun remoteLookupElementList(modular: Call, appendParentheses: Boolean): List<LookupElement> =
+            lookupElementList(modular, null, appendParentheses, remote = true, maxScope = modular)
+
         private fun lookupElementList(
             entrance: PsiElement,
             entranceCallDefinitionClause: Call?,
-            appendParentheses: Boolean
+            appendParentheses: Boolean,
+            remote: Boolean = false,
+            maxScope: PsiElement = entrance.containingFile
         ): List<LookupElement> {
-            val variants = Variants(appendParentheses)
+            val variants = Variants(appendParentheses, remote)
 
             val resolveState = ResolveState
                     .initial()
@@ -230,7 +214,7 @@ class Variants(private val appendParentheses: Boolean) : CallDefinitionClause() 
             PsiTreeUtil.treeWalkUp(
                     variants,
                     entrance,
-                    entrance.containingFile,
+                    maxScope,
                     resolveState
             )
             val lookupElementList = ArrayList<LookupElement>()

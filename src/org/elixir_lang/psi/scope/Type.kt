@@ -15,7 +15,6 @@ import org.elixir_lang.psi.ModuleAttribute.isTypeSpecName
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
-import org.elixir_lang.psi.impl.call.macroChildCalls
 import org.elixir_lang.psi.impl.call.whileInStabBodyChildExpressions
 import org.elixir_lang.psi.impl.identifierName
 import org.elixir_lang.psi.impl.whileInChildExpressions
@@ -50,10 +49,12 @@ abstract class Type : PsiScopeProcessor {
 
     private fun execute(call: Call, state: ResolveState): Boolean =
         when (call) {
-            is UnqualifiedNoArgumentsCall<*> -> executeOnParameter(call, state)
+            // A bare name met as a call is a type usage, as the module listing and a `quote` reach inside a `@spec`;
+            // what declares a type variable is a `@type` head's argument or a stab signature's, walked on their own.
+            is UnqualifiedNoArgumentsCall<*> -> true
             is AtUnqualifiedNoParenthesesCall<*> -> execute(call, state)
             else -> if (isModular(call) && call.isAncestor(state.get(ENTRANCE), false)) {
-                val childCalls = call.macroChildCalls()
+                val childCalls = org.elixir_lang.psi.CallDefinitionClause.modularChildCalls(call).toTypedArray()
                 val childCallsKeepProcessing = whileIn(childCalls) {
                     execute(it, state)
                 }

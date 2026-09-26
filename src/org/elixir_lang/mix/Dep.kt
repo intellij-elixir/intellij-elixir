@@ -5,6 +5,7 @@ import com.intellij.psi.PsiElement
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.impl.literalName
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.impl.stripAccessExpressions
 import org.elixir_lang.sdk.wsl.wslCompat
@@ -197,12 +198,7 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
                 else -> null
             }
 
-        private fun name(atom: ElixirAtom): String =
-            atom.line?.let { name(it) }
-                ?: atom.node.lastChildNode.text
-
-        // A quoted atom, `:"my-dep"`, names the dep by its string body
-        private fun name(line: ElixirLine): String? = line.body?.text
+        private fun name(atom: ElixirAtom): String = atom.literalName() ?: atom.node.lastChildNode.text
 
         private fun putPath(dep: Dep, keywordValue: Quotable): Dep {
             return when (val strippedKeywordValue = keywordValue.stripAccessExpression()) {

@@ -1,5 +1,7 @@
 package org.elixir_lang.psi
 
+import org.elixir_lang.psi.scope.Reach.Companion.reachedThrough
+import org.elixir_lang.psi.scope.Reach
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.ElementDescriptionLocation
 import com.intellij.psi.PsiElement
@@ -34,7 +36,7 @@ object Use {
 
         // don't descend back into `use` when the entrance is the alias to the `use` like `MyAlias` in `use MyAlias`.
         if (!useCall.isAncestor(resolveState.get(ENTRANCE))) {
-            val useCallResolveState = resolveState.putVisitedElement(useCall)
+            val useCallResolveState = resolveState.putVisitedElement(useCall).reachedThrough(Reach.USE, useCall)
 
             outer@ for (modular in modulars(useCall)) {
                 ProgressManager.checkCanceled()
@@ -44,7 +46,7 @@ object Use {
                 // When `modular` was defined with `use ExUnit.CaseTemplate`, that macro is absent from source:
                 // `ExUnit.CaseTemplate.__using__/1` generates the `defmacro __using__` at compile time so it
                 // only exists in the compiled BEAM, not in the `.ex` file.  The plugin therefore cannot follow
-                // the injected `__using__` → `__proxy__` → `use ExUnit.Case` chain statically (it breaks at
+                // the injected `__using__` -> `__proxy__` -> `use ExUnit.Case` chain statically (it breaks at
                 // the `unquote(__MODULE__)` qualifier in `__proxy__`, which `resolvedModuleName()` cannot
                 // evaluate).  As a stop-gap, when no direct definer is found and the module is a CaseTemplate,
                 // skip the opaque generated layer and use `ExUnit.Case.__using__/1` directly - the net runtime

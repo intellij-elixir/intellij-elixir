@@ -5,15 +5,14 @@ import com.intellij.model.psi.PsiSymbolReference
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
-import com.intellij.psi.ResolveState
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.stubs.StubIndex
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.Implementation
 import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.call.macroChildCallList
 import org.elixir_lang.psi.stub.index.ModularName
 
 /**
@@ -35,10 +34,6 @@ class ProtocolImplReference(
 
     @RequiresReadLock
     override fun resolveReference(): Collection<Symbol> {
-        if (!CallDefinitionClause.`is`(call)) return emptyList()
-        val nameArity = CallDefinitionClause.nameArityInterval(call, ResolveState.initial()) ?: return emptyList()
-        val macro = CallDefinitionClause.isMacro(call)
-
         // Walk up to the defimpl - confirmed present by ProtocolImplReferenceProvider
         val defimpl = CallDefinitionClause.enclosingModularMacroCall(call) ?: return emptyList()
         val protocolName = Implementation.protocolName(defimpl) ?: return emptyList()
@@ -49,15 +44,11 @@ class ProtocolImplReference(
         for (element in StubIndex.getElements(ModularName.KEY, protocolName, call.project, scope, NamedElement::class.java)) {
             ProgressManager.checkCanceled()
             if (element !is Call) continue
-            element.macroChildCallList()
+            org.elixir_lang.psi.CallDefinitionClause.modularChildCalls(element)
                 .filter { CallDefinitionClause.`is`(it) }
                 .forEach { protocolClause ->
-                    ProtocolFunction.fromClause(protocolClause).forEach { pf ->
-                        if (pf.name == nameArity.name &&
-                            pf.arity in nameArity.arityInterval &&
-                            pf.macro == macro
-                        ) results += pf
-                    }
+                    results += ProtocolFunction.fromClause(protocolClause)
+                        .filter { CallableDeclaration.defines(call, it.name, it.arity, it.macro) }
                 }
         }
         return results

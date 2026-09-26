@@ -12,8 +12,8 @@ import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.file.containsFileWithSuffix
-import org.elixir_lang.psi.CallDefinitionClause.isPublicFunction
 import org.elixir_lang.psi.CallDefinitionClause.nameArityInterval
 import org.elixir_lang.psi.ElixirAccessExpression
 import org.elixir_lang.psi.ElixirFile
@@ -128,7 +128,7 @@ object Test {
             .asSequence()
             .flatMap { it.macroChildCallList().asSequence() }
             .filter { call ->
-                isPublicFunction(call) && nameArityInterval(call, ResolveState.initial())?.let { (name, arityInterval) ->
+                CallableDeclaration.definerOf(call)?.capabilities?.remoteCallable == true && nameArityInterval(call, ResolveState.initial())?.let { (name, arityInterval) ->
                     name == "project" && arityInterval.contains(0)
                 } == true
             }

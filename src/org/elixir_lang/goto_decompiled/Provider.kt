@@ -9,7 +9,7 @@ import com.intellij.psi.ResolveState
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.stubs.StubIndex
 import org.elixir_lang.beam.psi.Module as BeamModule
-import org.elixir_lang.psi.CallDefinitionClause.nameArityInterval
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.Definition
 import org.elixir_lang.psi.Modular
 import org.elixir_lang.psi.NamedElement
@@ -17,6 +17,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.StubBased
 import org.elixir_lang.psi.definition
 import org.elixir_lang.psi.stub.index.AllName
+import org.elixir_lang.reference.resolver.narrowedScope
 
 /**
  * Go To Related from source to decompiled version of the same function
@@ -24,12 +25,12 @@ import org.elixir_lang.psi.stub.index.AllName
 class Provider : GotoRelatedProvider() {
     override tailrec fun getItems(psiElement: PsiElement): List<GotoRelatedItem> {
         val definitionItems = if (psiElement is Call) {
-            val definition = definition(psiElement)
+            val declarations = CallableDeclaration.definitions(psiElement, ResolveState.initial())
 
-            if (definition != null) {
-                definitionItems(definition, psiElement)
-            } else {
-                null
+            when {
+                declarations.isNotEmpty() -> callableDefinerToDecompiledSet(psiElement, declarations).map { Item(it) }
+                definition(psiElement)?.type == Definition.Type.MODULAR -> modularDefinerToDecompiledSet(psiElement).map { Item(it) }
+                else -> null
             }
         } else {
             null
@@ -48,38 +49,27 @@ class Provider : GotoRelatedProvider() {
         }
     }
 
-    private fun definitionItems(definition: Definition, definer: Call): List<GotoRelatedItem> =
-        definitionDecompiledSet(definition, definer).map { Item(it) }
+    /** The decompiled definitions of what [definer] declares, whichever form declares it. */
+    private fun callableDefinerToDecompiledSet(definer: Call, declarations: List<CallableDeclaration.Declaration>): Set<Call> {
+        val modularDefiner = callableDefinerToModularDefiner(definer) ?: return emptySet()
+        val state = ResolveState.initial()
 
-    private fun definitionDecompiledSet(definition: Definition, definer: Call): Set<Call> =
-            if (definition.type == Definition.Type.CALLABLE) {
-                callableDefinerToDecompiledSet(definer)
-            } else {
-                modularDefinerToDecompiledSet(definer)
-            }
-
-    private fun callableDefinerToDecompiledSet(definer: Call) =
-            callableDefinerToModularDefiner(definer)
-                    ?.let { modularDefiner ->
-                        nameArityInterval(definer, ResolveState.initial())?.let { nameArityRange ->
-                            modularDefinerToDecompiledSet(modularDefiner)
-                                    .flatMap { decompiledModularDefiner ->
-                                        Modular
-                                                .callDefinitionClauseCallSequence(decompiledModularDefiner)
-                                                .mapNotNull { decompiledDefiner ->
-                                                    nameArityInterval(decompiledDefiner, ResolveState.initial())?.let { decompiledNameArityRange ->
-                                                        if (nameArityRange.name == decompiledNameArityRange.name &&
-                                                                nameArityRange.arityInterval.overlaps(decompiledNameArityRange.arityInterval)) {
-                                                            decompiledDefiner
-                                                        } else {
-                                                            null
-                                                        }
-                                                    }
-                                                }.asIterable()
-                                    }
-                                    .toSet()
+        return modularDefinerToDecompiledSet(modularDefiner)
+            .flatMap { decompiledModularDefiner ->
+                Modular
+                    .callDefinitionClauseCallSequence(decompiledModularDefiner)
+                    .filter { decompiledDefiner ->
+                        CallableDeclaration.definitions(decompiledDefiner, state).any { decompiled ->
+                            declarations.any { declaration ->
+                                declaration.name == decompiled.name &&
+                                    declaration.nameArityInterval().arityInterval.overlaps(decompiled.nameArityInterval().arityInterval)
+                            }
                         }
-                    } ?: emptySet()
+                    }
+                    .asIterable()
+            }
+            .toSet()
+    }
 
     private tailrec fun callableDefinerToModularDefiner(ancestor: PsiElement): Call? {
         return if (ancestor is Call && definition(ancestor)?.type == Definition.Type.MODULAR) {
@@ -91,9 +81,10 @@ class Provider : GotoRelatedProvider() {
         }
     }
 
+    /** The decompiled modules [modularDefiner] names, among what its module can see: its libraries and SDK included. */
     private fun modularDefinerToDecompiledSet(modularDefiner: Call): Set<Call> {
         val project = modularDefiner.project
-        val scope = GlobalSearchScope.projectScope(project)
+        val scope = narrowedScope(modularDefiner, project)
 
         return if (modularDefiner is StubBased<*>) {
             modularDefiner

@@ -13,7 +13,6 @@ import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.call.macroChildCallList
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.psi.outerMostQualifiableAlias
 
@@ -74,7 +73,7 @@ internal class DefinitionsScopedSearch :
 
                             when (defimpl) {
                                 is Call -> {
-                                    for (defimplChild in defimpl.macroChildCallList()) {
+                                    for (defimplChild in org.elixir_lang.psi.CallDefinitionClause.modularChildCalls(defimpl)) {
                                         ProgressManager.checkCanceled()
 
                                         if (CallDefinitionClause.`is`(defimplChild)) {
@@ -145,7 +144,7 @@ internal class DefinitionsScopedSearch :
 
                 when (defimpl) {
                     is Call -> {
-                        for (defimplChild in defimpl.macroChildCallList()) {
+                        for (defimplChild in org.elixir_lang.psi.CallDefinitionClause.modularChildCalls(defimpl)) {
                             ProgressManager.checkCanceled()
 
                             if (CallDefinitionClause.`is`(defimplChild)) {

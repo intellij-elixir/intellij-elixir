@@ -1,5 +1,9 @@
 package org.elixir_lang.psi
 
+import org.elixir_lang.psi.scope.Reach.Companion.reachedThrough
+import org.elixir_lang.psi.scope.Reach
+import org.elixir_lang.psi.scope.WhileIn.whileIn
+import com.intellij.openapi.util.Key
 import com.intellij.psi.ElementDescriptionLocation
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiNamedElement
@@ -8,6 +12,7 @@ import com.intellij.psi.util.isAncestor
 import com.intellij.usageView.UsageViewNodeTextLocation
 import com.intellij.usageView.UsageViewTypeLocation
 import com.intellij.util.Function
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Arity
 import org.elixir_lang.Name
 import org.elixir_lang.NameArityInterval
@@ -19,17 +24,118 @@ import org.elixir_lang.psi.call.name.Function.IMPORT
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
 import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.call.stabBodyChildExpressions
 import org.elixir_lang.psi.impl.hasKeywordKey
+import org.elixir_lang.psi.impl.literalName
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.psi.impl.stripAccessExpression
-import org.elixir_lang.structure_view.element.CallDefinitionHead
-import org.elixir_lang.structure_view.element.Delegation
 
 /**
  * An `import` call
  */
 object Import {
+    /**
+     * What an `import`'s options bring in, read once: the `name: arity` pairs `only:` lists, or its `:functions`,
+     * `:macros` or `:sigils`; the pairs `except:` leaves out; and no name starting with `_` unless `only:` names it.
+     * A kind and `except:` combine, as in Elixir; an `only:` list, which Elixir rejects alongside `except:`, wins.
+     */
+    class Filter private constructor(
+        private val only: Map<Name, Set<Arity>>?,
+        private val selector: Selector?,
+        private val except: Map<Name, Set<Arity>>,
+        private val underscored: Boolean = false,
+    ) {
+        private enum class Selector { FUNCTIONS, MACROS, SIGILS }
+
+        /** Whether [name] at [arity] is brought in; a [compileTime] that is not known rules out no selector. */
+        fun admits(name: Name, arity: Arity, compileTime: Boolean?): Boolean =
+            only?.let { arity in it[name].orEmpty() } ?: (admitsName(name, compileTime) && arity !in except[name].orEmpty())
+
+        /** Whether [name] is brought in at any arity in [arityInterval]. */
+        fun admits(name: Name, arityInterval: ArityInterval, compileTime: Boolean?): Boolean =
+            when (val maximum = arityInterval.maximum) {
+                // Pairs name finitely many arities, so only `only:`'s can rule out every one of an unbounded interval.
+                null -> only?.let { pairs -> pairs[name].orEmpty().any { it >= arityInterval.minimum } }
+                    ?: admitsName(name, compileTime)
+                else -> (arityInterval.minimum..maximum).any { admits(name, it, compileTime) }
+            }
+
+        private fun admitsName(name: Name, compileTime: Boolean?): Boolean =
+            (underscored || !name.startsWith("_")) &&
+                when (selector) {
+                    null -> true
+                    Selector.FUNCTIONS -> compileTime != true
+                    Selector.MACROS -> compileTime != false
+                    Selector.SIGILS -> name.startsWith("sigil_")
+                }
+
+        companion object {
+            private val EVERYTHING = Filter(null, null, emptyMap())
+
+            /** What the implicit `import Kernel` and `import Kernel.SpecialForms` bring in: the special forms named `__x__` too. */
+            val IMPLICIT = Filter(null, null, emptyMap(), underscored = true)
+
+            /** The filter [importCall]'s options make. */
+            fun of(importCall: Call): Filter =
+                (importCall.finalArguments()?.getOrNull(1) as? QuotableKeywordList)
+                    ?.quotableKeywordPairList()
+                    ?.fold(EVERYTHING) { filter, pair ->
+                        when {
+                            pair.hasKeywordKey("except") ->
+                                Filter(filter.only, filter.selector, aritiesByName(pair.keywordValue))
+                            pair.hasKeywordKey("only") -> selectorOf(pair.keywordValue)
+                                ?.let { Filter(null, it, filter.except) }
+                                ?: Filter(aritiesByName(pair.keywordValue), null, emptyMap())
+                            else -> filter
+                        }
+                    }
+                    ?: EVERYTHING
+
+            private fun selectorOf(value: PsiElement): Selector? =
+                when ((value.stripAccessExpression() as? ElixirAtom)?.literalName()) {
+                    "functions" -> Selector.FUNCTIONS
+                    "macros" -> Selector.MACROS
+                    "sigils" -> Selector.SIGILS
+                    else -> null
+                }
+
+            /** The `name: arity` pairs of a keyword list, skipping what is not one, which the compiler rejects. */
+            private fun aritiesByName(value: PsiElement): Map<Name, Set<Arity>> =
+                (value.stripAccessExpression() as? ElixirList)
+                    ?.children
+                    ?.lastOrNull()
+                    ?.let { it as? QuotableKeywordList }
+                    ?.quotableKeywordPairList()
+                    ?.mapNotNull { pair ->
+                        FunctionArityKeywordPair.nameFromKey(pair.keywordKey)?.let { name ->
+                            FunctionArityKeywordPair.arityFromValue(pair.keywordValue)?.let { arity -> name to arity }
+                        }
+                    }
+                    ?.groupBy({ it.first }, { it.second })
+                    ?.mapValues { (_, arities) -> arities.toSet() }
+                    .orEmpty()
+        }
+    }
+
+    /** The [Filter] of the `import` a declaration was reached through, applied to each name and arity it declares. */
+    private val FILTER: Key<Filter> = Key.create("Import.FILTER")
+
+    private val DEFINITIONS_ONLY: Key<Boolean> = Key.create("Import.DEFINITIONS_ONLY")
+
+    /**
+     * [state], marked as walking a module's listing for what it defines. An `import` is lexical: it reaches from where
+     * it is written to the end of its block, which only the walk up from a use follows, so a walk marked so does not
+     * follow one, whether listed or injected by a listed `use`. What a module defines is the module's wherever it is.
+     */
+    fun definitionsOnly(state: ResolveState): ResolveState = state.put(DEFINITIONS_ONLY, true)
+
+    /** Whether the `import` [state] was reached through, if any, brings in [name] at some arity in [arityInterval]. */
+    fun admits(state: ResolveState, name: Name, arityInterval: ArityInterval, compileTime: Boolean?): Boolean =
+        state.get(FILTER)?.admits(name, arityInterval, compileTime) ?: true
+
+    /** Whether [importCall] brings in [name] at [arity]. */
+    fun admits(importCall: Call, name: Name, arity: Arity, compileTime: Boolean?): Boolean =
+        Filter.of(importCall).admits(name, arity, compileTime)
+
     /**
      * Whether `call` is an `import Module` or `import Module, opts` call
      */
@@ -46,12 +152,12 @@ object Import {
 
         // don't descend back into `import` when the entrance is the alis to the `import` like `MyAlias` in
         // `import MyAlias`.
-        if (!importCall.isAncestor(resolveState.get(ENTRANCE))) {
+        if (resolveState.get(DEFINITIONS_ONLY) != true && !importCall.isAncestor(resolveState.get(ENTRANCE))) {
             val modulars = modulars(importCall)
 
             if (modulars.isNotEmpty()) {
-                val importCallResolveState = resolveState.putVisitedElement(importCall)
-                val filter = importCallFilter(importCall)
+                val filter = Filter.of(importCall)
+                val importCallResolveState = resolveState.putVisitedElement(importCall).put(FILTER, filter).reachedThrough(Reach.IMPORT, importCall)
 
                 for (modular in modulars) {
                     val childResolveState = importCallResolveState.putVisitedElement(modular)
@@ -71,7 +177,7 @@ object Import {
 
     private fun treeWalkUpImportedModular(
         importedModular: PsiElement,
-        filter: (NameArityInterval) -> Boolean,
+        filter: Filter,
         resolveState: ResolveState,
         keepProcessing: (PsiElement, ResolveState) -> Boolean
     ): Boolean =
@@ -83,80 +189,89 @@ object Import {
 
     private fun treeWalkUpImportedModular(
         importedModular: Call,
-        filter: (NameArityInterval) -> Boolean,
+        filter: Filter,
         resolveState: ResolveState,
         keepProcessing: (PsiElement, ResolveState) -> Boolean
     ): Boolean =
-        importedModular
-            .stabBodyChildExpressions()
-            ?.filterIsInstance<Call>()
-            ?.filter { !resolveState.hasBeenVisited(it) }
-            ?.map { treeWalkUpImportedModularChildExpression(filter, it, resolveState, keepProcessing) }
-            ?.takeWhile { it }
-            ?.lastOrNull()
-            ?: true
+        // Looks through the conditionals a definition may be under, and finishes the module, as its own walk does: a
+        // bodiless head and the clauses after it are one function.
+        CallDefinitionClause.modularChildCalls(importedModular)
+            .filter { !resolveState.hasBeenVisited(it) }
+            .map { treeWalkUpImportedModularChildExpression(filter, it, resolveState, keepProcessing) }
+            .all { it }
 
     private fun treeWalkUpImportedModular(
         importedModular: BeamModule,
-        filter: (NameArityInterval) -> Boolean,
+        filter: Filter,
         resolveState: ResolveState,
         keepProcessing: (PsiElement, ResolveState) -> Boolean
     ): Boolean =
-        importedModular
-            .callDefinitions()
-            .map { treeWalkUpImportedModularChildExpression(filter, it, resolveState, keepProcessing) }
-            .takeWhile { it }
-            .lastOrNull()
-            ?: true
+        whileIn(importedModular.callDefinitions()) {
+            treeWalkUpImportedModularChildExpression(filter, it, resolveState, keepProcessing)
+        }
 
     private fun treeWalkUpImportedModularChildExpression(
-        filter: (NameArityInterval) -> Boolean,
+        filter: Filter,
         importedCall: Call,
         resolveState: ResolveState,
         keepProcessing: (Call, ResolveState) -> Boolean
-    ): Boolean =
-        when {
-            CallDefinitionClause.`is`(importedCall) -> {
-                CallDefinitionClause.nameArityInterval(importedCall, resolveState)?.let { nameArityInterval ->
-                    if (filter(nameArityInterval)) {
-                        keepProcessing(importedCall, resolveState)
-                    } else {
-                        true
-                    }
-                }
-            }
-            Delegation.`is`(importedCall) -> {
-                importedCall.finalArguments()?.takeIf { it.size == 2 }?.let { arguments ->
-                    val head = arguments[0]
+    ): Boolean {
+        // What a `use` injects is the module's own, so the `import` brings it in too; an `import` it injects is not.
+        if (Use.`is`(importedCall)) {
+            var keepGoing = true
 
-                    CallDefinitionHead.nameArityInterval(head, resolveState)?.let { headNameArityInterval ->
-                        if (filter(headNameArityInterval)) {
-                            keepProcessing(importedCall, resolveState)
-                        } else {
-                            true
-                        }
-                    }
+            // Finishes the quote, as the module's own listing is finished, so a head's clauses after it are reached.
+            Use.treeWalkUp(importedCall, definitionsOnly(resolveState)) { injected, injectedState ->
+                (injected as? Call)?.let {
+                    keepGoing = treeWalkUpImportedModularChildExpression(filter, it, injectedState, keepProcessing) && keepGoing
                 }
+                true
             }
-            else -> null
+
+            return keepGoing
         }
-            ?: true
+
+        val declared = CallableDeclaration.declaredOf(importedCall, resolveState) as? CallableDeclaration.Declared.Source
+            ?: return true
+
+        return if (bringsIn(declared, filter, resolveState)) {
+            keepProcessing(
+                importedCall,
+                resolveState.put(CallableDeclaration.CLASSIFIED, CallableDeclaration.Classified(importedCall, declared.form))
+            )
+        } else {
+            true
+        }
+    }
 
     private fun treeWalkUpImportedModularChildExpression(
-        filter: (NameArityInterval) -> Boolean,
+        filter: Filter,
         importedCall: BeamCallDefinition,
         resolveState: ResolveState,
         keepProcessing: (PsiElement, ResolveState) -> Boolean
-    ): Boolean {
-        val nameArityInterval = importedCall.nameArityInterval
-
-
-
-        return if (filter(nameArityInterval)) {
+    ): Boolean =
+        if (bringsIn(CallableDeclaration.Declared.Compiled(importedCall), filter, resolveState)) {
             keepProcessing(importedCall, resolveState)
         } else {
             true
         }
+
+    /** What the implicit `import` of [modular] - `Kernel` or `Kernel.SpecialForms` - brings in, as an `import` does. */
+    @RequiresReadLock
+    fun treeWalkUpImplicitly(
+        modular: PsiElement,
+        resolveState: ResolveState,
+        keepProcessing: (PsiElement, ResolveState) -> Boolean
+    ): Boolean = treeWalkUpImportedModular(modular, Filter.IMPLICIT, resolveState, keepProcessing)
+
+    /** Whether an `import` with [filter] brings in [declared]: what another module may call, and [filter] admits. */
+    private fun bringsIn(declared: CallableDeclaration.Declared, filter: Filter, state: ResolveState): Boolean {
+        val capabilities = declared.capabilities ?: return false
+
+        return capabilities.public &&
+            declared.definitions(state).any {
+                filter.admits(it.name, it.nameArityInterval().arityInterval, capabilities.compileTime)
+            }
     }
 
     fun elementDescription(call: Call, location: ElementDescriptionLocation): String? =
@@ -166,93 +281,6 @@ object Import {
             else -> null
         }
 
-
-    private fun aritiesByNameFromNameByArityKeywordList(list: ElixirList): Map<Name, List<Arity>> {
-        val aritiesByName = mutableMapOf<Name, MutableList<Int>>()
-
-        val children = list.children
-
-        if (children.isNotEmpty()) {
-            (children.last() as? QuotableKeywordList)?.let { quotableKeywordList ->
-                for (quotableKeywordPair in quotableKeywordList.quotableKeywordPairList()) {
-                    val name = keywordKeyToName(quotableKeywordPair.keywordKey)
-                    val arity = keywordValueToArity(quotableKeywordPair.keywordValue)
-
-                    if (name != null && arity != null) {
-                        aritiesByName.computeIfAbsent(name) { mutableListOf() }.add(arity)
-                    }
-                }
-            }
-        }
-
-        return aritiesByName
-    }
-
-    private fun aritiesByNameFromNameByArityKeywordList(element: PsiElement): Map<String, List<Int>> =
-        (element.stripAccessExpression() as? ElixirList)?.let {
-            aritiesByNameFromNameByArityKeywordList(it)
-        } ?: emptyMap()
-
-    /**
-     * A function that returns `true` for name arity intervals that are imported by `importCall`
-     *
-     * @param importCall `import` call
-     */
-    private fun importCallFilter(importCall: Call): (NameArityInterval) -> Boolean {
-        val finalArguments = importCall.finalArguments()
-
-        return if (finalArguments != null && finalArguments.size >= 2) {
-            optionsNameArityIntervalFilter(finalArguments[1])
-        } else {
-            TRUE
-        }
-    }
-
-    private val TRUE: (NameArityInterval) -> Boolean = { true }
-
-    /**
-     * A [Function] that returns `true` for call definition clauses that are imported by `importCall`
-     *
-     * @param options options (second argument) to an `import Module, ...` call.
-     */
-    private fun optionsNameArityIntervalFilter(options: PsiElement?): (NameArityInterval) -> Boolean {
-        var filter = TRUE
-
-        if (options != null && options is QuotableKeywordList) {
-            for (quotableKeywordPair in options.quotableKeywordPairList()) {
-                /* although using both `except` and `only` is invalid semantically, support it to handle transient code
-                   and take the final option as the filter in that state */
-                if (quotableKeywordPair.hasKeywordKey("except")) {
-                    filter = exceptNameArityIntervalFilter(quotableKeywordPair.keywordValue)
-                } else if (quotableKeywordPair.hasKeywordKey("only")) {
-                    filter = onlyNameArityIntervalFilter(quotableKeywordPair.keywordValue)
-                }
-            }
-        }
-
-        return filter
-    }
-
-    private fun exceptNameArityIntervalFilter(element: PsiElement): (NameArityInterval) -> Boolean {
-        val only = onlyNameArityIntervalFilter(element)
-        return { nameArityInterval -> !only(nameArityInterval) }
-    }
-
-    private fun keywordKeyToName(keywordKey: Quotable): String? =
-        FunctionArityKeywordPair.nameFromKey(keywordKey)
-
-    private fun keywordValueToArity(keywordValue: Quotable): Int? =
-        FunctionArityKeywordPair.arityFromValue(keywordValue)
-
-    private fun onlyNameArityIntervalFilter(element: PsiElement): (NameArityInterval) -> Boolean {
-        val aritiesByName = aritiesByNameFromNameByArityKeywordList(element)
-
-        return { nameArityInterval ->
-            aritiesByName[nameArityInterval.name]?.let { arities ->
-                arities.any { arity -> nameArityInterval.arityInterval.contains(arity) }
-            } ?: false
-        }
-    }
 
     /**
      * The modular that is imported by `importCall`.

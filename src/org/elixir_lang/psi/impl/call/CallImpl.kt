@@ -44,7 +44,7 @@ fun Call.computeReference(): PsiReference? =
            and instead let the dedicated module-attribute reference path handle it */
     // Any element in the head of a call-definition clause is a declaration name, not a call site.
     // Protocol heads were already guarded this way; now the full CDC family is covered.
-    if (CallDefinitionClause.isHead(this)) {
+    if (CallDefinitionClause.isHead(this) || CallableDeclaration.delegationHeadedBy(this) != null) {
         null
     } else if (!this.isModuleAttributeNameElement() &&
         // if a bitstring segment option then the option is a pseudo-function
@@ -346,8 +346,8 @@ fun Call.macroChildCallSequence(): Sequence<Call> = this.macroChildCallList().as
 
 @RequiresReadLock
 @Contract(pure = true)
-fun Call.macroDefinitionClauseForArgument(): Call? {
-    var macroDefinitionClause: Call? = null
+fun Call.definitionClauseForArgument(): Call? {
+    var definitionClause: Call? = null
     val parent = parent
 
     if (parent is ElixirMatchedWhenOperation) {
@@ -357,14 +357,14 @@ fun Call.macroDefinitionClauseForArgument(): Call? {
             val greatGrandParent = grandParent.getParent()
 
             if (greatGrandParent is Call) {
-                if (CallDefinitionClause.isMacro(greatGrandParent)) {
-                    macroDefinitionClause = greatGrandParent
+                if (CallableDeclaration.definerOf(greatGrandParent) != null) {
+                    definitionClause = greatGrandParent
                 }
             }
         }
     }
 
-    return macroDefinitionClause
+    return definitionClause
 }
 
 @RequiresReadLock

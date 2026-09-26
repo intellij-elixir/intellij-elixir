@@ -6,15 +6,14 @@ import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.psi.xml.XmlTag
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.ElixirLanguage
-import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.Implementation
 import org.elixir_lang.psi.Module
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.model.psi.function.FunctionSymbol
-import org.elixir_lang.psi.impl.call.stabBodyChildExpressions
 import org.elixir_lang.psi.scope.call_definition_clause.MultiResolve
 import org.elixir_lang.reference.resolver.Module as ModuleResolver
 
@@ -34,23 +33,30 @@ import org.elixir_lang.reference.resolver.Module as ModuleResolver
             CachedValueProvider.Result.create(doResolveCall(tag), PsiModificationTracker.MODIFICATION_COUNT)
         }
 
-    /** The [FunctionSymbol]s of the resolved clause - one per arity a clause with defaults declares. */
+    /** The [FunctionSymbol]s of the resolved declaration - one per arity a clause with defaults declares. */
     fun resolveFunctionSymbols(tag: XmlTag): List<FunctionSymbol> =
-        resolveCall(tag)?.takeIf(CallDefinitionClause::`is`)?.let(FunctionSymbol::fromClause).orEmpty()
-    /** The module's arity-1 call definitions, local-component candidates for tag-name completion. */
-    fun localComponentDefinitions(tag: XmlTag): List<Call> {
+        resolveCall(tag)?.let(FunctionSymbol::fromDeclaration).orEmpty()
+    /** A `<.name>` candidate: the name it is completed as and the call that defines it. */
+    data class LocalComponent(val name: String, val definition: Call)
+
+    /**
+     * The module's local-component candidates for tag-name completion. `<.name>` compiles to the local call
+     * `name(assigns)`, so a candidate is any arity-1 runtime function, whichever form defines it.
+     */
+    fun localComponents(tag: XmlTag): List<LocalComponent> {
         val module = elixirRoot(tag)?.viewFile()?.modulars()?.singleOrNull() as? Call ?: return emptyList()
+        val state = ResolveState.initial()
 
-        return module.stabBodyChildExpressions()
-            ?.filterIsInstance<Call>()
-            ?.filter(CallDefinitionClause::isFunction)
-            ?.filter { call -> arity1(call) }
-            ?.toList()
-            ?: emptyList()
+        return org.elixir_lang.psi.CallDefinitionClause.modularChildCalls(module)
+            .flatMap { call ->
+                CallableDeclaration.declaredOf(call, state)
+                    ?.takeIf { it.capabilities?.runtimeFunction == true }
+                    ?.definitions(state)
+                    ?.filter { it.accepts(1) }
+                    ?.map { LocalComponent(it.name, call) }
+                    .orEmpty()
+            }
     }
-
-    private fun arity1(call: Call): Boolean =
-        CallDefinitionClause.nameArityInterval(call, ResolveState.initial())?.arityInterval?.let { 1 in it } == true
 
     private fun doResolveCall(tag: XmlTag): Call? {
         val component = ComponentTagName.parse(tag.name) ?: return null
@@ -89,8 +95,5 @@ import org.elixir_lang.reference.resolver.Module as ModuleResolver
         element is Call && (Module.`is`(element) || Protocol.`is`(element) || Implementation.`is`(element))
 
     private fun declarationTarget(element: PsiElement): PsiElement =
-        (element as? Call)
-            ?.takeIf(CallDefinitionClause::isFunction)
-            ?.let { CallDefinitionClause.nameIdentifier(it) }
-            ?: element
+        (element as? Call)?.let { CallableDeclaration.nameElement(it) } ?: element
 }

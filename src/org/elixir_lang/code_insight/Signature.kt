@@ -6,6 +6,7 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.NameArityInterval
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.structure_view.element.CallDefinitionHead
@@ -15,16 +16,18 @@ import org.elixir_lang.structure_view.element.CallDefinitionHead
  */
 data class Signature(val nameArityInterval: NameArityInterval, val parameters: List<String>) {
     companion object {
-        /** `null` when [clause] is not a call definition clause. */
+        /** The signature of a clause's or a `defdelegate`'s head; `null` for any other [declaration]. */
         @RequiresReadLock
-        fun of(clause: Call): Signature? {
+        fun of(declaration: Call): Signature? {
             ThreadingAssertions.assertReadAccess()
 
-            if (!CallDefinitionClause.`is`(clause)) return null
-
-            val nameArityInterval = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return null
-            val head = CallDefinitionClause.head(clause)?.let { CallDefinitionHead.strip(it) } as? Call
-            val parameters = head?.finalArguments()?.map { it.text }.orEmpty()
+            val head = when (CallableDeclaration.headBindingFormOf(declaration)) {
+                CallableDeclaration.Form.CLAUSE -> CallDefinitionClause.head(declaration)
+                CallableDeclaration.Form.DELEGATION -> CallableDeclaration.delegationHead(declaration)
+                else -> null
+            } ?: return null
+            val nameArityInterval = CallDefinitionHead.nameArityInterval(head, ResolveState.initial()) ?: return null
+            val parameters = (CallDefinitionHead.strip(head) as? Call)?.finalArguments()?.map { it.text }.orEmpty()
 
             return Signature(nameArityInterval, parameters)
         }

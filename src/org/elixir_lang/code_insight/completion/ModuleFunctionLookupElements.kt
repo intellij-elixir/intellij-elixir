@@ -6,31 +6,23 @@ import com.intellij.codeInsight.lookup.LookupElementBuilder
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import org.elixir_lang.beam.psi.Module as BeamModule
-import org.elixir_lang.code_insight.preferFunctionHeads
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.call.macroChildCalls
+import org.elixir_lang.code_insight.completion.insert_handler.CallDefinitionClause as CallDefinitionClauseInsertHandler
+import org.elixir_lang.psi.scope.Reach
+import org.elixir_lang.psi.scope.call_definition_clause.Variants
 import org.elixir_lang.code_insight.lookup.element.CallDefinitionClause as CallDefinitionClauseLookupElement
 import org.elixir_lang.code_insight.lookup.element_renderer.CallDefinitionClause as CallDefinitionClauseRenderer
-import com.intellij.psi.ResolveState
-import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.structure_view.element.CallDefinitionHead
-import org.elixir_lang.structure_view.element.Delegation
-import org.elixir_lang.psi.CallDefinitionClause as CallDefinitionClausePsi
-import org.elixir_lang.code_insight.lookup.element_renderer.Delegation as DelegationRenderer
-import org.elixir_lang.code_insight.completion.insert_handler.CallDefinitionClause as CallDefinitionClauseInsertHandler
 
 /**
  * The function-name [LookupElement]s a modular ([scope]) offers when completing a **remote**
- * reference: one entry per public function name, preferring bare function heads. Only public
- * (exported) functions are offered because a remote / MFA dispatch (`Mod.fun(...)`,
- * `apply(Mod, :fun, args)`, `{Mod, :fun, arity}`) can never reach a private function - a private
- * function is callable only through a local unqualified call inside its own module. Handles both
+ * reference: one entry per name it [Reach.exports], preferring bare function heads. Handles both
  * source modules ([Call]) and BEAM-decompiled modules ([BeamModule]); any other element type yields
  * nothing.
  *
  * @param appendParentheses when `true` (qualified `Mod.<caret>` call completion) the inserted name is
- *   followed by `()`; when `false` (MFA atom `:<caret>` completion) only the bare name is inserted,
- *   because an atom is a name, not a call.
+ *   followed by `()`; when `false` (an MFA atom or a capture) only the bare name is inserted, because
+ *   it names a function rather than calling one, so only functions are offered.
  *
  * Shared by qualified `Mod.<caret>` completion
  * ([org.elixir_lang.code_insight.completion.provider.CallDefinitionClause]) and MFA atom completion
@@ -62,59 +54,36 @@ fun callDefinitionClauseLookupElements(
     return effectiveModulars.flatMap { callDefinitionClauseLookupElements(it, appendParentheses) }
 }
 
-private fun callDefinitionClauseLookupElements(scope: Call, appendParentheses: Boolean): Iterable<LookupElement> {
-    val childCalls = scope.macroChildCalls()
-
-    val publicClauses = childCalls
-        .filter { CallDefinitionClausePsi.`is`(it) }
-        .filter { CallDefinitionClausePsi.isPublic(it) }
-
-    val clauseLookupElements = preferFunctionHeads(publicClauses).map { (name, bestClause) ->
-        name to lookupElement(name, bestClause, appendParentheses)
-    }
-    val clauseNames = clauseLookupElements.map { (name, _) -> name }.toSet()
-
-    return clauseLookupElements.map { (_, lookupElement) -> lookupElement } +
-        delegationLookupElements(childCalls, clauseNames, appendParentheses)
-}
-
 /**
- * The [LookupElement]s for functions this module declares only with `defdelegate`.
- *
- * `Delegation.is` and `CallDefinitionClause.is` are disjoint, so delegates need their own pass or they
- * are never offered. Names already in [clauseNames] are skipped so a `def` keeps its richer
- * presentation; visibility is not filtered because there is no `defdelegatep`.
- *
- * [appendParentheses] is threaded through so a delegate inserts `Mod.values()` and opens parameter
- * info like a `def`, and stays a bare name for an MFA atom, where a name is not a call.
+ * One item per name the module exports: a `def`'s over another form's, its bodiless head over its clauses. The walk is of
+ * the completion copy, where the caret's dummy identifier keeps the declarations after it apart; each item then points
+ * into the user's file.
  */
-private fun delegationLookupElements(
-    childCalls: Array<Call>,
-    clauseNames: Set<String>,
-    appendParentheses: Boolean
-): List<LookupElement> =
-    childCalls
-        .filter { Delegation.`is`(it) }
-        .mapNotNull { delegation ->
-            delegation
-                .finalArguments()
-                ?.takeIf { it.size == 2 }
-                ?.let { arguments -> CallDefinitionHead.nameArityInterval(arguments[0], ResolveState.initial()) }
-                ?.name
-                ?.takeIf { it !in clauseNames }
-                ?.let { name -> name to delegation }
+private fun callDefinitionClauseLookupElements(scope: Call, appendParentheses: Boolean): Iterable<LookupElement> =
+    Variants.remoteLookupElementList(scope, appendParentheses)
+        .groupBy { it.lookupString }
+        .map { (_, sameName) -> sameName.minBy(::precedence) }
+        .map { lookupElement ->
+            val builder = lookupElement as? LookupElementBuilder
+            val element = builder?.psiElement
+
+            if (builder != null && element != null) {
+                builder.withPsiElement(element.inOriginalFile()).also { builder.copyUserDataTo(it) }
+            } else {
+                lookupElement
+            }
         }
-        .distinctBy { (name, _) -> name }
-        .map { (name, delegation) ->
-            LookupElementBuilder
-                .createWithSmartPointer(name, delegation.inOriginalFile())
-                .withRenderer(DelegationRenderer(name))
-                .let { if (appendParentheses) it.withInsertHandler(CallDefinitionClauseInsertHandler) else it }
-        }
+
+private fun precedence(lookupElement: LookupElement): Int =
+    when {
+        lookupElement.getUserData(CallDefinitionClauseInsertHandler.FORM) != CallableDeclaration.Form.CLAUSE -> 2
+        (lookupElement.psiElement as? Call)?.hasDoBlockOrKeyword() == false -> 0
+        else -> 1
+    }
 
 private fun callDefinitionClauseLookupElements(moduleImpl: BeamModule, appendParentheses: Boolean): Iterable<LookupElement> =
     moduleImpl.callDefinitions()
-        .filter { it.isExported }
+        .filter { Reach.exports(Reach.OWN, it, runtime = !appendParentheses) }
         .mapNotNull { callDefinition ->
             // MaybeExported documents exportedName() as null only when isExported() is false.
             callDefinition.exportedName()?.let { lookupElement(it, callDefinition, appendParentheses) }

@@ -1,5 +1,6 @@
 package org.elixir_lang.model.psi.atom
 
+import org.elixir_lang.psi.impl.nameRangeInAtom
 import com.intellij.model.Symbol
 import com.intellij.model.psi.PsiSymbolReference
 import com.intellij.openapi.application.ApplicationManager
@@ -8,11 +9,13 @@ import com.intellij.psi.*
 import com.intellij.psi.impl.source.resolve.ResolveCache
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.code_insight.completion.callDefinitionClauseLookupElements
-import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.CallableDeclaration
+import org.elixir_lang.psi.DelegationPrecedence
 import org.elixir_lang.psi.ElixirAtom
-import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.impl.literalName
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
-import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
+import org.elixir_lang.psi.scope.Reach
+import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
 import org.elixir_lang.psi.scope.call_definition_clause.MultiResolve as CallDefinitionClauseMultiResolve
 import org.elixir_lang.reference.Resolver as ReferenceResolver
 
@@ -25,11 +28,11 @@ class AtomReference(
      * - an [ElixirAtom] (unquoted) for Erlang-style modules (`:math`, `:lists`)
      */
     private val moduleElement: PsiElement,
-    private val rangeInElement: TextRange = contentTextRange(atom),
+    private val rangeInElement: TextRange = atom.nameRangeInAtom(),
     private val arity: Int
-) : PsiReferenceBase<ElixirAtom>(atom, contentTextRange(atom)), PsiPolyVariantReference, PsiSymbolReference {
+) : PsiReferenceBase<ElixirAtom>(atom, atom.nameRangeInAtom()), PsiPolyVariantReference, PsiSymbolReference {
     private val functionName: String?
-        get() = myElement.node.lastChildNode?.text
+        get() = myElement.literalName()
 
     override fun getVariants(): Array<Any> {
         val modulars = moduleElement.maybeModularNameToModulars(
@@ -52,13 +55,14 @@ class AtomReference(
             .resolveWithCaching(this, Resolver, false, incompleteCode)
     }
 
-    override fun resolve(): PsiElement? =
-        ReferenceResolver.preferred(myElement, false, multiResolve(false).toList())
-            .firstOrNull()
-            ?.element
+    override fun resolve(): PsiElement? = ReferenceResolver.resolved(myElement, multiResolve(false).toList())
 
     override fun isSoft(): Boolean = true
 
+    /**
+     * The functions the atom names. A `defdelegate` is what an MFA naming it names, though its `to:` is reached too: the
+     * delegation is renamed and searched, and Go To from it follows `to:`, as from a call.
+     */
     @RequiresReadLock
     override fun resolveReference(): Collection<Symbol> {
         val name = functionName ?: return emptyList()
@@ -74,15 +78,14 @@ class AtomReference(
             .flatMap { modular ->
                 CallDefinitionClauseMultiResolve.resolveResults(name, arity, false, modular)
             }
-            .map { visitedResult -> visitedResult.element }
-            .flatMap { element ->
-                when (element) {
-                    is Call -> sourceCallSymbols(element, name)
-                    is BeamCallDefinition -> AtomSymbol.fromBeamCallDefinition(element)
-                    else -> emptyList()
+            .mapNotNull { visitedResult -> visitedResult.element.takeIf { reachable(visitedResult, name) } }
+            .let { elements ->
+                DelegationPrecedence.named(elements, arity, AtomSymbol::fromDeclaration) {
+                    elements.flatMap { AtomSymbol.at(it, arity) }
                 }
             }
-            .distinct()
+            // Equal symbols at different declarations are the head and clauses Go To lands on.
+            .distinctBy { it.file to it.range }
     }
 
     private object Resolver : ResolveCache.PolyVariantResolver<AtomReference> {
@@ -100,44 +103,30 @@ class AtomReference(
                 .flatMap { modular ->
                     CallDefinitionClauseMultiResolve.resolveResults(name, reference.arity, incompleteCode, modular)
                 }
-                .flatMap { visitedResult ->
-                    when (val element = visitedResult.element) {
-                        is Call -> sourceCallResolveResults(element, name, visitedResult.isValidResult)
-                        is BeamCallDefinition -> AtomSymbol.fromBeamCallDefinition(element).map {
-                            PsiElementResolveResult(element, visitedResult.isValidResult)
-                        }
-                        else -> emptyList()
+                .filter { visitedResult -> reachable(visitedResult, name) }
+                .let { results -> DelegationPrecedence.navigated(results) { it.element } }
+                .map { visitedResult -> PsiElementResolveResult(visitedResult.element, visitedResult.isValidResult) }
+                // A compiled function's arities share one decompiled head: keep the arity called, whichever came first.
+                .let { results ->
+                    ReferenceResolver.onePerKeyPreferringValid(results) {
+                        it.element.containingFile?.virtualFile to it.element.textRange
                     }
                 }
-                .distinctBy { it.element?.containingFile?.virtualFile to it.element?.textRange }
                 .toTypedArray()
         }
     }
 }
 
+
+/**
+ * Whether an MFA tuple or `apply/3` naming [name] reaches [result]: a function of that name the module reaches remotely,
+ * whichever form - source or compiled - defines it.
+ */
 @RequiresReadLock
-private fun sourceCallSymbols(call: Call, name: String): List<AtomSymbol> {
-    if (!CallDefinitionClause.`is`(call)) return emptyList()
-    val nameArity = CallDefinitionClause.nameArityInterval(call, ResolveState.initial()) ?: return emptyList()
-    if (nameArity.name != name) return emptyList()
-    if (CallDefinitionClause.isMacro(call)) return emptyList()
-    return AtomSymbol.fromClause(call)
-}
+private fun reachable(result: VisitedElementSetResolveResult, name: String): Boolean {
+    val state = ResolveState.initial()
+    val declared = CallableDeclaration.declaredOf(result.element, state) ?: return false
 
-@RequiresReadLock
-private fun sourceCallResolveResults(call: Call, name: String, validResult: Boolean): List<ResolveResult> {
-    if (!CallDefinitionClause.`is`(call)) return emptyList()
-    val nameArity = CallDefinitionClause.nameArityInterval(call, ResolveState.initial()) ?: return emptyList()
-    if (nameArity.name != name) return emptyList()
-    if (CallDefinitionClause.isMacro(call)) return emptyList()
-    return listOf(PsiElementResolveResult(call, validResult))
-}
-
-internal fun contentTextRange(atom: ElixirAtom): TextRange {
-    val atomNode = atom.node
-    val lastChildNode = atomNode.lastChildNode ?: return TextRange(0, atom.textLength)
-    val start = lastChildNode.startOffset - atomNode.startOffset
-    val end = start + lastChildNode.textLength
-
-    return TextRange(start, end)
+    return Reach.remotelyReaches(result.reach, result.element, runtime = true) &&
+        declared.definitions(state).any { it.name == name }
 }

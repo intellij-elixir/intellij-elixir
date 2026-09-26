@@ -13,14 +13,13 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.*
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.call.CallImpl.hasDoBlockOrKeyword
-import org.elixir_lang.psi.impl.call.macroDefinitionClauseForArgument
+import org.elixir_lang.psi.impl.call.definitionClauseForArgument
 import org.elixir_lang.psi.impl.moduleWithDependentsScope
 import org.elixir_lang.psi.scope.variable.BindingPattern
 import org.elixir_lang.psi.stub.type.call.Stub.isModular
 import org.elixir_lang.reference.Callable.Companion.isBitStreamSegmentOption
 import org.elixir_lang.reference.Callable.Companion.isVariable
 import org.elixir_lang.reference.Callable.Companion.variableUseScope
-import org.elixir_lang.structure_view.element.Delegation
 import org.jetbrains.annotations.Contract
 
 fun PsiElement.selfAndFollowingSiblingsSearchScope(): LocalSearchScope {
@@ -87,15 +86,17 @@ object UseScopeImpl {
                 if (ancestor is Call) {
                     val ancestorCall = ancestor
 
-                    if (CallDefinitionClause.`is`(ancestorCall)) {
-                        val macroDefinitionClause = ancestorCall.macroDefinitionClauseForArgument()
+                    val headBindingForm = CallableDeclaration.headBindingFormOf(ancestorCall)
 
-                        if (macroDefinitionClause != null) {
-                            ancestor = macroDefinitionClause
+                    if (headBindingForm == CallableDeclaration.Form.CLAUSE) {
+                        val definitionClause = ancestorCall.definitionClauseForArgument()
+
+                        if (definitionClause != null) {
+                            ancestor = definitionClause
                         }
 
                         break
-                    } else if (Delegation.`is`(ancestorCall)) {
+                    } else if (headBindingForm == CallableDeclaration.Form.DELEGATION) {
                         break
                     } else if (ancestorCall.hasDoBlockOrKeyword()) {
                         break
@@ -145,7 +146,9 @@ object UseScopeImpl {
                     element.isCalling(KERNEL, UNLESS) ||
                     element.isCalling(KERNEL, VAR_BANG)) {
                 useScopeSelector = UseScopeSelector.SELF_AND_FOLLOWING_SIBLINGS
-            } else if (CallDefinitionClause.`is`(element) || isModular(element) || hasDoBlockOrKeyword(element)) {
+            } else if (CallableDeclaration.isForm(element, CallableDeclaration.Form.CLAUSE) ||
+                    isModular(element) || hasDoBlockOrKeyword(element)) {
+                // A `defdelegate` has no body to scope anything to.
                 useScopeSelector = UseScopeSelector.SELF
             }
         }

@@ -41,6 +41,7 @@ import org.elixir_lang.model.psi.callback.BehaviourMembership
 import org.elixir_lang.model.psi.callback.Callback
 import org.elixir_lang.model.psi.function.FunctionArityKeywordPairReference
 import org.elixir_lang.model.psi.function.FunctionSymbol
+import org.elixir_lang.model.psi.function.functionSymbolsReached
 import org.elixir_lang.model.psi.module.ModuleSymbol
 import org.elixir_lang.model.psi.module_attribute.ModuleAttributeReference
 import org.elixir_lang.model.psi.module_attribute.ModuleAttributeSymbol
@@ -56,6 +57,7 @@ import org.elixir_lang.psi.call.name.Function.*
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.moduleAttributeName
 import org.elixir_lang.psi.impl.identifierTextRange
+import org.elixir_lang.psi.impl.nameRangeInAtom
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.scope.ancestorTypeSpec
@@ -114,11 +116,7 @@ internal object ElixirUsageQueries {
         // `ElixirFile`, because `TypeSymbol.createPointer()` restores `file` from the mirror element's
         // `containingFile`. A mirror is recognised by its `originalFile` being the compiled file. Handle both.
         val declarationFile = target.file
-        val compiledFile: PsiCompiledFile? = when {
-            declarationFile is PsiCompiledFile -> declarationFile
-            declarationFile.originalFile is PsiCompiledFile -> declarationFile.originalFile as PsiCompiledFile
-            else -> null
-        }
+        val compiledFile: PsiCompiledFile? = compiledFileOf(declarationFile)
         if (compiledFile != null) {
             // The decompiled mirror to scan (the same cached instance whether `target.file` arrived as the
             // compiled file or as the mirror restored through the pointer - `getMirror()` caches it).
@@ -132,7 +130,7 @@ internal object ElixirUsageQueries {
             usageQueries(project, target, LocalSearchScope(mirror)).mapTo(queries) { query ->
                 query.mapping { usage: Usage ->
                     if (usage is ElixirPsiUsage && usage.file !== compiledFile) {
-                        ElixirPsiUsage(compiledFile, usage.range, usage.declaration, usage.usageType, usage.usageTextByName)
+                        usage.anchoredIn(compiledFile)
                     } else {
                         usage
                     }
@@ -162,20 +160,12 @@ internal object ElixirUsageQueries {
             is FunctionSymbol -> {
                 queries += functionDeclarationFamilyQuery(project, target, searchScope)
                 queries += functionCallSiteQuery(project, target, searchScope)
+                queries += delegationAsQueries(target)
             }
 
-            is AtomSymbol -> {
-                // An AtomSymbol IS a function reference (module/name/arity/macro, anchored at the
-                // def clause's name identifier - see AtomSymbol.fromClause), so renaming from the
-                // atom must rename everything renaming from the def would: the declaration
-                // family, call sites, specs, captures, keyword pairs - and the atoms themselves,
-                // which FunctionCallSiteMapper's own atomUsage branch already finds. Reuse the
-                // function queries via the field-for-field equivalent FunctionSymbol.
-                val functionSymbol =
-                    FunctionSymbol(target.file, target.range, target.moduleName, target.name, target.arity, target.macro)
-                queries += functionDeclarationFamilyQuery(project, functionSymbol, searchScope)
-                queries += functionCallSiteQuery(project, functionSymbol, searchScope)
-            }
+            // An atom names what its declaration's own symbol does, so renaming from it renames everything renaming
+            // from that symbol would, the atoms included.
+            is AtomSymbol -> queries += usageQueries(project, target.named(), searchScope)
 
             is ModuleSymbol -> {
                 queries += moduleUsageQuery(project, target, searchScope)
@@ -260,19 +250,11 @@ internal object ElixirUsageQueries {
             val nameIdentifier = CallDefinitionClause.nameIdentifier(defClause) ?: return emptyList()
             if (!PsiTreeUtil.isAncestor(nameIdentifier, leaf, false)) return emptyList()
 
-            val nameArity =
-                    CallDefinitionClause.nameArityInterval(defClause, ResolveState.initial()) ?: return emptyList()
-            if (nameArity.name != callback.name || callback.arity !in nameArity.arityInterval) return emptyList()
-
             // `@callback` is implemented by `def`, `@macrocallback` by `defmacro`.
-            val kindMatches =
-                    if (callback.macro) CallDefinitionClause.isMacro(defClause) else CallDefinitionClause.isFunction(
-                        defClause
-                    )
-            if (!kindMatches) return emptyList()
+            if (!CallableDeclaration.defines(defClause, callback.name, callback.arity, callback.macro)) return emptyList()
 
             val implements =
-                    when (val usingDefiner = defClause.enclosingUsingDefiner()) {
+                    when (val usingDefiner = Using.enclosingDefiner(defClause)) {
                         // Default implementation: a `def` inside a `__using__` quote whose module is the
                         // behaviour itself, or which injects `@behaviour B`.
                         is Call -> {
@@ -347,6 +329,9 @@ internal object ElixirUsageQueries {
             val protocolFunction = protocolFunctionPointer.dereference() ?: return emptyList()
             val (_, leaf, _) = occurrence
 
+            // An MFA atom naming it: `apply(Protocol, :name, args)` or `{Protocol, :name, arity}`.
+            atomNaming(leaf) { it.protocol && it.named() == protocolFunction }?.let { return listOf(it) }
+
             // Nearest enclosing call. A call site is an invocation, not a definition clause.
             val call = leaf.enclosingCalls().firstOrNull() ?: return emptyList()
             if (CallDefinitionClause.`is`(call)) return emptyList()
@@ -393,17 +378,10 @@ internal object ElixirUsageQueries {
             val nameIdentifier = CallDefinitionClause.nameIdentifier(defClause) ?: return emptyList()
             if (!PsiTreeUtil.isAncestor(nameIdentifier, leaf, false)) return emptyList()
 
-            val nameArity =
-                    CallDefinitionClause.nameArityInterval(defClause, ResolveState.initial()) ?: return emptyList()
-            if (nameArity.name != protocolFunction.name || protocolFunction.arity !in nameArity.arityInterval) {
+            // `def` implements a function protocol member; `defmacro` a macro member.
+            if (!CallableDeclaration.defines(defClause, protocolFunction.name, protocolFunction.arity, protocolFunction.macro)) {
                 return emptyList()
             }
-
-            // `def` implements a function protocol member; `defmacro` a macro member.
-            val kindMatches =
-                    if (protocolFunction.macro) CallDefinitionClause.isMacro(defClause)
-                    else CallDefinitionClause.isFunction(defClause)
-            if (!kindMatches) return emptyList()
 
             // The clause must live directly inside a `defimpl` for this protocol.
             val defimpl = CallDefinitionClause.enclosingModularMacroCall(defClause) ?: return emptyList()
@@ -620,10 +598,7 @@ internal object ElixirUsageQueries {
             if (startsWith("Elixir.")) removePrefix("Elixir.") else this
     }
 
-    /**
-     * Finds additional declaration clauses for the same logical function family
-     * (`module.name/arity`) as [symbol].
-     */
+    /** Finds the other declarations of [symbol]'s [FunctionSymbol.function]: its head and every clause. */
     private fun functionDeclarationFamilyQuery(
         project: Project,
         symbol: FunctionSymbol,
@@ -636,10 +611,7 @@ internal object ElixirUsageQueries {
                 .inScope(searchScope)
                 .buildQuery(FunctionDeclarationFamilyMapper(symbol.createPointer()))
 
-    /**
-     * Maps each occurrence of a function name to a matching declaration clause in the same
-     * logical function family (`module.name/arity`).
-     */
+    /** Maps each occurrence of a function name to a declaration of the same [FunctionSymbol.function]. */
     private class FunctionDeclarationFamilyMapper(
         private val symbolPointer: Pointer<out FunctionSymbol>
     ) : LeafOccurrenceMapper<PsiUsage> {
@@ -671,6 +643,32 @@ internal object ElixirUsageQueries {
     }
 
     /**
+     * Renaming a `defdelegate` without `as:` keeps it delegating to the same function by adding one naming it: an edit
+     * only a rename makes.
+     */
+    @RequiresReadLock
+    private fun delegationAsQueries(target: FunctionSymbol): List<Query<out Usage>> {
+        val delegation = CallableDeclaration.declarationNamedAt(target.file, target.range)
+            ?.takeIf { CallableDeclaration.isForm(it, CallableDeclaration.Form.DELEGATION) }
+            ?.takeIf { CallableDeclaration.delegationAsValue(it) == null }
+            ?: return emptyList()
+        val offset = CallableDeclaration.delegationAsOffset(delegation) ?: return emptyList()
+        val oldName = target.name
+
+        return listOf(
+            ElixirDirectUsageQuery(
+                ElixirPsiUsage(
+                    target.file,
+                    TextRange(offset, offset),
+                    declaration = false,
+                    usageTextByName = { ", as: :$oldName" },
+                    purpose = ElixirPsiUsage.Purpose.RENAME
+                )
+            )
+        )
+    }
+
+    /**
      * Maps each occurrence of a function name to a **call site** for the given [FunctionSymbol].
      *
      * Qualified calls (`Module.function(args)`) are matched by name/arity without scope resolution.
@@ -686,9 +684,14 @@ internal object ElixirUsageQueries {
 
             atomUsage(leaf, symbol)?.let { return listOf(it) }
 
+            delegationAsUsage(leaf, symbol)?.let { return listOf(it) }
+
             keywordKeyUsage(leaf, symbol)?.let { return listOf(it) }
 
-            captureUsage(leaf, symbol)?.let { return listOf(it) }
+            // A captured name is decided by its capture alone: as a call, `&M.name/2`'s `M.name` has arity 0.
+            captureNameAt(leaf)?.let { (capture, reference) ->
+                return listOfNotNull(captureUsage(capture, reference, symbol))
+            }
 
             heexComponentTagUsage(leaf, offsetInLeaf, symbol)?.let { return listOf(it) }
 
@@ -700,17 +703,21 @@ internal object ElixirUsageQueries {
 
             val nameElement = call.functionNameElement() ?: return emptyList()
             if (!PsiTreeUtil.isAncestor(nameElement, leaf, false)) return emptyList()
+            CallableDeclaration.delegationHeadedBy(call)?.let { delegation ->
+                return delegatedHeadUsages(delegation, nameElement, symbol)
+            }
 
             specUsage(call, symbol)?.let { return listOf(it) }
 
-            if (!matchesCallSite(call, symbol)) return emptyList()
+            val purpose = callSitePurpose(call, symbol) ?: return emptyList()
 
             return listOf(
                 ElixirPsiUsage.create(
                     nameElement,
                     TextRange(0, nameElement.textLength),
                     declaration = false,
-                    usageType = CALL
+                    usageType = CALL,
+                    purpose = purpose
                 )
             )
         }
@@ -720,17 +727,21 @@ internal object ElixirUsageQueries {
          * unqualified call resolved via the legacy [Callable] scope-walker.
          */
         @RequiresReadLock
-        private fun matchesCallSite(call: Call, symbol: FunctionSymbol): Boolean =
-            if (call.isCalling(symbol.moduleName, symbol.name, symbol.arity)) {
-                true
-            } else {
-                Callable(call).multiResolve(false)
-                    .filter { it.isValidResult }
-                    .mapNotNull { it.element as? Call }
-                    .filter { CallDefinitionClause.`is`(it) }
-                    .flatMap { FunctionSymbol.fromClause(it) }
-                    .any { it == symbol }
+        private fun callSitePurpose(call: Call, symbol: FunctionSymbol): ElixirPsiUsage.Purpose? {
+            // A qualified call naming this very symbol needs no resolution; one at another arity of its function does.
+            if (call.isCalling(symbol.moduleName, symbol.name, symbol.arity)) return ElixirPsiUsage.Purpose.ALL
+
+            val valid = Callable(call).multiResolve(false).filter { it.isValidResult }
+            // What the call names, as its own reference answers.
+            val named = functionSymbolsReached(valid, call.resolvedFinalArity()).filterIsInstance<FunctionSymbol>()
+
+            // A call is a use of what the delegation it names delegates to, which a rename of that leaves alone.
+            return when {
+                named.any { it.sameFunction(symbol) } -> ElixirPsiUsage.Purpose.ALL
+                named.any { it.followsDelegation && it.delegatedTo().any(symbol::sameFunction) } -> ElixirPsiUsage.Purpose.FIND
+                else -> null
             }
+        }
 
         /**
          * A plain Elixir call (`{some_function()}`) embedded in an *injected* `~H` fragment that
@@ -757,13 +768,14 @@ internal object ElixirUsageQueries {
                 } ?: return null
 
             val nameElement = call.functionNameElement() ?: return null
-            if (!matchesCallSite(call, symbol)) return null
+            val purpose = callSitePurpose(call, symbol) ?: return null
 
             return ElixirPsiUsage.create(
                 nameElement,
                 TextRange(0, nameElement.textLength),
                 declaration = false,
-                usageType = CALL
+                usageType = CALL,
+                purpose = purpose
             )
         }
 
@@ -799,7 +811,7 @@ internal object ElixirUsageQueries {
                 is ComponentTagName.Slot, null -> return null
             }
 
-            if (symbol !in HeexComponentResolver.resolveFunctionSymbols(tag)) return null
+            if (HeexComponentResolver.resolveFunctionSymbols(tag).none(symbol::sameFunction)) return null
 
             return ElixirPsiUsage.create(
                 htmlLeaf,
@@ -818,7 +830,7 @@ internal object ElixirUsageQueries {
          * own [CaptureNameArity] reference, which this reuses.
          */
         @RequiresReadLock
-        private fun captureUsage(leaf: PsiElement, symbol: FunctionSymbol): PsiUsage? {
+        private fun captureNameAt(leaf: PsiElement): Pair<CaptureNonNumeric, CaptureNameArity>? {
             val capture = generateSequence(leaf) { it.parent }
                 .takeWhile { it !is PsiFile }
                 .filterIsInstance<CaptureNonNumeric>()
@@ -828,15 +840,17 @@ internal object ElixirUsageQueries {
             // Only the captured name is a usage - not the `/arity` digits, and for a qualified
             // capture not the `Mod.` qualifier (CaptureNameArity's range is the name alone).
             val absoluteNameRange = reference.rangeInElement.shiftRight(capture.textRange.startOffset)
-            if (!absoluteNameRange.contains(leaf.textRange)) return null
-            if (reference.arity != symbol.arity) return null
 
+            return if (absoluteNameRange.contains(leaf.textRange)) capture to reference else null
+        }
+
+        @RequiresReadLock
+        private fun captureUsage(capture: CaptureNonNumeric, reference: CaptureNameArity, symbol: FunctionSymbol): PsiUsage? {
             val matches = reference.multiResolve(false)
                 .filter { it.isValidResult }
                 .mapNotNull { it.element as? Call }
-                .filter { CallDefinitionClause.`is`(it) }
-                .flatMap { FunctionSymbol.fromClause(it) }
-                .any { it == symbol }
+                .flatMap { FunctionSymbol.fromDeclaration(it) }
+                .any(symbol::sameFunction)
             if (!matches) return null
 
             return ElixirPsiUsage.create(
@@ -854,7 +868,7 @@ internal object ElixirUsageQueries {
                 .getReferences(call)
                 .flatMap { it.resolveReference() }
                 .filterIsInstance<FunctionSymbol>()
-                .any { it == symbol }
+                .any(symbol::sameFunction)
             if (!matches) return null
 
             val nameElement = call.functionNameElement() ?: return null
@@ -871,15 +885,16 @@ internal object ElixirUsageQueries {
             val occurrence = FunctionArityKeywordPair.at(leaf) ?: return null
             // `defoverridable` keys resolve to a Callback, handled via the Callback search path.
             if (occurrence.host == FunctionArityKeywordPair.Host.DEFOVERRIDABLE) return null
-            if (occurrence.name != symbol.name || occurrence.arity != symbol.arity) return null
+            if (occurrence.name != symbol.name) return null
 
+            // A key naming any arity of the declaration is a use of it, as a call at any of them is.
             val matches = PsiSymbolReferenceService.getService()
                 .getReferences(occurrence.hostCall)
                 .filterIsInstance<FunctionArityKeywordPairReference>()
                 .filter { it.absoluteRange.containsOffset(leaf.textRange.startOffset) }
                 .flatMap { it.resolveReference() }
                 .filterIsInstance<FunctionSymbol>()
-                .any { it == symbol }
+                .any(symbol::sameFunction)
             if (!matches) return null
 
             val key = occurrence.pair.keywordKey
@@ -891,33 +906,45 @@ internal object ElixirUsageQueries {
             )
         }
 
+        /**
+         * A `defdelegate` head declares its own symbol, so it is never a use of it. It is a use of what it delegates
+         * to, which a rename keeps pointing there by adding `as:` rather than renaming the head.
+         */
         @RequiresReadLock
-        private fun atomUsage(leaf: PsiElement, symbol: FunctionSymbol): PsiUsage? {
-            val atom = PsiTreeUtil.getParentOfType(leaf, ElixirAtom::class.java, false) ?: return null
-            val references = PsiSymbolReferenceService.getService()
-                .getReferences(atom)
-                .filterIsInstance<AtomReference>()
-            if (references.isEmpty()) return null
+        private fun delegatedHeadUsages(delegation: Call, nameElement: PsiElement, symbol: FunctionSymbol): List<PsiUsage> {
+            if (FunctionSymbol.fromDeclaration(delegation).none { it.delegatedTo().any(symbol::sameFunction) }) return emptyList()
+            if (CallableDeclaration.delegationAsValue(delegation) != null) return emptyList()
+            val offset = CallableDeclaration.delegationAsOffset(delegation) ?: return emptyList()
 
-            val matches = references.any { reference ->
-                reference.resolveReference()
-                    .filterIsInstance<AtomSymbol>()
-                    .any {
-                        it.moduleName == symbol.moduleName &&
-                            it.name == symbol.name &&
-                            it.arity == symbol.arity &&
-                            it.macro == symbol.macro
-                    }
-            }
-            if (!matches) return null
-
-            return ElixirPsiUsage.create(
-                leaf,
-                TextRange(0, leaf.textLength),
-                declaration = false,
-                usageType = CALL
+            return listOf(
+                ElixirPsiUsage.create(nameElement, TextRange(0, nameElement.textLength), usageType = CALL, purpose = ElixirPsiUsage.Purpose.FIND),
+                ElixirPsiUsage(
+                    delegation.containingFile,
+                    TextRange(offset, offset),
+                    declaration = false,
+                    usageTextByName = { newName -> ", as: :$newName" },
+                    purpose = ElixirPsiUsage.Purpose.RENAME
+                )
             )
         }
+
+        /** The name inside a `defdelegate`'s `as:` atom, a use of what the delegation delegates to. */
+        @RequiresReadLock
+        private fun delegationAsUsage(leaf: PsiElement, symbol: FunctionSymbol): PsiUsage? {
+            val atom = PsiTreeUtil.getParentOfType(leaf, ElixirAtom::class.java, false) ?: return null
+            val delegation = generateSequence(atom.parent) { it.parent }
+                .filterIsInstance<Call>()
+                .firstOrNull { CallableDeclaration.isForm(it, CallableDeclaration.Form.DELEGATION) }
+                ?.takeIf { CallableDeclaration.delegationAs(it) == atom }
+                ?: return null
+            if (FunctionSymbol.fromDeclaration(delegation).none { it.delegatedTo().any(symbol::sameFunction) }) return null
+
+            return ElixirPsiUsage.create(atom, atom.nameRangeInAtom(), usageType = CALL)
+        }
+
+        @RequiresReadLock
+        private fun atomUsage(leaf: PsiElement, symbol: FunctionSymbol): PsiUsage? =
+            atomNaming(leaf) { !it.protocol && FunctionSymbol.of(it).sameFunction(symbol) }
     }
 
     private class TypeUsageMapper(
@@ -1153,33 +1180,27 @@ private val VALUE_READ = UsageType { "Value read" }
 
 private val VALUE_WRITE = UsageType { "Value write" }
 
-private const val USING = "__using__"
+/** A use at [leaf] where it is in an MFA atom naming a symbol [names] accepts. */
+@RequiresReadLock
+private fun atomNaming(leaf: PsiElement, names: (AtomSymbol) -> Boolean): PsiUsage? {
+    val atom = PsiTreeUtil.getParentOfType(leaf, ElixirAtom::class.java, false) ?: return null
+    val matches = PsiSymbolReferenceService.getService()
+        .getReferences(atom)
+        .filterIsInstance<AtomReference>()
+        .any { reference -> reference.resolveReference().filterIsInstance<AtomSymbol>().any(names) }
+
+    return if (matches) {
+        ElixirPsiUsage.create(leaf, TextRange(0, leaf.textLength), declaration = false, usageType = CALL)
+    } else {
+        null
+    }
+}
 
 private fun PsiElement.enclosingCalls(): Sequence<Call> =
         generateSequence(parent) { it.parent }.takeWhile { it !is PsiFile }.filterIsInstance<Call>()
 
 @RequiresReadLock
-private fun Call.matchesFunctionFamily(symbol: FunctionSymbol): Boolean {
-    val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(this) ?: return false
-    val moduleName = runCatching { Module.name(enclosingModular) }
-        .getOrElse { if (it is ProcessCanceledException) throw it else null }
-        ?: return false
-    if (moduleName != symbol.moduleName) return false
-
-    val nameArity = CallDefinitionClause.nameArityInterval(this, ResolveState.initial()) ?: return false
-    if (nameArity.name != symbol.name || symbol.arity !in nameArity.arityInterval) return false
-
-    val clauseIsMacro = CallDefinitionClause.isMacro(this)
-    return clauseIsMacro == symbol.macro
-}
-
-/** Nearest enclosing `defmacro __using__/1` clause, or `null`. */
-@RequiresReadLock
-private fun Call.enclosingUsingDefiner(): Call? =
-        enclosingCalls().firstOrNull { call ->
-            CallDefinitionClause.`is`(call) &&
-                    CallDefinitionClause.nameArityInterval(call, ResolveState.initial())?.name == USING
-        }
+private fun Call.matchesFunctionFamily(symbol: FunctionSymbol): Boolean = FunctionSymbol.functionOf(this) == symbol.function
 
 @RequiresReadLock
 private fun Call.enclosingSpecAttributeIfHead(): AtUnqualifiedNoParenthesesCall<*>? {

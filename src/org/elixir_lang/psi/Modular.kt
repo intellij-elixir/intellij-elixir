@@ -7,15 +7,13 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Name
 import org.elixir_lang.beam.psi.Module as BeamModule
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.call.macroChildCallSequence
-import org.elixir_lang.psi.impl.call.macroChildCalls
 import org.elixir_lang.util.AccumulatorContinue
 
 object Modular {
     @RequiresReadLock
     @JvmStatic
     fun callDefinitionClauseCallSequence(modular: Call): Sequence<Call> =
-        modular.macroChildCallSequence().filter { CallDefinitionClause.`is`(it) }
+        CallDefinitionClause.modularChildCalls(modular).asSequence().filter { CallDefinitionClause.`is`(it) }
 
     @RequiresReadLock
     fun callDefinitionClauseCallWhile(
@@ -35,7 +33,7 @@ object Modular {
         resolveState: ResolveState,
         function: (Call, ResolveState) -> Boolean
     ): Boolean {
-        val childCalls = modular.macroChildCalls()
+        val childCalls = CallDefinitionClause.modularChildCalls(modular)
         var keepProcessing = true
 
         for (childCall in childCalls) {
@@ -61,7 +59,7 @@ object Modular {
         initial: R,
         foldWhile: (Call, R) -> AccumulatorContinue<R>
     ): AccumulatorContinue<R> {
-        val childCalls = modular.macroChildCalls()
+        val childCalls = CallDefinitionClause.modularChildCalls(modular)
         var accumulatorContinue = AccumulatorContinue(initial, true)
 
         for (childChild in childCalls) {

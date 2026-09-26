@@ -9,8 +9,7 @@ import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.Doc
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.MarkdownByLanguage
 import org.elixir_lang.beam.term.inspect
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
-import org.elixir_lang.psi.CallDefinitionClause
-import org.elixir_lang.structure_view.element.Delegation
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.identifierName
@@ -54,7 +53,7 @@ sealed class FetchedDocs(open val module: String) {
             fun fromCallDefinitionClauseCall(
                 module: String,
                 call: Call,
-                head: PsiElement
+                head: String
             ): FunctionOrMacroDocumentation {
                 val callDefinitionAttributeListByName = callDefinitionAttributeListByName(call)
                 val deprecated = callDefinitionAttributeListByName[DEPRECATED]?.joinModuleAttributeQuoteText()
@@ -63,7 +62,7 @@ sealed class FetchedDocs(open val module: String) {
                     ?.let { MarkdownByLanguage.english(it) }
                 val impls = callDefinitionAttributeListByName[IMPL].moduleAttributeValueTextList()
                 val specs = callDefinitionAttributeListByName[SPEC].moduleAttributeValueTextList()
-                val heads = listOf(head.text)
+                val heads = listOf(head)
 
                 return FunctionOrMacroDocumentation(module, deprecated, doc, impls, specs, heads)
             }
@@ -108,7 +107,7 @@ private fun callDefinitionAttributeListByName(callDefinitionCall: Call): Map<Str
         // A defdelegate ends the run of attributes belonging to whatever follows it, exactly as a def
         // does. Without it the walk runs past any number of delegations and attaches an @doc written
         // for one of them to a later, undocumented definition.
-        .takeWhile { it !is Call || !(CallDefinitionClause.`is`(it) || Delegation.`is`(it)) }
+        .takeWhile { it !is Call || CallableDeclaration.headBindingFormOf(it) == null }
         .filterIsInstance<AtUnqualifiedNoParenthesesCall<*>>()
         .filter { CALL_DEFINITION_ATTRIBUTE_NAME_SET.contains(it.atIdentifier.identifierName()) }
         .groupBy { it.atIdentifier.identifierName() }

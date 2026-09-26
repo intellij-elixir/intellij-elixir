@@ -38,6 +38,9 @@ class Docs(private val documentedByArityByNameByKind: MutableMap<String, TreeMap
         return byArity.ceilingEntry(arity)?.value ?: byArity.floorEntry(arity)?.value
     }
 
+    /** Whether the docs mark [macroNameArity] `guard: true`. */
+    fun guard(macroNameArity: MacroNameArity): Boolean = documented(macroNameArity)?.guard() == true
+
     fun signatures(macroNameArity: MacroNameArity): List<String>? = documented(macroNameArity)?.signatures
     fun typeDocumentedByArityByName(): Map<String, Map<Int, Documented>> =
             documentedByArityByNameByKind["type"] ?: emptyMap()

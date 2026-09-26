@@ -19,7 +19,6 @@ import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
 import org.elixir_lang.psi.Implementation
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.call.macroChildCallList
 import java.awt.event.MouseEvent
 import java.util.*
 import javax.swing.Icon
@@ -72,7 +71,7 @@ class Implementation : LineMarkerProvider {
                             Implementation.processProtocols(modularCall) { defprotocol ->
                                 when (defprotocol) {
                                     is Call ->
-                                        for (defprotocolChild in defprotocol.macroChildCallList()) {
+                                        for (defprotocolChild in org.elixir_lang.psi.CallDefinitionClause.modularChildCalls(defprotocol)) {
                                             if (CallDefinitionClause.`is`(defprotocolChild)) {
                                                 CallDefinitionClause
                                                     .nameArityInterval(defprotocolChild, ResolveState.initial())

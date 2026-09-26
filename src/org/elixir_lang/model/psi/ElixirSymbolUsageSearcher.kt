@@ -23,5 +23,6 @@ internal class ElixirSymbolUsageSearcher : UsageSearcher {
     override fun collectSearchRequests(parameters: UsageSearchParameters): Collection<Query<out Usage>> {
         val target = parameters.target as? ElixirSymbolWithUsages ?: return emptyList()
         return ElixirUsageQueries.searchRequests(parameters.project, target, parameters.searchScope)
+            .map { query -> query.filtering { (it as? ElixirPsiUsage)?.purpose != ElixirPsiUsage.Purpose.RENAME } }
     }
 }

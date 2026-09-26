@@ -4,19 +4,10 @@ import com.intellij.ide.util.treeView.smartTree.TreeElement
 import com.intellij.navigation.ItemPresentation
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.call.Visibility
-import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.navigation.item_presentation.NameArity
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
 import org.elixir_lang.psi.CallDefinitionClause.head
-import org.elixir_lang.psi.CallDefinitionClause.isFunction
-import org.elixir_lang.psi.CallDefinitionClause.isGuard
-import org.elixir_lang.psi.CallDefinitionClause.isMacro
-import org.elixir_lang.psi.CallDefinitionClause.isPrivateFunction
-import org.elixir_lang.psi.CallDefinitionClause.isPrivateGuard
-import org.elixir_lang.psi.CallDefinitionClause.isPrivateMacro
-import org.elixir_lang.psi.CallDefinitionClause.isPublicFunction
-import org.elixir_lang.psi.CallDefinitionClause.isPublicGuard
-import org.elixir_lang.psi.CallDefinitionClause.isPublicMacro
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.QuoteMacro
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.enclosingMacroCall
@@ -27,11 +18,12 @@ import org.jetbrains.annotations.Contract
  * Constructs a clause for `callDefinition`.
  *
  * @param callDefinition holds all sibling clauses for `call` for the same name, arity. and time
- * @param call           a def(macro)?p? call
+ * @param call           a `def*` call
+ * @param definer        [call]'s `def*`, which only a clause has
  */
-class CallDefinitionClause(val callDefinition: CallDefinition, call: Call) :
+class CallDefinitionClause(val callDefinition: CallDefinition, call: Call, definer: CallableDeclaration.Definer) :
     Element<Call>(call), Presentable, Visible {
-    private val visibility: Visibility = visibility(call)
+    private val visibility: Visibility = definer.visibility
 
     /*
      * Public Instance Methods
@@ -52,12 +44,6 @@ class CallDefinitionClause(val callDefinition: CallDefinition, call: Call) :
             head(navigationItem)!!
         )
 
-    /**
-     * The visibility of the element.
-     *
-     * @return `Visible.Visibility.PUBLIC` for public call definitions (`def` and `defmacro`);
-     * `Visible.Visibility.PRIVATE` for private call definitions (`defp` and `defmacrop`).
-     */
     override fun visibility(): Visibility = visibility
 
     companion object {
@@ -120,54 +106,19 @@ class CallDefinitionClause(val callDefinition: CallDefinition, call: Call) :
             return modular
         }
 
-        /**
-         * Whether the `call` is defining something for runtime, like a function, or something for compile time, like
-         * a macro.
-         *
-         * @param call def(macro)?p?
-         * @return [Timed.Time.COMPILE] for `defmacrop?`; [Timed.Time.RUN] for `defp?`
-         */
-        @RequiresReadLock
-        fun time(call: Call): Timed.Time =
-            when {
-                isFunction(call) -> Timed.Time.RUN
-                isGuard(call) -> Timed.Time.RUN
-                isMacro(call) -> Timed.Time.COMPILE
-                else -> {
-                    Logger.error(logger, "Don't whether call is at runtime or compile-time", call)
-
-                    Timed.Time.RUN
-                }
-            }
-
-        /**
-         * @param call
-         * @return `Visible.Visibility.PUBLIC` for `def` or `defmacro`; `Visible.Visibility.PRIVATE`
-         * for `defp` and `defmacrop`; `null` only if `call` is unrecognized
-         */
-        @RequiresReadLock
-        fun visibility(call: Call): Visibility =
-            if (isPublicFunction(call) || isPublicMacro(call) || isPublicGuard(call)) {
-                Visibility.PUBLIC
-            } else if (isPrivateFunction(call) || isPrivateMacro(call) || isPrivateGuard(call)) {
-                Visibility.PRIVATE
-            } else {
-                Logger.error(logger, "Don't know whether call is public or private", call)
-
-                Visibility.PUBLIC
-            }
+        /** [Timed.Time.COMPILE] for what is expanded at compile time - a macro or a guard - else [Timed.Time.RUN]. */
+        fun time(definer: CallableDeclaration.Definer): Timed.Time =
+            if (definer.capabilities.compileTime) Timed.Time.COMPILE else Timed.Time.RUN
 
         /**
          * Constructs [.callDefinition] from `code`, such as when showing structure in Go To Symbol
          *
-         * @param call a def(macro)?p? call
+         * @param call a `def*` call; anything else builds nothing
          */
         @RequiresReadLock
         fun fromCall(call: Call): CallDefinitionClause? =
-            CallDefinition.fromCall(call)?.let {
-                CallDefinitionClause(it, call)
+            CallableDeclaration.definerOf(call)?.let { definer ->
+                CallDefinition.fromCall(call, definer)?.let { CallDefinitionClause(it, call, definer) }
             }
-
-        private val logger by lazy { com.intellij.openapi.diagnostic.Logger.getInstance(CallDefinitionClause::class.java) }
     }
 }

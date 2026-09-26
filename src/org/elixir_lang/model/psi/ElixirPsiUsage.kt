@@ -24,14 +24,25 @@ class ElixirPsiUsage(
     override val range: TextRange,
     override val declaration: Boolean,
     override val usageType: UsageType? = null,
-    val usageTextByName: ((String) -> String)? = null
+    val usageTextByName: ((String) -> String)? = null,
+    val purpose: Purpose = Purpose.ALL
 ) : PsiUsage {
+    /**
+     * Which search a usage serves: a `defdelegate` head is a use of its target a rename leaves alone ([FIND]), and the
+     * `as:` that keeps it pointing there is an edit Find Usages does not show ([RENAME]).
+     */
+    enum class Purpose { ALL, FIND, RENAME }
+
+    /** This usage at the same range of [file], as a decompiled mirror's is re-anchored to its compiled file. */
+    fun anchoredIn(file: PsiFile): ElixirPsiUsage = ElixirPsiUsage(file, range, declaration, usageType, usageTextByName, purpose)
+
     override fun createPointer(): Pointer<out PsiUsage> {
         val declaration = this.declaration // capture for the restore lambda
         val usageType = this.usageType
         val usageTextByName = this.usageTextByName
+        val purpose = this.purpose
         return Pointer.fileRangePointer(file, range) { restoredFile, restoredRange ->
-            ElixirPsiUsage(restoredFile, restoredRange, declaration, usageType, usageTextByName)
+            ElixirPsiUsage(restoredFile, restoredRange, declaration, usageType, usageTextByName, purpose)
         }
     }
 
@@ -41,17 +52,19 @@ class ElixirPsiUsage(
             rangeInElement: TextRange,
             declaration: Boolean = false,
             usageType: UsageType? = null,
-            usageTextByName: ((String) -> String)? = null
+            usageTextByName: ((String) -> String)? = null,
+            purpose: Purpose = Purpose.ALL
         ): ElixirPsiUsage =
             if (element is PsiFile) {
-                ElixirPsiUsage(element, rangeInElement, declaration, usageType, usageTextByName)
+                ElixirPsiUsage(element, rangeInElement, declaration, usageType, usageTextByName, purpose)
             } else {
                 ElixirPsiUsage(
                     element.containingFile,
                     rangeInElement.shiftRight(element.textRange.startOffset),
                     declaration,
                     usageType,
-                    usageTextByName
+                    usageTextByName,
+                    purpose
                 )
             }
     }

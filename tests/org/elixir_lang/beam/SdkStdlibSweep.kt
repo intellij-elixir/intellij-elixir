@@ -282,8 +282,12 @@ object SdkStdlibSweep {
     private fun firstClauseByArityByName(moduleMirror: Call): Map<String, Map<Int, Call>> {
         val byArityByName = mutableMapOf<String, MutableMap<Int, Call>>()
 
+        // Each clause by its own name and arities, not by the function it belongs to, so this stays independent of
+        // CallDefinitionClause.firstClauseByArityByName, which ModuleImpl uses.
         for (call in Modular.callDefinitionClauseCallSequence(moduleMirror)) {
-            CallDefinitionClause.putNameArityInterval(call, ResolveState.initial(), byArityByName, CallDefinitionClause.firstWins)
+            val nameArityInterval = CallDefinitionClause.nameArityInterval(call, ResolveState.initial()) ?: continue
+            val byArity = byArityByName.getOrPut(nameArityInterval.name) { mutableMapOf() }
+            nameArityInterval.arityInterval.closed().forEach { arity -> byArity.putIfAbsent(arity, call) }
         }
 
         return byArityByName

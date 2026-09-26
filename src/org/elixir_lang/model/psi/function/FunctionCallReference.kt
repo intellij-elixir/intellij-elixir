@@ -4,10 +4,13 @@ import com.intellij.model.Symbol
 import com.intellij.model.psi.PsiSymbolReference
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
+import com.intellij.psi.ResolveResult
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.model.psi.protocol.ProtocolFunction
 import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.CallableDeclaration
+import org.elixir_lang.psi.DelegationPrecedence
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.reference.Callable
 
@@ -17,7 +20,7 @@ import org.elixir_lang.reference.Callable
  *
  * Resolution delegates to the existing [Callable] scope-walking infrastructure (which handles
  * qualified calls, unqualified calls, captures, etc.) and wraps each resolved
- * `CallDefinitionClause` as a [FunctionSymbol] via [FunctionSymbol.fromClause], or - when the clause
+ * `CallDefinitionClause` as a [FunctionSymbol] via [FunctionSymbol.fromDeclaration], or - when the clause
  * is directly inside a `defprotocol` - as a [ProtocolFunction] via [ProtocolFunction.fromClause].
  *
  * This delegation is the intended, permanent design, not a stopgap: it mirrors the platform's own
@@ -44,44 +47,66 @@ class FunctionCallReference(
         // Delegate to the legacy Callable scope-walker, which understands qualified calls,
         // unqualified calls within the lexical scope, captures, imports, etc.
         val callArity = call.resolvedFinalArity()
-        val resolved = Callable(call).multiResolve(false)
-            .filter { it.isValidResult }
-        val clauses = resolved
-            .mapNotNull { result ->
-                when (val element = result.element) {
-                    // A source `def`/`defmacro` clause is already a `Call`, while a decompiled beam function exposes
-                    // the equivalent clause as its navigation element (the `.beam` mirror), so both flow through the
-                    // same `FunctionSymbol.fromClause` pipeline and compare equal by module/name/arity/macro.
-                    is Call -> element
-                    is BeamCallDefinition -> element.navigationElement as? Call
-                    else -> null
-                }
-            }
-            .filter { CallDefinitionClause.`is`(it) }
+        val all = Callable(call).multiResolve(false).toList()
 
-        // Only navigate to the clause(s) whose arity matches this specific call site.
-        // fromClause() expands multi-arity defs (via default args); without this filter,
-        // Ctrl+Click on `foo(x)` would offer both `foo/1` and `foo/2` as targets.
-        val functionSymbols = clauses
-            .flatMap { FunctionSymbol.fromClause(it) }
-            .filter { it.arity == callArity }
-        if (functionSymbols.isNotEmpty()) return functionSymbols
+        val valid = all.filter { it.isValidResult }
 
-        // Clauses directly inside a `defprotocol` are owned by ProtocolFunction, not FunctionSymbol
-        // (FunctionSymbol.fromClause returns empty for them). A qualified protocol call
-        // `Protocol.function(args)` therefore resolves here.
-        val protocolFunctions = clauses
-            .flatMap { ProtocolFunction.fromClause(it) }
-            .filter { it.arity == callArity }
-        if (protocolFunctions.isNotEmpty()) return protocolFunctions
-
-        // Last, the `defdelegate` head itself. It declares a function of that name and arity in its own
-        // module whether or not `to:` resolves, so when nothing else matched - an unresolvable target, or
-        // one whose module is not on the path yet - it is still somewhere to go, and the alternative is a
-        // gesture that silently does nothing. It ranks last so a resolvable target always wins.
-        return resolved
-            .mapNotNull { it.element as? Call }
-            .flatMap { FunctionSymbol.fromDelegation(it) }
-            .filter { it.arity == callArity }
+        return if (valid.isEmpty()) offeredDeclarations(call) else functionSymbolsReached(valid, callArity)
     }
+}
+
+/**
+ * What a call that resolves to nothing valid can still be offered: each declaration it names that has a [FunctionSymbol],
+ * marked as offered to a call that does not compile. A `defexception`, a `Mix.Generator` embed or a compiled definition
+ * has none yet, so it is named in the inspection's message but not offered here.
+ */
+@RequiresReadLock
+private fun offeredDeclarations(call: Call): List<FunctionSymbol> =
+    RejectedCall.named(call)
+        // A declaration with defaults is one declaration, offered once, at the most arguments the call could mean.
+        .mapNotNull { named -> (named.declaration as? Call)?.let { FunctionSymbol.at(it, named.arities.max()) }?.firstOrNull() }
+        .map { it.offeredToARejectedCall() }
+
+/**
+ * The function symbols a call or capture resolving to [resolved] reaches at [arity], in one precedence order: clauses,
+ * then `defprotocol` functions, then what declares a function without a clause.
+ */
+@RequiresReadLock
+internal fun functionSymbolsReached(resolved: List<ResolveResult>, arity: Int): Collection<Symbol> {
+    // The scope walk also follows a `defdelegate`'s `to:`; Go To follows it from the delegation the use names.
+    return DelegationPrecedence.named<Symbol>(resolved.mapNotNull { it.element }, arity, FunctionSymbol::fromDeclaration) {
+        declaredSymbolsReached(resolved, arity)
+    }
+}
+
+/** The symbols [resolved] reaches at [arity] that are not a `defdelegate`'s. */
+@RequiresReadLock
+private fun declaredSymbolsReached(resolved: List<ResolveResult>, arity: Int): List<Symbol> {
+    val clauses = resolved
+        .mapNotNull { result ->
+            when (val element = result.element) {
+                // A source `def`/`defmacro` clause is already a `Call`, while a decompiled beam function exposes
+                // the equivalent clause as its navigation element (the `.beam` mirror), so both flow through the
+                // same `FunctionSymbol.fromDeclaration` pipeline and compare equal by module/name/arity/macro.
+                is Call -> element
+                is BeamCallDefinition -> element.navigationElement as? Call
+                else -> null
+            }
+        }
+        .filter { CallDefinitionClause.`is`(it) }
+
+    val functionSymbols = clauses.flatMap { FunctionSymbol.at(it, arity) }
+    if (functionSymbols.isNotEmpty()) return functionSymbols
+
+    // Clauses directly inside a `defprotocol` are owned by ProtocolFunction, not FunctionSymbol
+    // (FunctionSymbol.fromDeclaration returns empty for them). A qualified protocol call
+    // `Protocol.function(args)` therefore resolves here.
+    val protocolFunctions = clauses.flatMap { ProtocolFunction.at(it, arity) }
+    if (protocolFunctions.isNotEmpty()) return protocolFunctions
+
+    // Last, what declares a function without a clause, such as an EEx `function_from_*`.
+    return resolved
+        .mapNotNull { it.element as? Call }
+        .filterNot { it in clauses }
+        .flatMap { FunctionSymbol.at(it, arity) }
 }

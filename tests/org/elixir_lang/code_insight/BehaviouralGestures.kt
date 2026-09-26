@@ -36,6 +36,9 @@ import com.intellij.psi.util.PsiUtilBase
 import com.intellij.testFramework.AutoPopupParameterInfoTestUtil
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.CodeInsightTestFixture
+import com.intellij.testFramework.utils.parameterInfo.MockCreateParameterInfoContext
+import com.intellij.testFramework.utils.parameterInfo.MockParameterInfoUIContext
+import org.elixir_lang.psi.Arguments
 import junit.framework.TestCase.assertNull
 import junit.framework.TestCase.assertTrue
 import kotlinx.coroutines.runBlocking
@@ -289,6 +292,21 @@ fun CodeInsightTestFixture.assertNoNavigationAtCaret(message: String? = null) {
  */
 fun CodeInsightTestFixture.gotoDeclarationDestinationAtCaret(): PsiElement? = gotoDeclarationSingleTargetAtCaret().destination
 
+/** The trimmed line of the open document at [offset], as a test names where a gesture landed. */
+fun CodeInsightTestFixture.lineAt(offset: Int): String {
+    val document = editor.document
+    val line = document.getLineNumber(offset)
+
+    return document.getText(com.intellij.openapi.util.TextRange(document.getLineStartOffset(line), document.getLineEndOffset(line))).trim()
+}
+
+/** The line [gotoDeclarationDestinationAtCaret] lands on, or `null` where it lands nowhere. */
+fun CodeInsightTestFixture.gotoDeclarationLineAtCaret(): String? = gotoDeclarationDestinationAtCaret()?.let { lineAt(it.textOffset) }
+
+/** The lines every Go To Declaration target at the caret lands on, sorted. */
+fun CodeInsightTestFixture.gotoDeclarationLinesAtCaret(): List<String> =
+    gotoDeclarationTargetsAtCaret().orEmpty().mapNotNull { it.destination }.map { lineAt(it.textOffset) }.sorted()
+
 private fun CodeInsightTestFixture.gotoDeclarationSingleTargetAtCaret(): GtduTarget {
     val targets = gotoDeclarationTargetsAtCaret()
         ?: throw AssertionError("Expected Go To Declaration to resolve a target, but it navigated nowhere")
@@ -515,6 +533,24 @@ private fun CodeInsightTestFixture.symbolResolutionFile(project: Project): PsiFi
  * these gestures exist to tell apart from "the IDE offered me a choice".
  */
 data class ParameterInfoPopup(val signatures: List<String>, val currentParameterIndex: Int)
+
+/**
+ * The signatures [org.elixir_lang.code_insight.ParameterInfo] resolves for the call at the caret, each rendered as the
+ * popup would render it: which signatures, not whether the IDE shows a popup (see [parameterInfoPopupAfter]).
+ */
+fun CodeInsightTestFixture.parameterInfoSignaturesAtCaret(): List<String> {
+    val handler = ParameterInfo()
+    val context = MockCreateParameterInfoContext(editor, file)
+    val arguments = handler.findElementForParameterInfo(context) ?: return emptyList()
+    handler.showParameterInfo(arguments, context)
+
+    return context.itemsToShow.orEmpty().map { item ->
+        MockParameterInfoUIContext<Arguments>(arguments).also {
+            it.currentParameterIndex = 0
+            handler.updateUI(item as Signature, it)
+        }.text
+    }
+}
 
 /**
  * Runs [gesture] and returns the parameter-info popup the IDE builds in response, or `null` when it
