@@ -51,6 +51,7 @@ import sdk.resolveMixEnv
 import sdk.versionWithoutBuildTag
 import sdk.elixirTestEnvironment
 import testing.CheckUnexpectedLogs
+import testing.keepWinpHelpersIn
 import testing.recordTimeline
 import testing.reportUnexpectedLogs
 import testing.runInForks
@@ -1183,6 +1184,7 @@ tasks.named<Test>("test") {
     // the test-reports artifact in .github/workflows/shared-test.yml. (idea.log.path cannot redirect
     // them here - the IntelliJ Platform Gradle Plugin sets the sandbox log path itself and wins.)
     systemProperty("idea.split.test.logs", "true")
+    keepWinpHelpersIn(layout.buildDirectory.dir("tmp/winp").get().asFile)
 }
 
 // Kotlin makes this jar a friend path of compileTestKotlin, and the file name is part of that task's
