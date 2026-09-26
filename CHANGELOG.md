@@ -509,6 +509,8 @@
   - **Each CI leg restores only its own IDEA version's Gradle caches, instead of another's that it then rebuilt, and every job reports its runner's hardware.**
 - [#4154](https://github.com/intellij-elixir/intellij-elixir/pull/4154) [@sh41](https://github.com/sh41)
   - **Changelog entries merge without conflicting, and change notes are truncated at the descriptor's character cap instead of failing the build.**
+- [#4153](https://github.com/intellij-elixir/intellij-elixir/pull/4153) [@sh41](https://github.com/sh41)
+  - **A behaviour matrix now asks each code-intelligence feature the same question of every kind of code a developer can call - their own source, a dependency with debug info, one shipped stripped, an Erlang one - across every declaration form and at every shape of call, and records cell by cell where the answers fall short.** Fixes [#4047](https://github.com/intellij-elixir/intellij-elixir/issues/4047).
 - [#4148](https://github.com/intellij-elixir/intellij-elixir/pull/4148) [@sh41](https://github.com/sh41)
   - **A pull request whose code is unchanged since its last passing run no longer re-runs the test matrix or plugin verification.**
 - [#4146](https://github.com/intellij-elixir/intellij-elixir/pull/4146) [@sh41](https://github.com/sh41)

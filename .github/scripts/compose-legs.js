@@ -20,12 +20,18 @@ const base = baseline(declaration);
 // it. Two constraints on the format: the discriminator goes first, because the checks graph truncates
 // names at roughly 24 characters, and `/` is illegal in an artifact name (hence `+` between Elixir and
 // OTP) though legal in a job name.
-const leg = (os, idea, beam, label) => ({
+//
+// `suite` picks what the leg runs. The code intelligence matrix answers to the IDE version alone - every
+// Elixir/OTP pair and Windows gave identical cells - so it runs once per IDEA version on a `matrix` leg,
+// and the `full` legs leave it out. The matrix records what the plugin does today, red cells included, so
+// its legs are informational: they run and report their counts, and never block the merge.
+const leg = (os, idea, beam, label, suite = 'full') => ({
   os,
   'idea-version': idea.version,
   'java-version': idea.java,
   beam,
   label,
+  suite,
 });
 
 const legs = [
@@ -36,6 +42,9 @@ const legs = [
     leg('ubuntu-22.04', minimumSupported, beam, `${beam.elixir}+${beam.otp}`),
   ),
   leg('windows-2025', minimumSupported, base, `Win25, IDEA ${minimumSupported.version}`),
+  ...ideaVersions(declaration).map((idea) =>
+    leg('ubuntu-22.04', idea, { ...base, 'continue-on-error': true }, `matrix, IDEA ${idea.version}`, 'matrix'),
+  ),
 ];
 
 // One leg per product x version, never several IDEs per verifier JVM - see shared-verify.yml.
@@ -76,12 +85,13 @@ addSummary(
   [
     '### Test legs',
     '',
-    '| leg | os | IDEA | JBR | Elixir | OTP | informational |',
-    '| --- | --- | --- | --- | --- | --- | --- |',
+    '| leg | suite | os | IDEA | JBR | Elixir | OTP | informational |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- |',
     ...legs.map((entry) =>
       [
         '',
         entry.label,
+        entry.suite,
         entry.os,
         entry['idea-version'],
         entry['java-version'],

@@ -6,6 +6,7 @@ import org.elixir_lang.code_insight.assertGotoDeclarationChosenAtCaret
 import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
 import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
 import org.elixir_lang.code_insight.nonDeclarationUsageCountAtCaret
+import java.io.File
 
 /**
  * Behavioural Go To Declaration and Find Usages coverage for functions defined in decompiled BEAM modules, e.g.
@@ -14,6 +15,8 @@ import org.elixir_lang.code_insight.nonDeclarationUsageCountAtCaret
  */
 class BeamFunctionGotoDeclarationTest : BeamLibraryTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/model/psi/function"
+
+    override val ebinDirectory: File = ERLANG_STDLIB_EBIN
 
     override fun setUp() {
         super.setUp()
