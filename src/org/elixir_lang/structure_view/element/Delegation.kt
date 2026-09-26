@@ -139,6 +139,6 @@ class Delegation(private val modular: Modular, call: Call) : Element<Call?>(call
 
         @RequiresReadLock
         fun nameIdentifier(call: Call): PsiElement? =
-            call.finalArguments()?.get(0)?.let { it as? Call }?.functionNameElement()
+            org.elixir_lang.psi.CallableDeclaration.delegationHead(call)?.let { CallDefinitionHead.nameIdentifier(it) }
     }
 }

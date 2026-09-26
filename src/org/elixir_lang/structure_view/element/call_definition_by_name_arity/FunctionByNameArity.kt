@@ -1,6 +1,7 @@
 package org.elixir_lang.structure_view.element.call_definition_by_name_arity
 
 
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import com.intellij.ide.util.treeView.smartTree.TreeElement
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.call.Call
@@ -21,6 +22,18 @@ class FunctionByNameArity(size: Int, treeElementList: MutableList<TreeElement>, 
 
     fun addDelegationToTreeElementList(delegationCall: Call) =
             addToTreeElementList(Delegation(modular, delegationCall))
+
+    /** The function [eexFunctionFrom] declares is one entry with its clauses and `@spec`s, when its name is literal. */
+    @RequiresReadLock
+    fun addEExFunctionFromToCallDefinition(eexFunctionFrom: EExFunctionFrom) {
+        val nameArity = eexFunctionFrom.nameArity()
+
+        if (nameArity != null) {
+            putNew(nameArity).eexFunctionFrom(eexFunctionFrom)
+        } else {
+            treeElementList.add(eexFunctionFrom)
+        }
+    }
 
     fun addSpecificationToCallDefinition(moduleAttributeDefinition: Call) {
         assert(moduleAttributeDefinition is AtUnqualifiedNoParenthesesCall<*>)

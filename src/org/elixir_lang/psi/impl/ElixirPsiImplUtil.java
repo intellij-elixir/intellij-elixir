@@ -282,8 +282,9 @@ public class ElixirPsiImplUtil {
 
     @RequiresReadLock
     public static boolean isExported(@NotNull final UnqualifiedNoParenthesesCall unqualifiedNoParenthesesCall) {
-        return CallDefinitionClause.isPublicFunction(unqualifiedNoParenthesesCall) ||
-                CallDefinitionClause.isPublicMacro(unqualifiedNoParenthesesCall);
+        CallableDeclaration.Definer definer = CallableDeclaration.INSTANCE.definerOf(unqualifiedNoParenthesesCall);
+
+        return definer != null && definer.getCapabilities().getPublic();
     }
 
     public static boolean isModuleName(@NotNull final ElixirAccessExpression accessExpression) {

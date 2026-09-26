@@ -1,5 +1,6 @@
 package org.elixir_lang.structure_view.element
 
+import org.elixir_lang.psi.CallableDeclaration
 import com.intellij.ide.structureView.StructureViewTreeElement
 import com.intellij.ide.util.treeView.smartTree.TreeElement
 import com.intellij.navigation.ItemPresentation
@@ -35,6 +36,7 @@ class CallDefinition(val modular: Modular, private val time: Timed.Time, private
     private val childList = mutableListOf<TreeElement>()
     private val clauseList = mutableListOf<CallDefinitionClause>()
     private val headList = mutableListOf<CallDefinitionHead>()
+    private val eexFunctionFromList = mutableListOf<EExFunctionFrom>()
 
     private val specificationList = ArrayList<CallDefinitionSpecification>()
 
@@ -49,14 +51,14 @@ class CallDefinition(val modular: Modular, private val time: Timed.Time, private
      * @param clause the new clause for the macro
      */
     @RequiresReadLock
-    fun clause(clause: Call): CallDefinitionClause {
+    fun clause(clause: Call, definer: CallableDeclaration.Definer): CallDefinitionClause {
         val nameArityInterval =
             org.elixir_lang.psi.CallDefinitionClause.nameArityInterval(clause, ResolveState.initial())!!
 
         assert(nameArityInterval.name == name)
         assert(arity in nameArityInterval.arityInterval)
 
-        val callDefinitionClause = CallDefinitionClause(this, clause)
+        val callDefinitionClause = CallDefinitionClause(this, clause, definer)
         childList.add(callDefinitionClause)
         clauseList.add(callDefinitionClause)
 
@@ -80,21 +82,23 @@ class CallDefinition(val modular: Modular, private val time: Timed.Time, private
      *
      * @return the data object instance.
      */
-    override fun getValue(): Any? = headList.firstOrNull() ?: clauseList.firstOrNull()
+    override fun getValue(): Any? = headList.firstOrNull() ?: clauseList.firstOrNull() ?: eexFunctionFromList.firstOrNull()?.call
 
     /**
-     * A macro groups together one or more [CallDefinitionClause] elements, so it can navigate if it has clauses.
+     * A macro groups together one or more [CallDefinitionClause] elements, so it can navigate if it has clauses, or an
+     * `EEx.function_from_*` call.
      *
-     * @return `true` if [.clauseList] size is greater than 0; otherwise, `false`.
+     * @return `true` if [.clauseList] size is greater than 0 or an EEx call declares it; otherwise, `false`.
      */
-    override fun canNavigate(): Boolean = clauseList.size > 0
+    override fun canNavigate(): Boolean = clauseList.size > 0 || eexFunctionFromList.isNotEmpty()
 
     /**
-     * A macro groups together one or more [CallDefinitionClause] elements, so it can navigate if it has clauses.
+     * A macro groups together one or more [CallDefinitionClause] elements, so it can navigate if it has clauses, or an
+     * `EEx.function_from_*` call.
      *
-     * @return `true` if [.clauseList] size is greater than 0; otherwise, `false`.
+     * @return `true` if [.clauseList] size is greater than 0 or an EEx call declares it; otherwise, `false`.
      */
-    override fun canNavigateToSource(): Boolean = clauseList.size > 0
+    override fun canNavigateToSource(): Boolean = canNavigate()
 
     override fun getName(): String = "$name/$arity"
 
@@ -116,6 +120,12 @@ class CallDefinition(val modular: Modular, private val time: Timed.Time, private
                 arity
             )
         }
+
+    /** The `EEx.function_from_*` call that declares this function, shown as its head. */
+    fun eexFunctionFrom(eexFunctionFrom: EExFunctionFrom) {
+        childList.add(EExFunctionFromHead(eexFunctionFrom))
+        eexFunctionFromList.add(eexFunctionFrom)
+    }
 
     /**
      * Unlike a clause, a head is just the name and arguments, without the outer macro calls.  Heads occur in
@@ -142,9 +152,7 @@ class CallDefinition(val modular: Modular, private val time: Timed.Time, private
      * @param requestFocus `true` if focus requesting is necessary
      */
     override fun navigate(requestFocus: Boolean) {
-        if (canNavigate()) {
-            clauseList.first().navigate(requestFocus)
-        }
+        clauseList.firstOrNull()?.navigate(requestFocus) ?: eexFunctionFromList.firstOrNull()?.navigate(requestFocus)
     }
 
     /**
@@ -202,6 +210,14 @@ class CallDefinition(val modular: Modular, private val time: Timed.Time, private
             }
         }
 
+        for (eexFunctionFrom in eexFunctionFromList) {
+            when (eexFunctionFrom.visibility()) {
+                Visibility.PRIVATE -> privateCount++
+                Visibility.PUBLIC -> publicCount++
+                null -> Unit
+            }
+        }
+
         return if (privateCount > 0 && publicCount == 0) {
             Visibility.PRIVATE
         } else if (privateCount == 0 && publicCount > 0) {
@@ -213,10 +229,11 @@ class CallDefinition(val modular: Modular, private val time: Timed.Time, private
 
     companion object {
         /**
-         * @param call a def(macro)?p? call
+         * @param call a `def*` call
+         * @param definer [call]'s `def*`
          */
         @RequiresReadLock
-        fun fromCall(call: Call): CallDefinition? =
+        fun fromCall(call: Call, definer: CallableDeclaration.Definer): CallDefinition? =
             CallDefinitionClause.enclosingModular(call)?.let { modular ->
                 org.elixir_lang.psi.CallDefinitionClause.nameArityInterval(call, ResolveState.initial())
                     ?.let { nameArityInterval ->
@@ -224,7 +241,7 @@ class CallDefinition(val modular: Modular, private val time: Timed.Time, private
                         /* arity is assumed to be max arity in the range because that's how {@code h} and
                            ExDoc treat functions with defaults. */
                         val arity = nameArityInterval.arityInterval.closed().last
-                        val time = CallDefinitionClause.time(call)
+                        val time = CallDefinitionClause.time(definer)
 
                         CallDefinition(modular, time, name, arity)
                     }

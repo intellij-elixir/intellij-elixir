@@ -55,28 +55,29 @@ class Used : FileStructureNodeProvider<TreeElement>, ActionShortcutProvider {
         const val ID = "SHOW_USED"
         private const val USING = "__using__"
 
+        /**
+         * What a `use` injects, less what the module redefines. `defoverridable` names a macro as well as a function,
+         * so a redefinition hides an injected definition of the same name, arity and time.
+         */
         private fun filterOverridden(
             nodesFromChildren: Collection<TreeElement>,
             children: Collection<TreeElement>
         ): Collection<TreeElement> {
-            val childFunctionByNameArity = functionByNameArity(children)
+            val childDefinitionByKey = definitionByKey(children)
 
             return nodesFromChildren
                 .filterIsInstance<CallDefinition>()
-                // only functions work with `defoverridable`
-                .filter { it.time() == Timed.Time.RUN }
-                .filterNot {
-                    val nameArity = NameArity(it.name(), it.arity)
-
-                    childFunctionByNameArity.containsKey(nameArity)
-                }
+                .filterNot { key(it) in childDefinitionByKey }
         }
 
-        fun functionByNameArity(children: Collection<TreeElement>): Map<NameArity, CallDefinition> =
+        /** The call definitions among [children], by name, arity and time, as a redefinition must match all three. */
+        fun definitionByKey(children: Collection<TreeElement>): Map<Pair<NameArity, Timed.Time>, CallDefinition> =
             children
                 .filterIsInstance<CallDefinition>()
-                .filter { it.time() == Timed.Time.RUN }
-                .associateBy { NameArity(it.name(), it.arity) }
+                .associateBy(::key)
+
+        private fun key(definition: CallDefinition): Pair<NameArity, Timed.Time> =
+            NameArity(definition.name(), definition.arity) to definition.time()
 
         private fun provideNodesFromChild(child: TreeElement): Collection<TreeElement> {
             var nodes: MutableCollection<TreeElement>? = null
@@ -109,7 +110,9 @@ class Used : FileStructureNodeProvider<TreeElement>, ActionShortcutProvider {
                                             for (childCall in childCalls) {
                                                 /* portion of {@link org.elixir_lang.structure_view.element.enclosingModular.Module#childCallTreeElements}
                                                    dealing with macros, restricted to __using__/1 */
-                                                if (org.elixir_lang.psi.CallDefinitionClause.isMacro(childCall)) {
+                                                val definer = org.elixir_lang.psi.CallableDeclaration.definerOf(childCall)
+
+                                                if (definer?.capabilities?.compileTime == true) {
                                                     val nameArityInterval =
                                                         org.elixir_lang.psi.CallDefinitionClause.nameArityInterval(
                                                             childCall,
@@ -127,7 +130,7 @@ class Used : FileStructureNodeProvider<TreeElement>, ActionShortcutProvider {
                                                                 arityInterval,
                                                                 macroByNameArity,
                                                                 module,
-                                                                Timed.Time.COMPILE
+                                                                definer
                                                             ) { _ -> }
                                                         }
                                                     }

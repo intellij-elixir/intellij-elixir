@@ -4,21 +4,20 @@ import com.intellij.ide.structureView.StructureViewTreeElement
 import com.intellij.ide.util.treeView.smartTree.TreeElement
 import com.intellij.navigation.ItemPresentation
 import com.intellij.navigation.NavigationItem
+import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.annotations.RequiresReadLock
-import org.elixir_lang.EEx
 import org.elixir_lang.call.Visibility
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.navigation.item_presentation.NameArity
 import org.elixir_lang.navigation.item_presentation.Parent
-import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.call.name.Function.DEF
-import org.elixir_lang.psi.call.name.Function.DEFP
-import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.literalName
-import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.structure_view.element.CallDefinitionClause.Companion.enclosingModular
 import org.elixir_lang.structure_view.element.modular.Modular
 
+/**
+ * A function a macro call declares - an EEx `function_from_*` or a `Mix.Generator` embed - with the call as its head.
+ * Its name, arity and visibility are what [CallableDeclaration] says the call declares.
+ */
 class EExFunctionFrom(val modular: Modular, val call: Call) : StructureViewTreeElement, Visible, NavigationItem {
     override fun navigate(requestFocus: Boolean) {
         if (canNavigate()) {
@@ -29,7 +28,7 @@ class EExFunctionFrom(val modular: Modular, val call: Call) : StructureViewTreeE
     override fun canNavigate(): Boolean = true
     override fun canNavigateToSource(): Boolean = true
 
-    override fun getName(): String = "$declaredName/$arity"
+    override fun getName(): String = org.elixir_lang.name_arity.PresentationData.presentableText(declaredName, arity)
 
     override fun getValue(): Any = call
 
@@ -40,7 +39,7 @@ class EExFunctionFrom(val modular: Modular, val call: Call) : StructureViewTreeE
         return NameArity(
             location,
             false,
-            Timed.Time.RUN,
+            capabilities?.let { CallDefinitionClause.time(it) } ?: Timed.Time.RUN,
             visibility(),
             false,
             false,
@@ -51,20 +50,24 @@ class EExFunctionFrom(val modular: Modular, val call: Call) : StructureViewTreeE
 
     override fun getChildren(): Array<TreeElement> = arrayOf(EExFunctionFromHead(this))
 
-    private val declaredName: String by lazy { EEx.declaredName(call) ?: "unknown_name" }
+    private val declaration: CallableDeclaration.Declaration? by lazy {
+        CallableDeclaration.definitions(call, ResolveState.initial()).firstOrNull()
+    }
 
-    private val arity: Int by lazy { EEx.argumentList(call)?.size ?: 0 }
+    private val declaredName: String by lazy { declaration?.name ?: "unknown_name" }
 
-    override fun visibility(): Visibility? =
-        call.finalArguments()?.get(0)?.stripAccessExpression()
-            ?.let { it as? ElixirAtom }?.literalName()?.let { macro ->
-            when (macro) {
-                DEF -> Visibility.PUBLIC
-                DEFP -> Visibility.PRIVATE
-                else -> null
-            }
-        }
+    private val arity: Int? by lazy { declaration?.arityInterval?.minimum }
 
+    /** The function's name and arity, `null` when the call does not spell its name or its arity. */
+    @RequiresReadLock
+    fun nameArity(): org.elixir_lang.NameArity? =
+        declaration?.let { declaration -> declaration.arityInterval?.let { org.elixir_lang.NameArity(declaration.name, it.minimum) } }
+
+    @RequiresReadLock
+    override fun visibility(): Visibility? = capabilities?.visibility
+
+    private val capabilities: CallableDeclaration.Capabilities?
+        @RequiresReadLock get() = CallableDeclaration.capabilitiesOf(call, ResolveState.initial())
 
     companion object {
         @RequiresReadLock

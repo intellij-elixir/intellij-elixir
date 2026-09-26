@@ -13,6 +13,7 @@ import org.elixir_lang.beam.psi.BeamSymbol
 import org.elixir_lang.call.Visibility
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.Implementation.forNameCollection
 import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.call.Call
@@ -90,19 +91,33 @@ open class ChooseByNameContributor(private val stubIndexKey: StubIndexKey<String
         callDefinitionByTuple: MutableMap<CallDefinition.Tuple, CallDefinition>,
         call: Call
     ) {
+        // The index holds what stubs record, so only the forms recognised without resolving can be here.
+        when (CallableDeclaration.syntacticFormOf(call)) {
+            CallableDeclaration.Form.CLAUSE ->
+                getItemsFromCallDefinitionClause(items, enclosingModularByCall, callDefinitionByTuple, call)
+            CallableDeclaration.Form.CALLBACK -> getItemsFromCallback(items, enclosingModularByCall, call)
+            // A `defdelegate` is indexed through its head, which is not itself a declaring form.
+            CallableDeclaration.Form.DELEGATION,
+            CallableDeclaration.Form.EXCEPTION,
+            CallableDeclaration.Form.EEX_FUNCTION_FROM,
+            CallableDeclaration.Form.GENERATOR_EMBED -> Unit
+            null -> getItemsByNameFromNonDeclaration(name, items, enclosingModularByCall, callDefinitionByTuple, call)
+        }
+    }
+
+    private fun getItemsByNameFromNonDeclaration(
+        name: String,
+        items: SourcePreferredItems,
+        enclosingModularByCall: EnclosingModularByCall,
+        callDefinitionByTuple: MutableMap<CallDefinition.Tuple, CallDefinition>,
+        call: Call
+    ) {
         when {
-            org.elixir_lang.psi.CallDefinitionClause.`is`(call) -> getItemsFromCallDefinitionClause(
-                items,
-                enclosingModularByCall,
-                callDefinitionByTuple,
-                call
-            )
             CallDefinitionSpecification.`is`(call) -> getItemsFromCallDefinitionSpecification(
                 items,
                 enclosingModularByCall,
                 call
             )
-            Callback.`is`(call) -> getItemsFromCallback(items, enclosingModularByCall, call)
             org.elixir_lang.psi.Implementation.`is`(call) -> getItemsFromImplementation(
                 name,
                 items,
@@ -111,13 +126,9 @@ open class ChooseByNameContributor(private val stubIndexKey: StubIndexKey<String
             )
             org.elixir_lang.psi.Module.`is`(call) -> getItemsFromModule(items, enclosingModularByCall, call)
             org.elixir_lang.psi.Protocol.`is`(call) -> getItemsFromProtocol(items, enclosingModularByCall, call)
-            // MUST be after modular definition one-liners don't count as call definition heads
-            CallDefinitionHead.`is`(call) -> getItemsFromCallDefinitionHead(
-                items,
-                enclosingModularByCall,
-                callDefinitionByTuple,
-                call
-            )
+            else -> CallableDeclaration.delegationHeadedBy(call)?.let { delegation ->
+                getItemsFromDelegationHead(items, enclosingModularByCall, callDefinitionByTuple, delegation, call)
+            }
         }
     }
 
@@ -138,9 +149,11 @@ open class ChooseByNameContributor(private val stubIndexKey: StubIndexKey<String
         callDefinitionByTuple: MutableMap<CallDefinition.Tuple, CallDefinition>,
         call: Call
     ) {
+        val definer = CallableDeclaration.definerOf(call) ?: return
+
         org.elixir_lang.psi.CallDefinitionClause.nameArityInterval(call, ResolveState.initial())
             ?.let { (name, arityInterval) ->
-                val time = CallDefinitionClause.time(call)
+                val time = CallDefinitionClause.time(definer)
                 val modular = enclosingModularByCall.putNew(call)
 
                 // A definition outside any module has nowhere to be listed
@@ -149,7 +162,7 @@ open class ChooseByNameContributor(private val stubIndexKey: StubIndexKey<String
                         val tuple = CallDefinition.Tuple(modular, time, name, arity)
                         callDefinitionByTuple.computeIfAbsent(tuple) { (modular, time, name, arity) ->
                             CallDefinition(modular, time, name, arity)
-                        }.clause(call).run {
+                        }.clause(call, definer).run {
                             items.add(this)
                         }
                     }
@@ -157,49 +170,22 @@ open class ChooseByNameContributor(private val stubIndexKey: StubIndexKey<String
             }
     }
 
-    private fun getItemsFromCallDefinitionHead(
+    private fun getItemsFromDelegationHead(
         items: SourcePreferredItems,
         enclosingModularByCall: EnclosingModularByCall,
         callDefinitionByTuple: MutableMap<CallDefinition.Tuple, CallDefinition>,
-        call: Call
+        delegation: Call,
+        head: Call
     ) {
-        val delegationCall = CallDefinitionHead.enclosingDelegationCall(call)
-
-        if (delegationCall != null) {
-            val modular = enclosingModularByCall.putNew(delegationCall)
-
-            if (modular != null) {
-                val callDefinitionName = call.functionName()
-
-                if (callDefinitionName != null) {
-                    val callDefinitionArity = call.resolvedFinalArity()
-
-                    val tuple = CallDefinition.Tuple(
-                        modular,
-                        // Delegation can't delegate macros
-                        Timed.Time.RUN,
-                        callDefinitionName,
-                        callDefinitionArity
-                    )
-                    var callDefinition: CallDefinition? = callDefinitionByTuple[tuple]
-
-                    if (callDefinition == null) {
-                        callDefinition = CallDefinition(tuple.modular, tuple.time, tuple.name, tuple.arity)
-                        items.add(callDefinition)
-                        callDefinitionByTuple[tuple] = callDefinition
-                    }
-
-                    // Delegation is always public as import should be used for private
-                    val visibility = Visibility.PUBLIC
-
-
-                    val callDefinitionHead = CallDefinitionHead(callDefinition, visibility, call)
-                    items.add(callDefinitionHead)
-                }
-            }
-        } else {
-            error("Cannot find enclosing delegation call for CallDefinitionHead", call)
+        val capabilities = CallableDeclaration.capabilitiesOf(delegation, ResolveState.initial()) ?: return
+        val modular = enclosingModularByCall.putNew(delegation) ?: return
+        val name = head.functionName() ?: return
+        val tuple = CallDefinition.Tuple(modular, CallDefinitionClause.time(capabilities), name, head.resolvedFinalArity())
+        val callDefinition = callDefinitionByTuple.getOrPut(tuple) {
+            CallDefinition(tuple.modular, tuple.time, tuple.name, tuple.arity).also { items.add(it) }
         }
+
+        items.add(CallDefinitionHead(callDefinition, capabilities.visibility ?: Visibility.PUBLIC, head))
     }
 
     private fun getItemsFromCallDefinitionSpecification(

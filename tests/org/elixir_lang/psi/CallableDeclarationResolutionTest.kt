@@ -70,6 +70,23 @@ class CallableDeclarationResolutionTest : PlatformTestCase() {
         )
     }
 
+    /** Every form that declares a function is described as one, as usage views and dialogs name it. */
+    fun testEveryFunctionDeclaringFormIsDescribedAsAFunction() {
+        myFixture.configureByFiles("through_import.ex", "eex.ex", "mix_generator.ex")
+
+        val described = listOf("def plain", "EEx.function_from_string(:def", "Mix.Generator.embed_text").map { start ->
+            val call = com.intellij.psi.util.PsiTreeUtil.findChildrenOfType(myFixture.file, Call::class.java)
+                .first { it.text.startsWith(start) }
+
+            "$start -> ${com.intellij.psi.ElementDescriptionUtil.getElementDescription(call, com.intellij.usageView.UsageViewTypeLocation.INSTANCE)}"
+        }
+
+        assertEquals(
+            listOf("def plain -> function", "EEx.function_from_string(:def -> function", "Mix.Generator.embed_text -> function"),
+            described
+        )
+    }
+
     /**
      * `import`'s `only:` brings in the names and arities it lists, and no others - not the second function a
      * `defexception` defines, nor the arity a default argument adds.
