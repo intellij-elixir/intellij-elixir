@@ -10,7 +10,6 @@ import com.intellij.psi.*
 import com.intellij.psi.impl.source.tree.Factory
 import com.intellij.psi.stubs.StubBuildCachedValuesManager
 import com.intellij.psi.stubs.StubBuildCachedValuesManager.StubBuildCachedValue
-import com.intellij.psi.tree.IElementType
 import com.intellij.psi.tree.TokenSet
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
@@ -913,7 +912,7 @@ object QuotableImpl {
         )
 
         val callMetadata = OtpErlangList(arrayOf<OtpErlangObject>(
-                keywordTuple("no_parens", true),
+                trueKeywordTuple("no_parens"),
                 lineNumberKeywordTuple(relativeIdentifier.node)
         ))
 
@@ -959,7 +958,7 @@ object QuotableImpl {
         val metadataElements = if (doBlock != null) {
             arrayOf(line)
         } else {
-            arrayOf(keywordTuple("no_parens", true), line)
+            arrayOf(trueKeywordTuple("no_parens"), line)
         }
 
         val quotedBlockCallMetadata = OtpErlangList(metadataElements)
@@ -1353,14 +1352,10 @@ object QuotableImpl {
         val heredocLineList = heredocLiteral.heredocLineList
 
         for (line in heredocLineList) {
-            queueChildNodes(line, ElixirTypes.FRAGMENT, prefixLength, alignedNodeQueue)
+            queueChildNodes(line, prefixLength, alignedNodeQueue)
         }
 
-        val mergedNodeQueue = mergeFragments(
-                alignedNodeQueue,
-                ElixirTypes.FRAGMENT,
-                heredocLiteral.manager
-        )
+        val mergedNodeQueue = mergeFragments(alignedNodeQueue, heredocLiteral.manager)
 
         return quotedChildNodes(heredocLiteral, *mergedNodeQueue.toTypedArray())
     }
@@ -1656,7 +1651,7 @@ object QuotableImpl {
 
         val sigilName = sigil.sigilName()
         val quotedModifiers = sigil.sigilModifiers.quote()
-        val sigilMetadata = OtpErlangList(arrayOf<OtpErlangObject>(keywordTuple("delimiter", sigil.sigilDelimiter()), sigilLine))
+        val sigilMetadata = OtpErlangList(arrayOf<OtpErlangObject>(delimiterKeywordTuple(sigil.sigilDelimiter()), sigilLine))
 
         return quotedFunctionCall(
                 "sigil_$sigilName",
@@ -1714,12 +1709,7 @@ object QuotableImpl {
         )
     }
 
-    private fun keywordTuple(key: String, value: Boolean): OtpErlangTuple {
-        val keyAtom = OtpErlangAtom(key)
-        val valueAtom = OtpErlangAtom(value)
-
-        return keywordTuple(keyAtom, valueAtom)
-    }
+    private fun trueKeywordTuple(key: String): OtpErlangTuple = keywordTuple(OtpErlangAtom(key), OtpErlangAtom(true))
 
     private fun keywordTuple(key: String, value: Int): OtpErlangTuple {
         val keyAtom = OtpErlangAtom(key)
@@ -1728,12 +1718,8 @@ object QuotableImpl {
         return keywordTuple(keyAtom, valueInt)
     }
 
-    private fun keywordTuple(key: String, value: String): OtpErlangTuple {
-        val keyAtom  = OtpErlangAtom(key)
-        val valueBinary = OtpErlangBinary(value.toByteArray())
-
-        return keywordTuple(keyAtom, valueBinary)
-    }
+    private fun delimiterKeywordTuple(delimiter: String): OtpErlangTuple =
+            keywordTuple(OtpErlangAtom("delimiter"), OtpErlangBinary(delimiter.toByteArray()))
 
     private fun keywordTuple(key: OtpErlangAtom, value: OtpErlangObject): OtpErlangTuple =
             OtpErlangTuple(arrayOf(key, value))
@@ -1871,7 +1857,7 @@ object QuotableImpl {
         if (fromBrackets) {
             OtpErlangList(
                 arrayOf<OtpErlangObject>(
-                    keywordTuple("from_brackets", true),
+                    trueKeywordTuple("from_brackets"),
                     lineNumberKeywordTuple(bracketArguments.node)
                 )
             )
@@ -1910,7 +1896,7 @@ object QuotableImpl {
         return quotedFunctionCall(
             quotedQualifiedIdentifier,
             OtpErlangList(
-                arrayOf(keywordTuple("from_interpolation", true), *metadata.elements())
+                arrayOf(trueKeywordTuple("from_interpolation"), *metadata.elements())
             ),
             *arguments
         )
@@ -2133,11 +2119,10 @@ object QuotableImpl {
 
     private fun queueChildNodes(
         line: HeredocLineable,
-        fragmentType: IElementType,
         prefixLength: Int,
         heredocDescendantNodes: Queue<ASTNode>
     ) {
-        val excessWhitespace = line.heredocLinePrefix.excessWhitespace(fragmentType, prefixLength)
+        val excessWhitespace = line.heredocLinePrefix.excessWhitespace(ElixirTypes.FRAGMENT, prefixLength)
 
         if (excessWhitespace != null) {
             heredocDescendantNodes.add(excessWhitespace)
@@ -2152,14 +2137,13 @@ object QuotableImpl {
     @Contract(pure = true)
     private fun mergeFragments(
             unmergedNodes: Deque<ASTNode>,
-            fragmentType: IElementType,
             manager: PsiManager
     ): Queue<ASTNode> {
         val mergedNodes = LinkedList<ASTNode>()
         var fragmentStringBuilder: StringBuilder? = null
 
         for (unmergedNode in unmergedNodes) {
-            if (unmergedNode.elementType === fragmentType) {
+            if (unmergedNode.elementType === ElixirTypes.FRAGMENT) {
                 if (fragmentStringBuilder == null) {
                     fragmentStringBuilder = StringBuilder()
                 }
@@ -2167,26 +2151,25 @@ object QuotableImpl {
                 val fragment = unmergedNode.text
                 fragmentStringBuilder.append(fragment)
             } else {
-                addMergedFragments(mergedNodes, fragmentType, fragmentStringBuilder, manager)
+                addMergedFragments(mergedNodes, fragmentStringBuilder, manager)
                 fragmentStringBuilder = null
                 mergedNodes.add(unmergedNode)
             }
         }
 
-        addMergedFragments(mergedNodes, fragmentType, fragmentStringBuilder, manager)
+        addMergedFragments(mergedNodes, fragmentStringBuilder, manager)
 
         return mergedNodes
     }
 
     private fun addMergedFragments(
             mergedNodes: Queue<ASTNode>,
-            fragmentType: IElementType,
             fragmentStringBuilder: StringBuilder?,
             manager: PsiManager
     ) {
         if (fragmentStringBuilder != null) {
             val charListFragment = Factory.createSingleLeafElement(
-                    fragmentType,
+                    ElixirTypes.FRAGMENT,
                     fragmentStringBuilder.toString(),
                     0,
                     fragmentStringBuilder.length, null,
