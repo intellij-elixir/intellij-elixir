@@ -31,6 +31,67 @@ class CallbackFindUsagesTest : PlatformTestCase() {
         )
     }
 
+    /** A `__using__` that reaches its quote through `apply` injects the `@behaviour` as a direct quote does. */
+    fun testAnApplyBasedUsingsInjectedBehaviourIsFound() {
+        myFixture.copyFileToProject("kernel.ex")
+        myFixture.configureByText(
+            "apply_using.ex",
+            """
+            defmodule Worker do
+              @callback per<caret>form() :: any
+            end
+
+            defmodule Web do
+              defmacro __using__(which), do: apply(__MODULE__, which, [])
+
+              def worker do
+                quote do
+                  @behaviour Worker
+                end
+              end
+            end
+
+            defmodule Job do
+              use Web, :worker
+
+              def perform, do: :ok
+            end
+            """.trimIndent()
+        )
+
+        assertEquals(1, implementationDefUsageCountInConfigured())
+    }
+
+    /** `unquote(__MODULE__)` in a `__using__` quote names the module that wrote the quote. */
+    fun testAnInjectedBehaviourNamingItsOwnModuleIsFound() {
+        myFixture.copyFileToProject("kernel.ex")
+
+        for (quote in listOf("quote do", "quote location: :keep do")) {
+            myFixture.configureByText(
+                "unquote_module.ex",
+                """
+                defmodule Worker do
+                  @callback per<caret>form() :: any
+
+                  defmacro __using__(_) do
+                    $quote
+                      @behaviour unquote(__MODULE__)
+                    end
+                  end
+                end
+
+                defmodule Job do
+                  use Worker
+
+                  def perform, do: :ok
+                end
+                """.trimIndent()
+            )
+
+            assertEquals(quote, 1, implementationDefUsageCountInConfigured())
+        }
+    }
+
     /** A `defdelegate` defines the public function a callback names, so it implements the callback as a `def` does. */
     @Suppress("UnstableApiUsage")
     fun testADelegationImplementingACallbackIsFound() {
@@ -89,6 +150,43 @@ class CallbackFindUsagesTest : PlatformTestCase() {
         val delegationLine = text.substring(0, text.indexOf("defdelegate size")).count { it == '\n' } + 1
 
         assertTrue("usages at lines $lines", delegationLine in lines)
+    }
+
+    /** A `__using__` ending in an `if` may inject either branch, so a `@behaviour` quoted in one counts. */
+    @Suppress("UnstableApiUsage")
+    fun testABehaviourInjectedUnderAnIfIsFound() {
+        myFixture.configureByText(
+            "conditional_behaviour.ex",
+            """
+            defmodule ConditionalWorker do
+              @callback per<caret>form() :: any
+            end
+
+            defmodule ConditionalInjector do
+              defmacro __using__(opts) do
+                if opts[:worker] do
+                  quote do
+                    @behaviour ConditionalWorker
+                  end
+                end
+              end
+            end
+
+            defmodule ConditionalImplementer do
+              use ConditionalInjector, worker: true
+
+              def perform, do: :ok
+            end
+            """.trimIndent()
+        )
+        val text = myFixture.file.text
+
+        val lines = myFixture.singleTargetPsiUsagesAtCaret(project)
+            .filterNot { it.declaration }
+            .map { usage -> text.substring(0, usage.range.startOffset).count { it == '\n' } + 1 }
+        val implementationLine = text.substring(0, text.indexOf("def perform")).count { it == '\n' } + 1
+
+        assertTrue("usages at lines $lines", implementationLine in lines)
     }
 
     fun testLiteralBehaviourImplementationIsFound() {

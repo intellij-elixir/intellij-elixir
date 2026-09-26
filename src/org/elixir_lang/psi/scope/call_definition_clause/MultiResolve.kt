@@ -37,25 +37,23 @@ private constructor(
             addDeclarations(element, CallableDeclaration.Form.CLAUSE, state)
 
     override fun execute(element: BeamCallDefinition, state: ResolveState): Boolean {
-        val compileTime = CallableDeclaration.capabilitiesOf(element, state)?.compileTime
-        val declaration = CallableDeclaration.Declaration(element.nameArityInterval.name, element.nameArityInterval.arityInterval)
+        val declared = CallableDeclaration.Declared.Compiled(element)
 
-        return !admitted(declaration, compileTime, state) ||
-            addIfNameOrArityToResolveResults(element, declaration.name, accepted(declaration, compileTime, state), state)
+        return addDeclarations(element, declared.definitions(state), declared.capabilities, state)
     }
 
     override fun executeOnCallback(element: AtUnqualifiedNoParenthesesCall<*>, state: ResolveState): Boolean =
             addDeclarations(element, CallableDeclaration.Form.CALLBACK, state)
 
     override fun executeOnDelegation(element: Call, state: ResolveState): Boolean {
-        val compileTime = CallableDeclaration.Declared.Source(element, CallableDeclaration.Form.DELEGATION).capabilities?.compileTime
+        val capabilities = CallableDeclaration.Declared.Source(element, CallableDeclaration.Form.DELEGATION).capabilities
 
         // `delegationHead` reads a single head until #4040.
         CallableDeclaration.declarations(element, CallableDeclaration.Form.DELEGATION, state).firstOrNull()
-            ?.takeIf { admitted(it, compileTime, state) }
+            ?.takeIf { Import.admits(state, it, capabilities) }
             ?.let { declaration ->
                 val headName = declaration.name
-                val validArity = accepted(declaration, compileTime, state)
+                val validArity = accepted(declaration, capabilities, state)
 
                 reached(this.name, headName, validArity, incompleteCode)?.let { headValidResult ->
                     // the defdelegate is valid or invalid regardless of whether the `to:` (and `:as` resolves as
@@ -92,31 +90,42 @@ private constructor(
     override fun executeOnMixGeneratorEmbed(element: Call, state: ResolveState): Boolean =
             addDeclarations(element, CallableDeclaration.Form.GENERATOR_EMBED, state)
 
-    private fun addDeclarations(call: Call, form: CallableDeclaration.Form, state: ResolveState): Boolean {
-        val compileTime = CallableDeclaration.Declared.Source(call, form).capabilities?.compileTime
+    private fun addDeclarations(call: Call, form: CallableDeclaration.Form, state: ResolveState): Boolean =
+        addDeclarations(
+            call,
+            CallableDeclaration.declarations(call, form, state),
+            CallableDeclaration.Declared.Source(call, form).capabilities,
+            state
+        )
 
-        return whileIn(CallableDeclaration.declarations(call, form, state).filter { admitted(it, compileTime, state) }) { declaration ->
-            addIfNameOrArityToResolveResults(call, declaration.name, accepted(declaration, compileTime, state), state)
+    /** Adds each of [declarations] an `import` this was reached through, if any, brings in at some arity. */
+    private fun addDeclarations(
+        element: PsiElement,
+        declarations: List<CallableDeclaration.Declaration>,
+        capabilities: CallableDeclaration.Capabilities?,
+        state: ResolveState
+    ): Boolean =
+        whileIn(declarations.filter { Import.admits(state, it, capabilities) }) { declaration ->
+            addIfNameOrArityToResolveResults(element, declaration.name, accepted(declaration, capabilities, state), state)
         }
-    }
-
-    /** Whether an `import` this was reached through brings in [declaration] at any arity. */
-    private fun admitted(declaration: CallableDeclaration.Declaration, compileTime: Boolean?, state: ResolveState): Boolean =
-        Import.admits(state, declaration.name, declaration.nameArityInterval().arityInterval, compileTime)
 
     /** Whether [declaration] is defined, and imported if reached through an `import`, at the resolved arity. */
-    private fun accepted(declaration: CallableDeclaration.Declaration, compileTime: Boolean?, state: ResolveState): Boolean =
+    private fun accepted(
+        declaration: CallableDeclaration.Declaration,
+        capabilities: CallableDeclaration.Capabilities?,
+        state: ResolveState
+    ): Boolean =
         declaration.accepts(resolvedPrimaryArity) &&
-            Import.admits(state, declaration.name, ArityInterval(resolvedPrimaryArity, resolvedPrimaryArity), compileTime)
+            Import.admits(state, declaration, capabilities, ArityInterval(resolvedPrimaryArity, resolvedPrimaryArity))
 
-    private fun addIfNameOrArityToResolveResults(call: Call, name: String, validArity: Boolean, state: ResolveState): Boolean =
-        reached(this.name, name, validArity, incompleteCode)?.let { addToResolveResults(call, name, it, state) } ?: true
-
-    private fun addIfNameOrArityToResolveResults(callDefinition: BeamCallDefinition,
-                                                 name: String,
-                                                 validArity: Boolean,
-                                                 state: ResolveState) : Boolean =
-        reached(this.name, name, validArity, incompleteCode)?.let { addToResolveResults(callDefinition, name, it, state) } ?: true
+    private fun addIfNameOrArityToResolveResults(element: PsiElement, name: String, validArity: Boolean, state: ResolveState): Boolean =
+        reached(this.name, name, validArity, incompleteCode)?.let { validResult ->
+            when (element) {
+                is Call -> addToResolveResults(element, name, validResult, state)
+                is BeamCallDefinition -> addToResolveResults(element, name, validResult, state)
+                else -> true
+            }
+        } ?: true
 
     private fun addTargets(delegation: Call, headName: String, delegationState: ResolveState, candidatesOnly: Boolean = false) {
         val state = delegationState.reachedThrough(Reach.DELEGATION_TARGET, delegation)
@@ -157,9 +166,9 @@ private constructor(
     private fun addToResolveResults(call: Call, name: String, validResult: Boolean, state: ResolveState): Boolean =
             (call as? Named)?.nameIdentifier?.let { nameIdentifier ->
                 if (PsiTreeUtil.isAncestor(state.get(ENTRANCE), nameIdentifier, false)) {
-                    resolveResultOrderedSet.add(call, name, validResult, emptySet(), Reach.of(call, state))
+                    resolveResultOrderedSet.add(call, name, validResult, emptySet(), Reach.of(call, state), Import.filter(state))
                 } else {
-                    resolveResultOrderedSet.add(call, name, validResult, state.visitedElementSet(), Reach.of(call, state))
+                    resolveResultOrderedSet.add(call, name, validResult, state.visitedElementSet(), Reach.of(call, state), Import.filter(state))
                 }
 
                 keepProcessing()
@@ -169,7 +178,7 @@ private constructor(
                                     name: String,
                                     validResult: Boolean,
                                     state: ResolveState): Boolean {
-        resolveResultOrderedSet.add(callDefinition, name, validResult, state.visitedElementSet(), Reach.of(callDefinition, state))
+        resolveResultOrderedSet.add(callDefinition, name, validResult, state.visitedElementSet(), Reach.of(callDefinition, state), Import.filter(state))
 
         return keepProcessing()
     }

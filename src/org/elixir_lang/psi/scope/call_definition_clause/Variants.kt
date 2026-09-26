@@ -136,10 +136,10 @@ class Variants(private val appendParentheses: Boolean, private val remote: Boole
     ) {
         if (remote && !exported(call, state)) return
 
-        val compileTime = CallableDeclaration.Declared.Source(call, form).capabilities?.compileTime
+        val capabilities = CallableDeclaration.Declared.Source(call, form).capabilities
 
         for (declaration in CallableDeclaration.declarations(call, form, state)) {
-            if (Import.admits(state, declaration.name, declaration.nameArityInterval().arityInterval, compileTime)) {
+            if (Import.admits(state, declaration, capabilities)) {
                 lookupElementByPsiElementName.computeIfAbsent(call to declaration.name) {
                     lookupElement(declaration).withInsertHandlerIfAppendingParentheses().also {
                         it.putUserData(CallDefinitionClauseInsertHandler.FORM, form)

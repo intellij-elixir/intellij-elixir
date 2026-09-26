@@ -65,10 +65,6 @@ class CallDefinition(val modular: Modular, private val time: Timed.Time, private
         return callDefinitionClause
     }
 
-    fun clauseList(): List<CallDefinitionClause> {
-        return clauseList
-    }
-
     /**
      * Returns the clauses of the macro
      *

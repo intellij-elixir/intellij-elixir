@@ -1,6 +1,5 @@
 package org.elixir_lang.structure_view.element.modular
 
-import org.elixir_lang.psi.CallableDeclaration
 import com.intellij.ide.util.treeView.smartTree.TreeElement
 import com.intellij.navigation.ItemPresentation
 import com.intellij.openapi.progress.ProgressManager
@@ -14,7 +13,6 @@ import com.intellij.usageView.UsageViewTypeLocation
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.NameArity
 import org.elixir_lang.navigation.item_presentation.Parent
-import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
 import org.elixir_lang.psi.CallDefinitionClause
@@ -54,35 +52,6 @@ open class Module(protected val parent: Modular?, call: Call) : Element<Call>(ca
 
     companion object {
         @RequiresReadLock
-        fun addClausesToCallDefinition(
-                call: Call,
-                name: String,
-                arityInterval: ArityInterval,
-                callDefinitionByNameArity: MutableMap<NameArity, CallDefinition>,
-                modular: Modular,
-                definer: CallableDeclaration.Definer,
-                callDefinitionInserter: (CallDefinition) -> Unit
-        ) {
-            val time = org.elixir_lang.structure_view.element.CallDefinitionClause.time(definer)
-
-            for (arity in arityInterval.closed()) {
-                ProgressManager.checkCanceled()
-                val nameArity = NameArity(name, arity)
-
-                callDefinitionByNameArity.computeIfAbsent(nameArity) { (name, arity) ->
-                    CallDefinition(
-                        modular,
-                        time,
-                        name,
-                        arity
-                    ).also {
-                        callDefinitionInserter(it)
-                    }
-                }.clause(call, definer)
-            }
-        }
-
-        @RequiresReadLock
         fun callChildren(modular: Modular, call: Call): Array<TreeElement> {
             val childCalls = CallDefinitionClause.modularChildCalls(call).toTypedArray()
             return childCallTreeElements(modular, childCalls, ResolveState.initial().put(ENTRANCE, call).putInitialVisitedElement(call))
@@ -114,8 +83,10 @@ open class Module(protected val parent: Modular?, call: Call) : Element<Call>(ca
         @JvmStatic
         fun nameIdentifier(call: Call): PsiElement? = call.primaryArguments()?.firstOrNull()?.stripAccessExpression()
 
+        /** The tree elements [childCalls] make as children of [modular], as a module's own children are built. */
         @Contract(pure = true)
-        private fun childCallTreeElements(modular: Modular, childCalls: Array<Call>?, resolveState: ResolveState): Array<TreeElement> {
+        @RequiresReadLock
+        fun childCallTreeElements(modular: Modular, childCalls: Array<Call>?, resolveState: ResolveState): Array<TreeElement> {
             var treeElements: Array<TreeElement>? = null
 
             if (childCalls != null) {
@@ -138,11 +109,14 @@ open class Module(protected val parent: Modular?, call: Call) : Element<Call>(ca
                 )
 
                 while (!childCallQueue.isEmpty()) {
+                    ProgressManager.checkCanceled()
                     ChildCall.build(accumulator, childCallQueue.remove(), resolveState)
                 }
 
                 for (overridable in overridableSet) {
+                    ProgressManager.checkCanceled()
                     for (treeElement in overridable.children) {
+                        ProgressManager.checkCanceled()
                         (treeElement as CallReference).let { callReference ->
                             callReference.arity()?.let { arity ->
                                 callReference
@@ -164,6 +138,7 @@ open class Module(protected val parent: Modular?, call: Call) : Element<Call>(ca
                 val moduleDefinitionByKey = Used.definitionByKey(treeElementList)
 
                 for ((key, useDefinition) in Used.definitionByKey(nodesFromUses)) {
+                    ProgressManager.checkCanceled()
                     if (useDefinition.isOverridable) {
                         moduleDefinitionByKey[key]?.override = true
                     }
@@ -177,9 +152,4 @@ open class Module(protected val parent: Modular?, call: Call) : Element<Call>(ca
 
     }
 
-}
-
-private inline fun CallDefinition.also(block: (CallDefinition) -> Unit): CallDefinition {
-    block(this)
-    return this
 }

@@ -15,6 +15,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.*
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.call.finalArguments
+import org.elixir_lang.psi.impl.call.keywordArgument
 import org.elixir_lang.psi.impl.call.stabBodyChildExpressions
 import org.elixir_lang.psi.impl.childExpressions
 import org.elixir_lang.psi.impl.literalName
@@ -152,6 +153,16 @@ object Using {
             }
             ?: true
 
+    /** The value each branch of an `if` or `unless` ends in: its `do` and `else` blocks' last expressions, or keywords. */
+    @RequiresReadLock
+    private fun branchValues(conditional: Call): Sequence<PsiElement> =
+        conditional.doBlock
+            ?.let { doBlock ->
+                (sequenceOf(doBlock.stab) + doBlock.blockList?.blockItemList.orEmpty().map { it.stab })
+                    .mapNotNull { stab -> stab?.stabBody?.childExpressions(forward = false)?.firstOrNull() }
+            }
+            ?: sequenceOf("do", "else").mapNotNull { conditional.keywordArgument(it) }
+
     private fun treeWalkUpFromLastChildCall(
         lastChildCall: Call,
         useCall: Call?,
@@ -233,6 +244,12 @@ object Using {
                             true
                         }
                     } ?: true
+                }
+                resolvedModuleName == KERNEL && (functionName == IF || functionName == UNLESS) -> {
+                    // The condition is not known here, so either branch may be what `__using__` returns.
+                    val branchState = resolveState.putVisitedElement(lastChildCall)
+
+                    whileIn(branchValues(lastChildCall)) { value -> treeWalkUpValue(value, useCall, branchState, keepProcessing) }
                 }
                 resolvedModuleName == KERNEL && functionName == CASE -> {
                     val lastChildCallResolveState = resolveState.putVisitedElement(lastChildCall)

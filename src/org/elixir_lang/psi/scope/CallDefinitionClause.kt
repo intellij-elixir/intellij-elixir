@@ -15,7 +15,6 @@ import org.elixir_lang.ecto.query.WindowAPI
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.call.name.Function.*
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.call.name.Module.KERNEL_SPECIAL_FORMS
 import org.elixir_lang.psi.ex_unit.Case
@@ -23,6 +22,7 @@ import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.hasDoBlockOrKeyword
 import org.elixir_lang.psi.impl.call.*
 import org.elixir_lang.psi.impl.siblingExpressions
+import org.elixir_lang.psi.scope.WhileIn.throughout
 import org.elixir_lang.psi.scope.WhileIn.whileIn
 import org.elixir_lang.psi.stub.type.call.Stub.isModular
 import org.elixir_lang.reference.resolver.narrowedScope
@@ -140,9 +140,7 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
             if (!containsCompileTimeEntranceAncestorOrSelf(moduleScopeCalls.asSequence(), state)) {
                 val listed = listedState(element, state)
 
-                for (moduleScopeCall in moduleScopeCalls) {
-                    execute(moduleScopeCall, listed)
-                }
+                throughout(moduleScopeCalls) { execute(it, listed) }
             }
 
             return true
@@ -181,9 +179,7 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
                 if (!containsCompileTimeEntranceAncestorOrSelf(childCalls, state)) {
                     val listed = listedState(element, state)
 
-                    for (childCall in childCalls) {
-                        execute(childCall, listed)
-                    }
+                    throughout(childCalls) { execute(it, listed) }
                 }
 
                 // Only check MultiResolve.keepProcessing at the end of a Module to all multiple arities
@@ -197,7 +193,8 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
                 true
             }
             Use.`is`(element) -> {
-                Use.treeWalkUp(element, state, ::execute)
+                // Finishes the quote, as a module's own children are.
+                Use.treeWalkUpThroughout(element, state, ::execute)
 
                 true
             }
@@ -243,7 +240,7 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
                 ?.filter(ResolveResult::isValidResult)
                 ?.mapNotNull(ResolveResult::getElement)
                 ?.filterIsInstance<Call>()
-                ?.filter { org.elixir_lang.psi.CallableDeclaration.syntacticCapabilitiesOf(it)?.quotesArguments == true }
+                ?.filter { CallableDeclaration.syntacticCapabilitiesOf(it)?.quotesArguments == true }
                 ?.let { macroDefinitions ->
                     whileIn(macroDefinitions) { macroDefinition ->
                         executeOnUnknownMacroDefinition(macroDefinition, state)

@@ -160,6 +160,8 @@
   - **Go To Related from a `defdelegate` lands on its decompiled function instead of the module, and finds the decompiled source of a dependency or the SDK.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
   - **Renaming a protocol function renames the MFA tuples and `apply/3` calls that name it.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
   - **Find Usages of a callback or protocol function finds a `defdelegate` that implements it.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **An `import` of a module now brings in the public functions a `use` injects into it, so they resolve and are offered in completion.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **A `__using__` written with `do:` now injects what it quotes, and Show Used lists what a nested `use` or an `apply` in `__using__` injects.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
 - [#4146](https://github.com/intellij-elixir/intellij-elixir/pull/4146) [@sh41](https://github.com/sh41)
   - **Building a project no longer fails with `UnsupportedClassVersionError` from the plugin's JPS classes when the project SDK is older than the IDE's JDK.** Fixes [#3996](https://github.com/intellij-elixir/intellij-elixir/issues/3996).
 - [#4160](https://github.com/intellij-elixir/intellij-elixir/pull/4160) [@sh41](https://github.com/sh41)

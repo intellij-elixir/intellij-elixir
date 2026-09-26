@@ -170,6 +170,43 @@ class CallableDeclarationResolutionTest : PlatformTestCase() {
         assertEquals(expected(false, false, true, false, true, false, false), importing("sigils"))
     }
 
+    /** A `__using__` written with `do:` injects as one with a `do` block does, through a quote or an `apply`. */
+    fun testAUsingWrittenWithDoKeywordInjects() {
+        myFixture.configureByText(
+            "keyword_using.ex",
+            """
+            defmodule Quoted do
+              defmacro __using__(_), do: quote(do: def(quoted, do: :quoted))
+            end
+
+            defmodule Web do
+              def view do
+                quote do
+                  def viewed, do: :view
+                end
+              end
+
+              defmacro __using__(which) when is_atom(which), do: apply(__MODULE__, which, [])
+            end
+
+            defmodule User do
+              use Quoted
+              use Web, :view
+
+              def usage, do: {quoted(), viewed()}
+            end
+            """.trimIndent()
+        )
+
+        assertEquals(
+            """
+            quoted() -> def(quoted, do: :quoted)
+            viewed() -> def viewed, do: :view
+            """.trimIndent(),
+            resolutions("quoted()", "viewed()")
+        )
+    }
+
     /** A repeated `only:` or `except:` counts once, the first, as Elixir reads the options with `lists:keyfind`. */
     fun testImportTakesTheFirstOfARepeatedOption() {
         fun importing(options: String): String {

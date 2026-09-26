@@ -2,7 +2,9 @@ package org.elixir_lang.psi
 
 import org.elixir_lang.psi.scope.Reach.Companion.reachedThrough
 import org.elixir_lang.psi.scope.Reach
+import org.elixir_lang.psi.scope.WhileIn.throughout
 import org.elixir_lang.psi.scope.WhileIn.whileIn
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.Key
 import com.intellij.psi.ElementDescriptionLocation
 import com.intellij.psi.PsiElement
@@ -11,11 +13,9 @@ import com.intellij.psi.ResolveState
 import com.intellij.psi.util.isAncestor
 import com.intellij.usageView.UsageViewNodeTextLocation
 import com.intellij.usageView.UsageViewTypeLocation
-import com.intellij.util.Function
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Arity
 import org.elixir_lang.Name
-import org.elixir_lang.NameArityInterval
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.beam.psi.Module as BeamModule
 import org.elixir_lang.lexer.SigilName
@@ -49,13 +49,22 @@ object Import {
     ) {
         private enum class Selector { FUNCTIONS, MACROS, SIGILS }
 
-        /** Whether [name] at [arity] is brought in; a [compileTime] that is not known rules out no selector. */
-        fun admits(name: Name, arity: Arity, compileTime: Boolean?): Boolean =
+        /**
+         * Whether [declaration], which can do what [capabilities] say, is brought in at some arity in [arityInterval],
+         * by default any it declares. One whose capabilities are not known is not: `:functions` or `:macros` could not
+         * tell it apart.
+         */
+        fun admits(
+            declaration: CallableDeclaration.Declaration,
+            capabilities: CallableDeclaration.Capabilities?,
+            arityInterval: ArityInterval = declaration.nameArityInterval().arityInterval,
+        ): Boolean = capabilities != null && admits(declaration.name, arityInterval, capabilities.compileTime)
+
+        private fun admits(name: Name, arity: Arity, compileTime: Boolean): Boolean =
             only?.let { arity in it[name].orEmpty() }
                 ?: (selects(name, arity, compileTime) && arity !in except[name].orEmpty())
 
-        /** Whether [name] is brought in at any arity in [arityInterval]. */
-        fun admits(name: Name, arityInterval: ArityInterval, compileTime: Boolean?): Boolean {
+        private fun admits(name: Name, arityInterval: ArityInterval, compileTime: Boolean): Boolean {
             // Past the highest arity a pair or a sigil names, every arity is admitted alike, so one past it stands for
             // the rest.
             val named = listOf(arityInterval.minimum, SigilName.FUNCTION_ARITY) +
@@ -65,12 +74,12 @@ object Import {
             return (arityInterval.minimum..maximum).any { admits(name, it, compileTime) }
         }
 
-        private fun selects(name: Name, arity: Arity, compileTime: Boolean?): Boolean =
+        private fun selects(name: Name, arity: Arity, compileTime: Boolean): Boolean =
             (underscored || !name.startsWith("_")) &&
                 when (selector) {
                     null -> true
-                    Selector.FUNCTIONS -> compileTime != true
-                    Selector.MACROS -> compileTime != false
+                    Selector.FUNCTIONS -> !compileTime
+                    Selector.MACROS -> compileTime
                     Selector.SIGILS -> SigilName.ofFunction(name, arity) != null
                 }
 
@@ -81,6 +90,7 @@ object Import {
             val IMPLICIT = Filter(null, null, emptyMap(), underscored = true)
 
             /** The filter [importCall]'s options make. */
+            @RequiresReadLock
             fun of(importCall: Call): Filter {
                 val options = importCall.keywordArguments() ?: return EVERYTHING
                 val only = options.keywordValue("only")
@@ -130,13 +140,24 @@ object Import {
      */
     fun definitionsOnly(state: ResolveState): ResolveState = state.put(DEFINITIONS_ONLY, true)
 
-    /** Whether the `import` [state] was reached through, if any, brings in [name] at some arity in [arityInterval]. */
-    fun admits(state: ResolveState, name: Name, arityInterval: ArityInterval, compileTime: Boolean?): Boolean =
-        state.get(FILTER)?.admits(name, arityInterval, compileTime) ?: true
+    /** What the `import` [state] was reached through brings in; `null` when it came through none. */
+    fun filter(state: ResolveState): Filter? = state.get(FILTER)
 
-    /** Whether [importCall] brings in [name] at [arity]. */
-    fun admits(importCall: Call, name: Name, arity: Arity, compileTime: Boolean?): Boolean =
-        Filter.of(importCall).admits(name, arity, compileTime)
+    /** Whether the `import` [state] was reached through, if any, brings in [declaration]: see [Filter.admits]. */
+    fun admits(
+        state: ResolveState,
+        declaration: CallableDeclaration.Declaration,
+        capabilities: CallableDeclaration.Capabilities?,
+        arityInterval: ArityInterval = declaration.nameArityInterval().arityInterval,
+    ): Boolean = admits(filter(state), declaration, capabilities, arityInterval)
+
+    /** Whether [filter] brings in [declaration]; with no `import`, and so no filter, everything is in. */
+    fun admits(
+        filter: Filter?,
+        declaration: CallableDeclaration.Declaration,
+        capabilities: CallableDeclaration.Capabilities?,
+        arityInterval: ArityInterval = declaration.nameArityInterval().arityInterval,
+    ): Boolean = filter?.admits(declaration, capabilities, arityInterval) ?: true
 
     /**
      * Whether `call` is an `import Module` or `import Module, opts` call
@@ -144,6 +165,7 @@ object Import {
     @JvmStatic
     fun `is`(call: Call): Boolean = call.isCalling(KERNEL, IMPORT) && call.resolvedFinalArity() in 1..2
 
+    @RequiresReadLock
     @JvmStatic
     fun treeWalkUp(
         importCall: Call,
@@ -162,6 +184,7 @@ object Import {
                 val importCallResolveState = resolveState.putVisitedElement(importCall).put(FILTER, filter).reachedThrough(Reach.IMPORT, importCall)
 
                 for (modular in modulars) {
+                    ProgressManager.checkCanceled()
                     val childResolveState = importCallResolveState.putVisitedElement(modular)
 
                     accumulatedKeepProcessing =
@@ -195,12 +218,10 @@ object Import {
         resolveState: ResolveState,
         keepProcessing: (PsiElement, ResolveState) -> Boolean
     ): Boolean =
-        // Looks through the conditionals a definition may be under, and finishes the module, as its own walk does: a
-        // bodiless head and the clauses after it are one function.
-        CallDefinitionClause.modularChildCalls(importedModular)
-            .filter { !resolveState.hasBeenVisited(it) }
-            .map { treeWalkUpImportedModularChildExpression(filter, it, resolveState, keepProcessing) }
-            .all { it }
+        // Looks through the conditionals a definition may be under, and finishes the module, as its own walk does.
+        throughout(CallDefinitionClause.modularChildCalls(importedModular).filter { !resolveState.hasBeenVisited(it) }) {
+            treeWalkUpImportedModularChildExpression(filter, it, resolveState, keepProcessing)
+        }
 
     private fun treeWalkUpImportedModular(
         importedModular: BeamModule,
@@ -218,6 +239,13 @@ object Import {
         resolveState: ResolveState,
         keepProcessing: (Call, ResolveState) -> Boolean
     ): Boolean {
+        // What a `use` injects is the module's own, so the `import` brings it in too; an `import` it injects is not.
+        if (Use.`is`(importedCall)) {
+            return Use.treeWalkUpInjected(importedCall, resolveState) { injected, injectedState ->
+                treeWalkUpImportedModularChildExpression(filter, injected, injectedState, keepProcessing)
+            }
+        }
+
         val declared = CallableDeclaration.declaredOf(importedCall, resolveState) as? CallableDeclaration.Declared.Source
             ?: return true
 
@@ -253,10 +281,10 @@ object Import {
 
     /** Whether an `import` with [filter] brings in [declared]: what another module may call, and [filter] admits. */
     private fun bringsIn(declared: CallableDeclaration.Declared, filter: Filter, state: ResolveState): Boolean {
-        val compileTime = declared.capabilities?.compileTime ?: return false
+        val capabilities = declared.capabilities
 
         return Reach.callableFromAnotherModule(declared, state) &&
-            declared.definitions(state).any { filter.admits(it.name, it.nameArityInterval().arityInterval, compileTime) }
+            declared.definitions(state).any { filter.admits(it, capabilities) }
     }
 
     fun elementDescription(call: Call, location: ElementDescriptionLocation): String? =

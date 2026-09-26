@@ -361,12 +361,14 @@ fun Call.whileInStabBodyChildExpressions(
         ?.let { whileIn(it, keepProcessing) }
         ?: true
 
+/** The expressions of this call's body, written as a `do` block or as a `do:` keyword's one expression. */
 @RequiresReadLock
 fun Call.stabBodyChildExpressions(forward: Boolean = true): Sequence<PsiElement>? =
     doBlock
         ?.stab
         ?.stabBody
         ?.childExpressions(forward)
+        ?: keywordArgument("do")?.let { sequenceOf(it.stripAccessExpression()) }
 
 object CallImpl {
     @RequiresReadLock

@@ -9,13 +9,14 @@ import com.intellij.ide.util.treeView.smartTree.TreeElement
 import com.intellij.openapi.actionSystem.Shortcut
 import com.intellij.psi.ResolveState
 import com.intellij.util.IncorrectOperationException
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.NameArity
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
+import org.elixir_lang.psi.putInitialVisitedElement
 import org.elixir_lang.structure_view.element.*
 import org.elixir_lang.structure_view.element.modular.Module
-import org.elixir_lang.structure_view.element.modular.Module.Companion.addClausesToCallDefinition
 import org.jetbrains.annotations.NonNls
-import java.util.*
 
 class Used : FileStructureNodeProvider<TreeElement>, ActionShortcutProvider {
     override fun getActionIdForShortcut(): String = "FileStructurePopup"
@@ -47,7 +48,6 @@ class Used : FileStructureNodeProvider<TreeElement>, ActionShortcutProvider {
     companion object {
         @NonNls
         const val ID = "SHOW_USED"
-        private const val USING = "__using__"
 
         /**
          * What a `use` injects, less what the module redefines. `defoverridable` names a macro as well as a function,
@@ -73,46 +73,33 @@ class Used : FileStructureNodeProvider<TreeElement>, ActionShortcutProvider {
         private fun key(definition: CallDefinition): Pair<NameArity, Timed.Time> =
             NameArity(definition.name(), definition.arity) to definition.time()
 
-        /** What [child] injects, when it is a `use` of a module in source. */
-        private fun provideNodesFromChild(child: TreeElement): Collection<TreeElement> =
-            (child as? Use)
-                ?.let { use ->
-                    org.elixir_lang.psi.Use.modulars(use.call())
-                        .filterIsInstance<Call>()
-                        .filter { org.elixir_lang.psi.Module.`is`(it) }
-                        .firstNotNullOfOrNull { injectedBy(it, use) }
-                }
-                .orEmpty()
-
         /**
-         * What [modular]'s `__using__/1` injects through [use], when it has one clause: that clause runs whatever
-         * [use] passes, while which of several runs is not worked out.
+         * What [child] injects when it is a `use`: the calls resolution reaches through it, nested `use`s and an
+         * `apply` in `__using__` included, built as a module's own children are.
          */
-        private fun injectedBy(modular: Call, use: Use): List<TreeElement>? {
-            val module = Module(modular)
-            val macroByNameArity = HashMap<NameArity, CallDefinition>()
+        @RequiresReadLock
+        private fun provideNodesFromChild(child: TreeElement): Collection<TreeElement> {
+            val use = child as? Use ?: return emptyList()
+            val useCall = use.call()
+            val injected = mutableListOf<Call>()
+            // Entered from the file, as the structure view lists it, so the walk is not taken for one from the `use` itself.
+            val walkState = ResolveState.initial().put(ENTRANCE, useCall.containingFile).putInitialVisitedElement(useCall)
 
-            for (definer in org.elixir_lang.psi.Using.definers(modular)) {
-                val definerForm = org.elixir_lang.psi.CallableDeclaration.definerOf(definer) ?: continue
-                val nameArityInterval = org.elixir_lang.psi.CallDefinitionClause
-                    .nameArityInterval(definer, ResolveState.initial()) ?: continue
-
-                addClausesToCallDefinition(
-                    definer,
-                    nameArityInterval.name,
-                    nameArityInterval.arityInterval,
-                    macroByNameArity,
-                    module,
-                    definerForm
-                ) { _ -> }
+            org.elixir_lang.psi.Use.treeWalkUpInjected(useCall, walkState) { call, _ ->
+                injected += call
+                true
             }
 
-            val clause = macroByNameArity[NameArity(USING, 1)]?.clauseList()?.singleOrNull() ?: return null
-            val quote = clause.children.lastOrNull() as? Quote ?: return null
-
-            return quote.used(use).children.filterNot { it is Overridable }
+            return Module
+                .childCallTreeElements(
+                    org.elixir_lang.structure_view.element.modular.Use(use),
+                    injected.toTypedArray(),
+                    ResolveState.initial().put(ENTRANCE, useCall).putInitialVisitedElement(useCall)
+                )
+                .filterNot { it is Overridable }
         }
 
+        @RequiresReadLock
         fun provideNodesFromChildren(children: Collection<TreeElement>): Collection<TreeElement> =
             children.flatMap { provideNodesFromChild(it) }
     }

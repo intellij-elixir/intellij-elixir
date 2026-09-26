@@ -16,6 +16,7 @@ import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
+import org.elixir_lang.psi.scope.WhileIn.throughout
 
 /**
  * A `use` call
@@ -76,6 +77,34 @@ object Use {
 
         return accumulatedKeepProcessing
     }
+
+    /**
+     * Visits every call [useCall] puts in the module's own listing, as Elixir expands it: a `use` among them is followed
+     * into what it injects, and the quote is walked as a module's listing is, [Import.definitionsOnly] and to its end;
+     * whether every visit asked to go on.
+     */
+    @RequiresReadLock
+    fun treeWalkUpInjected(useCall: Call, resolveState: ResolveState, visit: (Call, ResolveState) -> Boolean): Boolean =
+        treeWalkUpThroughout(useCall, Import.definitionsOnly(resolveState)) { injected, injectedState ->
+            visitInjected(injected, injectedState, visit)
+        }
+
+    /** [treeWalkUp] to the end of what [useCall] injects, whatever [visit] answers; whether every visit asked to go on. */
+    @RequiresReadLock
+    fun treeWalkUpThroughout(useCall: Call, resolveState: ResolveState, visit: (PsiElement, ResolveState) -> Boolean): Boolean =
+        throughout({ each -> treeWalkUp(useCall, resolveState, each) }, visit)
+
+    /** [treeWalkUpInjected] from one `defmacro __using__` [definer], for any `use` of its module. */
+    @RequiresReadLock
+    fun treeWalkInjectedBy(definer: Call, resolveState: ResolveState, visit: (Call, ResolveState) -> Boolean): Boolean =
+        throughout({ each ->
+            Using.treeWalkUp(definer, null, Import.definitionsOnly(resolveState).putVisitedElement(definer), each)
+        }) { injected, injectedState ->
+            visitInjected(injected, injectedState, visit)
+        }
+
+    private fun visitInjected(injected: PsiElement, state: ResolveState, visit: (Call, ResolveState) -> Boolean): Boolean =
+        (injected as? Call)?.let { visit(it, state) } ?: true
 
     fun elementDescription(@Suppress("UNUSED_PARAMETER") call: Call, location: ElementDescriptionLocation): String? {
         var elementDescription: String? = null

@@ -3,6 +3,7 @@ package org.elixir_lang.model.psi.function
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.Import
 import org.elixir_lang.psi.call.Call
@@ -28,16 +29,18 @@ internal object RejectedCall {
             .filter { candidate -> Reach.named(candidate.reach, candidate.element, remote) }
             .mapNotNull { candidate ->
                 val declaration = candidate.element
-                val imports = candidate.visitedElementSet.filterIsInstance<Call>().filter { Import.`is`(it) }
                 val declared = CallableDeclaration.declaredOf(declaration, ResolveState.initial())
-                val compileTime = declared?.capabilities?.compileTime
+                val capabilities = declared?.capabilities
                 val arities = declared
                     ?.definitions(ResolveState.initial())
                     .orEmpty()
                     .asSequence()
                     .filter { it.name == name }
-                    .flatMap { it.arityInterval?.closed()?.toList().orEmpty() }
-                    .filter { arity -> imports.all { Import.admits(it, name, arity, compileTime) } }
+                    .flatMap { definition ->
+                        definition.arityInterval?.closed()?.toList().orEmpty().filter { arity ->
+                            Import.admits(candidate.importFilter, definition, capabilities, ArityInterval(arity, arity))
+                        }
+                    }
                     .distinct()
                     .sorted()
                     .toList()
