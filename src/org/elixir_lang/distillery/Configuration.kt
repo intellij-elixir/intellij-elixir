@@ -75,6 +75,9 @@ class Configuration(name: String, project: Project, configurationFactory: Config
             releaseCLIURL = ExternalizablePath.urlValue(localPath)
         }
 
+    /** The IDE's Build step fails on a Mix module, which has no output path. */
+    override fun isBuildBeforeLaunchAddedByDefault(): Boolean = false
+
     override fun getProgramParameters(): String? = releaseCLIArguments
 
     override fun setProgramParameters(value: String?) {
