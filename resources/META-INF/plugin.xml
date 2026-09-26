@@ -184,9 +184,6 @@
 
         <facetType implementation="org.elixir_lang.facet.Type"/>
 
-        <applicationService serviceInterface="org.elixir_lang.configuration.BeforeRunTaskProvider"
-                            serviceImplementation="org.elixir_lang.configuration.DefaultBeforeRunTaskProvider"
-                            open="true"/>
         <applicationService serviceInterface="org.elixir_lang.facet.configurable.TopLevelElixirConfigurableFactory"
                             serviceImplementation="org.elixir_lang.facet.configurable.SmallIdeTopLevelElixirConfigurableFactory"
                             open="true"/>

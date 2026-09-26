@@ -109,6 +109,8 @@
 
 ### Bug Fixes
 
+- [#4178](https://github.com/intellij-elixir/intellij-elixir/pull/4178) [@sh41](https://github.com/sh41)
+  - **New Mix, IEx Mix, ExUnit, ESpec and Distillery run configurations start without the Build step, which fails because a Mix module has no output path, while Elixir and IEx configurations keep it.**
 - [#4180](https://github.com/intellij-elixir/intellij-elixir/pull/4180) [@sh41](https://github.com/sh41)
   - **The Distillery run configuration's file choosers no longer accept folders, and its labels are in sentence case, with "sys.config File" renamed "Config file (sys.config)".**
 - [#4182](https://github.com/intellij-elixir/intellij-elixir/pull/4182) [@sh41](https://github.com/sh41)

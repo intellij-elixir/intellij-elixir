@@ -28,9 +28,6 @@
                              parentId="project.propCompiler" id="Elixir Compiler" displayName="Elixir Compiler"/>
         <projectService serviceImplementation="org.elixir_lang.configuration.ElixirCompilerSettings"/>
 
-        <applicationService serviceInterface="org.elixir_lang.configuration.BeforeRunTaskProvider"
-                            serviceImplementation="org.elixir_lang.configuration.JpsBeforeRunTaskProvider"
-                            overrides="true"/>
         <applicationService serviceInterface="org.elixir_lang.facet.configurable.TopLevelElixirConfigurableFactory"
                             serviceImplementation="org.elixir_lang.facet.configurable.RichPlatformTopLevelElixirConfigurableFactory"
                             overrides="true"/>

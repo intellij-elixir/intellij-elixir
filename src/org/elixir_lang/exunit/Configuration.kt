@@ -59,6 +59,9 @@ class Configuration(name: String, project: Project) :
         return debugged
     }
 
+    /** The IDE's Build step fails on a Mix module, which has no output path. */
+    override fun isBuildBeforeLaunchAddedByDefault(): Boolean = false
+
     override fun getProgramParameters(): String? = mixTestArguments
 
     override fun setProgramParameters(value: String?) {
