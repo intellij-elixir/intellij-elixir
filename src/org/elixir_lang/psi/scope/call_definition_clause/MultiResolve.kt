@@ -34,8 +34,16 @@ private constructor(
     override fun executeOnCallDefinitionClause(element: Call, state: ResolveState): Boolean =
             addDeclarations(element, CallableDeclaration.Form.CLAUSE, state)
 
-    override fun execute(element: BeamCallDefinition, state: ResolveState): Boolean =
-        addIfNameOrArityToResolveResults(element, element.nameArityInterval, state)
+    override fun execute(element: BeamCallDefinition, state: ResolveState): Boolean {
+        val compileTime = CallableDeclaration.capabilitiesOf(element, state)?.compileTime
+        val declaration = CallableDeclaration.Declaration(element.nameArityInterval.name, element.nameArityInterval.arityInterval)
+
+        return if (admitted(declaration, compileTime, state)) {
+            addIfNameOrArityToResolveResults(element, declaration.name, accepted(declaration, compileTime, state), state)
+        } else {
+            true
+        }
+    }
 
     override fun executeOnCallback(element: AtUnqualifiedNoParenthesesCall<*>, state: ResolveState): Boolean =
             addDeclarations(element, CallableDeclaration.Form.CALLBACK, state)
@@ -43,10 +51,10 @@ private constructor(
     override fun executeOnDelegation(element: Call, state: ResolveState): Boolean {
         // `delegationHead` reads a single head until #4040.
         CallableDeclaration.declarations(element, CallableDeclaration.Form.DELEGATION, state).firstOrNull()
-            ?.takeIf { admitted(it, state) }
+            ?.takeIf { admitted(it, false, state) }
             ?.let { declaration ->
                 val headName = declaration.name
-                val validArity = accepted(declaration, state)
+                val validArity = accepted(declaration, false, state)
 
                 if ((this.name == null && (incompleteCode || validArity)) ||
                         (this.name != null && headName.startsWith(this.name))) {
@@ -107,28 +115,23 @@ private constructor(
     override fun executeOnMixGeneratorEmbed(element: Call, state: ResolveState): Boolean =
             addDeclarations(element, CallableDeclaration.Form.GENERATOR_EMBED, state)
 
-    private fun addDeclarations(call: Call, form: CallableDeclaration.Form, state: ResolveState): Boolean =
-            whileIn(CallableDeclaration.declarations(call, form, state).filter { admitted(it, state) }) { declaration ->
-                addIfNameOrArityToResolveResults(call, declaration.name, accepted(declaration, state), state)
-            }
+    private fun addDeclarations(call: Call, form: CallableDeclaration.Form, state: ResolveState): Boolean {
+        val compileTime = CallableDeclaration.Declared.Source(call, form).capabilities?.compileTime
+
+        return whileIn(CallableDeclaration.declarations(call, form, state).filter { admitted(it, compileTime, state) }) { declaration ->
+            addIfNameOrArityToResolveResults(call, declaration.name, accepted(declaration, compileTime, state), state)
+        }
+    }
 
     /** Whether an `import` this was reached through brings in [declaration] at any arity. */
-    private fun admitted(declaration: CallableDeclaration.Declaration, state: ResolveState): Boolean =
-        Import.admits(state, declaration.name, declaration.nameArityInterval().arityInterval)
+    private fun admitted(declaration: CallableDeclaration.Declaration, compileTime: Boolean?, state: ResolveState): Boolean =
+        Import.admits(state, declaration.name, declaration.nameArityInterval().arityInterval, compileTime)
 
     /** Whether [declaration] is defined, and imported if reached through an `import`, at the resolved arity. */
-    private fun accepted(declaration: CallableDeclaration.Declaration, state: ResolveState): Boolean =
+    private fun accepted(declaration: CallableDeclaration.Declaration, compileTime: Boolean?, state: ResolveState): Boolean =
         declaration.accepts(resolvedPrimaryArity) &&
-            Import.admits(state, declaration.name, ArityInterval(resolvedPrimaryArity, resolvedPrimaryArity))
+            Import.admits(state, declaration.name, ArityInterval(resolvedPrimaryArity, resolvedPrimaryArity), compileTime)
 
-    private fun addIfNameOrArityToResolveResults(callDefinition: BeamCallDefinition,
-                                                 nameArityInterval: NameArityInterval,
-                                                 state: ResolveState): Boolean {
-        val name = nameArityInterval.name
-        val validArity = resolvedPrimaryArity in nameArityInterval.arityInterval
-
-        return addIfNameOrArityToResolveResults(callDefinition, name, validArity, state)
-    }
 
     private fun addIfNameOrArityToResolveResults(call: Call, name: String, validArity: Boolean, state: ResolveState): Boolean =
             if ((this.name == null && (incompleteCode || validArity)) ||

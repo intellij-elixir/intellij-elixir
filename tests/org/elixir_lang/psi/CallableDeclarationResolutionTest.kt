@@ -49,21 +49,24 @@ class CallableDeclarationResolutionTest : PlatformTestCase() {
     }
 
     /**
-     * `import` brings in every function and macro a module defines, however it defines them, resolving just as an
-     * imported `def` does - but not a `@callback`, which the implementing module defines.
+     * `import` brings in every public function and macro a module defines, however it defines them, resolving just as
+     * an imported `def` does - but not a private one, which only its module can call, nor a `@callback`, which the
+     * implementing module defines. A `Mix.Generator` embed is a `defp`.
      */
-    fun testImportBringsInEveryDefinedFormButCallbacks() {
+    fun testImportBringsInEveryPublicDefinedFormButCallbacks() {
         myFixture.configureByFiles("through_import.ex", "eex.ex", "mix_generator.ex")
 
         assertEquals(
             """
             plain(1) -> def plain(x), do: x | import Views
+            secret(1) -> nothing
             greet("x") -> EEx.function_from_string(:def, :greet, "<%= name %>", [:name]) | import Views
-            banner_text() -> Mix.Generator.embed_text(:banner, "Banner") | import Views
+            hidden() -> nothing
+            banner_text() -> nothing
             message(%{}) -> defexception [:message] | import Views
             hook() -> nothing
             """.trimIndent(),
-            resolutions("plain(1)", "greet(\"x\")", "banner_text()", "message(%{})", "hook()")
+            resolutions("plain(1)", "secret(1)", "greet(\"x\")", "hidden()", "banner_text()", "message(%{})", "hook()")
         )
     }
 
@@ -83,6 +86,105 @@ class CallableDeclarationResolutionTest : PlatformTestCase() {
             """.trimIndent(),
             resolutions("exception(message: \"x\")", "message(%{})", "pad(1)", "pad(1, 2)")
         )
+    }
+
+    /** `except:` leaves out the arities it lists, not the rest of a definition's: `f/2` stays when `f/1` is excluded. */
+    fun testImportExceptLeavesOutTheListedArityAlone() {
+        myFixture.configureByText(
+            "import_except.ex",
+            """
+            defmodule Padding do
+              def pad(a, b \\ 1), do: {a, b}
+            end
+
+            defmodule User do
+              import Padding, except: [pad: 1]
+
+              def usage, do: {pad(1), pad(1, 2)}
+            end
+            """.trimIndent()
+        )
+
+        assertEquals(
+            """
+            pad(1) -> nothing
+            pad(1, 2) -> def pad(a, b \\ 1), do: {a, b} | import Padding, except: [pad: 1]
+            """.trimIndent(),
+            resolutions("pad(1)", "pad(1, 2)")
+        )
+    }
+
+    /** `only: :functions`, `:macros` and `:sigils` bring in what each names, as Elixir's `import` does. */
+    fun testImportOnlyAKindBringsInThatKind() {
+        val kinds = """
+            defmodule Kinds do
+              def f(a), do: a
+              defmacro m(a), do: a
+              def sigil_x(string, _), do: string
+            end
+        """.trimIndent()
+
+        fun importing(selector: String): String {
+            myFixture.configureByText(
+                "import_$selector.ex",
+                "$kinds\n\ndefmodule User do\n  import Kinds, only: :$selector\n\n  def usage, do: {f(1), m(1), sigil_x(\"a\", [])}\nend\n"
+            )
+
+            return resolutions("f(1)", "m(1)", "sigil_x(\"a\", [])").lines().joinToString(", ") { it.substringBefore(" -> ") + " " + !it.endsWith("nothing") }
+        }
+
+        assertEquals("f(1) true, m(1) false, sigil_x(\"a\", []) true", importing("functions"))
+        assertEquals("f(1) false, m(1) true, sigil_x(\"a\", []) false", importing("macros"))
+        assertEquals("f(1) false, m(1) false, sigil_x(\"a\", []) true", importing("sigils"))
+    }
+
+    /** A kind and `except:` together narrow to the kind, then leave out what `except:` lists, in either order. */
+    fun testImportOnlyAKindExceptSomeOfIt() {
+        fun importing(options: String): String {
+            myFixture.configureByText(
+                "import_kind_except.ex",
+                """
+                defmodule Kinds do
+                  def f(a), do: a
+                  def g(a), do: a
+                  defmacro m(a), do: a
+                end
+
+                defmodule User do
+                  import Kinds, $options
+
+                  def usage, do: {f(1), g(1), m(1)}
+                end
+                """.trimIndent()
+            )
+
+            return resolutions("f(1)", "g(1)", "m(1)").lines().joinToString(", ") { it.substringBefore(" -> ") + " " + !it.endsWith("nothing") }
+        }
+
+        assertEquals("f(1) false, g(1) true, m(1) false", importing("only: :functions, except: [f: 1]"))
+        assertEquals("f(1) false, g(1) true, m(1) false", importing("except: [f: 1], only: :functions"))
+    }
+
+    /** A name starting with `_` is imported only when `only:` names it. */
+    fun testImportLeavesOutUnderscoreNamesUnlessOnlyNamesThem() {
+        val hidden = """
+            defmodule Hidden do
+              def _hidden, do: :ok
+              def shown, do: :ok
+            end
+        """.trimIndent()
+
+        fun importing(options: String): String {
+            myFixture.configureByText(
+                "import_hidden.ex",
+                "$hidden\n\ndefmodule User do\n  import Hidden$options\n\n  def usage, do: {_hidden(), shown()}\nend\n"
+            )
+
+            return resolutions("_hidden()", "shown()").lines().joinToString(", ") { it.substringBefore(" -> ") + " " + !it.endsWith("nothing") }
+        }
+
+        assertEquals("_hidden() false, shown() true", importing(""))
+        assertEquals("_hidden() true, shown() false", importing(", only: [_hidden: 0]"))
     }
 
     /** An EEx function given `@args` could take any arity, so a call and a `@spec` of any arity both resolve to it. */

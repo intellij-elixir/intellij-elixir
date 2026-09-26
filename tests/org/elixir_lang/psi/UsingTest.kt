@@ -52,6 +52,50 @@ class UsingTest : PlatformTestCase() {
         assertEquals(setOf(NameArityInterval("injected_by_view", ArityInterval(0, 0))), nameArityIntervalSet)
     }
 
+    /** `apply(__MODULE__, which, [])` in `__using__` reaches only what `apply/3` can call: no private helper. */
+    fun testApplyInUsingReachesNoPrivateDefinition() {
+        myFixture.configureByText(
+            "apply_use.ex",
+            """
+            defmodule ApplyWeb do
+              defmacro __using__(which) do
+                apply(__MODULE__, which, [])
+              end
+
+              def view do
+                quote do
+                  def from_view(), do: :ok
+                end
+              end
+
+              defp secret do
+                quote do
+                  def from_secret(), do: :ok
+                end
+              end
+            end
+
+            defmodule ApplyClient do
+              <caret>use ApplyWeb
+            end
+            """.trimIndent()
+        )
+
+        val call = myFixture.file.findElementAt(myFixture.caretOffset)!!.parent.parent as Call
+        val resolveState = ResolveState.initial().put(ENTRANCE, call.enclosingMacroCall()).putInitialVisitedElement(call)
+        val used = mutableListOf<PsiElement>()
+
+        Use.treeWalkUp(call, resolveState) { element, _ ->
+            used.add(element)
+            true
+        }
+
+        assertEquals(
+            setOf("from_view"),
+            used.mapNotNull { (it as? Call)?.let { call -> nameArityInterval(call, ResolveState.initial())?.name } }.toSet()
+        )
+    }
+
     /*
      * Protected Instance Methods
      */
