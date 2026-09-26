@@ -75,10 +75,18 @@ defmodule Matrix do
       # call of `Target.snoc/2`, which does not exist, so nothing resolves through it.
       %{id: "defdelegate_imports", definer: "defdelegate", delegate: :imports},
       %{id: "defdelegate_list", definer: "defdelegate", delegate: :same, options: :list},
+      # The list as people also write it: with a trailing comma, and one option per line. A rename that has to add
+      # `as:` must still leave valid code in both.
+      %{id: "defdelegate_list_trailing", definer: "defdelegate", delegate: :same, options: :list_trailing},
+      %{id: "defdelegate_list_lines", definer: "defdelegate", delegate: :same, options: :list_lines},
       %{id: "defdelegate_as_list", definer: "defdelegate", delegate: :same, as: "delegated_", options: :list},
       %{id: "defdelegate_as_attribute", definer: "defdelegate", delegate: :same, as: "delegated_", as_written: :attribute},
       # A function declared by a call rather than a `def`: `EEx.function_from_string(:def, :snoc, template, [:q, :x])`.
       %{id: "eex_function_from", definer: "def", eex: true},
+      # The same call with its kind, and then its arguments, in a module attribute, as code that builds several from one
+      # table writes it. Elixir evaluates the attribute, so the function is the same `def snoc/2`.
+      %{id: "eex_function_from_kind", definer: "def", eex: true, eex_attribute: :kind},
+      %{id: "eex_function_from_args", definer: "def", eex: true, eex_attribute: :args},
       # `Mix.Generator.embed_template(:snoc, ...)` declares `snoc_template/1`, `embed_text(:snoc, ...)` `snoc_text/0`: the
       # names are the atom plus a suffix, so this form has a world of its own, `x_embed`.
       %{id: "generator_embed", definer: "def", embed: true, private: true}
@@ -101,9 +109,15 @@ defmodule Matrix do
     "x_case" => {["case Code.ensure_loaded?(Kernel) do", "  _ ->"], ["end"]},
     "x_cond" => {["cond do", "  Code.ensure_loaded?(Kernel) ->"], ["end"]},
     "x_try" => {["try do"], ["rescue", "  _ -> nil", "end"]},
-    "x_for" => {["for _ <- [:once] do"], ["end"]}
+    "x_for" => {["for _ <- [:once] do"], ["end"]},
+    "x_with" => {["with true <- Code.ensure_loaded?(Kernel) do"], ["end"]},
+    # Nothing is ever sent to the compiling process, so `after 0` is the branch that runs and defines.
+    "x_receive" => {["receive do", "  :matrix_never_sent -> nil", "after", "  0 ->"], ["end"]}
   }
   @wrapper_worlds Map.keys(@wrappers)
+
+  # The worlds whose main module's definitions a `use` injects.
+  @use_worlds ["x_use_injected", "x_use_injected_defaults", "x_use_apply"]
 
   # A definition with defaults is one function at several arities, so a `@spec` of any of them is about it.
   @spec_worlds ["w1", "x_arity", "x_defaults", "x_defaults_head"]
@@ -216,7 +230,34 @@ defmodule Matrix do
       "x_cond" => %{modules: [[snoc_2]], calls: one_calls},
       "x_try" => %{modules: [[snoc_2]], calls: one_calls},
       "x_for" => %{modules: [[snoc_2]], calls: one_calls},
+      "x_with" => %{modules: [[snoc_2]], calls: one_calls},
+      "x_receive" => %{modules: [[snoc_2]], calls: one_calls},
+      # A definition with defaults under a module-level `if`, and one of a lower arity under its `else`. Only the branch
+      # the condition takes is compiled, so the two are never the same function: `snoc(a, b)` can only be the `if`'s, and
+      # `snoc(a)` is the `if`'s too, because the `else` is never compiled at all. The first definition is the `if`'s and
+      # the rest the `else`'s; the `else` is marked `# @not_compiled`, which keeps it out of what the module defines and
+      # so out of every expectation.
+      "x_if_else" => %{
+        modules: [[{"snoc", [{["q", {"x", "nil"}], nil}]}, {"snoc", [{["q"], nil}]}]],
+        calls: one_calls ++ [{"arity_1", 0, "snoc", 1, :qualified}, {"unqualified_arity_1", 0, "snoc", 1, :unqualified}]
+      },
       "x_unquote_name" => %{modules: [[snoc_2]], calls: one_calls},
+      # Definitions a `use` injects: written in another module's `__using__` quote, defined in every module that uses
+      # it - here the main one and a second, so "the uses of the definition" is plural. The quote also `use`s a module
+      # of its own, imports one and defines a private function, and the callers ask which of those an `import` of the
+      # using module brings in (see `use_callers/5`).
+      "x_use_injected" => %{
+        modules: [[{"snoc", [{["q"], nil}]}, snoc_2], [{"snoc", [{["q"], nil}]}, snoc_2]],
+        calls: one_calls ++ [{"arity_1", 0, "snoc", 1, :qualified}, {"other_qualified", 1, "snoc", 2, :qualified}]
+      },
+      # A definition with defaults written in the quote: a call at either arity is the head's and every clause's.
+      "x_use_injected_defaults" => %{
+        modules: [[defaults_head]],
+        calls: one_calls ++ [{"arity_1", 0, "snoc", 1, :qualified}, {"unqualified_arity_1", 0, "snoc", 1, :unqualified}]
+      },
+      # `use M, :view` calling `M.view/0` through `apply` in `__using__`, as Phoenix's `MyAppWeb` does. Only a public
+      # function can be reached that way: `use M, :secret` of a private one does not compile.
+      "x_use_apply" => %{modules: [[snoc_2]], calls: one_calls},
       # What a Mix.Generator embed declares. Both are private, so their only calls are the module's own: `local_site`
       # calls the template, and `uses` the text.
       "x_embed" => %{modules: [[{"snoc_template", [{["assigns"], nil}]}, {"snoc_text", [{[], nil}]}]], calls: []},
@@ -267,11 +308,14 @@ defmodule Matrix do
   def not_applicable(_backing, %{as: _}, world) when world not in @delegate_as_worlds,
     do: "`as:` renames only the target's function; this world's question is defdelegate's"
 
-  def not_applicable(%{compiled: true}, _form, world) when world in ["x_unquote_name" | @wrapper_worlds],
+  def not_applicable(%{compiled: true}, _form, world) when world in ["x_unquote_name", "x_if_else" | @wrapper_worlds],
     do: "compiled, the definition is an ordinary one; only its source is written differently"
 
   def not_applicable(_backing, form, "x_unquote_name") when form.id not in ["def", "defp", "defmacro", "defmacrop"],
     do: "only `def` and `defmacro` and their private forms take an `unquote`d name"
+
+  def not_applicable(_backing, form, "x_if_else") when form.id not in ["def", "defp", "defmacro", "defmacrop"],
+    do: "the question is defaults split across branches, which only `def` and `defmacro` and their private forms can declare"
 
   def not_applicable(_backing, %{embed: true}, world) when world != "x_embed",
     do: "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed"
@@ -297,6 +341,14 @@ defmodule Matrix do
     do: "a guard takes at least one argument, so it cannot define the zero-arity clause this world is about"
   def not_applicable(_backing, %{private: true}, world) when world in ["x_other_module", "x_not_a_call"],
     do: "a private definition cannot be called from outside, so the world adds no site"
+
+  def not_applicable(%{id: backing}, _form, world) when world in @use_worlds and backing not in ["src", "ex_dbgi"],
+    do: "compiled, an injected definition is an ordinary one of its user; ex_dbgi asks that, and the rest only strip it further"
+
+  def not_applicable(_backing, form, world) when world in @use_worlds and form.id not in ["def", "defp", "defmacro", "defmacrop", "defguard"],
+    do: "a `use` injects what its quote defines; these are the definers a quote is written with"
+
+  def not_applicable(_backing, %{guard: true}, "x_use_injected_defaults"), do: "a guard cannot have default arguments"
 
   def not_applicable(_backing, _form, _world), do: nil
 
@@ -344,7 +396,7 @@ defmodule Matrix do
   # The worlds with several arities of one name, which is where an import that names an arity can be told apart
   # from one that takes the whole name: `x_defaults` and `x_defaults_head` declare them with defaults, so one
   # definition covers the arity an `only:` keeps and the one it leaves out.
-  @import_worlds ["w2", "x_defaults", "x_defaults_head", "x_arity_separate"]
+  @import_worlds ["w2", "x_defaults", "x_defaults_head", "x_arity_separate", "x_use_injected"]
 
   # A private definition's remote calls: at the arity it declares and at fewer and more arguments than that. The compiler reads both as
   # "undefined or private", and names no private arity - so neither may the editor.
@@ -357,9 +409,19 @@ defmodule Matrix do
 
   defp scenario(backing, form, world, spec) do
     spec = scope(spec, backing, form, world)
+    # A second user never calls a private function it is injected with, so the compiler drops it from its `.beam`: a
+    # private form asks the one user that does.
+    spec = if form[:private] && world in @use_worlds, do: %{spec | modules: Enum.take(spec.modules, 1)}, else: spec
     names = module_names(backing, form, world, length(spec.modules))
     worlds_modules = Enum.map(spec.modules, &shape(&1, form))
     primary = worlds_modules |> hd() |> hd()
+    prefix = "#{backing.id}_#{form.id}_#{world}_"
+
+    # The modules a `use` world's main module uses, compiled before it; the form then says what its users inject.
+    {form, supports} =
+      if world in @use_worlds,
+        do: use_supports(backing, form, world, hd(names), prefix, hd(worlds_modules)),
+        else: {form, []}
 
     modules =
       worlds_modules
@@ -368,6 +430,7 @@ defmodule Matrix do
       |> Enum.flat_map(fn {{definitions, module}, index} ->
         compile_module(backing, form, world, module, definitions, if(index == 0, do: primary))
       end)
+      |> Kernel.++(supports)
 
     calls =
       cond do
@@ -404,6 +467,14 @@ defmodule Matrix do
         do: import_callers(backing, form, world, names, elem(primary, 0)),
         else: {[], []}
 
+    {use_paths, use_sites} =
+      if world in @use_worlds and !form[:private],
+        do: use_callers(backing, form, world, names, prefix),
+        else: {[], []}
+
+    import_paths = import_paths ++ use_paths
+    import_sites = import_sites ++ use_sites
+
     %{
       "backing" => backing.id,
       "form" => form.id,
@@ -424,11 +495,14 @@ defmodule Matrix do
   #
   # `import_transitive` imports a module that itself imports the declaring one: an import is lexical and is not
   # passed on, so nothing reaches the caller. `require_only` makes macros callable qualified but imports nothing.
-  defp import_variants(reference, _name, %{private: true}) do
+  defp import_variants(reference, name, %{private: true}) do
     [
       # Nothing private is imported, by any directive.
       {"import_whole", "import #{reference}", [{"import_whole", 2}]},
-      {"import_functions", "import #{reference}, only: :functions", [{"import_functions", 2}]}
+      {"import_functions", "import #{reference}, only: :functions", [{"import_functions", 2}]},
+      # An `only:` key naming a private function is not an empty import: the compiler rejects the directive itself,
+      # so the key, not a call, is what it complains about.
+      {"import_only_private", "import #{reference}, only: [#{name}: 1]", []}
     ]
   end
 
@@ -439,6 +513,11 @@ defmodule Matrix do
       {"import_macros", "import #{reference}, only: :macros", [{"import_macros", 2}]},
       {"import_only", "import #{reference}, only: [#{name}: 1]", [{"import_only_1", 1}, {"import_only_2", 2}]},
       {"import_except", "import #{reference}, except: [#{name}: 1]", [{"import_except_2", 2}, {"import_except_1", 1}]},
+      # A selector and an `except:` together, both ways round: Elixir applies both, whichever is written last.
+      {"import_functions_except", "import #{reference}, only: :functions, except: [#{name}: 1]",
+       [{"import_functions_except_2", 2}, {"import_functions_except_1", 1}]},
+      {"import_except_functions", "import #{reference}, except: [#{name}: 1], only: :functions",
+       [{"import_except_functions_2", 2}, {"import_except_functions_1", 1}]},
       {"import_transitive", {:transitive, "import #{reference}"}, [{"import_transitive", 2}]},
       {"require_only", "require #{reference}", [{"require_only", 2}]}
     ]
@@ -502,13 +581,34 @@ defmodule Matrix do
       end)
       |> Enum.unzip()
 
-    {[ok_path | rejected_paths], ok_sites ++ key_sites ++ List.flatten(rejected_sites)}
+    {directive_paths, directive_sites} =
+      probed
+      |> Enum.filter(fn {_, _, _, compiling, rejected} -> compiling == [] and rejected == [] end)
+      |> Enum.map(fn {id, directive, _visible, _, _} ->
+        path = Path.join(directory, Macro.underscore(world) <> "_" <> id <> ".ex")
+        source = "# #{@header}\n" <> render_import_module(namespace <> "." <> Macro.camelize(id), key_id(id, id), directive, name, [])
+        File.write!(path, source)
+        diagnostics = compile_expecting_failure(path, source)
+        {path, Enum.map(import_key_sites(path, source, reference, name), &rejected_key(&1, diagnostics))}
+      end)
+      |> Enum.unzip()
+
+    {[ok_path | rejected_paths] ++ directive_paths, ok_sites ++ key_sites ++ List.flatten(rejected_sites) ++ List.flatten(directive_sites)}
+  end
+
+  # The key of a directive the compiler rejected names nothing it can import: no binding, and what the compiler said.
+  defp rejected_key(site, diagnostics) do
+    said = Enum.find(diagnostics, &(position_line(&1.position) == site["line"])) ||
+      raise "#{site["file"]}:#{site["line"]} holds a rejected directive, but no diagnostic names that line"
+
+    Map.merge(site, %{"binding" => nil, "visible" => [], "diagnostic" => %{"severity" => to_string(said.severity), "message" => said.message}})
   end
 
   # A module per directive; a transitive one is preceded by the module the directive really sits in, which the
   # caller then imports.
   # Only an `only:`/`except:` directive has a key, marked `<owner>_key` after the site or variant it serves.
-  defp key_id(variant, owner) when variant in ["import_only", "import_except"], do: owner <> "_key"
+  defp key_id(variant, owner) when variant in ["import_only", "import_except", "import_only_private", "import_functions_except", "import_except_functions"],
+    do: owner <> "_key"
   defp key_id(_variant, _owner), do: nil
 
   defp render_import_module(module, _key_id, {:transitive, directive}, name, calls) do
@@ -560,9 +660,18 @@ defmodule Matrix do
 
     Matrix.Events.take()
     # A probe whose directive is unused would warn about it, and that is not what it is asking.
-    {_, _diagnostics} = Code.with_diagnostics(fn -> Code.compile_string(source, "probe.ex") end)
+    {compiled, _diagnostics} =
+      Code.with_diagnostics(fn ->
+        try do
+          Code.compile_string(source, "probe.ex")
+        rescue
+          # A directive the compiler rejects makes nothing visible.
+          _ -> nil
+        end
+      end)
+
     Matrix.Events.take()
-    visible = apply(Module.concat([probe]), :visible, []) |> Enum.map(&nfc/1) |> Enum.sort()
+    visible = if compiled, do: apply(Module.concat([probe]), :visible, []) |> Enum.map(&nfc/1) |> Enum.sort(), else: []
     :code.purge(Module.concat([probe]))
     :code.delete(Module.concat([probe]))
     visible
@@ -738,6 +847,225 @@ defmodule Matrix do
   defp reference(%{language: :elixir}, module), do: module
   defp reference(%{language: :erlang}, module), do: ":" <> module
 
+  # The modules a `use` world's main module uses, compiled before it, and the form its users are compiled with.
+  #
+  # `Injector.__using__` quotes the world's definitions: in `x_use_injected` beside a nested `use Inner` (whose quote
+  # defines `chained/1`), an `import Helpers` and a private `hidden/1`, so the callers can ask which of them an `import`
+  # of the user brings in; in `x_use_apply` as `Injector.view/0`, which `__using__` reaches through `apply`. `DefUsing`
+  # (a `def __using__`) and `PrivateUsing` (a `defmacrop __using__`) are what `use` cannot call: neither injects anything.
+  # A macro's quote is `unquote: false`, so the macro's own `quote`/`unquote` inside it is written as it would be in a
+  # module; every other form's is the plain `quote do` most `__using__`s are written with.
+  defp use_supports(backing, form, world, main, prefix, definitions) do
+    style = if world == "x_use_apply", do: :apply, else: :macro
+    quote = if form[:macro] && !form[:guard], do: "quote unquote: false", else: "quote"
+    clauses = form |> Map.merge(%{wrapper: nil, unquote_name: false, branches: false, spec: false}) |> render_clauses(definitions)
+    quoted = clauses |> Enum.map_join("\n", &String.replace(&1, ~r/^/m, "    "))
+    module = fn suffix -> main <> "." <> suffix end
+
+    extras =
+      if style == :macro,
+        do: [{prefix <> "chained", [{["x"], nil}]}, {prefix <> "hidden", [{["x"], nil}]}],
+        else: []
+
+    sources =
+      case style do
+        :macro ->
+          [
+            {"Helpers", [{prefix <> "helper", [{["x"], nil}]}], "  def #{prefix}helper(x), do: x"},
+            {"Inner", [],
+             "  defmacro __using__(_) do\n    quote do\n      def #{prefix}chained(x), do: x\n    end\n  end"},
+            {"Injector", [],
+             """
+               defmacro __using__(_) do
+                 #{quote} do
+                   use #{module.("Inner")}
+                   import #{module.("Helpers")}, warn: false
+                   defp #{prefix}hidden(x), do: x
+             #{quoted}
+                 end
+               end\
+             """},
+            {"DefUsing", [],
+             "  def __using__(_) do\n    quote do\n      def #{prefix}not_injected(x), do: x\n    end\n  end"},
+            {"PrivateUsing", [],
+             "  defmacrop __using__(_) do\n    quote do\n      def #{prefix}privately_injected(x), do: x\n    end\n  end"}
+          ]
+
+        :apply ->
+          [
+            {"Injector", [],
+             """
+               defmacro __using__(which) when is_atom(which), do: apply(__MODULE__, which, [])
+
+               def view do
+                 #{quote} do
+             #{quoted}
+                 end
+               end
+
+               defp secret do
+                 quote do
+                   def #{prefix}secret(x), do: x
+                 end
+               end\
+             """}
+          ]
+      end
+
+    supports =
+      Enum.map(sources, fn {suffix, declared, body} ->
+        name = module.(suffix)
+        # `target_marker/0` is what the fixture guard reads a module through when nothing of the world's own survives in
+        # its `.beam`: a `defmacrop __using__` is expanded away.
+        source = "# #{@header}\ndefmodule #{name} do\n#{body}\n\n  def target_marker, do: :ok\nend\n"
+        compile_one(backing, %{id: "def", definer: "def", written: source}, world, name, declared, nil, nil)
+      end)
+
+    # The quotes' declarations, as the users' own: each written in the quote's file.
+    written = Enum.filter(supports, &(&1["module"] in [module.("Injector"), module.("Inner")]))
+    names = MapSet.new(definitions ++ extras, fn {name, _} -> nfc(name) end)
+
+    declarations =
+      for support <- written, declaration <- support["declarations"], MapSet.member?(names, declaration["name"]),
+          do: Map.put(declaration, "file", support["source"])
+
+    heads = for support <- written, head <- heads(support["source"]), MapSet.member?(names, head["name"]), do: head
+
+    use = %{
+      injector: module.("Injector"),
+      argument: if(style == :apply, do: ", :view", else: ""),
+      extras: extras,
+      declarations: declarations,
+      heads: heads,
+      module: nil
+    }
+
+    {Map.put(form, :use, use), supports}
+  end
+
+  # What a user defines beyond the world's own definitions: what the nested `use` and the quote's private function add.
+  defp injected(%{use: %{extras: extras}}, :definitions), do: extras
+  defp injected(_form, :definitions), do: []
+
+  # The callers asking what an `import` of a `use`r brings in, and what a `use` that cannot inject leaves undefined.
+  # Every call the compiler accepts shares one file; each it rejects gets its own, as the first rejection ends the
+  # compilation that would report the next.
+  defp use_callers(backing, form, world, names, prefix) do
+    reference = hd(names)
+    namespace = "Callers.#{Macro.camelize(backing.prefix)}.#{Macro.camelize(form.id)}.#{Macro.camelize(world)}"
+    directory = Path.join(["lib", "callers", backing.id, form.id])
+    snoc = prefix <> "snoc"
+    module = fn suffix -> reference <> "." <> suffix end
+
+    {accepted, rejected} =
+      case world do
+        "x_use_injected" ->
+          {[
+             {"chained", "import #{reference}", prefix <> "chained", 1},
+             {"except_chained", "import #{reference}, except: [#{snoc}: 1]", prefix <> "chained", 1}
+           ],
+           [
+             {"only_chained_snoc", "import #{reference}, only: [#{prefix}chained: 1]", snoc, 2},
+             {"hidden", "import #{reference}", prefix <> "hidden", 1},
+             {"helper", "import #{reference}", prefix <> "helper", 1},
+             {"def_using", "use #{module.("DefUsing")}", prefix <> "not_injected", 1},
+             {"private_using", "use #{module.("PrivateUsing")}", prefix <> "privately_injected", 1}
+           ]}
+
+        "x_use_apply" ->
+          {[], [{"use_secret", "use #{module.("Injector")}, :secret", prefix <> "secret", 1}]}
+
+        _ ->
+          {[], []}
+      end
+
+    render = fn id, directive, name, arity ->
+      call = "#{name}(#{arguments(arity)})"
+      parameters = Enum.map_join(["a", "b"], ", ", fn parameter -> if(call =~ ~r/\b#{parameter}\b/, do: parameter, else: "_" <> parameter) end)
+      "defmodule #{namespace}.#{Macro.camelize(id)} do\n  #{directive}\n\n  def at_#{id}(#{parameters}), do: #{call} # @#{id}\nend\n"
+    end
+
+    visible_of = fn id, directive ->
+      if String.starts_with?(directive, "import "), do: visible(directive, reference, namespace <> ".Probe" <> Macro.camelize(id))
+    end
+
+    {ok_paths, ok_sites} =
+      if accepted == [] do
+        {[], []}
+      else
+        path = Path.join(directory, Macro.underscore(world) <> "_uses.ex")
+        source = "# #{@header}\n" <> Enum.map_join(accepted, "\n", fn {id, directive, name, arity} -> render.(id, directive, name, arity) end)
+        File.write!(path, source)
+        events = compile_elixir(path, source)
+
+        sites =
+          Enum.map(accepted, fn {id, directive, name, arity} ->
+            [site] = caller_sites(path, source, events, [{id, 0, name, arity, :unqualified}], backing, names)
+            if directive == "import #{reference}", do: site, else: Map.put(site, "visible", visible_of.(id, directive))
+          end)
+
+        {[path], sites}
+      end
+
+    {rejected_paths, rejected_sites} =
+      rejected
+      |> Enum.map(fn {id, directive, name, arity} ->
+        path = Path.join(directory, Macro.underscore(world) <> "_" <> id <> ".ex")
+        source = "# #{@header}\n" <> render.(id, directive, name, arity)
+        File.write!(path, source)
+        {id, directive, name, arity, path, source, compile_rejecting(path, source)}
+      end)
+      |> Enum.map(fn {id, directive, name, arity, path, source, {diagnostics, raised}} ->
+        [site] =
+          case raised do
+            # The `use` itself raised, so the compiler never reached the call: what it said is the call's answer too.
+            nil -> broken_sites(path, source, [{id, 0, name, arity, :unqualified}], diagnostics)
+            message -> [rejected_call(path, source, id, name, arity, message)]
+          end
+
+        {path, if(visible = visible_of.(id, directive), do: Map.put(site, "visible", visible), else: site)}
+      end)
+      |> Enum.unzip()
+
+    {ok_paths ++ rejected_paths, ok_sites ++ rejected_sites}
+  end
+
+  # What the compiler said about a file it rejected, and the message of what it raised where that was an exception
+  # rather than a diagnostic - a `use` whose `__using__` cannot be called raises while the module body runs.
+  defp compile_rejecting(path, source) do
+    Matrix.Events.take()
+
+    {raised, diagnostics} =
+      Code.with_diagnostics(fn ->
+        try do
+          Code.compile_string(source, path)
+          nil
+        rescue
+          error in CompileError -> if(error.description =~ "errors have been logged", do: nil, else: Exception.message(error))
+          error -> Exception.message(error)
+        end
+      end)
+
+    Matrix.Events.take()
+    if diagnostics == [] and raised == nil, do: raise("#{path} was expected to be rejected by the compiler, and was not")
+    {diagnostics, raised}
+  end
+
+  defp rejected_call(path, source, id, name, arity, message) do
+    {text, line} = source |> String.split("\n") |> Enum.with_index(1) |> Enum.find(fn {text, _} -> String.ends_with?(text, "# @#{id}") end)
+
+    %{
+      "id" => id,
+      "file" => path,
+      "line" => line,
+      "column" => name_column(text, name),
+      "name" => nfc(name),
+      "arity" => arity,
+      "binding" => nil,
+      "diagnostic" => %{"severity" => "error", "message" => message}
+    }
+  end
+
   # The declaring module, and for a delegate whose target exists, the target module compiled before it.
   defp compile_module(backing, form, world, module, definitions, primary) do
     {target, targets} =
@@ -791,6 +1119,7 @@ defmodule Matrix do
       Map.merge(form, %{
         wrapper: Map.get(@wrappers, world),
         unquote_name: world == "x_unquote_name",
+        branches: world == "x_if_else",
         spec: primary != nil and backing.id == "src" and world in @spec_worlds and form.id in @function_forms,
         local_forward: primary != nil and backing.id == "src" and world == "w1" and form.id in @function_forms
       })
@@ -824,15 +1153,23 @@ defmodule Matrix do
       "module" => reference(backing, module),
       "source" => path,
       "spec" => spec,
-      "heads" => artefact_heads(heads(spec), beam),
+      "heads" => artefact_heads(if(form[:use] && form.use.module == nil, do: form.use.heads, else: heads(spec)), beam),
       "complete" => complete?(beam),
       "beam" => beam,
       "clauseSource" => Map.get(backing, :clause_source),
       "delegateTo" => target,
       # The prefix `as:` gives the target's function names, absent where the delegate keeps the head's name.
       "delegateAs" => form[:as],
-      "definitions" => Enum.map(definitions, &definition/1),
-      "declarations" => if(backing.language == :elixir, do: declarations(source), else: []),
+      # Under `if`/`else` only the `if`'s definition is compiled, and so only it is defined.
+      "definitions" =>
+        Enum.map(if(form[:branches], do: Enum.take(definitions, 1), else: definitions) ++ injected(form, :definitions), &definition/1),
+      "declarations" =>
+        cond do
+          # A user of a `use` declares nothing itself: what it defines is written in the quotes it uses.
+          form[:use] && form.use.module == nil -> form.use.declarations
+          backing.language == :elixir -> declarations(source)
+          true -> []
+        end,
       local: local
     }
   end
@@ -949,22 +1286,32 @@ defmodule Matrix do
   # pair that produced them is stamped, and the suite is then the same on every CI leg because nothing in it can
   # vary with the Elixir the leg happens to configure.
   defp heads(path) do
-    {_ast, heads} =
-      path
-      |> File.read!()
+    text = File.read!(path)
+    not_compiled = not_compiled_lines(text)
+
+    {_ast, {heads, _attributes}} =
+      text
       |> Code.string_to_quoted!()
-      |> Macro.prewalk([], fn
+      |> Macro.prewalk({[], %{}}, fn
+        # A module attribute a later EEx call may read its kind or its arguments from.
+        {:@, _, [{attribute, _, [value]}]} = node, {acc, attributes} when attribute in [:kind, :args] ->
+          {node, {acc, Map.put(attributes, attribute, value)}}
+
         # A function declared by a call: its kind, name and parameters are the call's arguments.
-        {{:., _, [{:__aliases__, _, [:EEx]}, :function_from_string]}, _, [kind, name, _template, arguments | _]} = node, acc ->
-          {node, [head(kind, {name, [], Enum.map(arguments, &{&1, [], nil})}) | acc]}
+        {{:., _, [{:__aliases__, _, [:EEx]}, :function_from_string]}, _, [kind, name, _template, arguments | _]} = node, {acc, attributes} ->
+          kind = attribute_value(kind, attributes)
+          arguments = attribute_value(arguments, attributes)
+          {node, {[head(kind, {name, [], Enum.map(arguments, &{&1, [], nil})}) | acc], attributes}}
 
         # An embed declares the atom plus a suffix: a template takes its assigns, a text nothing.
-        {{:., _, [{:__aliases__, _, [:Mix, :Generator]}, kind]}, _, [base | _]} = node, acc when kind in [:embed_template, :embed_text] ->
+        {{:., _, [{:__aliases__, _, [:Mix, :Generator]}, kind]}, _, [base | _]} = node, {acc, attributes} when kind in [:embed_template, :embed_text] ->
           parameters = if kind == :embed_template, do: [{:assigns, [], nil}], else: []
           suffix = kind |> to_string() |> String.replace_prefix("embed", "")
-          {node, [head(:defp, {:"#{base}#{suffix}", [], parameters}) | acc]}
+          {node, {[head(:defp, {:"#{base}#{suffix}", [], parameters}) | acc], attributes}}
 
-        {definer, _, [head | _]} = node, acc when definer in @definers -> {node, [head(definer, head) | acc]}
+        # A definition under an `else` the condition never takes is never compiled, so it describes nothing.
+        {definer, meta, [head | _]} = node, {acc, attributes} when definer in @definers ->
+          if Map.has_key?(not_compiled, meta[:line]), do: {node, {acc, attributes}}, else: {node, {[head(definer, head) | acc], attributes}}
         node, acc -> {node, acc}
       end)
 
@@ -1061,6 +1408,10 @@ defmodule Matrix do
     }
   end
 
+  # `@name` read from the attributes set before it; anything else is itself.
+  defp attribute_value({:@, _, [{attribute, _, context}]}, attributes) when is_atom(context), do: Map.fetch!(attributes, attribute)
+  defp attribute_value(value, _attributes), do: value
+
   defp head(definer, {:when, _, [call, guard]}), do: head(definer, call, guard_string(guard))
   # A name written `unquote(:name)` is that name.
   defp head(definer, {{:unquote, _, [name]}, meta, arguments}) when is_atom(name), do: head(definer, {name, meta, arguments}, nil)
@@ -1096,6 +1447,9 @@ defmodule Matrix do
   defp guard_string(other), do: Macro.to_string(other)
 
   defp nfc(name), do: :unicode.characters_to_nfc_binary(name)
+
+  # A module a `use` world's main module uses is written whole by `use_supports/6`.
+  defp render_source(%{language: :elixir}, %{written: source}, _module, _definitions, _primary, _target), do: source
 
   defp render_source(%{language: :elixir}, form, module, definitions, primary, target),
     do: render_elixir(form, module, definitions, primary, target)
@@ -1156,7 +1510,13 @@ defmodule Matrix do
       end
 
     options = Enum.join(["to: #{target}" | as], ", ")
-    if form[:options] == :list, do: "[#{options}]", else: options
+
+    case form[:options] do
+      :list -> "[#{options}]"
+      :list_trailing -> "[#{options},]"
+      :list_lines -> "[\n    #{options}\n  ]"
+      nil -> options
+    end
   end
 
   defp import_only({module, definitions}) do
@@ -1172,11 +1532,36 @@ defmodule Matrix do
   defp delegate_attribute(%{as_written: :attribute, as: prefix}, name), do: "  @target :#{prefix}#{name}\n"
   defp delegate_attribute(_form, _name), do: ""
 
+  # `EEx.function_from_string` with its kind or its arguments written as a literal, or as a module attribute set on the line
+  # before it.
+  defp eex_function(form, name, variables) do
+    template = "\"<%= inspect({#{Enum.join(variables, ", ")}}) %>\""
+    arguments = "[#{Enum.map_join(variables, ", ", &(":" <> &1))}]"
+
+    case form[:eex_attribute] do
+      :kind -> "  @kind :#{form.definer}\n  EEx.function_from_string(@kind, :#{name}, #{template}, #{arguments})"
+      :args -> "  @args #{arguments}\n  EEx.function_from_string(:#{form.definer}, :#{name}, #{template}, @args)"
+      nil -> "  EEx.function_from_string(:#{form.definer}, :#{name}, #{template}, #{arguments})"
+    end
+  end
+
   defp erlang_atom(name), do: if(name =~ ~r/^[a-z][a-zA-Z0-9_]*$/, do: name, else: "'#{name}'")
 
   defp render_elixir(form, module, definitions, primary, target) do
+    clauses = render_clauses(Map.put(form, :target, target), definitions)
+
+    # A user of a `use` writes the `use`, and the quote it names writes the definitions.
+    clauses = if form[:use], do: ["  use #{form.use.injector}#{form.use.argument}"], else: clauses
+
+    render_module(form, module, definitions, primary, clauses)
+  end
+
+  # Each clause of [definitions] as its form writes it, two spaces in, the `if`/`else` of `x_if_else` included.
+  defp render_clauses(form, definitions) do
+    target = form[:target]
+
     clauses =
-      for {name, clauses} <- definitions, {clause, index} <- Enum.with_index(clauses) do
+      for {{name, clauses}, definition_index} <- Enum.with_index(definitions), {clause, index} <- Enum.with_index(clauses) do
         {parameters, guard, head?} = clause_parts(clause)
         defaults = Enum.count(parameters, &is_tuple/1)
 
@@ -1199,14 +1584,30 @@ defmodule Matrix do
           form[:delegate] -> "#{delegate_attribute(form, name)}  defdelegate #{name}(#{rendered}), #{delegate_options(form, name, target)}"
           form[:embed] && String.ends_with?(name, "_template") -> "  Mix.Generator.embed_template(:#{String.replace_suffix(name, "_template", "")}, \"<%= @q %>\")"
           form[:embed] -> "  Mix.Generator.embed_text(:#{String.replace_suffix(name, "_text", "")}, \"text\")"
-          form[:eex] -> "  EEx.function_from_string(:#{form.definer}, :#{name}, \"<%= inspect({#{Enum.join(variables, ", ")}}) %>\", [#{Enum.map_join(variables, ", ", &(":" <> &1))}])"
+          form[:eex] -> eex_function(form, name, variables)
           form[:guard] -> "  #{form.definer} #{name}(#{rendered}) when #{Enum.map_join(variables, " or ", &"is_list(#{&1})")}"
           form[:macro] -> "  #{form.definer} #{written}(#{rendered})#{guard}, do: quote(do: {#{Enum.map_join(variables, ", ", &"unquote(#{&1})")}})"
           true -> "  #{form.definer} #{written}(#{rendered})#{guard}, do: {#{Enum.join(variables, ", ")}}"
         end
-        |> then(&(spec <> &1))
+        |> then(&{definition_index, spec <> &1})
       end
 
+    # The first definition under a module-level `if`, the rest under its `else`, which is never compiled.
+    clauses =
+      if form[:branches] do
+        {taken, other} = Enum.split_with(clauses, fn {definition_index, _} -> definition_index == 0 end)
+        indent = &String.replace(elem(&1, 1), ~r/^/m, "  ")
+
+        ["  if Code.ensure_loaded?(Kernel) do"] ++
+          Enum.map(taken, indent) ++ ["  else"] ++ Enum.map(other, &(indent.(&1) <> " # @not_compiled")) ++ ["  end"]
+      else
+        Enum.map(clauses, &elem(&1, 1))
+      end
+
+    clauses
+  end
+
+  defp render_module(form, module, definitions, primary, clauses) do
     # Under a module-level `if` and the like, which is how a definition that is only sometimes compiled is written.
     clauses =
       case form[:wrapper] do
@@ -1401,6 +1802,10 @@ defmodule Matrix do
     diagnostics = Enum.reject(diagnostics, &(&1.message =~ ~r/^\S+\.Missing\.\S+ is undefined \(module \S+\.Missing is not available/))
     # A target that only imports the function does not define it, on purpose.
     diagnostics = Enum.reject(diagnostics, &(&1.message =~ ~r/^\S+\.DefdelegateImports\.\S+\.Target\.\S+ is undefined or private/))
+    # A private definition injected into a second user that never calls it (or, like `hidden/1`, into any), a
+    # `defmacrop __using__` no `use` can call, and the private function `x_use_apply`'s `__using__` reaches only
+    # through `apply`. `@compile :nowarn_unused_function` does not silence these on 1.20.
+    diagnostics = Enum.reject(diagnostics, &(&1.message =~ ~r/^(function|macro) (\S+_x_use_\S+|__using__\/1|secret\/0) is unused/))
     if diagnostics != [], do: raise("#{path} compiled with diagnostics: #{inspect(diagnostics)}")
     {modules, Matrix.Events.take()}
   end
@@ -1542,21 +1947,29 @@ defmodule Matrix do
 
   defp utf16_length(text), do: text |> :unicode.characters_to_binary(:utf8, :utf16) |> byte_size() |> div(2)
 
+  # The lines of definitions written where they are never compiled, which `generate.exs` marks `# @not_compiled`.
+  defp not_compiled_lines(text) do
+    for {line, index} <- text |> String.split("\n") |> Enum.with_index(1), String.ends_with?(line, "# @not_compiled"), into: %{}, do: {index, true}
+  end
+
   defp declarations(source) do
-    source
-    |> String.split("\n")
+    lines = String.split(source, "\n")
+
+    lines
     |> Enum.with_index(1)
+    |> Enum.reject(fn {text, _line} -> String.ends_with?(text, "# @not_compiled") end)
+    |> Enum.map(fn {text, line} -> {eex_with_attribute(text, Enum.at(lines, line - 2, "")), line} end)
     |> Enum.flat_map(fn {text, line} ->
       # `\s*$` matches a bodiless head, which declares the defaults and defines nothing.
       # An EEx function's name is the atom after its kind, and its parameters the atoms in its last list.
       case Regex.run(~r/^\s*(def|defp|defmacro|defmacrop) unquote\(:([^\s)]+)\)\((.*?)\)(?: when |, do:)/u, text, return: :index) ||
-             Regex.run(~r/^\s*(def|defp|defmacro|defmacrop|defguard|defguardp|defdelegate) ([^\s(]+)\((.*?)\)(?: when |, do:|, to:|, \[to:|\s*$)/u, text, return: :index) ||
-             Regex.run(~r/^\s*EEx\.function_from_string\(:(def|defp), :([^\s,]+), .*, \[(.*)\]\)$/u, text, return: :index) do
+             Regex.run(~r/^\s*(def|defp|defmacro|defmacrop|defguard|defguardp|defdelegate) ([^\s(]+)\((.*?)\)(?: when |, do:|, to:|, \[to:|, \[$|\s*$)/u, text, return: :index) ||
+             Regex.run(~r/^\s*EEx\.function_from_string\(\s*:(def|defp), :([^\s,]+), .*, \[(.*)\]\)$/u, text, return: :index) do
         [_, {definer_start, definer_length}, {name_start, name_length}, {parameters_start, parameters_length}] ->
           name = binary_part(text, name_start, name_length)
           parameters = binary_part(text, parameters_start, parameters_length) |> String.split(", ", trim: true)
 
-          if name in ["local_site", "local_forward", "uses"] do
+          if name in ["local_site", "local_forward", "uses", "__using__"] do
             []
           else
             [%{"name" => nfc(name), "arity" => length(parameters), "definer" => binary_part(text, definer_start, definer_length), "line" => line, "column" => utf16_length(binary_part(text, 0, name_start)) + 1}]
@@ -1569,6 +1982,17 @@ defmodule Matrix do
     |> Enum.group_by(&{&1["name"], &1["arity"]})
     |> Enum.flat_map(fn {_, clauses} -> clauses |> Enum.with_index() |> Enum.map(fn {clause, index} -> Map.put(clause, "clause", index) end) end)
     |> Enum.sort_by(&{&1["line"], &1["column"]})
+  end
+
+  # An EEx call reading its kind or arguments from the attribute set on the line before, as that line spells them: the
+  # position of the name is unchanged, since the attribute is only ever the first or the last argument.
+  defp eex_with_attribute(text, previous) do
+    case {Regex.run(~r/^\s*@(kind|args) (.*)$/, previous), text} do
+      # Padded to `@kind`'s length, so the name after it keeps its column.
+      {[_, "kind", ":" <> kind], _} -> String.replace(text, "EEx.function_from_string(@kind, ", "EEx.function_from_string(#{String.pad_leading(":" <> kind, 5)}, ")
+      {[_, "args", arguments], _} -> String.replace_suffix(text, ", @args)", ", #{arguments})")
+      _ -> text
+    end
   end
 
   # An embed's declaration is its atom, which names the function only with the suffix the kind adds.

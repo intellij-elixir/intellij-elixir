@@ -16,3 +16,15 @@ defmodule Callers.ExDbgi.DefdelegateAs.XDefaults.ImportExcept do
 
   def at_import_except_2(a, b), do: ex_dbgi_defdelegate_as_x_defaults_snoc(a, b) # @import_except_2
 end
+
+defmodule Callers.ExDbgi.DefdelegateAs.XDefaults.ImportFunctionsExcept do
+  import ExDbgi.DefdelegateAs.XDefaults, only: :functions, except: [ex_dbgi_defdelegate_as_x_defaults_snoc: 1] # @import_functions_except_key
+
+  def at_import_functions_except_2(a, b), do: ex_dbgi_defdelegate_as_x_defaults_snoc(a, b) # @import_functions_except_2
+end
+
+defmodule Callers.ExDbgi.DefdelegateAs.XDefaults.ImportExceptFunctions do
+  import ExDbgi.DefdelegateAs.XDefaults, except: [ex_dbgi_defdelegate_as_x_defaults_snoc: 1], only: :functions # @import_except_functions_key
+
+  def at_import_except_functions_2(a, b), do: ex_dbgi_defdelegate_as_x_defaults_snoc(a, b) # @import_except_functions_2
+end

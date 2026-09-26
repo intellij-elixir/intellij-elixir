@@ -51,6 +51,9 @@ class Scenario(
 ) {
     val main: DeclaringModule get() = modules.first()
 
+    /** Whether the main module's definitions are written in another module's source, as a `use` injects them. */
+    val injected: Boolean get() = main.declarations.any { it.file != null }
+
     /** Every file the scenario's sites live in, so a fixture can hold them all. */
     val callers: List<String> get() = listOf(caller) + brokenCallers + importCallers
 
@@ -105,8 +108,21 @@ class Definition(val name: String, val minArity: Int, val maxArity: Int, val cla
     fun covers(binding: Binding): Boolean = nfc(binding.name) == nfc(name) && binding.arity in minArity..maxArity
 }
 
-/** [spelled] is what is written at the position where that is not [name]: an embed's atom, which lacks the suffix the embed adds. */
-class Declaration(val name: String, val arity: Int, val clause: Int, val definer: String, val line: Int, val column: Int, val spelled: String? = null)
+/**
+ * [spelled] is what is written at the position where that is not [name]: an embed's atom, which lacks the suffix the embed adds.
+ * [file] is the source the declaration is written in where that is not its module's own: a definition a `use` injects is
+ * written in the `__using__` quote of another module, and defined in every module that uses it.
+ */
+class Declaration(
+    val name: String,
+    val arity: Int,
+    val clause: Int,
+    val definer: String,
+    val line: Int,
+    val column: Int,
+    val spelled: String? = null,
+    val file: String? = null,
+)
 
 /**
  * A marked place in [file], 1-based, and the definition the compiler bound it to, or none.
