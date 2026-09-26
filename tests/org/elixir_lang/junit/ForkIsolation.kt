@@ -68,16 +68,12 @@ class ForkIsolation : LauncherSessionListener {
 
         private fun claimSlot(locks: Path): Int {
             Files.createDirectories(locks)
-            for (slot in 0 until 64) {
+            return generateSequence(0) { it + 1 }.first { slot ->
                 val channel = FileChannel.open(locks.resolve("$slot.lock"), StandardOpenOption.CREATE, StandardOpenOption.WRITE)
                 val lock = channel.tryLock()
-                if (lock != null) {
-                    slotLock = lock
-                    return slot
-                }
-                channel.close()
+                if (lock != null) slotLock = lock else channel.close()
+                lock != null
             }
-            error("No free test fork slot under $locks")
         }
 
         /**

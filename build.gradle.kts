@@ -55,6 +55,7 @@ import testing.keepWinpHelpersIn
 import testing.recordTimeline
 import testing.reportUnexpectedLogs
 import testing.runInForks
+import testing.TestForks
 import testing.TestProgress
 import versioning.ChangelogSettings
 import versioning.GitSourceIdValueSource
@@ -1163,7 +1164,8 @@ tasks.named<Test>("test") {
     exclude($$"**/*$Companion.class")
 
     runInForks(
-        explicitForks = providers.gradleProperty("testForks").map(String::toInt),
+        explicitForks = providers.gradleProperty("testForks").map { TestForks.parse("testForks", it) },
+        forkLimit = providers.gradleProperty("testMaxForks").map { TestForks.parse("testMaxForks", it) },
         stepSummary = providers.environmentVariable("GITHUB_STEP_SUMMARY"),
     )
     addTestListener(TestProgress(every = 1000))
