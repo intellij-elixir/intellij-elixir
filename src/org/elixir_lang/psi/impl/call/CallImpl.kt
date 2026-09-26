@@ -42,9 +42,7 @@ import org.elixir_lang.psi.operation.not_in.Normalized as NotInNormalized
 fun Call.computeReference(): PsiReference? =
     /* if the call is just the identifier for a module attribute reference, then don't return a Callable reference,
            and instead let the dedicated module-attribute reference path handle it */
-    // Any element in the head of a call-definition clause is a declaration name, not a call site.
-    // Protocol heads were already guarded this way; now the full CDC family is covered.
-    if (CallDefinitionClause.isHead(this)) {
+    if (CallableDeclaration.isHead(this)) {
         null
     } else if (!this.isModuleAttributeNameElement() &&
         // if a bitstring segment option then the option is a pseudo-function

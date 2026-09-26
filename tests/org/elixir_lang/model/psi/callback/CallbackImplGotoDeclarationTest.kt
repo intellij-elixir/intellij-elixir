@@ -45,7 +45,7 @@ class CallbackImplGotoDeclarationTest : PlatformTestCase() {
 
     /**
      * Ctrl-Click decision: on an implementing `def`, "Go To Declaration or Usages" (the very handler
-     * Ctrl-Click uses - `GotoDeclarationAction implements CtrlMouseAction` → `GotoDeclarationOrUsageHandler2`)
+     * Ctrl-Click uses - `GotoDeclarationAction implements CtrlMouseAction` -> `GotoDeclarationOrUsageHandler2`)
      * chooses **Go To Declaration** (navigate to the `@callback`), not Show Usages.
      */
     fun testCtrlClickOnImplementingDefChoosesGoToDeclaration() {
@@ -72,6 +72,42 @@ class CallbackImplGotoDeclarationTest : PlatformTestCase() {
     fun testNonImplementingDefResolvesNoCallback() {
         val callbacks = resolvedCallbacksAtCaretDef("goto_non_implementing.ex", "kernel.ex")
         assertEmpty(callbacks)
+    }
+
+    /** A `defguard` defines a macro, so it implements a `@macrocallback` and not a `@callback` of its name. */
+    fun testAGuardImplementsAMacroCallbackOnly() {
+        myFixture.copyFileToProject("kernel.ex")
+        myFixture.configureByText(
+            "guard_impl.ex",
+            """
+            defmodule GuardBehaviour do
+              @callback is_f(term) :: boolean
+              @macrocallback is_m(term) :: Macro.t()
+            end
+
+            defmodule GuardImpl do
+              @behaviour GuardBehaviour
+
+              defguard is_f(t) when is_integer(t)
+              defguard is_m(t) when is_integer(t)
+            end
+            """.trimIndent()
+        )
+
+        val implemented = listOf("is_f", "is_m").associateWith { name ->
+            val offset = myFixture.file.text.indexOf("defguard $name")
+            val guard = generateSequence(myFixture.file.findElementAt(offset)) { it.parent }
+                .filterIsInstance<org.elixir_lang.psi.call.Call>()
+                .first { CallDefinitionClause.`is`(it) }
+
+            PsiSymbolReferenceService.getService()
+                .getReferences(guard)
+                .flatMap { it.resolveReference() }
+                .filterIsInstance<Callback>()
+                .map { it.name }
+        }
+
+        assertEquals(mapOf("is_f" to emptyList(), "is_m" to listOf("is_m")), implemented)
     }
 
     /**

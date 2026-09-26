@@ -375,6 +375,22 @@ class CallableDeclarationResolutionTest : PlatformTestCase() {
         )
     }
 
+    /** With no name to call, what a delegation passes the call on to is as much a guess as the delegation itself. */
+    fun testANamelessQueryFindsNothingValidThroughADelegation() {
+        myFixture.configureByText(
+            "nameless_delegation.ex",
+            "defmodule T do\n  def f(a), do: a\nend\n\ndefmodule Q do\n  defdelegate f(a), to: T\n  def g(a), do: a\nend\n"
+        )
+
+        val module = myFixture.file.children.filterIsInstance<Call>().last()
+        val valid = org.elixir_lang.psi.scope.call_definition_clause.MultiResolve
+            .resolveResults(null, 1, false, module)
+            .filter { it.isValidResult }
+            .mapNotNull { it.element?.text?.lineSequence()?.first() }
+
+        assertEquals(emptyList<String>(), valid)
+    }
+
     private fun resolutions(vararg usages: String): String {
         val text = myFixture.file.text
         val body = text.indexOf("def usage")

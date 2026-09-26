@@ -1,7 +1,9 @@
 package org.elixir_lang.psi
 
 import com.intellij.openapi.util.Key
+import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
 import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.EEx
@@ -12,7 +14,9 @@ import org.elixir_lang.navigation.ElixirClausePresentation
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function
 import org.elixir_lang.psi.impl.call.finalArguments
+import org.elixir_lang.psi.impl.call.keywordArgument
 import org.elixir_lang.psi.impl.literalName
+import org.elixir_lang.psi.impl.nameTextRange
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.mix.Generator
 import org.elixir_lang.structure_view.element.CallDefinitionHead
@@ -313,6 +317,13 @@ object CallableDeclaration {
             Form.CALLBACK, Form.EXCEPTION, Form.GENERATOR_EMBED -> null
         }
 
+    /** The declaration whose [nameElement] spells the name at [range] in [file], `null` when none does. */
+    @RequiresReadLock
+    fun declarationNamedAt(file: PsiFile, range: TextRange): Call? =
+        generateSequence(file.findElementAt(range.startOffset)) { it.parent }
+            .filterIsInstance<Call>()
+            .firstOrNull { call -> nameElement(call)?.let(::nameTextRange) == range }
+
     /**
      * How [call] reads in a label: its `def*` and head, as `defdelegate name(a)`, and an EEx function as the `def` it
      * compiles to; `null` for a form with no head, or an EEx function whose kind or arguments are not literal.
@@ -343,6 +354,49 @@ object CallableDeclaration {
             ?.takeIf { delegation ->
                 delegationHead(delegation)?.let { org.elixir_lang.structure_view.element.CallDefinitionHead.strip(it) } == call
             }
+
+    /**
+     * Whether [element] is a clause's or `defdelegate`'s head, guarded or not, or within the name it spells: part of a
+     * declaration, not a call. Decided without resolving.
+     */
+    @RequiresReadLock
+    fun isHead(element: PsiElement): Boolean =
+        CallDefinitionClause.isHead(element) || (element is Call && delegationHeadedBy(element) != null)
+
+    /** The `as:` value of a `defdelegate`, `null` when it has none. */
+    @RequiresReadLock
+    fun delegationAsValue(delegation: Call): PsiElement? = delegation.keywordArgument("as")?.stripAccessExpression()
+
+    /** The `as:` atom of a `defdelegate`, naming what it delegates to when that is not its own name. */
+    @RequiresReadLock
+    fun delegationAs(delegation: Call): ElixirAtom? = delegationAsValue(delegation) as? ElixirAtom
+
+    /**
+     * The name a `defdelegate` headed [headName] calls in its `to:` module: its `as:`, or its own name when it has none;
+     * `null` when `as:` names nothing fixed.
+     */
+    @RequiresReadLock
+    fun delegatedName(delegation: Call, headName: String): String? =
+        when (val value = delegationAsValue(delegation)) {
+            null -> headName
+            else -> (value as? ElixirAtom)?.literalName()
+        }
+
+    /**
+     * Where a `defdelegate` without `as:` takes one: straight after its last option, inside the list when the options
+     * are one, as `defdelegate/2` takes no third argument, so a trailing comma or line break stays after it; `null` when
+     * the options are not a keyword list, as `@opts` or tuples, where [delegationAsValue] cannot see an `as:` either.
+     */
+    @RequiresReadLock
+    fun delegationAsOffset(delegation: Call): Int? =
+        when (val options = delegation.finalArguments()?.lastOrNull()?.stripAccessExpression()) {
+            is ElixirList -> options.children.singleOrNull()?.let(::lastKeywordPairEnd)
+            null -> null
+            else -> lastKeywordPairEnd(options)
+        }
+
+    private fun lastKeywordPairEnd(options: PsiElement): Int? =
+        (options as? QuotableKeywordList)?.quotableKeywordPairList()?.lastOrNull()?.textRange?.endOffset
 
     /** The one head of a `defdelegate`; a list of heads declares nothing here yet (#4040). */
     @RequiresReadLock

@@ -5,14 +5,13 @@ import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager.getCachedValue
 import org.elixir_lang.model.psi.atom.AtomReference
 import org.elixir_lang.model.psi.atom.GeneralAtomReference
-import org.elixir_lang.model.psi.atom.contentTextRange
 import org.elixir_lang.model.psi.atom.mfaReferenceContext
 import org.elixir_lang.psi.*
 
 
 private fun ElixirAtom.computeReference(): PsiReference =
     mfaReferenceContext()?.let { context ->
-        AtomReference(this, context.moduleElement, contentTextRange(this), context.arity)
+        AtomReference(this, context.moduleElement, nameRangeInAtom(), context.arity)
     } ?: GeneralAtomReference(this)
 
 fun getReference(atom: ElixirAtom): PsiReference? =

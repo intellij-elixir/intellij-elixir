@@ -40,7 +40,6 @@ import org.elixir_lang.psi.operation.Type
 import org.elixir_lang.psi.qualification.Unqualified
 import org.elixir_lang.psi.scope.variable.Variants
 import org.elixir_lang.resolvesToMacro
-import org.elixir_lang.structure_view.element.Delegation
 import org.jetbrains.annotations.Contract
 
 class Callable : PsiReferenceBase<Call>, PsiPolyVariantReference {
@@ -266,8 +265,8 @@ class Callable : PsiReferenceBase<Call>, PsiPolyVariantReference {
         @JvmStatic
         @Contract(pure = true)
         fun isDefiner(call: Call): Boolean =
-            org.elixir_lang.psi.CallDefinitionClause.`is`(call) ||
-                    Delegation.`is`(call) ||
+            // The forms whose `def*` names no call of its own; an EEx `function_from_*` or embed is a call to its macro.
+            CallableDeclaration.headBindingFormOf(call) != null ||
                     Implementation.`is`(call) ||
                     org.elixir_lang.psi.Module.`is`(call) ||
                     Protocol.`is`(call)
