@@ -346,8 +346,8 @@ fun Call.macroChildCallSequence(): Sequence<Call> = this.macroChildCallList().as
 
 @RequiresReadLock
 @Contract(pure = true)
-fun Call.macroDefinitionClauseForArgument(): Call? {
-    var macroDefinitionClause: Call? = null
+fun Call.definitionClauseForArgument(): Call? {
+    var definitionClause: Call? = null
     val parent = parent
 
     if (parent is ElixirMatchedWhenOperation) {
@@ -357,14 +357,14 @@ fun Call.macroDefinitionClauseForArgument(): Call? {
             val greatGrandParent = grandParent.getParent()
 
             if (greatGrandParent is Call) {
-                if (CallDefinitionClause.isMacro(greatGrandParent)) {
-                    macroDefinitionClause = greatGrandParent
+                if (CallableDeclaration.definerOf(greatGrandParent) != null) {
+                    definitionClause = greatGrandParent
                 }
             }
         }
     }
 
-    return macroDefinitionClause
+    return definitionClause
 }
 
 @RequiresReadLock

@@ -23,7 +23,7 @@ object Module {
                             .runReadAction(Computable {
                                 call
                                         .parent.let { it  as? Arguments }
-                                        ?.parent?.let { it as? Call }?.let { CallDefinitionClause.isMacro(it) }
+                                        ?.parent?.let { it as? Call }?.let { CallableDeclaration.definerOf(it) != null }
                             }) != true) ||
                     call.isCalling(Module.MODULE, Function.CREATE, 3)
 
