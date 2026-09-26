@@ -5,7 +5,6 @@ import com.intellij.codeInsight.lookup.LookupElementBuilder
 import com.intellij.psi.xml.XmlTag
 import com.intellij.xml.XmlTagNameProvider
 import org.elixir_lang.heex.isInHeex
-import org.elixir_lang.psi.CallDefinitionClause
 
 /**
  * Offers the containing view module's arity-1 call definitions as `<.name>` completions. The
@@ -19,8 +18,7 @@ class HeexComponentTagNameProvider : XmlTagNameProvider {
             return
         }
 
-        for (definition in HeexComponentResolver.localComponentDefinitions(tag)) {
-            val name = CallDefinitionClause.nameIdentifier(definition)?.text ?: continue
+        for ((name, definition) in HeexComponentResolver.localComponents(tag)) {
             elements.add(LookupElementBuilder.create(definition, ".$name"))
         }
     }
