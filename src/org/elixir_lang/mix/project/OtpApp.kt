@@ -9,9 +9,9 @@ import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.ResolveState
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.ElixirScriptFileType
 import org.elixir_lang.mix.Project
-import org.elixir_lang.psi.CallDefinitionClause.isPublicFunction
 import org.elixir_lang.psi.CallDefinitionClause.nameArityInterval
 import org.elixir_lang.psi.ElixirAccessExpression
 import org.elixir_lang.psi.ElixirFile
@@ -50,7 +50,7 @@ private fun appList(elixirFile: ElixirFile): List<String> {
                 modular.macroChildCallList().asSequence()
             }
             .filter { call ->
-                isPublicFunction(call) && nameArityInterval(call, ResolveState.initial())?.let { (name, arityInterval) ->
+                CallableDeclaration.definerOf(call)?.capabilities?.remoteCallable == true && nameArityInterval(call, ResolveState.initial())?.let { (name, arityInterval) ->
                     name == "project" && arityInterval.contains(0)
                 } == true
             }

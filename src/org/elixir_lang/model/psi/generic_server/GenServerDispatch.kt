@@ -6,6 +6,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.navigation.ElixirClausePresentation
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
@@ -89,7 +90,7 @@ internal object GenServerDispatch {
         val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return false
         if (nameArity.name != dispatch.handlerName) return false
         if (dispatch.handlerArity !in nameArity.arityInterval) return false
-        if (CallDefinitionClause.isMacro(clause)) return false
+        if (CallableDeclaration.definerOf(clause)?.capabilities?.runtimeFunction != true) return false
         val head = CallDefinitionClause.head(clause) as? Call ?: return false
         val firstParam = head.primaryArguments()?.firstOrNull()?.stripAccessExpression() ?: return false
         val paramAtom = firstParam as? ElixirAtom ?: return false

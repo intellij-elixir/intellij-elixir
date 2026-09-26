@@ -133,6 +133,7 @@
 - [#4167](https://github.com/intellij-elixir/intellij-elixir/pull/4167) [@sh41](https://github.com/sh41)
   - **Go to Declaration on a compiled function with more than one clause for the same arity now lands on the first clause, not the last.** Refs [#4164](https://github.com/intellij-elixir/intellij-elixir/issues/4164).
 - [#4157](https://github.com/intellij-elixir/intellij-elixir/pull/4157) [@sh41](https://github.com/sh41)
+  - **Go to Definition, completion, highlighting, Find Usages and Rename now agree on which calls define a function and what it can do.** Fixes [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
   - **Guards have their own colour settings, Calls > Guard and Declarations > Guard, which fall back to the function colours.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
   - **Ctrl+Click on a `defdelegate`'s own name shows its usages, and quick documentation there shows its own `@doc`, as on a `def`.** Fixes [#4043](https://github.com/intellij-elixir/intellij-elixir/issues/4043).
   - **Renaming a `defdelegate`, or what it delegates to, adds `as:` so it keeps delegating to the same function.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).

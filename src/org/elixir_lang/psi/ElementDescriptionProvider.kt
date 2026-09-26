@@ -205,7 +205,7 @@ internal class ElementDescriptionProvider : com.intellij.psi.ElementDescriptionP
             CallableDeclaration.Form.EXCEPTION ->
                 org.elixir_lang.structure_view.element.Exception.elementDescription(call, location)
             CallableDeclaration.Form.CLAUSE, CallableDeclaration.Form.EEX_FUNCTION_FROM, CallableDeclaration.Form.GENERATOR_EMBED ->
-                if (location === UsageViewTypeLocation.INSTANCE) CallableDeclaration.Declared.Source(call, form).capabilities?.usageViewType else null
+                CallDefinitionClause.elementDescription(call, location, form)
         }
 
     private fun getNonDeclarationDescription(call: Call, location: ElementDescriptionLocation): String? =

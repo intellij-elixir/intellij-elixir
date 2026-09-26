@@ -5,6 +5,7 @@ import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.codeInsight.lookup.LookupElementBuilder
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
+import org.elixir_lang.call.Visibility
 import org.elixir_lang.beam.psi.Module as BeamModule
 import org.elixir_lang.code_insight.preferFunctionHeads
 import org.elixir_lang.psi.call.Call
@@ -12,7 +13,6 @@ import org.elixir_lang.psi.impl.call.macroChildCalls
 import org.elixir_lang.code_insight.lookup.element.CallDefinitionClause as CallDefinitionClauseLookupElement
 import org.elixir_lang.code_insight.lookup.element_renderer.CallDefinitionClause as CallDefinitionClauseRenderer
 import com.intellij.psi.ResolveState
-import org.elixir_lang.psi.CallDefinitionClause as CallDefinitionClausePsi
 import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.code_insight.lookup.element_renderer.Delegation as DelegationRenderer
 import org.elixir_lang.code_insight.completion.insert_handler.CallDefinitionClause as CallDefinitionClauseInsertHandler
@@ -64,8 +64,7 @@ private fun callDefinitionClauseLookupElements(scope: Call, appendParentheses: B
     val childCalls = scope.macroChildCalls()
 
     val publicClauses = childCalls
-        .filter { CallableDeclaration.isForm(it, CallableDeclaration.Form.CLAUSE) }
-        .filter { CallDefinitionClausePsi.isPublic(it) }
+        .filter { CallableDeclaration.definerOf(it)?.visibility == Visibility.PUBLIC }
 
     val clauseLookupElements = preferFunctionHeads(publicClauses).map { (name, bestClause) ->
         name to lookupElement(name, bestClause, appendParentheses)

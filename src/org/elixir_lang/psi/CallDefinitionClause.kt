@@ -44,19 +44,18 @@ object CallDefinitionClause {
         return enclosingMacroCall
     }
 
-    /**
-     * Description of element used in find-usages and element-description presentation.
-     *
-     * @param call a [Call] that has already been checked with [.is]
-     * @param location where the description will be used
-     * @return
-     */
+    /** The usage-view type of [call], which is [form]: what its capabilities make it. It has no other description. */
     @RequiresReadLock
-    fun elementDescription(call: Call, location: ElementDescriptionLocation): String? =
-            when {
-                isFunction(call) -> functionElementDescription(call, location)
-                isMacro(call) -> macroElementDescription(location)
-                else -> null
+    @JvmOverloads
+    fun elementDescription(
+        call: Call,
+        location: ElementDescriptionLocation,
+        form: CallableDeclaration.Form = CallableDeclaration.Form.CLAUSE
+    ): String? =
+            if (location === UsageViewTypeLocation.INSTANCE) {
+                CallableDeclaration.Declared.Source(call, form).capabilities?.usageViewType
+            } else {
+                null
             }
 
     /**
@@ -91,36 +90,6 @@ object CallDefinitionClause {
         return PsiTreeUtil.isAncestor(nameIdentifier, element, false) ||
                PsiTreeUtil.isAncestor(element, nameIdentifier, false)
     }
-
-    @RequiresReadLock
-    @JvmStatic
-    fun isFunction(call: Call): Boolean = isPrivateFunction(call) || isPublicFunction(call)
-    @RequiresReadLock
-    @JvmStatic
-    fun isPublicFunction(call: Call): Boolean =
-            isCallingKernelMacroOrHead(call, DEF) || isCallingKernelMacroOrHead(call, DEFMEMO)
-    @RequiresReadLock
-    fun isPrivateFunction(call: Call): Boolean =
-            isCallingKernelMacroOrHead(call, DEFP) || isCallingKernelMacroOrHead(call, DEFMEMOP)
-
-    @RequiresReadLock
-    @JvmStatic
-    fun isMacro(call: Call): Boolean = isPrivateMacro(call) || isPublicMacro(call)
-    @RequiresReadLock
-    @JvmStatic
-    fun isPublicMacro(call: Call): Boolean = isCallingKernelMacroOrHead(call, DEFMACRO)
-    @RequiresReadLock
-    fun isPrivateMacro(call: Call): Boolean = isCallingKernelMacroOrHead(call, DEFMACROP)
-
-    @RequiresReadLock
-    fun isGuard(call: Call): Boolean = isPrivateGuard(call) || isPublicGuard(call)
-    @RequiresReadLock
-    fun isPublicGuard(call: Call): Boolean = isCallingKernelMacroOrHead(call, DEFGUARD)
-    @RequiresReadLock
-    fun isPrivateGuard(call: Call): Boolean = isCallingKernelMacroOrHead(call, DEFGUARDP)
-
-    @RequiresReadLock
-    fun isPublic(call: Call): Boolean = isPublicFunction(call) || isPublicMacro(call) || isPublicGuard(call)
 
     /**
      * The name and arity range of the call definition this clause belongs to.
@@ -162,23 +131,6 @@ object CallDefinitionClause {
 
     @RequiresReadLock
     fun nameIdentifier(call: Call): PsiElement? = head(call)?.let { CallDefinitionHead.nameIdentifier(it) }
-
-    private fun functionElementDescription(
-            @Suppress("UNUSED_PARAMETER") call: Call,
-            location: ElementDescriptionLocation
-    ): String? =
-            if (location === UsageViewTypeLocation.INSTANCE) {
-                "function"
-            } else {
-                null
-            }
-
-    private fun macroElementDescription(location: ElementDescriptionLocation): String? =
-            if (location === UsageViewTypeLocation.INSTANCE) {
-                "macro"
-            } else {
-                null
-            }
 
     /** Whether [call] is a clause written with the `def*` named [keyword], or that `def*`'s bodiless head. */
     @RequiresReadLock
