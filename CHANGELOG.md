@@ -109,6 +109,8 @@
 
 ### Bug Fixes
 
+- [#4180](https://github.com/intellij-elixir/intellij-elixir/pull/4180) [@sh41](https://github.com/sh41)
+  - **The Distillery run configuration's file choosers no longer accept folders, and its labels are in sentence case, with "sys.config File" renamed "Config file (sys.config)".**
 - [#4182](https://github.com/intellij-elixir/intellij-elixir/pull/4182) [@sh41](https://github.com/sh41)
   - **Removing an SDK while the IDE watches SDK version files no longer reports an internal error or stops that watch.**
 - [#4177](https://github.com/intellij-elixir/intellij-elixir/pull/4177) [@sh41](https://github.com/sh41)

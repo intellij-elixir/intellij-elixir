@@ -184,10 +184,10 @@ public class ParametersPanel extends CommonProgramParametersPanel {
     }
 
     private void addReleaseCLIPathComponent() {
-        FileChooserDescriptor fileChooserDescriptor = FileChooserDescriptorFactory.createSingleFileDescriptor();
+        FileChooserDescriptor fileChooserDescriptor = FileChooserDescriptorFactory.singleFile();
         fileChooserDescriptor.setTitle("Select Release CLI");
         MacroComboBoxWithBrowseButton releaseCLIPathComboBox = new MacroComboBoxWithBrowseButton(fileChooserDescriptor, getProject());
-        releaseCLIPathComponent = LabeledComponent.create(releaseCLIPathComboBox, "Release CLI Path");
+        releaseCLIPathComponent = LabeledComponent.create(releaseCLIPathComboBox, "Release CLI path");
         releaseCLIPathComponent.setLabelLocation(BorderLayout.WEST);
         add(releaseCLIPathComponent, 0);
     }
@@ -208,7 +208,7 @@ public class ParametersPanel extends CommonProgramParametersPanel {
         ComboBoxModel<CodeLoadingMode> codeLoadingModeComboBoxModel = new CollectionComboBoxModel<>(CODE_LOADING_MODE_LIST);
         ComboBox<CodeLoadingMode> codeLoadingModeComboBox = new ComboBox<>(codeLoadingModeComboBoxModel);
         codeLoadingModeComboBox.setRenderer(
-                new SimpleListCellRenderer<CodeLoadingMode>() {
+                new SimpleListCellRenderer<>() {
                     @Override
                     public void customize(@NotNull JList list,
                                           @Nullable CodeLoadingMode value,
@@ -216,7 +216,7 @@ public class ParametersPanel extends CommonProgramParametersPanel {
                                           boolean selected,
                                           boolean hasFocus) {
                         if (value == null) {
-                            setText("Use Default");
+                            setText("Use default");
                         } else {
                             setText(value.toString());
                         }
@@ -224,16 +224,16 @@ public class ParametersPanel extends CommonProgramParametersPanel {
                 }
         );
 
-        codeLoadingModeComponent = LabeledComponent.create(codeLoadingModeComboBox, "Code Loading Mode");
+        codeLoadingModeComponent = LabeledComponent.create(codeLoadingModeComboBox, "Code loading mode");
         codeLoadingModeComponent.setLabelLocation(BorderLayout.WEST);
         add(codeLoadingModeComponent, 4);
     }
 
     private void addLogDirectoryComponent() {
-        FileChooserDescriptor fileChooserDescriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor();
+        FileChooserDescriptor fileChooserDescriptor = FileChooserDescriptorFactory.singleDir();
         fileChooserDescriptor.setTitle("Select Log Directory");
         MacroComboBoxWithBrowseButton logDirectoryComboBox = new MacroComboBoxWithBrowseButton(fileChooserDescriptor, getProject());
-        logDirectoryComponent = LabeledComponent.create(logDirectoryComboBox, "Log Directory");
+        logDirectoryComponent = LabeledComponent.create(logDirectoryComboBox, "Log directory");
         logDirectoryComponent.setLabelLocation(BorderLayout.WEST);
         add(logDirectoryComponent, 5);
     }
@@ -242,7 +242,7 @@ public class ParametersPanel extends CommonProgramParametersPanel {
         ComboBoxModel<Boolean> replaceOsVarsComboBoxModel = new CollectionComboBoxModel<>(REPLACE_OS_VARS_LIST);
         ComboBox<Boolean> replaceOsVarsComboBox = new ComboBox<>(replaceOsVarsComboBoxModel);
         replaceOsVarsComboBox.setRenderer(
-                new SimpleListCellRenderer<Boolean>() {
+                new SimpleListCellRenderer<>() {
                     @Override
                     public void customize(@NotNull JList list,
                                           @Nullable Boolean value,
@@ -250,7 +250,7 @@ public class ParametersPanel extends CommonProgramParametersPanel {
                                           boolean selected,
                                           boolean hasFocus) {
                         if (value == null) {
-                            setText("Use Default");
+                            setText("Use default");
                         } else {
                             setText(value.toString());
                         }
@@ -258,32 +258,32 @@ public class ParametersPanel extends CommonProgramParametersPanel {
                 }
         );
 
-        replaceOSVarsComponent = LabeledComponent.create(replaceOsVarsComboBox, "Replace OS Vars");
+        replaceOSVarsComponent = LabeledComponent.create(replaceOsVarsComboBox, "Replace OS vars");
         replaceOSVarsComponent.setLabelLocation(BorderLayout.WEST);
         add(replaceOSVarsComponent, 6);
     }
 
     private void addSysConfigPathComponent() {
-        FileChooserDescriptor fileChooserDescriptor = FileChooserDescriptorFactory.createSingleFileDescriptor();
+        FileChooserDescriptor fileChooserDescriptor = FileChooserDescriptorFactory.singleFile();
         //noinspection DialogTitleCapitalization
         fileChooserDescriptor.setTitle("Select sys.config File");
         MacroComboBoxWithBrowseButton sysConfigPathComboBox = new MacroComboBoxWithBrowseButton(fileChooserDescriptor, getProject());
-        sysConfigPathComponent = LabeledComponent.create(sysConfigPathComboBox, "sys.config File");
+        sysConfigPathComponent = LabeledComponent.create(sysConfigPathComboBox, "Config file (sys.config)");
         sysConfigPathComponent.setLabelLocation(BorderLayout.WEST);
         add(sysConfigPathComponent, 7);
     }
 
     private void addReleaseConfigDirectoryComponent() {
-        FileChooserDescriptor fileChooserDescriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor();
+        FileChooserDescriptor fileChooserDescriptor = FileChooserDescriptorFactory.singleDir();
         fileChooserDescriptor.setTitle("Select Release Config Directory");
         MacroComboBoxWithBrowseButton releaseConfigDirectoryComboBox = new MacroComboBoxWithBrowseButton(fileChooserDescriptor, getProject());
-        releaseConfigDirectoryComponent = LabeledComponent.create(releaseConfigDirectoryComboBox, "Release Config Directory");
+        releaseConfigDirectoryComponent = LabeledComponent.create(releaseConfigDirectoryComboBox, "Release config directory");
         releaseConfigDirectoryComponent.setLabelLocation(BorderLayout.WEST);
         add(releaseConfigDirectoryComponent, 8);
     }
 
     private void addPipeDirectoryComponent() {
-        FileChooserDescriptor fileChooserDescriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor();
+        FileChooserDescriptor fileChooserDescriptor = FileChooserDescriptorFactory.singleDir();
         fileChooserDescriptor.setTitle("Select Pipe Directory");
         MacroComboBoxWithBrowseButton pipeDirectoryComboBox = new MacroComboBoxWithBrowseButton(fileChooserDescriptor, getProject());
         pipeDirectoryComponent = LabeledComponent.create(pipeDirectoryComboBox, "Pipe directory");
@@ -292,7 +292,7 @@ public class ParametersPanel extends CommonProgramParametersPanel {
     }
 
     private void addWantsPtyComponent() {
-        wantsPTYComponent = LabeledComponent.create(new JCheckBox(), "Use Pseudo-terminal (PTY)");
+        wantsPTYComponent = LabeledComponent.create(new JCheckBox(), "Use pseudo-terminal (PTY)");
         wantsPTYComponent.setLabelLocation(BorderLayout.WEST);
         add(wantsPTYComponent, 10);
     }

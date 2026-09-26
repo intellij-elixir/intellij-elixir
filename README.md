@@ -525,7 +525,7 @@ Module dependencies include the SDK and the module's own sources.  Mix dependenc
 * **Trigger**: File system events in `deps/` and `_build/` (after `mix deps.get`, `mix compile` or folder deletions).
 * **What it creates**: For each dependency, an IDE Library with source roots from `deps/APP/lib` and class roots from `_build/ENV/lib/APP/ebin`.
 * **Result**: Dependencies appear under "External Libraries" in the Project tool window, providing Go-to-Declaration, completion, and Find Usages into dependency source code.
-* **Troubleshooting**: If libraries don't appear after `mix deps.get`, try running `mix compile` to generate `_build/` output, then wait a few seconds for the file watcher to pick up changes. You can also use **Tools → Elixir → Install Mix Dependencies**.
+* **Troubleshooting**: If libraries don't appear after `mix deps.get`, try running `mix compile` to generate `_build/` output, then wait a few seconds for the file watcher to pick up changes. You can also use **Tools -> Elixir -> Install Mix Dependencies**.
 
 ### SDK Status Widget
 
@@ -534,7 +534,7 @@ The status bar can display an **Elixir SDK status widget** in the bottom-right c
 **Enabling the widget:**
 
 1. Open **Settings** (Ctrl+Alt+S / ⌘,)
-2. Navigate to **Languages & Frameworks → Elixir → Experimental Settings**
+2. Navigate to **Languages & Frameworks -> Elixir -> Experimental Settings**
 3. Check **"Enable Status Bar Widget showing if the Elixir SDK is correctly configured"**
 4. Click **OK** -- the widget appears in the status bar when you have Elixir files open.
 
@@ -556,7 +556,7 @@ The status bar can display an **Elixir SDK status widget** in the bottom-right c
 * **Detected Elixir SDKs** -- if no SDK is configured and a tool manager (e.g. mise) detects valid installations, they are listed here. Click one to register it as the project SDK.
 * **Refresh Elixir SDKs** -- re-scan SDK home paths and update classpath entries
 * **Install Mix Dependencies** -- run `mix deps.get` for the project
-* **Reconfigure Elixir Module Setup** -- re-apply canonical folder marks (`lib/` → Sources, `test/` → Test Sources, `deps/` → Excluded, etc.) and fix dangling module SDK references
+* **Reconfigure Elixir Module Setup** -- re-apply canonical folder marks (`lib/` -> Sources, `test/` -> Test Sources, `deps/` -> Excluded, etc.) and fix dangling module SDK references
 
 **Notifications:** When the widget detects a problem, it fires a notification with actionable buttons:
 
@@ -566,7 +566,7 @@ The status bar can display an **Elixir SDK status widget** in the bottom-right c
 
 Notifications auto-expire when the issue is resolved (e.g., after running "Reconfigure Now"). Rapid project structure changes (such as importing multiple modules) are debounced to avoid notification spam.
 
-**Reconfigure Elixir Module Setup** is also available from **Tools → Elixir → Reconfigure Elixir Module Setup** and via the action search (Ctrl+Shift+A / ⌘⇧A). It is additive -- it applies missing canonical marks without removing any user-customized source roots or exclusions.
+**Reconfigure Elixir Module Setup** is also available from **Tools -> Elixir -> Reconfigure Elixir Module Setup** and via the action search (Ctrl+Shift+A / ⌘⇧A). It is additive -- it applies missing canonical marks without removing any user-customized source roots or exclusions.
 
 ### New Elixir File
 
@@ -2863,7 +2863,7 @@ After reinstalling Erlang with docs, restart the IDE so it re-indexes the `.beam
 4. Select "Distillery Release CLI"
 
    ![Add New Distillery Release CLI](screenshots/features/run_debug_configurations/distillery_release_cli/Add%20New.png)
-5. Fill in the "Release CLI Path" with the full path to the `_build/ENV/rel/NAME/bin/NAME` path produed by `mix release` above.
+5. Fill in the "Release CLI path" with the full path to the `_build/ENV/rel/NAME/bin/NAME` path produed by `mix release` above.
 6. Fill in the "Release CLI arguments".
    * `console` runs a shell with the release loaded similar to `iex -S mix`.
    * `foreground` to runs the release without a shell, like `mix` or `mix run`.
@@ -2872,25 +2872,25 @@ After reinstalling Erlang with docs, restart the IDE so it re-indexes the `.beam
    This is the same as the `ERL_OPTS` environment variable supported by Distillery.
 8. (Optionally) fill in "`elixir -extra` arguments" with arguments to pass to `elixir` before it run the release.
    This is the same as the `EXTRA_OPTS` environment variable supported by Distillery.
-9. (Optionally) change the Code Loading Mode
+9. (Optionally) change the "Code loading mode"
    This is the same as the `CODE_LOADING_MODE` environment variable supported by Distillery.
-   * Use Default - use whatever is configured in `rel/config.exs`.  Don't set `CODE_LOADING_MODE` environment variable.
+   * "Use default" - use whatever is configured in `rel/config.exs`.  Don't set `CODE_LOADING_MODE` environment variable.
    * `embedded` - load all code immediately on boot.  Set `CODE_LOADING_MODE=embedded`.
    * `interactive` - load code on-demand as it is needed/referenced.  Set `CODE_LOADING_MODE=interactive`.
-10. (Optionally) set the "Log Directory"
+10. (Optionally) set the "Log directory"
     This is the same as the `RUNNER_LOG_DIR` environment variable supported by Distillery.
-11. (Optionally) change "Replace OS Vars"
+11. (Optionally) change "Replace OS vars"
     This is the same as the `REPLACE_OS_VARS` environment variable supported by Distillery.
-    * Use Default - use whatever is configured in `rel/config.exs`.  Don't set `REPLACE_OS_VARS` environment variable.
+    * "Use default" - use whatever is configured in `rel/config.exs`.  Don't set `REPLACE_OS_VARS` environment variable.
     * `false` - don't replace "${A_VAR_NAME}" in the generated configuration with `A_VAR` environment variable at runtime.  Set `REPLACE_OS_VARS=false`.
     * `true` - replace "${A_VAR_NAME}" in the generated configuration with `A_VAR` environment variable at runtime.  Set `REPLACE_OS_VARS=true`.
-12. (Optionally) set "`sys.config` File"
+12. (Optionally) set "Config file (`sys.config`)"
     This is the same the `SYS_CONFIG_PATH` environment variable supported by Distillery.
-13. (Optionally) set "Release Config Directory".
+13. (Optionally) set "Release config directory".
     This is the same as the `RELEASE_CONFIG_DIR` environment variable supported by Distillery.
 14. (Optionally) set "Pipe directory".
     This is the same as the `PIPE_DIR` environment variable supported by Distillery.
-15. (Optionally) set "Use Pseudo-terminal (PTY).
+15. (Optionally) set "Use pseudo-terminal (PTY)".
     If checked use PTY for interactive shells.  Automatically on when "Release CLI Arguments" starts with one of the known interactive commands (`attach`, `console`, `console_boot`, `console_clean`, or `remote_console`).
 16. Fill in the "Working directory.
     * Type the absolute path to the directory.
@@ -2902,7 +2902,7 @@ After reinstalling Erlang with docs, restart the IDE so it re-indexes the `.beam
 
 1. Click the Run Arrow in the Toolbar to run the `_build/ENV/rel/NAME/bin/NAME`
 2. The Run pane will open
-   * If the either "Use Pseduo-terminal (PTY)" is checked of the "Release CLI Arguments" are known to need a PTY, an interactive shell will appear in the Run pane where you can enter `iex` commands.
+   * If the either "Use pseudo-terminal (PTY)" is checked of the "Release CLI Arguments" are known to need a PTY, an interactive shell will appear in the Run pane where you can enter `iex` commands.
    * Otherwise, the output of running the command will be shown.
 
 ##### Debugging
