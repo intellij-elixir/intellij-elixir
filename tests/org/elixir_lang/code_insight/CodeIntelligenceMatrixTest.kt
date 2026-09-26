@@ -34,6 +34,10 @@ import com.intellij.openapi.editor.markup.TextAttributes
 import java.awt.Color
 import java.io.File
 import com.intellij.codeInsight.lookup.LookupManager
+import org.elixir_lang.psi.ElixirFile
+import org.elixir_lang.structure_view.Model
+import org.elixir_lang.structure_view.node_provider.Used
+import org.elixir_lang.code_insight.matrix.Declaration
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
@@ -272,6 +276,7 @@ private class Group(val scenario: Scenario) {
             Feature.DIAGNOSTIC -> checkDiagnostic(binding)
             Feature.STRUCTURE_VIEW -> checkStructureView(binding!!)
             Feature.BREADCRUMBS -> checkBreadcrumbs(binding!!)
+            Feature.SHOW_USED -> checkShowUsed(binding!!)
             Feature.COMPLETION_OFFERED -> checkCompletionOffered()
             Feature.COMPLETION_INSERTED -> checkCompletionInserted()
             Feature.RENAME -> checkRename(binding)
@@ -543,12 +548,43 @@ private class Group(val scenario: Scenario) {
             .toList()
             .reversed()
         val arity = if (definition.minArity == definition.maxArity) "${definition.maxArity}" else "${definition.minArity}..${definition.maxArity}"
+        // An injected definition is written inside the `__using__` of the module whose source holds it.
+        val enclosing = declarationOf(place as Place.Head)?.file
+            ?.let { file -> listOf(scenario.modules.first { it.source == file }.module, "$USING/1") }
+            ?: listOf(scenario.main.module)
+        val expected = enclosing + "${nfc(definition.name)}/$arity"
 
-        assertEquals(
-            "Breadcrumbs at ${place.id} are wrong",
-            listOf(scenario.main.module, "${nfc(definition.name)}/$arity"),
-            crumbs.takeLast(2)
-        )
+        assertEquals("Breadcrumbs at ${place.id} are wrong", expected, crumbs.takeLast(expected.size))
+    }
+
+    /**
+     * Show Used, in the source of a module that uses another, lists what the `use` injects: every definition the using
+     * module gets from it, as `name/arity`.
+     */
+    private fun checkShowUsed(binding: Binding) {
+        val (module, definition) = definition(binding)
+        val file = sourceFiles.getValue(module)
+        myFixture.configureFromExistingVirtualFile(file)
+        opened = false
+        val model = Model(myFixture.file as ElixirFile, myFixture.editor)
+
+        try {
+            val modules = mutableListOf<TreeElement>()
+            fun walk(element: TreeElement) {
+                if (element is org.elixir_lang.structure_view.element.modular.Module) modules += element
+                element.children.forEach(::walk)
+            }
+            walk(model.root)
+            // A module's entry presents its last alias segment, so it is told apart by the `defmodule` it stands for.
+            val using = modules.firstOrNull { ((it as? com.intellij.ide.structureView.StructureViewTreeElement)?.value as? PsiElement)?.text?.startsWith("defmodule ${module.module} ") == true }
+                ?: throw AssertionError("The structure view of ${file.name} has no module ${module.module}")
+            val used = Used().provideNodes(using).map { nfc(it.presentation.presentableText.orEmpty()) }.sorted()
+            val name = "${nfc(definition.name)}/${definition.maxArity}"
+
+            assertTrue("Show Used under ${module.module} does not list `$name`; it lists $used", name in used)
+        } finally {
+            Disposer.dispose(model)
+        }
     }
 
     private fun parameterInfoSignaturesAtCaret(): List<String> {
@@ -626,14 +662,14 @@ private class Group(val scenario: Scenario) {
         val (module, definition) = definition(binding)
         val newName = renamed(definition.name)
         val positions = scenario.sites
-            .filter { site -> site.binding?.let { it.module == module.module && definition.covers(it) } == true }
+            .filter { site -> site.binding?.let { sameDefinition(module, definition, it) } == true }
             .map { it.file to (it.line to it.column) }
         // A declaration spells the name as its form does: an embed's atom is the name without the suffix the embed adds.
         val declarationName = EMBED_SUFFIXES.firstOrNull { scenario.form == GENERATOR_EMBED && newName.endsWith(it) }
             ?.let(newName::removeSuffix) ?: newName
         val declarationPositions = module.declarations
             .filter { nfc(it.name) == nfc(definition.name) && it.arity == definition.maxArity }
-            .map { module.source to (it.line to it.column) }
+            .map { (it.file ?: module.source) to (it.line to it.column) }
 
         myFixture.renameTargetAtCaret(newName)
 
@@ -680,7 +716,7 @@ private class Group(val scenario: Scenario) {
         try {
             myFixture.configureFromExistingVirtualFile(file)
             opened = false
-            val declaration = main.declarations.filter { it.name == head.name && it.arity == head.arity }[head.clause]
+            val declaration = declarationOf(head)!!
             val element = myFixture.file.findElementAt(offsetOf(file, declaration.line, declaration.column) + 1)!!
             val related = GOTO_RELATED_PROVIDERS.extensionList
                 .flatMap { provider: GotoRelatedProvider -> provider.getItems(element) }
@@ -802,8 +838,11 @@ private class Group(val scenario: Scenario) {
         for ((line, column) in heads) {
             val current = lines[line - 1]
             val name = IDENTIFIER.find(current, column - 1)?.value ?: throw AssertionError("No identifier at $line:$column of `$current`")
-            val to = DELEGATE_TO.find(current) ?: throw AssertionError("No `to:` in the delegation `$current`")
-            lines[line - 1] = current.substring(0, to.range.last + 1) + ", as: :$name" + current.substring(to.range.last + 1)
+            // The options can go on over the lines after the head, one per line, so `to:` is the first at or after it.
+            val (index, to) = (line - 1 until lines.size).asSequence()
+                .mapNotNull { index -> DELEGATE_TO.find(lines[index])?.let { index to it } }
+                .firstOrNull() ?: throw AssertionError("No `to:` in or after the delegation `$current`")
+            lines[index] = lines[index].substring(0, to.range.last + 1) + ", as: :$name" + lines[index].substring(to.range.last + 1)
         }
 
         return lines.joinToString("\n")
@@ -1136,13 +1175,42 @@ private class Group(val scenario: Scenario) {
         val (module, definition) = definition(binding)
 
         return scenario.sites
-            .filter { site -> site.binding?.let { it.module == module.module && definition.covers(it) } == true }
+            .filter { site -> site.binding?.let { sameDefinition(module, definition, it) } == true }
             .filter { (it.id != LOCAL && !privateUse(it.id)) || Crossing.hasLocalCall(scenario) }
             // A compiled module is searched through its mirror, where only `local`'s call can be told apart.
             .filter { !privateUse(it.id) || !module.compiled }
             .map { it.id }
             .sorted()
     }
+
+    /**
+     * Whether a site bound to [bound] calls [definition] of [module]: a call of it in that module, or of the same injected
+     * definition in another module that uses the same `__using__` - one written declaration, defined in every user, whose
+     * uses a user expects to find and rename together.
+     */
+    private fun sameDefinition(module: DeclaringModule, definition: Definition, bound: Binding): Boolean {
+        if (bound.module == module.module) return definition.covers(bound)
+        val written = writtenAt(module, definition).takeIf { it.isNotEmpty() } ?: return false
+        val other = scenario.modules.firstOrNull { it.module == bound.module } ?: return false
+        val otherDefinition = other.definitions.firstOrNull { it.covers(bound) } ?: return false
+
+        return writtenAt(other, otherDefinition) == written
+    }
+
+    /** Where an injected [definition] of [module] is written, as `file:line`s; empty for one written in its module. */
+    private fun writtenAt(module: DeclaringModule, definition: Definition): Set<String> =
+        module.declarations
+            .filter { it.file != null && nfc(it.name) == nfc(definition.name) && it.arity == definition.maxArity }
+            .map { "${it.file}:${it.line}" }
+            .toSet()
+
+    /** The source file [declaration] of [module] is written in: its module's own, or the one a `use` injects it from. */
+    private fun declarationFile(module: DeclaringModule, declaration: Declaration): VirtualFile =
+        declaration.file?.let { file -> sourceFiles.getValue(scenario.modules.first { it.source == file }) } ?: sourceFiles.getValue(module)
+
+    /** The main module's declaration [head] is at, or null where its module is compiled. */
+    private fun declarationOf(head: Place.Head): Declaration? =
+        scenario.main.declarations.filter { it.name == head.name && it.arity == head.arity }.getOrNull(head.clause)
 
     /**
      * The module a delegation of [definition] reaches, when the scenario has it and it defines the delegated function at
@@ -1187,7 +1255,7 @@ private class Group(val scenario: Scenario) {
         } else {
             module.declarations
                 .filter { it.name == definition.name && it.arity == definition.maxArity }
-                .map { describeLine(sourceFiles.getValue(module), it.line) }
+                .map { describeLine(declarationFile(module, it), it.line) }
         }.sorted()
     }
 
@@ -1210,9 +1278,10 @@ private class Group(val scenario: Scenario) {
             }
 
             place is Place.Head -> {
-                val file = sourceFiles.getValue(scenario.main)
+                val declaration = declarationOf(place)
+                    ?: throw AssertionError("${scenario.main.module} has no declaration for clause ${place.clause} of ${place.name}/${place.arity}")
+                val file = declarationFile(scenario.main, declaration)
                 myFixture.configureFromExistingVirtualFile(file)
-                val declaration = scenario.main.declarations.filter { it.name == place.name && it.arity == place.arity }[place.clause]
                 offsetOf(file, declaration.line, declaration.column)
             }
 
@@ -1313,6 +1382,7 @@ private class Group(val scenario: Scenario) {
 
         /** The form whose declarations are `Mix.Generator` embeds, and the suffixes an embed adds to its atom. */
         private const val GENERATOR_EMBED = "generator_embed"
+        private const val USING = "__using__"
         private val EMBED_SUFFIXES = listOf("_template", "_text")
 
         /**

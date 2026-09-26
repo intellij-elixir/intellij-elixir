@@ -16,3 +16,15 @@ defmodule Callers.Src.DefdelegateCompiled.W2.ImportExcept do
 
   def at_import_except_2(a, b), do: src_defdelegate_compiled_w2_snoc(a, b) # @import_except_2
 end
+
+defmodule Callers.Src.DefdelegateCompiled.W2.ImportFunctionsExcept do
+  import Src.DefdelegateCompiled.W2, only: :functions, except: [src_defdelegate_compiled_w2_snoc: 1] # @import_functions_except_key
+
+  def at_import_functions_except_2(a, b), do: src_defdelegate_compiled_w2_snoc(a, b) # @import_functions_except_2
+end
+
+defmodule Callers.Src.DefdelegateCompiled.W2.ImportExceptFunctions do
+  import Src.DefdelegateCompiled.W2, except: [src_defdelegate_compiled_w2_snoc: 1], only: :functions # @import_except_functions_key
+
+  def at_import_except_functions_2(a, b), do: src_defdelegate_compiled_w2_snoc(a, b) # @import_except_functions_2
+end

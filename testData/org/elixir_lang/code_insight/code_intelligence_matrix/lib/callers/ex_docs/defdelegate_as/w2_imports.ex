@@ -16,3 +16,15 @@ defmodule Callers.ExDocs.DefdelegateAs.W2.ImportExcept do
 
   def at_import_except_2(a, b), do: ex_docs_defdelegate_as_w2_snoc(a, b) # @import_except_2
 end
+
+defmodule Callers.ExDocs.DefdelegateAs.W2.ImportFunctionsExcept do
+  import ExDocs.DefdelegateAs.W2, only: :functions, except: [ex_docs_defdelegate_as_w2_snoc: 1] # @import_functions_except_key
+
+  def at_import_functions_except_2(a, b), do: ex_docs_defdelegate_as_w2_snoc(a, b) # @import_functions_except_2
+end
+
+defmodule Callers.ExDocs.DefdelegateAs.W2.ImportExceptFunctions do
+  import ExDocs.DefdelegateAs.W2, except: [ex_docs_defdelegate_as_w2_snoc: 1], only: :functions # @import_except_functions_key
+
+  def at_import_except_functions_2(a, b), do: ex_docs_defdelegate_as_w2_snoc(a, b) # @import_except_functions_2
+end

@@ -14,18 +14,23 @@ class MatrixFixtureTest : TestCase() {
      * decompiler reads a world's own names, such as a non-ASCII look-alike, is behaviour the matrix's cells report,
      * not how the beam was built.
      */
+    private val GENERATED = setOf("__info__", "module_info")
+
     fun testEachBeamDecompilesThroughItsClauseSource() {
         val wrong = Fixtures.oracle.scenarios.flatMap { it.modules }.filter { it.beam != null }.mapNotNull { module ->
             val beam = module.beam!!
             val bytes = Fixtures.file(beam).readBytes()
-            val first = module.definitions.first()
+            // A module a `use` world's main module uses declares no definition of the world's own; any it has will do.
+            val first = module.definitions.firstOrNull()
 
             val (name, actual) = BeamReader.read(bytes, beam) { reader ->
                 val definitions = CallDefinitions.macroNameAritySortedSetByMacro(reader).values.flatten()
                 val macroNameArity = definitions.firstOrNull { it.name == "local_site" && it.arity == 2 }
                     ?: definitions.firstOrNull { it.name == "target_marker" && it.arity == 0 }
-                    ?: definitions.firstOrNull { nfc(it.name) == first.name && it.arity == first.maxArity }
-                    ?: return@read "${first.name}/${first.maxArity}" to "no definition"
+                    ?: first?.let { first -> definitions.firstOrNull { nfc(it.name) == first.name && it.arity == first.maxArity } }
+                    // What the compiler adds to every module - `__info__/1`, `module_info` - has no clause the author wrote.
+                    ?: definitions.firstOrNull { it.name !in GENERATED }.takeIf { first == null }
+                    ?: return@read "${first?.name}/${first?.maxArity}" to "no definition"
 
                 "${macroNameArity.name}/${macroNameArity.arity}" to
                     (clauseSource(macroNameArity, reader.debugInfo) { reader.documentation }?.javaClass?.simpleName ?: "no clause source")
@@ -148,7 +153,7 @@ class MatrixFixtureTest : TestCase() {
             // The site's own name, not its binding's: a call at an arity nothing covers has no binding, and a call
             // to a name nothing declares has neither a binding nor anything in the world to fall back to.
             val sites = scenario.sites.map { Triple(it.file, it.line to it.column, it.name) } +
-                scenario.modules.flatMap { module -> module.declarations.map { Triple(module.source, it.line to it.column, it.spelled ?: it.name) } }
+                scenario.modules.flatMap { module -> module.declarations.map { Triple(it.file ?: module.source, it.line to it.column, it.spelled ?: it.name) } }
 
             sites.mapNotNull { (path, position, name) ->
                 val line = Fixtures.file(path).readLines()[position.first - 1]

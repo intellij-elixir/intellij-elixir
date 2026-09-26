@@ -47,6 +47,7 @@ enum class Feature(val testName: String, val edits: Boolean = false) {
     DIAGNOSTIC("diagnostic"),
     STRUCTURE_VIEW("structureView"),
     BREADCRUMBS("breadcrumbs"),
+    SHOW_USED("showUsed"),
     COMPLETION_OFFERED("completionOffered", edits = true),
     COMPLETION_INSERTED("completionInserted", edits = true),
     RENAME("rename", edits = true),
@@ -182,6 +183,10 @@ object Crossing {
         return when {
             feature == Feature.GO_TO_RELATED && !(place is Place.Head && backing in setOf(Backing.EX_DBGI, Backing.EX_DOCS, Backing.EX_GEN)) ->
                 Applicability.NotApplicable("Go To Related goes from an Elixir source declaration to its compiled module's decompiled definition, so it asks only where both exist")
+            feature == Feature.GO_TO_RELATED && scenario.injected ->
+                Applicability.NotApplicable("an injected definition is written in the `__using__` quote, whose compiled module does not define it")
+            feature == Feature.SHOW_USED && !(place is Place.Head && scenario.injected && !backing.compiled) ->
+                Applicability.NotApplicable("Show Used lists, in a using module's source, the definitions its `use` injects, so it asks only at an injected declaration")
             feature == Feature.INCOMPLETE_RESOLUTION && !(place is Place.Marked && rejectedByName(scenario, place)) ->
                 Applicability.NotApplicable("asked only where the compiler rejected the name itself, which no amount of typing makes valid")
             place is Place.Marked && privateUse(place.id) ->
