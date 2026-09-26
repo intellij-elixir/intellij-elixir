@@ -71,7 +71,7 @@ object CallDefinitionClause {
 
     @RequiresReadLock
     @JvmStatic
-    fun `is`(call: Call): Boolean = isFunction(call) || isMacro(call) || isGuard(call)
+    fun `is`(call: Call): Boolean = CallableDeclaration.definerOf(call) != null
 
     /**
      * Returns `true` if [element] is at or within the name/head of any call-definition clause -
@@ -179,6 +179,10 @@ object CallDefinitionClause {
             } else {
                 null
             }
+
+    /** Whether [call] is a clause written with the `def*` named [keyword], or that `def*`'s bodiless head. */
+    @RequiresReadLock
+    fun isCallingDefiner(call: Call, keyword: String): Boolean = isCallingKernelMacroOrHead(call, keyword)
 
     private fun isCallingKernelMacroOrHead(call: Call, resolvedName: String): Boolean =
             call.isCallingMacro(KERNEL, resolvedName, 2) ||

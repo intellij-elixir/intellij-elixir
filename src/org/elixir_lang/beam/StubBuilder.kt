@@ -30,6 +30,6 @@ internal class StubBuilder : BinaryFileStubBuilder {
 
     companion object {
         private val LOGGER = Logger.getInstance(StubBuilder::class.java)
-        private const val STUB_VERSION = 5
+        private const val STUB_VERSION = 6
     }
 }

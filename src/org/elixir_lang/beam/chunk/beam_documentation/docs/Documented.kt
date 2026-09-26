@@ -13,6 +13,9 @@ data class Documented(val kind: String,
                       val metadatumByName: Map<String, OtpErlangObject>) {
     fun deprecated(): OtpErlangObject? = metadatumByName["deprecated"]
 
+    /** Whether the docs mark this as a guard, as `defguard` does. */
+    fun guard(): Boolean = (metadatumByName["guard"] as? OtpErlangAtom)?.booleanValue() == true
+
     companion object {
         private val logger = Logger.getInstance(Documented::class.java)
 
