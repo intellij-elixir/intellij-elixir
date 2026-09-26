@@ -50,6 +50,7 @@ class SdkVersionsStoreReset : TestExecutionListener {
 
     // `isIdleForTests` sees only the live installation. A test's tear-down cancels its own, but cancelling does not stop
     // a fill blocked on I/O, which still records its home when it returns.
+    // Only direct children, each a watch installation's scope: cancelled jobs nested in a live scope are not awaited.
     private fun cancelledScopesStillFinishing(): Boolean =
         ApplicationManager.getApplication()
             ?.getServiceIfCreated(ElixirAppCoroutineService::class.java)
