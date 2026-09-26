@@ -488,6 +488,8 @@
   - **A test that logs an error or a plugin warning, or leaves an exception uncaught, that it does not expect now fails.**
 - [#4186](https://github.com/intellij-elixir/intellij-elixir/pull/4186) [@sh41](https://github.com/sh41)
   - **A light test's changes to the shared test module and project are undone after it, and a test that leaves anything else changed there fails.**
+- [#4188](https://github.com/intellij-elixir/intellij-elixir/pull/4188) [@sh41](https://github.com/sh41)
+  - **The SDK stdlib sweep fails for each SDK whose beams make the decompiler log a warning.**
 - [#4171](https://github.com/intellij-elixir/intellij-elixir/pull/4171) [@sh41](https://github.com/sh41)
   - **The test suite runs on the JUnit Platform in parallel test JVMs sized to the machine's spare cores and memory, and no longer starts shells in real WSL distributions.**
 - [#4181](https://github.com/intellij-elixir/intellij-elixir/pull/4181) [@sh41](https://github.com/sh41)

@@ -5,7 +5,7 @@ import org.elixir_lang.PlatformTestCase
 import org.junit.Assert
 
 /**
- * Three checks over every `.beam` in the resolved Elixir and Erlang SDKs, all read from one [SdkStdlibSweep] per SDK.
+ * Four checks over every `.beam` in the resolved Elixir and Erlang SDKs, all read from one [SdkStdlibSweep] per SDK.
  * They are one class because that sweep is cached per JVM and the test task spreads classes over several JVMs: as
  * separate classes each landed on its own fork and paid the whole decompile again.
  *
@@ -22,6 +22,8 @@ import org.junit.Assert
  *   agree on the first clause of each name and arity. A module whose own clause map failed to build is skipped
  *   entirely, so `stubCompared` counts comparisons actually made. The counts of exported definitions with parameters
  *   whose names are not flagged as generated are printed to this class's `system-out` in the JUnit XML.
+ * - **No beam warnings:** a term the beam code cannot render is logged and replaced by a placeholder that parses, so
+ *   none of the checks above sees it.
  */
 class SdkStdlibSweepTest : PlatformTestCase() {
     fun testElixirSdkDecompilesToParseableElixir() = assertParseable(ELIXIR)
@@ -35,6 +37,10 @@ class SdkStdlibSweepTest : PlatformTestCase() {
     fun testElixirSdkStubParametersMatchMirror() = assertStubSignatures(ELIXIR)
 
     fun testErlangSdkStubParametersMatchMirror() = assertStubSignatures(ERLANG)
+
+    fun testElixirSdkDecompilesWithoutWarnings() = assertNoDecompilerWarnings(ELIXIR)
+
+    fun testErlangSdkDecompilesWithoutWarnings() = assertNoDecompilerWarnings(ERLANG)
 
     private fun assertParseable(sdk: SdkUnderTest) {
         val result = sweep(sdk)
@@ -78,6 +84,14 @@ class SdkStdlibSweepTest : PlatformTestCase() {
         Assert.assertTrue(
             "${mismatches.size} ${sdk.label} stubs disagree with their decompiled mirror:\n" + firstHundred(mismatches),
             mismatches.isEmpty()
+        )
+    }
+
+    private fun assertNoDecompilerWarnings(sdk: SdkUnderTest) {
+        val warnings = sweep(sdk).decompilerWarnings
+        Assert.assertTrue(
+            "${warnings.size} beam warnings for ${sdk.label} beams:\n" + firstHundred(warnings),
+            warnings.isEmpty()
         )
     }
 

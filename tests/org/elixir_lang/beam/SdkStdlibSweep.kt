@@ -11,8 +11,10 @@ import com.intellij.psi.PsiErrorElement
 import com.intellij.psi.PsiManager
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.testFramework.LoggedErrorProcessor
 import org.elixir_lang.beam.psi.impl.CallDefinitionImpl
 import org.elixir_lang.beam.psi.impl.ModuleImpl
+import org.elixir_lang.junit.logs.GuardedLoggedErrorProcessor
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.Modular
 import org.elixir_lang.psi.call.Call
@@ -22,7 +24,7 @@ import org.elixir_lang.structure_view.element.CallDefinitionHead
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * One decompile pass per resolved SDK, answering the three questions [SdkStdlibSweepTest] asks.
+ * One decompile pass per resolved SDK, answering the four questions [SdkStdlibSweepTest] asks.
  * Whichever of its test methods runs first for a given (root, tag) pays the decompile cost and caches the
  * plain-data [Result]; the rest read it back, the way `CodeIntelligenceMatrixTest.Group` shares one
  * fixture across many independently-passing/failing cells. Safe to share across the `Project` instances
@@ -39,7 +41,8 @@ object SdkStdlibSweep {
         val stubExportedWithParameters: Int,
         val stubExportedGenerated: Int,
         val stubBeamsWithExportedGenerated: Int,
-        val stubMismatches: List<String>
+        val stubMismatches: List<String>,
+        val decompilerWarnings: List<String>
     )
 
     private val cache = ConcurrentHashMap<Pair<String, String>, Result>()
@@ -63,128 +66,145 @@ object SdkStdlibSweep {
         var stubExportedGenerated = 0
         val beamsWithExportedGenerated = mutableSetOf<String>()
         val firstClauseCache = mutableMapOf<PsiElement, Map<String, Map<Int, Call>>?>()
-
-        for ((beamLabel, file) in beams) {
-            val virtualFile = LocalFileSystem.getInstance().findFileByIoFile(file)
-            if (virtualFile == null) {
-                parseFailures += "$beamLabel: no VirtualFile"
-                continue
-            }
-
-            val psiFile = try {
-                PsiManager.getInstance(project).findFile(virtualFile)
-            } catch (t: ProcessCanceledException) {
-                throw t
-            } catch (t: Throwable) {
-                recordBeamFailure(beamLabel, t, parseFailures, mirrorMisses, stubMismatches)
-                continue
-            }
-
-            if (psiFile !is PsiCompiledFile) {
-                parseFailures += "$beamLabel: not a PsiCompiledFile (${psiFile?.javaClass?.simpleName})"
-                continue
-            }
-
-            val decompiled = try {
-                psiFile.decompiledPsiFile
-            } catch (t: ProcessCanceledException) {
-                throw t
-            } catch (t: Throwable) {
-                recordBeamFailure(beamLabel, t, parseFailures, mirrorMisses, stubMismatches)
-                continue
-            }
-
-            try {
-                PsiTreeUtil.findChildOfType(decompiled, PsiErrorElement::class.java)?.let { error ->
-                    parseFailures += "$beamLabel: ${error.errorDescription}"
+        val decompilerWarnings = mutableListOf<String>()
+        var currentBeam = ""
+        val sweepThread = Thread.currentThread()
+        // The beam code reports a term it cannot render with `LOG.warn` and emits a placeholder that still parses. The
+        // processor is JVM-wide, so another thread's beam warning would not be about this beam.
+        val warnings = object : GuardedLoggedErrorProcessor() {
+            override fun processWarn(category: String, message: String, t: Throwable?): Boolean =
+                if (Thread.currentThread() === sweepThread && category.contains("org.elixir_lang.beam")) {
+                    decompilerWarnings += "$currentBeam: ${message.replace(Regex("\\s+"), " ").take(300)}"
+                    false
+                } else {
+                    super.processWarn(category, message, t)
                 }
-            } catch (t: ProcessCanceledException) {
-                throw t
-            } catch (t: Throwable) {
-                parseFailures += "$beamLabel: ${t.javaClass.simpleName}: ${t.message}"
-            }
+        }
 
-            val modules = try {
-                PsiTreeUtil.findChildrenOfType(psiFile, ModuleImpl::class.java)
-                    .ifEmpty { psiFile.children.filterIsInstance<ModuleImpl<*>>() }
-            } catch (t: ProcessCanceledException) {
-                throw t
-            } catch (t: Throwable) {
-                recordBeamFailure(beamLabel, t, mirrorMisses, stubMismatches)
-                continue
-            }
+        LoggedErrorProcessor.executeWith(warnings).use {
+            for ((beamLabel, file) in beams) {
+                currentBeam = beamLabel
+                val virtualFile = LocalFileSystem.getInstance().findFileByIoFile(file)
+                if (virtualFile == null) {
+                    parseFailures += "$beamLabel: no VirtualFile"
+                    continue
+                }
 
-            for (module in modules) {
-                val moduleMirror = try {
-                    (module as ModuleImpl<*>).mirror as? Call
+                val psiFile = try {
+                    PsiManager.getInstance(project).findFile(virtualFile)
                 } catch (t: ProcessCanceledException) {
                     throw t
                 } catch (t: Throwable) {
-                    stubMismatches += "$beamLabel: ${t.javaClass.simpleName}: ${t.message}"
-                    null
+                    recordBeamFailure(beamLabel, t, parseFailures, mirrorMisses, stubMismatches)
+                    continue
                 }
 
-                for (callDefinition in (module as ModuleImpl<*>).callDefinitions()) {
-                    try {
-                        if (callDefinition.isExported) {
-                            mirrorExported++
-                            if (callDefinition.mirror == null) {
-                                mirrorMisses += "$beamLabel: ${nameArity(callDefinition, state)}"
-                            }
-                        }
-                    } catch (t: ProcessCanceledException) {
-                        throw t
-                    } catch (t: Throwable) {
-                        mirrorMisses += "$beamLabel: ${t.javaClass.simpleName}: ${t.message}"
+                if (psiFile !is PsiCompiledFile) {
+                    parseFailures += "$beamLabel: not a PsiCompiledFile (${psiFile?.javaClass?.simpleName})"
+                    continue
+                }
+
+                val decompiled = try {
+                    psiFile.decompiledPsiFile
+                } catch (t: ProcessCanceledException) {
+                    throw t
+                } catch (t: Throwable) {
+                    recordBeamFailure(beamLabel, t, parseFailures, mirrorMisses, stubMismatches)
+                    continue
+                }
+
+                try {
+                    PsiTreeUtil.findChildOfType(decompiled, PsiErrorElement::class.java)?.let { error ->
+                        parseFailures += "$beamLabel: ${error.errorDescription}"
                     }
+                } catch (t: ProcessCanceledException) {
+                    throw t
+                } catch (t: Throwable) {
+                    parseFailures += "$beamLabel: ${t.javaClass.simpleName}: ${t.message}"
+                }
 
-                    try {
-                        val stub = callDefinition.stub
-                        val name = stub.name
-                        val arity = stub.callDefinitionClauseHeadArity()
+                val modules = try {
+                    PsiTreeUtil.findChildrenOfType(psiFile, ModuleImpl::class.java)
+                        .ifEmpty { psiFile.children.filterIsInstance<ModuleImpl<*>>() }
+                } catch (t: ProcessCanceledException) {
+                    throw t
+                } catch (t: Throwable) {
+                    recordBeamFailure(beamLabel, t, mirrorMisses, stubMismatches)
+                    continue
+                }
 
-                        if (stub.isExported && arity > 0) {
-                            stubExportedWithParameters++
-
-                            if (stub.isAutoGeneratedName) {
-                                stubExportedGenerated++
-                                beamsWithExportedGenerated += beamLabel
-                            }
-                        }
-
-                        val mirror = callDefinition.mirror as? Call
-                        if (mirror != null && moduleMirror != null) {
-                            // null means the module's map build itself failed and was already logged once -
-                            // a stub in that module gets no comparison at all, rather than every one of them
-                            // separately reporting the fallout as its own, misleading "mirror=null" mismatch.
-                            val byArityByName =
-                                firstClauseByArityByNameOrNull(moduleMirror, firstClauseCache, beamLabel, stubMismatches)
-
-                            if (byArityByName != null) {
-                                stubCompared++
-                                val firstClause = byArityByName[name]?.get(arity)
-
-                                // firstClause must come from an independent traversal: mirror was set using
-                                // ModuleImpl.callDefinitionClauseByArityByName, so comparing it against that same
-                                // function's own output could never disagree.
-                                if (firstClause != null && !mirror.isEquivalentTo(firstClause)) {
-                                    stubMismatches += "$beamLabel: ${stub.resolvedFunctionName()} $name/$arity " +
-                                        "mirror is not the first matching clause"
-                                }
-
-                                val expected = firstClause?.let { clauseParameters(it) }
-                                val actual = stub.parameters()
-
-                                if (expected != actual) {
-                                    stubMismatches += "$beamLabel: ${stub.resolvedFunctionName()} $name/$arity " +
-                                        "mirror=$expected stub=$actual"
-                                }
-                            }
-                        }
+                for (module in modules) {
+                    val moduleMirror = try {
+                        (module as ModuleImpl<*>).mirror as? Call
                     } catch (t: ProcessCanceledException) {
                         throw t
                     } catch (t: Throwable) {
                         stubMismatches += "$beamLabel: ${t.javaClass.simpleName}: ${t.message}"
+                        null
+                    }
+
+                    for (callDefinition in (module as ModuleImpl<*>).callDefinitions()) {
+                        try {
+                            if (callDefinition.isExported) {
+                                mirrorExported++
+                                if (callDefinition.mirror == null) {
+                                    mirrorMisses += "$beamLabel: ${nameArity(callDefinition, state)}"
+                                }
+                            }
+                        } catch (t: ProcessCanceledException) {
+                            throw t
+                        } catch (t: Throwable) {
+                            mirrorMisses += "$beamLabel: ${t.javaClass.simpleName}: ${t.message}"
+                        }
+
+                        try {
+                            val stub = callDefinition.stub
+                            val name = stub.name
+                            val arity = stub.callDefinitionClauseHeadArity()
+
+                            if (stub.isExported && arity > 0) {
+                                stubExportedWithParameters++
+
+                                if (stub.isAutoGeneratedName) {
+                                    stubExportedGenerated++
+                                    beamsWithExportedGenerated += beamLabel
+                                }
+                            }
+
+                            val mirror = callDefinition.mirror as? Call
+                            if (mirror != null && moduleMirror != null) {
+                                // null means the module's map build itself failed and was already logged once -
+                                // a stub in that module gets no comparison at all, rather than every one of them
+                                // separately reporting the fallout as its own, misleading "mirror=null" mismatch.
+                                val byArityByName =
+                                    firstClauseByArityByNameOrNull(moduleMirror, firstClauseCache, beamLabel, stubMismatches)
+
+                                if (byArityByName != null) {
+                                    stubCompared++
+                                    val firstClause = byArityByName[name]?.get(arity)
+
+                                    // firstClause must come from an independent traversal: mirror was set using
+                                    // ModuleImpl.callDefinitionClauseByArityByName, so comparing it against that same
+                                    // function's own output could never disagree.
+                                    if (firstClause != null && !mirror.isEquivalentTo(firstClause)) {
+                                        stubMismatches += "$beamLabel: ${stub.resolvedFunctionName()} $name/$arity " +
+                                            "mirror is not the first matching clause"
+                                    }
+
+                                    val expected = firstClause?.let { clauseParameters(it) }
+                                    val actual = stub.parameters()
+
+                                    if (expected != actual) {
+                                        stubMismatches += "$beamLabel: ${stub.resolvedFunctionName()} $name/$arity " +
+                                            "mirror=$expected stub=$actual"
+                                    }
+                                }
+                            }
+                        } catch (t: ProcessCanceledException) {
+                            throw t
+                        } catch (t: Throwable) {
+                            stubMismatches += "$beamLabel: ${t.javaClass.simpleName}: ${t.message}"
+                        }
                     }
                 }
             }
@@ -199,7 +219,8 @@ object SdkStdlibSweep {
             stubExportedWithParameters = stubExportedWithParameters,
             stubExportedGenerated = stubExportedGenerated,
             stubBeamsWithExportedGenerated = beamsWithExportedGenerated.size,
-            stubMismatches = stubMismatches
+            stubMismatches = stubMismatches,
+            decompilerWarnings = decompilerWarnings
         )
     }
 
