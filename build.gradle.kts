@@ -447,7 +447,6 @@ allprojects {
             showExceptions = true
             showStackTraces = true
             showFullStackTraces = false
-            slowThreshold = 2000
             // A full run lists too many to read; `-Dtestlogger.showPassed=true` lists them again.
             showPassed = false
             showSummary = true
