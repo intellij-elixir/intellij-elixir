@@ -16,3 +16,15 @@ defmodule Callers.Src.DefdelegateUnresolvable.XDefaults.ImportExcept do
 
   def at_import_except_2(a, b), do: src_defdelegate_unresolvable_x_defaults_snoc(a, b) # @import_except_2
 end
+
+defmodule Callers.Src.DefdelegateUnresolvable.XDefaults.ImportFunctionsExcept do
+  import Src.DefdelegateUnresolvable.XDefaults, only: :functions, except: [src_defdelegate_unresolvable_x_defaults_snoc: 1] # @import_functions_except_key
+
+  def at_import_functions_except_2(a, b), do: src_defdelegate_unresolvable_x_defaults_snoc(a, b) # @import_functions_except_2
+end
+
+defmodule Callers.Src.DefdelegateUnresolvable.XDefaults.ImportExceptFunctions do
+  import Src.DefdelegateUnresolvable.XDefaults, except: [src_defdelegate_unresolvable_x_defaults_snoc: 1], only: :functions # @import_except_functions_key
+
+  def at_import_except_functions_2(a, b), do: src_defdelegate_unresolvable_x_defaults_snoc(a, b) # @import_except_functions_2
+end

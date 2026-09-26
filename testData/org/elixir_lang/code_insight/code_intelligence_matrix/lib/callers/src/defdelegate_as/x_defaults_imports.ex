@@ -16,3 +16,15 @@ defmodule Callers.Src.DefdelegateAs.XDefaults.ImportExcept do
 
   def at_import_except_2(a, b), do: src_defdelegate_as_x_defaults_snoc(a, b) # @import_except_2
 end
+
+defmodule Callers.Src.DefdelegateAs.XDefaults.ImportFunctionsExcept do
+  import Src.DefdelegateAs.XDefaults, only: :functions, except: [src_defdelegate_as_x_defaults_snoc: 1] # @import_functions_except_key
+
+  def at_import_functions_except_2(a, b), do: src_defdelegate_as_x_defaults_snoc(a, b) # @import_functions_except_2
+end
+
+defmodule Callers.Src.DefdelegateAs.XDefaults.ImportExceptFunctions do
+  import Src.DefdelegateAs.XDefaults, except: [src_defdelegate_as_x_defaults_snoc: 1], only: :functions # @import_except_functions_key
+
+  def at_import_except_functions_2(a, b), do: src_defdelegate_as_x_defaults_snoc(a, b) # @import_except_functions_2
+end
