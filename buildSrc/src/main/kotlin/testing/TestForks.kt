@@ -2,7 +2,9 @@ package testing
 
 import org.gradle.api.GradleException
 import org.gradle.api.provider.Provider
+import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.testing.Test
+import org.gradle.process.CommandLineArgumentProvider
 import oshi.SystemInfo
 import java.io.File
 import java.util.Locale
@@ -88,7 +90,11 @@ fun Test.runInForks(explicitForks: Provider<Int>, forkLimit: Provider<Int>, step
 
 /** Records which fork ran each class in [timeline], which every fork appends to, so it is emptied once per run. */
 fun Test.recordTimeline(timeline: File) {
-    // Absolute, so the forks append to the file this run empties and not one relative to another directory.
-    systemProperty("elixir.test.timeline", timeline.absoluteFile.absolutePath)
+    jvmArgumentProviders.add(TimelineArgument(timeline))
     doFirst { timeline.delete() }
+}
+
+/** An output rather than a system property, so a cached run restores the timeline and its path is not in the key. */
+class TimelineArgument(@get:OutputFile val timeline: File) : CommandLineArgumentProvider {
+    override fun asArguments(): List<String> = listOf("-Delixir.test.timeline=${timeline.path}")
 }
