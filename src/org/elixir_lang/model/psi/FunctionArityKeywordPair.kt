@@ -17,6 +17,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.DEFOVERRIDABLE
 import org.elixir_lang.psi.call.name.Function.IMPORT
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.moduleAttributeName
+import org.elixir_lang.psi.impl.call.keywordArgument
 
 /**
  * The shared `name: arity` keyword-pair construct: a [QuotableKeywordPair] whose key names a
@@ -34,7 +35,7 @@ import org.elixir_lang.psi.impl.ElixirPsiImplUtil.moduleAttributeName
  * [ElixirSymbolUsageSearcher].
  *
  * Host detection is deliberately **syntactic** (`Call.functionName()` / module-attribute name) rather
- * than going through `Import.is`/`Overridable.is`, whose `Call.isCalling(KERNEL, …)` resolution
+ * than going through `Import.is`/`Overridable.is`, whose `Call.isCalling(KERNEL, ...)` resolution
  * requires `Kernel` to be resolvable - many test fixtures (and real edited buffers) don't include a
  * `kernel.ex`, yet the construct must still be recognized.
  */
@@ -131,7 +132,7 @@ object FunctionArityKeywordPair {
     /**
      * Whether [pair] is a `@compile` inline entry, in either documented form:
      *  - keyword form `@compile inline: [fun: arity]` - inside an ancestor `inline:` keyword pair, or
-     *  - tuple form `@compile {:inline, fun: arity}` - inside an ancestor `{:inline, …}` tuple.
+     *  - tuple form `@compile {:inline, fun: arity}` - inside an ancestor `{:inline, ...}` tuple.
      */
     private fun isCompileInline(pair: QuotableKeywordPair, hostCall: Call): Boolean {
         val ancestors = generateSequence(pair.parent) { it.parent }
@@ -146,22 +147,23 @@ object FunctionArityKeywordPair {
             .any { tupleLeadingAtom(it) == "inline" }
     }
 
-    /** The atom value of a tuple's first element (e.g. `:inline` in `{:inline, …}`), or `null`. */
+    /** The atom value of a tuple's first element (e.g. `:inline` in `{:inline, ...}`), or `null`. */
     private fun tupleLeadingAtom(tuple: ElixirTuple): String? =
         ((tuple.quote() as? OtpErlangTuple)?.elementAt(0) as? OtpErlangAtom)?.atomValue()
 
+    /** The `only:` or `except:` [pair] is in, when that is the one the `import` reads: the first of a repeated one. */
     private fun importHostOf(pair: QuotableKeywordPair, hostCall: Call): Host? =
         generateSequence(pair.parent) { it.parent }
             .takeWhile { it !== hostCall }
             .filterIsInstance<QuotableKeywordPair>()
-            .mapNotNull {
-                when (nameOf(it.keywordKey)) {
-                    "only" -> Host.IMPORT_ONLY
-                    "except" -> Host.IMPORT_EXCEPT
-                    else -> null
-                }
+            .firstOrNull { nameOf(it.keywordKey) in IMPORT_OPTIONS }
+            ?.let { option ->
+                val key = nameOf(option.keywordKey)!!
+
+                IMPORT_OPTIONS.getValue(key).takeIf { hostCall.keywordArgument(key) === option.keywordValue }
             }
-            .firstOrNull()
+
+    private val IMPORT_OPTIONS = mapOf("only" to Host.IMPORT_ONLY, "except" to Host.IMPORT_EXCEPT)
 
     /** The function/macro name named by [keywordKey], or `null` if it has no textual name. */
     @RequiresReadLock

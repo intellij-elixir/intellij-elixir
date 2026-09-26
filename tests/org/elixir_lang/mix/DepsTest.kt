@@ -11,6 +11,16 @@ import org.elixir_lang.psi.ElixirDoBlock
 import java.util.concurrent.TimeUnit
 
 class DepsTest : PlatformTestCase() {
+    /** Of a repeated `deps:`, the first is the project's, as `Keyword.get` reads it. */
+    fun testTheFirstOfARepeatedDepsKeyIsRead() =
+        assertEquals(
+            setOf("first"),
+            applications(
+                "defp deps do\n    [{:first, \"~> 1.0\"}]\n  end\n\n  defp other do\n    [{:second, \"~> 1.0\"}]\n  end",
+                "[deps: deps(), deps: other()]"
+            )
+        )
+
     /** A dep named by an interpolated atom has no name until the project is compiled, so it is left out. */
     fun testADepWithAnInterpolatedNameIsLeftOut() {
         val psiFile = myFixture.configureByText(
@@ -23,6 +33,18 @@ class DepsTest : PlatformTestCase() {
         psiFile.accept(gatherer)
 
         assertEquals(setOf("plain"), gatherer.depSet.map { it.application }.toSet())
+    }
+
+    private fun applications(depsFunctions: String, project: String): Set<String> {
+        val psiFile = myFixture.configureByText(
+            "mix.exs",
+            "defmodule Sample.MixProject do\n  def project do\n    $project\n  end\n\n  $depsFunctions\nend\n"
+        )
+        val gatherer = DepGatherer()
+
+        psiFile.accept(gatherer)
+
+        return gatherer.depSet.map { it.application }.toSet()
     }
 
     /**

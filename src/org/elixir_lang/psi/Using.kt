@@ -17,12 +17,12 @@ import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.call.macroChildCallSequence
 import org.elixir_lang.psi.impl.call.stabBodyChildExpressions
 import org.elixir_lang.psi.impl.childExpressions
+import org.elixir_lang.psi.impl.literalName
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.operation.Match
 import org.elixir_lang.psi.scope.WhileIn.whileIn
 import org.elixir_lang.psi.stub.index.ModularName
-import org.elixir_lang.structure_view.element.Timed
 import org.elixir_lang.util.AccumulatorContinue
 
 object Using {
@@ -185,11 +185,7 @@ object Using {
                                     val name = useCall?.finalArguments()?.let { arguments ->
                                         if (arguments.size == 2) {
                                             when (val which = arguments[1].stripAccessExpression()) {
-                                                is ElixirAtom -> if (which.line == null) {
-                                                    which.lastChild.text
-                                                } else {
-                                                    null
-                                                }
+                                                is ElixirAtom -> which.literalName()
                                                 else -> null
                                             }
                                         } else {
@@ -216,7 +212,7 @@ object Using {
                                             modular,
                                             modularResolveState
                                         ) { callDefinitionClauseCall, accResolveState ->
-                                            if (CallDefinitionClause.isFunction(callDefinitionClauseCall)) {
+                                            if (CallableDeclaration.definerOf(callDefinitionClauseCall)?.capabilities?.remoteCallable == true) {
                                                 treeWalkUp(
                                                     callDefinitionClauseCall,
                                                     useCall,
@@ -365,14 +361,14 @@ object Using {
     private const val USING = "__using__"
 
     private fun isDefiner(call: Call): Boolean =
-        call.isCalling(KERNEL, DEFMACRO) &&
+        CallableDeclaration.definerOf(call) == CallableDeclaration.Definer.DEFMACRO &&
                 nameArityInterval(call, ResolveState.initial())?.let { nameArityRange ->
                     nameArityRange.name == USING && nameArityRange.arityInterval.contains(ARITY)
                 }
                 ?: false
 
     private fun isDefiner(callDefinitionImpl: BeamCallDefinition): Boolean =
-        callDefinitionImpl.time == Timed.Time.COMPILE &&
-                callDefinitionImpl.name == USING &&
-                callDefinitionImpl.exportedArity(ResolveState.initial()) == ARITY
+        callDefinitionImpl.name == USING &&
+                callDefinitionImpl.exportedArity(ResolveState.initial()) == ARITY &&
+                CallableDeclaration.isCompileTime(callDefinitionImpl)
 }
