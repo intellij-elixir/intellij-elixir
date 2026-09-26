@@ -16,3 +16,15 @@ defmodule Callers.ExGen.Def.XDefaultsHead.ImportExcept do
 
   def at_import_except_2(a, b), do: ex_gen_def_x_defaults_head_snoc(a, b) # @import_except_2
 end
+
+defmodule Callers.ExGen.Def.XDefaultsHead.ImportFunctionsExcept do
+  import ExGen.Def.XDefaultsHead, only: :functions, except: [ex_gen_def_x_defaults_head_snoc: 1] # @import_functions_except_key
+
+  def at_import_functions_except_2(a, b), do: ex_gen_def_x_defaults_head_snoc(a, b) # @import_functions_except_2
+end
+
+defmodule Callers.ExGen.Def.XDefaultsHead.ImportExceptFunctions do
+  import ExGen.Def.XDefaultsHead, except: [ex_gen_def_x_defaults_head_snoc: 1], only: :functions # @import_except_functions_key
+
+  def at_import_except_functions_2(a, b), do: ex_gen_def_x_defaults_head_snoc(a, b) # @import_except_functions_2
+end

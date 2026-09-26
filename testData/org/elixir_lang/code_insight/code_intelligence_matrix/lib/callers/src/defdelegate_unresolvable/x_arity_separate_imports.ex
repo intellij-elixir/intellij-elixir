@@ -16,3 +16,15 @@ defmodule Callers.Src.DefdelegateUnresolvable.XAritySeparate.ImportExcept do
 
   def at_import_except_2(a, b), do: src_defdelegate_unresolvable_x_arity_separate_snoc(a, b) # @import_except_2
 end
+
+defmodule Callers.Src.DefdelegateUnresolvable.XAritySeparate.ImportFunctionsExcept do
+  import Src.DefdelegateUnresolvable.XAritySeparate, only: :functions, except: [src_defdelegate_unresolvable_x_arity_separate_snoc: 1] # @import_functions_except_key
+
+  def at_import_functions_except_2(a, b), do: src_defdelegate_unresolvable_x_arity_separate_snoc(a, b) # @import_functions_except_2
+end
+
+defmodule Callers.Src.DefdelegateUnresolvable.XAritySeparate.ImportExceptFunctions do
+  import Src.DefdelegateUnresolvable.XAritySeparate, except: [src_defdelegate_unresolvable_x_arity_separate_snoc: 1], only: :functions # @import_except_functions_key
+
+  def at_import_except_functions_2(a, b), do: src_defdelegate_unresolvable_x_arity_separate_snoc(a, b) # @import_except_functions_2
+end

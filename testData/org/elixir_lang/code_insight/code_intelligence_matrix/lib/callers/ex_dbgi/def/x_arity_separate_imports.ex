@@ -16,3 +16,15 @@ defmodule Callers.ExDbgi.Def.XAritySeparate.ImportExcept do
 
   def at_import_except_2(a, b), do: ex_dbgi_def_x_arity_separate_snoc(a, b) # @import_except_2
 end
+
+defmodule Callers.ExDbgi.Def.XAritySeparate.ImportFunctionsExcept do
+  import ExDbgi.Def.XAritySeparate, only: :functions, except: [ex_dbgi_def_x_arity_separate_snoc: 1] # @import_functions_except_key
+
+  def at_import_functions_except_2(a, b), do: ex_dbgi_def_x_arity_separate_snoc(a, b) # @import_functions_except_2
+end
+
+defmodule Callers.ExDbgi.Def.XAritySeparate.ImportExceptFunctions do
+  import ExDbgi.Def.XAritySeparate, except: [ex_dbgi_def_x_arity_separate_snoc: 1], only: :functions # @import_except_functions_key
+
+  def at_import_except_functions_2(a, b), do: ex_dbgi_def_x_arity_separate_snoc(a, b) # @import_except_functions_2
+end

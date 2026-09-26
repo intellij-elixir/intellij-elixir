@@ -16,3 +16,15 @@ defmodule Callers.ExDocs.Def.XDefaults.ImportExcept do
 
   def at_import_except_2(a, b), do: ex_docs_def_x_defaults_snoc(a, b) # @import_except_2
 end
+
+defmodule Callers.ExDocs.Def.XDefaults.ImportFunctionsExcept do
+  import ExDocs.Def.XDefaults, only: :functions, except: [ex_docs_def_x_defaults_snoc: 1] # @import_functions_except_key
+
+  def at_import_functions_except_2(a, b), do: ex_docs_def_x_defaults_snoc(a, b) # @import_functions_except_2
+end
+
+defmodule Callers.ExDocs.Def.XDefaults.ImportExceptFunctions do
+  import ExDocs.Def.XDefaults, except: [ex_docs_def_x_defaults_snoc: 1], only: :functions # @import_except_functions_key
+
+  def at_import_except_functions_2(a, b), do: ex_docs_def_x_defaults_snoc(a, b) # @import_except_functions_2
+end

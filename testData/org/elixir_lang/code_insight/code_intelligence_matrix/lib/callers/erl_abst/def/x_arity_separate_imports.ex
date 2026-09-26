@@ -16,3 +16,15 @@ defmodule Callers.ErlAbst.Def.XAritySeparate.ImportExcept do
 
   def at_import_except_2(a, b), do: erl_abst_def_x_arity_separate_snoc(a, b) # @import_except_2
 end
+
+defmodule Callers.ErlAbst.Def.XAritySeparate.ImportFunctionsExcept do
+  import :erl_abst_def_x_arity_separate, only: :functions, except: [erl_abst_def_x_arity_separate_snoc: 1] # @import_functions_except_key
+
+  def at_import_functions_except_2(a, b), do: erl_abst_def_x_arity_separate_snoc(a, b) # @import_functions_except_2
+end
+
+defmodule Callers.ErlAbst.Def.XAritySeparate.ImportExceptFunctions do
+  import :erl_abst_def_x_arity_separate, except: [erl_abst_def_x_arity_separate_snoc: 1], only: :functions # @import_except_functions_key
+
+  def at_import_except_functions_2(a, b), do: erl_abst_def_x_arity_separate_snoc(a, b) # @import_except_functions_2
+end
