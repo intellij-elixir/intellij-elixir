@@ -151,7 +151,6 @@ private fun EditorNotificationPanel.addConfigureFromToolManagerLabel(project: Pr
     if (assignments.isEmpty()) return
 
     val toolName = assignments.values.first().toolManagerName
-    @Suppress("DialogTitleCapitalization")
     createActionLabel("Configure from $toolName") {
         ToolManagerSdkCheckerService.getInstance(project).configureSdks(assignments)
     }

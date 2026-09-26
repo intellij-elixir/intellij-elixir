@@ -25,7 +25,7 @@ interface Stubbic {
      * Whether this call has a `do` block or a `:do` keyword, so it is a macro
      *
      * @return `true` if [Call.getDoBlock] is NOT `null` or there is a `"do"` keyword argument
-     * @see org.elixir_lang.psi.impl.ElixirPsiImplUtil.keywordArgument
+     * @see org.elixir_lang.psi.impl.call.keywordArgument
      */
     fun hasDoBlockOrKeyword(): Boolean
 
@@ -35,7 +35,7 @@ interface Stubbic {
      * @return [Call.resolvedSecondaryArity] if it is not `null`; [Call.resolvedPrimaryArity] if
      * it is not `null`; otherwise, `0`.
      */
-    fun resolvedFinalArity(): Int?
+    fun resolvedFinalArity(): Int
 
     /**
      * @return name of the function/macro after taking into account any imports

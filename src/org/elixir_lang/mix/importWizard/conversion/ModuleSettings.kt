@@ -3,7 +3,6 @@ package org.elixir_lang.mix.importWizard.conversion
 import com.intellij.conversion.ConversionProcessor
 import com.intellij.conversion.ModuleSettings
 import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
-import org.jetbrains.jps.model.serialization.java.JpsJavaModelSerializerExtension.EXCLUDE_OUTPUT_TAG
 
 class ModuleSettings : ConversionProcessor<ModuleSettings>() {
     override fun isConversionNeeded(moduleSettings: ModuleSettings) =
@@ -15,6 +14,9 @@ class ModuleSettings : ConversionProcessor<ModuleSettings>() {
     }
 
     companion object {
+        // `JpsJavaModelSerializerExtension.EXCLUDE_OUTPUT_TAG`, which is internal API.
+        private const val EXCLUDE_OUTPUT_TAG = "exclude-output"
+
         private fun parentElement(moduleSettings: ModuleSettings) =
             moduleSettings.getComponentElement(ModuleSettings.MODULE_ROOT_MANAGER_COMPONENT)
     }

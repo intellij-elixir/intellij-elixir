@@ -21,14 +21,6 @@ public class ParametersPanel extends CommonProgramParametersPanel {
         super();
     }
 
-    private String getMixTestArguments() {
-        return getProgramParametersComponent().getComponent().getText();
-    }
-
-    private void setMixTestArguments(@Nullable String text) {
-        getProgramParametersComponent().getComponent().setText(text);
-    }
-
     private String getElixirArguments() {
         return elixirArgumentsComponent.getComponent().getText();
     }

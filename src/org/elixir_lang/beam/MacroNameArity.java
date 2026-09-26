@@ -132,8 +132,7 @@ public class MacroNameArity implements Comparable<MacroNameArity> {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof MacroNameArity)) return false;
-        MacroNameArity that = (MacroNameArity) o;
+        if (!(o instanceof MacroNameArity that)) return false;
         return macro.equals(that.macro) && name.equals(that.name) && arity.equals(that.arity);
     }
 

@@ -56,7 +56,7 @@ public class ModuleStubImpl<T extends Module> extends StubbicBase<T> implements 
      * @return 2 (1 for name and 1 for do block)
      */
     @Override
-    public Integer resolvedFinalArity() {
+    public int resolvedFinalArity() {
         return RESOLVED_FINAL_ARITY;
     }
 

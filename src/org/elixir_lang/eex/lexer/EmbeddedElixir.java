@@ -13,6 +13,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import static com.intellij.psi.TokenType.BAD_CHARACTER;
 import static com.intellij.psi.TokenType.WHITE_SPACE;
@@ -22,7 +23,7 @@ import static org.elixir_lang.psi.ElixirTypes.*;
 
 /**
  * Like {@link com.intellij.lexer.LookAheadLexer}, but uses 2 base lexers.  Since which base lexer is being used, we
- * can't use LookAheadLexer since it's {@link com.intellij.lexer.LookAheadLexer.LookAheadLexerPosition} only works for a
+ * can't use LookAheadLexer since it's {@code LookAheadLexer.LookAheadLexerPosition} only works for a
  * single lexer.
  */
 public class EmbeddedElixir extends LexerBase {
@@ -126,7 +127,7 @@ public class EmbeddedElixir extends LexerBase {
     }
 
     @NotNull
-    public EmbeddedElixir.Position getCurrentPosition() {
+    public LexerPosition getCurrentPosition() {
         return new EmbeddedElixir.Position(this);
     }
 
@@ -169,11 +170,7 @@ public class EmbeddedElixir extends LexerBase {
     public void start(@NotNull CharSequence buffer, int startOffset, int endOffset, int initialState) {
         eexLexer.start(buffer, startOffset, endOffset, initialState & 0xFFFF);
 
-        if (eexLexer.getTokenType() == ELIXIR) {
-            elixirLexer.start(buffer, startOffset, endOffset);
-        } else {
-            elixirLexer.start(buffer, startOffset, endOffset);
-        }
+        elixirLexer.start(buffer, startOffset, endOffset);
     }
 
     protected static class Position implements LexerPosition {
@@ -195,15 +192,7 @@ public class EmbeddedElixir extends LexerBase {
         @Contract(pure = true)
         @NotNull
         private LexerPosition position() {
-            LexerPosition position;
-
-            if (elixirPosition != null) {
-                position = elixirPosition;
-            } else {
-                position = eexPosition;
-            }
-
-            return position;
+            return Objects.requireNonNullElse(elixirPosition, eexPosition);
         }
 
         public int getOffset() {

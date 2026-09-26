@@ -44,19 +44,13 @@ final class ElixirModuleType extends ModuleType<ElixirModuleBuilder>{
     return "Elixir modules are used for developing <b>Elixir</b> applications.";
   }
 
-//  @Override
-  public Icon getBigIcon() {
-    return Icons.MODULE;
-  }
-
   @Override
   public @NotNull Icon getNodeIcon(boolean isOpened) {
     return Icons.MODULE;
   }
 
-  @NotNull
   @Override
-  public ModuleWizardStep[] createWizardSteps(@NotNull WizardContext wizardContext,
+  public ModuleWizardStep @NotNull [] createWizardSteps(@NotNull WizardContext wizardContext,
                                               @NotNull final ElixirModuleBuilder moduleBuilder,
                                               @NotNull ModulesProvider modulesProvider) {
     return new ModuleWizardStep[]{

@@ -32,12 +32,15 @@ public class Deserialized {
 
         BEGIN = new byte[GUARD_LENGTH];
 
+        // Dead while GUARD_LENGTH is 0.
+        //noinspection ConstantValue
         for (i = 0; i < BEGIN.length; i++) {
             BEGIN[i] = (byte) i;
         }
 
         END = new byte[BEGIN.length];
 
+        //noinspection ConstantValue
         for (i = 0; i < END.length; i++) {
             END[i] = (byte) (END.length - i);
         }
@@ -188,12 +191,12 @@ public class Deserialized {
                     .append(").");
 
             if (readAheadLength == 0) {
-                stringBuilder = stringBuilder.append("StubIndex may be corrupt.");
+                stringBuilder.append("StubIndex may be corrupt.");
                 LOGGER.error(stringBuilder.toString());
             } else {
                 byte[] readAhead = new byte[readAheadLength];
                 int bytesRead = dataStream.read(readAhead);
-                stringBuilder = stringBuilder
+                stringBuilder
                         .append("Read ahead read ")
                         .append(bytesRead)
                         .append(" of ")

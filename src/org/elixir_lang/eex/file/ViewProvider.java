@@ -123,6 +123,7 @@ public class ViewProvider extends MultiplePsiFilesPerDocumentFileViewProvider
     // fragments such as a ~L sigil, which never calls createFile - without this override the
     // injected data and Elixir roots parse raw text with no outer-element stripping and no
     // chameleon.
+    @SuppressWarnings("UnstableApiUsage")
     @Nullable
     @Override
     public IElementType getContentElementType(@NotNull com.intellij.lang.Language language) {
@@ -159,7 +160,7 @@ public class ViewProvider extends MultiplePsiFilesPerDocumentFileViewProvider
     }
 
     @Override
-    protected MultiplePsiFilesPerDocumentFileViewProvider cloneInner(VirtualFile fileCopy) {
+    protected @NotNull MultiplePsiFilesPerDocumentFileViewProvider cloneInner(@NotNull VirtualFile fileCopy) {
         return new ViewProvider(getManager(), fileCopy, false, baseLanguage, templateDataLanguage);
     }
 

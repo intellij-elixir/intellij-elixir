@@ -174,11 +174,11 @@ object Project {
 
         val content = modifiableRootModel.addContentEntry(root)
 
-        for (canonicalFolder in CANONICAL_FOLDER_MARKS) {
-            when (canonicalFolder.folderMark) {
-                FolderMark.SOURCES -> addSourceDirToContent(content, root, canonicalFolder.relativePath, false)
-                FolderMark.TEST_SOURCES -> addSourceDirToContent(content, root, canonicalFolder.relativePath, true)
-                FolderMark.EXCLUDED -> excludeDirFromContent(content, root, canonicalFolder.relativePath)
+        for ((relativePath, folderMark) in CANONICAL_FOLDER_MARKS) {
+            when (folderMark) {
+                FolderMark.SOURCES -> addSourceDirToContent(content, root, relativePath, false)
+                FolderMark.TEST_SOURCES -> addSourceDirToContent(content, root, relativePath, true)
+                FolderMark.EXCLUDED -> excludeDirFromContent(content, root, relativePath)
             }
         }
     }
@@ -208,7 +208,7 @@ object Project {
     private fun clearExcludeOutput(modifiableRootModel: ModifiableRootModel) {
         modifiableRootModel
             .getModuleExtension(CompilerModuleExtension::class.java)
-            ?.setExcludeOutput(false)
+            ?.isExcludeOutput = false
     }
 
     /**
