@@ -3,7 +3,10 @@ package org.elixir_lang.run
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.diagnostic.trace
 import com.intellij.openapi.diagnostic.traceThrowable
+import com.intellij.openapi.util.SystemInfo
+import com.intellij.util.concurrency.AppExecutorUtil
 import kotlinx.coroutines.runBlocking
+import java.util.concurrent.TimeUnit
 
 /**
  * Handles graceful termination of Elixir/Erlang processes using double SIGINT.
@@ -73,13 +76,14 @@ class ElixirDoubleSignalTerminator(
             logger.trace { "Process is alive: ${process.isAlive}, attempting first SIGINT" }
 
             // Send first SIGINT
+            val firstSentNs = System.nanoTime()
             val firstResult = sendSignal(process, fallback)
             logger.trace { "First SIGINT result: $firstResult" }
 
             // Wait briefly for the BREAK menu to appear and give process a chance to exit.
             // Using waitFor() instead of Thread.sleep() allows early return if process exits quickly.
             logger.info("Waiting up to 200ms for process to respond to first SIGINT...")
-            val terminatedEarly = process.waitFor(200, java.util.concurrent.TimeUnit.MILLISECONDS)
+            val terminatedEarly = process.waitFor(200, TimeUnit.MILLISECONDS)
 
             // Check if process is still alive
             if (terminatedEarly || !process.isAlive) {
@@ -91,6 +95,7 @@ class ElixirDoubleSignalTerminator(
             logger.trace { "Process still alive after first SIGINT, sending second SIGINT" }
             val secondResult = sendSignal(process, fallback)
             logger.trace { "Second SIGINT result: $secondResult" }
+            logExit(process, firstSentNs)
 
         } catch (e: Exception) {
             logger.error("Exception during double-SIGINT termination: ${e.message}", e)
@@ -99,6 +104,22 @@ class ElixirDoubleSignalTerminator(
             doubleSigintInProgress = false
         }
     }
+
+    // Only while debugging: a process that never exits holds the thread `onExit` waits on.
+    private fun logExit(process: Process, firstSentNs: Long) {
+        if (!logger.isTraceEnabled) return
+        val exited = process.onExit()
+        exited.thenAccept {
+            logger.trace { "Process exited with code ${it.exitValue()} ${elapsedMs(firstSentNs)}ms after the first SIGINT" }
+        }
+        AppExecutorUtil.getAppScheduledExecutorService().schedule(
+            { if (!exited.isDone) logger.trace("Process still running ${elapsedMs(firstSentNs)}ms after the first SIGINT") },
+            STILL_RUNNING_AFTER_MS,
+            TimeUnit.MILLISECONDS,
+        )
+    }
+
+    private fun elapsedMs(sinceNs: Long): Long = (System.nanoTime() - sinceNs) / 1_000_000
 
     /**
      * Sends a single SIGINT signal to the process using the most appropriate method.
@@ -181,6 +202,9 @@ class ElixirDoubleSignalTerminator(
     }
 
     private fun tryPidKill(process: Process): Boolean {
+        // Windows has no `kill`: Git's cannot signal a native process, and without it on the PATH `exec` throws. A
+        // `KillableProcessHandler`'s fallback stops a Windows BEAM gracefully; any other handler's kills it.
+        if (SystemInfo.isWindows) return false
         try {
             val providedPid = pidProvider?.invoke()
             if (providedPid != null) {
@@ -223,5 +247,9 @@ class ElixirDoubleSignalTerminator(
 
         logger.trace { "kill command exit code: $exitCode" }
         return exitCode == 0
+    }
+
+    private companion object {
+        const val STILL_RUNNING_AFTER_MS = 5_000L
     }
 }

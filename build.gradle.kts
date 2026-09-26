@@ -51,6 +51,7 @@ import sdk.resolveMixEnv
 import sdk.versionWithoutBuildTag
 import sdk.elixirTestEnvironment
 import testing.CheckUnexpectedLogs
+import testing.keepWinpHelpersIn
 import testing.recordTimeline
 import testing.reportUnexpectedLogs
 import testing.runInForks
@@ -81,10 +82,10 @@ project.configurations.all {
 
 // --- Version Catalog Captures ---
 // Capture these early to avoid "Extension 'libs' not found" errors in subproject blocks
-val libJunit = libs.junit
-val libOpentest4j = libs.opentest4j
-val libCommonsIo = libs.commons.io
-val libMockitoCore = libs.mockito.core
+val libJunit: Provider<MinimalExternalModuleDependency> = libs.junit.asProvider()
+val libOpentest4j: Provider<MinimalExternalModuleDependency> = libs.opentest4j
+val libCommonsIo: Provider<MinimalExternalModuleDependency> = libs.commons.io
+val libMockitoCore: Provider<MinimalExternalModuleDependency> = libs.mockito.core
 
 // --- Configuration Properties ---
 
@@ -116,12 +117,12 @@ val expectedVersionSource: String =
 // with instructions before anything writes to that path.
 val elixirVersion: String = versionWithoutBuildTag(expectedElixirVersion.getOrElse("unresolved"))
 
-val quoterRepo = providers.gradleProperty("quoterRepo").getOrElse("intellij-elixir/intellij-elixir-quoter")
-val quoterRef = providers.gradleProperty("quoterRef").getOrElse("v3.0.0")
+val quoterRepo: String = providers.gradleProperty("quoterRepo").getOrElse("intellij-elixir/intellij-elixir-quoter")
+val quoterRef: String = providers.gradleProperty("quoterRef").getOrElse("v3.0.0")
 // Cache namespace for the quoter, derived from the ref ('/' is illegal in a path segment). Keeps
 // each repo/ref's downloaded zip, build dir, and daemon tmp dir separate, so switching source
 // never reuses another's artifacts.
-val quoterRefSlug = quoterRef.replace('/', '-')
+val quoterRefSlug: String = quoterRef.replace('/', '-')
 
 // Publish channel: "default" for release, "canary" for pre-release
 val publishChannel: String = providers.gradleProperty("publishChannels").getOrElse("canary")
@@ -253,7 +254,7 @@ extra["expectedOtpVersion"] = expectedOtpVersion.getOrElse("unresolved")
 // Left as a Provider and only resolved in the branch that uses it: reading HEAD makes the commit a
 // configuration-cache input, and neither a release (versioned from its tag) nor an explicit
 // -PversionSuffix build should pay that invalidation for a value it discards.
-val sourceIdProvider = providers.of(GitSourceIdValueSource::class) {
+val sourceIdProvider: Provider<String> = providers.of(GitSourceIdValueSource::class) {
     parameters.workingDir.set(layout.projectDirectory.asFile)
 }
 
@@ -291,7 +292,7 @@ logger.lifecycle("[elixir-build] platform=$actualPlatformVersion version=$versio
 //
 // What publishes is declared in gradle.properties and validated in ChangelogSettings, so that the
 // per-pull-request check in changelog.yml reads the same declaration from a properties file.
-val changelogSettings = ChangelogSettings.from(
+val changelogSettings: ChangelogSettings = ChangelogSettings.from(
     groups = providers.gradleProperty("changelogGroups").get(),
     publishedGroups = providers.gradleProperty("changelogPublishedGroups").get(),
     publishedVersions = providers.gradleProperty("changelogPublishedVersions").get(),
@@ -520,11 +521,11 @@ idea {
     }
 }
 
-val testUIImplementation = configurations.getByName("testUIImplementation") {
+val testUIImplementation: Configuration = configurations.getByName("testUIImplementation") {
     extendsFrom(configurations.testImplementation.get())
 }
 
-val testUIRuntimeOnly = configurations.getByName("testUIRuntimeOnly") {
+val testUIRuntimeOnly: Configuration = configurations.getByName("testUIRuntimeOnly") {
     extendsFrom(configurations.testRuntimeOnly.get())
 }
 
@@ -613,7 +614,7 @@ intellijPlatform {
     }
 }
 
-val openVerificationReports = tasks.register("openVerificationReports") {
+val openVerificationReports: TaskProvider<Task> = tasks.register("openVerificationReports") {
     description = "Opens plugin verification markdown reports in the IDE"
     group = "verification"
 
@@ -839,7 +840,7 @@ val runIdePlatformsList: List<String> = providers.gradlePropertiesPrefixedBy(pla
     .sorted()
 
 // Reduces having to download the IDEs when testing.
-val enableEAP = providers.gradleProperty("enableEAPIDEs").get().toBoolean()
+val enableEAP: Boolean = providers.gradleProperty("enableEAPIDEs").get().toBoolean()
 
 runIdePlatformsList.forEach { platform ->
     intellijPlatformTesting.runIde.register("run${platform}", Action {
@@ -883,7 +884,7 @@ runIdePlatformsList.forEach { platform ->
 // Must stay in quoterCachePaths: overwrite(false) skips the download only when this zip exists.
 val quoterZip: RegularFile = cachePath.file("quoter-$quoterRefSlug.zip")
 
-val getQuoter = tasks.register<Download>("getQuoter") {
+val getQuoter: TaskProvider<Download> = tasks.register<Download>("getQuoter") {
     description = "Downloads the Quoter tool"
     src("https://github.com/$quoterRepo/archive/$quoterRef.zip")
     dest(quoterZip)
@@ -892,7 +893,7 @@ val getQuoter = tasks.register<Download>("getQuoter") {
 }
 
 
-val unzipQuoter = tasks.register<Copy>("unzipQuoter") {
+val unzipQuoter: TaskProvider<Copy> = tasks.register<Copy>("unzipQuoter") {
     description = "Unzips the Quoter tool"
     dependsOn(getQuoter)
 
@@ -910,7 +911,7 @@ val unzipQuoter = tasks.register<Copy>("unzipQuoter") {
     }
 }
 
-val getQuoterDeps = tasks.register<GetQuoterDepsTask>("getQuoterDeps") {
+val getQuoterDeps: TaskProvider<GetQuoterDepsTask> = tasks.register<GetQuoterDepsTask>("getQuoterDeps") {
     description = "Prepares the Quoter dependencies"
     dependsOn(unzipQuoter, resolveElixirErlangSdks)
 
@@ -931,7 +932,7 @@ val getQuoterDeps = tasks.register<GetQuoterDepsTask>("getQuoterDeps") {
         .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
-val releaseQuoter = tasks.register<ReleaseQuoterTask>("releaseQuoter") {
+val releaseQuoter: TaskProvider<ReleaseQuoterTask> = tasks.register<ReleaseQuoterTask>("releaseQuoter") {
     description = "Builds the Quoter tool"
     dependsOn(getQuoterDeps)
 
@@ -959,14 +960,14 @@ val releaseQuoter = tasks.register<ReleaseQuoterTask>("releaseQuoter") {
 // Written by resolveElixirErlangSdks below. Declared here because a build service's `parameters {}`
 // runs at registration rather than deferred like a task lambda, so a val declared further down is
 // still null at that point.
-val sdkPropertiesFile = layout.buildDirectory.file("elixir-erlang-sdks.properties")
+val sdkPropertiesFile: Provider<RegularFile> = layout.buildDirectory.file("elixir-erlang-sdks.properties")
 
 // Register the QuoterService - Gradle calls close() at build end regardless of failure.
 // The daemon is a self-contained mix release (bundled ERTS), so it needs no Elixir/Erlang SDK to run.
 // sdkProperties is only for epmd's sake: started from the SDK, the machine-wide daemon stays out of
 // cache/, where a leftover pins the checkout against deletion. See quoter.Epmd.
 // See: https://docs.gradle.org/current/userguide/build_services.html
-val quoterService = gradle.sharedServices.registerIfAbsent("quoter", QuoterService::class) {
+val quoterService: Provider<QuoterService> = gradle.sharedServices.registerIfAbsent("quoter", QuoterService::class) {
     parameters {
         executable.set(quoterExe)
         tmpDir.set(quoterTmpPath)
@@ -1008,7 +1009,7 @@ val elixirParsingCorpusRoot: Directory = cachePath.dir("corpus/$elixirVersion")
 
 // One task per entry: with a single source, Download treats a destination directory that does not exist yet
 // as the file to write, and refuses eachFile renames.
-val downloadElixirParsingCorpus = elixirParsingCorpus.map { entry ->
+val downloadElixirParsingCorpus: List<TaskProvider<Download>> = elixirParsingCorpus.map { entry ->
     tasks.register<Download>("downloadElixirParsingCorpus-${entry.owner}-${entry.name}-${entry.sha.take(12)}") {
         description = "Downloads ${entry.git} at ${entry.sha} for the parser tests"
         src(entry.archiveUrl)
@@ -1017,7 +1018,7 @@ val downloadElixirParsingCorpus = elixirParsingCorpus.map { entry ->
     }
 }
 
-val elixirParsingCorpusTask = tasks.register<Sync>("elixirParsingCorpus") {
+val elixirParsingCorpusTask: TaskProvider<Sync> = tasks.register<Sync>("elixirParsingCorpus") {
     description = "Extracts the .ex and .exs files of the parser tests' corpus"
     into(elixirParsingCorpusRoot)
     includeEmptyDirs = false
@@ -1047,7 +1048,7 @@ tasks.register<CachePathsTask>("elixirParsingCorpusCachePaths") {
     key.set(elixirParsingCorpus.joinToString("-") { "${it.owner}-${it.name}-${it.sha}" })
 }
 
-val startQuoter = tasks.register<StartQuoterTask>("startQuoter") {
+val startQuoter: TaskProvider<StartQuoterTask> = tasks.register<StartQuoterTask>("startQuoter") {
     description = "Starts the Quoter tool"
     dependsOn(releaseQuoter)
 
@@ -1077,7 +1078,7 @@ allprojects {
 val unexpectedLogsMode: String = providers.gradleProperty("unexpectedLogs").orElse("fail").get()
 val unexpectedLogsDir: File = layout.buildDirectory.dir("unexpected-logs").get().asFile
 
-val checkUnexpectedLogs = tasks.register<CheckUnexpectedLogs>("checkUnexpectedLogs") {
+val checkUnexpectedLogs: TaskProvider<CheckUnexpectedLogs> = tasks.register<CheckUnexpectedLogs>("checkUnexpectedLogs") {
     description = "Fails on the warnings and errors that the test JVMs could not fail a test for"
     group = "verification"
     mode = unexpectedLogsMode
@@ -1183,6 +1184,7 @@ tasks.named<Test>("test") {
     // the test-reports artifact in .github/workflows/shared-test.yml. (idea.log.path cannot redirect
     // them here - the IntelliJ Platform Gradle Plugin sets the sandbox log path itself and wins.)
     systemProperty("idea.split.test.logs", "true")
+    keepWinpHelpersIn(layout.buildDirectory.dir("tmp/winp").get().asFile)
 }
 
 // Kotlin makes this jar a friend path of compileTestKotlin, and the file name is part of that task's
@@ -1200,7 +1202,7 @@ tasks.named<Zip>("buildPlugin") {
 }
 
 
-val resolveElixirErlangSdks = tasks.register<ResolveElixirErlangSdksTask>("resolveElixirErlangSdks") {
+val resolveElixirErlangSdks: TaskProvider<ResolveElixirErlangSdksTask> = tasks.register<ResolveElixirErlangSdksTask>("resolveElixirErlangSdks") {
     description = "Resolves Erlang and Elixir SDKs for testing"
     group = "verification"
     projectDir.set(layout.projectDirectory)
