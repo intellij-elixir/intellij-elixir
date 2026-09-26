@@ -4,12 +4,12 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.psi.stubs.StubInputStream;
 import com.intellij.psi.stubs.StubOutputStream;
 import com.intellij.util.io.StringRef;
-import gnu.trove.THashSet;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 
 public class Deserialized {
@@ -204,7 +204,7 @@ public class Deserialized {
                 LOGGER.error(stringBuilder.toString());
             }
         }
-        Set<StringRef> nameSet = new THashSet<>(nameSetSize);
+        Set<StringRef> nameSet = HashSet.newHashSet(nameSetSize);
 
         if (nameSetSize > INFO_NAME_SET_SIZE) {
             StringBuilder stringBuilder = new StringBuilder("readNameSet nameSet of size ")
@@ -250,7 +250,7 @@ public class Deserialized {
 
     @NotNull
     private static Set<StringRef> stringRefSet(@NotNull Set<String> stringSet) {
-        Set<StringRef> stringRefSet = new THashSet<>();
+        Set<StringRef> stringRefSet = new HashSet<>();
 
         for (String string : stringSet) {
             stringRefSet.add(StringRef.fromNullableString(string));

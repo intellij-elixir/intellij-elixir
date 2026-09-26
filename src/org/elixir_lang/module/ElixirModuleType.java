@@ -54,7 +54,7 @@ public class ElixirModuleType extends ModuleType<ElixirModuleBuilder>{
   }
 
   @Override
-  public @NotNull Icon getNodeIcon(@Deprecated boolean isOpened) {
+  public @NotNull Icon getNodeIcon(boolean isOpened) {
     return Icons.MODULE;
   }
 

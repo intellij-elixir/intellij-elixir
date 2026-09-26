@@ -14,6 +14,12 @@ import java.awt.*;
 public class ParametersPanel extends CommonProgramParametersPanel {
     private LabeledComponent<RawCommandLineEditor> erlArgumentsComponent;
 
+    // The replacement constructor, taking the project, first ships in 2026.1.1.
+    @SuppressWarnings("deprecation")
+    public ParametersPanel() {
+        super();
+    }
+
     private String getErlArguments() {
         return erlArgumentsComponent.getComponent().getText();
     }

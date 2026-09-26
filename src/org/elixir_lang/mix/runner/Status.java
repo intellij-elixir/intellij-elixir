@@ -2,7 +2,6 @@ package org.elixir_lang.mix.runner;
 
 import com.google.common.base.CaseFormat;
 import com.intellij.execution.testframework.sm.ServiceMessageBuilder;
-import gnu.trove.THashMap;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -128,7 +127,7 @@ public class Status {
                     String file = matcher.group("file");
                     String line = matcher.group("line");
                     String locationHint = "file://" + file + ":" + line;
-                    attributes = new THashMap<>(2);
+                    attributes = HashMap.newHashMap(2);
                     attributes.put("locationHint", locationHint);
 
                     String name = fileToTestName(file);

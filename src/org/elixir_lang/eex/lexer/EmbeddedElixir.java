@@ -5,13 +5,13 @@ import com.intellij.lexer.LexerBase;
 import com.intellij.lexer.LexerPosition;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.tree.IElementType;
-import gnu.trove.THashMap;
 import org.elixir_lang.ElixirLanguage;
 import org.elixir_lang.ElixirLexer;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static com.intellij.psi.TokenType.BAD_CHARACTER;
@@ -27,7 +27,7 @@ import static org.elixir_lang.psi.ElixirTypes.*;
  */
 public class EmbeddedElixir extends LexerBase {
     @NotNull
-    private static final Map<IElementType, IElementType> EEX_TOKEN_TYPE_TO_ELIXIR_TOKEN_TYPE = new THashMap<>();
+    private static final Map<IElementType, IElementType> EEX_TOKEN_TYPE_TO_ELIXIR_TOKEN_TYPE = new HashMap<>();
     @NotNull
     final Lexer eexLexer;
     @NotNull

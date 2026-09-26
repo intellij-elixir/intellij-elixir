@@ -25,6 +25,6 @@ public class StubbedPsiElementBase<T extends StubElement<?>> extends StubBasedPs
 
   @Override
   public String toString() {
-    return getElementType().toString();
+    return getElementTypeImpl().toString();
   }
 }

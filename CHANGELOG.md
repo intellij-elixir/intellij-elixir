@@ -464,6 +464,8 @@
 
 ### Threading / Platform Hygiene
 
+- [#4180](https://github.com/intellij-elixir/intellij-elixir/pull/4180) [@sh41](https://github.com/sh41)
+  - **The plugin no longer uses the deprecated platform APIs javac reports, apart from `CommonProgramParametersPanel()`, which waits for 2026.1.1.**
 - [#4179](https://github.com/intellij-elixir/intellij-elixir/pull/4179) [@sh41](https://github.com/sh41)
   - **Building a file's stubs no longer reaches `CachedValuesManager` for the language level or for quoting, which the platform flags inside a stub build.**
 - [#4062](https://github.com/intellij-elixir/intellij-elixir/pull/4062) [@sh41](https://github.com/sh41)

@@ -32,6 +32,12 @@ public class ParametersPanel extends CommonProgramParametersPanel {
     private static final java.util.List<CodeLoadingMode> CODE_LOADING_MODE_LIST = Arrays.asList(null, CodeLoadingMode.EMBEDDED, CodeLoadingMode.INTERACTIVE);
     private static final java.util.List<Boolean> REPLACE_OS_VARS_LIST = Arrays.asList(null, false, true);
 
+    // The replacement constructor, taking the project, first ships in 2026.1.1.
+    @SuppressWarnings("deprecation")
+    public ParametersPanel() {
+        super();
+    }
+
     @NotNull
     private String getErlArguments() {
         return erlArgumentsComponent.getComponent().getText();
