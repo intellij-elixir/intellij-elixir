@@ -1,6 +1,7 @@
 package org.elixir_lang.junit.logs
 
 import org.elixir_lang.junit.UnitTestCase
+import org.elixir_lang.junit.logs.samples.SAMPLE_ERROR
 import org.elixir_lang.junit.logs.samples.SAMPLE_FAILURE
 import org.elixir_lang.junit.logs.samples.SAMPLE_WARNING
 import org.elixir_lang.junit.logs.samples.SharedFixtureSample
@@ -21,10 +22,16 @@ class SharedFixtureTest : UnitTestCase() {
         assertEquals(SharedFixtureSample.CASES.toSet(), finished.keys)
         val logs = finished.getValue("logs").result
         assertEquals(Status.FAILED, logs.status)
-        assertTrue(logs.throwable.orElseThrow().stackTraceToString().contains(SAMPLE_WARNING))
+        val warned = logs.throwable.orElseThrow().stackTraceToString()
+        assertTrue(warned, warned.contains("WARN #${SharedFixtureSample::class.java.name} - $SAMPLE_WARNING"))
         val fails = finished.getValue("fails").result
         assertEquals(Status.FAILED, fails.status)
         assertEquals(SAMPLE_FAILURE, fails.throwable.orElseThrow().message)
+        // Not the last case, which closes the fixture.
+        val errs = finished.getValue("errs").result
+        assertEquals(Status.FAILED, errs.status)
+        val shown = errs.throwable.orElseThrow().stackTraceToString()
+        assertTrue(shown, shown.contains("ERROR #${SharedFixtureSample::class.java.name} - $SAMPLE_ERROR"))
         for (case in listOf("a", "posts", "sleeps", "c", "d")) {
             assertEquals(case, Status.SUCCESSFUL, finished.getValue(case).result.status)
         }

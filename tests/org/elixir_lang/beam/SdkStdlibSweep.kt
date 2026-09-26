@@ -26,9 +26,8 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * One decompile pass per resolved SDK, answering the four questions [SdkStdlibSweepTest] asks.
  * Whichever of its test methods runs first for a given (root, tag) pays the decompile cost and caches the
- * plain-data [Result]; the rest read it back, the way `CodeIntelligenceMatrixTest.Group` shares one
- * fixture across many independently-passing/failing cells. Safe to share across the `Project` instances
- * the test methods each stand up, because the cached [Result] holds only strings and counts, never PSI.
+ * plain-data [Result]; the rest read it back and pass or fail on their own. Safe to share across the `Project`
+ * instances the test methods each stand up, because the cached [Result] holds only strings and counts, never PSI.
  * The cache is per JVM, so only tests in one class, which Gradle keeps on one fork, are sure to share it.
  */
 object SdkStdlibSweep {

@@ -20,7 +20,8 @@ public class ElixirFileStubImpl extends PsiFileStubImpl<ElixirFile> implements E
         return getChildrenByType(ModuleStubElementTypes.MODULE, CanonicallyNamed[]::new);
     }
 
-    // Narrows the platform's raw return type, which javac reports as an unchecked override.
+    // Only silences javac, which reports `PsiFileStubImpl`'s raw return type as an unchecked override. The platform
+    // does not call it: `PsiFileStubImpl.getStubSerializer` answers null itself.
     @Override
     public @Nullable IStubElementType<?, ?> getStubType() {
         return null;

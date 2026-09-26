@@ -1,7 +1,10 @@
 package testing
 
+import org.gradle.api.GradleException
 import org.gradle.api.provider.Provider
+import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.testing.Test
+import org.gradle.process.CommandLineArgumentProvider
 import oshi.SystemInfo
 import java.io.File
 import java.util.Locale
@@ -21,18 +24,26 @@ object TestForks {
     private const val GIB_PER_FORK = 2.5
     private const val GIB = 1024L * 1024 * 1024
 
-    class Choice(val forks: Int, private val cores: Int, private val availableBytes: Long) {
+    class Choice(val forks: Int, private val cores: Int, private val availableBytes: Long, private val capped: Boolean) {
         /** The measurements [forks] was computed from. */
-        val basis: String get() = "$cores cores, ${"%.1f".format(Locale.ROOT, availableBytes.toDouble() / GIB)} GiB available"
+        val basis: String
+            get() = "$cores cores, ${"%.1f".format(Locale.ROOT, availableBytes.toDouble() / GIB)} GiB available" +
+                if (capped) ", capped by testMaxForks" else ""
     }
 
-    fun choose(): Choice {
+    fun choose(limit: Int?): Choice {
         val cores = Runtime.getRuntime().availableProcessors()
         val available = availableMemoryBytes()
         val byMemory = (available / (GIB_PER_FORK * GIB)).toInt()
+        val forks = max(1, min(cores - 2, byMemory))
+        val capped = limit?.let { min(forks, it) } ?: forks
 
-        return Choice(max(1, min(cores - 2, byMemory)), cores, available)
+        return Choice(capped, cores, available, capped < forks)
     }
+
+    fun parse(property: String, value: String): Int =
+        value.toIntOrNull()?.takeIf { it >= 1 }
+            ?: throw GradleException("$property must be a positive whole number, not '$value'")
 
     /** The host's available memory, or what the container's memory limit leaves, whichever is less. */
     private fun availableMemoryBytes(): Long =
@@ -58,18 +69,20 @@ object TestForks {
 }
 
 /**
- * Sizes the forks when the task runs, as available memory differs build to build; [explicitForks] (`-PtestForks=N`)
- * overrides. Each fork is its own IDE: `org.elixir_lang.junit.ForkIsolation` gives it its own sandbox directories and
- * quoter client node when there is more than one. The count moves a leg's wall time by a whole fork's share, so it is
+ * Sizes the forks when the task runs, as available memory differs build to build, at most [forkLimit] (`testMaxForks`);
+ * [explicitForks] (`-PtestForks=N`) overrides both. Each fork is its own IDE: `org.elixir_lang.junit.ForkIsolation`
+ * gives it its own sandbox directories and quoter client node when there is more than one. The count moves a leg's wall time by a whole fork's share, so it is
  * also appended to [stepSummary], where CI compares the timings.
  */
-fun Test.runInForks(explicitForks: Provider<Int>, stepSummary: Provider<String>) {
+fun Test.runInForks(explicitForks: Provider<Int>, forkLimit: Provider<Int>, stepSummary: Provider<String>) {
+    // Read while configuring, so a bad value also fails a run that is up to date or taken from the cache.
+    val explicit = explicitForks.orNull
+    val cap = forkLimit.orNull
     doFirst {
-        val choice = TestForks.choose()
-        val forks = explicitForks.orNull ?: choice.forks
+        val (forks, basis) = explicit?.let { it to "-PtestForks" } ?: TestForks.choose(cap).let { it.forks to it.basis }
         maxParallelForks = forks
         systemProperty("elixir.test.forks", forks)
-        val line = "Running tests in $forks fork(s) (${if (explicitForks.isPresent) "-PtestForks" else choice.basis})"
+        val line = "Running tests in $forks fork(s) ($basis)"
         logger.lifecycle(line)
         stepSummary.orNull?.let { File(it).appendText("$line\n") }
     }
@@ -77,7 +90,11 @@ fun Test.runInForks(explicitForks: Provider<Int>, stepSummary: Provider<String>)
 
 /** Records which fork ran each class in [timeline], which every fork appends to, so it is emptied once per run. */
 fun Test.recordTimeline(timeline: File) {
-    // Absolute, so the forks append to the file this run empties and not one relative to another directory.
-    systemProperty("elixir.test.timeline", timeline.absoluteFile.absolutePath)
+    jvmArgumentProviders.add(TimelineArgument(timeline))
     doFirst { timeline.delete() }
+}
+
+/** An output rather than a system property, so a cached run restores the timeline and its path is not in the key. */
+class TimelineArgument(@get:OutputFile val timeline: File) : CommandLineArgumentProvider {
+    override fun asArguments(): List<String> = listOf("-Delixir.test.timeline=${timeline.path}")
 }

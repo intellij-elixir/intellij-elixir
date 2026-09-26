@@ -51,9 +51,10 @@ internal object SdkFixtures {
         register(sdk, parentDisposable).also { waitForRegistrationFills() }
 
     /**
-     * Waits for the reads registering SDKs starts once a project's startup has installed the SDK table listeners, so
-     * one cannot land between a test's own store writes and its assertion.
+     * Waits for the reads that registering an SDK starts once a project's startup has installed the SDK table
+     * listeners, so none lands between a test's own store writes and its assertion.
      */
+    @RequiresEdt
     fun waitForRegistrationFills() =
         waitUntil("the registration fill finishes") { SdkVersionWatchService.isIdleForTests() }
 
@@ -71,6 +72,7 @@ internal object SdkFixtures {
     fun persistedElixirData(sdk: Sdk): ElixirSdkAdditionalData? =
         sdk.sdkModificator.sdkAdditionalData as? ElixirSdkAdditionalData
 
+    @RequiresEdt
     fun waitUntil(message: String, timeoutMillis: Long = 10_000, condition: () -> Boolean) {
         val deadline = System.currentTimeMillis() + timeoutMillis
         while (!condition()) {

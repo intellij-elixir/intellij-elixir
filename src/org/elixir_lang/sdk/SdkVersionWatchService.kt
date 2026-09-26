@@ -226,7 +226,11 @@ internal object SdkVersionWatchService {
     @set:TestOnly
     var beforeWatchRebuiltForTests: (() -> Unit)? = null
 
-    /** Whether every fill and rewatch launched so far has finished, for a test that must see the store settled. */
+    /**
+     * Whether the fills and rewatches the live installation launched have finished, for a test that must see the store
+     * settled. A replaced installation's fills are not counted, nor fills started outside the installation's scope, such
+     * as `fillUsedBy`'s.
+     */
     @TestOnly
     fun isIdleForTests(): Boolean = installed?.scope?.coroutineContext?.job?.children?.none() ?: true
 

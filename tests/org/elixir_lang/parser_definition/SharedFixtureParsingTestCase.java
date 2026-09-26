@@ -10,8 +10,8 @@ import org.jetbrains.annotations.Nullable;
 /**
  * A generated suite whose cases share one {@link SharedFixture}.
  *
- * <p>From IntelliJ 2026.2 the platform's {@code ParsingTestCase.setUp} goes through {@code MockApplication.setUp},
- * which sleeps 50 ms, while parsing one snippet takes about 1 ms.
+ * <p>From IntelliJ 2026.2 {@code MockApplication.setUp}, which every {@code ParsingTestCase.setUp} calls, sleeps
+ * 50 ms, while parsing one snippet takes about 1 ms.
  */
 @SuppressWarnings("JUnitMalformedDeclaration") // T is the self type of a generated suite, built only by suite().
 abstract class SharedFixtureParsingTestCase<T extends SharedFixtureParsingTestCase<T>> extends ParsingTestCase

@@ -55,6 +55,7 @@ import testing.keepWinpHelpersIn
 import testing.recordTimeline
 import testing.reportUnexpectedLogs
 import testing.runInForks
+import testing.TestForks
 import testing.TestProgress
 import versioning.ChangelogSettings
 import versioning.GitSourceIdValueSource
@@ -446,7 +447,6 @@ allprojects {
             showExceptions = true
             showStackTraces = true
             showFullStackTraces = false
-            slowThreshold = 2000
             // A full run lists too many to read; `-Dtestlogger.showPassed=true` lists them again.
             showPassed = false
             showSummary = true
@@ -1085,13 +1085,6 @@ val checkUnexpectedLogs: TaskProvider<CheckUnexpectedLogs> = tasks.register<Chec
     reportDir = unexpectedLogsDir
 }
 
-// On Windows the bundled IJent plugin routes every `\\wsl$` and `\\wsl.localhost` path through an agent it deploys
-// into the named distribution. The tests' distributions exist on no machine, so each deploy fails, asynchronously,
-// into whichever test is running. A task for tests that need real WSL can leave it on.
-tasks.named<org.jetbrains.intellij.platform.gradle.tasks.PrepareSandboxTask>("prepareTestSandbox") {
-    disabledPlugins.add("intellij.platform.ijent.impl")
-}
-
 // The whole JUnit suite. The parser tests (org.elixir_lang.parser_definition) quote source through
 // the external Elixir quoter daemon and compare it against the plugin's own quoting, so this task
 // owns the daemon's lifecycle - hence startQuoter and usesService below.
@@ -1102,7 +1095,8 @@ tasks.named<Test>("test") {
     // output.
     dependsOn("prepareTestSandbox", resolveElixirErlangSdks, startQuoter)
     usesService(quoterService)
-    // Every fork starting the ~150 other bundled plugins cost each one seconds before its first test.
+    // Keeps the other bundled plugins' platform noise out of the tests. The list also keeps IJent out; see
+    // `testLoadedPlugins` in gradle.properties.
     systemProperty("idea.load.plugins.id", providers.gradleProperty("testLoadedPlugins").get())
 
     val sdkProps = sdkPropertiesFile
@@ -1163,7 +1157,8 @@ tasks.named<Test>("test") {
     exclude($$"**/*$Companion.class")
 
     runInForks(
-        explicitForks = providers.gradleProperty("testForks").map(String::toInt),
+        explicitForks = providers.gradleProperty("testForks").map { TestForks.parse("testForks", it) },
+        forkLimit = providers.gradleProperty("testMaxForks").map { TestForks.parse("testMaxForks", it) },
         stepSummary = providers.environmentVariable("GITHUB_STEP_SUMMARY"),
     )
     addTestListener(TestProgress(every = 1000))

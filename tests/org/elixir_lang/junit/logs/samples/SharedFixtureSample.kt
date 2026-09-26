@@ -48,6 +48,7 @@ class SharedFixtureSample private constructor(private val fixture: SharedFixture
         when (case.name) {
             "logs" -> logger<SharedFixtureSample>().warn(SAMPLE_WARNING)
             "fails" -> fail(SAMPLE_FAILURE)
+            "errs" -> logger<SharedFixtureSample>().error(SAMPLE_ERROR)
             "posts" -> {
                 posted = false
                 ApplicationManager.getApplication().invokeLater { posted = true }
@@ -60,7 +61,7 @@ class SharedFixtureSample private constructor(private val fixture: SharedFixture
     companion object {
         const val SLEEP_MILLIS = 1_000L
         const val SET_UP_FAILURE = "set-up failure"
-        val CASES = listOf("a", "logs", "fails", "posts", "sleeps", "c", "d")
+        val CASES = listOf("a", "logs", "fails", "errs", "posts", "sleeps", "c", "d")
 
         val setUps = AtomicInteger()
         val tearDowns = AtomicInteger()

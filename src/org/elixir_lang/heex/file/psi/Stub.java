@@ -19,7 +19,7 @@ public class Stub extends PsiFileStubImpl<File> {
         return ElementType.INSTANCE;
     }
 
-    // Narrows the platform's raw return type, which javac reports as an unchecked override.
+    // See `org.elixir_lang.psi.stub.impl.ElixirFileStubImpl.getStubType`.
     @Override
     public @Nullable IStubElementType<?, ?> getStubType() {
         return null;
