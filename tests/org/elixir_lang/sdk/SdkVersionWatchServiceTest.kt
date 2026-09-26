@@ -204,23 +204,12 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
     @RequiresEdt
     fun testAnInstallationStillWatchesAfterAnEarlierInstallIsDisposed() {
         val home = erlangHome("27", "27.3.4")
-        val erlangSdk = SdkFixtures.registerAndWaitForFill(
-            SdkFixtures.erlangSdk("Reinstalled Erlang", home),
-            testRootDisposable,
-        )
-        val elixirSdk = SdkFixtures.registerAndWaitForFill(
-            SdkFixtures.elixirSdk("Reinstalling Elixir", elixirHome("1.20.5")),
-            testRootDisposable,
-        )
-        SdkFixtures.commit(elixirSdk, SdkAdditionalData(erlangSdk, elixirSdk))
-        // Registering may already have read the home, when startup installed the SDK table listeners; either way the
-        // watch this asserts is the one the installation still live after `first` is disposed holds.
         val first = Disposer.newDisposable(testRootDisposable, "first install")
         SdkVersionWatchService.install(first)
         SdkVersionWatchService.install(testRootDisposable)
 
         Disposer.dispose(first)
-        ModuleRootModificationUtil.setModuleSdk(module, elixirSdk)
+        // Read only now, so only the installation still live can build the watch on it.
         runSuspendOnPooledThread {
             SdkVersionsFiller.fill(home)
             SdkVersionWatchService.rewatch()
@@ -398,11 +387,29 @@ class SdkVersionWatchServiceTest : PlatformTestCase() {
         )
         timeline += snapshot("Elixir SDK registered", home)
         SdkFixtures.commit(elixirSdk, SdkAdditionalData(erlangSdk, elixirSdk))
+        // Registering reads the home once startup has installed the SDK table listeners, and `install` would then
+        // watch it.
+        SdkVersionsStore.getInstance().clearForTests()
+        SdkVersionWatchService.stopWatchingForTests()
         SdkVersionWatchService.install(testRootDisposable)
+        SdkFixtures.waitUntil("precondition: the installation's first watch settles") {
+            SdkVersionWatchService.isIdleForTests()
+        }
+        assertFalse(
+            "precondition: nothing watches the home before a module uses it",
+            installationKey(home) in SdkVersionWatchService.homesToWatch(),
+        )
+        assertNull(
+            "precondition: nothing has read the home before a module uses it",
+            SdkVersionsStore.getInstance().otpVersion(home),
+        )
         timeline += snapshot("watch installed", home)
 
         ModuleRootModificationUtil.setModuleSdk(module, elixirSdk)
         timeline += snapshot("module SDK set", home)
+        SdkFixtures.waitUntil("assigning a registered SDK to a module must read its installation") {
+            SdkVersionsStore.getInstance().otpVersion(home) == "27.3.4"
+        }
 
         val otpVersionFile = LocalFileSystem.getInstance()
             .refreshAndFindFileByPath("${FileUtil.toSystemIndependentName(home)}/releases/27/OTP_VERSION")
