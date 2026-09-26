@@ -497,6 +497,8 @@
   - **`testMaxForks` caps the number of test forks, to leave room for other work, and `-PtestForks` is validated before `test` runs; a test run taken from the build cache also restores its `-PtestTimeline` file.**
 - [#4183](https://github.com/intellij-elixir/intellij-elixir/pull/4183) [@sh41](https://github.com/sh41)
   - **A test that logs an error or a plugin warning, or leaves an exception uncaught, that it does not expect now fails.**
+- [#4190](https://github.com/intellij-elixir/intellij-elixir/pull/4190) [@sh41](https://github.com/sh41)
+  - **The Test Results comment keeps its summary table when a leg fails tens of thousands of tests, such as the code intelligence matrix; those legs are published without per-failure annotations and counted in their own rows.**
 - [#4186](https://github.com/intellij-elixir/intellij-elixir/pull/4186) [@sh41](https://github.com/sh41)
   - **A light test's changes to the shared test module and project are undone after it, and a test that leaves anything else changed there fails.**
 - [#4188](https://github.com/intellij-elixir/intellij-elixir/pull/4188) [@sh41](https://github.com/sh41)

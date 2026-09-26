@@ -128,6 +128,13 @@ jobs:
           # Failure annotations themselves are governed by `ignore_runs`, which must stay false.
           check_run_annotations: none
           report_suite_logs: none
+          # A code intelligence matrix leg fails ~24,000 cells by design, and the action annotates every failing
+          # test: 50 per PATCH, 2s apart, so ~16 minutes against this job's 15, cancelling it before the check is
+          # finished. ignore_runs drops the <testcase> elements and with them every annotation, which nobody
+          # could read at that count anyway; the cells are listed in the leg's own XMLs. It also leaves the
+          # digest's `tests_*` at 0, but its `runs_*` come from the <testsuite> attributes, and a matrix cell
+          # runs exactly once per leg, so the comment reads the runs as the tests for such a leg.
+          ignore_runs: ${{ startsWith(matrix.artifact, 'Test Results (matrix, ') }}
 
   # A single aggregate check over every matrix cell, per the action's "Use with
   # matrix strategy" guidance, plus the pull request comment. The check_name is
@@ -208,7 +215,13 @@ jobs:
           # here (the action warns suite details "can greatly increase the size of the output"), and
           # the per-leg figures come from the per-cell check runs, which are published for free.
           json_file: test-results.json
-          files: 'artifacts/test-results/**/*.xml'
+          # The matrix legs are left out: their ~24,000 failing cells each would be annotated here too, timing
+          # this step out before it writes json_file, which loses every aggregate figure. They are counted in
+          # their own rows of the comment, from their per-leg checks. Keep the prefix in step with
+          # MATRIX_PREFIX in the renderer below.
+          files: |
+            artifacts/test-results/**/*.xml
+            !artifacts/test-results/Test Results (matrix, */**/*.xml
           # As in the per-cell publish job above, and for the same reason: an annotation on this check
           # should mean a test failed. Here it also keeps the aggregate from repeating all 11 legs'
           # worth of "N tests found" notices.
@@ -247,6 +260,8 @@ jobs:
             // The label is everything inside the parentheses, minus the marker Record leg status appends for a
             // leg whose tests never ran. Non-greedy, so a label that itself contains ", " survives intact.
             const RESULTS_NAME = /^Test Results \((.*?)(?:, INCOMPLETE - failed at (.+))?\)$/;
+            // Legs whose XMLs the aggregate above leaves out; keep in step with its `files` exclusion.
+            const MATRIX_PREFIX = 'matrix, ';
             // Both the per-leg checks and the aggregate carry the action's own stats gzipped into the check
             // summary - exact integers, already computed, and published for free. json_suite_details would be
             // the alternative and the action warns it "can greatly increase the size of the output".
@@ -391,6 +406,17 @@ jobs:
                 // earlier run of the reporting workflow would otherwise contribute last time's numbers silently.
                 if (counts && counts.commit && counts.commit !== workflowRun.head_sha) {
                   core.warning(`ignoring stale figures on "${name}" (digest is for ${counts.commit})`);
+                } else if (counts && counts.tests === 0 && counts.runs > 0) {
+                  // Published with ignore_runs (the matrix legs, see the publish job): no test cases were read,
+                  // so only the per-run figures exist. Each cell runs once per leg, so they are the tests.
+                  leg.counts = {
+                    ...counts,
+                    tests: counts.runs,
+                    tests_succ: counts.runs_succ,
+                    tests_skip: counts.runs_skip,
+                    tests_fail: counts.runs_fail,
+                    tests_error: counts.runs_error,
+                  };
                 } else {
                   leg.counts = counts;
                 }
@@ -447,7 +473,7 @@ jobs:
               {
                 heading: 'Legs that did not report their status',
                 note:
-                  'No `Leg Status (…)` artifact, so whether these block a merge - and whether their tests ran' +
+                  'No `Leg Status (...)` artifact, so whether these block a merge - and whether their tests ran' +
                   ' at all - is unknown. Counts are whatever they published.',
                 rows: rows.filter((leg) => !leg.status),
               },
@@ -647,7 +673,9 @@ jobs:
               // range. If nothing reported a status, every leg counts and the ❔ note below says the totals are
               // of unknown completeness.
               const anyStatus = rows.some((leg) => leg.status);
-              const legTests = rows
+              // Only the legs the aggregate read, so this row describes the same legs as the rows under it.
+              const aggregated = rows.filter((leg) => !leg.label.startsWith(MATRIX_PREFIX));
+              const legTests = aggregated
                 .filter((leg) => leg.counts && (!anyStatus || (leg.status && leg.status.tests_ran === true)))
                 .map((leg) => leg.counts.tests);
               const perLeg = legTests.length
@@ -657,7 +685,7 @@ jobs:
                 : '-';
               // Named exactly for what was measured, so the row does not quietly speak for the legs it skipped.
               const perLegLabel =
-                legTests.length && legTests.length < rows.length ? 'tests per completed leg' : 'tests per leg';
+                legTests.length && legTests.length < aggregated.length ? 'tests per completed leg' : 'tests per leg';
 
               body.push(
                 '| | count |',
@@ -679,14 +707,18 @@ jobs:
                   ' and as many runs as there are legs - **that is the figure to read** for a matrix whose job' +
                   ' is per-version validation. `distinct tests failing somewhere` collapses it back: a test that' +
                   ' fails on four legs counts once. Every row spans required and informational legs alike; only' +
-                  ' the required-leg line above decides whether this commit can merge.',
+                  ' the required-leg line above decides whether this commit can merge.' +
+                  (aggregated.length < rows.length
+                    ? ' The code intelligence matrix legs are not in these figures - their cells are counted in' +
+                      ' their own rows below.'
+                    : ''),
                 '',
               );
 
               if (timed.length !== rows.length) {
                 body.push(
                   timed.length === 0
-                    ? '⚠️ No `test (…)` job matched these legs, so neither clock figure could be measured.'
+                    ? '⚠️ No `test (...)` job matched these legs, so neither clock figure could be measured.'
                     : `⚠️ Job timings matched only ${timed.length} of ${rows.length} legs, so both clock` +
                         ' figures cover just those.',
                   '',
@@ -730,8 +762,8 @@ jobs:
             }
 
             body.push(
-              'Counts only - for *which* tests failed, open a leg’s `Test Results (…)` check, or the' +
-                ' **Failed tests** summary on its `test (…)` job.',
+              'Counts only - for *which* tests failed, open a leg’s `Test Results (...)` check, or the' +
+                ' **Failed tests** summary on its `test (...)` job.',
             );
 
             const comment = body.join('\n');
