@@ -20,11 +20,7 @@ object Module {
                      */
                     ApplicationManager
                             .getApplication()
-                            .runReadAction(Computable {
-                                call
-                                        .parent.let { it  as? Arguments }
-                                        ?.parent?.let { it as? Call }?.let { CallDefinitionClause.isMacro(it) }
-                            }) != true) ||
+                            .runReadAction(Computable { !CallableDeclaration.isHead(call) })) ||
                     call.isCalling(Module.MODULE, Function.CREATE, 3)
 
     @RequiresReadLock

@@ -13,7 +13,6 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.*
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.call.CallImpl.hasDoBlockOrKeyword
-import org.elixir_lang.psi.impl.call.macroDefinitionClauseForArgument
 import org.elixir_lang.psi.impl.moduleWithDependentsScope
 import org.elixir_lang.psi.scope.variable.BindingPattern
 import org.elixir_lang.psi.stub.type.call.Stub.isModular
@@ -89,10 +88,10 @@ object UseScopeImpl {
                     val headBindingForm = CallableDeclaration.headBindingFormOf(ancestorCall)
 
                     if (headBindingForm == CallableDeclaration.Form.CLAUSE) {
-                        val macroDefinitionClause = ancestorCall.macroDefinitionClauseForArgument()
+                        val definitionClause = CallableDeclaration.headedBy(ancestorCall)
 
-                        if (macroDefinitionClause != null) {
-                            ancestor = macroDefinitionClause
+                        if (definitionClause != null) {
+                            ancestor = definitionClause
                         }
 
                         break

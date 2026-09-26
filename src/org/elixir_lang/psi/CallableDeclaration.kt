@@ -5,6 +5,7 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.ResolveState
+import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.EEx
 import org.elixir_lang.Name
@@ -346,22 +347,41 @@ object CallableDeclaration {
         return "$kind $name(${parameters.joinToString(", ")})"
     }
 
+    /** The clause or `defdelegate` whose head [call] is, guarded or not; `null` when it heads none. */
+    @RequiresReadLock
+    fun headedBy(call: Call): Call? =
+        PsiTreeUtil.getParentOfType(call, Call::class.java)
+            ?.let { if (it is ElixirMatchedWhenOperation) PsiTreeUtil.getParentOfType(it, Call::class.java) else it }
+            ?.takeIf { declaration -> head(declaration)?.let { CallDefinitionHead.strip(it) } == call }
+
+    /** A clause's or `defdelegate`'s head, guard included; `null` for a call of any other form. */
+    @RequiresReadLock
+    fun head(declaration: Call): PsiElement? =
+        when (headBindingFormOf(declaration)) {
+            Form.CLAUSE -> CallDefinitionClause.head(declaration)
+            Form.DELEGATION -> delegationHead(declaration)
+            Form.CALLBACK, Form.EXCEPTION, Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED, null -> null
+        }
+
     /** The `defdelegate` whose head [call] is, `null` when it heads none: a head is a declaration, not a call. */
     @RequiresReadLock
-    fun delegationHeadedBy(call: Call): Call? =
-        com.intellij.psi.util.PsiTreeUtil.getParentOfType(call, Call::class.java)
-            ?.takeIf { isForm(it, Form.DELEGATION) }
-            ?.takeIf { delegation ->
-                delegationHead(delegation)?.let { org.elixir_lang.structure_view.element.CallDefinitionHead.strip(it) } == call
-            }
+    fun delegationHeadedBy(call: Call): Call? = headedBy(call)?.takeIf { isForm(it, Form.DELEGATION) }
 
     /**
-     * Whether [element] is a clause's or `defdelegate`'s head, guarded or not, or within the name it spells: part of a
-     * declaration, not a call. Decided without resolving.
+     * Whether [element] is within the name the nearest clause or `defdelegate` around it spells, or holds that name, as
+     * its head, guarded or not, does: part of a declaration, not a call. Decided without resolving.
      */
     @RequiresReadLock
-    fun isHead(element: PsiElement): Boolean =
-        CallDefinitionClause.isHead(element) || (element is Call && delegationHeadedBy(element) != null)
+    fun isHead(element: PsiElement): Boolean {
+        val declaration = generateSequence(element) { it.parent }
+            .takeWhile { it !is PsiFile }
+            .filterIsInstance<Call>()
+            .firstOrNull { headBindingFormOf(it) != null }
+            ?: return false
+        val nameElement = headBindingFormOf(declaration)?.let { nameElement(declaration, it) } ?: return false
+
+        return PsiTreeUtil.isAncestor(nameElement, element, false) || PsiTreeUtil.isAncestor(element, nameElement, false)
+    }
 
     /** The `as:` value of a `defdelegate`, `null` when it has none. */
     @RequiresReadLock

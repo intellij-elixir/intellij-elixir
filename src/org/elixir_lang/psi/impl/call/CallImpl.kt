@@ -343,29 +343,6 @@ fun Call.macroChildCallList(): List<Call> {
 fun Call.macroChildCallSequence(): Sequence<Call> = this.macroChildCallList().asSequence()
 
 @RequiresReadLock
-@Contract(pure = true)
-fun Call.macroDefinitionClauseForArgument(): Call? {
-    var macroDefinitionClause: Call? = null
-    val parent = parent
-
-    if (parent is ElixirMatchedWhenOperation) {
-        val grandParent = parent.getParent()
-
-        if (grandParent is ElixirNoParenthesesOneArgument) {
-            val greatGrandParent = grandParent.getParent()
-
-            if (greatGrandParent is Call) {
-                if (CallDefinitionClause.isMacro(greatGrandParent)) {
-                    macroDefinitionClause = greatGrandParent
-                }
-            }
-        }
-    }
-
-    return macroDefinitionClause
-}
-
-@RequiresReadLock
 fun Call.maybeModularNameToModulars(useCall: Call? = null): Set<PsiNamedElement> =
     if (isCalling(KERNEL, __MODULE__, 0)) {
         org.elixir_lang.psi.__MODULE__
