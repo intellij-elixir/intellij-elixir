@@ -15,12 +15,10 @@ public class ParametersPanel extends CommonProgramParametersPanel {
     private LabeledComponent<RawCommandLineEditor> elixirArgumentsComponent;
     private LabeledComponent<RawCommandLineEditor> erlArgumentsComponent;
 
-    private String getMixEspecArguments() {
-        return getProgramParametersComponent().getComponent().getText();
-    }
-
-    private void setMixESpecArguments(@Nullable String text) {
-        getProgramParametersComponent().getComponent().setText(text);
+    // The replacement constructor, taking the project, first ships in 2026.1.1.
+    @SuppressWarnings("deprecation")
+    public ParametersPanel() {
+        super();
     }
 
     private String getElixirArguments() {

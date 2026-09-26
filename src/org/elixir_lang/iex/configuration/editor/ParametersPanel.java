@@ -14,6 +14,12 @@ import java.awt.*;
 public class ParametersPanel extends CommonProgramParametersPanel {
     private LabeledComponent<RawCommandLineEditor> erlArgumentsComponent;
 
+    // The replacement constructor, taking the project, first ships in 2026.1.1.
+    @SuppressWarnings("deprecation")
+    public ParametersPanel() {
+        super();
+    }
+
     private String getErlArguments() {
         return erlArgumentsComponent.getComponent().getText();
     }
@@ -53,17 +59,11 @@ public class ParametersPanel extends CommonProgramParametersPanel {
 
     // See CommonJavaParametersPanel's addComponents
     private void addErlArgumentsComponent() {
-        erlArgumentsComponent = createArgumentsComponent("erl");
-        addArgumentsComponent(erlArgumentsComponent, 1);
-    }
-
-    private LabeledComponent<RawCommandLineEditor> createArgumentsComponent(@NotNull String command) {
-        return LabeledComponent.create(new RawCommandLineEditor(), command + " arguments:");
-    }
-
-    private void addArgumentsComponent(@NotNull LabeledComponent<RawCommandLineEditor> argumentsComponent, int index) {
-        copyDialogCaption(argumentsComponent);
-        argumentsComponent.setLabelLocation(BorderLayout.WEST);
-        add(argumentsComponent, index);
+        // `erl` is the executable's name.
+        //noinspection DialogTitleCapitalization
+        erlArgumentsComponent = LabeledComponent.create(new RawCommandLineEditor(), "erl arguments:");
+        copyDialogCaption(erlArgumentsComponent);
+        erlArgumentsComponent.setLabelLocation(BorderLayout.WEST);
+        add(erlArgumentsComponent, 1);
     }
 }

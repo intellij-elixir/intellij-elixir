@@ -5,14 +5,15 @@ import com.intellij.lexer.LexerBase;
 import com.intellij.lexer.LexerPosition;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.tree.IElementType;
-import gnu.trove.THashMap;
 import org.elixir_lang.ElixirLanguage;
 import org.elixir_lang.ElixirLexer;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import static com.intellij.psi.TokenType.BAD_CHARACTER;
 import static com.intellij.psi.TokenType.WHITE_SPACE;
@@ -22,12 +23,12 @@ import static org.elixir_lang.psi.ElixirTypes.*;
 
 /**
  * Like {@link com.intellij.lexer.LookAheadLexer}, but uses 2 base lexers.  Since which base lexer is being used, we
- * can't use LookAheadLexer since it's {@link com.intellij.lexer.LookAheadLexer.LookAheadLexerPosition} only works for a
+ * can't use LookAheadLexer since it's {@code LookAheadLexer.LookAheadLexerPosition} only works for a
  * single lexer.
  */
 public class HTMLEmbeddedElixir extends LexerBase {
     @NotNull
-    private static final Map<IElementType, IElementType> HEEX_TOKEN_TYPE_TO_ELIXIR_TOKEN_TYPE = new THashMap<>();
+    private static final Map<IElementType, IElementType> HEEX_TOKEN_TYPE_TO_ELIXIR_TOKEN_TYPE = new HashMap<>();
     @NotNull
     final Lexer heexLexer;
     @NotNull
@@ -128,7 +129,7 @@ public class HTMLEmbeddedElixir extends LexerBase {
     }
 
     @NotNull
-    public HTMLEmbeddedElixir.Position getCurrentPosition() {
+    public LexerPosition getCurrentPosition() {
         return new Position(this);
     }
 
@@ -171,11 +172,7 @@ public class HTMLEmbeddedElixir extends LexerBase {
     public void start(@NotNull CharSequence buffer, int startOffset, int endOffset, int initialState) {
         heexLexer.start(buffer, startOffset, endOffset, initialState & 0xFFFF);
 
-        if (heexLexer.getTokenType() == ELIXIR) {
-            elixirLexer.start(buffer, startOffset, endOffset);
-        } else {
-            elixirLexer.start(buffer, startOffset, endOffset);
-        }
+        elixirLexer.start(buffer, startOffset, endOffset);
     }
 
     protected static class Position implements LexerPosition {
@@ -197,15 +194,7 @@ public class HTMLEmbeddedElixir extends LexerBase {
         @Contract(pure = true)
         @NotNull
         private LexerPosition position() {
-            LexerPosition position;
-
-            if (elixirPosition != null) {
-                position = elixirPosition;
-            } else {
-                position = heexPosition;
-            }
-
-            return position;
+            return Objects.requireNonNullElse(elixirPosition, heexPosition);
         }
 
         public int getOffset() {

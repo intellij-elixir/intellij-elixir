@@ -6,6 +6,7 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleType
 import com.intellij.openapi.project.Project
+import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 
 /**
  * Created by zyuyou on 15/7/8.
@@ -15,7 +16,7 @@ class Action(private val project: Project, private val module: Module) : Notific
     override fun actionPerformed(e: AnActionEvent, notification: Notification) {
         // CANNOT use ModuleType.is(module, ElixirModuleType.getInstance()) as ElixirModuleType depends on
         // JavaModuleBuilder and so only available in IntelliJ
-        if (ModuleType.get(module).id == "ELIXIR_MODULE") {
+        if (ModuleType.get(module).id == ELIXIR_MODULE_TYPE_ID) {
             showModuleSettings(project, module)
         } else {
             showFacetSettings(project)

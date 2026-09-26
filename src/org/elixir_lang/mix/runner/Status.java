@@ -2,7 +2,6 @@ package org.elixir_lang.mix.runner;
 
 import com.google.common.base.CaseFormat;
 import com.intellij.execution.testframework.sm.ServiceMessageBuilder;
-import gnu.trove.THashMap;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -108,18 +107,16 @@ public class Status {
 
     private boolean isCompilationError() {
         return stackTraceLines != null &&
-                (stackTraceLines
-                        .get(stackTraceLines.size() - 1)
-                        .startsWith(COMPILATION_ERROR_PARALLEL_REQUIRE_PREFIX) ||
-                stackTraceLines.get(0).startsWith(COMPILATION_ERROR_COMPILE_ERROR_PREFIX));
+                (stackTraceLines.getLast().startsWith(COMPILATION_ERROR_PARALLEL_REQUIRE_PREFIX) ||
+                        stackTraceLines.getFirst().startsWith(COMPILATION_ERROR_COMPILE_ERROR_PREFIX));
     }
 
     @Nullable
     private Map<String, String> maybeTestStartedAttributes() {
         Map<String, String> attributes = null;
 
-        if (stackTraceLines != null && stackTraceLines.size() > 0) {
-            String firstStackTraceLine = stackTraceLines.get(0);
+        if (stackTraceLines != null && !stackTraceLines.isEmpty()) {
+            String firstStackTraceLine = stackTraceLines.getFirst();
 
             for (Pattern path_pattern : PATH_PATTERNS) {
                 Matcher matcher = path_pattern.matcher(firstStackTraceLine);
@@ -128,7 +125,7 @@ public class Status {
                     String file = matcher.group("file");
                     String line = matcher.group("line");
                     String locationHint = "file://" + file + ":" + line;
-                    attributes = new THashMap<>(2);
+                    attributes = HashMap.newHashMap(2);
                     attributes.put("locationHint", locationHint);
 
                     String name = fileToTestName(file);
@@ -178,7 +175,7 @@ public class Status {
     private String toTeamCityMessage() {
         ServiceMessageBuilder serviceMessageBuilder = new ServiceMessageBuilder("message");
 
-        if (stackTraceLines != null && stackTraceLines.size() > 0) {
+        if (stackTraceLines != null && !stackTraceLines.isEmpty()) {
             String errorDetails = StringUtils.join(stackTraceLines, "\n");
             serviceMessageBuilder.addAttribute("errorDetails", errorDetails);
         }

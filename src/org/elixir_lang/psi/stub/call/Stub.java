@@ -18,7 +18,7 @@ import static org.elixir_lang.psi.DefinitionKt.definition;
 // I normally wouldn't add the redundant StubBased prefix, but it makes generating from Elixir.bnf work
 public class Stub<T extends org.elixir_lang.psi.call.StubBased> extends NamedStubBase<T> implements Stubbic {
     private static Set<String> setStringRefToSetString(Set<StringRef> stringRefSet) {
-        Set<String> stringSet = new SmartHashSet<String>(stringRefSet.size());
+        Set<String> stringSet = new SmartHashSet<>(stringRefSet.size());
 
         for (StringRef stringRef : stringRefSet) {
             stringSet.add(StringRef.toString(stringRef));
@@ -28,7 +28,7 @@ public class Stub<T extends org.elixir_lang.psi.call.StubBased> extends NamedStu
     }
 
     private static Set<StringRef> setStringToSetStringRef(Set<String> stringSet) {
-        Set<StringRef> stringRefSet = new SmartHashSet<StringRef>(stringSet.size());
+        Set<StringRef> stringRefSet = new SmartHashSet<>(stringSet.size());
 
         for (String string : stringSet) {
             stringRefSet.add(StringRef.fromString(string));
@@ -177,6 +177,7 @@ public class Stub<T extends org.elixir_lang.psi.call.StubBased> extends NamedStu
      * @see PsiReference#getCanonicalText()
      */
     @Override
+    @NotNull
     public Set<String> canonicalNameSet() {
         return setStringRefToSetString(canonicalNameSet);
     }
@@ -185,7 +186,7 @@ public class Stub<T extends org.elixir_lang.psi.call.StubBased> extends NamedStu
      * Whether this call has a {@code do} block or a {@code :do} keyword, so it is a macro
      *
      * @return {@code true} if {@link Call#getDoBlock()} is NOT {@code null} or there is a {@code "do"} keyword argument
-     * @see org.elixir_lang.psi.impl.ElixirPsiImplUtil#keywordArgument(Call, String)
+     * @see org.elixir_lang.psi.impl.call.CallImplKt#keywordArgument(Call, String)
      */
     @Override
     public boolean hasDoBlockOrKeyword() {
@@ -199,7 +200,7 @@ public class Stub<T extends org.elixir_lang.psi.call.StubBased> extends NamedStu
      *   it is not {@code null}; otherwise, {@code 0}.
      */
     @Override
-    public Integer resolvedFinalArity() {
+    public int resolvedFinalArity() {
         return resolvedFinalArity;
     }
 

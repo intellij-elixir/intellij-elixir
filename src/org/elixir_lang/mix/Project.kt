@@ -16,12 +16,12 @@ import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileVisitor
 import com.intellij.util.concurrency.annotations.RequiresEdt
+import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.mix.project.CANONICAL_FOLDER_MARKS
 import org.elixir_lang.mix.project.FolderMark
 import org.elixir_lang.mix.project.OtpApp
 import org.elixir_lang.mix.sync.MixDepsSyncService
 import org.elixir_lang.mix.sync.SyncRequest
-import org.elixir_lang.module.ElixirModuleType
 import java.io.EOFException
 import java.io.File
 
@@ -154,7 +154,7 @@ object Project {
     ): ModifiableRootModel? {
         val ideaModuleDir = otpApp.root
         val ideaModuleFile = "${ideaModuleDir.canonicalPath}${File.separator}/${moduleName}.iml"
-        val module = moduleModel.newModule(ideaModuleFile, ElixirModuleType.MODULE_TYPE_ID)
+        val module = moduleModel.newModule(ideaModuleFile, ELIXIR_MODULE_TYPE_ID)
         otpApp.module = module
 
         return if (otpApp.ideaModuleFile == null) {
@@ -174,11 +174,11 @@ object Project {
 
         val content = modifiableRootModel.addContentEntry(root)
 
-        for (canonicalFolder in CANONICAL_FOLDER_MARKS) {
-            when (canonicalFolder.folderMark) {
-                FolderMark.SOURCES -> addSourceDirToContent(content, root, canonicalFolder.relativePath, false)
-                FolderMark.TEST_SOURCES -> addSourceDirToContent(content, root, canonicalFolder.relativePath, true)
-                FolderMark.EXCLUDED -> excludeDirFromContent(content, root, canonicalFolder.relativePath)
+        for ((relativePath, folderMark) in CANONICAL_FOLDER_MARKS) {
+            when (folderMark) {
+                FolderMark.SOURCES -> addSourceDirToContent(content, root, relativePath, false)
+                FolderMark.TEST_SOURCES -> addSourceDirToContent(content, root, relativePath, true)
+                FolderMark.EXCLUDED -> excludeDirFromContent(content, root, relativePath)
             }
         }
     }
@@ -208,7 +208,7 @@ object Project {
     private fun clearExcludeOutput(modifiableRootModel: ModifiableRootModel) {
         modifiableRootModel
             .getModuleExtension(CompilerModuleExtension::class.java)
-            ?.setExcludeOutput(false)
+            ?.isExcludeOutput = false
     }
 
     /**

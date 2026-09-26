@@ -11,8 +11,7 @@ import kotlin.collections.List
 import kotlin.collections.emptyList
 import kotlin.collections.isNotEmpty
 import kotlin.collections.mapNotNull
-
-private const val ELIXIR_MODULE_TYPE_ID = "ELIXIR_MODULE"
+import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 
 data class MixContentRoot(
     val contentEntry: ContentEntry,

@@ -7,8 +7,11 @@ import com.intellij.openapi.roots.ui.configuration.ClasspathEditor;
 import com.intellij.openapi.roots.ui.configuration.ModuleConfigurationEditorProvider;
 import com.intellij.openapi.roots.ui.configuration.ModuleConfigurationState;
 import com.intellij.openapi.roots.ui.configuration.OutputEditor;
+import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
+
+import static org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID;
 
 /**
  * Created by zyuyou on 15/6/5.
@@ -17,9 +20,9 @@ import javax.swing.*;
 public class DefaultModuleEditorsProvider implements ModuleConfigurationEditorProvider{
 
   @Override
-  public ModuleConfigurationEditor[] createEditors(ModuleConfigurationState state) {
+  public @NotNull ModuleConfigurationEditor @NotNull [] createEditors(@NotNull ModuleConfigurationState state) {
     Module module = state.getCurrentRootModel().getModule();
-    if(ModuleType.get(module) instanceof ElixirModuleType){
+    if(ModuleType.get(module).getId().equals(ELIXIR_MODULE_TYPE_ID)){
       return new ModuleConfigurationEditor[]{
           new ElixirContentEntriesEditor(module.getName(), state),
           new OutputEditorEx(state),

@@ -13,7 +13,6 @@ import com.intellij.psi.impl.source.PsiFileImpl;
 import com.intellij.psi.templateLanguages.ConfigurableTemplateLanguageFileViewProvider;
 import com.intellij.psi.templateLanguages.TemplateDataLanguageMappings;
 import com.intellij.psi.tree.IElementType;
-import gnu.trove.THashSet;
 import org.elixir_lang.ElixirLanguage;
 import org.elixir_lang.eex.Language;
 import org.elixir_lang.eex.element_type.EmbeddedElixir;
@@ -22,6 +21,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -123,6 +123,7 @@ public class ViewProvider extends MultiplePsiFilesPerDocumentFileViewProvider
     // fragments such as a ~L sigil, which never calls createFile - without this override the
     // injected data and Elixir roots parse raw text with no outer-element stripping and no
     // chameleon.
+    @SuppressWarnings("UnstableApiUsage")
     @Nullable
     @Override
     public IElementType getContentElementType(@NotNull com.intellij.lang.Language language) {
@@ -149,7 +150,7 @@ public class ViewProvider extends MultiplePsiFilesPerDocumentFileViewProvider
     @NotNull
     @Override
     public Set<com.intellij.lang.Language> getLanguages() {
-        return new THashSet<>(Arrays.asList(getTemplateDataLanguage(), getBaseLanguage(), ElixirLanguage.INSTANCE));
+        return new LinkedHashSet<>(Arrays.asList(getTemplateDataLanguage(), getBaseLanguage(), ElixirLanguage.INSTANCE));
     }
 
     @NotNull
@@ -159,7 +160,7 @@ public class ViewProvider extends MultiplePsiFilesPerDocumentFileViewProvider
     }
 
     @Override
-    protected MultiplePsiFilesPerDocumentFileViewProvider cloneInner(VirtualFile fileCopy) {
+    protected @NotNull MultiplePsiFilesPerDocumentFileViewProvider cloneInner(@NotNull VirtualFile fileCopy) {
         return new ViewProvider(getManager(), fileCopy, false, baseLanguage, templateDataLanguage);
     }
 

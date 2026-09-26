@@ -12,22 +12,18 @@ import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 
+import static org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID;
+
 /**
  * Created by zyuyou on 2015/5/26.
  */
-public class ElixirModuleType extends ModuleType<ElixirModuleBuilder>{
-  public static final String MODULE_TYPE_ID = "ELIXIR_MODULE";
-
+final class ElixirModuleType extends ModuleType<ElixirModuleBuilder>{
   public ElixirModuleType() {
-    super(MODULE_TYPE_ID);
+    super(ELIXIR_MODULE_TYPE_ID);
   }
 
   public static ElixirModuleType getInstance(){
-    return (ElixirModuleType) ModuleTypeManager.getInstance().findByID(MODULE_TYPE_ID);
-  }
-
-  public static Boolean isElixirModule(com.intellij.openapi.module.Module mod) {
-    return ModuleType.is(mod, getInstance());
+    return (ElixirModuleType) ModuleTypeManager.getInstance().findByID(ELIXIR_MODULE_TYPE_ID);
   }
 
   @NotNull
@@ -48,19 +44,13 @@ public class ElixirModuleType extends ModuleType<ElixirModuleBuilder>{
     return "Elixir modules are used for developing <b>Elixir</b> applications.";
   }
 
-//  @Override
-  public Icon getBigIcon() {
+  @Override
+  public @NotNull Icon getNodeIcon(boolean isOpened) {
     return Icons.MODULE;
   }
 
   @Override
-  public @NotNull Icon getNodeIcon(@Deprecated boolean isOpened) {
-    return Icons.MODULE;
-  }
-
-  @NotNull
-  @Override
-  public ModuleWizardStep[] createWizardSteps(@NotNull WizardContext wizardContext,
+  public ModuleWizardStep @NotNull [] createWizardSteps(@NotNull WizardContext wizardContext,
                                               @NotNull final ElixirModuleBuilder moduleBuilder,
                                               @NotNull ModulesProvider modulesProvider) {
     return new ModuleWizardStep[]{

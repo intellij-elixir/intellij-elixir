@@ -4,12 +4,12 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.psi.stubs.StubInputStream;
 import com.intellij.psi.stubs.StubOutputStream;
 import com.intellij.util.io.StringRef;
-import gnu.trove.THashSet;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 
 public class Deserialized {
@@ -32,12 +32,15 @@ public class Deserialized {
 
         BEGIN = new byte[GUARD_LENGTH];
 
+        // Dead while GUARD_LENGTH is 0.
+        //noinspection ConstantValue
         for (i = 0; i < BEGIN.length; i++) {
             BEGIN[i] = (byte) i;
         }
 
         END = new byte[BEGIN.length];
 
+        //noinspection ConstantValue
         for (i = 0; i < END.length; i++) {
             END[i] = (byte) (END.length - i);
         }
@@ -188,12 +191,12 @@ public class Deserialized {
                     .append(").");
 
             if (readAheadLength == 0) {
-                stringBuilder = stringBuilder.append("StubIndex may be corrupt.");
+                stringBuilder.append("StubIndex may be corrupt.");
                 LOGGER.error(stringBuilder.toString());
             } else {
                 byte[] readAhead = new byte[readAheadLength];
                 int bytesRead = dataStream.read(readAhead);
-                stringBuilder = stringBuilder
+                stringBuilder
                         .append("Read ahead read ")
                         .append(bytesRead)
                         .append(" of ")
@@ -204,7 +207,7 @@ public class Deserialized {
                 LOGGER.error(stringBuilder.toString());
             }
         }
-        Set<StringRef> nameSet = new THashSet<>(nameSetSize);
+        Set<StringRef> nameSet = HashSet.newHashSet(nameSetSize);
 
         if (nameSetSize > INFO_NAME_SET_SIZE) {
             StringBuilder stringBuilder = new StringBuilder("readNameSet nameSet of size ")
@@ -250,7 +253,7 @@ public class Deserialized {
 
     @NotNull
     private static Set<StringRef> stringRefSet(@NotNull Set<String> stringSet) {
-        Set<StringRef> stringRefSet = new THashSet<>();
+        Set<StringRef> stringRefSet = new HashSet<>();
 
         for (String string : stringSet) {
             stringRefSet.add(StringRef.fromNullableString(string));

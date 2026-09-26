@@ -109,6 +109,8 @@
 
 ### Bug Fixes
 
+- [#4180](https://github.com/intellij-elixir/intellij-elixir/pull/4180) [@sh41](https://github.com/sh41)
+  - **The Distillery run configuration's file choosers no longer accept folders, and its labels are in sentence case, with "sys.config File" renamed "Config file (sys.config)".**
 - [#4182](https://github.com/intellij-elixir/intellij-elixir/pull/4182) [@sh41](https://github.com/sh41)
   - **Removing an SDK while the IDE watches SDK version files no longer reports an internal error or stops that watch.**
 - [#4177](https://github.com/intellij-elixir/intellij-elixir/pull/4177) [@sh41](https://github.com/sh41)
@@ -464,6 +466,9 @@
 
 ### Threading / Platform Hygiene
 
+- [#4180](https://github.com/intellij-elixir/intellij-elixir/pull/4180) [@sh41](https://github.com/sh41)
+  - **The plugin no longer uses the deprecated platform APIs javac reports, apart from `CommonProgramParametersPanel()`, which waits for 2026.1.1.**
+  - **The plugin compares the Elixir module type by one ID instead of naming its class.**
 - [#4179](https://github.com/intellij-elixir/intellij-elixir/pull/4179) [@sh41](https://github.com/sh41)
   - **Building a file's stubs no longer reaches `CachedValuesManager` for the language level or for quoting, which the platform flags inside a stub build.**
 - [#4062](https://github.com/intellij-elixir/intellij-elixir/pull/4062) [@sh41](https://github.com/sh41)

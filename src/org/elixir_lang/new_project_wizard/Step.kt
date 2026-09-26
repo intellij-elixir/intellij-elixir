@@ -38,8 +38,8 @@ import com.intellij.ui.layout.ValidationInfoBuilder
 import kotlinx.coroutines.CancellationException
 import org.elixir_lang.Elixir
 import org.elixir_lang.Mix
+import org.elixir_lang.jps.shared.ElixirModuleTypeId.ELIXIR_MODULE_TYPE_ID
 import org.elixir_lang.module.ElixirModuleBuilder
-import org.elixir_lang.module.ElixirModuleType
 import org.elixir_lang.sdk.SdkDetectionContext
 import org.elixir_lang.sdk.SdkEnvironment
 import org.elixir_lang.sdk.elixir.Type
@@ -295,7 +295,7 @@ fun Row.elixirSdkComboBox(
         context.project,
         sdksModel,
         sdkProperty,
-        ElixirModuleType.MODULE_TYPE_ID,
+        ELIXIR_MODULE_TYPE_ID,
         ELIXIR_SDK_TYPE_FILTER,
         { sdk -> SdkEnvironment.sdkVisibleFor(targetDescriptor(), sdk) },
         ANY_SUGGESTED_SDK_FILTER,
