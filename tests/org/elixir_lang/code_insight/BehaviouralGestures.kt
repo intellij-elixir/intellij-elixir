@@ -4,10 +4,12 @@ package org.elixir_lang.code_insight
 
 import com.intellij.codeInsight.CodeInsightSettings
 import com.intellij.codeInsight.completion.CompletionType
+import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.codeInsight.lookup.impl.LookupImpl
 import com.intellij.codeInsight.hint.ParameterInfoControllerBase
 import com.intellij.codeInsight.hint.ParameterInfoListener
 import com.intellij.find.usages.api.PsiUsage
+import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.find.usages.api.SearchTarget
 import com.intellij.find.usages.api.UsageOptions
 import com.intellij.find.usages.impl.AllSearchOptions
@@ -27,6 +29,7 @@ import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.platform.backend.presentation.TargetPresentation
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
@@ -66,13 +69,13 @@ data class GtduTarget(val destination: PsiElement?)
  *  - [None] - the gesture resolves to nothing. Ctrl+Click / Ctrl+B does nothing, the caret stays put.
  *  - [GotoDeclaration] - the gesture navigates to one or more [GtduTarget]s (each carrying the [GtduTarget.destination]
  *    leaf the navigation lands on, so "navigated to the real declaration" is distinguishable from "navigated nowhere").
- *  - [ShowUsages] - the gesture opens Show Usages (the caret is on a declaration); `variantCount` is the
- *    number of target variants offered.
+ *  - [ShowUsages] - the gesture opens Show Usages (the caret is on a declaration); `variants` is the
+ *    presentable text of each target variant offered.
  */
 sealed interface GtduNavigation {
     object None : GtduNavigation
     data class GotoDeclaration(val targets: List<GtduTarget>) : GtduNavigation
-    data class ShowUsages(val variantCount: Int) : GtduNavigation
+    data class ShowUsages(val variants: List<String>) : GtduNavigation
 }
 
 /**
@@ -141,7 +144,11 @@ private fun resolveGtduNavigation(project: Project, editor: Editor, targetFile: 
             GtduNavigation.GotoDeclaration(navigationActionResult.toGtduTargets(project))
         }
         // GTDUActionResult.SU - the Show Usages branch; carries the offered target variants.
-        "SU" -> GtduNavigation.ShowUsages((result.call("getTargetVariants") as List<*>).size)
+        "SU" -> GtduNavigation.ShowUsages(
+            (result.call("getTargetVariants") as List<*>).map { variant ->
+                (variant!!.call("getPresentation") as TargetPresentation).presentableText
+            }
+        )
         else -> GtduNavigation.None
     }
 }
@@ -297,12 +304,31 @@ private fun CodeInsightTestFixture.gotoDeclarationSingleTargetAtCaret(): GtduTar
 }
 
 /**
- * The completion candidates offered at the caret (`null` when the popup wasn't shown - e.g. a single
- * match was auto-inserted, or nothing was offered).
+ * The completion candidates offered at the caret: empty when nothing was offered, `null` when a single
+ * match was auto-inserted.
  */
 fun CodeInsightTestFixture.completionStringsAtCaret(): List<String>? {
     complete(CompletionType.BASIC)
     return lookupElementStrings
+}
+
+/**
+ * The completion candidates offered at the caret, with a lone match listed rather than auto-inserted, so
+ * one matching candidate and several are asked the same question.
+ */
+fun CodeInsightTestFixture.completionCandidatesAtCaret(): List<String> {
+    val settings = CodeInsightSettings.getInstance()
+    val autocompleteWas = settings.AUTOCOMPLETE_ON_CODE_COMPLETION
+    settings.AUTOCOMPLETE_ON_CODE_COMPLETION = false
+
+    try {
+        complete(CompletionType.BASIC)
+
+        return lookupElementStrings
+            ?: throw AssertionError("Expected the completion lookup to open, but a candidate was auto-inserted")
+    } finally {
+        settings.AUTOCOMPLETE_ON_CODE_COMPLETION = autocompleteWas
+    }
 }
 
 /**
@@ -323,18 +349,15 @@ fun CodeInsightTestFixture.completeSoleCandidateAtCaret(): String {
 }
 
 /**
- * What one completion gesture did: the candidates offered ([candidates], `null` when no popup opened)
- * and the document [text] afterwards.
- *
- * Both halves are needed to tell the three outcomes apart. [completionStringsAtCaret] alone cannot:
- * it returns `null` both when nothing was offered *and* when a lone candidate auto-inserted, and a
- * test that flattens those passes when the editor silently rewrote the user's code.
+ * What one completion gesture did: the candidates offered ([candidates]; empty when nothing was
+ * offered, `null` when a lone candidate auto-inserted) and the document [text] afterwards, which says
+ * what that lone candidate inserted.
  */
 data class CompletionAttempt(val candidates: List<String>?, val text: String)
 
 /**
  * Drives completion at the caret and reports both what was offered and what the document became, for
- * callers that must distinguish "the popup offered nothing" from "a lone candidate auto-inserted".
+ * callers that must know what a lone auto-inserted candidate wrote.
  * Assertions that only care about one half want [completionStringsAtCaret] or
  * [completeSoleCandidateAtCaret] instead.
  */
@@ -362,6 +385,24 @@ fun CodeInsightTestFixture.completeCandidateAtCaret(
 }
 
 /**
+ * [completeCandidateAtCaret] for a fixture that may offer only one candidate. When a lone match
+ * auto-inserts, the document is returned as it stands and the caller must assert on the text to know
+ * which match that was. When nothing is offered it throws, as [completeCandidateAtCaret] does.
+ */
+fun CodeInsightTestFixture.completeCandidateOrSoleMatchAtCaret(
+    lookupString: String,
+    completionChar: Char = '\t',
+    matches: (String) -> Boolean = { it == lookupString }
+): String {
+    completeBasic()?.let { candidates ->
+        val candidate = candidates.firstOrNull { matches(it.lookupString) }?.lookupString ?: lookupString
+        acceptCompletionCandidate(candidates, candidate, completionChar)
+    }
+
+    return file.text
+}
+
+/**
  * Selects the candidate named [lookupString] from an open lookup and finishes it with [completionChar].
  *
  * The lookup is finished directly rather than by typing the character, because that is what the editor
@@ -373,6 +414,14 @@ fun CodeInsightTestFixture.completeCandidateAtCaret(
 private fun CodeInsightTestFixture.acceptCompletionCandidate(lookupString: String, completionChar: Char) {
     val candidates = completeBasic()
         ?: throw AssertionError("Expected a completion lookup to open, but a single candidate was auto-inserted")
+    acceptCompletionCandidate(candidates, lookupString, completionChar)
+}
+
+private fun CodeInsightTestFixture.acceptCompletionCandidate(
+    candidates: Array<LookupElement>,
+    lookupString: String,
+    completionChar: Char
+) {
     val candidate = candidates.firstOrNull { it.lookupString == lookupString }
         ?: throw AssertionError(
             "Expected a '$lookupString' completion candidate, got ${candidates.map { it.lookupString }}"
@@ -422,6 +471,27 @@ private fun CodeInsightTestFixture.psiUsagesAtCaret(
     }).get()
 }
 
+/**
+ * Find Usages from every search target at the caret, together: where the IDE offers a chooser of several targets, what
+ * a user can reach is each target's usages in turn, so these are all of them, each position once.
+ */
+@Suppress("UnstableApiUsage")
+fun CodeInsightTestFixture.everyTargetPsiUsagesAtCaret(project: Project): List<PsiUsage> {
+    val targetFile = symbolResolutionFile(project)
+    val offset = caretOffset
+    val allOptions = AllSearchOptions(
+        UsageOptions.createOptions(GlobalSearchScope.allScope(project)),
+        textSearch = false
+    )
+    return ApplicationManager.getApplication().executeOnPooledThread(Callable {
+        ReadAction.nonBlocking(Callable {
+            searchTargets(targetFile, offset)
+                .flatMap { target -> buildQuery(project, target, allOptions).findAll().filterIsInstance<PsiUsage>() }
+                .distinctBy { Triple(it.file, it.range, it.declaration) }
+        }).executeSynchronously()
+    }).get()
+}
+
 /** Number of Find Usages results at the caret that are *not* the declaration itself. */
 fun CodeInsightTestFixture.nonDeclarationUsageCountAtCaret(project: Project): Int =
     psiUsagesAtCaret(project).filterNot { it.declaration }.size
@@ -430,6 +500,11 @@ fun CodeInsightTestFixture.nonDeclarationUsageCountAtCaret(project: Project): In
 @Suppress("UnstableApiUsage")
 fun CodeInsightTestFixture.searchTargetCountAtCaret(): Int =
     searchTargets(symbolResolutionFile(project), caretOffset).size
+
+/** The text each Find Usages search target at the caret presents, as the usages view and target chooser show it. */
+@Suppress("UnstableApiUsage")
+fun CodeInsightTestFixture.searchTargetPresentableTextsAtCaret(): List<String> =
+    searchTargets(symbolResolutionFile(project), caretOffset).map { it.presentation().presentableText }
 
 /**
  * Renames the symbol at the caret the way the user-facing Rename refactoring (Shift+F6) does.
@@ -636,4 +711,27 @@ fun CodeInsightTestFixture.parameterInfoPopupAfterLeavingAndReturning(): Paramet
         PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
         editor.caretModel.moveToOffset(argumentOffset)
     }
+}
+
+/**
+ * What the editor is telling the developer about the thing under the caret: the descriptions of the inspection
+ * problems whose squiggle they would be pointing at.
+ *
+ * Bounded twice, and both bounds were measured rather than guessed. A problem must *cover the caret*, because a
+ * complaint about the qualifier of `M.f(a)` is about `M` and answers a different question than one about the
+ * call. And it must not reach beyond the caret's own line, because a complaint can be registered on an element
+ * that contains everything: `defmodule Foo do ... end` is itself a call, and an inspection that finds its
+ * reference unresolved marks the whole file, which would otherwise be reported at every caret in it.
+ */
+fun CodeInsightTestFixture.inspectionDescriptionsAtCaret(): List<String> {
+    val document = editor.document
+    val line = document.getLineNumber(caretOffset)
+    val start = document.getLineStartOffset(line)
+    val end = document.getLineEndOffset(line)
+
+    return doHighlighting(HighlightSeverity.WARNING)
+        .filter { it.startOffset >= start && it.endOffset <= end && caretOffset in it.startOffset..it.endOffset }
+        .mapNotNull { it.description }
+        .distinct()
+        .sorted()
 }

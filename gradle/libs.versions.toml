@@ -29,8 +29,9 @@ changelog = "2.5.0"
 # Dependency Versions
 commons-io = "2.22.0"
 junit = "4.13.2"
-# JUnit 5 for the `test` source set: the JUnit Platform and its Vintage engine. The platform's test frameworks declare
-# none; this is what 2026.2's ide-starter requests, and 5.x is backward compatible.
+# JUnit 5 for the `test` source set: the JUnit Platform, its Vintage engine for the JUnit 3 and 4 tests and its Jupiter
+# engine for the matrix. The platform's test frameworks declare none; this is what 2026.2's ide-starter requests, and 5.x
+# is backward compatible, so it also runs the 2025.3/2026.1 framework.
 junit5 = "5.14.4"
 opentest4j = "1.3.0"
 mockito-core = "5.23.0"

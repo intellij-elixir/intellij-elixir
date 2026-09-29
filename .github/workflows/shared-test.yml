@@ -212,10 +212,12 @@ jobs:
       # some earlier run left under that key and reports "Unable to reserve cache".
       - name: Resolve quoter cache paths
         id: quoter-cache
+        if: matrix.suite != 'matrix'
         run: ./gradlew $GRADLE_FLAGS -q quoterCachePaths --github-output="$GITHUB_OUTPUT"
 
       - name: Restore Elixir cache
         id: restore-elixir-cache
+        if: matrix.suite != 'matrix'
         uses: actions/cache/restore@v6
         with:
           path: ${{ steps.quoter-cache.outputs.paths }}
@@ -229,6 +231,8 @@ jobs:
       #   Build quoter    - releaseQuoter builds the executable; does not start the daemon.
       #   Download corpus - elixirParsingCorpus fetches and extracts the parser tests' corpus.
       #   Run tests       - check (test + :jps-builder:test); owns the quoter daemon start/stop.
+      # A `matrix` leg runs only the code intelligence matrix, which needs neither the quoter nor the
+      # corpus, so it skips both and their caches.
       - name: Compile
         id: compile
         continue-on-error: ${{ matrix.beam.continue-on-error || false }}
@@ -241,6 +245,7 @@ jobs:
 
       - name: Build quoter
         id: build-quoter
+        if: matrix.suite != 'matrix'
         continue-on-error: ${{ matrix.beam.continue-on-error || false }}
         run: ./gradlew $GRADLE_FLAGS releaseQuoter
 
@@ -261,6 +266,7 @@ jobs:
       # needs no restore-keys. Paths are empty when no corpus is declared for this Elixir.
       - name: Resolve corpus cache
         id: corpus-cache
+        if: matrix.suite != 'matrix'
         run: ./gradlew $GRADLE_FLAGS -q elixirParsingCorpusCachePaths --github-output="$GITHUB_OUTPUT"
 
       - name: Restore corpus cache
@@ -273,6 +279,7 @@ jobs:
 
       - name: Download corpus
         id: download-corpus
+        if: matrix.suite != 'matrix'
         continue-on-error: ${{ matrix.beam.continue-on-error || false }}
         run: ./gradlew $GRADLE_FLAGS elixirParsingCorpus
 
@@ -294,7 +301,9 @@ jobs:
         id: test
         timeout-minutes: 30
         continue-on-error: ${{ matrix.beam.continue-on-error || false }}
-        run: ./gradlew $GRADLE_FLAGS -Dtestlogger.theme=standard check
+        env:
+          TASKS: ${{ matrix.suite == 'matrix' && 'testFullMatrix' || 'check' }}
+        run: ./gradlew $GRADLE_FLAGS -Dtestlogger.theme=standard $TASKS
 
       # Without this the reporting cannot tell a leg that never compiled from one that passed: it
       # publishes whatever result XMLs exist, so the check reads "All 6 tests pass" for the six
@@ -310,8 +319,9 @@ jobs:
           SETUP_ENV_OUTCOME: ${{ steps.setup-env.outcome }}
           COMPILE_OUTCOME: ${{ steps.compile.outcome }}
           SANDBOX_OUTCOME: ${{ steps.prepare-sandbox.outcome }}
-          QUOTER_OUTCOME: ${{ steps.build-quoter.outcome }}
-          CORPUS_OUTCOME: ${{ steps.download-corpus.outcome }}
+          # `not run`, not the step's `skipped`, which the script counts as a failure.
+          QUOTER_OUTCOME: ${{ matrix.suite == 'matrix' && 'not run' || steps.build-quoter.outcome }}
+          CORPUS_OUTCOME: ${{ matrix.suite == 'matrix' && 'not run' || steps.download-corpus.outcome }}
           TEST_OUTCOME: ${{ steps.test.outcome }}
           LABEL: ${{ matrix.label }}
           LEG_OS: ${{ matrix.os }}
@@ -347,7 +357,7 @@ jobs:
         env:
           PHASE: ${{ steps.leg-status.outputs.failed-at }}
         run: |
-          leg="Elixir ${{ matrix.beam.elixir }} / OTP ${{ matrix.beam.otp }} on IDEA ${{ matrix.idea-version }}"
+          leg="${{ matrix.suite == 'matrix' && 'Code intelligence matrix' || format('Elixir {0} / OTP {1}', matrix.beam.elixir, matrix.beam.otp) }} on IDEA ${{ matrix.idea-version }}"
           echo "::error title=Informational leg failed::$leg failed at $PHASE. This leg is informational and does not block the merge; see the Failed tests summary and the Test Results check for details."
           {
             # :warning: in the summary, against the ::error annotation above, is deliberate: the icon
@@ -357,9 +367,13 @@ jobs:
             echo
             echo "\`$leg\` failed at **$PHASE** but does not block the merge."
             echo
-            echo "It stays informational until it goes green; at that point remove"
-            echo '`continue-on-error` from its `beam.additional` entry in `.github/ci-versions.json`'
-            echo "so the version becomes supported and any later regression fails the pipeline."
+            if [ "${{ matrix.suite }}" = matrix ]; then
+              echo "The matrix records what the plugin does today, red cells included; its counts are in the Test Results comment."
+            else
+              echo "It stays informational until it goes green; at that point remove"
+              echo '`continue-on-error` from its `beam.additional` entry in `.github/ci-versions.json`'
+              echo "so the version becomes supported and any later regression fails the pipeline."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       # Gracefully terminate the daemon BEFORE GitHub Action's post-job step runs
@@ -441,7 +455,7 @@ jobs:
         # upload for precisely the leg whose reports are wanted.
         if: ${{ always() && (failure() || steps.test.outcome == 'failure' || steps.build-quoter.outcome == 'failure' || inputs.upload-test-reports) }}
         with:
-          name: test-reports-${{ matrix.os }}-${{ matrix.idea-version }}-elixir-${{ matrix.beam.elixir }}-otp-${{ matrix.beam.otp }}
+          name: test-reports-${{ matrix.suite }}-${{ matrix.os }}-${{ matrix.idea-version }}-elixir-${{ matrix.beam.elixir }}-otp-${{ matrix.beam.otp }}
           path: |
             **/build/reports/tests/**
             **/build/test-results/**

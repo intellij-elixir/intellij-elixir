@@ -720,6 +720,8 @@ dependencies {
         // to register the XML PSI services a multi-root (HEEx + HTML) ParsingTestCase requires. Not
         // part of the IDE distribution's own jars, unlike the rest of the XML platform modules.
         testFramework(TestFrameworkType.Plugin.XML)
+        // `@TestApplication` for the JUnit 5 tests `testFullMatrix` runs; `test` excludes them by name.
+        testFramework(TestFrameworkType.JUnit5)
         // UI Test framework dependencies
         testFramework(TestFrameworkType.Starter, configurationName = "testUIImplementation")
         testFramework(TestFrameworkType.JUnit5, configurationName = "testUIImplementation")
@@ -1118,16 +1120,15 @@ tasks.named<Test>("test") {
 
     // QUOTER_AVAILABLE reaches the test JVM through that doFirst, so - as with the versions below -
     // Gradle cannot see it. Undeclared, a run that gains or loses a daemon stays UP-TO-DATE and
-    // reports the other run's results. Optional: `-x releaseQuoter` leaves no marker.
-    inputs.file(quoterAvailability)
+    // reports the other run's results. `files`, not `file`: `-x startQuoter` in a checkout that never
+    // built the quoter leaves no marker, and `inputs.file` rejects a missing file even when optional.
+    inputs.files(quoterAvailability)
         .withPropertyName("quoterAvailability")
         .withPathSensitivity(PathSensitivity.NONE)
-        .optional(true)
 
-    inputs.file(quoterStarted)
+    inputs.files(quoterStarted)
         .withPropertyName("quoterStarted")
         .withPathSensitivity(PathSensitivity.NONE)
-        .optional(true)
 
     // The Elixir/OTP versions reach the test JVM as environment variables set in that doFirst, which
     // Gradle cannot see, so they have to be declared or a version switch does not invalidate this task.
@@ -1152,6 +1153,8 @@ tasks.named<Test>("test") {
 
     // JUnit 3 and 4 tests run through the Vintage engine.
     useJUnitPlatform()
+    // The matrix is a Jupiter suite that takes minutes; only `testFullMatrix` runs it.
+    exclude("**/code_insight/CodeIntelligenceMatrixTest*")
     // A Kotlin `companion object` holding `@JvmStatic fun suite()` keeps an instance `suite()`, which Vintage
     // rejects as a test class of its own.
     exclude($$"**/*$Companion.class")
@@ -1180,6 +1183,22 @@ tasks.named<Test>("test") {
     // them here - the IntelliJ Platform Gradle Plugin sets the sandbox log path itself and wins.)
     systemProperty("idea.split.test.logs", "true")
     keepWinpHelpersIn(layout.buildDirectory.dir("tmp/winp").get().asFile)
+}
+
+// The code intelligence matrix takes minutes and its answers depend on the IDE version alone, so it is a
+// JUnit 5 suite that only this task runs: `test` excludes it by name and never finds it. It asks no
+// quoter and no SDK, so none of `test`'s set-up applies.
+intellijPlatformTesting.testIde.register("testFullMatrix") {
+    // A `testIde` task does not inherit `test`'s test frameworks.
+    testFrameworks(TestFrameworkType.Platform, TestFrameworkType.Plugin.Java, TestFrameworkType.JUnit5)
+
+    task {
+        description = "Runs the code intelligence matrix"
+        group = "verification"
+        useJUnitPlatform()
+        filter { includeTestsMatching("org.elixir_lang.code_insight.CodeIntelligenceMatrixTest") }
+        systemProperty("idea.split.test.logs", "true")
+    }
 }
 
 // Kotlin makes this jar a friend path of compileTestKotlin, and the file name is part of that task's

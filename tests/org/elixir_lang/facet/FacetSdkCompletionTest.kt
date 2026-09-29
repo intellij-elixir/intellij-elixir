@@ -99,7 +99,7 @@ class FacetSdkCompletionTest : PlatformTestCase() {
         }
     }
 
-    /** The real `math.beam` directory, standing in for an SDK `ebin` CLASSES root. */
+    /** The shared directory of real Erlang stdlib `.beam`s, standing in for an SDK `ebin` CLASSES root. */
     private fun beamFixtureRoot(): VirtualFile {
         val ebinDirectory = ERLANG_STDLIB_EBIN
         assertTrue("Fixture directory not found at ${ebinDirectory.absolutePath}", ebinDirectory.isDirectory)
