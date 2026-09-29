@@ -6,27 +6,24 @@ import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.NameArityInterval
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.psi.*
-import org.elixir_lang.psi.CallDefinitionClause.nameArityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.Named
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
-import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.call.keywordArgument
+import org.elixir_lang.psi.impl.literalName
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
-import org.elixir_lang.psi.impl.stripAccessExpression
+import org.elixir_lang.psi.scope.NameMatch
 import org.elixir_lang.psi.scope.ResolveResultOrderedSet
 import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
 import org.elixir_lang.psi.scope.WhileIn.whileIn
 import org.elixir_lang.psi.scope.maxScope
-import org.elixir_lang.structure_view.element.CallDefinitionHead
-import org.elixir_lang.structure_view.element.Callback
 
 class MultiResolve
 private constructor(
         /**
-         * Can be `null` when `Qualifier.unquote(variable)(...)` is used because although scope can be limited to
-         * `Qualifier`, no `name` can be inferred, so all public call definition clauses in `Qualifier` should resolve,
-         * but as invalid.
+         * Already [NameMatch.query]-normalized. Can be `null` when `Qualifier.unquote(variable)(...)` is used
+         * because although scope can be limited to `Qualifier`, no `name` can be inferred, so all public call
+         * definition clauses in `Qualifier` should resolve, but as invalid.
          */
         private val name: String?,
         /**
@@ -35,64 +32,74 @@ private constructor(
          */
         private val resolvedPrimaryArity: Int,
         private val incompleteCode: Boolean) : org.elixir_lang.psi.scope.CallDefinitionClause() {
+    override fun targetName(): String? = name
+
     override fun executeOnCallDefinitionClause(element: Call, state: ResolveState): Boolean =
-            nameArityInterval(element, state)
-                    ?.let { addIfNameOrArityToResolveResults(element, it, state) }
-                    ?: true
+            addDeclarations(element, CallableDeclaration.Form.CLAUSE, state)
 
     override fun execute(element: BeamCallDefinition, state: ResolveState): Boolean =
         addIfNameOrArityToResolveResults(element, element.nameArityInterval, state)
 
     override fun executeOnCallback(element: AtUnqualifiedNoParenthesesCall<*>, state: ResolveState): Boolean =
-            Callback.headCall(element)
-                    ?.let { CallDefinitionHead.nameArityInterval(it, state) }
-                    ?.let { addIfNameOrArityToResolveResults(element, it, state) }
-                    ?: true
+            addDeclarations(element, CallableDeclaration.Form.CALLBACK, state)
 
     override fun executeOnDelegation(element: Call, state: ResolveState): Boolean {
-        element.finalArguments()?.takeIf { it.size == 2 }?.let { arguments ->
-            val head = arguments[0]
-
-            CallDefinitionHead.nameArityInterval(head, state)?.let { headNameArityInterval ->
+        // firstOrNull, not singleOrNull: delegationHead is single-head only today, but a second declaration
+        // must not make this silently resolve to nothing once that widens (#4040).
+        CallableDeclaration.declarations(element, CallableDeclaration.Form.DELEGATION, state).firstOrNull()
+            ?.let { declaration -> declaration.arityInterval?.let { NameArityInterval(declaration.name, it) } }
+            ?.let { headNameArityInterval ->
                 val headName = headNameArityInterval.name
+                val nameMatch = nameMatch(headName, CallableDeclaration.delegationHead(element) ?: element)
                 val validArity = resolvedPrimaryArity in headNameArityInterval.arityInterval
 
-                if ((this.name == null && (incompleteCode || validArity)) ||
-                        (this.name != null && headName.startsWith(this.name))) {
-                    val headValidResult = validArity && headName == this.name
+                if (isCandidate(nameMatch, validArity)) {
+                    val headValidResult = validArity && nameMatch == NameMatch.EXACT
 
                     // the defdelegate is valid or invalid regardless of whether the `to:` (and `:as` resolves as
                     // `defdelegate` still defines a function in the module with the head's name and arity even if it
                     // will fail at runtime to call the delegated function
-                    addToResolveResults(element, headName, headValidResult, state)
+                    addToResolveResults(element, headNameArityInterval, nameMatch, headValidResult, state)
 
                     element.keywordArgument("to")?.let { definingModuleName ->
                         val modulars = definingModuleName.maybeModularNameToModulars(element.containingFile, useCall = null, incompleteCode = incompleteCode)
 
-                        if (modulars.isNotEmpty()) {
-                            val nameInDefiningModule = element.keywordArgument("as")?.let { it as? ElixirAtom }?.node?.lastChildNode?.text
-                                    ?: headName
+                        val nameInDefiningModule = nameInDefiningModule(element, headName)
 
+                        if (modulars.isNotEmpty() && nameInDefiningModule != null) {
                             for (modular in modulars) {
-                                // Call recursively to get all the proper `for` and `use` handling.
-                                val modularResolveResults = resolveResults(nameInDefiningModule, resolvedPrimaryArity, incompleteCode, modular)
+                                // Call recursively to get all the proper `for` and `use` handling. The name is
+                                // written in this module, so it is normalized at this module's language level.
+                                val modularResolveResults = resolveResults(
+                                    nameInDefiningModule,
+                                    resolvedPrimaryArity,
+                                    incompleteCode,
+                                    modular,
+                                    querySite = element
+                                )
 
-                                for (modularResultResult in modularResolveResults) {
-                                    when (val modularResultResultElement = modularResultResult.element) {
-                                        is Call -> addToResolveResults(
-                                            modularResultResultElement,
-                                            nameInDefiningModule,
-                                            modularResultResult.isValidResult,
-                                            state
-                                        )
-                                        is BeamCallDefinition -> addToResolveResults(
-                                            modularResultResultElement,
-                                            nameInDefiningModule,
-                                            modularResultResult.isValidResult,
-                                            state
-                                        )
-                                        // Anything else is not a definition a delegation can target.
-                                        else -> Unit
+                                // A target is reachable only as the head declares it - under the head's name
+                                // and arities, and valid only if the head is - so `as:` renames it, a prefix of
+                                // the head reaches nothing, and a default argument in the target widens nothing.
+                                for (modularResolveResult in modularResolveResults) {
+                                    val validResult = headValidResult && modularResolveResult.isValidResult
+
+                                    when (modularResolveResult) {
+                                        is CallDefinitionResolveResult ->
+                                            if (modularResolveResult.nameArityInterval.arityInterval.overlaps(headNameArityInterval.arityInterval)) {
+                                                addToResolveResults(
+                                                    modularResolveResult.element,
+                                                    headNameArityInterval,
+                                                    nameMatch,
+                                                    validResult,
+                                                    state,
+                                                    nameInDefiningModule
+                                                )
+                                            }
+                                        // an `EEx` function whose arity cannot be known
+                                        else -> (modularResolveResult.element as? Call)?.let { call ->
+                                            addToResolveResults(call, nameInDefiningModule, validResult, state)
+                                        }
                                     }
                                 }
 
@@ -104,138 +111,120 @@ private constructor(
                     }
                 }
             }
-        }
 
         return keepProcessing()
     }
 
     override fun executeOnEExFunctionFrom(element: Call, state: ResolveState): Boolean =
-            element.finalArguments()?.let { arguments ->
-                        arguments[1].stripAccessExpression().let { it as? ElixirAtom }?.node?.lastChildNode?.text?.let { name ->
-                            if (this.name != null && name.startsWith(this.name)) {
-                                val arity = if (arguments.size >= 4) {
-                                    // function_from_file(kind, name, file, args)
-                                    // function_from_file(kind, name, file, args, options)
-                                    // function_from_string(kind, name, template, args)
-                                    // function_from_string(kind, name, template, args, options)
-                                    arguments[3].stripAccessExpression().let { it as? ElixirList }?.children?.size
-                                } else {
-                                    // function_from_file(kind, name, file) where args defaults to `[]`
-                                    // function_from_string(kind, name, template) where args defaults to `[]`
-                                    0
-                                }
-
-                                val validResult = (resolvedPrimaryArity == arity) && (name == this.name)
-
-                                addToResolveResults(element, name, validResult, state)
-                            } else {
-                                true
-                            }
-                        } ?: true
-            } ?: true
+            addDeclarations(element, CallableDeclaration.Form.EEX_FUNCTION_FROM, state)
 
     override fun executeOnException(element: Call, state: ResolveState): Boolean =
-            whileIn(Exception.NAME_ARITY_LIST) { nameArity ->
-                val name = nameArity.name
-                val validArity = resolvedPrimaryArity == nameArity.arity
-
-                addIfNameOrArityToResolveResults(element, name, validArity, state)
-            }
+            addDeclarations(element, CallableDeclaration.Form.EXCEPTION, state)
 
     override fun executeOnMixGeneratorEmbed(element: Call, state: ResolveState): Boolean =
-            element.finalArguments()?.first()?.stripAccessExpression()?.let { it as? ElixirAtom }?.node?.lastChildNode?.text?.let { prefix ->
-                val suffix = element.functionName()!!.removePrefix("embed_")
-                val name = "${prefix}_${suffix}"
-                val arityRange = when (suffix) {
-                    "template" -> 0..1
-                    "text" -> 0..0
-                    else -> TODO("Unknown suffix $suffix")
-                }
+            addDeclarations(element, CallableDeclaration.Form.GENERATOR_EMBED, state)
 
-                if (this.name != null && name.startsWith(this.name)) {
-                    val validResult = (resolvedPrimaryArity in arityRange) && (name == this.name)
+    private fun addDeclarations(call: Call, form: CallableDeclaration.Form, state: ResolveState): Boolean =
+            whileIn(CallableDeclaration.declarations(call, form, state)) { declaration ->
+                val arityInterval = declaration.arityInterval
 
-                    addToResolveResults(element, name, validResult, state)
+                if (arityInterval != null) {
+                    addIfNameOrArityToResolveResults(call, NameArityInterval(declaration.name, arityInterval), state)
+                } else if (isCandidate(nameMatch(declaration.name, call), validArity = false)) {
+                    // The call does not say its arity (`EEx.function_from_string` given `@args`), so there is no
+                    // interval to record, and a call can only ever be checked against it as invalid.
+                    addToResolveResults(call, declaration.name, validResult = false, state)
                 } else {
                     true
                 }
-            } ?: true
-
-    private fun addIfNameOrArityToResolveResults(call: Call,
-                                                 nameArityInterval: NameArityInterval,
-                                                 state: ResolveState): Boolean {
-        val name = nameArityInterval.name
-        val validArity = resolvedPrimaryArity in nameArityInterval.arityInterval
-
-        return addIfNameOrArityToResolveResults(call, name, validArity, state)
-    }
-
-    private fun addIfNameOrArityToResolveResults(callDefinition: BeamCallDefinition,
-                                                 nameArityInterval: NameArityInterval,
-                                                 state: ResolveState): Boolean {
-        val name = nameArityInterval.name
-        val validArity = resolvedPrimaryArity in nameArityInterval.arityInterval
-
-        return addIfNameOrArityToResolveResults(callDefinition, name, validArity, state)
-    }
-
-    private fun addIfNameOrArityToResolveResults(call: Call, name: String, validArity: Boolean, state: ResolveState): Boolean =
-            if ((this.name == null && (incompleteCode || validArity)) ||
-                    (this.name != null && name.startsWith(this.name))) {
-                val validResult = validArity && name == this.name
-
-                addToResolveResults(call, name, validResult, state)
-            } else {
-                true
             }
 
-    private fun addIfNameOrArityToResolveResults(callDefinition: BeamCallDefinition,
-                                                 name: String,
-                                                 validArity: Boolean,
-                                                 state: ResolveState) : Boolean =
-        if ((this.name == null && (incompleteCode || validArity)) ||
-            (this.name != null && name.startsWith(this.name))) {
-            val validResult = validArity && name == this.name
+    /** [element] declares [nameArityInterval]: add it if its name, or with no name to match its arity, fits. */
+    private fun addIfNameOrArityToResolveResults(element: PsiElement,
+                                                 nameArityInterval: NameArityInterval,
+                                                 state: ResolveState): Boolean {
+        val nameMatch = nameMatch(nameArityInterval.name, element)
+        val validArity = resolvedPrimaryArity in nameArityInterval.arityInterval
 
-            addToResolveResults(callDefinition, name, validResult, state)
+        return if (isCandidate(nameMatch, validArity)) {
+            val validResult = validArity && nameMatch == NameMatch.EXACT
+
+            addToResolveResults(element, nameArityInterval, nameMatch, validResult, state)
         } else {
             true
         }
+    }
+
+    /** How [candidate], declared at [element], matches this walk's name; [NameMatch.NONE] when it has no name. */
+    private fun nameMatch(candidate: String, element: PsiElement): NameMatch =
+        name?.let { NameMatch.of(it, candidate, element) } ?: NameMatch.NONE
+
+    private fun isCandidate(nameMatch: NameMatch, validArity: Boolean): Boolean =
+        if (name == null) incompleteCode || validArity else admits(nameMatch)
+
+    /**
+     * A definition the name only starts is a completion candidate, never a declaration of the name, so complete
+     * resolution keeps exact names only and nothing downstream has to filter them out again.
+     */
+    private fun admits(nameMatch: NameMatch): Boolean =
+        nameMatch == NameMatch.EXACT || (incompleteCode && nameMatch == NameMatch.PREFIX)
 
     override fun keepProcessing(): Boolean = resolveResultOrderedSet.keepProcessing(incompleteCode)
     fun resolveResults(): List<VisitedElementSetResolveResult> = resolveResultOrderedSet.toList()
 
     private val resolveResultOrderedSet = ResolveResultOrderedSet()
 
-    private fun addToResolveResults(call: Call, name: String, validResult: Boolean, state: ResolveState): Boolean =
-            (call as? Named)?.nameIdentifier?.let { nameIdentifier ->
-                if (PsiTreeUtil.isAncestor(state.get(ENTRANCE), nameIdentifier, false)) {
-                    resolveResultOrderedSet.add(call, name, validResult, emptySet())
-                } else {
-                    resolveResultOrderedSet.add(call, name, validResult, state.visitedElementSet())
-                }
-
-                keepProcessing()
-            } ?: true
-
-    private fun addToResolveResults(callDefinition: BeamCallDefinition,
-                                    name: String,
+    private fun addToResolveResults(element: PsiElement,
+                                    nameArityInterval: NameArityInterval,
+                                    nameMatch: NameMatch,
                                     validResult: Boolean,
-                                    state: ResolveState): Boolean {
-        resolveResultOrderedSet.add(callDefinition, name, validResult, state.visitedElementSet())
+                                    state: ResolveState,
+                                    name: String = nameArityInterval.name): Boolean =
+        visitedElementSet(element, state)?.let { visitedElementSet ->
+            resolveResultOrderedSet.add(
+                CallDefinitionResolveResult(element, validResult, visitedElementSet, nameArityInterval, nameMatch),
+                name
+            )
 
-        return keepProcessing()
-    }
+            keepProcessing()
+        } ?: true
+
+    /** For an `EEx` function whose arity cannot be known, so there is no interval to record, directly or delegated. */
+    private fun addToResolveResults(call: Call, name: String, validResult: Boolean, state: ResolveState): Boolean =
+        visitedElementSet(call, state)?.let { visitedElementSet ->
+            resolveResultOrderedSet.add(call, name, validResult, visitedElementSet)
+
+            keepProcessing()
+        } ?: true
+
+    /** `null` for a source [element] with no name identifier, which cannot be a result. */
+    private fun visitedElementSet(element: PsiElement, state: ResolveState): Set<PsiElement>? =
+        when (element) {
+            is BeamCallDefinition -> state.visitedElementSet()
+            else -> (element as? Named)?.nameIdentifier?.let { nameIdentifier ->
+                if (PsiTreeUtil.isAncestor(state.get(ENTRANCE), nameIdentifier, false)) {
+                    emptySet()
+                } else {
+                    state.visitedElementSet()
+                }
+            }
+        }
 
     companion object {
+        /**
+         * @param name normalized here, once, so every entry into the walk compares the same way
+         * @param querySite where [name] is written, whose language level decides how it normalizes; a qualified
+         * call enters at the module it names, which may be compiled under a different one
+         */
         @JvmOverloads
         @JvmStatic
         fun resolveResults(name: String?,
                            resolvedFinalArity: Int,
                            incompleteCode: Boolean,
                            entrance: PsiElement,
-                           resolveState: ResolveState = ResolveState.initial()): List<VisitedElementSetResolveResult> {
-            val multiResolve = MultiResolve(name, resolvedFinalArity, incompleteCode)
+                           resolveState: ResolveState = ResolveState.initial(),
+                           querySite: PsiElement = entrance): List<VisitedElementSetResolveResult> {
+            val multiResolve = MultiResolve(name?.let { NameMatch.query(it, querySite) }, resolvedFinalArity, incompleteCode)
             val maxScope = maxScope(entrance)
 
             val entranceResolveState = resolveState
@@ -254,3 +243,10 @@ private constructor(
         }
     }
 }
+
+/** The `as:` name, the head's when there is no `as:`, or `null` when `as:` names nothing fixed - which targets nothing. */
+private fun nameInDefiningModule(delegation: Call, headName: String): String? =
+    when (val asArgument = delegation.keywordArgument("as")) {
+        null -> headName
+        else -> (asArgument as? ElixirAtom)?.literalName()
+    }

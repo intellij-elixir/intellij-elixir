@@ -14,6 +14,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.call.qualification.qualifiedToModulars
 import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
+import org.elixir_lang.psi.scope.call_definition_clause.CallDefinitionResolveResult
 import org.elixir_lang.structure_view.element.Delegation
 
 object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Callable> {
@@ -47,18 +48,17 @@ object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Cal
                         }
                         .map { PsiElementResolveResult(it, validResult) }
 
-                val terminalResolveResult = PsiElementResolveResult(
-                    visitedElementSetResolveResult.element,
-                    visitedElementSetResolveResult.isValidResult
-                )
+                // What the walk decided (a CallDefinitionResolveResult's name match and arity interval) must reach
+                // whoever reads the reference, but not the visited path, which ResolveCache would otherwise keep alive.
+                val terminalResolveResult =
+                    (visitedElementSetResolveResult as? CallDefinitionResolveResult)?.withoutVisitedElementSet()
+                        ?: PsiElementResolveResult(visitedElementSetResolveResult.element, validResult)
 
                 listOf(terminalResolveResult) + pathResolveResultList
             }
             // deduplicate shared `defdelegate`, `import`, or `use`
             .groupBy { resolveResultKey(it) }
-            .map { (_, resolveResults) ->
-                resolveResults.maxByOrNull { if (it.isValidResult) 1 else 0 } ?: resolveResults.first()
-            }
+            .map { (_, resolveResults) -> resolveResults.maxByOrNull(::preference) ?: resolveResults.first() }
             .let(::deduplicateEquivalentResults)
 
     private fun deduplicateEquivalentResults(resolveResults: List<PsiElementResolveResult>): List<PsiElementResolveResult> {
@@ -71,13 +71,20 @@ object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Cal
 
             if (existingIndex == -1) {
                 deduplicated.add(candidate)
-            } else if (candidate.isValidResult && !deduplicated[existingIndex].isValidResult) {
+            } else if (preference(candidate) > preference(deduplicated[existingIndex])) {
                 deduplicated[existingIndex] = candidate
             }
         }
 
         return deduplicated
     }
+
+    /**
+     * Of two results for one element, a valid one wins, then the walk's own [CallDefinitionResolveResult] over a
+     * path crumb for the same `defdelegate`, so the name match and arity interval it carries are never dropped.
+     */
+    private fun preference(resolveResult: PsiElementResolveResult): Int =
+        (if (resolveResult.isValidResult) 2 else 0) + (if (resolveResult is CallDefinitionResolveResult) 1 else 0)
 
     // A compiled element's navigationElement is its mirror, and building that decompiles the whole module.
     private fun resolveResultKey(resolveResult: PsiElementResolveResult): Any {
@@ -189,7 +196,8 @@ object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Cal
                     resolvableName,
                     arity,
                     incompleteCode,
-                    modular
+                    modular,
+                    querySite = element
                 )
             }
         } else {

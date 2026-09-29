@@ -28,7 +28,6 @@ import org.elixir_lang.psi.stub.type.call.Stub.isModular
 import org.elixir_lang.reference.CaptureNameArity
 import org.elixir_lang.reference.Resolver
 import org.elixir_lang.structure_view.element.Callback
-import org.elixir_lang.structure_view.element.Delegation
 import org.intellij.markdown.html.HtmlGenerator
 import org.intellij.markdown.parser.MarkdownParser
 import java.util.function.Consumer
@@ -118,7 +117,8 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                                     relative,
                                     arity,
                                     false,
-                                    modular
+                                    modular,
+                                    querySite = context
                                 )
                             }
                     } else {
@@ -132,7 +132,8 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                                     relative,
                                     arity,
                                     false,
-                                    modular
+                                    modular,
+                                    querySite = context
                                 )
                             }
                             ?.toList()
@@ -155,7 +156,8 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                                     relative,
                                     arity,
                                     false,
-                                    modular
+                                    modular,
+                                    querySite = context
                                 )
                             }
                     } else {
@@ -169,7 +171,8 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                                     relative,
                                     arity,
                                     false,
-                                    modular
+                                    modular,
+                                    querySite = context
                                 )
                             }
                             ?.toList()
@@ -199,7 +202,8 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                                     relative,
                                     arity,
                                     false,
-                                    modular
+                                    modular,
+                                    querySite = context
                                 )
                             }
                     } else {
@@ -281,29 +285,18 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                     fun bestMatch(elements: List<PsiElement>): PsiElement? =
                         elements
                             .filterIsInstance<Call>()
-                            .firstOrNull { Delegation.`is`(it) && SourceFileDocsHelper.fetchDocs(it) != null }
-                            ?: elements.filterIsInstance<Call>().firstOrNull { CallDefinitionClause.`is`(it) }
+                            .firstOrNull {
+                                CallableDeclaration.headBindingFormOf(it) == CallableDeclaration.Form.DELEGATION &&
+                                    SourceFileDocsHelper.fetchDocs(it) != null
+                            }
+                            ?: elements.filterIsInstance<Call>().firstOrNull {
+                                CallableDeclaration.headBindingFormOf(it) == CallableDeclaration.Form.CLAUSE
+                            }
                             ?: elements.filterIsInstance<BeamCallDefinition>().firstOrNull()
 
-                    // If no exact arity match (validResult), fall back to results with an exact name match
-                    // from the same module (e.g., Enum.map/2 when call site has wrong arity).
-                    // multiResolve uses startsWith for name matching (for completion), so we must
-                    // filter to exact name matches to avoid showing docs for map_size when hovering map.
-                    bestMatch(validElements) ?: run {
-                        val callName = contextElement.functionName()
-                        val exactNameElements = allResults
-                            .mapNotNull(ResolveResult::getElement)
-                            .filter { element ->
-                                when (element) {
-                                    is BeamCallDefinition -> element.exportedName() == callName
-                                    is Call -> CallDefinitionClause.nameArityInterval(element, ResolveState.initial())
-                                        ?.name == callName
-
-                                    else -> false
-                                }
-                            }
-                        bestMatch(exactNameElements)
-                    }
+                    // If no exact arity match (validResult), fall back to the same name at another arity (e.g.,
+                    // Enum.map/2 when call site has wrong arity).
+                    bestMatch(validElements) ?: bestMatch(allResults.mapNotNull(ResolveResult::getElement))
                 }
         }
 

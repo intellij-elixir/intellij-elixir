@@ -17,6 +17,7 @@ import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.macroChildCallList
 import org.elixir_lang.psi.stub.index.ModularName
+import org.elixir_lang.psi.scope.NameMatch
 
 
 internal class GotoSuper : CodeInsightActionHandler {
@@ -60,7 +61,7 @@ internal class GotoSuper : CodeInsightActionHandler {
                 .filter { protocolCallDefinitionClause ->
                     nameArityInterval(protocolCallDefinitionClause, ResolveState.initial())
                             ?.let { protocolNameArityInterval ->
-                                protocolNameArityInterval.name == nameArityInterval.name &&
+                                NameMatch.same(protocolNameArityInterval.name, protocolCallDefinitionClause, nameArityInterval.name, callDefinitionClause) &&
                                         protocolNameArityInterval.arityInterval.overlaps(nameArityInterval.arityInterval)
                             }
                             ?: false

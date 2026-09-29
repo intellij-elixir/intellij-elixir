@@ -459,7 +459,7 @@
                          enabledByDefault="true" groupName="Elixir"
                          implementationClass="org.elixir_lang.inspection.MatchOperatorInsteadOfTypeOperator"
                          language="Elixir" level="ERROR" shortName="MatchOperatorInsteadOfTypeOperator"/>
-        <localInspection displayName="Elixir references" shortName="ElixirReferences" enabledByDefault="false"
+        <localInspection displayName="Elixir references" shortName="ElixirReferences" enabledByDefault="true"
                          groupName="Elixir" implementationClass="org.elixir_lang.inspection.References"
                          language="Elixir" level="ERROR"/>
         <localInspection displayName="Unresolvable module qualifier" enabledByDefault="true" groupName="Elixir"

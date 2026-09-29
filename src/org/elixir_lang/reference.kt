@@ -1,15 +1,18 @@
 package org.elixir_lang
 
+import com.intellij.psi.PsiNamedElement
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.ResolveResult
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.isAncestor
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil
+import org.elixir_lang.psi.impl.call.qualification.qualifiedToModulars
 
 fun safeMultiResolve(reference: PsiPolyVariantReference, incompleteCode: Boolean): Array<ResolveResult> =
     try {
@@ -70,29 +73,88 @@ fun resolvesToMacro(call: Call): Boolean {
     }
 }
 
+/**
+ * Whether [call]'s own reference resolves to a `defmacro` enclosed by the module named [modularName].
+ *
+ * [org.elixir_lang.psi.ModuleWalker.definers]/`matches` now answer this same question structurally, from
+ * [org.elixir_lang.psi.CallableTable] outward, for every enclosing scope that has one - [resolvesToModularCalls]
+ * is their live fallback: while no enclosing table can be consulted yet (mid-build, see
+ * [org.elixir_lang.psi.CallableTable.ofOrNull]). A compiled (`.beam`) target reaches
+ * [org.elixir_lang.psi.CallableTable.matchesCompiledIn] instead once a table exists - this function's own
+ * `resolveResult.element?.let { it as? Call }` still discards a `BeamCallDefinition` match, same as before,
+ * since it has no enclosing-scope table to search. [resolvesToQualifiedModularName] is the counterpart for
+ * a call that is always written qualified.
+ */
 fun resolvesToModularName(call: Call, state: ResolveState, modularName: String): Boolean =
-        // it is not safe to call `multiResolve` on the call's reference if that `call` is currently being resolved.
+        // A boolean answer only needs the first match - `.any` on a `Sequence` short-circuits there, unlike
+        // `resolvesToModularCalls`'s `.mapNotNull` over the full `Array`, which every candidate call site
+        // that wants the actual `Call`s (not just yes/no) legitimately needs to walk in full.
         if (!isBeingResolved(call, state)) {
             call.reference?.let { it as PsiPolyVariantReference }?.let { reference ->
-                safeMultiResolve(reference, false).any { resolveResult ->
-                    if (resolveResult.isValidResult) {
-                        resolveResult.element?.let { it as? Call }?.let { resolved ->
-                            CallDefinitionClause.isMacro(resolved) &&
-                                    // don't treat the signature as a call of the function
-                                    !resolved.isAncestor(call) &&
-                                    enclosingModularMacroCall(resolved)?.name == modularName
-                        } ?: false
-                    } else {
-                        false
-                    }
+                safeMultiResolve(reference, false).asSequence().any { resolveResult ->
+                    resolveResult.isValidResult && matchedModularCall(resolveResult, call, modularName) != null
                 }
             } ?: false
         } else {
             false
         }
 
-private fun isBeingResolved(call: Call, state: ResolveState): Boolean =
+/**
+ * [resolvesToModularName], returning the matched [Call]s instead of collapsing them to a [Boolean] - for a
+ * caller like `Schema.walkChild` that needs an actual [Call] to walk into, not just a yes/no answer.
+ */
+internal fun resolvesToModularCalls(call: Call, state: ResolveState, modularName: String): kotlin.collections.List<Call> =
+        // it is not safe to call `multiResolve` on the call's reference if that `call` is currently being resolved.
+        if (!isBeingResolved(call, state)) {
+            call.reference?.let { it as PsiPolyVariantReference }?.let { reference ->
+                safeMultiResolve(reference, false).mapNotNull { resolveResult ->
+                    if (resolveResult.isValidResult) {
+                        matchedModularCall(resolveResult, call, modularName)
+                    } else {
+                        null
+                    }
+                }
+            } ?: emptyList()
+        } else {
+            emptyList()
+        }
+
+/** Shared filter both [resolvesToModularName] and [resolvesToModularCalls] apply to a resolve candidate. */
+private fun matchedModularCall(resolveResult: ResolveResult, call: Call, modularName: String): Call? =
+        resolveResult.element?.let { it as? Call }?.takeIf { resolved ->
+            CallDefinitionClause.isMacro(resolved) &&
+                    // don't treat the signature as a call of the function
+                    !resolved.isAncestor(call) &&
+                    enclosingModularMacroCall(resolved)?.name == modularName
+        }
+
+/**
+ * Whether [call] is somewhere on the stack of the resolve currently in progress - resolving [call]'s own
+ * reference again here would recurse. [org.elixir_lang.EEx]/[org.elixir_lang.psi.mix.Generator] guard their
+ * qualified-call path with this directly: resolving a qualified call's *qualifier* can walk back up through
+ * the enclosing module and re-visit the same call as one of its `CallableTable` live candidates.
+ */
+internal fun isBeingResolved(call: Call, state: ResolveState): Boolean =
         call.isEquivalentTo(state.get(ElixirPsiImplUtil.ENTRANCE)) || qualifierIsBeingResolved(call, state)
+
+/**
+ * [resolvesToModularName], for a call real Elixir always writes qualified (`EEx`, `Mix.Generator`'s
+ * macros): a qualified call's own qualifier resolves via [qualifiedToModulars] (alias resolution, the same
+ * mechanism `import`/`use` use to find their own target module), never by resolving the call itself, so
+ * this reaches a compiled (`.beam`) target. The exotic, non-idiomatic unqualified case (e.g. `import EEx`)
+ * falls back to [resolvesToModularName] live, exactly as before either form had this qualified path.
+ * [isBeingResolved] guards it the same way [resolvesToModularName] guards its own reference resolution:
+ * resolving the qualifier can walk back up through the enclosing module and revisit [call] itself as one
+ * of `CallableTable`'s live candidates - without the guard, that recurses.
+ */
+@RequiresReadLock
+fun resolvesToQualifiedModularName(call: Call, state: ResolveState, modularName: String): Boolean =
+    if (call is Qualified) {
+        !isBeingResolved(call, state) &&
+            call.qualifiedToModulars().any { (it as? PsiNamedElement)?.name == modularName }
+    } else {
+        resolvesToModularName(call, state, modularName)
+    }
 
 private fun qualifierIsBeingResolved(call: Call, state: ResolveState): Boolean =
         if (call is Qualified) {

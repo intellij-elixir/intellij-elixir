@@ -9,13 +9,13 @@ import org.elixir_lang.Arity
 import org.elixir_lang.Name
 import org.elixir_lang.NameArityInterval
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.For
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.call.macroChildCalls
+import org.elixir_lang.psi.scope.NameMatch
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.CallDefinitionSpecification.Companion.typeNameArity
-import org.elixir_lang.structure_view.element.Delegation
 
 object CallDefinitionClause : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.CallDefinitionClause> {
     override fun resolve(callDefinitionClause: org.elixir_lang.reference.CallDefinitionClause,
@@ -24,7 +24,7 @@ object CallDefinitionClause : ResolveCache.PolyVariantResolver<org.elixir_lang.r
         return enclosingModularMacroCall(callDefinitionClause.moduleAttribute)?.macroChildCalls()?.let { siblings ->
             if (siblings.isNotEmpty()) {
                 val nameArity = typeNameArity(callDefinitionClause.element) ?: return emptyArray()
-                val name = nameArity.name
+                val name = NameMatch.query(nameArity.name, callDefinitionClause.element)
                 val arity = nameArity.arity
 
                 siblings
@@ -36,19 +36,20 @@ object CallDefinitionClause : ResolveCache.PolyVariantResolver<org.elixir_lang.r
         } ?: emptyArray()
     }
 
-    private fun callToResolveResults(call: Call, name: Name, arity: Arity): List<ResolveResult> =
-            when {
-                org.elixir_lang.psi.CallDefinitionClause.`is`(call) -> {
+    private fun callToResolveResults(call: Call, name: Name, arity: Arity): List<ResolveResult> {
+        val headBindingForm = CallableDeclaration.headBindingFormOf(call)
+
+        return when {
+                headBindingForm == CallableDeclaration.Form.CLAUSE -> {
                     org.elixir_lang.psi.CallDefinitionClause.nameArityInterval(call, ResolveState.initial())
                             ?.let { nameArityInterval -> nameArityIntervalToResolveResult(call, name, arity, nameArityInterval) }
                             ?.let { listOf(it) }
                             .orEmpty()
                 }
-                Delegation.`is`(call) -> {
-                    call
-                            .finalArguments()
-                            ?.takeIf { it.size == 2 }
-                            ?.let { CallDefinitionHead.nameArityInterval(it[0], ResolveState.initial()) }
+                headBindingForm == CallableDeclaration.Form.DELEGATION -> {
+                    CallableDeclaration
+                            .delegationHead(call)
+                            ?.let { CallDefinitionHead.nameArityInterval(it, ResolveState.initial()) }
                             ?.let { nameArityRange -> nameArityIntervalToResolveResult(call, name, arity, nameArityRange) }
                             ?.let { listOf(it) }
                             .orEmpty()
@@ -68,16 +69,17 @@ object CallDefinitionClause : ResolveCache.PolyVariantResolver<org.elixir_lang.r
                 }
                 else -> emptyList()
             }
+    }
 
     private fun nameArityIntervalToResolveResult(call: Call,
                                                  name: Name,
                                                  arity: Arity,
                                                  nameArityInterval: NameArityInterval): PsiElementResolveResult? {
-        val definerName = nameArityInterval.name
+        val nameMatch = NameMatch.of(name, nameArityInterval.name, call)
 
-        return if (definerName.startsWith(name)) {
+        return if (nameMatch != NameMatch.NONE) {
             val definerArityInterval = nameArityInterval.arityInterval
-            val validResult = (arity in definerArityInterval) && (definerName == name)
+            val validResult = (arity in definerArityInterval) && (nameMatch == NameMatch.EXACT)
 
             PsiElementResolveResult(call, validResult)
         } else {

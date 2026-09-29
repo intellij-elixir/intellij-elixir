@@ -17,6 +17,7 @@ import org.elixir_lang.psi.impl.ElixirPsiImplUtil.previousSiblingExpression
 import org.elixir_lang.psi.impl.ProcessDeclarationsImpl.DECLARING_SCOPE
 import org.elixir_lang.psi.operation.Match
 import org.elixir_lang.psi.scope.MultiResolve.keepProcessing
+import org.elixir_lang.psi.scope.NameMatch
 import org.elixir_lang.psi.scope.Variable
 import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
 import org.elixir_lang.psi.stub.index.QuoteVariableName
@@ -90,9 +91,10 @@ class MultiResolve(private val name: String, private val incompleteCode: Boolean
 
     private fun addToResolveResultListIfMatchingName(match: PsiNamedElement, state: ResolveState) {
         match.name?.let { name ->
-            if (name.startsWith(this.name)) {
-                val validResult = name == this.name
-                addToResolveResultList(match, state, validResult)
+            val nameMatch = NameMatch.of(this.name, name, match)
+
+            if (nameMatch != NameMatch.NONE) {
+                addToResolveResultList(match, state, nameMatch == NameMatch.EXACT)
             }
         }
     }
@@ -143,11 +145,12 @@ class MultiResolve(private val name: String, private val incompleteCode: Boolean
                 .mapNotNull { result -> result.element.takeIf { result.isValidResult } }
         }
 
+        /** @param name normalized here, once, so every entry into the walk compares the same way. */
         fun resolveInScope(name: String,
                            incompleteCode: Boolean,
                            entrance: PsiElement,
                            resolveState: ResolveState): List<VisitedElementSetResolveResult> {
-            val multiResolve = MultiResolve(name, incompleteCode)
+            val multiResolve = MultiResolve(NameMatch.query(name, entrance), incompleteCode)
 
             val treeWalkUpResolveState = if (resolveState.get(ENTRANCE) == null) {
                 resolveState.put(ENTRANCE, entrance)
@@ -174,9 +177,14 @@ class MultiResolve(private val name: String, private val incompleteCode: Boolean
             if (!DumbService.isDumb(project)) {
                 val stubIndex = StubIndex.getInstance()
                 val keys = mutableListOf<String>()
+                val query = NameMatch.query(name, entrance)
 
                 stubIndex.processAllKeys(QuoteVariableName.KEY, project) { key ->
-                    if ((incompleteCode && key.startsWith(name)) || key == name) {
+                    // A key is a declared name with no element of its own yet, so it is normalized at the
+                    // language level of the read looking for it.
+                    val nameMatch = NameMatch.of(query, key, entrance)
+
+                    if ((incompleteCode && nameMatch != NameMatch.NONE) || nameMatch == NameMatch.EXACT) {
                         keys.add(key)
                     }
 

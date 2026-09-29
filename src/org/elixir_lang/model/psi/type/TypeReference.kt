@@ -110,7 +110,7 @@ class TypeReference(
         private fun resolveQualified(qualified: Qualified): List<ResolveResult> =
             qualified.qualifiedToModulars().flatMap { modular ->
                 qualified.functionName()?.let { name ->
-                    MultiResolve.resolveResults(name, qualified.resolvedFinalArity(), false, modular)
+                    MultiResolve.resolveResults(name, qualified.resolvedFinalArity(), false, modular, querySite = qualified)
                 } ?: emptyList()
             }
 

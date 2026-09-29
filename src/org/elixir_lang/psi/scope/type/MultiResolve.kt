@@ -13,6 +13,7 @@ import org.elixir_lang.psi.impl.ElixirPsiImplUtil
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.operation.*
+import org.elixir_lang.psi.scope.NameMatch
 import org.elixir_lang.psi.scope.ResolveResultOrderedSet
 import org.elixir_lang.psi.scope.WhileIn.whileIn
 import org.elixir_lang.structure_view.element.Type as TypeElement
@@ -48,9 +49,11 @@ private constructor(private val name: String,
 
     private fun executeOnTypeHeadName(definition: Call, typeHead: Call, state: ResolveState): Boolean =
             typeHead.functionName()?.let { name ->
-                if (name.startsWith(this.name)) {
+                val nameMatch = NameMatch.of(this.name, name, typeHead)
+
+                if (nameMatch != NameMatch.NONE) {
                     val arity = typeHead.resolvedFinalArity()
-                    val validResult = name == this.name && arity == this.arity
+                    val validResult = nameMatch == NameMatch.EXACT && arity == this.arity
 
                     resolveResultOrderedSet.add(definition, typeHead.text, validResult, state.visitedElementSet())
 
@@ -62,10 +65,11 @@ private constructor(private val name: String,
 
     override fun execute(typeDefinition: BeamTypeDefinition, state: ResolveState): Boolean {
         val name = typeDefinition.name
+        val nameMatch = NameMatch.of(this.name, name, typeDefinition)
 
-        return if (name.startsWith(this.name)) {
+        return if (nameMatch != NameMatch.NONE) {
             val arity = typeDefinition.arity
-            val validResult = name == this.name && arity == this.arity
+            val validResult = nameMatch == NameMatch.EXACT && arity == this.arity
 
             resolveResultOrderedSet.add(typeDefinition, "$name/$arity", validResult, state.visitedElementSet())
 
@@ -177,16 +181,17 @@ private constructor(private val name: String,
         return typeOperation.leftOperand()?.stripAccessExpression() === this
     }
 
-    private fun executeOnParameter(parameter: PsiElement, name: String?, state: ResolveState): Boolean =
-            if (this.arity == 0 && name != null && name.startsWith(this.name)) {
-                val validResult = name == this.name
+    private fun executeOnParameter(parameter: PsiElement, name: String?, state: ResolveState): Boolean {
+        val nameMatch = name?.let { NameMatch.of(this.name, it, parameter) } ?: NameMatch.NONE
 
-                resolveResultOrderedSet.add(parameter, name, validResult, state.visitedElementSet())
+        return if (this.arity == 0 && nameMatch != NameMatch.NONE) {
+            resolveResultOrderedSet.add(parameter, name!!, nameMatch == NameMatch.EXACT, state.visitedElementSet())
 
-                keepProcessing()
-            } else {
-                true
-            }
+            keepProcessing()
+        } else {
+            true
+        }
+    }
 
     override fun keepProcessing(): Boolean = resolveResultOrderedSet.keepProcessing(incompleteCode)
 
@@ -194,8 +199,16 @@ private constructor(private val name: String,
     private val resolveResultOrderedSet = ResolveResultOrderedSet()
 
     companion object {
-        fun resolveResults(name: String, resolvedFinalArity: Int, incompleteCode: Boolean, entrance: PsiElement, resolveState: ResolveState = ResolveState.initial()): List<ResolveResult> {
-            val multiResolve = MultiResolve(name, resolvedFinalArity, incompleteCode)
+        /** @param querySite where [name] is written, whose language level decides how it normalizes */
+        fun resolveResults(
+            name: String,
+            resolvedFinalArity: Int,
+            incompleteCode: Boolean,
+            entrance: PsiElement,
+            resolveState: ResolveState = ResolveState.initial(),
+            querySite: PsiElement = entrance
+        ): List<ResolveResult> {
+            val multiResolve = MultiResolve(NameMatch.query(name, querySite), resolvedFinalArity, incompleteCode)
             val maxScope = entrance.containingFile
             val entranceResolveState = resolveState.put(ElixirPsiImplUtil.ENTRANCE, entrance).putInitialVisitedElement(entrance)
 

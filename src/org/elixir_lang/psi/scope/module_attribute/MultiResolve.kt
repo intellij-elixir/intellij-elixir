@@ -7,16 +7,19 @@ import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
 import org.elixir_lang.psi.putInitialVisitedElement
 import org.elixir_lang.psi.scope.ModuleAttribute
+import org.elixir_lang.psi.scope.NameMatch
 import org.elixir_lang.psi.scope.ResolveResultOrderedSet
 import org.elixir_lang.psi.visitedElementSet
 
 class MultiResolve(private val name: String) : ModuleAttribute() {
     override fun executeOnDeclaration(declaration: AtUnqualifiedNoParenthesesCall<*>, state: ResolveState): Boolean {
         declaration.name?.let { declaredName ->
-            if (declaredName.startsWith(name)) {
-                val validResult = declaredName == name
+            val nameMatch = NameMatch.of(name, declaredName, declaration)
 
-                resolveResultOrderedSet.add(declaration, declaration.text, validResult, state.visitedElementSet())
+            if (nameMatch != NameMatch.NONE) {
+                resolveResultOrderedSet.add(
+                    declaration, declaration.text, nameMatch == NameMatch.EXACT, state.visitedElementSet()
+                )
             }
         }
 
@@ -27,8 +30,9 @@ class MultiResolve(private val name: String) : ModuleAttribute() {
     private val resolveResultOrderedSet = ResolveResultOrderedSet()
 
     companion object {
+        /** @param name normalized here, once, so every declaration is compared the same way. */
         fun resolveResultOrderedSet(name: String, entrance: PsiElement): ResolveResultOrderedSet {
-            val multiResolve = MultiResolve(name)
+            val multiResolve = MultiResolve(NameMatch.query(name, entrance))
 
             val resolveState = ResolveState.initial().put(ENTRANCE, entrance).putInitialVisitedElement(entrance)
             val maxScope = entrance.containingFile

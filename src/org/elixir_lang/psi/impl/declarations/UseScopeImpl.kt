@@ -20,7 +20,6 @@ import org.elixir_lang.psi.stub.type.call.Stub.isModular
 import org.elixir_lang.reference.Callable.Companion.isBitStreamSegmentOption
 import org.elixir_lang.reference.Callable.Companion.isVariable
 import org.elixir_lang.reference.Callable.Companion.variableUseScope
-import org.elixir_lang.structure_view.element.Delegation
 import org.jetbrains.annotations.Contract
 
 fun PsiElement.selfAndFollowingSiblingsSearchScope(): LocalSearchScope {
@@ -87,7 +86,9 @@ object UseScopeImpl {
                 if (ancestor is Call) {
                     val ancestorCall = ancestor
 
-                    if (CallDefinitionClause.`is`(ancestorCall)) {
+                    val headBindingForm = CallableDeclaration.headBindingFormOf(ancestorCall)
+
+                    if (headBindingForm == CallableDeclaration.Form.CLAUSE) {
                         val macroDefinitionClause = ancestorCall.macroDefinitionClauseForArgument()
 
                         if (macroDefinitionClause != null) {
@@ -95,7 +96,7 @@ object UseScopeImpl {
                         }
 
                         break
-                    } else if (Delegation.`is`(ancestorCall)) {
+                    } else if (headBindingForm == CallableDeclaration.Form.DELEGATION) {
                         break
                     } else if (ancestorCall.hasDoBlockOrKeyword()) {
                         break
@@ -145,7 +146,9 @@ object UseScopeImpl {
                     element.isCalling(KERNEL, UNLESS) ||
                     element.isCalling(KERNEL, VAR_BANG)) {
                 useScopeSelector = UseScopeSelector.SELF_AND_FOLLOWING_SIBLINGS
-            } else if (CallDefinitionClause.`is`(element) || isModular(element) || hasDoBlockOrKeyword(element)) {
+            } else if (CallableDeclaration.headBindingFormOf(element) == CallableDeclaration.Form.CLAUSE ||
+                    isModular(element) || hasDoBlockOrKeyword(element)) {
+                // CLAUSE only, not any head-binding form: a `defdelegate` has no body to scope anything to.
                 useScopeSelector = UseScopeSelector.SELF
             }
         }

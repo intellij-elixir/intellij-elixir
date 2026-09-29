@@ -22,6 +22,7 @@ import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.macroChildCallList
+import org.elixir_lang.psi.scope.NameMatch
 import java.awt.event.MouseEvent
 import java.util.*
 import javax.swing.Icon
@@ -79,7 +80,7 @@ internal class Protocol : LineMarkerProvider {
                                                 CallDefinitionClause
                                                     .nameArityInterval(defimplChild, ResolveState.initial())
                                                     ?.let { implNameArityInterval ->
-                                                        if (implNameArityInterval.name == protocolNameArityInterval.name &&
+                                                        if (NameMatch.same(implNameArityInterval.name, defimplChild, protocolNameArityInterval.name, call) &&
                                                             implNameArityInterval.arityInterval.overlaps(
                                                                 protocolNameArityInterval.arityInterval
                                                             )
@@ -94,7 +95,7 @@ internal class Protocol : LineMarkerProvider {
                                         for (callDefinition in defimpl.callDefinitions()) {
                                             val implNameArityInterval = callDefinition.nameArityInterval
 
-                                            if (implNameArityInterval.name == protocolNameArityInterval.name &&
+                                            if (NameMatch.same(implNameArityInterval.name, callDefinition, protocolNameArityInterval.name, call) &&
                                                 implNameArityInterval.arityInterval.overlaps
                                                     (protocolNameArityInterval.arityInterval)
                                             ) {

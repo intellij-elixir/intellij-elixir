@@ -70,6 +70,20 @@ class ErlangMfaTupleReferenceTest : BeamLibraryTestCase() {
         assertTrue("AtomReference must be soft", reference.isSoft)
     }
 
+    /**
+     * `:log` only starts `:log10` and `:log2`, which are different functions, so a compiled module's
+     * functions must be filtered to the exact name the same way a source module's are - visibly so at a
+     * wrong arity, where no valid result exists to crowd them out.
+     */
+    fun testErlangMfaFunctionAtomResolvesOnlyItsExactName() {
+        val reference = atomReferenceAtCaret("erlang_mfa_exact_name.ex")
+
+        val names = reference.multiResolve(false).map { (it.element as BeamCallDefinition).nameArityInterval.name }
+
+        assertTrue("Expected :log to resolve, got nothing", names.isNotEmpty())
+        assertEquals("Expected only exactly-named functions, got $names", setOf("log"), names.toSet())
+    }
+
     private fun atomReferenceAtCaret(fileName: String): AtomReference {
         myFixture.configureByFile(fileName)
 

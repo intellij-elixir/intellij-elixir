@@ -2,6 +2,7 @@ package org.elixir_lang.code_insight
 
 import com.intellij.lang.parameterInfo.*
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiElementResolveResult
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
@@ -9,6 +10,7 @@ import org.elixir_lang.psi.Arguments
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirTypes
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.scope.call_definition_clause.isExactName
 
 class ParameterInfo : ParameterInfoHandler<Arguments, Signature> {
     override fun findElementForParameterInfo(context: CreateParameterInfoContext): Arguments? =
@@ -19,15 +21,20 @@ class ParameterInfo : ParameterInfoHandler<Arguments, Signature> {
 
     override fun showParameterInfo(element: Arguments, context: CreateParameterInfoContext) {
         PsiTreeUtil.getParentOfType(element, Call::class.java)?.let { call ->
-            val resolved = call.references.flatMap { reference ->
+            val resolveResults = call.references.flatMap { reference ->
                 if (reference is PsiPolyVariantReference) {
-                    reference.multiResolve(true).mapNotNull { it.element }
+                    reference.multiResolve(true).toList()
                 } else {
-                    listOfNotNull(reference.resolve())
+                    listOfNotNull(reference.resolve()?.let { PsiElementResolveResult(it) })
                 }
             }
+            // Resolved as incomplete code, which also returns functions the name is only a prefix of, so `reduce`
+            // would otherwise be described by `reduce_while` as well; with no name to match on, every result stays.
+            val resolved = resolveResults
+                .filter { call.functionName() == null || it.isExactName() }
+                .mapNotNull { it.element }
 
-            val signatures = signatures(resolved, call.functionName())
+            val signatures = signatures(resolved)
 
             if (signatures.isNotEmpty()) {
                 context.itemsToShow = signatures.toTypedArray()
@@ -88,9 +95,7 @@ class ParameterInfo : ParameterInfoHandler<Arguments, Signature> {
     private fun findArguments(context: ParameterInfoContext): Arguments? =
         ParameterInfoUtils.findParentOfType(context.file, context.offset, Arguments::class.java)
 
-    /* Deduplicate by (name, arity), preferring bare function heads (no do block) over implementation clauses,
-       and keep only the function actually being called - resolution also returns functions the name is a
-       prefix of, so `reduce` would otherwise be described by `reduce_while` as well.
+    /* Deduplicate by (name, arity), preferring bare function heads (no do block) over implementation clauses.
 
        The references are resolved as incomplete code so that a call whose arguments are not typed yet resolves
        at all, which is exactly when the hint is wanted: resolving them completely collapses `foo/1` and `foo/2`
@@ -98,14 +103,13 @@ class ParameterInfo : ParameterInfoHandler<Arguments, Signature> {
 
        A `.beam` definition is read from its stub: this runs on the EDT, and decompiling a module to reach its
        mirror can take hundreds of milliseconds. */
-    private fun signatures(resolved: List<PsiElement>, name: String?): List<Signature> {
+    private fun signatures(resolved: List<PsiElement>): List<Signature> {
         val clauses = resolved.filterIsInstance<Call>().filter { CallDefinitionClause.`is`(it) }
         val beamDefinitions = resolved.filterIsInstance<BeamCallDefinition>()
 
-        return preferFunctionHeadsByArity(clauses, name).mapNotNull { Signature.of(it) } +
+        return preferFunctionHeadsByArity(clauses).mapNotNull { Signature.of(it) } +
             beamDefinitions
                 .map { Signature.of(it) }
-                .filter { name == null || it.nameArityInterval.name == name }
                 .distinctBy { it.nameArityInterval }
     }
 }

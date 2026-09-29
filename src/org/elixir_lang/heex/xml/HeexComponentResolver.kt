@@ -82,7 +82,7 @@ import org.elixir_lang.reference.resolver.Module as ModuleResolver
             .mapNotNull { it.element }
             .filter(::isModular)
             .firstNotNullOfOrNull { modular ->
-                MultiResolve.resolveResults(functionName, 1, false, modular).firstOrNull { it.isValidResult }?.element
+                MultiResolve.resolveResults(functionName, 1, false, modular, querySite = entrance).firstOrNull { it.isValidResult }?.element
             } as? Call
 
     private fun isModular(element: PsiElement): Boolean =

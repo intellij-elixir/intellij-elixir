@@ -1,13 +1,16 @@
 package org.elixir_lang.psi.impl
 
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.Key
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import com.intellij.psi.scope.PsiScopeProcessor
+import com.intellij.psi.util.CachedValueProvider
+import com.intellij.psi.util.CachedValuesManager
+import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.ecto.Query
-import org.elixir_lang.ecto.Schema
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
@@ -19,14 +22,11 @@ import org.elixir_lang.psi.impl.call.CallImpl.hasDoBlockOrKeyword
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.declarations.UseScopeImpl
 import org.elixir_lang.psi.impl.declarations.UseScopeImpl.selector
-import org.elixir_lang.psi.mix.Generator
 import org.elixir_lang.psi.operation.*
 import org.elixir_lang.psi.operation.infix.Position
 import org.elixir_lang.psi.operation.infix.Triple
 import org.elixir_lang.psi.scope.Variable
 import org.elixir_lang.psi.scope.WhileIn.whileIn
-import org.elixir_lang.structure_view.element.Callback
-import org.elixir_lang.structure_view.element.Delegation
 
 object ProcessDeclarationsImpl {
     @JvmField
@@ -139,31 +139,19 @@ object ProcessDeclarationsImpl {
         // need to check if call is place because lastParent is set to place at start of treeWalkUp
         if (!call.isEquivalentTo(lastParent) || call.isEquivalentTo(place)) {
             when {
-                call.isCalling(KERNEL, ALIAS) ||
-                        CallDefinitionClause.`is`(call) || // call parameters
-                        Callback.`is`(call) ||
-                        Case.isChild(call, state) ||
-                        Delegation.`is`(call) || // delegation call parameters
-                        Exception.`is`(call) ||
-                        Implementation.`is`(call) ||
-                        Import.`is`(call) ||
-                        Module.`is`(call) ||
-                        Protocol.`is`(call) ||
-                        Use.`is`(call) ||
-                        call.isCalling(KERNEL, DESTRUCTURE) || // left operand
-                        call.isCallingMacro(KERNEL, IF) || // match in condition
-                        call.isCallingMacro(KERNEL, FOR) || // comprehension match variable
-                        call.isCalling(KERNEL, MATCH_QUESTION_MARK) ||
-                        call.isCalling(KERNEL, REQUIRE) ||
-                        call.isCallingMacro(KERNEL, UNLESS) || // match in condition
-                        call.isCallingMacro(KERNEL, "with") || // <- or = variable
-                        QuoteMacro.`is`(call) || // quote :bind_quoted keys for Variable resolver OR call definitions for Callable resolver
-                        Generator.isEmbed(call, state) ||
-                        Assertions.isChild(call, state)
+                // Cheapest first: `continuesWalk`/`bindsNames` are syntactic-or-cheaply-gated, and `declares`
+                // (for a `Variable` processor) checks only the two head-binding forms, syntactically - no
+                // Ecto/ExUnit resolve, unlike the full six-form `CallableDeclaration.declares` a non-`Variable`
+                // processor still needs. No dedicated `Schema.isChild` arm: `ModuleWalker.isChild` is
+                // name/arity/scope-based, not shape-based, so it CAN be `true` for a `schema/2` call with no
+                // literal `do:`/do-block - but that case is harmless to fall through here. It cannot reach
+                // `executeOnNonDeclaration`'s own, independent `Schema.isChild` check (used for the enclosing
+                // module's own declaration walk, unaffected either way) unless `processor.execute(call, state)`
+                // is actually called, and the one thing worth reaching from *inside* such a call's own
+                // arguments - a bound variable - is already covered identically by the `processor is Variable`
+                // arm below (see `SchemaWithoutDoBlockTest`, which pins this).
+                continuesWalk(call) || bindsNames(call, state) || declares(call, processor, state)
                 -> processor.execute(call, state)
-                Schema.isChild(call, state) -> {
-                    processor.execute(call, state)
-                }
                 hasDoBlockOrKeyword(call) ->
                     // unknown macros that take do blocks often allow variables to be declared in their arguments
                     processor.execute(call, state)
@@ -187,6 +175,39 @@ object ProcessDeclarationsImpl {
         } else {
             true
         }
+
+    /**
+     * Only a clause's or a delegation's head binds variables, so the variable walk asks for those alone; every other
+     * declaring form's arguments are values, read in order by the `processor is Variable` arm.
+     */
+    private fun declares(call: Call, processor: PsiScopeProcessor, state: ResolveState): Boolean =
+        if (processor is Variable) {
+            CallableDeclaration.headBindingFormOf(call) != null
+        } else {
+            CallableDeclaration.declares(call, state)
+        }
+
+    /** A bare name in the call's arguments, or in a clause it owns, may bind a variable. */
+    private fun bindsNames(call: Call, state: ResolveState): Boolean =
+        Case.isChild(call, state) ||
+            call.isCalling(KERNEL, DESTRUCTURE) || // left operand
+            call.isCallingMacro(KERNEL, IF) || // match in condition
+            call.isCallingMacro(KERNEL, FOR) || // comprehension match variable
+            call.isCalling(KERNEL, MATCH_QUESTION_MARK) ||
+            call.isCallingMacro(KERNEL, UNLESS) || // match in condition
+            call.isCallingMacro(KERNEL, "with") || // <- or = variable
+            Assertions.isChild(call, state)
+
+    /** The walk continues through what the call names or injects. */
+    private fun continuesWalk(call: Call): Boolean =
+        call.isCalling(KERNEL, ALIAS) ||
+            call.isCalling(KERNEL, REQUIRE) ||
+            Implementation.`is`(call) ||
+            Import.`is`(call) ||
+            Module.`is`(call) ||
+            Protocol.`is`(call) ||
+            Use.`is`(call) ||
+            QuoteMacro.`is`(call) // quote :bind_quoted keys for Variable resolver OR call definitions for Callable resolver
 
     @JvmStatic
     fun processDeclarations(
@@ -379,6 +400,53 @@ object ProcessDeclarationsImpl {
         return selector(element) == UseScopeImpl.UseScopeSelector.SELF
     }
 
+    /**
+     * A scope's child expressions split once by [createsNewScope], instead of per walk.
+     *
+     * [declaring] is the children that do *not* create a scope of their own, in document order - the only
+     * ones [processDeclarations] would go on to ask anything of. [indexByChild] covers **every** child
+     * expression, the scope-creating ones included, so a walk can find where to stop by lookup rather than
+     * by scanning.
+     */
+    data class DeclaringChildren(val declaring: List<PsiElement>, val indexByChild: Map<PsiElement, Int>)
+
+    /**
+     * [createsNewScope] runs [UseScopeImpl.selector], which classifies from scratch: six
+     * `isCalling(KERNEL, CASE|COND|IF|RECEIVE|UNLESS|VAR_BANG)` checks, then `CallDefinitionClause.is`,
+     * `isModular` and `hasDoBlockOrKeyword`. [processDeclarationsInPreviousSibling] used to pay that for
+     * every expression before the entrance on *every* resolve, and a decompiled `.beam` module body is one
+     * [ElixirStabBody] holding thousands of `def` siblings - all of which classify as `SELF` and are
+     * discarded. That was O(N) per resolve, O(N^2) per file, and 244 of 300 thread dumps of
+     * [#4123](https://github.com/intellij-elixir/intellij-elixir/issues/4123)'s own `elixir_parser.beam`.
+     *
+     * The split it caches is exactly [createsNewScope]'s, so no declaration becomes reachable or
+     * unreachable by caching it. Project-wide [PsiModificationTracker.MODIFICATION_COUNT], matching
+     * [org.elixir_lang.psi.CallableTable.of]: a child's classification can depend on resolving that child
+     * (`hasDoBlockOrKeyword` on an unknown macro, `CallDefinitionClause.is` on `defmemo`), so an edit to
+     * another file can change it. Cached per scope, never per child - a file like that one holds thousands
+     * of children and as many [com.intellij.psi.util.CachedValue]s with it.
+     */
+    @RequiresReadLock
+    @JvmStatic
+    fun declaringChildren(scope: PsiElement): DeclaringChildren =
+        CachedValuesManager.getCachedValue(scope) {
+            val childExpressions = scope.childExpressions().toList()
+
+            CachedValueProvider.Result(
+                DeclaringChildren(
+                    // A decompiled `.beam` module body is exactly the thousands-of-children scope this cache
+                    // exists for - `checkCanceled` per classification, matching `CallableTable.buildUnguarded`'s
+                    // own loop over the same shape of scope.
+                    declaring = childExpressions.filter {
+                        ProgressManager.checkCanceled()
+                        !createsNewScope(it)
+                    },
+                    indexByChild = childExpressions.withIndex().associate { (index, child) -> child to index }
+                ),
+                PsiModificationTracker.MODIFICATION_COUNT
+            )
+        }
+
     @JvmStatic
     fun isDeclaringScope(stabOperation: ElixirStabOperation): Boolean {
         var declaringScope = true
@@ -410,6 +478,32 @@ object ProcessDeclarationsImpl {
     }
 
     /**
+     * [lastParent]'s previous siblings that declare anything, nearest first - [declaringChildren]'s cached
+     * split, cut off at [lastParent] by index lookup, rather than every previous sibling reclassified by
+     * [createsNewScope] on each walk. The elements handed on are exactly the ones
+     * [processDeclarations]' own `filter` would have left, so its filter stays as a cheap no-op and no
+     * caller has to trust this to be the only guard.
+     *
+     * Falls back to the unfiltered walk when [lastParent] is not among the scope's own child expressions.
+     * The cache is keyed by element, and the caller only established that [scope] `isEquivalentTo`
+     * [lastParent]'s parent, which does not guarantee the same instance - a miss must degrade to the old
+     * behaviour, never to processing nothing.
+     */
+    private fun previousDeclaringSiblings(scope: PsiElement, lastParent: PsiElement): Sequence<PsiElement> {
+        val declaringChildren = declaringChildren(scope)
+        val lastParentIndex = declaringChildren.indexByChild[lastParent]
+            ?: return lastParent.siblingExpressions(forward = false, withSelf = false)
+
+        return declaringChildren
+            .declaring
+            // `declaring` is in document order, so the indices only increase - stop at `lastParent` instead
+            // of filtering the whole list.
+            .takeWhile { declaringChildren.indexByChild.getValue(it) < lastParentIndex }
+            .asReversed()
+            .asSequence()
+    }
+
+    /**
      * Processes declarations in siblings of `lastParent` backwards from `lastParent`.
      *
      * @param scope an [ElixirStabBody] or [ElixirFile] that has a sequence of expressions as children
@@ -422,9 +516,7 @@ object ProcessDeclarationsImpl {
         place: PsiElement
     ): Boolean =
         if (scope.isEquivalentTo(lastParent.parent)) {
-            lastParent
-                .siblingExpressions(forward = false, withSelf = false)
-                .let { processDeclarations(it, processor, state, lastParent, place) }
+            processDeclarations(previousDeclaringSiblings(scope, lastParent), processor, state, lastParent, place)
         } else {
             if (lastParent !is ElixirFile) {
                 Logger.error(
