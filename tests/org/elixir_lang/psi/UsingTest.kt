@@ -7,7 +7,7 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.psi.CallDefinitionClause.nameArityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
-import org.elixir_lang.psi.impl.enclosingMacroCall
+import org.elixir_lang.psi.CallDefinitionClause
 
 class UsingTest : PlatformTestCase() {
     /**
@@ -33,7 +33,7 @@ class UsingTest : PlatformTestCase() {
 
         val usedList = ArrayList<PsiElement>()
         val resolveState =
-            ResolveState.initial().put(ENTRANCE, call.enclosingMacroCall()).putInitialVisitedElement(call)
+            ResolveState.initial().put(ENTRANCE, CallDefinitionClause.enclosingModularMacroCall(call)).putInitialVisitedElement(call)
 
         Use.treeWalkUp(call, resolveState) { element, _ ->
             usedList.add(element)
@@ -50,6 +50,97 @@ class UsingTest : PlatformTestCase() {
             .toSet()
 
         assertEquals(setOf(NameArityInterval("injected_by_view", ArityInterval(0, 0))), nameArityIntervalSet)
+    }
+
+    /** `apply(__MODULE__, which, [])` in `__using__` reaches only what `apply/3` can call: no private helper. */
+    fun testApplyInUsingReachesNoPrivateDefinition() {
+        myFixture.configureByText(
+            "apply_use.ex",
+            """
+            defmodule ApplyWeb do
+              defmacro __using__(which) do
+                apply(__MODULE__, which, [])
+              end
+
+              def view do
+                quote do
+                  def from_view(), do: :ok
+                end
+              end
+
+              defp secret do
+                quote do
+                  def from_secret(), do: :ok
+                end
+              end
+            end
+
+            defmodule ApplyClient do
+              <caret>use ApplyWeb
+            end
+            """.trimIndent()
+        )
+
+        val call = myFixture.file.findElementAt(myFixture.caretOffset)!!.parent.parent as Call
+        val resolveState = ResolveState.initial().put(ENTRANCE, CallDefinitionClause.enclosingModularMacroCall(call)).putInitialVisitedElement(call)
+        val used = mutableListOf<PsiElement>()
+
+        Use.treeWalkUp(call, resolveState) { element, _ ->
+            used.add(element)
+            true
+        }
+
+        assertEquals(
+            setOf("from_view"),
+            used.mapNotNull { (it as? Call)?.let { call -> nameArityInterval(call, ResolveState.initial())?.name } }.toSet()
+        )
+    }
+
+    /** `use M, :"view"` names `view` as `use M, :view` does, so only its quote is injected. */
+    fun testAQuotedWhichNamesOneFunction() {
+        for (which in listOf(":view", ":\"view\"")) {
+            myFixture.configureByText(
+                "quoted_which.ex",
+                """
+                defmodule QuotedWeb do
+                  defmacro __using__(which) do
+                    apply(__MODULE__, which, [])
+                  end
+
+                  def view do
+                    quote do
+                      def from_view(), do: :ok
+                    end
+                  end
+
+                  def other do
+                    quote do
+                      def from_other(), do: :ok
+                    end
+                  end
+                end
+
+                defmodule QuotedClient do
+                  <caret>use QuotedWeb, $which
+                end
+                """.trimIndent()
+            )
+
+            val call = myFixture.file.findElementAt(myFixture.caretOffset)!!.parent.parent as Call
+            val resolveState = ResolveState.initial().put(ENTRANCE, CallDefinitionClause.enclosingModularMacroCall(call)).putInitialVisitedElement(call)
+            val used = mutableListOf<PsiElement>()
+
+            Use.treeWalkUp(call, resolveState) { element, _ ->
+                used.add(element)
+                true
+            }
+
+            assertEquals(
+                which,
+                setOf("from_view"),
+                used.mapNotNull { (it as? Call)?.let { call -> nameArityInterval(call, ResolveState.initial())?.name } }.toSet()
+            )
+        }
     }
 
     /*

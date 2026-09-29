@@ -42,9 +42,7 @@ import org.elixir_lang.psi.operation.not_in.Normalized as NotInNormalized
 fun Call.computeReference(): PsiReference? =
     /* if the call is just the identifier for a module attribute reference, then don't return a Callable reference,
            and instead let the dedicated module-attribute reference path handle it */
-    // Any element in the head of a call-definition clause is a declaration name, not a call site.
-    // Protocol heads were already guarded this way; now the full CDC family is covered.
-    if (CallDefinitionClause.isHead(this)) {
+    if (CallableDeclaration.isHead(this)) {
         null
     } else if (!this.isModuleAttributeNameElement() &&
         // if a bitstring segment option then the option is a pseudo-function
@@ -345,29 +343,6 @@ fun Call.macroChildCallList(): List<Call> {
 fun Call.macroChildCallSequence(): Sequence<Call> = this.macroChildCallList().asSequence()
 
 @RequiresReadLock
-@Contract(pure = true)
-fun Call.macroDefinitionClauseForArgument(): Call? {
-    var macroDefinitionClause: Call? = null
-    val parent = parent
-
-    if (parent is ElixirMatchedWhenOperation) {
-        val grandParent = parent.getParent()
-
-        if (grandParent is ElixirNoParenthesesOneArgument) {
-            val greatGrandParent = grandParent.getParent()
-
-            if (greatGrandParent is Call) {
-                if (CallDefinitionClause.isMacro(greatGrandParent)) {
-                    macroDefinitionClause = greatGrandParent
-                }
-            }
-        }
-    }
-
-    return macroDefinitionClause
-}
-
-@RequiresReadLock
 fun Call.maybeModularNameToModulars(useCall: Call? = null): Set<PsiNamedElement> =
     if (isCalling(KERNEL, __MODULE__, 0)) {
         org.elixir_lang.psi.__MODULE__
@@ -386,12 +361,14 @@ fun Call.whileInStabBodyChildExpressions(
         ?.let { whileIn(it, keepProcessing) }
         ?: true
 
+/** The expressions of this call's body, written as a `do` block or as a `do:` keyword's one expression. */
 @RequiresReadLock
 fun Call.stabBodyChildExpressions(forward: Boolean = true): Sequence<PsiElement>? =
     doBlock
         ?.stab
         ?.stabBody
         ?.childExpressions(forward)
+        ?: keywordArgument("do")?.let { sequenceOf(it.stripAccessExpression()) }
 
 object CallImpl {
     @RequiresReadLock

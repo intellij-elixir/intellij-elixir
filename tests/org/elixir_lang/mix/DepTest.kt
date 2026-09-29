@@ -219,6 +219,15 @@ class DepTest : PlatformTestCase() {
         assertEquals("deps/d", deps.single()?.path)
     }
 
+    /** A quoted atom names the same environment as the bare one. */
+    fun testQuotedAtomEnvironmentRestrictedDepOfADepIsDropped() {
+        listOf("only: :\"test\"", "only: [:\"test\"]").forEach { option ->
+            val (deps, _) = depsFrom("{:d, \"~> 1.0\", $option}", isDependency = true)
+
+            assertNull("`$option` excludes :prod, so the dep must be dropped", deps.single())
+        }
+    }
+
     /**
      * Every `only:` shape the plugin cannot read must keep the dep. Dropping one that is physically
      * present costs resolution and completion; keeping one Mix never fetches costs an empty
@@ -226,7 +235,6 @@ class DepTest : PlatformTestCase() {
      */
     fun testUnreadableOnlyValuesKeepTheDep() {
         val unreadable = listOf(
-            "only: :\"prod\"",
             "only: true",
             "only: @envs",
             "only: Mix.env()",

@@ -186,6 +186,25 @@ class HeexComponentReferenceTest : HeexHostTestCase() {
         assertButtonResolves()
     }
 
+    /** `<Module.name>` is a remote call, so it reaches only what the module exports: not a `defp`. */
+    fun testARemoteComponentTagDoesNotReachAPrivateFunction() {
+        myFixture.addFileToProject(
+            "secret_components.ex",
+            """
+            defmodule MyAppWeb.SecretComponents do
+              defp secret(assigns), do: assigns
+            end
+            """.trimIndent()
+        )
+        myFixture.configureByText("page.html.heex", "<MyAppWeb.SecretComponents.sec<caret>ret />")
+        val tag = PsiTreeUtil.findChildOfType(
+            myFixture.file.viewProvider.getPsi(com.intellij.lang.html.HTMLLanguage.INSTANCE),
+            XmlTag::class.java
+        )!!
+
+        assertNull(HeexComponentResolver.resolveCall(tag)?.text)
+    }
+
     /** `<Widgets.button>` resolves through `alias MyAppWeb.CoreComponents, as: Widgets`. */
     fun testRemoteComponentResolvesThroughAlias() {
         myFixture.configureByFiles(
@@ -259,7 +278,7 @@ class HeexComponentReferenceTest : HeexHostTestCase() {
             XmlTag::class.java
         )!!
 
-        val names = HeexComponentResolver.localComponentDefinitions(tag).mapNotNull { CallDefinitionClause.nameIdentifier(it)?.text }
+        val names = HeexComponentResolver.localComponents(tag).map { it.name }
 
         assertTrue("names=$names", "button" in names)
         assertTrue("icon" in names)
@@ -288,6 +307,74 @@ class HeexComponentReferenceTest : HeexHostTestCase() {
         assertFalse(
             "a dotted name that is not valid HEEx component syntax must not be suppressed",
             suppressor.isSuppressedFor(startTagNameElement("Foo.Bar"), XmlEntitiesInspection.TAG_SHORT_NAME)
+        )
+    }
+
+    /**
+     * `<.name>` compiles to the local call `name(assigns)`, so every arity-1 runtime function the module defines is a
+     * local component, whichever form defines it; a macro or guard is not.
+     */
+    fun testLocalComponentsAreTheModulesArityOneRuntimeFunctions() {
+        myFixture.configureByFiles("components_by_form/page_live.html.heex", "components_by_form/page_live.ex", "components_by_form/eex.ex")
+
+        val htmlRoot = myFixture.file.viewProvider.getPsi(com.intellij.lang.html.HTMLLanguage.INSTANCE)
+        val tag = PsiTreeUtil.findChildrenOfType(htmlRoot, XmlTag::class.java).first { it.name == ".button" }
+        val offered = mutableListOf<com.intellij.codeInsight.lookup.LookupElement>()
+        org.elixir_lang.heex.xml.HeexComponentTagNameProvider().addTagNameVariants(offered, tag, "")
+
+        assertEquals(
+            listOf(".button", ".private_component", ".delegated_component", ".rendered_component"),
+            offered.map { it.lookupString }
+        )
+
+        val symbols = listOf(".delegated_component", ".rendered_component").map { name ->
+            val componentTag = PsiTreeUtil.findChildrenOfType(htmlRoot, XmlTag::class.java).first { it.name == name }
+
+            "$name -> ${HeexComponentResolver.resolveFunctionSymbols(componentTag).map { "${it.name}/${it.arity}" }}"
+        }
+
+        assertEquals(listOf(".delegated_component -> [delegated_component/1]", ".rendered_component -> [rendered_component/1]"), symbols)
+    }
+
+    /** A tag naming an arity-1 macro or guard resolves to nothing, as completion does not offer it. */
+    fun testATagNamingAMacroOrGuardResolvesToNothing() {
+        myFixture.configureByFiles("components_by_form/page_live.html.heex", "components_by_form/page_live.ex", "components_by_form/eex.ex")
+
+        val htmlRoot = myFixture.file.viewProvider.getPsi(com.intellij.lang.html.HTMLLanguage.INSTANCE)
+        val resolved = listOf(".macro_component", ".guard_component").map { name ->
+            val tag = PsiTreeUtil.findChildrenOfType(htmlRoot, XmlTag::class.java).first { it.name == name }
+
+            "$name -> ${HeexComponentResolver.resolveCall(tag)?.text}"
+        }
+
+        assertEquals(listOf(".macro_component -> null", ".guard_component -> null"), resolved)
+    }
+
+    /** A component defined under a compile-time `if` belongs to its module, so it is a local component too. */
+    fun testAComponentUnderAnIfIsALocalComponent() {
+        myFixture.configureByFiles("conditional_component/page_live.html.heex", "conditional_component/page_live.ex")
+        val tag = PsiTreeUtil.findChildOfType(
+            myFixture.file.viewProvider.getPsi(com.intellij.lang.html.HTMLLanguage.INSTANCE),
+            XmlTag::class.java
+        )!!
+
+        assertEquals(listOf("button", "gated"), HeexComponentResolver.localComponents(tag).map { it.name })
+    }
+
+    /** A tag's declaration is the component's name, whichever form declares it, as a call's Go To lands on. */
+    fun testAComponentsDeclarationIsItsNameInEveryForm() {
+        myFixture.configureByFiles("components_by_form/page_live.html.heex", "components_by_form/page_live.ex", "components_by_form/eex.ex")
+
+        val htmlRoot = myFixture.file.viewProvider.getPsi(com.intellij.lang.html.HTMLLanguage.INSTANCE)
+        val declared = listOf(".button", ".delegated_component", ".rendered_component").map { name ->
+            val tag = PsiTreeUtil.findChildrenOfType(htmlRoot, XmlTag::class.java).first { it.name == name }
+
+            "$name -> ${HeexComponentResolver.resolveDeclaration(tag)?.text}"
+        }
+
+        assertEquals(
+            listOf(".button -> button", ".delegated_component -> delegated_component", ".rendered_component -> :rendered_component"),
+            declared
         )
     }
 

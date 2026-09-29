@@ -11,7 +11,7 @@ import com.intellij.psi.PsiFile
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.variable.VariableSymbol
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
-import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.isModuleAttributeNameElement
 import org.elixir_lang.psi.operation.capture.NonNumeric
@@ -26,10 +26,10 @@ import org.elixir_lang.reference.CaptureNameArity
  * would shadow the [FunctionSymbol] declaration via `referencedData ?: declaredData` and break Find
  * Usages. Guards:
  * - `Callable.isDefiner(element)` - definers (`def`, `defmodule`, `defimpl`, etc.) are declarations.
- * - `CallDefinitionClause.isHead(element)` - the head call inside a clause (e.g. `foo(args)` inside
- *   `def foo(args)`) is part of the declaration anchor, not a call site.
+ * - `CallableDeclaration.isHead(element)` - the head call inside a clause or `defdelegate` (e.g. `foo(args)`
+ *   inside `def foo(args)`) is part of the declaration anchor, not a call site.
  *
- * [getSearchRequests] returns nothing on purpose: the reverse direction (function → call sites) is
+ * [getSearchRequests] returns nothing on purpose: the reverse direction (function -> call sites) is
  * served by [org.elixir_lang.model.psi.ElixirSymbolUsageSearcher]'s direct word search.
  */
 @Suppress("UnstableApiUsage")
@@ -41,7 +41,7 @@ internal class FunctionCallReferenceProvider : PsiSymbolReferenceProvider {
     ): Collection<PsiSymbolReference> {
         if (element !is Call) return emptyList()
         if (element.isModuleAttributeNameElement()) return emptyList()
-        // Module attribute elements themselves (`@callback`, `@spec`, …) are not call sites.
+        // Module attribute elements themselves (`@callback`, `@spec`, ...) are not call sites.
         if (element is AtUnqualifiedNoParenthesesCall<*>) return emptyList()
         // A call nested inside a module attribute (e.g. `perform()` in `@callback perform()`,
         // `foo/1` in `@spec foo/1`, `MyType.t` in `@type`) is a type spec, not a call site.
@@ -50,11 +50,11 @@ internal class FunctionCallReferenceProvider : PsiSymbolReferenceProvider {
         if (generateSequence(element.parent) { it.parent }
                 .takeWhile { it !is PsiFile }
                 .any { it is AtUnqualifiedNoParenthesesCall<*> }) return emptyList()
-        // Definers (def, defmodule, defprotocol, defimpl, defdelegate, …) are declarations.
+        // Definers (def, defmodule, defprotocol, defimpl, defdelegate, ...) are declarations.
         if (Callable.isDefiner(element)) return emptyList()
-        // The head call inside a definition clause (e.g. `foo(args)` in `def foo(args)`) is
-        // part of the declaration anchor - a reference here would shadow the FunctionSymbol.
-        if (CallDefinitionClause.isHead(element)) return emptyList()
+        // A clause's or `defdelegate`'s head is part of the declaration anchor - a reference here would shadow the
+        // FunctionSymbol; Go To reaches a delegation's `to:` from a use of it, not from the head.
+        if (CallableDeclaration.isHead(element)) return emptyList()
         // Local variable/parameter identifiers are owned by VariableSymbol.
         if (VariableSymbol.classify(element) != null) return emptyList()
         // The captured name of `&name/arity` / `&Mod.name/arity` is owned by

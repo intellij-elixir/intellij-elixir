@@ -4,7 +4,6 @@ import com.intellij.find.usages.api.SearchTarget
 import com.intellij.find.usages.api.UsageHandler
 import com.intellij.icons.AllIcons
 import com.intellij.model.Pointer
-import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.util.TextRange
 import com.intellij.platform.backend.navigation.NavigationRequest
 import com.intellij.platform.backend.navigation.NavigationTarget
@@ -14,7 +13,6 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.SmartPointerManager
 import com.intellij.psi.search.SearchScope
 import com.intellij.psi.util.PsiTreeUtil
-import com.intellij.refactoring.rename.api.RenameTarget
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.ElixirSymbolWithUsages
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
@@ -33,7 +31,7 @@ class ModuleAttributeSymbol(
     override val range: TextRange,
     val moduleName: String,
     val name: String
-) : ElixirSymbolWithUsages, NavigationTarget, SearchTarget, RenameTarget {
+) : ElixirSymbolWithUsages, NavigationTarget, SearchTarget {
     override val searchText: String get() = name
     override val targetName: String get() = name
 
@@ -113,8 +111,7 @@ class ModuleAttributeSymbol(
                 CallDefinitionClause.enclosingModularMacroCall(it)
             }
                 .firstNotNullOfOrNull { modular ->
-                    runCatching { org.elixir_lang.psi.Module.name(modular) }
-                        .getOrElse { if (it is ProcessCanceledException) throw it else null }
+                    org.elixir_lang.psi.Module.nameOrNull(modular)
                 }
                 ?: return null
             return ModuleAttributeSymbol(call.containingFile, atIdentifier.identifierTextRange(), moduleName, name)

@@ -1,35 +1,14 @@
 package org.elixir_lang.code_insight
 
 import com.intellij.psi.ResolveState
+import org.elixir_lang.model.psi.function.FunctionSymbol
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
 
 /**
- * Given a list of [CallDefinitionClause] calls (potentially multiple clause heads for the same function),
- * groups them by name and selects one representative per function — preferring **bare function heads**
- * (those without a `do` block or keyword) over implementation clauses.
- *
- * A bare function head like `def map_every(enumerable, nth, fun)` has canonical parameter names,
- * while implementation clauses like `def map_every([], nth, _fun) when is_integer(nth) and nth > 1, do: []`
- * have pattern-matched literals and guards that are implementation details.
- *
- * Groups by **name only**, collapsing different arities into one entry.
- * Use for completion where one entry per function name is desired.
- *
- * @return a map from function name to the best representative clause
- */
-fun preferFunctionHeads(clauses: Iterable<Call>): Map<String, Call> =
-    clauses
-        .mapNotNull { call ->
-            CallDefinitionClause.nameArityInterval(call, ResolveState.initial())
-                ?.let { it.name to call }
-        }
-        .groupBy({ it.first }, { it.second })
-        .mapValues { (_, group) -> preferFunctionHead(group) }
-
-/**
- * Like [preferFunctionHeads] but groups by **(name, arityInterval)**, preserving separate entries
- * for functions with the same name but different arities (e.g., `foo/1` and `foo/2`).
+ * One representative clause per function ([FunctionSymbol.function]), as [preferFunctionHead] picks it: separate
+ * entries for functions with the same name but different arities (e.g., `foo/1` and `foo/2`), while a head with
+ * defaults and the clauses after it stay one.
  *
  * Use for parameter info where each arity should appear as a separate hint.
  *
@@ -46,12 +25,13 @@ fun preferFunctionHeadsByArity(clauses: Iterable<Call>, name: String?): List<Cal
                 ?.let { it to call }
         }
         .filter { (nameArityInterval, _) -> name == null || nameArityInterval.name == name }
-        .groupBy({ it.first }, { it.second })
+        // A clause with no symbol of its own, such as a protocol's, stands for its own name and arities.
+        .groupBy({ (nameArityInterval, call) -> FunctionSymbol.functionOf(call) ?: nameArityInterval }, { it.second })
         .map { (_, group) -> preferFunctionHead(group) }
 
 /**
- * From a list of clauses for the same function, prefer the bare function head (no `do` block/keyword)
- * over implementation clauses. Falls back to the first clause if no bare head exists.
+ * From a list of clauses for the same function, the bare function head (no `do` block/keyword), whose parameters are
+ * names rather than patterns; the first clause if there is none.
  */
-private fun preferFunctionHead(clauses: List<Call>): Call =
+fun preferFunctionHead(clauses: List<Call>): Call =
     clauses.firstOrNull { !it.hasDoBlockOrKeyword() } ?: clauses.first()

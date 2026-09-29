@@ -54,6 +54,26 @@ class Issue305Test : PlatformTestCase() {
         )
     }
 
+    /** A call resolving to a `@macrocallback` binds as one resolving to a `defmacro` does, as its highlight says. */
+    fun testUseOfMacrocallbackBoundVariableNavigatesToTheCall() {
+        myFixture.configureByText(
+            "macrocallback_in_match.ex",
+            """
+            defmodule Sessions do
+              @macrocallback session(term, term) :: Macro.t()
+
+              def describe(raw) do
+                session(id, user) = raw
+
+                <caret>id
+              end
+            end
+            """.trimIndent()
+        )
+
+        myFixture.assertGotoDeclarationLandsIn("id", "the `session(id, user)` call") { it.functionName() == "session" }
+    }
+
     /**
      * The guard on the fix. `session/2` here is a `def`, so its arguments are values and declare
      * nothing - `id` below must stay unresolved. A fix that treated every parenthesised call in a

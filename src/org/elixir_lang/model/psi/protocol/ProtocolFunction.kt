@@ -4,19 +4,18 @@ import com.intellij.find.usages.api.SearchTarget
 import com.intellij.find.usages.api.UsageHandler
 import com.intellij.icons.AllIcons
 import com.intellij.model.Pointer
-import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.util.TextRange
 import com.intellij.platform.backend.navigation.NavigationRequest
 import com.intellij.platform.backend.navigation.NavigationTarget
 import com.intellij.platform.backend.presentation.TargetPresentation
 import com.intellij.psi.PsiFile
-import com.intellij.psi.ResolveState
-import com.intellij.psi.SmartPointerManager
 import com.intellij.psi.search.SearchScope
-import com.intellij.refactoring.rename.api.RenameTarget
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.ElixirSymbolWithUsages
-import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.model.psi.function.FunctionSymbol
+import org.elixir_lang.psi.ArityNamed
+import org.elixir_lang.psi.impl.nameTextRange
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.call.Call
 import java.util.*
@@ -39,9 +38,9 @@ class ProtocolFunction(
     override val range: TextRange,
     val protocolName: String,
     val name: String,
-    val arity: Int,
+    override val arity: Int,
     val macro: Boolean
-) : ElixirSymbolWithUsages, NavigationTarget, SearchTarget, RenameTarget {
+) : ElixirSymbolWithUsages, NavigationTarget, SearchTarget, ArityNamed {
 
     override val searchText: String get() = name
     override val targetName: String get() = name
@@ -51,26 +50,7 @@ class ProtocolFunction(
         val name = this.name
         val arity = this.arity
         val macro = this.macro
-        // Anchor to the enclosing call-definition clause (a stable ancestor) rather than to the
-        // name-identifier element or a bare file range: an in-place (Shift+F6) rename fully replaces
-        // the identifier's text, which swaps out the identifier leaf (collapsing a pointer anchored to
-        // it) and collapses a plain range marker to an empty range - either way the subsequent
-        // programmatic commit edits the wrong range and applies nothing. The clause survives the
-        // identifier replacement, so its name-identifier range is recomputed correctly on restore.
-        val clause = generateSequence(file.findElementAt(range.startOffset)) { it.parent }
-            .filterIsInstance<Call>()
-            .firstOrNull { CallDefinitionClause.`is`(it) && CallDefinitionClause.nameIdentifier(it)?.textRange == range }
-        if (clause != null) {
-            val clausePointer = SmartPointerManager.getInstance(file.project)
-                .createSmartPsiElementPointer(clause, file)
-            return Pointer {
-                val restoredClause = clausePointer.dereference() ?: return@Pointer null
-                val restoredRange = CallDefinitionClause.nameIdentifier(restoredClause)?.textRange
-                    ?: return@Pointer null
-                ProtocolFunction(restoredClause.containingFile, restoredRange, protocolName, name, arity, macro)
-            }
-        }
-        return Pointer.fileRangePointer(file, range) { restoredFile, restoredRange ->
+        return FunctionSymbol.declarationPointer(file, range) { restoredFile, restoredRange ->
             ProtocolFunction(restoredFile, restoredRange, protocolName, name, arity, macro)
         }
     }
@@ -104,25 +84,23 @@ class ProtocolFunction(
     override fun toString(): String = "ProtocolFunction($protocolName.$name/$arity, macro=$macro)"
 
     companion object {
-        /**
-         * Build the [ProtocolFunction] symbol(s) for a `def`/`defmacro` clause directly inside
-         * a `defprotocol`. Returns empty list if the clause is not inside a `defprotocol`, or if
-         * name/arity/protocol cannot be determined.
-         */
+        /** The [ProtocolFunction]s a clause directly inside a `defprotocol` declares, one per arity. */
         @RequiresReadLock
         fun fromClause(clause: Call): List<ProtocolFunction> {
-            if (!CallDefinitionClause.`is`(clause)) return emptyList()
-            val defprotocol = CallDefinitionClause.enclosingModularMacroCall(clause) ?: return emptyList()
-            if (!Protocol.`is`(defprotocol)) return emptyList()
-            val protocolName = runCatching { org.elixir_lang.psi.Module.name(defprotocol) }
-                .getOrElse { if (it is ProcessCanceledException) throw it else null }
+            val named = CallableDeclaration.named(clause)
+                ?.takeIf { it.form == CallableDeclaration.Form.CLAUSE && Protocol.`is`(it.modular) }
                 ?: return emptyList()
-            val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return emptyList()
-            val nameId = CallDefinitionClause.nameIdentifier(clause) ?: return emptyList()
-            val macro = CallDefinitionClause.isMacro(clause)
-            return nameArity.arityInterval.closed().map { arity ->
-                ProtocolFunction(clause.containingFile, nameId.textRange, protocolName, nameArity.name, arity, macro)
+            val range = nameTextRange(named.nameElement)
+
+            return named.declarations.flatMap { declaration ->
+                declaration.arityInterval?.closed()?.map { arity ->
+                    ProtocolFunction(clause.containingFile.originalFile, range, named.moduleName, declaration.name, arity, named.compileTime)
+                }.orEmpty()
             }
         }
+
+        /** What [clause] declares at [arity], which is what a use at that arity names. */
+        @RequiresReadLock
+        fun at(clause: Call, arity: Int): List<ProtocolFunction> = fromClause(clause).filter { it.namedAt(arity) }
     }
 }

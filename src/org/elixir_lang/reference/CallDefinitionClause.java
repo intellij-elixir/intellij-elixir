@@ -86,15 +86,10 @@ public class CallDefinitionClause extends PsiReferenceBase<Call> implements PsiP
                 );
     }
 
-    /**
-     * Returns the element which is the target of the reference.
-     *
-     * @return the target element, or null if it was not possible to resolve the reference to a valid target.
-     */
+    /** {@link Resolver#resolved}: the first preferred valid result, or {@code null}. */
     @Nullable
     @Override
     public PsiElement resolve() {
-        ResolveResult[] resolveResults = multiResolve(false);
-        return resolveResults.length == 1 ? resolveResults[0].getElement() : null;
+        return Resolver.INSTANCE.resolved(myElement, java.util.Arrays.asList(multiResolve(false)));
     }
 }

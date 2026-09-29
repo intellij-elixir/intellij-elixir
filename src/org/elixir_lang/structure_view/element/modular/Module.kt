@@ -13,11 +13,9 @@ import com.intellij.usageView.UsageViewTypeLocation
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.NameArity
 import org.elixir_lang.navigation.item_presentation.Parent
-import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
-import org.elixir_lang.psi.impl.call.macroChildCalls
-import org.elixir_lang.psi.impl.enclosingMacroCall
+import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.impl.locationString
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.putInitialVisitedElement
@@ -54,35 +52,8 @@ open class Module(protected val parent: Modular?, call: Call) : Element<Call>(ca
 
     companion object {
         @RequiresReadLock
-        fun addClausesToCallDefinition(
-                call: Call,
-                name: String,
-                arityInterval: ArityInterval,
-                callDefinitionByNameArity: MutableMap<NameArity, CallDefinition>,
-                modular: Modular,
-                time: Timed.Time,
-                callDefinitionInserter: (CallDefinition) -> Unit
-        ) {
-            for (arity in arityInterval.closed()) {
-                ProgressManager.checkCanceled()
-                val nameArity = NameArity(name, arity)
-
-                callDefinitionByNameArity.computeIfAbsent(nameArity) { (name, arity) ->
-                    CallDefinition(
-                        modular,
-                        time,
-                        name,
-                        arity
-                    ).also {
-                        callDefinitionInserter(it)
-                    }
-                }.clause(call)
-            }
-        }
-
-        @RequiresReadLock
         fun callChildren(modular: Modular, call: Call): Array<TreeElement> {
-            val childCalls = call.macroChildCalls()
+            val childCalls = CallDefinitionClause.modularChildCalls(call).toTypedArray()
             return childCallTreeElements(modular, childCalls, ResolveState.initial().put(ENTRANCE, call).putInitialVisitedElement(call))
         }
 
@@ -91,7 +62,7 @@ open class Module(protected val parent: Modular?, call: Call) : Element<Call>(ca
         fun elementDescription(call: Call, location: ElementDescriptionLocation): String? =
                 when(location) {
                     UsageViewLongNameLocation.INSTANCE -> {
-                        val enclosingCall = call.enclosingMacroCall()
+                        val enclosingCall = CallDefinitionClause.enclosingModularMacroCall(call)
                         // indirect recursion through ElementDescriptionUtil.getElementDescription because it is @NotNull and will
                         // default to element text when not implemented, so a bug, but not an error will result.
                         val relative = ElementDescriptionUtil.getElementDescription(call, UsageViewShortNameLocation.INSTANCE)
@@ -112,8 +83,10 @@ open class Module(protected val parent: Modular?, call: Call) : Element<Call>(ca
         @JvmStatic
         fun nameIdentifier(call: Call): PsiElement? = call.primaryArguments()?.firstOrNull()?.stripAccessExpression()
 
+        /** The tree elements [childCalls] make as children of [modular], as a module's own children are built. */
         @Contract(pure = true)
-        private fun childCallTreeElements(modular: Modular, childCalls: Array<Call>?, resolveState: ResolveState): Array<TreeElement> {
+        @RequiresReadLock
+        fun childCallTreeElements(modular: Modular, childCalls: Array<Call>?, resolveState: ResolveState): Array<TreeElement> {
             var treeElements: Array<TreeElement>? = null
 
             if (childCalls != null) {
@@ -136,20 +109,23 @@ open class Module(protected val parent: Modular?, call: Call) : Element<Call>(ca
                 )
 
                 while (!childCallQueue.isEmpty()) {
+                    ProgressManager.checkCanceled()
                     ChildCall.build(accumulator, childCallQueue.remove(), resolveState)
                 }
 
                 for (overridable in overridableSet) {
+                    ProgressManager.checkCanceled()
                     for (treeElement in overridable.children) {
+                        ProgressManager.checkCanceled()
                         (treeElement as CallReference).let { callReference ->
                             callReference.arity()?.let { arity ->
                                 callReference
                                         .name()
                                         .let { name -> NameArity(name, arity) }
                                         .let { nameArity ->
-                                            functionByNameArity[nameArity]?.apply {
-                                                isOverridable = true
-                                            }
+                                            // `defoverridable` names a macro as well as a function
+                                            (functionByNameArity[nameArity] ?: macroByNameArity[nameArity])
+                                                ?.apply { isOverridable = true }
                                         }
                             }
                         }
@@ -159,11 +135,12 @@ open class Module(protected val parent: Modular?, call: Call) : Element<Call>(ca
                 val useCollection = HashSet<TreeElement>(useSet.size)
                 useCollection.addAll(useSet)
                 val nodesFromUses = Used.provideNodesFromChildren(useCollection)
-                val useFunctionByNameArity = Used.functionByNameArity(nodesFromUses)
+                val moduleDefinitionByKey = Used.definitionByKey(treeElementList)
 
-                for ((useNameArity, useFunction) in useFunctionByNameArity) {
-                    if (useFunction.isOverridable) {
-                        functionByNameArity[useNameArity]?.override = true
+                for ((key, useDefinition) in Used.definitionByKey(nodesFromUses)) {
+                    ProgressManager.checkCanceled()
+                    if (useDefinition.isOverridable) {
+                        moduleDefinitionByKey[key]?.override = true
                     }
                 }
 
@@ -175,9 +152,4 @@ open class Module(protected val parent: Modular?, call: Call) : Element<Call>(ca
 
     }
 
-}
-
-private inline fun CallDefinition.also(block: (CallDefinition) -> Unit): CallDefinition {
-    block(this)
-    return this
 }

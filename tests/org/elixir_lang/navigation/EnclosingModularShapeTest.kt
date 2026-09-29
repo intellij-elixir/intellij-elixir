@@ -115,6 +115,12 @@ class EnclosingModularShapeTest : PlatformTestCase() {
             "inside_case" to
                 "defmodule A do\n  case :ok do\n    :ok ->\n      def f<caret>oo(a), do: a\n  end\nend\n",
             "top_level_defimpl" to "defimpl Access, for: Foo do\n  def g<caret>et(a, b, c), do: a\nend\n",
+            "inside_enum_each" to "defmodule A do\n  Enum.each([1], fn _ ->\n    def f<caret>oo(a), do: a\n  end)\nend\n",
+            "inside_piped_enum_each" to "defmodule A do\n  [1] |> Enum.each(fn _ ->\n    def f<caret>oo(a), do: a\n  end)\nend\n",
+            "inside_task_async" to "defmodule A do\n  Task.async(fn -> def f<caret>oo(a), do: a end) |> Task.await()\nend\n",
+            "inside_keyword_callback" to "defmodule A do\n  opts = [callback: fn -> def f<caret>oo(a), do: a end]\n  opts[:callback].()\nend\n",
+            "bound_fn_in_quote" to
+                "defmodule A do\n  defmacro __using__(_) do\n    quote do\n      helper = fn -> def f<caret>oo(a), do: a end\n    end\n  end\nend\n",
         )
 
         val failures = shapes

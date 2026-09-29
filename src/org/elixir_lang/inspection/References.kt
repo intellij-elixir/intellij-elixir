@@ -8,10 +8,11 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.PsiReference
+import org.elixir_lang.model.psi.function.RejectedCall
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
 
-class References : LocalInspectionTool() {
+internal class References : LocalInspectionTool() {
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean, session: LocalInspectionToolSession): PsiElementVisitor {
         return object : ElixirVisitor() {
             override fun visitElement(element: PsiElement) {
@@ -98,9 +99,36 @@ class References : LocalInspectionTool() {
                 val resolveResults = reference.multiResolve(false)
 
                 if (resolveResults.isEmpty()) {
-                    holder.registerProblem(element, "Does not resolve to anything", ProblemHighlightType.ERROR)
+                    holder.registerProblem(element, doesNotResolve(element), ProblemHighlightType.ERROR)
                 } else if (!resolveResults.any { it.isValidResult } && !expectOnlyInvalid(element)) {
-                    holder.registerProblem(element, "Only resolves to invalid results", ProblemHighlightType.ERROR)
+                    holder.registerProblem(element, invalidMessage(element), ProblemHighlightType.ERROR)
+                }
+            }
+
+            /**
+             * A call at an arity nothing declares names the arities there are, as the compiler does; one whose name
+             * nothing declares - candidates only start with it, as a misspelling's do - resolves to nothing.
+             */
+            private fun invalidMessage(element: PsiElement): String {
+                val call = element as? Call ?: return INVALID
+                val name = call.functionName() ?: return INVALID
+                val arities = RejectedCall.named(call).flatMap { it.arities }.distinct().sorted()
+
+                return if (arities.isNotEmpty()) {
+                    "$INVALID; defined as ${arities.joinToString(", ") { "$name/$it" }}"
+                } else {
+                    doesNotResolve(call)
+                }
+            }
+
+            /** A call names what its module exports near it, as the compiler does. */
+            private fun doesNotResolve(element: PsiElement): String {
+                val suggestions = (element as? Call)?.let { DidYouMean.suggestions(it) }.orEmpty()
+
+                return if (suggestions.isEmpty()) {
+                    "Does not resolve to anything"
+                } else {
+                    "Does not resolve to anything. Did you mean: ${suggestions.joinToString(", ")}?"
                 }
             }
 
@@ -125,3 +153,5 @@ class References : LocalInspectionTool() {
         }
     }
 }
+
+private const val INVALID = "Only resolves to invalid results"

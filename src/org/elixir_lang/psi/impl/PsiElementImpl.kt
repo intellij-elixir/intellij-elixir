@@ -15,115 +15,14 @@ import com.intellij.psi.util.siblings
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.call.name.Function.ALIAS
-import org.elixir_lang.psi.call.name.Function.CREATE
-import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.call.maybeModularNameToModulars
-import org.elixir_lang.psi.operation.Infix
-import org.elixir_lang.psi.operation.Match
 import org.elixir_lang.psi.scope.WhileIn.whileIn
 import org.elixir_lang.util.AccumulatorContinue
 import org.elixir_lang.util.foldWhile
 import org.jetbrains.annotations.Contract
 
 @RequiresReadLock
-fun PsiElement.ancestorSequence() = generateSequence(this) { it.parent }
-
-@RequiresReadLock
 fun PsiElement.document(): Document? = containingFile.viewProvider.document
-
-@RequiresReadLock
-tailrec fun PsiElement.selfOrEnclosingMacroCall(): Call? =
-    when (this) {
-        is ElixirDoBlock ->
-            parent.let { it as? Call }
-
-        is ElixirAnonymousFunction -> {
-            val generator = when (val grandParent = parent.let { it as? ElixirAccessExpression }?.parent) {
-                // `defhelper = fn` in
-                //  defhelper = quote @anno do
-                //      defhelper = fn helper, vars, opts, bins, segs, trailing_slash? ->
-                //        def unquote(:"#{helper}_path")(conn_or_endpoint, unquote(Macro.escape(opts)), unquote_splicing(vars)) do
-                //          unquote(:"#{helper}_path")(conn_or_endpoint, unquote(Macro.escape(opts)), unquote_splicing(vars), [])
-                //        end
-                is Match -> grandParent
-
-                is Arguments -> {
-                    grandParent.parent.let { it as? ElixirMatchedParenthesesArguments }?.parent
-                        .let { it as? Call }?.let { call ->
-                            if (call.resolvedModuleName() == "Enum" &&
-                                call.functionName() in arrayOf("each", "map", "reduce")
-                            ) {
-                                call
-                            } else {
-                                null
-                            }
-                        }
-                }
-
-                else -> null
-            }
-
-            generator?.parent?.selfOrEnclosingMacroCall()
-        }
-
-        is Arguments,
-        is AtUnqualifiedNoParenthesesCall<*>,
-        is ElixirAccessExpression,
-        is ElixirAssociations,
-        is ElixirAssociationsBase,
-        is ElixirBlockItem,
-        is ElixirBlockList,
-        is ElixirContainerAssociationOperation,
-        is ElixirList,
-        is ElixirMapArguments,
-        is ElixirMapConstructionArguments,
-        is ElixirMapOperation,
-        is ElixirMatchedParenthesesArguments,
-        is ElixirMatchedWhenOperation,
-        is ElixirNoParenthesesManyStrictNoParenthesesExpression,
-        is ElixirParentheticalStab,
-        is ElixirStab,
-        is ElixirStabBody,
-        is ElixirStabOperation,
-        is ElixirTuple,
-        is Infix,
-        is QualifiedAlias,
-        is QualifiedMultipleAliases ->
-            parent.selfOrEnclosingMacroCall()
-
-        is Call ->
-            when {
-                isCalling(KERNEL, ALIAS) -> this
-                isCalling(org.elixir_lang.psi.call.name.Module.MODULE, CREATE, 3) -> this
-                else -> null
-            }
-
-        is QuotableKeywordPair ->
-            if (this.hasKeywordKey("do")) {
-                parent.let { it as? QuotableKeywordList }?.parent.let { keywordListParent ->
-                    when (keywordListParent) {
-                        is ElixirNoParenthesesOneArgument -> keywordListParent
-                        is ElixirParenthesesArguments -> {
-                            keywordListParent.parent.let { it as? ElixirMatchedParenthesesArguments }
-                        }
-
-                        else -> null
-                    }
-                }?.parent.let { it as? Call }
-            } else {
-                null
-            }
-
-        else -> null
-    }
-
-/**
- * @return `null` if this element is at top-level
- */
-@RequiresReadLock
-@Contract(pure = true)
-fun PsiElement.enclosingMacroCall(): Call? = parent.selfOrEnclosingMacroCall()
 
 private val isModuleName = { c: PsiElement -> c is MaybeModuleName && c.isModuleName }
 

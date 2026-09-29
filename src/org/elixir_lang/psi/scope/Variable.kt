@@ -5,7 +5,6 @@ import com.intellij.psi.*
 import com.intellij.psi.scope.PsiScopeProcessor
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.psi.*
-import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallDefinitionClause.head
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function
@@ -25,7 +24,6 @@ import org.elixir_lang.psi.scope.WhileIn.whileIn
 import org.elixir_lang.psi.scope.variable.BindingPattern
 import org.elixir_lang.resolvesToMacro
 import org.elixir_lang.structure_view.element.CallDefinitionHead.Companion.strip
-import org.elixir_lang.structure_view.element.Delegation
 import org.elixir_lang.structure_view.element.Delegation.Companion.callDefinitionHeadCallList
 
 abstract class Variable : PsiScopeProcessor {
@@ -125,26 +123,26 @@ abstract class Variable : PsiScopeProcessor {
 
 
     private fun execute(match: Call, state: ResolveState): Boolean =
-            when {
-                CallDefinitionClause.`is`(match) -> {
-                    head(match)?.let { head ->
-                        val stripped = strip(head)
-
-                        when (stripped) {
-                            is AtOperation -> {
-                                stripped
-                                        .operand()
-                                        .let { it as? ElixirAccessExpression }
-                                        ?.let { execute(it, state) }
-                            }
-                            is Call -> executeStrippedCallDefinitionHead(stripped, state)
-                            else -> null
-                        }
-                    }
-                }
-                Delegation.`is`(match) -> whileIn(callDefinitionHeadCallList(match)) {
+            when (CallableDeclaration.headBindingFormOf(match, state)) {
+                CallableDeclaration.Form.CLAUSE -> executeOnCallDefinitionClause(match, state)
+                CallableDeclaration.Form.DELEGATION -> whileIn(callDefinitionHeadCallList(match)) {
                     executeStrippedCallDefinitionHead(it, state)
                 }
+                // only a clause's or a delegation's head binds parameters
+                else -> executeOnNonDeclaration(match, state)
+            }
+
+    private fun executeOnCallDefinitionClause(match: Call, state: ResolveState): Boolean =
+            head(match)?.let { head ->
+                when (val stripped = strip(head)) {
+                    is AtOperation -> stripped.operand().let { it as? ElixirAccessExpression }?.let { execute(it, state) }
+                    is Call -> executeStrippedCallDefinitionHead(stripped, state)
+                    else -> null
+                }
+            } ?: true
+
+    private fun executeOnNonDeclaration(match: Call, state: ResolveState): Boolean =
+            when {
                 match.isCalling(Module.KERNEL, Function.DESTRUCTURE, 2) -> {
                     match.finalArguments()?.first()?.let { pattern ->
                         execute(pattern, state.put(DECLARING_SCOPE, true))

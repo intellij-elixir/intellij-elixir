@@ -1,5 +1,6 @@
 package org.elixir_lang.psi.scope
 
+import org.elixir_lang.psi.scope.Reach.Companion.reachedThrough
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
@@ -8,28 +9,23 @@ import com.intellij.psi.scope.PsiScopeProcessor
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.stubs.StubIndex
 import com.intellij.psi.util.isAncestor
-import org.elixir_lang.EEx
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.beam.psi.Module as BeamModule
 import org.elixir_lang.ecto.query.WindowAPI
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.call.name.Function.*
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.call.name.Module.KERNEL_SPECIAL_FORMS
 import org.elixir_lang.psi.ex_unit.Case
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.hasDoBlockOrKeyword
-import org.elixir_lang.psi.impl.ancestorSequence
 import org.elixir_lang.psi.impl.call.*
-import org.elixir_lang.psi.impl.keywordValue
 import org.elixir_lang.psi.impl.siblingExpressions
+import org.elixir_lang.psi.scope.WhileIn.throughout
 import org.elixir_lang.psi.scope.WhileIn.whileIn
 import org.elixir_lang.psi.stub.type.call.Stub.isModular
 import org.elixir_lang.reference.resolver.narrowedScope
-import org.elixir_lang.structure_view.element.Callback
-import org.elixir_lang.structure_view.element.Delegation
 
 abstract class CallDefinitionClause : PsiScopeProcessor {
     /*
@@ -108,40 +104,51 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
      */
     protected abstract fun keepProcessing(): Boolean
 
+    /** Whether the walk wants what an `import`, explicit or the implicit `import Kernel`, brings in. */
+    protected open val followsImports: Boolean = true
+
     /*
      * Private Instance Methods
      */
 
     private fun execute(element: Call, state: ResolveState): Boolean =
-        when {
-            org.elixir_lang.psi.CallDefinitionClause.`is`(element) -> executeOnCallDefinitionClause(element, state)
-            Callback.`is`(element) -> executeOnCallback(element as AtUnqualifiedNoParenthesesCall<*>, state)
-            Delegation.`is`(element) -> executeOnDelegation(element, state)
-            Exception.`is`(element) -> executeOnException(element, state)
-            For.`is`(element) -> For.treeWalkDown(element, state, ::execute)
-            If.`is`(element) || Unless.`is`(element) -> {
-                // If the entrance os at compile time level of `childCalls`, then only previous siblings could
-                // possibly define this call and those will be handled by ElixirStabBody's processDeclarations
-                val branches = Branches(element)
+        CallableDeclaration.formOf(element, state)
+            ?.let { form -> executeOnDeclaration(element, form, state) }
+            ?: executeOnNonDeclaration(element, state)
 
-                val primaryChildCalls = branches.primaryChildExpressions.filterIsInstance<Call>()
-                val walkPrimary = !containsCompileTimeEntranceAncestorOrSelf(primaryChildCalls, state)
+    private fun executeOnDeclaration(element: Call, form: CallableDeclaration.Form, state: ResolveState): Boolean =
+        when (form) {
+            CallableDeclaration.Form.CLAUSE -> executeOnCallDefinitionClause(element, state)
+            CallableDeclaration.Form.CALLBACK ->
+                executeOnCallback(element as AtUnqualifiedNoParenthesesCall<*>, state)
+            CallableDeclaration.Form.DELEGATION -> executeOnDelegation(element, state)
+            CallableDeclaration.Form.EXCEPTION -> executeOnException(element, state)
+            CallableDeclaration.Form.EEX_FUNCTION_FROM -> executeOnEExFunctionFrom(element, state)
+            CallableDeclaration.Form.GENERATOR_EMBED -> executeOnMixGeneratorEmbed(element, state)
+        }
 
-                val alternativeChildCalls = branches.alternativeChildExpressions.filterIsInstance<Call>()
-                val walkAlternative = !containsCompileTimeEntranceAncestorOrSelf(alternativeChildCalls, state)
+    private fun executeOnNonDeclaration(element: Call, state: ResolveState): Boolean {
+        // `for` tracks what it has visited, so it keeps its own walk.
+        if (For.`is`(element)) return For.treeWalkDown(element, state, ::execute)
 
-                if (walkPrimary && walkAlternative) {
-                    val childCalls = primaryChildCalls + alternativeChildCalls
+        element
+            .takeIf { org.elixir_lang.psi.CallDefinitionClause.isModuleScopeConstruct(it) }
+            ?.let { org.elixir_lang.psi.CallDefinitionClause.moduleScopeCalls(it) }
+            ?.let { moduleScopeCalls ->
+            // If the entrance is at compile time level of these calls, only previous siblings could define this call,
+            // and ElixirStabBody's processDeclarations handles those.
+            if (!containsCompileTimeEntranceAncestorOrSelf(moduleScopeCalls.asSequence(), state)) {
+                val listed = listedState(element, state)
 
-                    for (childCall in childCalls) {
-                        execute(childCall, state)
-                    }
-                }
-
-                true
+                throughout(moduleScopeCalls) { execute(it, listed) }
             }
+
+            return true
+        }
+
+        return when {
             Import.`is`(element) -> {
-                try {
+                if (followsImports) try {
                     Import.treeWalkUp(element, state) { call, accResolveState ->
                         execute(call, accResolveState)
                     }
@@ -160,20 +167,25 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
             (isModular(element) ||
                     Case.isChild(element, state))
                     && modularContainsEntrance(element, state) -> {
-                val childCalls = element.macroChildCallSequence()
+                // A module's whole scope, through whatever runs in its body; a `case` clause's own children.
+                val childCalls = if (isModular(element)) {
+                    org.elixir_lang.psi.CallDefinitionClause.modularChildCalls(element).asSequence()
+                } else {
+                    element.macroChildCallSequence()
+                }
 
                 // If the entrance is at compile time level of `childCalls`, then only previous siblings could possibly define
                 // this call and those will be handled by ElixirStabBody's processDeclarations.
                 if (!containsCompileTimeEntranceAncestorOrSelf(childCalls, state)) {
-                    for (childCall in childCalls) {
-                        execute(childCall, state)
-                    }
+                    val listed = listedState(element, state)
+
+                    throughout(childCalls) { execute(it, listed) }
                 }
 
                 // Only check MultiResolve.keepProcessing at the end of a Module to all multiple arities
                 keepProcessing() &&
                         // the implicit `import Kernel` and `import Kernel.SpecialForms`
-                        implicitImports(element, state)
+                        (!followsImports || implicitImports(element, state))
             }
             QuoteMacro.`is`(element) -> if (!state.hasBeenVisited(element)) {
                 QuoteMacro.treeWalkUp(element, state, ::execute)
@@ -181,14 +193,10 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
                 true
             }
             Use.`is`(element) -> {
-                Use.treeWalkUp(element, state, ::execute)
+                // Finishes the quote, as a module's own children are.
+                Use.treeWalkUpThroughout(element, state, ::execute)
 
                 true
-            }
-            element.isCalling(KERNEL, TRY) -> {
-                element.whileInStabBodyChildExpressions { childExpression ->
-                    execute(childExpression, state)
-                }
             }
             org.elixir_lang.ecto.Schema.isChild(element, state) -> {
                 org.elixir_lang.ecto.Schema.walkChild(element, state, ::execute)
@@ -203,15 +211,14 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
             WindowAPI.`is`(element, state) -> {
                 WindowAPI.treeWalkUp(element, state, ::execute)
             }
-            EEx.isFunctionFrom(element, state) -> executeOnEExFunctionFrom(element, state)
-            org.elixir_lang.psi.mix.Generator.isEmbed(element, state) -> executeOnMixGeneratorEmbed(element, state)
             hasDoBlockOrKeyword(element) -> executeOnUnknownMacroCall(element, state)
             else -> true
         }
+    }
 
     private fun execute(element: ElixirFile, state: ResolveState): Boolean =
         if (element.viewFile() == null) {
-            implicitImports(element, state)
+            !followsImports || implicitImports(element, state)
         }
         // if there is a view file then it will have implicit imports, not this template
         else {
@@ -233,7 +240,7 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
                 ?.filter(ResolveResult::isValidResult)
                 ?.mapNotNull(ResolveResult::getElement)
                 ?.filterIsInstance<Call>()
-                ?.filter { org.elixir_lang.psi.CallDefinitionClause.isMacro(it) }
+                ?.filter { CallableDeclaration.syntacticCapabilitiesOf(it)?.quotesArguments == true }
                 ?.let { macroDefinitions ->
                     whileIn(macroDefinitions) { macroDefinition ->
                         executeOnUnknownMacroDefinition(macroDefinition, state)
@@ -244,23 +251,21 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
             true
         }
 
+    /** What the macro's `quote` defines ahead of its `do` block, which a call in the block sees. */
     private fun executeOnUnknownMacroDefinition(macroDefinition: Call, state: ResolveState): Boolean =
-        org.elixir_lang.psi.CallDefinitionClause.head(macroDefinition)?.let { it as? Call }?.finalArguments()
-            ?.lastOrNull()?.let { it as? QuotableKeywordList }?.let { keywords ->
-                keywords.keywordValue("do")?.let { block ->
-                    macroDefinition.stabBodyChildExpressions(forward = false)?.filterIsInstance<Call>()?.firstOrNull()
-                        ?.takeIf { QuoteMacro.`is`(it) }?.let { quote ->
-                            quote.stabBodyChildExpressions()?.filterIsInstance<Call>()?.filter { Unquote.`is`(it) }
-                                ?.singleOrNull { unquote -> unquote.textMatches("unquote(${block.text})") }
-                                ?.let { unquoteBlock ->
-                                    unquoteBlock
-                                        .siblingExpressions(forward = false, withSelf = false)
-                                        .filterIsInstance<Call>()
-                                        .let { QuoteMacro.treeWalkUp(it, state, ::execute) }
-                                }
-                        }
-                }
-            } ?: true
+        org.elixir_lang.psi.CallDefinitionClause.moduleBodyUnquoteOfBlock(macroDefinition)
+            ?.siblingExpressions(forward = false, withSelf = false)
+            ?.filterIsInstance<Call>()
+            ?.let { QuoteMacro.treeWalkUp(it, state, ::execute) }
+            ?: true
+
+    /**
+     * [state] for walking [element]'s listing: for what it defines, as an `import` is lexical and the walk up from an
+     * entrance in the same file has passed every one that precedes it. An entrance in another file, a view template or
+     * an injection, is not passed through the module's body, so the listing is what brings its imports.
+     */
+    private fun listedState(element: Call, state: ResolveState): ResolveState =
+        if (state.get(ENTRANCE)?.containingFile == element.containingFile) Import.definitionsOnly(state) else state
 
     private fun modularContainsEntrance(call: Call, state: ResolveState): Boolean =
         state.get(ENTRANCE)?.let { entrance ->
@@ -277,7 +282,7 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
         } ?: false
 
     private fun modularContains(modular: Call, contained: PsiElement): Boolean =
-        contained.ancestorSequence().filterIsInstance<Call>().firstOrNull { isModular(it) } == modular
+        org.elixir_lang.psi.CallDefinitionClause.enclosingModular(contained) == modular
 
     private fun implicitImports(element: PsiElement, state: ResolveState): Boolean {
         val project = element.project
@@ -287,10 +292,11 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
         val entrance = state.get(ENTRANCE) ?: element
         val scope = narrowedScope(entrance, project)
 
-        val keepProcessing = implicitImport(project, scope, KERNEL, state)
+        val implicitState = state.reachedThrough(Reach.IMPLICIT_IMPORT)
+        val keepProcessing = implicitImport(project, scope, KERNEL, implicitState)
 
         return if (keepProcessing) {
-            val modularCanonicalNameState = state.put(MODULAR_CANONICAL_NAME, KERNEL_SPECIAL_FORMS)
+            val modularCanonicalNameState = implicitState.put(MODULAR_CANONICAL_NAME, KERNEL_SPECIAL_FORMS)
 
             implicitImport(project, scope, KERNEL_SPECIAL_FORMS, modularCanonicalNameState)
         } else {
@@ -303,24 +309,7 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
             true
         } else {
             whileIn(sourceFirstNamedElements(project, scope, moduleName)) { namedElement ->
-                when (namedElement) {
-                    is Call -> {
-                        val namedElementResolveState = state.putVisitedElement(namedElement)
-
-                        Modular.callDefinitionClauseCallWhile(
-                            namedElement, namedElementResolveState
-                        ) { callDefinitionClause, accResolveState ->
-                            executeOnCallDefinitionClause(
-                                callDefinitionClause,
-                                accResolveState
-                            )
-                        }
-                    }
-                    is BeamModule -> whileIn(namedElement.callDefinitions()) {
-                        execute(it, state)
-                    }
-                    else -> true
-                }
+                Import.treeWalkUpImplicitly(namedElement, state.putVisitedElement(namedElement), ::execute)
             }
         }
 
@@ -375,22 +364,14 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
         private fun isCompileTimeAncestorOrSelf(call: Call, entrance: PsiElement): Boolean =
             call.isEquivalentTo(entrance) || isCompileTimeAncestor(call, entrance.parent)
 
-        private fun isCompileTimeAncestor(stop: Call, ancestor: PsiElement?): Boolean =
-            when (ancestor) {
-                is ElixirDoBlock,
-                is ElixirBlockList, is ElixirBlockItem,
-                is ElixirStab, is ElixirStabBody ->
-                    isCompileTimeAncestor(stop, ancestor.parent)
-                is Call -> when {
-                    If.`is`(ancestor) || Unless.`is`(ancestor) ->
-                        // the `stop` is an `if` or `unless`
-                        ancestor.isEquivalentTo(stop) ||
-                                // there is an `if` or `unless` wrapping the original `ancestor`, but need to
-                                // confirm all levels above are also `if` or `unless` until `stop`.
-                                isCompileTimeAncestor(stop, ancestor.parent)
-                    else -> false
-                }
-                else -> false
+        /** Whether [stop] is reached from [ancestor] up without crossing a modular or a module-scope boundary. */
+        private tailrec fun isCompileTimeAncestor(stop: Call, ancestor: PsiElement?): Boolean =
+            when {
+                ancestor == null || ancestor is PsiFile -> false
+                ancestor !is Call -> isCompileTimeAncestor(stop, ancestor.parent)
+                isModular(ancestor) || org.elixir_lang.psi.CallDefinitionClause.moduleScopeBoundary(ancestor) -> false
+                ancestor.isEquivalentTo(stop) -> true
+                else -> isCompileTimeAncestor(stop, ancestor.parent)
             }
 
     }

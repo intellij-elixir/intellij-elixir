@@ -13,7 +13,7 @@ import org.elixir_lang.psi.operation.capture.NonNumeric
  * Regression for [FunctionCallReference] resolution:
  *  - an unqualified call `foo(1)` must resolve ONLY to the matching arity `foo/1`, never also `foo/2`;
  *  - a qualified protocol call `Protocol.function(args)` must resolve to the owning [ProtocolFunction]
- *    (FunctionSymbol.fromClause returns empty for clauses inside a `defprotocol`).
+ *    (FunctionSymbol.fromDeclaration returns empty for clauses inside a `defprotocol`).
  */
 @Suppress("UnstableApiUsage")
 class FunctionCallSiteArityTest : PlatformTestCase() {

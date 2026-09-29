@@ -3,5 +3,5 @@ defmodule DelegateTarget do
 end
 
 defmodule Delegator do
-  defdelegate fresh(x), to: DelegateTarget
+  defdelegate renamee(x), to: DelegateTarget, as: :fresh
 end

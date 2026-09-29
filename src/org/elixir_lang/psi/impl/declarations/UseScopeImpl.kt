@@ -13,14 +13,12 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.*
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.call.CallImpl.hasDoBlockOrKeyword
-import org.elixir_lang.psi.impl.call.macroDefinitionClauseForArgument
 import org.elixir_lang.psi.impl.moduleWithDependentsScope
 import org.elixir_lang.psi.scope.variable.BindingPattern
 import org.elixir_lang.psi.stub.type.call.Stub.isModular
 import org.elixir_lang.reference.Callable.Companion.isBitStreamSegmentOption
 import org.elixir_lang.reference.Callable.Companion.isVariable
 import org.elixir_lang.reference.Callable.Companion.variableUseScope
-import org.elixir_lang.structure_view.element.Delegation
 import org.jetbrains.annotations.Contract
 
 fun PsiElement.selfAndFollowingSiblingsSearchScope(): LocalSearchScope {
@@ -57,13 +55,26 @@ object UseScopeImpl {
      * @see {@link com.intellij.psi.search.PsiSearchHelper.getUseScope
      */
     @Contract(pure = true)
+    @RequiresReadLock
     @JvmStatic
     fun get(atUnqualifiedNoParenthesesCall: AtUnqualifiedNoParenthesesCall<*>): SearchScope =
             if (isNonReferencing(atUnqualifiedNoParenthesesCall.atIdentifier)) {
                 atUnqualifiedNoParenthesesCall.moduleWithDependentsScope()
             } else {
-                atUnqualifiedNoParenthesesCall.selfAndFollowingSiblingsSearchScope()
+                moduleBodyStatement(atUnqualifiedNoParenthesesCall).selfAndFollowingSiblingsSearchScope()
             }
+
+    /** The statement of the module body holding [attribute]: one set under an `if` or the like is set on the module. */
+    @RequiresReadLock
+    private fun moduleBodyStatement(attribute: AtUnqualifiedNoParenthesesCall<*>): PsiElement =
+        CallDefinitionClause.enclosingModularMacroCall(attribute)
+            ?.takeIf(::isModular)
+            ?.let { modular ->
+                generateSequence<PsiElement>(attribute) { it.parent }
+                    .takeWhile { it != modular }
+                    .lastOrNull { it.parent is ElixirStabBody }
+            }
+            ?: attribute
 
     /**
      * Returns the scope in which references to this element are searched.
@@ -87,18 +98,16 @@ object UseScopeImpl {
                 if (ancestor is Call) {
                     val ancestorCall = ancestor
 
-                    if (CallDefinitionClause.`is`(ancestorCall)) {
-                        val macroDefinitionClause = ancestorCall.macroDefinitionClauseForArgument()
+                    when (CallableDeclaration.headBindingFormOf(ancestorCall)) {
+                        CallableDeclaration.Form.CLAUSE -> {
+                            CallableDeclaration.headedBy(ancestorCall)?.let { ancestor = it }
 
-                        if (macroDefinitionClause != null) {
-                            ancestor = macroDefinitionClause
+                            break
                         }
-
-                        break
-                    } else if (Delegation.`is`(ancestorCall)) {
-                        break
-                    } else if (ancestorCall.hasDoBlockOrKeyword()) {
-                        break
+                        CallableDeclaration.Form.DELEGATION -> break
+                        CallableDeclaration.Form.CALLBACK, CallableDeclaration.Form.EXCEPTION,
+                        CallableDeclaration.Form.EEX_FUNCTION_FROM, CallableDeclaration.Form.GENERATOR_EMBED, null ->
+                            if (ancestorCall.hasDoBlockOrKeyword()) break
                     }
                 } else if (ancestor is ElixirStabOperation) {
                     break
@@ -145,7 +154,9 @@ object UseScopeImpl {
                     element.isCalling(KERNEL, UNLESS) ||
                     element.isCalling(KERNEL, VAR_BANG)) {
                 useScopeSelector = UseScopeSelector.SELF_AND_FOLLOWING_SIBLINGS
-            } else if (CallDefinitionClause.`is`(element) || isModular(element) || hasDoBlockOrKeyword(element)) {
+            } else if (CallableDeclaration.isForm(element, CallableDeclaration.Form.CLAUSE) ||
+                    isModular(element) || hasDoBlockOrKeyword(element)) {
+                // A `defdelegate` has no body to scope anything to.
                 useScopeSelector = UseScopeSelector.SELF
             }
         }

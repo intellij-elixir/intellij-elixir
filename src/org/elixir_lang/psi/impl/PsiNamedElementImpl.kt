@@ -25,12 +25,7 @@ object PsiNamedElementImpl {
 
     @RequiresReadLock
     @JvmStatic
-    fun getName(atom: ElixirAtom): String? =
-        if (atom.line == null) {
-            atom.node.lastChildNode.text
-        } else {
-            null
-        }
+    fun getName(atom: ElixirAtom): String? = atom.literalName()
 
     @RequiresReadLock
     @Contract(pure = true)
@@ -161,6 +156,7 @@ object PsiNamedElementImpl {
      * If `name` is `"unquote"` then the [Call.primaryArguments] single argument is added to the
      * name.
      */
+    @RequiresReadLock
     @JvmStatic
     fun unquoteName(named: PsiElement, name: Name): Name = if (named is Call && UNQUOTE == name) {
         val primaryArguments = named.primaryArguments()
@@ -173,19 +169,8 @@ object PsiNamedElementImpl {
                 ?.children
                 ?.singleOrNull()
                 ?.let { it as? ElixirAtom }
-                ?.let { atom ->
-                    val body = atom.line?.body
-
-                    if (body != null) {
-                        if (body.children.isEmpty()) {
-                            body.text
-                        } else {
-                            null
-                        }
-                    } else {
-                        atom.node.lastChildNode.text
-                    }
-                } ?: "${name}(${primaryArgument.text})"
+                ?.literalName()
+                ?: "${name}(${primaryArgument.text})"
         } else {
             null
         }

@@ -25,9 +25,10 @@ public class File extends IStubFileElementType<org.elixir_lang.psi.stub.File> {
     /**
      * Bump whenever the parse tree can change shape, so stubs built by an earlier version are
      * rebuilt. Parsing is version-aware, so that includes changes to how the language level is resolved and
-     * not only changes to the grammar.
+     * not only changes to the grammar. Also bump when what a stub records changes, as a module's canonical name did when
+     * one nested under a conditional became nested in the module around it.
      */
-    public static final int VERSION = 8;
+    public static final int VERSION = 9;
     public static final IStubFileElementType INSTANCE = new File();
 
     public File() {

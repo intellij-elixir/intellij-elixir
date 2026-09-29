@@ -132,6 +132,36 @@
   - **Stopping a run configuration on Windows no longer tries a `kill` that cannot signal it, and elsewhere signals the BEAM found when it is stopped, not when it started.**
 - [#4167](https://github.com/intellij-elixir/intellij-elixir/pull/4167) [@sh41](https://github.com/sh41)
   - **Go to Declaration on a compiled function with more than one clause for the same arity now lands on the first clause, not the last.** Refs [#4164](https://github.com/intellij-elixir/intellij-elixir/issues/4164).
+- [#4157](https://github.com/intellij-elixir/intellij-elixir/pull/4157) [@sh41](https://github.com/sh41)
+  - **Go to Definition, completion, highlighting, Find Usages and Rename now agree on which calls define a function and what it can do.** Fixes [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **Guards have their own colour settings, Calls > Guard and Declarations > Guard, which fall back to the function colours.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **Ctrl+Click on a `defdelegate`'s own name shows its usages, and quick documentation there shows its own `@doc`, as on a `def`.** Fixes [#4043](https://github.com/intellij-elixir/intellij-elixir/issues/4043).
+  - **Renaming a `defdelegate`, or what it delegates to, adds `as:` so it keeps delegating to the same function.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **`import except:` now leaves out only the arities it lists.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **`import only:` now brings in only the arities it lists.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **An `import` no longer brings in a `defp` or a name starting with `_`, and `only: :functions`, `:macros` and `:sigils` bring in that kind.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **Completing an EEx function inserts one placeholder per argument.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **Renaming anything defined in a compiled `.beam` is refused with a message instead of failing with an exception.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **An `import` inside an `if` in a module body, written after a call, or injected by a `use` after it, no longer reaches calls outside its block or before it.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **Definitions, attributes and types in a module body now belong to their module when under `if`, `case`, `with` or Elixir's other block forms, piped, or in a function passed to any call.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **A call at an arity nothing declares names the arities that exist, and a misspelled remote call suggests what the compiler would.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **Quick documentation at `apply(Mod, :fun, args)` shows a `defdelegate`'s own `@doc`, as at a call.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **An MFA tuple naming a function beside a `defdelegate` of the same name at another arity names the function.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **A qualified call, an MFA tuple or `apply/3` now reaches only what its module exports, and `Mod.` completion offers the same.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **Parameter info for a call of a `defdelegate` shows the delegation's head, also where its target only imports the function.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **Parameter info for a function whose defaults are declared in a bodiless head shows that head's signature alone.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **A function with defaults is one function at every arity it declares: Find Usages and rename reach its captures, `@spec`s, MFA atoms, `import` keys and callback implementations at each, and Go To offers its head and every clause.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **Quick documentation for a `defdelegate` without its own `@doc` shows its head and a link to what it delegates to, followed by that function's docs.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **A misspelled call no longer shows quick documentation for a function whose name it only starts.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **Quick documentation for an EEx `function_from_*` function shows the `@doc` written above it.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **The `@doc` above an EEx `function_from_*` function no longer shows on the definition after it.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **Show Used lists what `use A.Injector` and a `use` given options inject.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **A variable written in a call to a `@macrocallback` is bound by it, as in a call to a `defmacro`.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **Go To Related from a `defdelegate` lands on its decompiled function instead of the module, and finds the decompiled source of a dependency or the SDK.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **Renaming a protocol function renames the MFA tuples and `apply/3` calls that name it.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **Find Usages of a callback or protocol function finds a `defdelegate` that implements it.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **An `import` of a module now brings in the public functions a `use` injects into it, so they resolve and are offered in completion.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+  - **A `__using__` written with `do:` now injects what it quotes, and Show Used lists what a nested `use` or an `apply` in `__using__` injects.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
 - [#4146](https://github.com/intellij-elixir/intellij-elixir/pull/4146) [@sh41](https://github.com/sh41)
   - **Building a project no longer fails with `UnsupportedClassVersionError` from the plugin's JPS classes when the project SDK is older than the IDE's JDK.** Fixes [#3996](https://github.com/intellij-elixir/intellij-elixir/issues/3996).
 - [#4160](https://github.com/intellij-elixir/intellij-elixir/pull/4160) [@sh41](https://github.com/sh41)

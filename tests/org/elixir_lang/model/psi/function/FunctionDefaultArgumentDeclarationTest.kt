@@ -34,7 +34,7 @@ class FunctionDefaultArgumentDeclarationTest : PlatformTestCase() {
         // collapsing to a single declaration would prove nothing.
         assertTrue(
             "Default-argument def should expand to multiple arities",
-            FunctionSymbol.fromClause(clause).size >= 2
+            FunctionSymbol.fromDeclaration(clause).size >= 2
         )
 
         val declarations = FunctionSymbolDeclarationProvider().getDeclarations(clause, 0)

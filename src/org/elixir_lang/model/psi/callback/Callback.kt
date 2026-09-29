@@ -4,7 +4,6 @@ import com.intellij.find.usages.api.SearchTarget
 import com.intellij.find.usages.api.UsageHandler
 import com.intellij.icons.AllIcons
 import com.intellij.model.Pointer
-import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.util.TextRange
 import com.intellij.platform.backend.navigation.NavigationRequest
 import com.intellij.platform.backend.navigation.NavigationTarget
@@ -13,7 +12,6 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.ResolveState
 import com.intellij.psi.SmartPointerManager
 import com.intellij.psi.search.SearchScope
-import com.intellij.refactoring.rename.api.RenameTarget
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.ElixirSymbolWithUsages
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
@@ -38,7 +36,7 @@ class Callback(
     val name: String,
     val arity: Int,
     val macro: Boolean
-) : ElixirSymbolWithUsages, NavigationTarget, SearchTarget, RenameTarget {
+) : ElixirSymbolWithUsages, NavigationTarget, SearchTarget {
 
     override val searchText: String get() = name
     override val targetName: String get() = name
@@ -106,7 +104,7 @@ class Callback(
          * Build the [Callback] symbol(s) declared by a `@callback foo(...) :: ...` module attribute.
          *
          * Returns a LIST: a head with default arguments declares several arities
-         * (`@callback foo(a, b \\ 1)` → `foo/1` AND `foo/2`), so one [Callback] is emitted per arity.
+         * (`@callback foo(a, b \\ 1)` -> `foo/1` AND `foo/2`), so one [Callback] is emitted per arity.
          */
         @RequiresReadLock
         fun fromModuleAttribute(attr: AtUnqualifiedNoParenthesesCall<*>): List<Callback> {
@@ -115,12 +113,7 @@ class Callback(
             val nameArity = CallDefinitionHead.nameArityInterval(head, ResolveState.initial()) ?: return emptyList()
             val nameId = CallbackElement.nameIdentifier(attr) ?: return emptyList()
             val modular = org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall(attr) ?: return emptyList()
-            // `Module.name` is the raw first-argument (alias) text and can throw on malformed input;
-            // this string is only used for symbol identity/presentation.
-            // `runCatching.getOrElse` is used so ProcessCanceledException is re-thrown (never swallowed).
-            val moduleName = runCatching { org.elixir_lang.psi.Module.name(modular) }
-                .getOrElse { if (it is ProcessCanceledException) throw it else null }
-                ?: return emptyList()
+            val moduleName = org.elixir_lang.psi.Module.nameOrNull(modular) ?: return emptyList()
             val macro = org.elixir_lang.psi.impl.ElixirPsiImplUtil.moduleAttributeName(attr) == "@macrocallback"
 
             return nameArity.arityInterval.closed().map { arity ->

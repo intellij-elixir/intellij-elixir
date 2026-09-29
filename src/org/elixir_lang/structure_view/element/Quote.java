@@ -129,15 +129,4 @@ public class Quote extends Element<Call> {
 
         return modular;
     }
-
-    /**
-     * Returns a new {@link Quote} with the {@link #parent} sent to {@code module}, so that the location is resolved
-     * correctly for {@code use <ALIAS>}.
-     *
-     * @param module
-     * @return
-     */
-    public Quote used(Use use) {
-        return new Quote(new org.elixir_lang.structure_view.element.modular.Use(use), navigationItem);
-    }
 }

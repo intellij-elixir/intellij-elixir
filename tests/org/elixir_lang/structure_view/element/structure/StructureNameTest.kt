@@ -58,6 +58,16 @@ class StructureNameTest : PlatformTestCase() {
         assertEquals("Foo", presentation.locationString)
     }
 
+    /** A module in a `quote` is named for the module the quote is injected into, which the quote does not say. */
+    fun testInsideAQuote() {
+        val presentation =
+            structure("defmodule Foo do\n  defmacro __using__(_) do\n    quote do\n      defmodule Inner do\n        defstruct [:a]\n      end\n    end\n  end\nend\n")
+                .presentation
+
+        assertEquals("%Inner{}", presentation.presentableText)
+        assertNull("the quote's module is not Foo", presentation.locationString)
+    }
+
     /** A lexically nested `defmodule` defines `Foo.Bar`, so it must read as `defmodule Foo.Bar` does. */
     fun testLexicallyNestedModule() {
         val nested = structure("defmodule Foo do\n  defmodule Bar do\n    defstruct [:a]\n  end\nend\n").presentation

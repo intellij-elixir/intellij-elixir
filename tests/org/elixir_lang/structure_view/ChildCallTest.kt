@@ -18,14 +18,9 @@ class ChildCallTest : UnitTestCase() {
         assertEquals(
             listOf(
                 "or",
-                "callback",
-                "delegation",
-                "exception",
-                "function",
+                "declaration",
                 "specification",
-                "eex function_from",
                 "implementation",
-                "macro",
                 "module",
                 "overridable",
                 "protocol",

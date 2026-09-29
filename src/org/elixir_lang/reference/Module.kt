@@ -51,7 +51,8 @@ class Module(qualifiableAlias: QualifiableAlias) :
             )
     }
 
-    override fun resolve(): PsiElement? = multiResolve(false).singleOrNull()?.element
+    override fun resolve(): PsiElement? =
+        Resolver.resolved(myElement, multiResolve(false).filterNot { result -> result.element?.let(org.elixir_lang.reference.resolver.Module::isPath) ?: false })
 }
 
 private fun textRange(qualifiableAlias: QualifiableAlias): TextRange = when (qualifiableAlias) {

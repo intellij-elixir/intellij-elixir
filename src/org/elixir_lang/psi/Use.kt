@@ -1,5 +1,7 @@
 package org.elixir_lang.psi
 
+import org.elixir_lang.psi.scope.Reach.Companion.reachedThrough
+import org.elixir_lang.psi.scope.Reach
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.ElementDescriptionLocation
 import com.intellij.psi.PsiElement
@@ -14,6 +16,7 @@ import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
+import org.elixir_lang.psi.scope.WhileIn.throughout
 
 /**
  * A `use` call
@@ -34,7 +37,7 @@ object Use {
 
         // don't descend back into `use` when the entrance is the alias to the `use` like `MyAlias` in `use MyAlias`.
         if (!useCall.isAncestor(resolveState.get(ENTRANCE))) {
-            val useCallResolveState = resolveState.putVisitedElement(useCall)
+            val useCallResolveState = resolveState.putVisitedElement(useCall).reachedThrough(Reach.USE, useCall)
 
             outer@ for (modular in modulars(useCall)) {
                 ProgressManager.checkCanceled()
@@ -44,7 +47,7 @@ object Use {
                 // When `modular` was defined with `use ExUnit.CaseTemplate`, that macro is absent from source:
                 // `ExUnit.CaseTemplate.__using__/1` generates the `defmacro __using__` at compile time so it
                 // only exists in the compiled BEAM, not in the `.ex` file.  The plugin therefore cannot follow
-                // the injected `__using__` → `__proxy__` → `use ExUnit.Case` chain statically (it breaks at
+                // the injected `__using__` -> `__proxy__` -> `use ExUnit.Case` chain statically (it breaks at
                 // the `unquote(__MODULE__)` qualifier in `__proxy__`, which `resolvedModuleName()` cannot
                 // evaluate).  As a stop-gap, when no direct definer is found and the module is a CaseTemplate,
                 // skip the opaque generated layer and use `ExUnit.Case.__using__/1` directly - the net runtime
@@ -74,6 +77,34 @@ object Use {
 
         return accumulatedKeepProcessing
     }
+
+    /**
+     * Visits every call [useCall] puts in the module's own listing, as Elixir expands it: a `use` among them is followed
+     * into what it injects, and the quote is walked as a module's listing is, [Import.definitionsOnly] and to its end;
+     * whether every visit asked to go on.
+     */
+    @RequiresReadLock
+    fun treeWalkUpInjected(useCall: Call, resolveState: ResolveState, visit: (Call, ResolveState) -> Boolean): Boolean =
+        treeWalkUpThroughout(useCall, Import.definitionsOnly(resolveState)) { injected, injectedState ->
+            visitInjected(injected, injectedState, visit)
+        }
+
+    /** [treeWalkUp] to the end of what [useCall] injects, whatever [visit] answers; whether every visit asked to go on. */
+    @RequiresReadLock
+    fun treeWalkUpThroughout(useCall: Call, resolveState: ResolveState, visit: (PsiElement, ResolveState) -> Boolean): Boolean =
+        throughout({ each -> treeWalkUp(useCall, resolveState, each) }, visit)
+
+    /** [treeWalkUpInjected] from one `defmacro __using__` [definer], for any `use` of its module. */
+    @RequiresReadLock
+    fun treeWalkInjectedBy(definer: Call, resolveState: ResolveState, visit: (Call, ResolveState) -> Boolean): Boolean =
+        throughout({ each ->
+            Using.treeWalkUp(definer, null, Import.definitionsOnly(resolveState).putVisitedElement(definer), each)
+        }) { injected, injectedState ->
+            visitInjected(injected, injectedState, visit)
+        }
+
+    private fun visitInjected(injected: PsiElement, state: ResolveState, visit: (Call, ResolveState) -> Boolean): Boolean =
+        (injected as? Call)?.let { visit(it, state) } ?: true
 
     fun elementDescription(@Suppress("UNUSED_PARAMETER") call: Call, location: ElementDescriptionLocation): String? {
         var elementDescription: String? = null

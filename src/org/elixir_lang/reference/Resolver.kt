@@ -7,11 +7,12 @@ import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.PsiCompiledElement
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveResult
+import com.intellij.psi.util.PsiUtilCore
 import org.elixir_lang.navigation.isDecompiled
-import org.elixir_lang.psi.call.Call
-import org.elixir_lang.structure_view.element.Delegation
+import org.elixir_lang.psi.DelegationPrecedence
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 
 object Resolver {
@@ -26,6 +27,18 @@ object Resolver {
 
         return sameModuleResolveResultList
     }
+
+    /**
+     * What a reference at [element] resolves to: the first [preferred] valid result, or nothing. [preferred] keeps invalid
+     * results when none is valid, as candidates that explain why a use does not compile; a candidate is not a target.
+     * Where several are valid, a delegation the use names comes before what it delegates to.
+     */
+    @RequiresReadLock
+    fun <T : ResolveResult> resolved(element: PsiElement, resolveResultList: List<T>): PsiElement? =
+        DelegationPrecedence
+            .namedFirst(preferred(element, false, resolveResultList.filter(ResolveResult::isValidResult)), ResolveResult::getElement)
+            .firstOrNull()
+            ?.element
 
     /**
      * Applies the same source-over-decompiled and same-module preference logic as [preferred],
@@ -44,6 +57,27 @@ object Resolver {
     } else {
         preferIsValidResult(resolveResultList)
     }
+
+    /**
+     * Which declaration [resolveResult] is, so each is kept once: where it is written, or a compiled element itself, as
+     * its navigation element is its mirror, and building that decompiles the whole module.
+     */
+    @RequiresReadLock
+    fun declarationKey(resolveResult: ResolveResult): Any {
+        val resolved = resolveResult.element ?: return resolveResult
+        if (resolved is PsiCompiledElement) return resolved
+
+        val element = resolved.navigationElement
+        val filePath = element.containingFile?.virtualFile?.path ?: ""
+        val range = element.textRange
+        val elementType = PsiUtilCore.getElementType(element)?.toString() ?: ""
+
+        return "$filePath#${range?.startOffset ?: -1}:${range?.endOffset ?: -1}:$elementType"
+    }
+
+    /** One result for each [key], in order of first appearance: a valid one where any of them is, else the first. */
+    fun <T : ResolveResult, K> onePerKeyPreferringValid(resolveResultList: List<T>, key: (T) -> K): List<T> =
+        resolveResultList.groupBy(key).values.map { same -> same.firstOrNull { it.isValidResult } ?: same.first() }
 
     fun <T : ResolveResult> preferIsValidResult(resolveResultList: List<T>): List<T> =
         filterIsValidResult(resolveResultList).takeIf(List<T>::isNotEmpty) ?: resolveResultList
@@ -90,13 +124,9 @@ object Resolver {
     ): List<T> =
         filter(list)
             .takeIf { filtered ->
-                filtered.isNotEmpty() && !filtered.all { isDelegation(listElementToPsiElement(it)) }
+                DelegationPrecedence.standsIn(filtered, listElementToPsiElement)
             }
             ?: list
-
-    @RequiresReadLock
-    private fun isDelegation(element: PsiElement?): Boolean =
-        (element as? Call)?.let { Delegation.`is`(it) } ?: false
 
     private fun <T : ResolveResult> filterIsValidResult(resolveResultList: List<T>): List<T> =
         resolveResultList.filter(ResolveResult::isValidResult)

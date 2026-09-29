@@ -9,16 +9,7 @@ import org.elixir_lang.psi.QuotableKeywordList
  *
  * @param this@keywordValue The keyword list to search for `keywordKeyText`.
  * @param keywordKeyText the text of the keyword value.
- * @return the `PsiElement` associated with `keywordKeyText`.
+ * @return the `PsiElement` associated with the first `keywordKeyText`, as `Keyword.get` reads a repeated key.
  */
-fun QuotableKeywordList.keywordValue(keywordKeyText: String): Quotable? {
-    var keywordValue: Quotable? = null
-
-    for (quotableKeywordPair in quotableKeywordPairList()) {
-        if (quotableKeywordPair.hasKeywordKey(keywordKeyText)) {
-            keywordValue = quotableKeywordPair.keywordValue
-        }
-    }
-
-    return keywordValue
-}
+fun QuotableKeywordList.keywordValue(keywordKeyText: String): Quotable? =
+    quotableKeywordPairList().firstOrNull { it.hasKeywordKey(keywordKeyText) }?.keywordValue

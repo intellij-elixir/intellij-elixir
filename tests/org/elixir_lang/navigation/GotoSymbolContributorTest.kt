@@ -69,6 +69,25 @@ class GotoSymbolContributorTest : PlatformTestCase() {
         assertEmpty("a definition quoted in a headless macro has nowhere to be listed", items)
     }
 
+    /** A `defguard` is expanded at compile time, as Elixir defines it with `defmacro`, so Go To Symbol lists it so. */
+    fun testADefguardIsListedAsCompileTime() {
+        myFixture.configureByText(
+            "guards.ex",
+            """
+            defmodule Guards do
+              defguard is_small(x) when x < 10
+            end
+            """.trimIndent()
+        )
+
+        val items = gotoSymbolContributor().getItemsByName("is_small", "is_small", myFixture.project, false)
+
+        assertEquals(
+            listOf(org.elixir_lang.structure_view.element.Timed.Time.COMPILE),
+            items.filterIsInstance<CallDefinitionClause>().map { it.callDefinition.time() }
+        )
+    }
+
     fun testIssue472() {
         myFixture.configureByFile("issue_472.ex")
         val gotoSymbolContributor = gotoSymbolContributor()

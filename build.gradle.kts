@@ -330,19 +330,24 @@ fun truncateChangeNotes(html: String, limit: Int = changeNotesLimit): String {
     if (html.length <= limit) return html
 
     val total = Regex("<li>").findAll(html).count()
-    // Rendered once with a placeholder count so the budget accounts for the tail it will carry.
     fun tail(dropped: Int) =
         """<p>&#8230;and $dropped more. <a href="$changelogUrl">Full changelog</a></p>"""
 
-    val budget = limit - tail(total).length
-    var cut = html.lastIndexOf("</li>", budget)
-    if (cut < 0) return tail(total)
-    cut += "</li>".length
+    // The closing </ul>s count against the limit too, so the cut steps back a whole item until the kept items,
+    // their closings and the tail all fit.
+    var end = limit - tail(total).length
+    while (true) {
+        var cut = html.lastIndexOf("</li>", end)
+        if (cut < 0) return tail(total)
+        cut += "</li>".length
 
-    val kept = html.substring(0, cut)
-    val closing = Regex("<ul>").findAll(kept).count() - Regex("</ul>").findAll(kept).count()
-    val dropped = total - Regex("<li>").findAll(kept).count()
-    return kept + "</ul>".repeat(maxOf(closing, 0)) + tail(dropped)
+        val kept = html.substring(0, cut)
+        val closing = Regex("<ul>").findAll(kept).count() - Regex("</ul>").findAll(kept).count()
+        val dropped = total - Regex("<li>").findAll(kept).count()
+        val notes = kept + "</ul>".repeat(maxOf(closing, 0)) + tail(dropped)
+        if (notes.length <= limit) return notes
+        end = cut - "</li>".length - 1
+    }
 }
 
 val renderedChangeNotes: Provider<String> = providers.provider {

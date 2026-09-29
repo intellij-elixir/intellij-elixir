@@ -5,6 +5,7 @@ import com.intellij.psi.PsiElement
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.impl.literalName
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.impl.stripAccessExpressions
 import org.elixir_lang.sdk.wsl.wslCompat
@@ -154,14 +155,14 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
          *
          * Unreadable means unrestricted. Dropping a dep that is physically present costs resolution
          * and completion, while keeping one Mix never fetches costs an empty placeholder library -
-         * so every shape this cannot parse, including a quoted atom, keeps the dep.
+         * so every shape this cannot parse keeps the dep.
          */
         private fun environments(keywordValue: Quotable): List<String>? =
             when (keywordValue) {
-                is ElixirAtom -> keywordValue.name?.let { listOf(it) }
+                is ElixirAtom -> keywordValue.literalName()?.let { listOf(it) }
                 is ElixirList ->
                     keywordValue.children.stripAccessExpressions().map { element ->
-                        (element as? ElixirAtom)?.name ?: return null
+                        (element as? ElixirAtom)?.literalName() ?: return null
                     }
                 else -> null
             }
@@ -193,16 +194,10 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
 
         private fun name(nameElement: PsiElement): String? =
             when (nameElement) {
-                is ElixirAtom -> name(nameElement)
+                // An interpolated name is not known until the project is compiled.
+                is ElixirAtom -> nameElement.literalName()
                 else -> null
             }
-
-        private fun name(atom: ElixirAtom): String =
-            atom.line?.let { name(it) }
-                ?: atom.node.lastChildNode.text
-
-        // A quoted atom, `:"my-dep"`, names the dep by its string body
-        private fun name(line: ElixirLine): String? = line.body?.text
 
         private fun putPath(dep: Dep, keywordValue: Quotable): Dep {
             return when (val strippedKeywordValue = keywordValue.stripAccessExpression()) {

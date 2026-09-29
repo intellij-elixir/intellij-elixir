@@ -16,9 +16,10 @@ class Issue480Test : PlatformTestCase() {
         assertReferenceAndResolvedNameArityRange("changeset", 2)
     }
 
+    /** The piped call is `changeset/1`, which the `import` brings in; the `import` is how, not what, it resolves to. */
     fun testRemote() {
         myFixture.configureByFiles("remote.ex", "referenced.ex")
-        assertUnresolvableReferenceNameArityRange("changeset", 1)
+        assertReferenceAndResolvedNameArityRange("changeset", 1)
     }
 
     fun testDirectModuleQualifier() {

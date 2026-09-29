@@ -4,6 +4,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import com.intellij.psi.scope.PsiScopeProcessor
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
+import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirMatchedUnqualifiedNoArgumentsCall
 import org.elixir_lang.psi.ElixirUnmatchedAtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.ModuleAttribute.isNonReferencing
@@ -26,8 +27,19 @@ abstract class ModuleAttribute : PsiScopeProcessor {
             if (Use.`is`(call)) {
                 Use.treeWalkUp(call, state, ::execute)
             } else {
-                true
+                // An attribute set under an `if` or the like is set on the module around it.
+                CallDefinitionClause.moduleScopeCalls(call)
+                    ?.let { moduleScopeCalls -> WhileIn.whileIn(moduleScopeCalls) { executeListed(it, state) } }
+                    ?: true
             }
+
+    /** A call [CallDefinitionClause.moduleScopeCalls] listed: what it holds is listed too, so it is not looked into. */
+    private fun executeListed(call: Call, state: ResolveState): Boolean =
+        when {
+            call is ElixirUnmatchedAtUnqualifiedNoParenthesesCall -> execute(call, state)
+            Use.`is`(call) -> Use.treeWalkUp(call, state, ::execute)
+            else -> true
+        }
 
     /**
      * Decides whether `declaration` matches the criteria being searched for.

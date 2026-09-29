@@ -5,7 +5,8 @@ import org.elixir_lang.psi.Implementation
 import org.elixir_lang.psi.Module
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.enclosingMacroCall
+import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.QuoteMacro
 
 /**
  * The qualifier and final segment of the module a node is compiled onto, which is how
@@ -19,7 +20,11 @@ data class ModuleQualifiedName(val location: String?, val name: String) {
         @JvmStatic
         @RequiresReadLock
         fun of(call: Call, fallbackName: String): ModuleQualifiedName =
-            call.enclosingMacroCall()?.qualifiedName() ?: ModuleQualifiedName(null, fallbackName)
+            enclosing(call)?.qualifiedName() ?: ModuleQualifiedName(null, fallbackName)
+
+        /** A `quote`'s module is the one it is injected into, which it does not name. */
+        private fun enclosing(call: Call): Call? =
+            CallDefinitionClause.enclosingModularMacroCall(call)?.takeUnless { QuoteMacro.`is`(it) }
 
         private fun Call.qualifiedName(): ModuleQualifiedName? {
             if (Implementation.`is`(this)) {
@@ -30,10 +35,10 @@ data class ModuleQualifiedName(val location: String?, val name: String) {
             if (Module.`is`(this) || Protocol.`is`(this)) {
                 val name = Module.name(this)
 
-                return split(enclosingMacroCall()?.qualifiedName()?.let { outer -> "${outer.full}.$name" } ?: name)
+                return split(enclosing(this)?.qualifiedName()?.let { outer -> "${outer.full}.$name" } ?: name)
             }
 
-            return enclosingMacroCall()?.qualifiedName()
+            return enclosing(this)?.qualifiedName()
         }
 
         /** `defimpl P, for: T` compiles onto `P.T`, whatever module it is written in. */
@@ -48,7 +53,7 @@ data class ModuleQualifiedName(val location: String?, val name: String) {
             }
 
             // `defimpl P do` with no `for:` means the module it is written in.
-            val forName = forNames?.singleOrNull() ?: enclosingMacroCall()?.qualifiedName()?.full ?: return null
+            val forName = forNames?.singleOrNull() ?: enclosing(this)?.qualifiedName()?.full ?: return null
 
             return split("$protocolName.$forName")
         }

@@ -19,7 +19,8 @@ public class CallDefinitionHead implements ItemPresentation {
     private final PsiElement psiElement;
     @NotNull
     private final NameArity callDefinition;
-    @NotNull
+    /** {@code null} when the declaration does not say, as for an EEx kind that is not a literal atom. */
+    @Nullable
     private final Visibility visibility;
 
 
@@ -32,7 +33,7 @@ public class CallDefinitionHead implements ItemPresentation {
      * @param psiElement     a call definition head
      */
     public CallDefinitionHead(@NotNull NameArity callDefinition,
-                              @NotNull Visibility visibility,
+                              @Nullable Visibility visibility,
                               @NotNull PsiElement psiElement) {
         this.psiElement = psiElement;
         this.callDefinition = callDefinition;

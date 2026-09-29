@@ -11,7 +11,7 @@ class EExFunctionFromHead(private val eexFunctionFrom: EExFunctionFrom) : Elemen
     override fun getPresentation(): ItemPresentation =
         org.elixir_lang.navigation.item_presentation.CallDefinitionHead(
             eexFunctionFrom.presentation as NameArity,
-            eexFunctionFrom.visibility()!!,
+            eexFunctionFrom.visibility(),
             navigationItem
         )
 

@@ -4,7 +4,6 @@ import com.intellij.find.usages.api.SearchTarget
 import com.intellij.find.usages.api.UsageHandler
 import com.intellij.icons.AllIcons
 import com.intellij.model.Pointer
-import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.util.TextRange
 import com.intellij.platform.backend.navigation.NavigationRequest
 import com.intellij.platform.backend.navigation.NavigationTarget
@@ -12,7 +11,6 @@ import com.intellij.platform.backend.presentation.TargetPresentation
 import com.intellij.psi.PsiFile
 import com.intellij.psi.SmartPointerManager
 import com.intellij.psi.search.SearchScope
-import com.intellij.refactoring.rename.api.RenameTarget
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.ElixirSymbolWithUsages
 import org.elixir_lang.psi.CallDefinitionClause
@@ -28,7 +26,7 @@ class TypeSymbol(
     val moduleName: String,
     val name: String,
     val arity: Int
-) : ElixirSymbolWithUsages, NavigationTarget, SearchTarget, RenameTarget {
+) : ElixirSymbolWithUsages, NavigationTarget, SearchTarget {
     override val searchText: String get() = name
     override val targetName: String get() = name
 
@@ -96,9 +94,7 @@ class TypeSymbol(
             val arity = typeHead.resolvedFinalArity()
             val nameId = TypeElement.nameIdentifier(typeAttributeCall) ?: return emptyList()
             val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(typeAttributeCall) ?: return emptyList()
-            val moduleName = runCatching { org.elixir_lang.psi.Module.name(enclosingModular) }
-                .getOrElse { if (it is ProcessCanceledException) throw it else null }
-                ?: return emptyList()
+            val moduleName = org.elixir_lang.psi.Module.nameOrNull(enclosingModular) ?: return emptyList()
 
             // For a decompiled BEAM type, this `@type` Call lives in an in-memory mirror file built from the
             // `.beam`'s decompiled text; its `originalFile` is the navigable compiled file whose virtual file opens

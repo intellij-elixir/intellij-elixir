@@ -2,6 +2,7 @@ package org.elixir_lang.psi
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.util.Computable
+import com.intellij.psi.PsiElement
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function
 import org.elixir_lang.psi.call.name.Module
@@ -20,14 +21,19 @@ object Module {
                      */
                     ApplicationManager
                             .getApplication()
-                            .runReadAction(Computable {
-                                call
-                                        .parent.let { it  as? Arguments }
-                                        ?.parent?.let { it as? Call }?.let { CallDefinitionClause.isMacro(it) }
-                            }) != true) ||
+                            .runReadAction(Computable { !CallableDeclaration.isHead(call) })) ||
                     call.isCalling(Module.MODULE, Function.CREATE, 3)
+
+    /** [element] if it is a `defmodule`, else the nearest `defmodule` around it. */
+    @RequiresReadLock
+    fun enclosing(element: PsiElement): Call? =
+        generateSequence(element) { it.parent }.filterIsInstance<Call>().firstOrNull { `is`(it) }
 
     @RequiresReadLock
     @Contract(pure = true)
     fun name(call: Call): String = call.primaryArguments()!!.first()!!.text
+
+    /** [name], or `null` for a module call written without one. */
+    @RequiresReadLock
+    fun nameOrNull(call: Call): String? = call.primaryArguments()?.firstOrNull()?.text
 }

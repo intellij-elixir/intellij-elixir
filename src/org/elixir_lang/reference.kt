@@ -4,8 +4,8 @@ import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.ResolveResult
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.isAncestor
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.errorreport.Logger
-import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
@@ -51,24 +51,21 @@ fun resolvesToMacro(call: Call): Boolean {
     val inProgress = RESOLVING_MACRO.get()
 
     // already deciding this same call further up the stack, so don't recurse into it again
-    if (!inProgress.add(call)) return false
-
-    return try {
+    return inProgress.add(call) && try {
         (call.reference as? PsiPolyVariantReference)
             ?.let { safeMultiResolve(it, false) }
             ?.any { resolveResult ->
-                resolveResult.isValidResult &&
-                        (resolveResult.element as? Call)?.let { resolved ->
-                            CallDefinitionClause.isMacro(resolved) &&
-                                    // don't treat the signature as a call of the macro
-                                    !resolved.isAncestor(call)
-                        } == true
+                resolveResult.isValidResult && (resolveResult.element as? Call)?.let { isMacroCalledBy(it, call) } == true
             }
             ?: false
     } finally {
         inProgress.remove(call)
     }
 }
+
+/** Whether [resolved] declares a macro that [call] calls, not the signature [call] is part of. */
+private fun isMacroCalledBy(resolved: Call, call: Call): Boolean =
+    CallableDeclaration.syntacticCapabilitiesOf(resolved)?.quotesArguments == true && !resolved.isAncestor(call)
 
 fun resolvesToModularName(call: Call, state: ResolveState, modularName: String): Boolean =
         // it is not safe to call `multiResolve` on the call's reference if that `call` is currently being resolved.
@@ -77,10 +74,7 @@ fun resolvesToModularName(call: Call, state: ResolveState, modularName: String):
                 safeMultiResolve(reference, false).any { resolveResult ->
                     if (resolveResult.isValidResult) {
                         resolveResult.element?.let { it as? Call }?.let { resolved ->
-                            CallDefinitionClause.isMacro(resolved) &&
-                                    // don't treat the signature as a call of the function
-                                    !resolved.isAncestor(call) &&
-                                    enclosingModularMacroCall(resolved)?.name == modularName
+                            isMacroCalledBy(resolved, call) && enclosingModularMacroCall(resolved)?.name == modularName
                         } ?: false
                     } else {
                         false

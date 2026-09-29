@@ -6,9 +6,11 @@ import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.psi.Arguments
-import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.CallableDeclaration
 import org.elixir_lang.psi.ElixirTypes
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.scope.Reach
+import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
 
 class ParameterInfo : ParameterInfoHandler<Arguments, Signature> {
     override fun findElementForParameterInfo(context: CreateParameterInfoContext): Arguments? =
@@ -21,7 +23,15 @@ class ParameterInfo : ParameterInfoHandler<Arguments, Signature> {
         PsiTreeUtil.getParentOfType(element, Call::class.java)?.let { call ->
             val resolved = call.references.flatMap { reference ->
                 if (reference is PsiPolyVariantReference) {
-                    reference.multiResolve(true).mapNotNull { it.element }
+                    // What the call names, as `Reach` decides: a `defdelegate`'s head, not what it delegates to.
+                    reference
+                        .multiResolve(true)
+                        .filter { result ->
+                            (result as? VisitedElementSetResolveResult)
+                                ?.let { Reach.named(it.reach, it.element, remote = false) }
+                                ?: true
+                        }
+                        .mapNotNull { it.element }
                 } else {
                     listOfNotNull(reference.resolve())
                 }
@@ -99,7 +109,7 @@ class ParameterInfo : ParameterInfoHandler<Arguments, Signature> {
        A `.beam` definition is read from its stub: this runs on the EDT, and decompiling a module to reach its
        mirror can take hundreds of milliseconds. */
     private fun signatures(resolved: List<PsiElement>, name: String?): List<Signature> {
-        val clauses = resolved.filterIsInstance<Call>().filter { CallDefinitionClause.`is`(it) }
+        val clauses = resolved.filterIsInstance<Call>().filter { CallableDeclaration.headBindingFormOf(it) != null }
         val beamDefinitions = resolved.filterIsInstance<BeamCallDefinition>()
 
         return preferFunctionHeadsByArity(clauses, name).mapNotNull { Signature.of(it) } +

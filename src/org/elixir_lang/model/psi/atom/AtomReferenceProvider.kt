@@ -1,5 +1,6 @@
 package org.elixir_lang.model.psi.atom
 
+import org.elixir_lang.psi.impl.nameRangeInAtom
 import com.intellij.model.Symbol
 import com.intellij.model.psi.PsiExternalReferenceHost
 import com.intellij.model.psi.PsiSymbolReference
@@ -19,7 +20,7 @@ internal class AtomReferenceProvider : PsiSymbolReferenceProvider {
     ): Collection<PsiSymbolReference> {
         val atom = element as? ElixirAtom ?: return emptyList()
         val context = atom.mfaReferenceContext() ?: return emptyList()
-        return listOf(AtomReference(atom, context.moduleElement, contentTextRange(atom), context.arity))
+        return listOf(AtomReference(atom, context.moduleElement, atom.nameRangeInAtom(), context.arity))
     }
 
     override fun getSearchRequests(project: Project, target: Symbol): Collection<SearchRequest> = emptyList()

@@ -1,16 +1,14 @@
 package org.elixir_lang.model.psi.callback
 
-import com.intellij.openapi.progress.ProcessCanceledException
-import com.intellij.psi.PsiElement
-import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
+import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.Use
-import org.elixir_lang.psi.Using
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil
+import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
 import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.call.macroChildCallSequence
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
 
 /**
@@ -18,19 +16,22 @@ import org.elixir_lang.psi.impl.maybeModularNameToModulars
  * present in the module's *expanded* form - a literal `@behaviour B`, or an `@behaviour B` injected
  * by a `use` (via the used module's `__using__` quote), transitively. `use B` alone is NOT enough.
  *
- * Shared by the forward search ([org.elixir_lang.model.psi.ElixirSymbolUsageSearcher]: callback →
- * implementations) and the reverse reference ([CallbackImplReference]: implementing `def` →
+ * Shared by the forward search ([org.elixir_lang.model.psi.ElixirSymbolUsageSearcher]: callback ->
+ * implementations) and the reverse reference ([CallbackImplReference]: implementing `def` ->
  * `@callback`) so both directions stay consistent.
- *
- * Injected `@behaviour` is found by scanning the used module's `__using__` definer quote directly -
- * `Use`/`Using.treeWalkUp` only surface injected call-definition clauses, not module attributes.
  */
 object BehaviourMembership {
     /** Behaviour module names [module] implements (literal + `use`-injected, transitive). */
     @RequiresReadLock
     fun namesImplementedBy(module: Call): Set<String> {
         val names = linkedSetOf<String>()
-        collectModule(module, names, hashSetOf())
+        val childCalls = CallDefinitionClause.modularChildCalls(module)
+
+        childCalls.forEach { collect(it, module, names) }
+        childCalls
+            .filter { Use.`is`(it) }
+            .forEach { useCall -> Use.treeWalkUpInjected(useCall, initialState(module)) { injected, _ -> collectInjected(injected, names) } }
+
         return names
     }
 
@@ -43,55 +44,32 @@ object BehaviourMembership {
     @RequiresReadLock
     fun namesInjectedByDefiner(definer: Call, definingModule: Call): Set<String> {
         val names = linkedSetOf<String>()
-        collectFromDefiner(definer, definingModule, names, hashSetOf())
+
+        Use.treeWalkInjectedBy(definer, initialState(definingModule)) { injected, _ -> collectInjected(injected, names) }
+
         return names
     }
 
     /** The canonical module name of a `defmodule`/`defimpl`/`defprotocol` [call], or `null`. */
     @RequiresReadLock
     fun moduleName(call: Call): String? =
-        runCatching { org.elixir_lang.psi.Module.name(call) }
-            .getOrElse { if (it is ProcessCanceledException) throw it else null }
+        org.elixir_lang.psi.Module.nameOrNull(call)
 
+    private fun initialState(module: Call): ResolveState = ResolveState.initial().put(ENTRANCE, module.containingFile)
+
+    /** An injected `@behaviour` names its module in the module that wrote the quote. */
     @RequiresReadLock
-    private fun collectModule(module: Call, out: MutableSet<String>, visited: MutableSet<PsiElement>) {
-        if (!visited.add(module)) return
-        module
-            .macroChildCallSequence()
-            .filterIsInstance<AtUnqualifiedNoParenthesesCall<*>>()
-            .filter { ElixirPsiImplUtil.moduleAttributeName(it) == "@behaviour" }
-            .forEach { out += namesFromAttr(it, module) }
-        module
-            .macroChildCallSequence()
-            .filter { Use.`is`(it) }
-            .forEach { useCall ->
-                Use.modulars(useCall).filterIsInstance<Call>().forEach { used -> collectUseInjected(used, out, visited) }
-            }
+    private fun collectInjected(injected: Call, out: MutableSet<String>): Boolean {
+        CallDefinitionClause.enclosingModular(injected)?.let { collect(injected, it, out) }
+
+        return true
     }
 
     @RequiresReadLock
-    private fun collectUseInjected(usedModule: Call, out: MutableSet<String>, visited: MutableSet<PsiElement>) {
-        if (!visited.add(usedModule)) return
-        Using.definers(usedModule).forEach { definer -> collectFromDefiner(definer, usedModule, out, visited) }
-    }
-
-    @RequiresReadLock
-    private fun collectFromDefiner(
-        definer: Call,
-        definingModule: Call,
-        out: MutableSet<String>,
-        visited: MutableSet<PsiElement>
-    ) {
-        PsiTreeUtil
-            .findChildrenOfType(definer, AtUnqualifiedNoParenthesesCall::class.java)
-            .filter { ElixirPsiImplUtil.moduleAttributeName(it) == "@behaviour" }
-            .forEach { out += namesFromAttr(it, definingModule) }
-        PsiTreeUtil
-            .findChildrenOfType(definer, Call::class.java)
-            .filter { Use.`is`(it) }
-            .forEach { nestedUse ->
-                Use.modulars(nestedUse).filterIsInstance<Call>().forEach { used -> collectUseInjected(used, out, visited) }
-            }
+    private fun collect(call: Call, contextModule: Call, out: MutableSet<String>) {
+        if (call is AtUnqualifiedNoParenthesesCall<*> && ElixirPsiImplUtil.moduleAttributeName(call) == "@behaviour") {
+            out += namesFromAttr(call, contextModule)
+        }
     }
 
     /**

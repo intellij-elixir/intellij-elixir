@@ -10,7 +10,6 @@ import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirTypes
 import org.elixir_lang.psi.ModuleAttribute.isTypeName
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.enclosingMacroCall
 import org.elixir_lang.psi.impl.identifierName
 import org.elixir_lang.psi.impl.siblingExpressions
 import org.elixir_lang.psi.stub.type.call.Stub.isModular
@@ -22,7 +21,7 @@ class Comment(val moduleAttribute: AtUnqualifiedNoParenthesesCall<*>) : FakePsiE
 
     override fun getOwner(): PsiElement? =
         when (moduleAttribute.atIdentifier.identifierName()) {
-            "moduledoc" -> moduleAttribute.enclosingMacroCall().takeIf(::isModular)
+            "moduledoc" -> CallDefinitionClause.enclosingModularMacroCall(moduleAttribute)?.takeIf(::isModular)
             "doc" -> {
                 moduleAttribute.siblingExpressions(forward = true, withSelf = false).firstOrNull { expression ->
                     expression is Call && CallDefinitionClause.`is`(expression)

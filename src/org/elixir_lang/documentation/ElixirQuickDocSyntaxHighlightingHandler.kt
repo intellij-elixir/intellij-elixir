@@ -15,7 +15,6 @@ import org.elixir_lang.ElixirSyntaxHighlighter
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.operation.Operation
-import org.elixir_lang.structure_view.element.CallDefinitionHead
 
 /**
  * Produces semantic highlighting ranges for Elixir code blocks in rendered documentation.
@@ -23,11 +22,11 @@ import org.elixir_lang.structure_view.element.CallDefinitionHead
  * The platform's lexer-based highlighting handles basic token coloring (strings, numbers,
  * atoms, operators, keywords). This highlighter adds semantic overlays that require PSI
  * analysis:
- * - [ElixirAlias] → alias color (e.g. `Enum`, `Logger`)
- * - [CallDefinitionClause] → keyword+macro styling on `def`/`defp`/`defmacro`,
+ * - [ElixirAlias] -> alias color (e.g. `Enum`, `Logger`)
+ * - [CallDefinitionClause] -> keyword+macro styling on `def`/`defp`/`defmacro`,
  *   plus function/macro declaration styling on the defined name
- * - Named function/macro calls → function call or macro call styling
- * - `end` keyword tokens → keyword styling (via lexer scan, since `end` is not a Call)
+ * - Named function/macro calls -> function call or macro call styling
+ * - `end` keyword tokens -> keyword styling (via lexer scan, since `end` is not a Call)
  *
  * Operators ([Operation] instances like `|>`, `+`, `==`) are explicitly skipped since
  * their styling is handled correctly by the lexer.
@@ -84,7 +83,7 @@ internal object ElixirRenderedDocSemanticHighlighter {
 	}
 
 	private fun addCallRanges(call: Call, ranges: MutableList<SemanticRange>) {
-		// Skip module attribute calls and operators — their styling comes from the lexer
+		// Skip module attribute calls and operators - their styling comes from the lexer
 		if (call is AtOperation || call is AtUnqualifiedNoParenthesesCall<*> || call is Operation) {
 			return
 		}
@@ -102,40 +101,18 @@ internal object ElixirRenderedDocSemanticHighlighter {
 				)
 			}
 
-			addDefinitionRange(call, ranges)
-			return
-		}
+		} else {
+			call.functionNameElement()?.let { functionNameElement ->
+				val textAttributesKeys =
+					if (call.hasDoBlockOrKeyword()) arrayOf(ElixirSyntaxHighlighter.MACRO_CALL)
+					else arrayOf(ElixirSyntaxHighlighter.FUNCTION_CALL)
 
-		call.functionNameElement()?.let { functionNameElement ->
-			val textAttributesKeys =
-				if (call.hasDoBlockOrKeyword()) arrayOf(ElixirSyntaxHighlighter.MACRO_CALL)
-				else arrayOf(ElixirSyntaxHighlighter.FUNCTION_CALL)
-
-			addRange(ranges, functionNameElement.textRange.startOffset, functionNameElement.textRange.endOffset, textAttributesKeys)
-		}
-	}
-
-	private fun addDefinitionRange(call: Call, ranges: MutableList<SemanticRange>) {
-		val head = CallDefinitionClause.head(call) ?: return
-		val stripped = CallDefinitionHead.strip(head)
-
-		if (stripped is Call) {
-			stripped.functionNameElement()?.let { functionNameElement ->
-				val textAttributesKeys = when {
-					CallDefinitionClause.isFunction(call) -> arrayOf(ElixirSyntaxHighlighter.FUNCTION_DECLARATION)
-					CallDefinitionClause.isMacro(call) -> arrayOf(ElixirSyntaxHighlighter.MACRO_DECLARATION)
-					else -> null
-				}
-
-				if (textAttributesKeys != null) {
-					addRange(
-						ranges,
-						functionNameElement.textRange.startOffset,
-						functionNameElement.textRange.endOffset,
-						textAttributesKeys
-					)
-				}
+				addRange(ranges, functionNameElement.textRange.startOffset, functionNameElement.textRange.endOffset, textAttributesKeys)
 			}
+		}
+
+		ElixirSyntaxHighlighter.declaredName(call)?.let { (range, key) ->
+			addRange(ranges, range.startOffset, range.endOffset, arrayOf(key))
 		}
 	}
 
