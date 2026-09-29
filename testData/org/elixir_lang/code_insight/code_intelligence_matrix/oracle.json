@@ -17,6 +17,12 @@
     {
       "backing": "src",
       "form": "defp",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "src",
+      "form": "defp",
       "reason": "a private definition cannot be called from outside, so the world adds no site",
       "world": "x_not_a_call"
     },
@@ -34,9 +40,21 @@
     },
     {
       "backing": "src",
+      "form": "defmacro",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "src",
       "form": "defmacrop",
       "reason": "x_embed's names are what a Mix.Generator embed declares",
       "world": "x_embed"
+    },
+    {
+      "backing": "src",
+      "form": "defmacrop",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "src",
@@ -89,6 +107,12 @@
     {
       "backing": "src",
       "form": "defguard",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "src",
+      "form": "defguard",
       "reason": "only `def` and `defmacro` and their private forms take an `unquote`d name",
       "world": "x_unquote_name"
     },
@@ -133,6 +157,12 @@
       "form": "defguardp",
       "reason": "the question is defaults split across branches, which only `def` and `defmacro` and their private forms can declare",
       "world": "x_if_else"
+    },
+    {
+      "backing": "src",
+      "form": "defguardp",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "src",
@@ -185,6 +215,12 @@
     {
       "backing": "src",
       "form": "defdelegate",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate",
       "reason": "only `def` and `defmacro` and their private forms take an `unquote`d name",
       "world": "x_unquote_name"
     },
@@ -221,6 +257,12 @@
     {
       "backing": "src",
       "form": "defdelegate_compiled",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_compiled",
       "reason": "only `def` and `defmacro` and their private forms take an `unquote`d name",
       "world": "x_unquote_name"
     },
@@ -257,6 +299,12 @@
     {
       "backing": "src",
       "form": "defdelegate_unresolvable",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_unresolvable",
       "reason": "only `def` and `defmacro` and their private forms take an `unquote`d name",
       "world": "x_unquote_name"
     },
@@ -354,6 +402,12 @@
       "backing": "src",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_lookalike_absent"
     },
     {
@@ -505,6 +559,12 @@
       "form": "defdelegate_imports",
       "reason": "a target that only imports the function asks nothing w1 does not",
       "world": "x_if_else"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_imports",
+      "reason": "a target that only imports the function asks nothing w1 does not",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "src",
@@ -672,6 +732,12 @@
       "backing": "src",
       "form": "defdelegate_list",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_lookalike_absent"
     },
     {
@@ -834,6 +900,12 @@
       "backing": "src",
       "form": "defdelegate_list_trailing",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_lookalike_absent"
     },
     {
@@ -996,6 +1068,12 @@
       "backing": "src",
       "form": "defdelegate_list_lines",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_lookalike_absent"
     },
     {
@@ -1158,6 +1236,12 @@
       "backing": "src",
       "form": "defdelegate_as_list",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_lookalike_absent"
     },
     {
@@ -1315,6 +1399,12 @@
       "form": "defdelegate_as_attribute",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_if_else"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "src",
@@ -1458,6 +1548,12 @@
       "backing": "src",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_lookalike_absent"
     },
     {
@@ -1584,6 +1680,12 @@
       "backing": "src",
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_lookalike_absent"
     },
     {
@@ -1705,6 +1807,12 @@
       "form": "eex_function_from_args",
       "reason": "the question is defaults split across branches, which only `def` and `defmacro` and their private forms can declare",
       "world": "x_if_else"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "src",
@@ -1860,6 +1968,12 @@
       "backing": "src",
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "src",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_lookalike_absent"
     },
     {
@@ -1967,6 +2081,12 @@
     {
       "backing": "ex_dbgi",
       "form": "def",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "def",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_receive"
     },
@@ -2029,6 +2149,12 @@
       "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defp",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_dbgi",
@@ -2107,6 +2233,12 @@
       "form": "defmacro",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacro",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_dbgi",
@@ -2233,6 +2365,12 @@
       "form": "defmacrop",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_dbgi",
@@ -2369,6 +2507,12 @@
     {
       "backing": "ex_dbgi",
       "form": "defguard",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguard",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_receive"
     },
@@ -2502,6 +2646,12 @@
       "backing": "ex_dbgi",
       "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_lookalike_absent"
     },
     {
@@ -2605,6 +2755,12 @@
       "form": "defdelegate",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_dbgi",
@@ -2754,6 +2910,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
       "world": "x_lookalike_absent"
     },
     {
@@ -2857,6 +3019,12 @@
       "form": "defdelegate_unresolvable",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_unresolvable",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_dbgi",
@@ -2982,6 +3150,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_lookalike_absent"
     },
     {
@@ -3139,6 +3313,12 @@
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_dbgi",
@@ -3312,6 +3492,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_lookalike_absent"
     },
     {
@@ -3480,6 +3666,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_lookalike_absent"
     },
     {
@@ -3648,6 +3840,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_lookalike_absent"
     },
     {
@@ -3816,6 +4014,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_lookalike_absent"
     },
     {
@@ -3979,6 +4183,12 @@
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_dbgi",
@@ -4122,6 +4332,12 @@
       "backing": "ex_dbgi",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_lookalike_absent"
     },
     {
@@ -4248,6 +4464,12 @@
       "backing": "ex_dbgi",
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_lookalike_absent"
     },
     {
@@ -4369,6 +4591,12 @@
       "form": "eex_function_from_args",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_dbgi",
@@ -4524,6 +4752,12 @@
       "backing": "ex_dbgi",
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_lookalike_absent"
     },
     {
@@ -4627,6 +4861,12 @@
       "form": "def",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "def",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_docs",
@@ -4711,6 +4951,12 @@
       "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defp",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_docs",
@@ -4811,6 +5057,12 @@
     {
       "backing": "ex_docs",
       "form": "defmacro",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacro",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_receive"
     },
@@ -4951,6 +5203,12 @@
       "form": "defmacrop",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_docs",
@@ -5087,6 +5345,12 @@
     {
       "backing": "ex_docs",
       "form": "defguard",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguard",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_receive"
     },
@@ -5232,6 +5496,12 @@
       "backing": "ex_docs",
       "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_lookalike_absent"
     },
     {
@@ -5335,6 +5605,12 @@
       "form": "defdelegate",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_docs",
@@ -5484,6 +5760,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
       "world": "x_lookalike_absent"
     },
     {
@@ -5587,6 +5869,12 @@
       "form": "defdelegate_unresolvable",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_unresolvable",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_docs",
@@ -5712,6 +6000,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_lookalike_absent"
     },
     {
@@ -5869,6 +6163,12 @@
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_docs",
@@ -6042,6 +6342,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_lookalike_absent"
     },
     {
@@ -6210,6 +6516,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_lookalike_absent"
     },
     {
@@ -6378,6 +6690,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_lookalike_absent"
     },
     {
@@ -6546,6 +6864,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_lookalike_absent"
     },
     {
@@ -6709,6 +7033,12 @@
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_docs",
@@ -6852,6 +7182,12 @@
       "backing": "ex_docs",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_lookalike_absent"
     },
     {
@@ -6978,6 +7314,12 @@
       "backing": "ex_docs",
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_lookalike_absent"
     },
     {
@@ -7099,6 +7441,12 @@
       "form": "eex_function_from_args",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_docs",
@@ -7249,6 +7597,12 @@
       "form": "generator_embed",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_docs",
@@ -7357,6 +7711,12 @@
       "form": "def",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "def",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_gen",
@@ -7441,6 +7801,12 @@
       "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defp",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_gen",
@@ -7541,6 +7907,12 @@
     {
       "backing": "ex_gen",
       "form": "defmacro",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacro",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_receive"
     },
@@ -7681,6 +8053,12 @@
       "form": "defmacrop",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_gen",
@@ -7817,6 +8195,12 @@
     {
       "backing": "ex_gen",
       "form": "defguard",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguard",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_receive"
     },
@@ -7962,6 +8346,12 @@
       "backing": "ex_gen",
       "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_lookalike_absent"
     },
     {
@@ -8065,6 +8455,12 @@
       "form": "defdelegate",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_gen",
@@ -8214,6 +8610,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
       "world": "x_lookalike_absent"
     },
     {
@@ -8317,6 +8719,12 @@
       "form": "defdelegate_unresolvable",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_gen",
@@ -8442,6 +8850,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_lookalike_absent"
     },
     {
@@ -8599,6 +9013,12 @@
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_gen",
@@ -8772,6 +9192,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_lookalike_absent"
     },
     {
@@ -8940,6 +9366,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_lookalike_absent"
     },
     {
@@ -9108,6 +9540,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_lookalike_absent"
     },
     {
@@ -9276,6 +9714,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_lookalike_absent"
     },
     {
@@ -9439,6 +9883,12 @@
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_gen",
@@ -9582,6 +10032,12 @@
       "backing": "ex_gen",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_lookalike_absent"
     },
     {
@@ -9708,6 +10164,12 @@
       "backing": "ex_gen",
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_lookalike_absent"
     },
     {
@@ -9829,6 +10291,12 @@
       "form": "eex_function_from_args",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_gen",
@@ -9979,6 +10447,12 @@
       "form": "generator_embed",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "ex_gen",
@@ -10099,6 +10573,12 @@
       "form": "def",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "def",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "erl_abst",
@@ -10205,6 +10685,12 @@
     {
       "backing": "erl_abst",
       "form": "defp",
+      "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defp",
       "reason": "Erlang does not normalise the declared name, so a precomposed call cannot reach it",
       "world": "x_nfc"
     },
@@ -10368,6 +10854,12 @@
       "backing": "erl_abst",
       "form": "defmacro",
       "reason": "Erlang has only functions",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacro",
+      "reason": "Erlang has only functions",
       "world": "x_lookalike_absent"
     },
     {
@@ -10536,6 +11028,12 @@
       "backing": "erl_abst",
       "form": "defmacrop",
       "reason": "Erlang has only functions",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacrop",
+      "reason": "Erlang has only functions",
       "world": "x_lookalike_absent"
     },
     {
@@ -10704,6 +11202,12 @@
       "backing": "erl_abst",
       "form": "defguard",
       "reason": "Erlang has only functions",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguard",
+      "reason": "Erlang has only functions",
       "world": "x_lookalike_absent"
     },
     {
@@ -10872,6 +11376,12 @@
       "backing": "erl_abst",
       "form": "defguardp",
       "reason": "Erlang has only functions",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguardp",
+      "reason": "Erlang has only functions",
       "world": "x_lookalike_absent"
     },
     {
@@ -11040,6 +11550,12 @@
       "backing": "erl_abst",
       "form": "defdelegate",
       "reason": "Erlang has only functions",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate",
+      "reason": "Erlang has only functions",
       "world": "x_lookalike_absent"
     },
     {
@@ -11208,6 +11724,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_compiled",
       "reason": "Erlang has only functions",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_compiled",
+      "reason": "Erlang has only functions",
       "world": "x_lookalike_absent"
     },
     {
@@ -11376,6 +11898,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_unresolvable",
       "reason": "Erlang has only functions",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_unresolvable",
+      "reason": "Erlang has only functions",
       "world": "x_lookalike_absent"
     },
     {
@@ -11544,6 +12072,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_as",
       "reason": "Erlang has only functions",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as",
+      "reason": "Erlang has only functions",
       "world": "x_lookalike_absent"
     },
     {
@@ -11712,6 +12246,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_imports",
       "reason": "Erlang has only functions",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_imports",
+      "reason": "Erlang has only functions",
       "world": "x_lookalike_absent"
     },
     {
@@ -11880,6 +12420,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_list",
       "reason": "Erlang has only functions",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
       "world": "x_lookalike_absent"
     },
     {
@@ -12048,6 +12594,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_list_trailing",
       "reason": "Erlang has only functions",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_trailing",
+      "reason": "Erlang has only functions",
       "world": "x_lookalike_absent"
     },
     {
@@ -12216,6 +12768,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_list_lines",
       "reason": "Erlang has only functions",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_lines",
+      "reason": "Erlang has only functions",
       "world": "x_lookalike_absent"
     },
     {
@@ -12384,6 +12942,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_as_list",
       "reason": "Erlang has only functions",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
       "world": "x_lookalike_absent"
     },
     {
@@ -12552,6 +13116,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_as_attribute",
       "reason": "Erlang has only functions",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
       "world": "x_lookalike_absent"
     },
     {
@@ -12720,6 +13290,12 @@
       "backing": "erl_abst",
       "form": "eex_function_from",
       "reason": "Erlang has only functions",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from",
+      "reason": "Erlang has only functions",
       "world": "x_lookalike_absent"
     },
     {
@@ -12888,6 +13464,12 @@
       "backing": "erl_abst",
       "form": "eex_function_from_kind",
       "reason": "Erlang has only functions",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_kind",
+      "reason": "Erlang has only functions",
       "world": "x_lookalike_absent"
     },
     {
@@ -13056,6 +13638,12 @@
       "backing": "erl_abst",
       "form": "eex_function_from_args",
       "reason": "Erlang has only functions",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_args",
+      "reason": "Erlang has only functions",
       "world": "x_lookalike_absent"
     },
     {
@@ -13219,6 +13807,12 @@
       "form": "generator_embed",
       "reason": "Erlang has only functions",
       "world": "x_if_else"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "generator_embed",
+      "reason": "Erlang has only functions",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "erl_abst",
@@ -13386,6 +13980,12 @@
       "backing": "erl_gen",
       "form": "def",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "def",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_lookalike_absent"
     },
     {
@@ -13554,6 +14154,12 @@
       "backing": "erl_gen",
       "form": "defp",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defp",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_lookalike_absent"
     },
     {
@@ -13722,6 +14328,12 @@
       "backing": "erl_gen",
       "form": "defmacro",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacro",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_lookalike_absent"
     },
     {
@@ -13890,6 +14502,12 @@
       "backing": "erl_gen",
       "form": "defmacrop",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacrop",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_lookalike_absent"
     },
     {
@@ -14058,6 +14676,12 @@
       "backing": "erl_gen",
       "form": "defguard",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguard",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_lookalike_absent"
     },
     {
@@ -14226,6 +14850,12 @@
       "backing": "erl_gen",
       "form": "defguardp",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguardp",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_lookalike_absent"
     },
     {
@@ -14394,6 +15024,12 @@
       "backing": "erl_gen",
       "form": "defdelegate",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_lookalike_absent"
     },
     {
@@ -14562,6 +15198,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_compiled",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_compiled",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_lookalike_absent"
     },
     {
@@ -14730,6 +15372,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_unresolvable",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_lookalike_absent"
     },
     {
@@ -14898,6 +15546,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_as",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_lookalike_absent"
     },
     {
@@ -15066,6 +15720,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_imports",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_imports",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_lookalike_absent"
     },
     {
@@ -15234,6 +15894,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_list",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_lookalike_absent"
     },
     {
@@ -15402,6 +16068,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_list_trailing",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_lookalike_absent"
     },
     {
@@ -15570,6 +16242,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_list_lines",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_lookalike_absent"
     },
     {
@@ -15738,6 +16416,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_as_list",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_lookalike_absent"
     },
     {
@@ -15906,6 +16590,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_as_attribute",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_lookalike_absent"
     },
     {
@@ -16074,6 +16764,12 @@
       "backing": "erl_gen",
       "form": "eex_function_from",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_lookalike_absent"
     },
     {
@@ -16242,6 +16938,12 @@
       "backing": "erl_gen",
       "form": "eex_function_from_kind",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_kind",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_lookalike_absent"
     },
     {
@@ -16410,6 +17112,12 @@
       "backing": "erl_gen",
       "form": "eex_function_from_args",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_args",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_lookalike_absent"
     },
     {
@@ -16573,6 +17281,12 @@
       "form": "generator_embed",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "generator_embed",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "erl_gen",
@@ -21848,6 +22562,112 @@
         }
       ],
       "world": "x_if_else"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/def/x_interpolated_atom.ex",
+      "form": "def",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "src_def_x_interpolated_atom_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_def_x_interpolated_atom_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_interpolated_atom_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Def.XInterpolatedAtom",
+          "source": "lib/src/src.def.x_interpolated_atom.ex",
+          "spec": "lib/src/src.def.x_interpolated_atom.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 31,
+          "file": "lib/callers/src/def/x_interpolated_atom.ex",
+          "id": "nested",
+          "line": 4,
+          "name": "src_def_x_interpolated_atom_nes#{\"t\"}ed",
+          "targets": [9]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 34,
+          "file": "lib/callers/src/def/x_interpolated_atom.ex",
+          "id": "unescaped",
+          "line": 5,
+          "name": "src_def_x_interpolated_atom_a(#{\"b\"}",
+          "targets": []
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 35,
+          "file": "lib/callers/src/def/x_interpolated_atom.ex",
+          "id": "unanchored",
+          "line": 6,
+          "name": "src_def_x_interpolated_atom_ba#{\"r\"}e",
+          "targets": [11]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Def.XInterpolatedAtom",
+            "name": "src_def_x_interpolated_atom_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.def.x_interpolated_atom.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_def_x_interpolated_atom_snoc"
+        }
+      ],
+      "world": "x_interpolated_atom"
     },
     {
       "backing": "src",
