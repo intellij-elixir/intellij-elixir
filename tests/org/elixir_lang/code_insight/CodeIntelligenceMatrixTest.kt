@@ -883,8 +883,11 @@ private class Group(val scenario: Scenario) {
         val landed = myFixture.gotoDeclarationTargetsAtCaret().orEmpty().map { target ->
             target.destination?.let(::describeLine) ?: "a target with no destination"
         }.sorted()
+        val targets = siteOrNull()?.let { site -> site.targets?.map { describeLine(fileOf(site), it) } }
 
-        if (atWrongArity(binding)) {
+        if (targets != null) {
+            assertEquals("Go To Declaration from ${place.id} landed on the wrong modules", targets.sorted(), landed)
+        } else if (atWrongArity(binding)) {
             val candidates = candidates(siteOrNull()!!).flatMap(::headLines).distinct().sorted()
             assertEquals("Go To Declaration from ${place.id} did not offer the declared arities", candidates, landed)
         } else if (binding == null) {

@@ -274,6 +274,19 @@ defmodule Matrix do
               {"unqualified_arity_1", 0, "snoc", 1, :unqualified},
               {"undeclared", 0, "undeclared", 2, :qualified}
             ]
+      },
+      # Quoted atoms with interpolation, which the plugin resolves by matching a pattern against every indexed name.
+      # The caller also declares `atom_modules`; what each atom evaluates to is the module it must reach, and `bare_extra`
+      # is a longer name `bare`'s atom must not.
+      "x_interpolated_atom" => %{
+        modules: [[snoc_2]],
+        calls: [
+          {"nested", 0, ~S(nes#{"t"}ed), 0, :interpolated_atom},
+          # `(` is literal in an atom and opens a group in a regex.
+          {"unescaped", 0, ~S[a(#{"b"}], 0, :interpolated_atom},
+          {"unanchored", 0, ~S(ba#{"r"}e), 0, :interpolated_atom}
+        ],
+        atom_modules: ["nested", "bare", "bare_extra"]
       }
     }
   end
@@ -349,6 +362,9 @@ defmodule Matrix do
     do: "a `use` injects what its quote defines; these are the definers a quote is written with"
 
   def not_applicable(_backing, %{guard: true}, "x_use_injected_defaults"), do: "a guard cannot have default arguments"
+
+  def not_applicable(backing, form, "x_interpolated_atom") when backing.id != "src" or form.id != "def",
+    do: "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function"
 
   def not_applicable(_backing, _form, _world), do: nil
 
@@ -453,7 +469,7 @@ defmodule Matrix do
     {calls, broken} = if form[:private], do: {[], calls}, else: Enum.split_with(calls, &defined?(&1, worlds_modules))
 
     caller_path = Path.join(["lib", "callers", backing.id, form.id, Macro.underscore(world) <> ".ex"])
-    caller = render_caller(backing, form, world, names, calls)
+    caller = render_caller(backing, form, world, names, calls) <> atom_modules(spec, prefix)
     File.mkdir_p!(Path.dirname(caller_path))
     File.write!(caller_path, caller)
     caller_events = compile_elixir(caller_path, caller)
@@ -488,6 +504,9 @@ defmodule Matrix do
           Enum.flat_map(modules, & &1.local) ++ broken_sites ++ import_sites
     }
   end
+
+  defp atom_modules(spec, prefix),
+    do: spec |> Map.get(:atom_modules, []) |> Enum.map_join(&"\ndefmodule :#{prefix}#{&1} do end\n")
 
   # How a caller comes to be able to write `snoc(...)` bare, or not. Each is `{id, directive, calls}`, where the
   # directive is rendered against the declaring module and a call is `{site id, arity}`; which calls compile, and so
@@ -696,7 +715,7 @@ defmodule Matrix do
   end
 
   # The shapes that are not calls of the definition at all, so no arity can be wrong for them.
-  @not_calls [:variable, :atom, :keyword]
+  @not_calls [:variable, :atom, :keyword, :interpolated_atom]
 
   defp defined?({_id, _module, _name, _arity, shape}, _modules) when shape in @not_calls, do: true
 
@@ -1725,6 +1744,8 @@ defmodule Matrix do
     uses =
       cond do
         form[:private] -> ""
+        # Nothing in the caller would use them, and the compiler would warn.
+        Enum.all?(calls, &(elem(&1, 4) == :interpolated_atom)) -> ""
         form[:macro] -> aliases <> Enum.map_join(references, "", &"  require #{&1}\n") <> "  import #{hd(references)}\n"
         true -> aliases <> "  import #{hd(references)}\n"
       end
@@ -1752,6 +1773,7 @@ defmodule Matrix do
   defp call(:variable, _backing, _module, name, _arity), do: "(fn #{name} -> #{name} end).({a, b})"
   defp call(:atom, _backing, _module, name, _arity), do: "{:#{name}, a, b}"
   defp call(:keyword, _backing, _module, name, _arity), do: "[#{name}: a, b: b]"
+  defp call(:interpolated_atom, _backing, _module, name, _arity), do: ~s({:"#{name}", a, b})
 
   # Erlang keeps a decomposed name as written, so Elixir must quote it to call it; unquoted, it would normalise it.
   defp call_name(%{language: :erlang}, name), do: if(name == nfc(name), do: name, else: ~s("#{name}"))
@@ -1817,7 +1839,7 @@ defmodule Matrix do
       {text, line} = Enum.find(lines, fn {text, _} -> String.ends_with?(text, "# @#{id}") end)
       binding = binding(events, path, line, name, shape, backing, Enum.at(names, module), arity)
 
-      %{
+      site = %{
         "id" => id,
         "file" => path,
         "line" => line,
@@ -1826,7 +1848,15 @@ defmodule Matrix do
         "arity" => arity,
         "binding" => binding
       }
+
+      if shape == :interpolated_atom, do: Map.put(site, "targets", atom_targets(lines, name)), else: site
     end)
+  end
+
+  # The lines declaring the module the atom evaluates to; none where no module has that name.
+  defp atom_targets(lines, name) do
+    {atom, _binding} = Code.eval_string(~s(:"#{name}"))
+    for {text, line} <- lines, text == "defmodule #{inspect(atom)} do end", do: line
   end
 
   # The compiler binds nothing at the atom in `apply(M, :name, [...])`, but the plugin treats that atom as a
@@ -1835,7 +1865,7 @@ defmodule Matrix do
   defp binding(_events, _path, _line, name, shape, backing, module, arity) when shape in [:apply, :apply_quoted, :mfa],
     do: %{"module" => reference(backing, module), "name" => nfc(name), "arity" => arity, "kind" => to_string(shape)}
 
-  defp binding(_events, _path, _line, _name, shape, _backing, _module, _arity) when shape in [:variable, :atom, :keyword], do: nil
+  defp binding(_events, _path, _line, _name, shape, _backing, _module, _arity) when shape in @not_calls, do: nil
 
   defp binding(events, path, line, name, _shape, _backing, _module, _arity) do
     atom = String.to_atom(name)
