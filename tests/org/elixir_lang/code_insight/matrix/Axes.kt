@@ -133,6 +133,12 @@ fun writtenWithoutArguments(id: String): Boolean = id == NO_ARGUMENTS || id.ends
  */
 const val LOOKALIKE_ABSENT = "x_lookalike_absent"
 
+/**
+ * The world whose sites are quoted atoms with interpolation. The plugin resolves each by matching a pattern against
+ * every indexed name, so only Go To Declaration from the atoms asks anything.
+ */
+const val INTERPOLATED_ATOM = "x_interpolated_atom"
+
 /** Whether [id] is the name in a `@spec`, which `generate.exs` marks `spec_<arity>`. */
 fun specName(id: String): Boolean = id.startsWith("spec_")
 
@@ -193,6 +199,9 @@ object Crossing {
                 Applicability.NotApplicable("a call made only to keep an arity used; it is a use to find and rename, but asks nothing `local` does not")
             scenario.world == LOOKALIKE_ABSENT && !rejected(scenario, place) ->
                 Applicability.NotApplicable("$LOOKALIKE_ABSENT asks only where the compiler rejected a call; everywhere else it is w3's question again")
+            scenario.world == INTERPOLATED_ATOM &&
+                !(feature == Feature.GO_TO_DECLARATION && place is Place.Marked && scenario.sites.any { it.id == place.id && it.targets != null }) ->
+                Applicability.NotApplicable("$INTERPOLATED_ATOM asks only where Go To Declaration from an interpolated atom lands")
             place is Place.Marked && place.id == LOCAL && !backing.hasBodies ->
                 Applicability.NotApplicable("the ${backing.id} mirror has no bodies, so no local call")
             place is Place.Marked && place.id == LOCAL && !hasLocalCall(scenario) ->

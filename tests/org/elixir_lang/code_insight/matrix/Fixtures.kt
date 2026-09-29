@@ -146,6 +146,8 @@ class Site(
      * whole. Empty where nothing is brought in at all.
      */
     val visible: List<String>? = null,
+    /** For an interpolated atom, the lines of [file] declaring the module it evaluates to: where Go To Declaration lands. */
+    val targets: List<Int>? = null,
 )
 
 /** Whether a bare call at [this] site can reach [definition] at any of its arities: always, unless [Site.visible] says. */
