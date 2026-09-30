@@ -154,9 +154,14 @@ defmodule Matrix do
       "else",
       ~s(  @moduledoc "The documented module."),
       "end"
-    ]
+    ],
+    "x_moduledoc_protocol" => [~s(@moduledoc "The documented protocol.")]
   }
   @moduledoc_worlds Map.keys(@moduledocs)
+
+  # The moduledoc worlds whose main module is a `defprotocol`. Its body holds only bodiless heads, so it has no
+  # `local_site` and no `module_local`; a `defimpl` of it in the caller is asked instead.
+  @protocol_worlds ["x_moduledoc_protocol"]
 
   # A reference to the module a moduledoc world documents from another module, `{site id, shape}`: by its whole name
   # and through an `alias`. The places in the module itself come from `module_sites/4`.
@@ -214,6 +219,10 @@ defmodule Matrix do
     module_asks = Enum.map(module_calls, &elem(&1, 0)) ++ ["module_local", "module_declaration"]
 
     worlds = Enum.reduce(@moduledoc_worlds, worlds, &Map.put(&2, &1, %{modules: worlds["w1"].modules, calls: module_calls, asks: module_asks}))
+    protocol_calls = module_calls ++ [{"module_defimpl", 0, "snoc", 2, :module_defimpl}]
+    protocol_asks = Enum.map(protocol_calls, &elem(&1, 0)) ++ ["module_declaration"]
+
+    worlds = Enum.reduce(@protocol_worlds, worlds, &Map.put(&2, &1, %{&2[&1] | calls: protocol_calls, asks: protocol_asks}))
 
     worlds = Enum.reduce(@import_block_worlds, worlds, &Map.put(&2, &1, %{modules: worlds["w1"].modules, calls: [], asks: @import_block_sites}))
 
@@ -1093,7 +1102,7 @@ defmodule Matrix do
   # The shapes whose atom names a module the caller declares, where Go To Declaration must land.
   @module_atoms [:interpolated_atom, :module_atom]
 
-  defp defined?({_id, _module, _name, _arity, shape}, _modules) when shape in @not_calls or shape in @module_shapes, do: true
+  defp defined?({_id, _module, _name, _arity, shape}, _modules) when shape in @not_calls or shape in [:module_defimpl | @module_shapes], do: true
 
   defp defined?({_id, module, name, arity, _shape}, modules) do
     modules
@@ -1517,7 +1526,8 @@ defmodule Matrix do
         branches: world == "x_if_else",
         spec: primary != nil and backing.id == "src" and world in @spec_worlds and form.id in @function_forms,
         local_forward: primary != nil and backing.id == "src" and world in @local_forward_worlds and form.id in @function_forms,
-        moduledoc: primary != nil && Map.get(@moduledocs, world)
+        moduledoc: primary != nil && Map.get(@moduledocs, world),
+        protocol: primary != nil and world in @protocol_worlds
       })
     extension = if(backing.language == :elixir, do: ".ex", else: ".erl")
     # Named after the whole module: every world's delegate target is a `Target`.
@@ -1543,7 +1553,7 @@ defmodule Matrix do
     local =
       if primary,
         do:
-          local_sites(path, source, events, backing, module, primary, local_arity(definitions, primary)) ++
+          if(form[:protocol], do: [], else: local_sites(path, source, events, backing, module, primary, local_arity(definitions, primary))) ++
             marked_sites(path, source, events, backing, module) ++ if(form[:moduledoc], do: module_sites(path, source, events, binary), else: []),
         else: []
 
@@ -2044,6 +2054,18 @@ defmodule Matrix do
     clauses
   end
 
+  defp render_module(%{protocol: true} = form, module, definitions, _primary, _clauses) do
+    heads = Enum.map_join(definitions, "\n", fn {name, [{parameters, _guard} | _]} -> "  def #{name}(#{Enum.join(parameters, ", ")})" end)
+
+    """
+    # #{@header}
+    defprotocol #{module} do
+    #{Enum.map_join(form.moduledoc, &("  " <> &1 <> "\n"))}
+    #{heads}
+    end
+    """
+  end
+
   defp render_module(form, module, definitions, primary, clauses) do
     # Under a module-level `if` and the like, which is how a definition that is only sometimes compiled is written.
     clauses =
@@ -2149,10 +2171,14 @@ defmodule Matrix do
     references = Enum.map(names, &reference(backing, &1))
 
     body =
-      Enum.map_join(calls, "\n", fn {id, module, name, arity, shape} ->
-        body = call(shape, backing, Enum.at(references, module), name, arity)
-        parameters = Enum.map_join(["a", "b"], ", ", fn parameter -> if(body =~ ~r/\b#{parameter}\b/, do: parameter, else: "_" <> parameter) end)
-        "  def at_#{id}(#{parameters}), do: #{body} # @#{id}"
+      Enum.map_join(calls, "\n", fn
+        {id, module, name, _arity, :module_defimpl} ->
+          "  defimpl #{Enum.at(references, module)}, for: Integer do # @#{id}\n    def #{name}(q, x), do: {q, x}\n  end"
+
+        {id, module, name, arity, shape} ->
+          body = call(shape, backing, Enum.at(references, module), name, arity)
+          parameters = Enum.map_join(["a", "b"], ", ", fn parameter -> if(body =~ ~r/\b#{parameter}\b/, do: parameter, else: "_" <> parameter) end)
+          "  def at_#{id}(#{parameters}), do: #{body} # @#{id}"
       end)
 
     aliases =
@@ -2167,7 +2193,7 @@ defmodule Matrix do
         form[:private] -> ""
         # Nothing in the caller would use them, and the compiler would warn.
         Enum.all?(calls, &(elem(&1, 4) in @module_atoms)) -> ""
-        Enum.all?(calls, &(elem(&1, 4) in @module_shapes)) -> "  alias #{hd(references)}\n"
+        Enum.all?(calls, &(elem(&1, 4) in [:module_defimpl | @module_shapes])) -> "  alias #{hd(references)}\n"
         form[:macro] -> aliases <> Enum.map_join(references, "", &"  require #{&1}\n") <> "  import #{hd(references)}\n"
         true -> aliases <> "  import #{hd(references)}\n"
       end
@@ -2264,23 +2290,40 @@ defmodule Matrix do
   defp caller_sites(path, source, events, calls, backing, names) do
     lines = source |> String.split("\n") |> Enum.with_index(1)
 
-    Enum.map(calls, fn {id, module, name, arity, shape} ->
-      {text, line} = Enum.find(lines, fn {text, _} -> String.ends_with?(text, "# @#{id}") end)
-      # A module is asked at its own name, the alias's last segment: an earlier one names a module of its own.
-      name = if shape in @module_shapes, do: last_segment(Enum.at(names, module)), else: name
-      binding = binding(events, path, line, name, shape, backing, Enum.at(names, module), arity)
+    Enum.map(calls, fn
+      {id, module, _name, _arity, :module_defimpl} ->
+        {text, line} = Enum.find(lines, fn {text, _} -> String.ends_with?(text, "# @#{id}") end)
+        [_, qualifier, protocol, for_module] = Regex.run(~r/^\s*defimpl ((?:\S+\.)?)([^\s.,]+), for: (\S+) do/, text)
+        # No alias reference is traced at a `defimpl`'s protocol, so the protocol is the one its implementation names.
+        implementation = Module.concat(Enum.at(names, module), for_module)
 
-      site = %{
-        "id" => id,
-        "file" => path,
-        "line" => line,
-        "column" => name_column(text, name),
-        "name" => nfc(name),
-        "arity" => arity,
-        "binding" => binding
-      }
+        %{
+          "id" => id,
+          "file" => path,
+          "line" => line,
+          "column" => utf16_length(hd(String.split(text, "defimpl ")) <> "defimpl " <> qualifier) + 1,
+          "name" => protocol,
+          "arity" => 0,
+          "binding" => %{"module" => inspect(implementation.__impl__(:protocol)), "name" => inspect(implementation.__impl__(:protocol)), "arity" => 0, "kind" => "alias_reference"}
+        }
 
-      if shape in @module_atoms, do: Map.put(site, "targets", atom_targets(lines, name)), else: site
+      {id, module, name, arity, shape} ->
+        {text, line} = Enum.find(lines, fn {text, _} -> String.ends_with?(text, "# @#{id}") end)
+        # A module is asked at its own name, the alias's last segment: an earlier one names a module of its own.
+        name = if shape in @module_shapes, do: last_segment(Enum.at(names, module)), else: name
+        binding = binding(events, path, line, name, shape, backing, Enum.at(names, module), arity)
+
+        site = %{
+          "id" => id,
+          "file" => path,
+          "line" => line,
+          "column" => name_column(text, name),
+          "name" => nfc(name),
+          "arity" => arity,
+          "binding" => binding
+        }
+
+        if shape in @module_atoms, do: Map.put(site, "targets", atom_targets(lines, name)), else: site
     end)
   end
 
@@ -2402,32 +2445,43 @@ defmodule Matrix do
   # makes, and the `defmodule`'s name, which is the module the compiler defined.
   defp module_sites(path, source, events, binary) do
     lines = source |> String.split("\n") |> Enum.with_index(1)
-    {local_text, local_line} = Enum.find(lines, fn {text, _} -> String.ends_with?(text, "# @module_local") end)
-    [_, local_name] = Regex.run(~r/do: (?:\S+\.)?(\S+) #/, local_text)
-    {declaration_text, declaration_line} = Enum.find(lines, fn {text, _} -> String.starts_with?(text, "defmodule ") end)
-    [_, qualifier, declared] = Regex.run(~r/^defmodule ((?:\S+\.)?)(\S+) do$/, declaration_text)
+    {declaration_text, declaration_line} = Enum.find(lines, fn {text, _} -> String.starts_with?(text, ["defmodule ", "defprotocol "]) end)
+    [_, definer, qualifier, declared] = Regex.run(~r/^(defmodule |defprotocol )((?:\S+\.)?)(\S+) do$/, declaration_text)
     {:ok, {defined, _}} = :beam_lib.chunks(binary, [])
 
-    [
-      %{
-        "id" => "module_local",
-        "file" => path,
-        "line" => local_line,
-        "column" => name_column(local_text, local_name),
-        "name" => local_name,
-        "arity" => 0,
-        "binding" => module_binding(events, path, local_line)
-      },
-      %{
-        "id" => "module_declaration",
-        "file" => path,
-        "line" => declaration_line,
-        "column" => String.length("defmodule " <> qualifier) + 1,
-        "name" => declared,
-        "arity" => 0,
-        "binding" => %{"module" => inspect(defined), "name" => inspect(defined), "arity" => 0, "kind" => "defmodule"}
-      }
-    ]
+    local =
+      case Enum.find(lines, fn {text, _} -> String.ends_with?(text, "# @module_local") end) do
+        nil ->
+          []
+
+        {local_text, local_line} ->
+          [_, local_name] = Regex.run(~r/do: (?:\S+\.)?(\S+) #/, local_text)
+
+          [
+            %{
+              "id" => "module_local",
+              "file" => path,
+              "line" => local_line,
+              "column" => name_column(local_text, local_name),
+              "name" => local_name,
+              "arity" => 0,
+              "binding" => module_binding(events, path, local_line)
+            }
+          ]
+      end
+
+    local ++
+      [
+        %{
+          "id" => "module_declaration",
+          "file" => path,
+          "line" => declaration_line,
+          "column" => String.length(definer <> qualifier) + 1,
+          "name" => declared,
+          "arity" => 0,
+          "binding" => %{"module" => inspect(defined), "name" => inspect(defined), "arity" => 0, "kind" => "defmodule"}
+        }
+      ]
   end
 
   # `local_site` calls the primary's name with two arguments wherever some definition of it takes two, which is every
