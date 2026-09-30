@@ -174,6 +174,12 @@
       "backing": "src",
       "form": "defp",
       "reason": "a moduledoc world asks about the module, so the form its functions are declared with changes nothing",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "src",
+      "form": "defp",
+      "reason": "a moduledoc world asks about the module, so the form its functions are declared with changes nothing",
       "world": "x_moduledoc_since"
     },
     {
@@ -295,6 +301,12 @@
       "form": "defmacro",
       "reason": "a moduledoc world asks about the module, so the form its functions are declared with changes nothing",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "src",
+      "form": "defmacro",
+      "reason": "a moduledoc world asks about the module, so the form its functions are declared with changes nothing",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "src",
@@ -427,6 +439,12 @@
       "form": "defmacrop",
       "reason": "a moduledoc world asks about the module, so the form its functions are declared with changes nothing",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "src",
+      "form": "defmacrop",
+      "reason": "a moduledoc world asks about the module, so the form its functions are declared with changes nothing",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "src",
@@ -606,6 +624,12 @@
       "backing": "src",
       "form": "defguard",
       "reason": "a moduledoc world asks about the module, so the form its functions are declared with changes nothing",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "src",
+      "form": "defguard",
+      "reason": "a moduledoc world asks about the module, so the form its functions are declared with changes nothing",
       "world": "x_moduledoc_since"
     },
     {
@@ -775,6 +799,12 @@
       "form": "defguardp",
       "reason": "a moduledoc world asks about the module, so the form its functions are declared with changes nothing",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "src",
+      "form": "defguardp",
+      "reason": "a moduledoc world asks about the module, so the form its functions are declared with changes nothing",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "src",
@@ -1002,6 +1032,12 @@
       "backing": "src",
       "form": "defdelegate",
       "reason": "a moduledoc world asks about the module, so the form its functions are declared with changes nothing",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate",
+      "reason": "a moduledoc world asks about the module, so the form its functions are declared with changes nothing",
       "world": "x_moduledoc_since"
     },
     {
@@ -1212,6 +1248,12 @@
       "backing": "src",
       "form": "defdelegate_compiled",
       "reason": "a moduledoc world asks about the module, so the form its functions are declared with changes nothing",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_compiled",
+      "reason": "a moduledoc world asks about the module, so the form its functions are declared with changes nothing",
       "world": "x_moduledoc_since"
     },
     {
@@ -1422,6 +1464,12 @@
       "backing": "src",
       "form": "defdelegate_unresolvable",
       "reason": "a moduledoc world asks about the module, so the form its functions are declared with changes nothing",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_unresolvable",
+      "reason": "a moduledoc world asks about the module, so the form its functions are declared with changes nothing",
       "world": "x_moduledoc_since"
     },
     {
@@ -1698,6 +1746,12 @@
       "backing": "src",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_moduledoc_since"
     },
     {
@@ -2023,6 +2077,12 @@
       "form": "defdelegate_imports",
       "reason": "a target that only imports the function asks nothing w1 does not",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_imports",
+      "reason": "a target that only imports the function asks nothing w1 does not",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "src",
@@ -2364,6 +2424,12 @@
       "backing": "src",
       "form": "defdelegate_list",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_moduledoc_since"
     },
     {
@@ -2700,6 +2766,12 @@
       "backing": "src",
       "form": "defdelegate_list_trailing",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_moduledoc_since"
     },
     {
@@ -3036,6 +3108,12 @@
       "backing": "src",
       "form": "defdelegate_list_lines",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_moduledoc_since"
     },
     {
@@ -3372,6 +3450,12 @@
       "backing": "src",
       "form": "defdelegate_as_list",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_moduledoc_since"
     },
     {
@@ -3708,6 +3792,12 @@
       "backing": "src",
       "form": "defdelegate_as_attribute",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_moduledoc_since"
     },
     {
@@ -4039,6 +4129,12 @@
       "form": "defdelegate_doc",
       "reason": "a delegate's own `@doc` asks nothing w1 does not",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "src",
@@ -4327,6 +4423,12 @@
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "src",
@@ -4608,6 +4710,12 @@
       "backing": "src",
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_moduledoc_since"
     },
     {
@@ -4903,6 +5011,12 @@
       "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "src",
@@ -5232,6 +5346,12 @@
       "backing": "src",
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "src",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_moduledoc_since"
     },
     {
@@ -5526,6 +5646,12 @@
       "backing": "src",
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "src",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_moduledoc_since"
     },
     {
@@ -5802,6 +5928,12 @@
       "backing": "ex_dbgi",
       "form": "def",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "def",
+      "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_since"
     },
     {
@@ -6037,6 +6169,12 @@
       "form": "defp",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defp",
+      "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_dbgi",
@@ -6294,6 +6432,12 @@
       "backing": "ex_dbgi",
       "form": "defmacro",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacro",
+      "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_since"
     },
     {
@@ -6595,6 +6739,12 @@
       "form": "defmacrop",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_dbgi",
@@ -6900,6 +7050,12 @@
       "backing": "ex_dbgi",
       "form": "defguard",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguard",
+      "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_since"
     },
     {
@@ -7212,6 +7368,12 @@
       "backing": "ex_dbgi",
       "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_moduledoc_since"
     },
     {
@@ -7488,6 +7650,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate",
+      "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_since"
     },
     {
@@ -7807,6 +7975,12 @@
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_dbgi",
@@ -8088,6 +8262,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_unresolvable",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_unresolvable",
+      "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_since"
     },
     {
@@ -8388,6 +8568,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_moduledoc_since"
     },
     {
@@ -8719,6 +8905,12 @@
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_dbgi",
@@ -9066,6 +9258,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc_since"
     },
     {
@@ -9408,6 +9606,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc_since"
     },
     {
@@ -9750,6 +9954,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc_since"
     },
     {
@@ -10092,6 +10302,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc_since"
     },
     {
@@ -10434,6 +10650,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc_since"
     },
     {
@@ -10771,6 +10993,12 @@
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_dbgi",
@@ -11088,6 +11316,12 @@
       "backing": "ex_dbgi",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_moduledoc_since"
     },
     {
@@ -11388,6 +11622,12 @@
       "backing": "ex_dbgi",
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_moduledoc_since"
     },
     {
@@ -11683,6 +11923,12 @@
       "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_dbgi",
@@ -12007,6 +12253,12 @@
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_dbgi",
@@ -12349,6 +12601,12 @@
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_dbgi",
@@ -12625,6 +12883,12 @@
       "form": "def",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "def",
+      "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_docs",
@@ -12883,6 +13147,12 @@
       "form": "defp",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defp",
+      "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_docs",
@@ -13158,6 +13428,12 @@
       "backing": "ex_docs",
       "form": "defmacro",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacro",
+      "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_since"
     },
     {
@@ -13477,6 +13753,12 @@
       "form": "defmacrop",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_docs",
@@ -13782,6 +14064,12 @@
       "backing": "ex_docs",
       "form": "defguard",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguard",
+      "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_since"
     },
     {
@@ -14101,6 +14389,12 @@
       "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_docs",
@@ -14382,6 +14676,12 @@
       "backing": "ex_docs",
       "form": "defdelegate",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate",
+      "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_since"
     },
     {
@@ -14701,6 +15001,12 @@
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_docs",
@@ -14982,6 +15288,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_unresolvable",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_unresolvable",
+      "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_since"
     },
     {
@@ -15282,6 +15594,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_moduledoc_since"
     },
     {
@@ -15613,6 +15931,12 @@
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_docs",
@@ -15960,6 +16284,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc_since"
     },
     {
@@ -16302,6 +16632,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc_since"
     },
     {
@@ -16644,6 +16980,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc_since"
     },
     {
@@ -16986,6 +17328,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc_since"
     },
     {
@@ -17328,6 +17676,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc_since"
     },
     {
@@ -17665,6 +18019,12 @@
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_docs",
@@ -17982,6 +18342,12 @@
       "backing": "ex_docs",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_moduledoc_since"
     },
     {
@@ -18282,6 +18648,12 @@
       "backing": "ex_docs",
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_moduledoc_since"
     },
     {
@@ -18577,6 +18949,12 @@
       "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_docs",
@@ -18901,6 +19279,12 @@
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_docs",
@@ -19243,6 +19627,12 @@
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_docs",
@@ -19524,6 +19914,12 @@
       "backing": "ex_gen",
       "form": "def",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "def",
+      "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_since"
     },
     {
@@ -19777,6 +20173,12 @@
       "form": "defp",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defp",
+      "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_gen",
@@ -20052,6 +20454,12 @@
       "backing": "ex_gen",
       "form": "defmacro",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacro",
+      "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_since"
     },
     {
@@ -20371,6 +20779,12 @@
       "form": "defmacrop",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_gen",
@@ -20676,6 +21090,12 @@
       "backing": "ex_gen",
       "form": "defguard",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguard",
+      "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_since"
     },
     {
@@ -20995,6 +21415,12 @@
       "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_gen",
@@ -21276,6 +21702,12 @@
       "backing": "ex_gen",
       "form": "defdelegate",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate",
+      "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_since"
     },
     {
@@ -21595,6 +22027,12 @@
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_gen",
@@ -21876,6 +22314,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_unresolvable",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_since"
     },
     {
@@ -22176,6 +22620,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_moduledoc_since"
     },
     {
@@ -22507,6 +22957,12 @@
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_gen",
@@ -22854,6 +23310,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc_since"
     },
     {
@@ -23196,6 +23658,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc_since"
     },
     {
@@ -23538,6 +24006,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc_since"
     },
     {
@@ -23880,6 +24354,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc_since"
     },
     {
@@ -24222,6 +24702,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_moduledoc_since"
     },
     {
@@ -24559,6 +25045,12 @@
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_gen",
@@ -24876,6 +25368,12 @@
       "backing": "ex_gen",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_moduledoc_since"
     },
     {
@@ -25176,6 +25674,12 @@
       "backing": "ex_gen",
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_moduledoc_since"
     },
     {
@@ -25471,6 +25975,12 @@
       "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_gen",
@@ -25795,6 +26305,12 @@
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_gen",
@@ -26137,6 +26653,12 @@
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "ex_gen",
@@ -26425,6 +26947,12 @@
       "form": "def",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "def",
+      "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "erl_abst",
@@ -26706,6 +27234,12 @@
       "backing": "erl_abst",
       "form": "defp",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defp",
+      "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_since"
     },
     {
@@ -27048,6 +27582,12 @@
       "backing": "erl_abst",
       "form": "defmacro",
       "reason": "Erlang has only functions",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacro",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc_since"
     },
     {
@@ -27390,6 +27930,12 @@
       "backing": "erl_abst",
       "form": "defmacrop",
       "reason": "Erlang has only functions",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacrop",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc_since"
     },
     {
@@ -27732,6 +28278,12 @@
       "backing": "erl_abst",
       "form": "defguard",
       "reason": "Erlang has only functions",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguard",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc_since"
     },
     {
@@ -28074,6 +28626,12 @@
       "backing": "erl_abst",
       "form": "defguardp",
       "reason": "Erlang has only functions",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguardp",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc_since"
     },
     {
@@ -28416,6 +28974,12 @@
       "backing": "erl_abst",
       "form": "defdelegate",
       "reason": "Erlang has only functions",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc_since"
     },
     {
@@ -28758,6 +29322,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_compiled",
       "reason": "Erlang has only functions",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_compiled",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc_since"
     },
     {
@@ -29100,6 +29670,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_unresolvable",
       "reason": "Erlang has only functions",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_unresolvable",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc_since"
     },
     {
@@ -29442,6 +30018,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_as",
       "reason": "Erlang has only functions",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc_since"
     },
     {
@@ -29784,6 +30366,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_imports",
       "reason": "Erlang has only functions",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_imports",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc_since"
     },
     {
@@ -30126,6 +30714,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_list",
       "reason": "Erlang has only functions",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc_since"
     },
     {
@@ -30468,6 +31062,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_list_trailing",
       "reason": "Erlang has only functions",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_trailing",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc_since"
     },
     {
@@ -30810,6 +31410,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_list_lines",
       "reason": "Erlang has only functions",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_lines",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc_since"
     },
     {
@@ -31152,6 +31758,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_as_list",
       "reason": "Erlang has only functions",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc_since"
     },
     {
@@ -31494,6 +32106,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_as_attribute",
       "reason": "Erlang has only functions",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc_since"
     },
     {
@@ -31836,6 +32454,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_doc",
       "reason": "Erlang has only functions",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc_since"
     },
     {
@@ -32178,6 +32802,12 @@
       "backing": "erl_abst",
       "form": "eex_function_from",
       "reason": "Erlang has only functions",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc_since"
     },
     {
@@ -32520,6 +33150,12 @@
       "backing": "erl_abst",
       "form": "eex_function_from_kind",
       "reason": "Erlang has only functions",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_kind",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc_since"
     },
     {
@@ -32862,6 +33498,12 @@
       "backing": "erl_abst",
       "form": "eex_function_from_args",
       "reason": "Erlang has only functions",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_args",
+      "reason": "Erlang has only functions",
       "world": "x_moduledoc_since"
     },
     {
@@ -33199,6 +33841,12 @@
       "form": "generator_embed",
       "reason": "Erlang has only functions",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "generator_embed",
+      "reason": "Erlang has only functions",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "erl_abst",
@@ -33546,6 +34194,12 @@
       "backing": "erl_abst",
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_moduledoc_since"
     },
     {
@@ -33877,6 +34531,12 @@
       "form": "def",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "def",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "erl_gen",
@@ -34224,6 +34884,12 @@
       "backing": "erl_gen",
       "form": "defp",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defp",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc_since"
     },
     {
@@ -34566,6 +35232,12 @@
       "backing": "erl_gen",
       "form": "defmacro",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacro",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc_since"
     },
     {
@@ -34908,6 +35580,12 @@
       "backing": "erl_gen",
       "form": "defmacrop",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacrop",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc_since"
     },
     {
@@ -35250,6 +35928,12 @@
       "backing": "erl_gen",
       "form": "defguard",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguard",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc_since"
     },
     {
@@ -35592,6 +36276,12 @@
       "backing": "erl_gen",
       "form": "defguardp",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguardp",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc_since"
     },
     {
@@ -35934,6 +36624,12 @@
       "backing": "erl_gen",
       "form": "defdelegate",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc_since"
     },
     {
@@ -36276,6 +36972,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_compiled",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_compiled",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc_since"
     },
     {
@@ -36618,6 +37320,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_unresolvable",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc_since"
     },
     {
@@ -36960,6 +37668,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_as",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc_since"
     },
     {
@@ -37302,6 +38016,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_imports",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_imports",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc_since"
     },
     {
@@ -37644,6 +38364,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_list",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc_since"
     },
     {
@@ -37986,6 +38712,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_list_trailing",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc_since"
     },
     {
@@ -38328,6 +39060,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_list_lines",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc_since"
     },
     {
@@ -38670,6 +39408,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_as_list",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc_since"
     },
     {
@@ -39012,6 +39756,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_as_attribute",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc_since"
     },
     {
@@ -39354,6 +40104,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_doc",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc_since"
     },
     {
@@ -39696,6 +40452,12 @@
       "backing": "erl_gen",
       "form": "eex_function_from",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc_since"
     },
     {
@@ -40038,6 +40800,12 @@
       "backing": "erl_gen",
       "form": "eex_function_from_kind",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_kind",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc_since"
     },
     {
@@ -40380,6 +41148,12 @@
       "backing": "erl_gen",
       "form": "eex_function_from_args",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_protocol"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_args",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc_since"
     },
     {
@@ -40717,6 +41491,12 @@
       "form": "generator_embed",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "generator_embed",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "erl_gen",
@@ -41059,6 +41839,12 @@
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_moduledoc_protocol"
     },
     {
       "backing": "erl_gen",
@@ -48285,6 +49071,127 @@
         }
       ],
       "world": "x_moduledoc_if_else"
+    },
+    {
+      "asks": [
+        "module_qualified",
+        "module_aliased",
+        "module_defimpl",
+        "module_declaration"
+      ],
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/def/x_moduledoc_protocol.ex",
+      "form": "def",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 5,
+              "name": "src_def_x_moduledoc_protocol_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_def_x_moduledoc_protocol_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_moduledoc_protocol_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Def.XModuledocProtocol",
+          "moduledoc": {
+            "doc": "The documented protocol.",
+            "hidden": false,
+            "written": [
+              "The documented protocol."
+            ]
+          },
+          "source": "lib/src/src.def.x_moduledoc_protocol.ex",
+          "spec": "lib/src/src.def.x_moduledoc_protocol.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "alias_reference",
+            "module": "Src.Def.XModuledocProtocol",
+            "name": "Src.Def.XModuledocProtocol"
+          },
+          "column": 48,
+          "file": "lib/callers/src/def/x_moduledoc_protocol.ex",
+          "id": "module_qualified",
+          "line": 5,
+          "name": "XModuledocProtocol"
+        },
+        {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "alias_reference",
+            "module": "Src.Def.XModuledocProtocol",
+            "name": "Src.Def.XModuledocProtocol"
+          },
+          "column": 38,
+          "file": "lib/callers/src/def/x_moduledoc_protocol.ex",
+          "id": "module_aliased",
+          "line": 6,
+          "name": "XModuledocProtocol"
+        },
+        {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "alias_reference",
+            "module": "Src.Def.XModuledocProtocol",
+            "name": "Src.Def.XModuledocProtocol"
+          },
+          "column": 19,
+          "file": "lib/callers/src/def/x_moduledoc_protocol.ex",
+          "id": "module_defimpl",
+          "line": 7,
+          "name": "XModuledocProtocol"
+        },
+        {
+          "arity": 0,
+          "binding": {
+            "arity": 0,
+            "kind": "defmodule",
+            "module": "Src.Def.XModuledocProtocol",
+            "name": "Src.Def.XModuledocProtocol"
+          },
+          "column": 21,
+          "file": "lib/src/src.def.x_moduledoc_protocol.ex",
+          "id": "module_declaration",
+          "line": 2,
+          "name": "XModuledocProtocol"
+        }
+      ],
+      "world": "x_moduledoc_protocol"
     },
     {
       "asks": [
