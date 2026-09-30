@@ -1261,6 +1261,10 @@ intellijPlatformTesting.testIde.register("testFullMatrix") {
         }
         maxParallelForks = shards
         classpath += files(matrixLauncherServices)
+        // Tens of thousands of cells are red by design: the XML holds each one, so neither the console nor an HTML
+        // report repeats them. A `-Dtestlogger.showFailed` system property, as in GRADLE_OPTS, still outranks this.
+        reports.html.required = false
+        extensions.configure<TestLoggerExtension>("testlogger") { showFailed = false }
         systemProperty("elixir.matrix.shards", shards)
         systemProperty("elixir.test.forks", shards)
         systemProperty("idea.split.test.logs", "true")
