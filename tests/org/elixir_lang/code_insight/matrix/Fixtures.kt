@@ -94,9 +94,18 @@ class DeclaringModule(
     val complete: Boolean,
     /** What the compiler kept of the module's `@moduledoc`s, where a moduledoc world asks about it. */
     val moduledoc: Moduledoc? = null,
+    /**
+     * A delegator's functions that `Code.fetch_docs/1` has a doc for. A `defdelegate` without an `@doc` of its own has
+     * none there, so null or absent means the delegate has no doc of its own.
+     */
+    val docs: List<FunctionDoc>? = null,
 ) {
     val compiled: Boolean get() = beam != null
+
+    fun doc(name: String, arity: Int): String? = docs?.firstOrNull { nfc(it.name) == nfc(name) && it.arity == arity }?.doc
 }
+
+class FunctionDoc(val name: String, val arity: Int, val doc: String)
 
 /**
  * The module's documentation as `Code.fetch_docs/1` has it: [doc], or none where [hidden] by `@moduledoc false`.
