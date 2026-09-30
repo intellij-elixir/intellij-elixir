@@ -20426,7 +20426,7 @@
               "clause": 0,
               "column": 9,
               "definer": "def",
-              "line": 5,
+              "line": 7,
               "name": "src_def_x_case_snoc"
             }
           ],
@@ -20441,6 +20441,16 @@
           "delegateAs": null,
           "delegateTo": null,
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "def",
@@ -20577,7 +20587,21 @@
           "column": 29,
           "file": "lib/src/src.def.x_case.ex",
           "id": "local",
-          "line": 8,
+          "line": 10,
+          "name": "src_def_x_case_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Def.XCase",
+            "name": "src_def_x_case_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.def.x_case.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_def_x_case_snoc"
         }
       ],
@@ -20600,7 +20624,7 @@
               "clause": 0,
               "column": 9,
               "definer": "def",
-              "line": 5,
+              "line": 7,
               "name": "src_def_x_cond_snoc"
             }
           ],
@@ -20615,6 +20639,16 @@
           "delegateAs": null,
           "delegateTo": null,
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "def",
@@ -20751,7 +20785,21 @@
           "column": 29,
           "file": "lib/src/src.def.x_cond.ex",
           "id": "local",
-          "line": 8,
+          "line": 10,
+          "name": "src_def_x_cond_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Def.XCond",
+            "name": "src_def_x_cond_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.def.x_cond.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_def_x_cond_snoc"
         }
       ],
@@ -20774,7 +20822,7 @@
               "clause": 0,
               "column": 9,
               "definer": "def",
-              "line": 4,
+              "line": 6,
               "name": "src_def_x_conditional_snoc"
             }
           ],
@@ -20789,6 +20837,16 @@
           "delegateAs": null,
           "delegateTo": null,
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "def",
@@ -20925,7 +20983,21 @@
           "column": 29,
           "file": "lib/src/src.def.x_conditional.ex",
           "id": "local",
-          "line": 7,
+          "line": 9,
+          "name": "src_def_x_conditional_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Def.XConditional",
+            "name": "src_def_x_conditional_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.def.x_conditional.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_def_x_conditional_snoc"
         }
       ],
@@ -22204,7 +22276,7 @@
               "clause": 0,
               "column": 9,
               "definer": "def",
-              "line": 4,
+              "line": 6,
               "name": "src_def_x_for_snoc"
             }
           ],
@@ -22219,6 +22291,16 @@
           "delegateAs": null,
           "delegateTo": null,
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "def",
@@ -22355,7 +22437,21 @@
           "column": 29,
           "file": "lib/src/src.def.x_for.ex",
           "id": "local",
-          "line": 7,
+          "line": 9,
+          "name": "src_def_x_for_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Def.XFor",
+            "name": "src_def_x_for_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.def.x_for.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_def_x_for_snoc"
         }
       ],
@@ -22378,7 +22474,7 @@
               "clause": 0,
               "column": 9,
               "definer": "def",
-              "line": 4,
+              "line": 6,
               "name": "src_def_x_if_else_snoc"
             }
           ],
@@ -22393,6 +22489,16 @@
           "delegateAs": null,
           "delegateTo": null,
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 1,
               "definer": "def",
@@ -22557,7 +22663,21 @@
           "column": 29,
           "file": "lib/src/src.def.x_if_else.ex",
           "id": "local",
-          "line": 9,
+          "line": 11,
+          "name": "src_def_x_if_else_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Def.XIfElse",
+            "name": "src_def_x_if_else_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.def.x_if_else.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_def_x_if_else_snoc"
         }
       ],
@@ -23776,7 +23896,7 @@
               "clause": 0,
               "column": 9,
               "definer": "def",
-              "line": 7,
+              "line": 9,
               "name": "src_def_x_receive_snoc"
             }
           ],
@@ -23791,6 +23911,16 @@
           "delegateAs": null,
           "delegateTo": null,
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "def",
@@ -23927,7 +24057,21 @@
           "column": 29,
           "file": "lib/src/src.def.x_receive.ex",
           "id": "local",
-          "line": 10,
+          "line": 12,
+          "name": "src_def_x_receive_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Def.XReceive",
+            "name": "src_def_x_receive_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.def.x_receive.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_def_x_receive_snoc"
         }
       ],
@@ -23950,7 +24094,7 @@
               "clause": 0,
               "column": 9,
               "definer": "def",
-              "line": 4,
+              "line": 6,
               "name": "src_def_x_try_snoc"
             }
           ],
@@ -23965,6 +24109,16 @@
           "delegateAs": null,
           "delegateTo": null,
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "def",
@@ -24101,7 +24255,21 @@
           "column": 29,
           "file": "lib/src/src.def.x_try.ex",
           "id": "local",
-          "line": 9,
+          "line": 11,
+          "name": "src_def_x_try_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Def.XTry",
+            "name": "src_def_x_try_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.def.x_try.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_def_x_try_snoc"
         }
       ],
@@ -24124,7 +24292,7 @@
               "clause": 0,
               "column": 9,
               "definer": "def",
-              "line": 4,
+              "line": 6,
               "name": "src_def_x_unless_snoc"
             }
           ],
@@ -24139,6 +24307,16 @@
           "delegateAs": null,
           "delegateTo": null,
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "def",
@@ -24275,7 +24453,21 @@
           "column": 29,
           "file": "lib/src/src.def.x_unless.ex",
           "id": "local",
-          "line": 7,
+          "line": 9,
+          "name": "src_def_x_unless_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Def.XUnless",
+            "name": "src_def_x_unless_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.def.x_unless.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_def_x_unless_snoc"
         }
       ],
@@ -26309,7 +26501,7 @@
               "clause": 0,
               "column": 9,
               "definer": "def",
-              "line": 4,
+              "line": 6,
               "name": "src_def_x_with_snoc"
             }
           ],
@@ -26324,6 +26516,16 @@
           "delegateAs": null,
           "delegateTo": null,
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "def",
@@ -26460,7 +26662,21 @@
           "column": 29,
           "file": "lib/src/src.def.x_with.ex",
           "id": "local",
-          "line": 7,
+          "line": 9,
+          "name": "src_def_x_with_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Def.XWith",
+            "name": "src_def_x_with_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.def.x_with.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_def_x_with_snoc"
         }
       ],
@@ -28101,7 +28317,7 @@
               "clause": 0,
               "column": 10,
               "definer": "defp",
-              "line": 5,
+              "line": 7,
               "name": "src_defp_x_case_snoc"
             }
           ],
@@ -28116,6 +28332,16 @@
           "delegateAs": null,
           "delegateTo": null,
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defp",
@@ -28164,7 +28390,21 @@
           "column": 29,
           "file": "lib/src/src.defp.x_case.ex",
           "id": "local",
-          "line": 8,
+          "line": 10,
+          "name": "src_defp_x_case_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.XCase",
+            "name": "src_defp_x_case_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defp.x_case.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defp_x_case_snoc"
         }
       ],
@@ -28187,7 +28427,7 @@
               "clause": 0,
               "column": 10,
               "definer": "defp",
-              "line": 5,
+              "line": 7,
               "name": "src_defp_x_cond_snoc"
             }
           ],
@@ -28202,6 +28442,16 @@
           "delegateAs": null,
           "delegateTo": null,
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defp",
@@ -28250,7 +28500,21 @@
           "column": 29,
           "file": "lib/src/src.defp.x_cond.ex",
           "id": "local",
-          "line": 8,
+          "line": 10,
+          "name": "src_defp_x_cond_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.XCond",
+            "name": "src_defp_x_cond_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defp.x_cond.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defp_x_cond_snoc"
         }
       ],
@@ -28273,7 +28537,7 @@
               "clause": 0,
               "column": 10,
               "definer": "defp",
-              "line": 4,
+              "line": 6,
               "name": "src_defp_x_conditional_snoc"
             }
           ],
@@ -28288,6 +28552,16 @@
           "delegateAs": null,
           "delegateTo": null,
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defp",
@@ -28336,7 +28610,21 @@
           "column": 29,
           "file": "lib/src/src.defp.x_conditional.ex",
           "id": "local",
-          "line": 7,
+          "line": 9,
+          "name": "src_defp_x_conditional_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.XConditional",
+            "name": "src_defp_x_conditional_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defp.x_conditional.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defp_x_conditional_snoc"
         }
       ],
@@ -28785,7 +29073,7 @@
               "clause": 0,
               "column": 10,
               "definer": "defp",
-              "line": 4,
+              "line": 6,
               "name": "src_defp_x_for_snoc"
             }
           ],
@@ -28800,6 +29088,16 @@
           "delegateAs": null,
           "delegateTo": null,
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defp",
@@ -28848,7 +29146,21 @@
           "column": 29,
           "file": "lib/src/src.defp.x_for.ex",
           "id": "local",
-          "line": 7,
+          "line": 9,
+          "name": "src_defp_x_for_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.XFor",
+            "name": "src_defp_x_for_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defp.x_for.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defp_x_for_snoc"
         }
       ],
@@ -28871,7 +29183,7 @@
               "clause": 0,
               "column": 10,
               "definer": "defp",
-              "line": 4,
+              "line": 6,
               "name": "src_defp_x_if_else_snoc"
             }
           ],
@@ -28886,6 +29198,16 @@
           "delegateAs": null,
           "delegateTo": null,
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 1,
               "definer": "defp",
@@ -28934,7 +29256,21 @@
           "column": 29,
           "file": "lib/src/src.defp.x_if_else.ex",
           "id": "local",
-          "line": 9,
+          "line": 11,
+          "name": "src_defp_x_if_else_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.XIfElse",
+            "name": "src_defp_x_if_else_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defp.x_if_else.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defp_x_if_else_snoc"
         },
         {
@@ -28948,7 +29284,7 @@
           "column": 7,
           "file": "lib/src/src.defp.x_if_else.ex",
           "id": "uses_0",
-          "line": 13,
+          "line": 15,
           "name": "src_defp_x_if_else_snoc"
         }
       ],
@@ -29333,7 +29669,7 @@
               "clause": 0,
               "column": 10,
               "definer": "defp",
-              "line": 7,
+              "line": 9,
               "name": "src_defp_x_receive_snoc"
             }
           ],
@@ -29348,6 +29684,16 @@
           "delegateAs": null,
           "delegateTo": null,
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defp",
@@ -29396,7 +29742,21 @@
           "column": 29,
           "file": "lib/src/src.defp.x_receive.ex",
           "id": "local",
-          "line": 10,
+          "line": 12,
+          "name": "src_defp_x_receive_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.XReceive",
+            "name": "src_defp_x_receive_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defp.x_receive.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defp_x_receive_snoc"
         }
       ],
@@ -29419,7 +29779,7 @@
               "clause": 0,
               "column": 10,
               "definer": "defp",
-              "line": 4,
+              "line": 6,
               "name": "src_defp_x_try_snoc"
             }
           ],
@@ -29434,6 +29794,16 @@
           "delegateAs": null,
           "delegateTo": null,
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defp",
@@ -29482,7 +29852,21 @@
           "column": 29,
           "file": "lib/src/src.defp.x_try.ex",
           "id": "local",
-          "line": 9,
+          "line": 11,
+          "name": "src_defp_x_try_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.XTry",
+            "name": "src_defp_x_try_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defp.x_try.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defp_x_try_snoc"
         }
       ],
@@ -29505,7 +29889,7 @@
               "clause": 0,
               "column": 10,
               "definer": "defp",
-              "line": 4,
+              "line": 6,
               "name": "src_defp_x_unless_snoc"
             }
           ],
@@ -29520,6 +29904,16 @@
           "delegateAs": null,
           "delegateTo": null,
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defp",
@@ -29568,7 +29962,21 @@
           "column": 29,
           "file": "lib/src/src.defp.x_unless.ex",
           "id": "local",
-          "line": 7,
+          "line": 9,
+          "name": "src_defp_x_unless_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.XUnless",
+            "name": "src_defp_x_unless_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defp.x_unless.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defp_x_unless_snoc"
         }
       ],
@@ -30687,7 +31095,7 @@
               "clause": 0,
               "column": 10,
               "definer": "defp",
-              "line": 4,
+              "line": 6,
               "name": "src_defp_x_with_snoc"
             }
           ],
@@ -30702,6 +31110,16 @@
           "delegateAs": null,
           "delegateTo": null,
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defp",
@@ -30750,7 +31168,21 @@
           "column": 29,
           "file": "lib/src/src.defp.x_with.ex",
           "id": "local",
-          "line": 7,
+          "line": 9,
+          "name": "src_defp_x_with_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.XWith",
+            "name": "src_defp_x_with_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defp.x_with.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defp_x_with_snoc"
         }
       ],
@@ -54188,7 +54620,7 @@
               "clause": 0,
               "column": 17,
               "definer": "defdelegate",
-              "line": 5,
+              "line": 7,
               "name": "src_defdelegate_x_case_snoc"
             }
           ],
@@ -54203,6 +54635,16 @@
           "delegateAs": null,
           "delegateTo": "Src.Defdelegate.XCase.Target",
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defdelegate",
@@ -54379,7 +54821,21 @@
           "column": 29,
           "file": "lib/src/src.defdelegate.x_case.ex",
           "id": "local",
-          "line": 8,
+          "line": 10,
+          "name": "src_defdelegate_x_case_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defdelegate.XCase",
+            "name": "src_defdelegate_x_case_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defdelegate.x_case.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defdelegate_x_case_snoc"
         }
       ],
@@ -54402,7 +54858,7 @@
               "clause": 0,
               "column": 17,
               "definer": "defdelegate",
-              "line": 5,
+              "line": 7,
               "name": "src_defdelegate_x_cond_snoc"
             }
           ],
@@ -54417,6 +54873,16 @@
           "delegateAs": null,
           "delegateTo": "Src.Defdelegate.XCond.Target",
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defdelegate",
@@ -54593,7 +55059,21 @@
           "column": 29,
           "file": "lib/src/src.defdelegate.x_cond.ex",
           "id": "local",
-          "line": 8,
+          "line": 10,
+          "name": "src_defdelegate_x_cond_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defdelegate.XCond",
+            "name": "src_defdelegate_x_cond_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defdelegate.x_cond.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defdelegate_x_cond_snoc"
         }
       ],
@@ -54616,7 +55096,7 @@
               "clause": 0,
               "column": 17,
               "definer": "defdelegate",
-              "line": 4,
+              "line": 6,
               "name": "src_defdelegate_x_conditional_snoc"
             }
           ],
@@ -54631,6 +55111,16 @@
           "delegateAs": null,
           "delegateTo": "Src.Defdelegate.XConditional.Target",
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defdelegate",
@@ -54807,7 +55297,21 @@
           "column": 29,
           "file": "lib/src/src.defdelegate.x_conditional.ex",
           "id": "local",
-          "line": 7,
+          "line": 9,
+          "name": "src_defdelegate_x_conditional_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defdelegate.XConditional",
+            "name": "src_defdelegate_x_conditional_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defdelegate.x_conditional.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defdelegate_x_conditional_snoc"
         }
       ],
@@ -56130,7 +56634,7 @@
               "clause": 0,
               "column": 17,
               "definer": "defdelegate",
-              "line": 4,
+              "line": 6,
               "name": "src_defdelegate_x_for_snoc"
             }
           ],
@@ -56145,6 +56649,16 @@
           "delegateAs": null,
           "delegateTo": "Src.Defdelegate.XFor.Target",
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defdelegate",
@@ -56321,7 +56835,21 @@
           "column": 29,
           "file": "lib/src/src.defdelegate.x_for.ex",
           "id": "local",
-          "line": 7,
+          "line": 9,
+          "name": "src_defdelegate_x_for_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defdelegate.XFor",
+            "name": "src_defdelegate_x_for_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defdelegate.x_for.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defdelegate_x_for_snoc"
         }
       ],
@@ -57724,7 +58252,7 @@
               "clause": 0,
               "column": 17,
               "definer": "defdelegate",
-              "line": 7,
+              "line": 9,
               "name": "src_defdelegate_x_receive_snoc"
             }
           ],
@@ -57739,6 +58267,16 @@
           "delegateAs": null,
           "delegateTo": "Src.Defdelegate.XReceive.Target",
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defdelegate",
@@ -57915,7 +58453,21 @@
           "column": 29,
           "file": "lib/src/src.defdelegate.x_receive.ex",
           "id": "local",
-          "line": 10,
+          "line": 12,
+          "name": "src_defdelegate_x_receive_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defdelegate.XReceive",
+            "name": "src_defdelegate_x_receive_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defdelegate.x_receive.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defdelegate_x_receive_snoc"
         }
       ],
@@ -57938,7 +58490,7 @@
               "clause": 0,
               "column": 17,
               "definer": "defdelegate",
-              "line": 4,
+              "line": 6,
               "name": "src_defdelegate_x_try_snoc"
             }
           ],
@@ -57953,6 +58505,16 @@
           "delegateAs": null,
           "delegateTo": "Src.Defdelegate.XTry.Target",
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defdelegate",
@@ -58129,7 +58691,21 @@
           "column": 29,
           "file": "lib/src/src.defdelegate.x_try.ex",
           "id": "local",
-          "line": 9,
+          "line": 11,
+          "name": "src_defdelegate_x_try_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defdelegate.XTry",
+            "name": "src_defdelegate_x_try_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defdelegate.x_try.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defdelegate_x_try_snoc"
         }
       ],
@@ -58152,7 +58728,7 @@
               "clause": 0,
               "column": 17,
               "definer": "defdelegate",
-              "line": 4,
+              "line": 6,
               "name": "src_defdelegate_x_unless_snoc"
             }
           ],
@@ -58167,6 +58743,16 @@
           "delegateAs": null,
           "delegateTo": "Src.Defdelegate.XUnless.Target",
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defdelegate",
@@ -58343,7 +58929,21 @@
           "column": 29,
           "file": "lib/src/src.defdelegate.x_unless.ex",
           "id": "local",
-          "line": 7,
+          "line": 9,
+          "name": "src_defdelegate_x_unless_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defdelegate.XUnless",
+            "name": "src_defdelegate_x_unless_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defdelegate.x_unless.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defdelegate_x_unless_snoc"
         }
       ],
@@ -58366,7 +58966,7 @@
               "clause": 0,
               "column": 17,
               "definer": "defdelegate",
-              "line": 4,
+              "line": 6,
               "name": "src_defdelegate_x_with_snoc"
             }
           ],
@@ -58381,6 +58981,16 @@
           "delegateAs": null,
           "delegateTo": "Src.Defdelegate.XWith.Target",
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defdelegate",
@@ -58557,7 +59167,21 @@
           "column": 29,
           "file": "lib/src/src.defdelegate.x_with.ex",
           "id": "local",
-          "line": 7,
+          "line": 9,
+          "name": "src_defdelegate_x_with_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defdelegate.XWith",
+            "name": "src_defdelegate_x_with_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defdelegate.x_with.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defdelegate_x_with_snoc"
         }
       ],
@@ -62384,7 +63008,7 @@
               "clause": 0,
               "column": 17,
               "definer": "defdelegate",
-              "line": 5,
+              "line": 7,
               "name": "src_defdelegate_compiled_x_case_snoc"
             }
           ],
@@ -62399,6 +63023,16 @@
           "delegateAs": null,
           "delegateTo": "Src.DefdelegateCompiled.XCase.Target",
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defdelegate",
@@ -62575,7 +63209,21 @@
           "column": 29,
           "file": "lib/src/src.defdelegate_compiled.x_case.ex",
           "id": "local",
-          "line": 8,
+          "line": 10,
+          "name": "src_defdelegate_compiled_x_case_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.DefdelegateCompiled.XCase",
+            "name": "src_defdelegate_compiled_x_case_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defdelegate_compiled.x_case.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defdelegate_compiled_x_case_snoc"
         }
       ],
@@ -62598,7 +63246,7 @@
               "clause": 0,
               "column": 17,
               "definer": "defdelegate",
-              "line": 5,
+              "line": 7,
               "name": "src_defdelegate_compiled_x_cond_snoc"
             }
           ],
@@ -62613,6 +63261,16 @@
           "delegateAs": null,
           "delegateTo": "Src.DefdelegateCompiled.XCond.Target",
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defdelegate",
@@ -62789,7 +63447,21 @@
           "column": 29,
           "file": "lib/src/src.defdelegate_compiled.x_cond.ex",
           "id": "local",
-          "line": 8,
+          "line": 10,
+          "name": "src_defdelegate_compiled_x_cond_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.DefdelegateCompiled.XCond",
+            "name": "src_defdelegate_compiled_x_cond_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defdelegate_compiled.x_cond.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defdelegate_compiled_x_cond_snoc"
         }
       ],
@@ -62812,7 +63484,7 @@
               "clause": 0,
               "column": 17,
               "definer": "defdelegate",
-              "line": 4,
+              "line": 6,
               "name": "src_defdelegate_compiled_x_conditional_snoc"
             }
           ],
@@ -62827,6 +63499,16 @@
           "delegateAs": null,
           "delegateTo": "Src.DefdelegateCompiled.XConditional.Target",
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defdelegate",
@@ -63003,7 +63685,21 @@
           "column": 29,
           "file": "lib/src/src.defdelegate_compiled.x_conditional.ex",
           "id": "local",
-          "line": 7,
+          "line": 9,
+          "name": "src_defdelegate_compiled_x_conditional_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.DefdelegateCompiled.XConditional",
+            "name": "src_defdelegate_compiled_x_conditional_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defdelegate_compiled.x_conditional.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defdelegate_compiled_x_conditional_snoc"
         }
       ],
@@ -64326,7 +65022,7 @@
               "clause": 0,
               "column": 17,
               "definer": "defdelegate",
-              "line": 4,
+              "line": 6,
               "name": "src_defdelegate_compiled_x_for_snoc"
             }
           ],
@@ -64341,6 +65037,16 @@
           "delegateAs": null,
           "delegateTo": "Src.DefdelegateCompiled.XFor.Target",
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defdelegate",
@@ -64517,7 +65223,21 @@
           "column": 29,
           "file": "lib/src/src.defdelegate_compiled.x_for.ex",
           "id": "local",
-          "line": 7,
+          "line": 9,
+          "name": "src_defdelegate_compiled_x_for_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.DefdelegateCompiled.XFor",
+            "name": "src_defdelegate_compiled_x_for_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defdelegate_compiled.x_for.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defdelegate_compiled_x_for_snoc"
         }
       ],
@@ -65920,7 +66640,7 @@
               "clause": 0,
               "column": 17,
               "definer": "defdelegate",
-              "line": 7,
+              "line": 9,
               "name": "src_defdelegate_compiled_x_receive_snoc"
             }
           ],
@@ -65935,6 +66655,16 @@
           "delegateAs": null,
           "delegateTo": "Src.DefdelegateCompiled.XReceive.Target",
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defdelegate",
@@ -66111,7 +66841,21 @@
           "column": 29,
           "file": "lib/src/src.defdelegate_compiled.x_receive.ex",
           "id": "local",
-          "line": 10,
+          "line": 12,
+          "name": "src_defdelegate_compiled_x_receive_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.DefdelegateCompiled.XReceive",
+            "name": "src_defdelegate_compiled_x_receive_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defdelegate_compiled.x_receive.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defdelegate_compiled_x_receive_snoc"
         }
       ],
@@ -66134,7 +66878,7 @@
               "clause": 0,
               "column": 17,
               "definer": "defdelegate",
-              "line": 4,
+              "line": 6,
               "name": "src_defdelegate_compiled_x_try_snoc"
             }
           ],
@@ -66149,6 +66893,16 @@
           "delegateAs": null,
           "delegateTo": "Src.DefdelegateCompiled.XTry.Target",
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defdelegate",
@@ -66325,7 +67079,21 @@
           "column": 29,
           "file": "lib/src/src.defdelegate_compiled.x_try.ex",
           "id": "local",
-          "line": 9,
+          "line": 11,
+          "name": "src_defdelegate_compiled_x_try_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.DefdelegateCompiled.XTry",
+            "name": "src_defdelegate_compiled_x_try_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defdelegate_compiled.x_try.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defdelegate_compiled_x_try_snoc"
         }
       ],
@@ -66348,7 +67116,7 @@
               "clause": 0,
               "column": 17,
               "definer": "defdelegate",
-              "line": 4,
+              "line": 6,
               "name": "src_defdelegate_compiled_x_unless_snoc"
             }
           ],
@@ -66363,6 +67131,16 @@
           "delegateAs": null,
           "delegateTo": "Src.DefdelegateCompiled.XUnless.Target",
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defdelegate",
@@ -66539,7 +67317,21 @@
           "column": 29,
           "file": "lib/src/src.defdelegate_compiled.x_unless.ex",
           "id": "local",
-          "line": 7,
+          "line": 9,
+          "name": "src_defdelegate_compiled_x_unless_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.DefdelegateCompiled.XUnless",
+            "name": "src_defdelegate_compiled_x_unless_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defdelegate_compiled.x_unless.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defdelegate_compiled_x_unless_snoc"
         }
       ],
@@ -66562,7 +67354,7 @@
               "clause": 0,
               "column": 17,
               "definer": "defdelegate",
-              "line": 4,
+              "line": 6,
               "name": "src_defdelegate_compiled_x_with_snoc"
             }
           ],
@@ -66577,6 +67369,16 @@
           "delegateAs": null,
           "delegateTo": "Src.DefdelegateCompiled.XWith.Target",
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defdelegate",
@@ -66753,7 +67555,21 @@
           "column": 29,
           "file": "lib/src/src.defdelegate_compiled.x_with.ex",
           "id": "local",
-          "line": 7,
+          "line": 9,
+          "name": "src_defdelegate_compiled_x_with_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.DefdelegateCompiled.XWith",
+            "name": "src_defdelegate_compiled_x_with_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defdelegate_compiled.x_with.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defdelegate_compiled_x_with_snoc"
         }
       ],
@@ -69786,7 +70602,7 @@
               "clause": 0,
               "column": 17,
               "definer": "defdelegate",
-              "line": 5,
+              "line": 7,
               "name": "src_defdelegate_unresolvable_x_case_snoc"
             }
           ],
@@ -69801,6 +70617,16 @@
           "delegateAs": null,
           "delegateTo": "Src.DefdelegateUnresolvable.XCase.Missing",
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defdelegate",
@@ -69937,7 +70763,21 @@
           "column": 29,
           "file": "lib/src/src.defdelegate_unresolvable.x_case.ex",
           "id": "local",
-          "line": 8,
+          "line": 10,
+          "name": "src_defdelegate_unresolvable_x_case_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.DefdelegateUnresolvable.XCase",
+            "name": "src_defdelegate_unresolvable_x_case_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defdelegate_unresolvable.x_case.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defdelegate_unresolvable_x_case_snoc"
         }
       ],
@@ -69960,7 +70800,7 @@
               "clause": 0,
               "column": 17,
               "definer": "defdelegate",
-              "line": 5,
+              "line": 7,
               "name": "src_defdelegate_unresolvable_x_cond_snoc"
             }
           ],
@@ -69975,6 +70815,16 @@
           "delegateAs": null,
           "delegateTo": "Src.DefdelegateUnresolvable.XCond.Missing",
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defdelegate",
@@ -70111,7 +70961,21 @@
           "column": 29,
           "file": "lib/src/src.defdelegate_unresolvable.x_cond.ex",
           "id": "local",
-          "line": 8,
+          "line": 10,
+          "name": "src_defdelegate_unresolvable_x_cond_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.DefdelegateUnresolvable.XCond",
+            "name": "src_defdelegate_unresolvable_x_cond_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defdelegate_unresolvable.x_cond.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defdelegate_unresolvable_x_cond_snoc"
         }
       ],
@@ -70134,7 +70998,7 @@
               "clause": 0,
               "column": 17,
               "definer": "defdelegate",
-              "line": 4,
+              "line": 6,
               "name": "src_defdelegate_unresolvable_x_conditional_snoc"
             }
           ],
@@ -70149,6 +71013,16 @@
           "delegateAs": null,
           "delegateTo": "Src.DefdelegateUnresolvable.XConditional.Missing",
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defdelegate",
@@ -70285,7 +71159,21 @@
           "column": 29,
           "file": "lib/src/src.defdelegate_unresolvable.x_conditional.ex",
           "id": "local",
-          "line": 7,
+          "line": 9,
+          "name": "src_defdelegate_unresolvable_x_conditional_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.DefdelegateUnresolvable.XConditional",
+            "name": "src_defdelegate_unresolvable_x_conditional_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defdelegate_unresolvable.x_conditional.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defdelegate_unresolvable_x_conditional_snoc"
         }
       ],
@@ -71528,7 +72416,7 @@
               "clause": 0,
               "column": 17,
               "definer": "defdelegate",
-              "line": 4,
+              "line": 6,
               "name": "src_defdelegate_unresolvable_x_for_snoc"
             }
           ],
@@ -71543,6 +72431,16 @@
           "delegateAs": null,
           "delegateTo": "Src.DefdelegateUnresolvable.XFor.Missing",
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defdelegate",
@@ -71679,7 +72577,21 @@
           "column": 29,
           "file": "lib/src/src.defdelegate_unresolvable.x_for.ex",
           "id": "local",
-          "line": 7,
+          "line": 9,
+          "name": "src_defdelegate_unresolvable_x_for_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.DefdelegateUnresolvable.XFor",
+            "name": "src_defdelegate_unresolvable_x_for_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defdelegate_unresolvable.x_for.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defdelegate_unresolvable_x_for_snoc"
         }
       ],
@@ -72762,7 +73674,7 @@
               "clause": 0,
               "column": 17,
               "definer": "defdelegate",
-              "line": 7,
+              "line": 9,
               "name": "src_defdelegate_unresolvable_x_receive_snoc"
             }
           ],
@@ -72777,6 +73689,16 @@
           "delegateAs": null,
           "delegateTo": "Src.DefdelegateUnresolvable.XReceive.Missing",
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defdelegate",
@@ -72913,7 +73835,21 @@
           "column": 29,
           "file": "lib/src/src.defdelegate_unresolvable.x_receive.ex",
           "id": "local",
-          "line": 10,
+          "line": 12,
+          "name": "src_defdelegate_unresolvable_x_receive_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.DefdelegateUnresolvable.XReceive",
+            "name": "src_defdelegate_unresolvable_x_receive_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defdelegate_unresolvable.x_receive.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defdelegate_unresolvable_x_receive_snoc"
         }
       ],
@@ -72936,7 +73872,7 @@
               "clause": 0,
               "column": 17,
               "definer": "defdelegate",
-              "line": 4,
+              "line": 6,
               "name": "src_defdelegate_unresolvable_x_try_snoc"
             }
           ],
@@ -72951,6 +73887,16 @@
           "delegateAs": null,
           "delegateTo": "Src.DefdelegateUnresolvable.XTry.Missing",
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defdelegate",
@@ -73087,7 +74033,21 @@
           "column": 29,
           "file": "lib/src/src.defdelegate_unresolvable.x_try.ex",
           "id": "local",
-          "line": 9,
+          "line": 11,
+          "name": "src_defdelegate_unresolvable_x_try_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.DefdelegateUnresolvable.XTry",
+            "name": "src_defdelegate_unresolvable_x_try_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defdelegate_unresolvable.x_try.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defdelegate_unresolvable_x_try_snoc"
         }
       ],
@@ -73110,7 +74070,7 @@
               "clause": 0,
               "column": 17,
               "definer": "defdelegate",
-              "line": 4,
+              "line": 6,
               "name": "src_defdelegate_unresolvable_x_unless_snoc"
             }
           ],
@@ -73125,6 +74085,16 @@
           "delegateAs": null,
           "delegateTo": "Src.DefdelegateUnresolvable.XUnless.Missing",
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defdelegate",
@@ -73261,7 +74231,21 @@
           "column": 29,
           "file": "lib/src/src.defdelegate_unresolvable.x_unless.ex",
           "id": "local",
-          "line": 7,
+          "line": 9,
+          "name": "src_defdelegate_unresolvable_x_unless_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.DefdelegateUnresolvable.XUnless",
+            "name": "src_defdelegate_unresolvable_x_unless_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defdelegate_unresolvable.x_unless.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defdelegate_unresolvable_x_unless_snoc"
         }
       ],
@@ -73284,7 +74268,7 @@
               "clause": 0,
               "column": 17,
               "definer": "defdelegate",
-              "line": 4,
+              "line": 6,
               "name": "src_defdelegate_unresolvable_x_with_snoc"
             }
           ],
@@ -73299,6 +74283,16 @@
           "delegateAs": null,
           "delegateTo": "Src.DefdelegateUnresolvable.XWith.Missing",
           "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
             {
               "defaults": 0,
               "definer": "defdelegate",
@@ -73435,7 +74429,21 @@
           "column": 29,
           "file": "lib/src/src.defdelegate_unresolvable.x_with.ex",
           "id": "local",
-          "line": 7,
+          "line": 9,
+          "name": "src_defdelegate_unresolvable_x_with_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.DefdelegateUnresolvable.XWith",
+            "name": "src_defdelegate_unresolvable_x_with_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defdelegate_unresolvable.x_with.ex",
+          "id": "local_forward",
+          "line": 3,
           "name": "src_defdelegate_unresolvable_x_with_snoc"
         }
       ],
