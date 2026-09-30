@@ -228,6 +228,8 @@ object Crossing {
                 Applicability.NotApplicable("no module declares that name, so there is nothing completion could insert; that it offers nothing is asked by completionOffered")
             feature == Feature.COMPLETION_INSERTED && place is Place.Marked && importsNothing(scenario, place) ->
                 Applicability.NotApplicable("the caller's directives bring no function in, so there is nothing completion could insert; that it offers nothing is asked by completionOffered")
+            feature == Feature.COMPLETION_INSERTED && place is Place.Marked && invisible(scenario, place) ->
+                Applicability.NotApplicable("no definition of that name is callable from the call, so there is nothing completion could insert; that it offers nothing is asked by completionOffered")
             feature == Feature.HIGHLIGHTING && place.id in ATOM_NAMED ->
                 Applicability.NotApplicable("a function named by an atom is highlighted as an atom")
             (feature == Feature.STRUCTURE_VIEW || feature == Feature.BREADCRUMBS) && place !is Place.Head ->
@@ -277,6 +279,14 @@ object Crossing {
     /** A bare call under directives that bring nothing of the declaring module in: a `require`, or a transitive import. */
     private fun importsNothing(scenario: Scenario, place: Place.Marked): Boolean =
         scenario.sites.firstOrNull { it.id == place.id }?.visible?.isEmpty() == true
+
+    /** A site whose name is declared, but not callable from it: private from outside, or left out by the caller's directives. */
+    private fun invisible(scenario: Scenario, place: Place.Marked): Boolean {
+        val site = scenario.sites.firstOrNull { it.id == place.id } ?: return false
+
+        return scenario.module(site.binding?.module ?: scenario.main.module).definitions
+            .none { nfc(it.name) == nfc(site.name) && site.sees(it) }
+    }
 
     /** A site naming a function no module in the scenario declares at any arity - the control for "no such name". */
     private fun undeclared(scenario: Scenario, place: Place.Marked): Boolean {
