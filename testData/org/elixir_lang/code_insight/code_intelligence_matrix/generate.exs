@@ -16,8 +16,9 @@ end
 defmodule Matrix.Tracer do
   @kinds [:remote_function, :imported_function, :remote_macro, :imported_macro]
 
+  # `in` is the module being compiled, which is where a `Kernel.@/1` reads or writes the attribute.
   def trace({kind, meta, module, name, arity}, env) when kind in @kinds do
-    Matrix.Events.add(%{file: env.file, line: meta[:line], module: module, name: name, arity: arity, kind: kind})
+    Matrix.Events.add(%{file: env.file, line: meta[:line], column: meta[:column], in: env.module, module: module, name: name, arity: arity, kind: kind})
   end
 
   def trace({kind, meta, name, arity}, env) when kind in [:local_function, :local_macro] do
@@ -95,7 +96,9 @@ defmodule Matrix do
       %{id: "eex_function_from_args", definer: "def", eex: true, eex_attribute: :args},
       # `Mix.Generator.embed_template(:snoc, ...)` declares `snoc_template/1`, `embed_text(:snoc, ...)` `snoc_text/0`: the
       # names are the atom plus a suffix, so this form has a world of its own, `x_embed`.
-      %{id: "generator_embed", definer: "def", embed: true, private: true}
+      %{id: "generator_embed", definer: "def", embed: true, private: true},
+      # Not a function: `@limit value` writes a module attribute and `@limit` reads it. Only the attribute worlds ask it.
+      %{id: "attribute", attribute: true}
     ]
   end
 
@@ -171,6 +174,22 @@ defmodule Matrix do
   @import_block_worlds Map.keys(@import_blocks)
   @import_block_sites ["imported_inside", "imported_after"]
 
+  # The module attribute worlds, each a module body writing and reading `@limit`, and the branch choices its probes
+  # compile: `true` is the one the shipped source takes. A branched world is probed once per choice, and a read's
+  # declarations are the writes its value came from under any of them.
+  @attribute_worlds %{
+    "x_attribute" => [nil],
+    "x_attribute_redefined" => [nil],
+    "x_attribute_in_if" => [true, false],
+    "x_attribute_in_case" => [true, false],
+    "x_attribute_in_for" => [true, false],
+    "x_attribute_in_try" => [true, false],
+    "x_attribute_in_with" => [true, false],
+    "x_attribute_in_dsl" => [nil]
+  }
+  @attribute_world_ids Map.keys(@attribute_worlds)
+  @attribute :limit
+
   # The worlds whose main module's definitions a `use` injects.
   @use_worlds ["x_use_injected", "x_use_injected_defaults", "x_use_apply"]
   @injecting_worlds @use_worlds ++ @use_wrapper_worlds
@@ -196,7 +215,9 @@ defmodule Matrix do
 
     worlds = Enum.reduce(@moduledoc_worlds, worlds, &Map.put(&2, &1, %{modules: worlds["w1"].modules, calls: module_calls, asks: module_asks}))
 
-    Enum.reduce(@import_block_worlds, worlds, &Map.put(&2, &1, %{modules: worlds["w1"].modules, calls: [], asks: @import_block_sites}))
+    worlds = Enum.reduce(@import_block_worlds, worlds, &Map.put(&2, &1, %{modules: worlds["w1"].modules, calls: [], asks: @import_block_sites}))
+
+    Enum.reduce(@attribute_world_ids, worlds, &Map.put(&2, &1, %{attribute: true}))
   end
 
   defp base_worlds do
@@ -376,6 +397,15 @@ defmodule Matrix do
   # `beamLanguage = "elixir"` and picks the same decompiler `ex_gen` gets. Measured over 1,090 comparable cells,
   # the two never once disagreed - not coincidence but the same code. One scenario is kept so the fallback itself
   # can be pinned by a guard; asking the features again would cost seconds and red cells to learn nothing.
+  def not_applicable(_backing, %{attribute: true}, world) when world not in @attribute_world_ids,
+    do: "the attribute form's subject is a module attribute, which only the attribute worlds write and read"
+
+  def not_applicable(_backing, form, world) when world in @attribute_world_ids and not is_map_key(form, :attribute),
+    do: "an attribute world's subject is its module attribute, which no function form declares"
+
+  def not_applicable(%{id: backing}, %{attribute: true}, _world) when backing != "src",
+    do: "a module attribute is a source concept: the compiler inlines each read's value, so no compiled module keeps its reads or writes"
+
   def not_applicable(%{id: "erl_gen"}, form, world) when form.id != "def" or world != "w1",
     do: "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback"
 
@@ -485,7 +515,7 @@ defmodule Matrix do
       for backing <- backings(), form <- forms(), {world, spec} <- Enum.sort(worlds()), reduce: {[], []} do
         {scenarios, skipped} ->
           case not_applicable(backing, form, world) do
-            nil -> {[scenario(backing, form, world, spec) | scenarios], skipped}
+            nil -> {[if(form[:attribute], do: attribute_scenario(backing, form, world), else: scenario(backing, form, world, spec)) | scenarios], skipped}
             reason -> {scenarios, [%{"backing" => backing.id, "form" => form.id, "world" => world, "reason" => reason} | skipped]}
           end
       end
@@ -779,6 +809,177 @@ defmodule Matrix do
   defp indent(line), do: "  " <> line
 
   defp render_lines_module(module, lines), do: "defmodule #{module} do\n" <> Enum.map_join(lines, "\n", &indent/1) <> "\nend\n"
+
+  # An attribute world's module and its sites: every `@limit` in the source that the compiler expanded as `Kernel.@/1`
+  # in that module, a write where it has a value and a read where it has none. The source says which is which, and
+  # the tracer's event at the same line and column says the compiler treated it as an attribute at all.
+  #
+  # What each read's value came from, and what is set where it is read, are asked of probes: the same module with
+  # every write's value replaced by the write's id, compiled once per branch choice, recording
+  # `Module.attributes_in/1` before each read's `def` and at the top of the module, whose built-ins it takes away.
+  defp attribute_scenario(backing, form, world) do
+    [module] = module_names(backing, form, world, 1)
+    path = Path.join(["lib", backing.id, (module |> Macro.underscore() |> String.replace("/", ".")) <> ".ex"])
+    choices = Map.fetch!(@attribute_worlds, world)
+
+    write = fn id, value -> "@#{@attribute} #{value} # @#{id}" end
+    read = fn id -> "def #{id}, do: @#{@attribute} # @#{id}" end
+    source = "# #{@header}\n" <> attribute_source(world, module, hd(choices), write, read, [])
+    File.mkdir_p!(Path.dirname(path))
+    File.write!(path, source)
+
+    Matrix.Events.take()
+    {_modules, diagnostics} = Code.with_diagnostics(fn -> Code.compile_string(source, path) end)
+    events = Matrix.Events.take()
+    {undefined, unexpected} = Enum.split_with(diagnostics, &(&1.message =~ ~r/^undefined module attribute @#{@attribute},/))
+    if unexpected != [], do: raise("#{path} compiled with diagnostics: #{inspect(unexpected)}")
+
+    expanded = fn line, column ->
+      Enum.any?(events, &(&1.kind == :imported_macro and &1.module == Kernel and &1.name == :@ and &1.line == line and &1.column == column and
+                            &1.in == Module.concat([module])))
+    end
+
+    {_ast, nodes} =
+      source
+      |> Code.string_to_quoted!(columns: true)
+      |> Macro.prewalk([], fn
+        {:@, meta, [{@attribute, _, [_value]}]} = node, nodes -> {node, [{:write, meta[:line], meta[:column]} | nodes]}
+        {:@, meta, [{@attribute, _, context}]} = node, nodes when is_atom(context) -> {node, [{:read, meta[:line], meta[:column]} | nodes]}
+        node, nodes -> {node, nodes}
+      end)
+
+    joined = nodes |> Enum.filter(fn {_kind, line, column} -> expanded.(line, column) end) |> Enum.sort_by(&elem(&1, 1))
+    lines = String.split(source, "\n")
+
+    marked =
+      for {text, line} <- Enum.with_index(lines, 1), [_, id] <- [Regex.run(~r/# @(\w+)$/, text)], into: %{}, do: {line, id}
+
+    if Enum.map(joined, &elem(&1, 1)) != Enum.sort(Map.keys(marked)),
+      do: raise("#{path}: the attribute sites the compiler expanded, #{inspect(joined)}, are not the marked lines #{inspect(marked)}")
+
+    probed = attribute_probes(world, module, choices, for({:read, line, _} <- joined, do: Map.fetch!(marked, line)))
+
+    sites =
+      Enum.map(joined, fn {kind, line, column} ->
+        id = Map.fetch!(marked, line)
+
+        attribute =
+          if kind == :write,
+            do: %{"write" => true, "declarations" => [id]},
+            else: %{"write" => false, "declarations" => probed.declarations[id], "visible" => probed.visible[id]}
+
+        site = %{
+          "id" => id,
+          "file" => path,
+          "line" => line,
+          # The name after the `@`, as a call's site is at its name.
+          "column" => column + 1,
+          "name" => to_string(@attribute),
+          "arity" => 0,
+          "binding" => nil,
+          "attribute" => attribute
+        }
+
+        case Enum.find(undefined, &(kind == :read and position_line(&1.position) == line)) do
+          nil -> site
+          said -> Map.put(site, "diagnostic", %{"severity" => to_string(said.severity), "message" => said.message})
+        end
+      end)
+
+    %{
+      "backing" => backing.id,
+      "form" => form.id,
+      "world" => world,
+      "caller" => path,
+      "brokenCallers" => [],
+      "importCallers" => [],
+      "modules" => [
+        %{
+          "module" => module,
+          "source" => path,
+          "spec" => path,
+          "heads" => [],
+          "complete" => true,
+          "beam" => nil,
+          "clauseSource" => nil,
+          "delegateTo" => nil,
+          "delegateAs" => nil,
+          "definitions" => [],
+          "declarations" => []
+        }
+      ],
+      "sites" => sites
+    }
+  end
+
+  # For each read, the ids of the writes its value came from and the user attributes set before it, each the union
+  # over the world's branch choices. A probe's diagnostics are not asked: its writes no longer use what they bind.
+  defp attribute_probes(world, module, choices, reads) do
+    results =
+      choices
+      |> Enum.with_index()
+      |> Enum.map(fn {choice, index} ->
+        probe = "#{module}.Probe#{index}"
+        record = fn key -> ":persistent_term.put({#{inspect(probe)}, #{inspect(key)}}, Module.attributes_in(__MODULE__))" end
+        write = fn id, _value -> "@#{@attribute} {:matrix_write, #{inspect(id)}}" end
+        read = fn id -> [record.(id), "def #{id}, do: @#{@attribute}"] end
+        source = attribute_source(world, probe, choice, write, read, [record.("top")])
+
+        Matrix.Events.take()
+        Code.with_diagnostics(fn -> Code.compile_string(source, "probe.ex") end)
+        Matrix.Events.take()
+
+        built_in = :persistent_term.get({probe, "top"})
+
+        Map.new(reads, fn id ->
+          declarations = case apply(Module.concat([probe]), String.to_atom(id), []) do
+            {:matrix_write, write} -> [write]
+            nil -> []
+          end
+
+          {id, {declarations, Enum.map(:persistent_term.get({probe, id}) -- built_in, &to_string/1)}}
+        end)
+      end)
+
+    union = fn id, position -> results |> Enum.flat_map(&elem(&1[id], position)) |> Enum.uniq() |> Enum.sort() end
+
+    %{
+      declarations: Map.new(reads, &{&1, union.(&1, 0)}),
+      visible: Map.new(reads, &{&1, union.(&1, 1)})
+    }
+  end
+
+  # `write.(id, value)` writes the attribute, `read.(id)` reads it in `def <id>`, and `taken` is the branch choice:
+  # `true` in the shipped source, flipped in a probe.
+  defp attribute_source("x_attribute_in_dsl", module, choice, write, read, top) do
+    dsl = module <> ".Dsl"
+
+    render_lines_module(dsl, ["defmacro block(do: body), do: body"]) <> "\n" <>
+      render_lines_module(module, List.flatten(top ++ ["import #{dsl}" | attribute_body("x_attribute_in_dsl", choice, write, read)]))
+  end
+
+  defp attribute_source(world, module, choice, write, read, top),
+    do: render_lines_module(module, List.flatten(top ++ attribute_body(world, choice, write, read)))
+
+  # The read before any write is undefined, and the compiler says so.
+  defp attribute_body("x_attribute", _, w, r), do: [r.("before_write"), w.("write", 1), r.("read")]
+  defp attribute_body("x_attribute_redefined", _, w, r), do: [w.("first", 1), r.("read_first"), w.("second", 100), r.("read_second")]
+  defp attribute_body("x_attribute_in_if", taken, w, r), do: ["if #{loaded(taken)} do", "  " <> w.("in_if", 1), "else", "  " <> w.("in_else", 2), "end", r.("read")]
+
+  defp attribute_body("x_attribute_in_case", taken, w, r),
+    do: ["case #{loaded(taken)} do", "  true -> " <> w.("in_true", 3), "  _ -> " <> w.("in_other", 4), "end", r.("read")]
+
+  defp attribute_body("x_attribute_in_for", taken, w, r),
+    do: [w.("before_for", 5), "for x <- #{if taken, do: "[6]", else: "[]"}, do: " <> w.("in_for", "x"), r.("read")]
+
+  defp attribute_body("x_attribute_in_try", taken, w, r),
+    do: ["try do", "  " <> if(taken, do: ":ok", else: ~s(raise "not taken")), "  " <> w.("in_try", 7), "rescue", "  _ -> " <> w.("in_rescue", 8), "end", r.("read")]
+
+  defp attribute_body("x_attribute_in_with", taken, w, r), do: [w.("before_with", 9), "with true <- #{loaded(taken)}, do: " <> w.("in_with", 10), r.("read")]
+  defp attribute_body("x_attribute_in_dsl", _, w, r), do: ["block do", "  " <> w.("in_block", 11), "end", r.("read")]
+
+  defp loaded(true), do: "Code.ensure_loaded?(Kernel)"
+  defp loaded(false), do: "Code.ensure_loaded?(Matrix.Absent)"
 
   # The key of a directive the compiler rejected names nothing it can import: no binding, and what the compiler said.
   defp rejected_key(site, diagnostics) do
