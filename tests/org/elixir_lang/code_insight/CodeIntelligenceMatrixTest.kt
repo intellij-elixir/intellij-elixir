@@ -1026,14 +1026,14 @@ private class Group(val scenario: Scenario) {
         definition(documented).let { (module, definition) -> module.doc(definition.name, definition.maxArity) }?.let(::nfc)
 
     /**
-     * The module and name whose documentation Quick Documentation of [documented] shows. A source `defdelegate` with an
-     * `@doc` of its own is documented by it; one without is documented as its target is, where the target resolves. A
-     * compiled delegator is an ordinary compiled definition.
+     * The module and name whose documentation Quick Documentation of [documented] shows. A `defdelegate` with an `@doc`
+     * of its own is documented by it; one without is documented as its target is, where the target resolves. Source or
+     * compiled makes no difference: a compiled delegate's Docs chunk records the same `delegate_to`.
      */
     private fun documentedDefinition(documented: Binding): Pair<DeclaringModule, String> {
         val (module, definition) = definition(documented)
         val target = delegatedTarget(module, definition)
-            ?.takeIf { !module.compiled && ownDoc(documented) == null }
+            ?.takeIf { ownDoc(documented) == null }
             ?: return module to documented.name
 
         return target to module.delegateAs.orEmpty() + definition.name
