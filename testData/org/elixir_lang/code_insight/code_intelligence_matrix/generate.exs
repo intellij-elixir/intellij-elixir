@@ -116,11 +116,16 @@ defmodule Matrix do
   }
   @wrapper_worlds Map.keys(@wrappers)
 
+  # `x_use_injected` with the main module's `use` under each wrapper, asking only the calls in the module itself.
+  @use_wrappers Map.new(@wrappers, fn {"x_" <> wrapper, lines} -> {"x_use_in_" <> wrapper, lines} end)
+  @use_wrapper_worlds Map.keys(@use_wrappers)
+
   # The worlds where a call made before the definition is asked, which only a walk of the whole module can resolve.
-  @local_forward_worlds ["w1", "x_if_else" | @wrapper_worlds]
+  @local_forward_worlds ["w1", "x_if_else" | @wrapper_worlds ++ @use_wrapper_worlds]
 
   # The worlds whose main module's definitions a `use` injects.
   @use_worlds ["x_use_injected", "x_use_injected_defaults", "x_use_apply"]
+  @injecting_worlds @use_worlds ++ @use_wrapper_worlds
 
   # A definition with defaults is one function at several arities, so a `@spec` of any of them is about it.
   @spec_worlds ["w1", "x_arity", "x_defaults", "x_defaults_head"]
@@ -131,7 +136,15 @@ defmodule Matrix do
   # A world is its modules' definitions and the calls made to them. A definition is `{name, clauses}`; a clause is
   # `{parameters, guard}`, where a parameter is a name or `{name, default}` and a guard is `{function, parameter}`.
   # A call is `{site id, module (0 for the main one), name, arity, shape}`, and `shape` decides how it is written.
+  # `asks`, where a world has it, names the only marked places the tests ask; the rest repeat another world.
   def worlds do
+    worlds = base_worlds()
+    injected = worlds["x_use_injected"]
+
+    Enum.reduce(@use_wrapper_worlds, worlds, &Map.put(&2, &1, %{modules: injected.modules, calls: [], asks: ["local", "local_forward"]}))
+  end
+
+  defp base_worlds do
     snoc_2 = {"snoc", [{["q", "x"], nil}]}
     many = [{"snoc", [{["q", "x"], {"is_list", "q"}}, {["queue", "item"], nil}]}, {"snoc", [{["q"], nil}]}, {"snoc", [{["q", "x", "y"], nil}]}]
     lookalikes = for name <- ["xsnoc", "snoc_x", "snoc?", "snoc!", @decomposed], do: {name, [{["q", "x"], nil}]}
@@ -365,7 +378,10 @@ defmodule Matrix do
   def not_applicable(%{id: backing}, _form, world) when world in @use_worlds and backing not in ["src", "ex_dbgi"],
     do: "compiled, an injected definition is an ordinary one of its user; ex_dbgi asks that, and the rest only strip it further"
 
-  def not_applicable(_backing, form, world) when world in @use_worlds and form.id not in ["def", "defp", "defmacro", "defmacrop", "defguard"],
+  def not_applicable(%{id: backing}, _form, world) when world in @use_wrapper_worlds and backing != "src",
+    do: "compiled, the module is x_use_injected's; only its source puts the `use` under a wrapper"
+
+  def not_applicable(_backing, form, world) when world in @injecting_worlds and form.id not in ["def", "defp", "defmacro", "defmacrop", "defguard"],
     do: "a `use` injects what its quote defines; these are the definers a quote is written with"
 
   def not_applicable(_backing, %{guard: true}, "x_use_injected_defaults"), do: "a guard cannot have default arguments"
@@ -434,7 +450,7 @@ defmodule Matrix do
     spec = scope(spec, backing, form, world)
     # A second user never calls a private function it is injected with, so the compiler drops it from its `.beam`: a
     # private form asks the one user that does.
-    spec = if form[:private] && world in @use_worlds, do: %{spec | modules: Enum.take(spec.modules, 1)}, else: spec
+    spec = if form[:private] && world in @injecting_worlds, do: %{spec | modules: Enum.take(spec.modules, 1)}, else: spec
     names = module_names(backing, form, world, length(spec.modules))
     worlds_modules = Enum.map(spec.modules, &shape(&1, form))
     primary = worlds_modules |> hd() |> hd()
@@ -442,7 +458,7 @@ defmodule Matrix do
 
     # The modules a `use` world's main module uses, compiled before it; the form then says what its users inject.
     {form, supports} =
-      if world in @use_worlds,
+      if world in @injecting_worlds,
         do: use_supports(backing, form, world, hd(names), prefix, hd(worlds_modules)),
         else: {form, []}
 
@@ -510,6 +526,7 @@ defmodule Matrix do
         caller_sites(caller_path, caller, caller_events, calls, backing, names) ++
           Enum.flat_map(modules, & &1.local) ++ broken_sites ++ import_sites
     }
+    |> then(&if(asks = spec[:asks], do: Map.put(&1, "asks", asks), else: &1))
   end
 
   defp atom_modules(spec, prefix),
@@ -1149,7 +1166,7 @@ defmodule Matrix do
   defp compile_one(backing, form, world, module, definitions, primary, target) do
     form =
       Map.merge(form, %{
-        wrapper: Map.get(@wrappers, world),
+        wrapper: Map.get(@wrappers, world) || Map.get(@use_wrappers, world),
         unquote_name: world == "x_unquote_name",
         branches: world == "x_if_else",
         spec: primary != nil and backing.id == "src" and world in @spec_worlds and form.id in @function_forms,
