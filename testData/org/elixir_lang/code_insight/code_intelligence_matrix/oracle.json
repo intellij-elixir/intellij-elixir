@@ -17,6 +17,24 @@
     {
       "backing": "src",
       "form": "defp",
+      "reason": "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "src",
+      "form": "defp",
+      "reason": "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "src",
+      "form": "defp",
+      "reason": "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "src",
+      "form": "defp",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -157,6 +175,24 @@
       "form": "defmacrop",
       "reason": "x_embed's names are what a Mix.Generator embed declares",
       "world": "x_embed"
+    },
+    {
+      "backing": "src",
+      "form": "defmacrop",
+      "reason": "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "src",
+      "form": "defmacrop",
+      "reason": "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "src",
+      "form": "defmacrop",
+      "reason": "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "src",
@@ -269,6 +305,24 @@
     {
       "backing": "src",
       "form": "defguard",
+      "reason": "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "src",
+      "form": "defguard",
+      "reason": "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "src",
+      "form": "defguard",
+      "reason": "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "src",
+      "form": "defguard",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -373,6 +427,24 @@
       "form": "defguardp",
       "reason": "the question is defaults split across branches, which only `def` and `defmacro` and their private forms can declare",
       "world": "x_if_else"
+    },
+    {
+      "backing": "src",
+      "form": "defguardp",
+      "reason": "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "src",
+      "form": "defguardp",
+      "reason": "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "src",
+      "form": "defguardp",
+      "reason": "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "src",
@@ -533,6 +605,24 @@
     {
       "backing": "src",
       "form": "defdelegate",
+      "reason": "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate",
+      "reason": "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate",
+      "reason": "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -677,6 +767,24 @@
     {
       "backing": "src",
       "form": "defdelegate_compiled",
+      "reason": "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_compiled",
+      "reason": "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_compiled",
+      "reason": "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_compiled",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -821,6 +929,24 @@
     {
       "backing": "src",
       "form": "defdelegate_unresolvable",
+      "reason": "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_unresolvable",
+      "reason": "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_unresolvable",
+      "reason": "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_unresolvable",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -1026,6 +1152,24 @@
       "backing": "src",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_interpolated_atom"
     },
     {
@@ -1285,6 +1429,24 @@
       "form": "defdelegate_imports",
       "reason": "a target that only imports the function asks nothing w1 does not",
       "world": "x_if_else"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_imports",
+      "reason": "a target that only imports the function asks nothing w1 does not",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_imports",
+      "reason": "a target that only imports the function asks nothing w1 does not",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_imports",
+      "reason": "a target that only imports the function asks nothing w1 does not",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "src",
@@ -1560,6 +1722,24 @@
       "backing": "src",
       "form": "defdelegate_list",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_interpolated_atom"
     },
     {
@@ -1830,6 +2010,24 @@
       "backing": "src",
       "form": "defdelegate_list_trailing",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_interpolated_atom"
     },
     {
@@ -2100,6 +2298,24 @@
       "backing": "src",
       "form": "defdelegate_list_lines",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_interpolated_atom"
     },
     {
@@ -2370,6 +2586,24 @@
       "backing": "src",
       "form": "defdelegate_as_list",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_interpolated_atom"
     },
     {
@@ -2640,6 +2874,24 @@
       "backing": "src",
       "form": "defdelegate_as_attribute",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_interpolated_atom"
     },
     {
@@ -2905,6 +3157,24 @@
       "form": "defdelegate_doc",
       "reason": "a delegate's own `@doc` asks nothing w1 does not",
       "world": "x_if_else"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "src",
@@ -3127,6 +3397,24 @@
       "form": "eex_function_from",
       "reason": "the question is defaults split across branches, which only `def` and `defmacro` and their private forms can declare",
       "world": "x_if_else"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "src",
@@ -3342,6 +3630,24 @@
       "backing": "src",
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_interpolated_atom"
     },
     {
@@ -3571,6 +3877,24 @@
       "form": "eex_function_from_args",
       "reason": "the question is defaults split across branches, which only `def` and `defmacro` and their private forms can declare",
       "world": "x_if_else"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "src",
@@ -3834,6 +4158,24 @@
       "backing": "src",
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "src",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "src",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "src",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_interpolated_atom"
     },
     {
@@ -4049,6 +4391,24 @@
     {
       "backing": "ex_dbgi",
       "form": "def",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "def",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "def",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "def",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -4219,6 +4579,24 @@
       "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defp",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defp",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defp",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_dbgi",
@@ -4405,6 +4783,24 @@
       "form": "defmacro",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacro",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacro",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacro",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_dbgi",
@@ -4639,6 +5035,24 @@
       "form": "defmacrop",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_dbgi",
@@ -4883,6 +5297,24 @@
     {
       "backing": "ex_dbgi",
       "form": "defguard",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguard",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguard",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguard",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -5124,6 +5556,24 @@
       "backing": "ex_dbgi",
       "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_interpolated_atom"
     },
     {
@@ -5335,6 +5785,24 @@
       "form": "defdelegate",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_dbgi",
@@ -5592,6 +6060,24 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
       "world": "x_interpolated_atom"
     },
     {
@@ -5803,6 +6289,24 @@
       "form": "defdelegate_unresolvable",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_unresolvable",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_unresolvable",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_unresolvable",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_dbgi",
@@ -6036,6 +6540,24 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_interpolated_atom"
     },
     {
@@ -6301,6 +6823,24 @@
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_dbgi",
@@ -6582,6 +7122,24 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
     {
@@ -6858,6 +7416,24 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
     {
@@ -7134,6 +7710,24 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
     {
@@ -7410,6 +8004,24 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
     {
@@ -7686,6 +8298,24 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
     {
@@ -7957,6 +8587,24 @@
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_dbgi",
@@ -8208,6 +8856,24 @@
       "backing": "ex_dbgi",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_interpolated_atom"
     },
     {
@@ -8442,6 +9108,24 @@
       "backing": "ex_dbgi",
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_interpolated_atom"
     },
     {
@@ -8671,6 +9355,24 @@
       "form": "eex_function_from_args",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_dbgi",
@@ -8934,6 +9636,24 @@
       "backing": "ex_dbgi",
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_interpolated_atom"
     },
     {
@@ -9145,6 +9865,24 @@
       "form": "def",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "def",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "def",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "def",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_docs",
@@ -9337,6 +10075,24 @@
       "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defp",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defp",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defp",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_docs",
@@ -9545,6 +10301,24 @@
     {
       "backing": "ex_docs",
       "form": "defmacro",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacro",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacro",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacro",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -9793,6 +10567,24 @@
       "form": "defmacrop",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_docs",
@@ -10037,6 +10829,24 @@
     {
       "backing": "ex_docs",
       "form": "defguard",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguard",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguard",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguard",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -10290,6 +11100,24 @@
       "backing": "ex_docs",
       "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_interpolated_atom"
     },
     {
@@ -10501,6 +11329,24 @@
       "form": "defdelegate",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_docs",
@@ -10758,6 +11604,24 @@
       "backing": "ex_docs",
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
       "world": "x_interpolated_atom"
     },
     {
@@ -10969,6 +11833,24 @@
       "form": "defdelegate_unresolvable",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_unresolvable",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_unresolvable",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_unresolvable",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_docs",
@@ -11202,6 +12084,24 @@
       "backing": "ex_docs",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_interpolated_atom"
     },
     {
@@ -11467,6 +12367,24 @@
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_docs",
@@ -11748,6 +12666,24 @@
       "backing": "ex_docs",
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
     {
@@ -12024,6 +12960,24 @@
       "backing": "ex_docs",
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
     {
@@ -12300,6 +13254,24 @@
       "backing": "ex_docs",
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
     {
@@ -12576,6 +13548,24 @@
       "backing": "ex_docs",
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
     {
@@ -12852,6 +13842,24 @@
       "backing": "ex_docs",
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
     {
@@ -13123,6 +14131,24 @@
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_docs",
@@ -13374,6 +14400,24 @@
       "backing": "ex_docs",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_interpolated_atom"
     },
     {
@@ -13608,6 +14652,24 @@
       "backing": "ex_docs",
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_interpolated_atom"
     },
     {
@@ -13837,6 +14899,24 @@
       "form": "eex_function_from_args",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_docs",
@@ -14100,6 +15180,24 @@
       "backing": "ex_docs",
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_interpolated_atom"
     },
     {
@@ -14311,6 +15409,24 @@
       "form": "def",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "def",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "def",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "def",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_gen",
@@ -14503,6 +15619,24 @@
       "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defp",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defp",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defp",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_gen",
@@ -14711,6 +15845,24 @@
     {
       "backing": "ex_gen",
       "form": "defmacro",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacro",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacro",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacro",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -14959,6 +16111,24 @@
       "form": "defmacrop",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_gen",
@@ -15203,6 +16373,24 @@
     {
       "backing": "ex_gen",
       "form": "defguard",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguard",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguard",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguard",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -15456,6 +16644,24 @@
       "backing": "ex_gen",
       "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_interpolated_atom"
     },
     {
@@ -15667,6 +16873,24 @@
       "form": "defdelegate",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_gen",
@@ -15924,6 +17148,24 @@
       "backing": "ex_gen",
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
       "world": "x_interpolated_atom"
     },
     {
@@ -16135,6 +17377,24 @@
       "form": "defdelegate_unresolvable",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_gen",
@@ -16368,6 +17628,24 @@
       "backing": "ex_gen",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_interpolated_atom"
     },
     {
@@ -16633,6 +17911,24 @@
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_gen",
@@ -16914,6 +18210,24 @@
       "backing": "ex_gen",
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
     {
@@ -17190,6 +18504,24 @@
       "backing": "ex_gen",
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
     {
@@ -17466,6 +18798,24 @@
       "backing": "ex_gen",
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
     {
@@ -17742,6 +19092,24 @@
       "backing": "ex_gen",
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
     {
@@ -18018,6 +19386,24 @@
       "backing": "ex_gen",
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
     {
@@ -18289,6 +19675,24 @@
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_gen",
@@ -18540,6 +19944,24 @@
       "backing": "ex_gen",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_interpolated_atom"
     },
     {
@@ -18774,6 +20196,24 @@
       "backing": "ex_gen",
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_interpolated_atom"
     },
     {
@@ -19003,6 +20443,24 @@
       "form": "eex_function_from_args",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_gen",
@@ -19261,6 +20719,24 @@
       "form": "generator_embed",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "ex_gen",
@@ -19489,6 +20965,24 @@
       "form": "def",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "def",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "def",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "def",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "erl_abst",
@@ -19703,6 +21197,24 @@
     {
       "backing": "erl_abst",
       "form": "defp",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defp",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defp",
+      "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defp",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -19974,6 +21486,24 @@
       "backing": "erl_abst",
       "form": "defmacro",
       "reason": "Erlang has only functions",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacro",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacro",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacro",
+      "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
     {
@@ -20250,6 +21780,24 @@
       "backing": "erl_abst",
       "form": "defmacrop",
       "reason": "Erlang has only functions",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacrop",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacrop",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacrop",
+      "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
     {
@@ -20526,6 +22074,24 @@
       "backing": "erl_abst",
       "form": "defguard",
       "reason": "Erlang has only functions",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguard",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguard",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguard",
+      "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
     {
@@ -20802,6 +22368,24 @@
       "backing": "erl_abst",
       "form": "defguardp",
       "reason": "Erlang has only functions",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguardp",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguardp",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguardp",
+      "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
     {
@@ -21078,6 +22662,24 @@
       "backing": "erl_abst",
       "form": "defdelegate",
       "reason": "Erlang has only functions",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate",
+      "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
     {
@@ -21354,6 +22956,24 @@
       "backing": "erl_abst",
       "form": "defdelegate_compiled",
       "reason": "Erlang has only functions",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_compiled",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_compiled",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_compiled",
+      "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
     {
@@ -21630,6 +23250,24 @@
       "backing": "erl_abst",
       "form": "defdelegate_unresolvable",
       "reason": "Erlang has only functions",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_unresolvable",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_unresolvable",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_unresolvable",
+      "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
     {
@@ -21906,6 +23544,24 @@
       "backing": "erl_abst",
       "form": "defdelegate_as",
       "reason": "Erlang has only functions",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as",
+      "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
     {
@@ -22182,6 +23838,24 @@
       "backing": "erl_abst",
       "form": "defdelegate_imports",
       "reason": "Erlang has only functions",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_imports",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_imports",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_imports",
+      "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
     {
@@ -22458,6 +24132,24 @@
       "backing": "erl_abst",
       "form": "defdelegate_list",
       "reason": "Erlang has only functions",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
     {
@@ -22734,6 +24426,24 @@
       "backing": "erl_abst",
       "form": "defdelegate_list_trailing",
       "reason": "Erlang has only functions",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_trailing",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_trailing",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_trailing",
+      "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
     {
@@ -23010,6 +24720,24 @@
       "backing": "erl_abst",
       "form": "defdelegate_list_lines",
       "reason": "Erlang has only functions",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_lines",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_lines",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_lines",
+      "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
     {
@@ -23286,6 +25014,24 @@
       "backing": "erl_abst",
       "form": "defdelegate_as_list",
       "reason": "Erlang has only functions",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
     {
@@ -23562,6 +25308,24 @@
       "backing": "erl_abst",
       "form": "defdelegate_as_attribute",
       "reason": "Erlang has only functions",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
     {
@@ -23838,6 +25602,24 @@
       "backing": "erl_abst",
       "form": "defdelegate_doc",
       "reason": "Erlang has only functions",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
     {
@@ -24114,6 +25896,24 @@
       "backing": "erl_abst",
       "form": "eex_function_from",
       "reason": "Erlang has only functions",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from",
+      "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
     {
@@ -24390,6 +26190,24 @@
       "backing": "erl_abst",
       "form": "eex_function_from_kind",
       "reason": "Erlang has only functions",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_kind",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_kind",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_kind",
+      "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
     {
@@ -24666,6 +26484,24 @@
       "backing": "erl_abst",
       "form": "eex_function_from_args",
       "reason": "Erlang has only functions",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_args",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_args",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_args",
+      "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
     {
@@ -24942,6 +26778,24 @@
       "backing": "erl_abst",
       "form": "generator_embed",
       "reason": "Erlang has only functions",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "generator_embed",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "generator_embed",
+      "reason": "Erlang has only functions",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "generator_embed",
+      "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
     {
@@ -25207,6 +27061,24 @@
       "form": "def",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "def",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "def",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "def",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "erl_gen",
@@ -25488,6 +27360,24 @@
       "backing": "erl_gen",
       "form": "defp",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defp",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defp",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defp",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
     {
@@ -25764,6 +27654,24 @@
       "backing": "erl_gen",
       "form": "defmacro",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacro",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacro",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacro",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
     {
@@ -26040,6 +27948,24 @@
       "backing": "erl_gen",
       "form": "defmacrop",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacrop",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacrop",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacrop",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
     {
@@ -26316,6 +28242,24 @@
       "backing": "erl_gen",
       "form": "defguard",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguard",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguard",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguard",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
     {
@@ -26592,6 +28536,24 @@
       "backing": "erl_gen",
       "form": "defguardp",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguardp",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguardp",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguardp",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
     {
@@ -26868,6 +28830,24 @@
       "backing": "erl_gen",
       "form": "defdelegate",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
     {
@@ -27144,6 +29124,24 @@
       "backing": "erl_gen",
       "form": "defdelegate_compiled",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_compiled",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_compiled",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_compiled",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
     {
@@ -27420,6 +29418,24 @@
       "backing": "erl_gen",
       "form": "defdelegate_unresolvable",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
     {
@@ -27696,6 +29712,24 @@
       "backing": "erl_gen",
       "form": "defdelegate_as",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
     {
@@ -27972,6 +30006,24 @@
       "backing": "erl_gen",
       "form": "defdelegate_imports",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_imports",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_imports",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_imports",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
     {
@@ -28248,6 +30300,24 @@
       "backing": "erl_gen",
       "form": "defdelegate_list",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
     {
@@ -28524,6 +30594,24 @@
       "backing": "erl_gen",
       "form": "defdelegate_list_trailing",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
     {
@@ -28800,6 +30888,24 @@
       "backing": "erl_gen",
       "form": "defdelegate_list_lines",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
     {
@@ -29076,6 +31182,24 @@
       "backing": "erl_gen",
       "form": "defdelegate_as_list",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
     {
@@ -29352,6 +31476,24 @@
       "backing": "erl_gen",
       "form": "defdelegate_as_attribute",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
     {
@@ -29628,6 +31770,24 @@
       "backing": "erl_gen",
       "form": "defdelegate_doc",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
     {
@@ -29899,6 +32059,24 @@
       "form": "eex_function_from",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "erl_gen",
@@ -30175,6 +32353,24 @@
       "form": "eex_function_from_kind",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_kind",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_kind",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_kind",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "erl_gen",
@@ -30451,6 +32647,24 @@
       "form": "eex_function_from_args",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_args",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_args",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_args",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "erl_gen",
@@ -30727,6 +32941,24 @@
       "form": "generator_embed",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "generator_embed",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_body_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "generator_embed",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "generator_embed",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_import_in_unless"
     },
     {
       "backing": "erl_gen",
@@ -36230,6 +38462,351 @@
         }
       ],
       "world": "x_if_else"
+    },
+    {
+      "asks": [
+        "imported_inside",
+        "imported_after"
+      ],
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/def/x_import_in_body_if.ex",
+      "form": "def",
+      "importCallers": [
+        "lib/callers/src/def/x_import_in_body_if_imported_inside.ex",
+        "lib/callers/src/def/x_import_in_body_if_imported_after.ex"
+      ],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "src_def_x_import_in_body_if_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_def_x_import_in_body_if_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_import_in_body_if_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Def.XImportInBodyIf",
+          "source": "lib/src/src.def.x_import_in_body_if.ex",
+          "spec": "lib/src/src.def.x_import_in_body_if.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Def.XImportInBodyIf",
+            "name": "src_def_x_import_in_body_if_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.def.x_import_in_body_if.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_def_x_import_in_body_if_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_function",
+            "module": "Src.Def.XImportInBodyIf",
+            "name": "src_def_x_import_in_body_if_snoc"
+          },
+          "column": 7,
+          "file": "lib/callers/src/def/x_import_in_body_if_imported_inside.ex",
+          "id": "imported_inside",
+          "line": 6,
+          "name": "src_def_x_import_in_body_if_snoc",
+          "visible": [
+            "local_site/2",
+            "src_def_x_import_in_body_if_snoc/2"
+          ]
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 5,
+          "diagnostic": {
+            "message": "undefined function src_def_x_import_in_body_if_snoc/2 (expected Callers.Src.Def.XImportInBodyIf.ImportedAfter to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/def/x_import_in_body_if_imported_after.ex",
+          "id": "imported_after",
+          "line": 8,
+          "name": "src_def_x_import_in_body_if_snoc",
+          "visible": []
+        }
+      ],
+      "world": "x_import_in_body_if"
+    },
+    {
+      "asks": [
+        "imported_inside",
+        "imported_after"
+      ],
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/def/x_import_in_if.ex",
+      "form": "def",
+      "importCallers": [
+        "lib/callers/src/def/x_import_in_if_imported_inside.ex",
+        "lib/callers/src/def/x_import_in_if_imported_after.ex"
+      ],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "src_def_x_import_in_if_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_def_x_import_in_if_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_import_in_if_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Def.XImportInIf",
+          "source": "lib/src/src.def.x_import_in_if.ex",
+          "spec": "lib/src/src.def.x_import_in_if.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Def.XImportInIf",
+            "name": "src_def_x_import_in_if_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.def.x_import_in_if.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_def_x_import_in_if_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_function",
+            "module": "Src.Def.XImportInIf",
+            "name": "src_def_x_import_in_if_snoc"
+          },
+          "column": 39,
+          "file": "lib/callers/src/def/x_import_in_if_imported_inside.ex",
+          "id": "imported_inside",
+          "line": 5,
+          "name": "src_def_x_import_in_if_snoc",
+          "visible": [
+            "local_site/2",
+            "src_def_x_import_in_if_snoc/2"
+          ]
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 36,
+          "diagnostic": {
+            "message": "undefined function src_def_x_import_in_if_snoc/2 (expected Callers.Src.Def.XImportInIf.ImportedAfter to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/def/x_import_in_if_imported_after.ex",
+          "id": "imported_after",
+          "line": 7,
+          "name": "src_def_x_import_in_if_snoc",
+          "visible": []
+        }
+      ],
+      "world": "x_import_in_if"
+    },
+    {
+      "asks": [
+        "imported_inside",
+        "imported_after"
+      ],
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/def/x_import_in_unless.ex",
+      "form": "def",
+      "importCallers": [
+        "lib/callers/src/def/x_import_in_unless_imported_inside.ex",
+        "lib/callers/src/def/x_import_in_unless_imported_after.ex"
+      ],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "src_def_x_import_in_unless_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_def_x_import_in_unless_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_import_in_unless_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Def.XImportInUnless",
+          "source": "lib/src/src.def.x_import_in_unless.ex",
+          "spec": "lib/src/src.def.x_import_in_unless.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Def.XImportInUnless",
+            "name": "src_def_x_import_in_unless_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.def.x_import_in_unless.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_def_x_import_in_unless_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_function",
+            "module": "Src.Def.XImportInUnless",
+            "name": "src_def_x_import_in_unless_snoc"
+          },
+          "column": 39,
+          "file": "lib/callers/src/def/x_import_in_unless_imported_inside.ex",
+          "id": "imported_inside",
+          "line": 5,
+          "name": "src_def_x_import_in_unless_snoc",
+          "visible": [
+            "local_site/2",
+            "src_def_x_import_in_unless_snoc/2"
+          ]
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 36,
+          "diagnostic": {
+            "message": "undefined function src_def_x_import_in_unless_snoc/2 (expected Callers.Src.Def.XImportInUnless.ImportedAfter to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/def/x_import_in_unless_imported_after.ex",
+          "id": "imported_after",
+          "line": 7,
+          "name": "src_def_x_import_in_unless_snoc",
+          "visible": []
+        }
+      ],
+      "world": "x_import_in_unless"
     },
     {
       "backing": "src",
@@ -57914,6 +60491,351 @@
         }
       ],
       "world": "x_if_else"
+    },
+    {
+      "asks": [
+        "imported_inside",
+        "imported_after"
+      ],
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/defmacro/x_import_in_body_if.ex",
+      "form": "defmacro",
+      "importCallers": [
+        "lib/callers/src/defmacro/x_import_in_body_if_imported_inside.ex",
+        "lib/callers/src/defmacro/x_import_in_body_if_imported_after.ex"
+      ],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 12,
+              "definer": "defmacro",
+              "line": 3,
+              "name": "src_defmacro_x_import_in_body_if_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defmacro_x_import_in_body_if_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "src_defmacro_x_import_in_body_if_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Defmacro.XImportInBodyIf",
+          "source": "lib/src/src.defmacro.x_import_in_body_if.ex",
+          "spec": "lib/src/src.defmacro.x_import_in_body_if.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacro.XImportInBodyIf",
+            "name": "src_defmacro_x_import_in_body_if_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defmacro.x_import_in_body_if.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defmacro_x_import_in_body_if_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_macro",
+            "module": "Src.Defmacro.XImportInBodyIf",
+            "name": "src_defmacro_x_import_in_body_if_snoc"
+          },
+          "column": 7,
+          "file": "lib/callers/src/defmacro/x_import_in_body_if_imported_inside.ex",
+          "id": "imported_inside",
+          "line": 6,
+          "name": "src_defmacro_x_import_in_body_if_snoc",
+          "visible": [
+            "local_site/2",
+            "src_defmacro_x_import_in_body_if_snoc/2"
+          ]
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 5,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_import_in_body_if_snoc/2 (expected Callers.Src.Defmacro.XImportInBodyIf.ImportedAfter to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_import_in_body_if_imported_after.ex",
+          "id": "imported_after",
+          "line": 8,
+          "name": "src_defmacro_x_import_in_body_if_snoc",
+          "visible": []
+        }
+      ],
+      "world": "x_import_in_body_if"
+    },
+    {
+      "asks": [
+        "imported_inside",
+        "imported_after"
+      ],
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/defmacro/x_import_in_if.ex",
+      "form": "defmacro",
+      "importCallers": [
+        "lib/callers/src/defmacro/x_import_in_if_imported_inside.ex",
+        "lib/callers/src/defmacro/x_import_in_if_imported_after.ex"
+      ],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 12,
+              "definer": "defmacro",
+              "line": 3,
+              "name": "src_defmacro_x_import_in_if_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defmacro_x_import_in_if_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "src_defmacro_x_import_in_if_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Defmacro.XImportInIf",
+          "source": "lib/src/src.defmacro.x_import_in_if.ex",
+          "spec": "lib/src/src.defmacro.x_import_in_if.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacro.XImportInIf",
+            "name": "src_defmacro_x_import_in_if_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defmacro.x_import_in_if.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defmacro_x_import_in_if_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_macro",
+            "module": "Src.Defmacro.XImportInIf",
+            "name": "src_defmacro_x_import_in_if_snoc"
+          },
+          "column": 39,
+          "file": "lib/callers/src/defmacro/x_import_in_if_imported_inside.ex",
+          "id": "imported_inside",
+          "line": 5,
+          "name": "src_defmacro_x_import_in_if_snoc",
+          "visible": [
+            "local_site/2",
+            "src_defmacro_x_import_in_if_snoc/2"
+          ]
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 36,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_import_in_if_snoc/2 (expected Callers.Src.Defmacro.XImportInIf.ImportedAfter to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_import_in_if_imported_after.ex",
+          "id": "imported_after",
+          "line": 7,
+          "name": "src_defmacro_x_import_in_if_snoc",
+          "visible": []
+        }
+      ],
+      "world": "x_import_in_if"
+    },
+    {
+      "asks": [
+        "imported_inside",
+        "imported_after"
+      ],
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/defmacro/x_import_in_unless.ex",
+      "form": "defmacro",
+      "importCallers": [
+        "lib/callers/src/defmacro/x_import_in_unless_imported_inside.ex",
+        "lib/callers/src/defmacro/x_import_in_unless_imported_after.ex"
+      ],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 12,
+              "definer": "defmacro",
+              "line": 3,
+              "name": "src_defmacro_x_import_in_unless_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defmacro_x_import_in_unless_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "src_defmacro_x_import_in_unless_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Defmacro.XImportInUnless",
+          "source": "lib/src/src.defmacro.x_import_in_unless.ex",
+          "spec": "lib/src/src.defmacro.x_import_in_unless.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacro.XImportInUnless",
+            "name": "src_defmacro_x_import_in_unless_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defmacro.x_import_in_unless.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defmacro_x_import_in_unless_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_macro",
+            "module": "Src.Defmacro.XImportInUnless",
+            "name": "src_defmacro_x_import_in_unless_snoc"
+          },
+          "column": 39,
+          "file": "lib/callers/src/defmacro/x_import_in_unless_imported_inside.ex",
+          "id": "imported_inside",
+          "line": 5,
+          "name": "src_defmacro_x_import_in_unless_snoc",
+          "visible": [
+            "local_site/2",
+            "src_defmacro_x_import_in_unless_snoc/2"
+          ]
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 36,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_import_in_unless_snoc/2 (expected Callers.Src.Defmacro.XImportInUnless.ImportedAfter to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_import_in_unless_imported_after.ex",
+          "id": "imported_after",
+          "line": 7,
+          "name": "src_defmacro_x_import_in_unless_snoc",
+          "visible": []
+        }
+      ],
+      "world": "x_import_in_unless"
     },
     {
       "backing": "src",
