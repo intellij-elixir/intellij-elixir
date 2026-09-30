@@ -33,6 +33,7 @@ import com.intellij.openapi.editor.colors.TextAttributesKey
 import com.intellij.openapi.editor.markup.TextAttributes
 import java.awt.Color
 import java.io.File
+import java.lang.management.ManagementFactory
 import com.intellij.codeInsight.lookup.LookupManager
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.structure_view.Model
@@ -47,13 +48,13 @@ import junit.framework.TestCase.assertFalse
 import junit.framework.TestCase.assertNotNull
 import junit.framework.TestCase.assertTrue
 import kotlinx.coroutines.CancellationException
-import com.intellij.testFramework.junit5.TestApplication
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.DynamicContainer
 import org.junit.jupiter.api.DynamicContainer.dynamicContainer
 import org.junit.jupiter.api.DynamicTest.dynamicTest
 import org.junit.jupiter.api.TestFactory
 import org.elixir_lang.code_insight.matrix.Scenario
+import org.elixir_lang.code_insight.matrix.Shards
 import org.elixir_lang.code_insight.matrix.Applicability
 import org.elixir_lang.code_insight.matrix.Backing
 import org.elixir_lang.code_insight.matrix.Binding
@@ -98,24 +99,26 @@ import org.elixir_lang.psi.call.Call
  * `testData/.../code_intelligence_matrix/gap-map.tsv` records which cells were red when this suite was written, one
  * sorted row each, so a refactor of the code underneath can be diffed cell by cell. It is **data, not an oracle**:
  * nothing reads it, and a cell going green is an improvement to re-record rather than a row to defend.
+ *
+ * The scenarios are split between [shard] classes, which `testFullMatrix` runs in parallel forks; see [Shards].
  */
-@TestApplication
-class CodeIntelligenceMatrixTest {
+abstract class CodeIntelligenceMatrixTest(private val shard: Int) {
     @TestFactory
-    fun cells(): List<DynamicContainer> =
-        Fixtures.oracle.scenarios
-            .filterNot { Backing.of(it).guardOnly }
+    fun cells(): List<DynamicContainer> {
+        Group.startTiming(shard)
+        return Shards.of(Shards.count).getOrElse(shard) { emptyList() }
             .map { it to Group.cellsOf(it) }
             // An empty container is reported as a passing test named after the scenario.
             .filter { (_, cells) -> cells.isNotEmpty() }
             .map { (scenario, cells) ->
                 dynamicContainer(
-                    "${scenario.backing},${scenario.form},${scenario.world}",
+                    Shards.name(scenario),
                     cells.map { (place, feature) ->
                         dynamicTest(Cell(scenario, feature, place).testName) { Group.check(scenario, place, feature) }
                     }
                 )
             }
+    }
 
     companion object {
         /**
@@ -211,19 +214,19 @@ private class Group(val scenario: Scenario) {
     }
 
     /**
-     * [block]'s result, with its wall time appended to [TIMING] when that is set.
+     * [block]'s result, with its wall time appended to [timing] when that is set.
      *
      * The XML charges a scenario's set-up to its first cell and a place's binding to that place's first; this says
      * which phase the time goes to. A feature's time includes the [restore] after it.
      */
     private inline fun <T> timed(phase: String, feature: Feature? = null, place: Place? = null, block: () -> T): T {
-        val timing = TIMING ?: return block()
+        val file = timing ?: return block()
         val start = System.nanoTime()
         try {
             return block()
         } finally {
             val nanos = System.nanoTime() - start
-            timing.appendText(
+            file.appendText(
                 listOf(scenario.backing, scenario.form, scenario.world, phase, feature?.testName ?: "", place?.id ?: "", nanos)
                     .joinToString("\t", postfix = "\n")
             )
@@ -1407,8 +1410,21 @@ private class Group(val scenario: Scenario) {
             GUARD_DECLARATION,
         )
 
-        /** Where [Group.timed] appends one row per phase: the file `MATRIX_TIMING` names, or nowhere when unset. */
-        private val TIMING: File? = System.getenv("MATRIX_TIMING")?.takeIf(String::isNotBlank)?.let(::File)
+        /**
+         * Where [Group.timed] appends one row per phase: the file `MATRIX_TIMING` names, suffixed `.shard<n>` when
+         * sharded so parallel forks never interleave, or nowhere when unset.
+         */
+        private var timing: File? = null
+
+        /** Opens [shard]'s timing file with a `jvm` row: the JVM's uptime once the application is up, before any cell. */
+        fun startTiming(shard: Int) {
+            timing = System.getenv("MATRIX_TIMING")?.takeIf(String::isNotBlank)
+                ?.let { if (Shards.count > 1) File("$it.shard$shard") else File(it) }
+                ?.apply {
+                    val nanos = ManagementFactory.getRuntimeMXBean().uptime * 1_000_000
+                    appendText(listOf("", "", "", "jvm", "", "", nanos).joinToString("\t", postfix = "\n"))
+                }
+        }
 
         /** Go To Related's providers, by the extension point's name: its `EP_NAME` is not public in every platform. */
         private val GOTO_RELATED_PROVIDERS = ExtensionPointName.create<GotoRelatedProvider>("com.intellij.gotoRelatedProvider")
