@@ -116,6 +116,9 @@ defmodule Matrix do
   }
   @wrapper_worlds Map.keys(@wrappers)
 
+  # The worlds where a call made before the definition is asked, which only a walk of the whole module can resolve.
+  @local_forward_worlds ["w1", "x_if_else" | @wrapper_worlds]
+
   # The worlds whose main module's definitions a `use` injects.
   @use_worlds ["x_use_injected", "x_use_injected_defaults", "x_use_apply"]
 
@@ -1150,7 +1153,7 @@ defmodule Matrix do
         unquote_name: world == "x_unquote_name",
         branches: world == "x_if_else",
         spec: primary != nil and backing.id == "src" and world in @spec_worlds and form.id in @function_forms,
-        local_forward: primary != nil and backing.id == "src" and world == "w1" and form.id in @function_forms
+        local_forward: primary != nil and backing.id == "src" and world in @local_forward_worlds and form.id in @function_forms
       })
     extension = if(backing.language == :elixir, do: ".ex", else: ".erl")
     # Named after the whole module: every world's delegate target is a `Target`.
