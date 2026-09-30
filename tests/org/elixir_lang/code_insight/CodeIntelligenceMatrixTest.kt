@@ -33,6 +33,10 @@ import com.intellij.openapi.editor.colors.TextAttributesKey
 import com.intellij.openapi.editor.markup.TextAttributes
 import java.awt.Color
 import java.io.File
+import java.util.concurrent.ExecutionException
+import com.intellij.testFramework.TestLoggerFactory
+import com.intellij.refactoring.rename.api.RenameTarget
+import com.intellij.refactoring.rename.api.RenameValidationResult
 import java.lang.management.ManagementFactory
 import com.intellij.codeInsight.lookup.LookupManager
 import org.elixir_lang.psi.ElixirFile
@@ -674,7 +678,12 @@ private class Group(val scenario: Scenario) {
             .filter { nfc(it.name) == nfc(definition.name) && it.arity == definition.maxArity }
             .map { (it.file ?: module.source) to (it.line to it.column) }
 
-        myFixture.renameTargetAtCaret(newName)
+        val targets = myFixture.renameTargetsAtCaret()
+        rename(
+            targets.singleOrNull()
+                ?: throw AssertionError("Expected exactly one rename target at the caret, got ${targets.size}: $targets"),
+            newName
+        )
 
         val wrong = originals.keys.mapNotNull { file ->
             val path = callerFiles.entries.firstOrNull { it.value == file }?.key
@@ -818,7 +827,7 @@ private class Group(val scenario: Scenario) {
         val targets = myFixture.renameTargetsAtCaret()
 
         for (target in targets) {
-            val failure = runCatching { myFixture.renameTarget(target, renamed(name)) }.exceptionOrNull()
+            val failure = runCatching { rename(target, renamed(name)) }.exceptionOrNull()
             val reason = generateSequence(failure) { it.cause }.mapNotNull { it.message }.firstOrNull { "cannot be renamed" in it }
             assertNotNull(
                 "Rename at ${place.id} should be refused, as $why, but offered $targets and $target " +
@@ -827,6 +836,30 @@ private class Group(val scenario: Scenario) {
             )
             val changed = originals.filter { (file, text) -> FileDocumentManager.getInstance().getDocument(file)!!.text != text }.keys.map { it.name }
             assertEquals("Rename at ${place.id} of $target was refused ($reason) but still changed", emptyList<String>(), changed)
+        }
+    }
+
+    /**
+     * [renameTargetDirectly], without `renameAndWait`'s 10 ms polling, behind the check `renameAndWait` makes first: a
+     * name the validator calls an error is refused with the same `IllegalArgumentException`.
+     */
+    private fun rename(target: RenameTarget, newName: String) {
+        val result = target.validator().validate(newName)
+        // `RenameValidationResultData`, which `renameAndWait` reads the level and message from, is internal.
+        if (result != RenameValidationResult.ok() && result.javaClass.getMethod("getLevel").invoke(result).toString() == "ERROR") {
+            throw IllegalArgumentException(result.javaClass.getMethod("message", String::class.java).invoke(result, newName) as String)
+        }
+        try {
+            myFixture.renameTargetDirectly(target, newName)
+        } catch (e: ExecutionException) {
+            // The pooled thread logs what it throws, and a test logger's `error(e)` throws `e`'s message wrapped round it.
+            throw generateSequence<Throwable>(e) { failure ->
+                when {
+                    failure is ExecutionException -> failure.cause
+                    failure is TestLoggerFactory.TestLoggerAssertionError && failure.cause?.message == failure.message -> failure.cause
+                    else -> null
+                }
+            }.last()
         }
     }
 
