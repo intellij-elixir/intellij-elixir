@@ -85,6 +85,8 @@ defmodule Matrix do
       %{id: "defdelegate_list_lines", definer: "defdelegate", delegate: :same, options: :list_lines},
       %{id: "defdelegate_as_list", definer: "defdelegate", delegate: :same, as: "delegated_", options: :list},
       %{id: "defdelegate_as_attribute", definer: "defdelegate", delegate: :same, as: "delegated_", as_written: :attribute},
+      # A delegate with an `@doc` of its own, which documents it in place of its target.
+      %{id: "defdelegate_doc", definer: "defdelegate", delegate: :same, doc: "Appends x to q, as the delegating module documents it."},
       # A function declared by a call rather than a `def`: `EEx.function_from_string(:def, :snoc, template, [:q, :x])`.
       %{id: "eex_function_from", definer: "def", eex: true},
       # The same call with its kind, and then its arguments, in a module attribute, as code that builds several from one
@@ -371,6 +373,11 @@ defmodule Matrix do
 
   def not_applicable(_backing, %{delegate: :imports}, world) when world != "w1",
     do: "a target that only imports the function asks nothing w1 does not"
+
+  def not_applicable(%{compiled: true}, %{doc: _}, _world),
+    do: "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question"
+
+  def not_applicable(_backing, %{doc: _}, world) when world != "w1", do: "a delegate's own `@doc` asks nothing w1 does not"
 
   def not_applicable(%{compiled: true}, form, _world) when is_map_key(form, :options) or is_map_key(form, :as_written),
     do: "how the options were spelled is gone once compiled; that is defdelegate_as's question again"
@@ -1281,6 +1288,20 @@ defmodule Matrix do
       local: local
     }
     |> then(&if(form[:moduledoc], do: Map.put(&1, "moduledoc", moduledoc(binary, source)), else: &1))
+    |> then(fn record ->
+      docs = if form[:delegate], do: function_docs(binary), else: []
+      if docs == [], do: record, else: Map.put(record, "docs", docs)
+    end)
+  end
+
+  # Each function `Code.fetch_docs/1` has a doc for. A `defdelegate` without an `@doc` of its own has none there, only
+  # `delegate_to` metadata: the compiler does not copy the target's doc, so a delegate absent from this list has none.
+  defp function_docs(binary) do
+    {:ok, {_module, [{~c"Docs", chunk}]}} = :beam_lib.chunks(binary, [~c"Docs"])
+    {:docs_v1, _anno, _language, _format, _doc, _metadata, docs} = :erlang.binary_to_term(chunk)
+
+    for {{:function, name, arity}, _anno, _signature, %{"en" => doc}, _metadata} <- docs,
+        do: %{"name" => nfc(Atom.to_string(name)), "arity" => arity, "doc" => doc}
   end
 
   # What `Code.fetch_docs/1` says of the module's documentation: its text, or that it is hidden. `written` is every
@@ -1662,6 +1683,9 @@ defmodule Matrix do
   defp delegate_attribute(%{as_written: :attribute, as: prefix}, name), do: "  @target :#{prefix}#{name}\n"
   defp delegate_attribute(_form, _name), do: ""
 
+  defp delegate_doc(%{doc: doc}), do: "  @doc #{inspect(doc)}\n"
+  defp delegate_doc(_form), do: ""
+
   # `EEx.function_from_string` with its kind or its arguments written as a literal, or as a module attribute set on the line
   # before it.
   defp eex_function(form, name, variables) do
@@ -1711,7 +1735,7 @@ defmodule Matrix do
         cond do
           # A bodiless head declares the defaults for the clauses that follow and defines nothing itself.
           head? -> "  #{form.definer} #{name}(#{rendered})"
-          form[:delegate] -> "#{delegate_attribute(form, name)}  defdelegate #{name}(#{rendered}), #{delegate_options(form, name, target)}"
+          form[:delegate] -> "#{delegate_doc(form)}#{delegate_attribute(form, name)}  defdelegate #{name}(#{rendered}), #{delegate_options(form, name, target)}"
           form[:embed] && String.ends_with?(name, "_template") -> "  Mix.Generator.embed_template(:#{String.replace_suffix(name, "_template", "")}, \"<%= @q %>\")"
           form[:embed] -> "  Mix.Generator.embed_text(:#{String.replace_suffix(name, "_text", "")}, \"text\")"
           form[:eex] -> eex_function(form, name, variables)

@@ -2818,6 +2818,276 @@
     },
     {
       "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "w2"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "w3"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "w4"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_arity"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_arity_absent"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_arity_separate"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_arity_zero"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_case"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_cond"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_conditional"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_defaults"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_defaults_head"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_embed"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_for"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_if_else"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_moduledoc"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_moduledoc_empty_list"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_moduledoc_false"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_moduledoc_file"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_moduledoc_if"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_moduledoc_since"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_moduledoc_since_list"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_nfc"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_not_a_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_other_module"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_receive"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_try"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_unless"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_unquote_name"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_use_apply"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_use_in_case"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_use_in_cond"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_use_in_conditional"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_use_in_for"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_use_in_receive"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_use_in_try"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_use_in_unless"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_use_in_with"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_use_injected"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_with"
+    },
+    {
+      "backing": "src",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "w2"
@@ -7594,6 +7864,282 @@
     },
     {
       "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "w1"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "w2"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "w3"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "w4"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_arity"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_arity_absent"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_arity_separate"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_arity_zero"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_case"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_cond"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_conditional"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_defaults"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_defaults_head"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_embed"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_for"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_empty_list"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_false"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_file"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_if"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_since"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_since_list"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_nfc"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_not_a_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_other_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_receive"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_try"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_unquote_name"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_apply"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_in_case"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_in_cond"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_in_conditional"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_in_for"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_in_receive"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_in_try"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_in_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_in_with"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_injected"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_with"
+    },
+    {
+      "backing": "ex_dbgi",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "w2"
@@ -12484,6 +13030,282 @@
     },
     {
       "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "w1"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "w2"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "w3"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "w4"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_arity"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_arity_absent"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_arity_separate"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_arity_zero"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_case"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_cond"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_conditional"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_defaults"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_defaults_head"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_embed"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_for"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_empty_list"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_false"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_file"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_if"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_since"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_since_list"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_nfc"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_not_a_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_other_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_receive"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_try"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_unquote_name"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_apply"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_in_case"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_in_cond"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_in_conditional"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_in_for"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_in_receive"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_in_try"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_in_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_in_with"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_injected"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_with"
+    },
+    {
+      "backing": "ex_docs",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "w2"
@@ -17370,6 +18192,282 @@
       "backing": "ex_gen",
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_with"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "w1"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "w2"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "w3"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "w4"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_arity"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_arity_absent"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_arity_separate"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_arity_zero"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_case"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_cond"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_conditional"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_defaults"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_defaults_head"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_embed"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_for"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_empty_list"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_false"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_file"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_if"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_since"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_since_list"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_nfc"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_not_a_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_other_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_receive"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_try"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_unquote_name"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_apply"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_in_case"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_in_cond"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_in_conditional"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_in_for"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_in_receive"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_in_try"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_in_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_in_with"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_injected"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_with"
     },
     {
@@ -22642,6 +23740,282 @@
     },
     {
       "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "w1"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "w2"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "w3"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "w4"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_arity"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_arity_absent"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_arity_separate"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_arity_zero"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_case"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_cond"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_conditional"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_defaults"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_defaults_head"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_embed"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_for"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_if_else"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_moduledoc"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_moduledoc_empty_list"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_moduledoc_false"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_moduledoc_file"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_moduledoc_if"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_moduledoc_since"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_moduledoc_since_list"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_nfc"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_not_a_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_receive"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_try"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_unquote_name"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_use_apply"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_use_in_case"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_use_in_cond"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_use_in_conditional"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_use_in_for"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_use_in_receive"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_use_in_try"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_use_in_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_use_in_with"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_use_injected"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_with"
+    },
+    {
+      "backing": "erl_abst",
       "form": "eex_function_from",
       "reason": "Erlang has only functions",
       "world": "w1"
@@ -28151,6 +29525,282 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_with"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "w1"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "w2"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "w3"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "w4"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_arity"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_arity_absent"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_arity_separate"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_arity_zero"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_case"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_cond"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_conditional"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_defaults"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_defaults_head"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_embed"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_for"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_if_else"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_interpolated_atom"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_lookalike_absent"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_empty_list"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_false"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_file"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_if"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_if_else"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_since"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_since_list"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_nfc"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_not_a_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_receive"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_try"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_unquote_name"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_apply"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_in_case"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_in_cond"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_in_conditional"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_in_for"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_in_receive"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_in_try"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_in_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_in_with"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_injected"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_with"
     },
@@ -109586,6 +111236,227 @@
           "id": "local",
           "line": 6,
           "name": "src_defdelegate_as_attribute_w1_snoc"
+        }
+      ],
+      "world": "w1"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/defdelegate_doc/w1.ex",
+      "form": "defdelegate_doc",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 15,
+              "definer": "defdelegate",
+              "line": 4,
+              "name": "src_defdelegate_doc_w1_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defdelegate_doc_w1_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": "Src.DefdelegateDoc.W1.Target",
+          "docs": [
+            {
+              "arity": 2,
+              "doc": "Appends x to q, as the delegating module documents it.",
+              "name": "src_defdelegate_doc_w1_snoc"
+            }
+          ],
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defdelegate",
+              "guard": null,
+              "name": "src_defdelegate_doc_w1_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.DefdelegateDoc.W1",
+          "source": "lib/src/src.defdelegate_doc.w1.ex",
+          "spec": "lib/src/src.defdelegate_doc.w1.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "src_defdelegate_doc_w1_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defdelegate_doc_w1_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defdelegate_doc_w1_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.DefdelegateDoc.W1.Target",
+          "source": "lib/src/src.defdelegate_doc.w1.target.ex",
+          "spec": "lib/src/src.defdelegate_doc.w1.target.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.DefdelegateDoc.W1",
+            "name": "src_defdelegate_doc_w1_snoc"
+          },
+          "column": 53,
+          "file": "lib/callers/src/defdelegate_doc/w1.ex",
+          "id": "qualified",
+          "line": 7,
+          "name": "src_defdelegate_doc_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.DefdelegateDoc.W1",
+            "name": "src_defdelegate_doc_w1_snoc"
+          },
+          "column": 32,
+          "file": "lib/callers/src/defdelegate_doc/w1.ex",
+          "id": "aliased",
+          "line": 8,
+          "name": "src_defdelegate_doc_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.DefdelegateDoc.W1",
+            "name": "src_defdelegate_doc_w1_snoc"
+          },
+          "column": 40,
+          "file": "lib/callers/src/defdelegate_doc/w1.ex",
+          "id": "aliased_as",
+          "line": 9,
+          "name": "src_defdelegate_doc_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_function",
+            "module": "Src.DefdelegateDoc.W1",
+            "name": "src_defdelegate_doc_w1_snoc"
+          },
+          "column": 33,
+          "file": "lib/callers/src/defdelegate_doc/w1.ex",
+          "id": "unqualified",
+          "line": 10,
+          "name": "src_defdelegate_doc_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_function",
+            "module": "Src.DefdelegateDoc.W1",
+            "name": "src_defdelegate_doc_w1_snoc"
+          },
+          "column": 31,
+          "file": "lib/callers/src/defdelegate_doc/w1.ex",
+          "id": "pipe",
+          "line": 11,
+          "name": "src_defdelegate_doc_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.DefdelegateDoc.W1",
+            "name": "src_defdelegate_doc_w1_snoc"
+          },
+          "column": 53,
+          "file": "lib/callers/src/defdelegate_doc/w1.ex",
+          "id": "capture",
+          "line": 12,
+          "name": "src_defdelegate_doc_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "apply",
+            "module": "Src.DefdelegateDoc.W1",
+            "name": "src_defdelegate_doc_w1_snoc"
+          },
+          "column": 57,
+          "file": "lib/callers/src/defdelegate_doc/w1.ex",
+          "id": "apply",
+          "line": 13,
+          "name": "src_defdelegate_doc_w1_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.DefdelegateDoc.W1",
+            "name": "src_defdelegate_doc_w1_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defdelegate_doc.w1.ex",
+          "id": "local",
+          "line": 6,
+          "name": "src_defdelegate_doc_w1_snoc"
         }
       ],
       "world": "w1"
