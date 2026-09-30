@@ -28,12 +28,14 @@ const leg = (os, idea, beam, label) => ({
   label,
 });
 
+const linuxRunners = ['blacksmith-2vcpu-ubuntu-2204', 'blacksmith-4vcpu-ubuntu-2204', 'blacksmith-8vcpu-ubuntu-2204'];
+const linuxRunner = (index) => linuxRunners[index % linuxRunners.length];
+const ideaLegs = ideaVersions(declaration);
+
 const legs = [
-  ...ideaVersions(declaration).map((idea) =>
-    leg('ubuntu-22.04', idea, base, `IDEA ${idea.version}`),
-  ),
-  ...beamAdditional(declaration).map((beam) =>
-    leg('ubuntu-22.04', minimumSupported, beam, `${beam.elixir}+${beam.otp}`),
+  ...ideaLegs.map((idea, index) => leg(linuxRunner(index), idea, base, `IDEA ${idea.version}`)),
+  ...beamAdditional(declaration).map((beam, index) =>
+    leg(linuxRunner(ideaLegs.length + index), minimumSupported, beam, `${beam.elixir}+${beam.otp}`),
   ),
   leg('windows-2025', minimumSupported, base, `Win25, IDEA ${minimumSupported.version}`),
 ];
