@@ -1229,6 +1229,19 @@ tasks.named<Test>("test") {
     keepWinpHelpersIn(layout.buildDirectory.dir("tmp/winp").get().asFile)
 }
 
+// A `testIde` task's classpath has the test classes but not `testResources`, whose other listeners and extensions the
+// matrix has never run under, so it gets `ForkIsolation`'s registration alone.
+val matrixLauncherServices = tasks.register("matrixLauncherServices") {
+    val directory = layout.buildDirectory.dir("matrixLauncherServices")
+    outputs.dir(directory)
+    doLast {
+        directory.get().file("META-INF/services/org.junit.platform.launcher.LauncherSessionListener").asFile.apply {
+            parentFile.mkdirs()
+            writeText("org.elixir_lang.junit.ForkIsolation\n")
+        }
+    }
+}
+
 // The code intelligence matrix takes minutes and its answers depend on the IDE version alone, so it is a
 // JUnit 5 suite that only this task runs: `test` excludes it by name and never finds it. It asks no
 // quoter and no SDK, so none of `test`'s set-up applies.
@@ -1237,10 +1250,19 @@ intellijPlatformTesting.testIde.register("testFullMatrix") {
     testFrameworks(TestFrameworkType.Platform, TestFrameworkType.Plugin.Java, TestFrameworkType.JUnit5)
 
     task {
-        description = "Runs the code intelligence matrix"
+        description = "Runs the code intelligence matrix, its scenarios split between -PmatrixShards forks (default 6)"
         group = "verification"
         useJUnitPlatform()
-        filter { includeTestsMatching("org.elixir_lang.code_insight.CodeIntelligenceMatrixTest") }
+        // `Shards.MAX` in the test sources: one shard class exists for each.
+        val shards = providers.gradleProperty("matrixShards").map { TestForks.parse("matrixShards", it) }.getOrElse(6)
+        if (shards > 12) throw GradleException("matrixShards must be at most 12, the number of shard classes, not $shards")
+        filter {
+            repeat(shards) { includeTestsMatching("org.elixir_lang.code_insight.CodeIntelligenceMatrixTestShard$it") }
+        }
+        maxParallelForks = shards
+        classpath += files(matrixLauncherServices)
+        systemProperty("elixir.matrix.shards", shards)
+        systemProperty("elixir.test.forks", shards)
         systemProperty("idea.split.test.logs", "true")
     }
 }

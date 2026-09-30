@@ -364,7 +364,8 @@ writes its diff to the job summary.
 
 `CodeIntelligenceMatrixTest` takes minutes, so it is a JUnit 5 (Jupiter) suite that only `testFullMatrix` runs:
 `test` (and so `check`) excludes it by name and never finds it, even under `--tests`. It needs neither the quoter
-nor an Elixir SDK. Its results are in `build/test-results/testFullMatrix/`.
+nor an Elixir SDK. Its scenarios are split between parallel forks, six unless `-PmatrixShards=<n>` (at most 12)
+says otherwise, so its results are one `TEST-*Shard<i>.xml` per shard in `build/test-results/testFullMatrix/`.
 
 `test` builds and starts the Elixir quoter daemon, because the parser tests
 (`org.elixir_lang.parser_definition.*`) quote source through it and compare the result against the
