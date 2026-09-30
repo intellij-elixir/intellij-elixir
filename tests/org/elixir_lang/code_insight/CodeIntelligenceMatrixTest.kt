@@ -189,6 +189,7 @@ private class Group(val scenario: Scenario) {
                         check(feature, binding)
                     } catch (e: Throwable) {
                         if (e is ControlFlowException || e is CancellationException) breakOnFailure { throw e }
+                        if (e is junit.framework.AssertionFailedError || e.javaClass == AssertionError::class.java) trimToCheck(e)
                         throw e
                     } finally {
                         if (feature.edits && broken == null) restore()
@@ -198,6 +199,15 @@ private class Group(val scenario: Scenario) {
         } finally {
             if (--unchecked == 0) closeOpen()
         }
+    }
+
+    /**
+     * Cuts [assertion]'s stack below the feature's check, the frames that differ between cells: the JUnit XML stores
+     * every red cell's stack, which at tens of thousands of cells is mostly the harness repeated.
+     */
+    private fun trimToCheck(assertion: Throwable) {
+        val check = assertion.stackTrace.indexOfFirst { it.className == Group::class.java.name && it.methodName == "check" }
+        if (check >= 0) assertion.stackTrace = assertion.stackTrace.copyOfRange(0, check + 1)
     }
 
     private inline fun <T> breakOnFailure(block: () -> T): T =
