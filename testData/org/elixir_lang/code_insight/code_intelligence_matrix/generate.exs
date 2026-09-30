@@ -160,6 +160,17 @@ defmodule Matrix do
   @module_references [{"module_qualified", :module}, {"module_aliased", :module_aliased}]
   @module_shapes [:module, :module_aliased]
 
+  # An `import` is lexical: under an `if` or `unless`, at module level or in a function body, it reaches the code
+  # inside the block and nothing after it. Each world imports the declaring module in one such block and asks a call
+  # inside it and one after it; which of them compiles is the compiler's answer.
+  @import_blocks %{
+    "x_import_in_if" => {:module, "if Code.ensure_loaded?(Kernel) do"},
+    "x_import_in_unless" => {:module, "unless Code.ensure_loaded?(Matrix.Absent) do"},
+    "x_import_in_body_if" => {:body, "if Code.ensure_loaded?(Kernel) do"}
+  }
+  @import_block_worlds Map.keys(@import_blocks)
+  @import_block_sites ["imported_inside", "imported_after"]
+
   # The worlds whose main module's definitions a `use` injects.
   @use_worlds ["x_use_injected", "x_use_injected_defaults", "x_use_apply"]
   @injecting_worlds @use_worlds ++ @use_wrapper_worlds
@@ -183,7 +194,9 @@ defmodule Matrix do
     module_calls = for {id, shape} <- @module_references, do: {id, 0, nil, 0, shape}
     module_asks = Enum.map(module_calls, &elem(&1, 0)) ++ ["module_local", "module_declaration"]
 
-    Enum.reduce(@moduledoc_worlds, worlds, &Map.put(&2, &1, %{modules: worlds["w1"].modules, calls: module_calls, asks: module_asks}))
+    worlds = Enum.reduce(@moduledoc_worlds, worlds, &Map.put(&2, &1, %{modules: worlds["w1"].modules, calls: module_calls, asks: module_asks}))
+
+    Enum.reduce(@import_block_worlds, worlds, &Map.put(&2, &1, %{modules: worlds["w1"].modules, calls: [], asks: @import_block_sites}))
   end
 
   defp base_worlds do
@@ -445,6 +458,12 @@ defmodule Matrix do
   def not_applicable(_backing, form, world) when world in @moduledoc_worlds and form.id != "def",
     do: "a moduledoc world asks about the module, so the form its functions are declared with changes nothing"
 
+  def not_applicable(%{id: backing}, _form, world) when world in @import_block_worlds and backing != "src",
+    do: "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change"
+
+  def not_applicable(_backing, form, world) when world in @import_block_worlds and form.id not in ["def", "defmacro"],
+    do: "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in"
+
   def not_applicable(_backing, _form, _world), do: nil
 
   def run do
@@ -560,9 +579,11 @@ defmodule Matrix do
     broken_sites = if form[:private], do: Enum.map(broken_sites, &Map.put(&1, "visible", [])), else: broken_sites
 
     {import_paths, import_sites} =
-      if world in @import_worlds,
-        do: import_callers(backing, form, world, names, elem(primary, 0)),
-        else: {[], []}
+      cond do
+        world in @import_worlds -> import_callers(backing, form, world, names, elem(primary, 0))
+        world in @import_block_worlds -> import_block_callers(backing, form, world, names, elem(primary, 0))
+        true -> {[], []}
+      end
 
     {use_paths, use_sites} =
       if world in @use_worlds and !form[:private],
@@ -705,6 +726,60 @@ defmodule Matrix do
     {[ok_path | rejected_paths] ++ directive_paths, ok_sites ++ key_sites ++ List.flatten(rejected_sites) ++ List.flatten(directive_sites)}
   end
 
+  # A caller per site of an import block world, each a module importing the declaring one inside the world's block and
+  # calling it inside or after the block. What the block leaves visible at the call is read from `__ENV__` at the
+  # same place, and a call it leaves nothing for is compiled expecting the compiler to reject it.
+  defp import_block_callers(backing, form, world, names, name) do
+    reference = reference(backing, hd(names))
+    namespace = "Callers.#{Macro.camelize(backing.prefix)}.#{Macro.camelize(form.id)}.#{Macro.camelize(world)}"
+    directory = Path.join(["lib", "callers", backing.id, form.id])
+    block = Map.fetch!(@import_blocks, world)
+    directive = "import #{reference}"
+
+    @import_block_sites
+    |> Enum.map(fn "imported_" <> position = site ->
+      position = String.to_existing_atom(position)
+      probe = namespace <> ".Probe" <> Macro.camelize(site)
+      expression = visible_expression(reference)
+      # At module level the probe keeps what it read in an attribute, which a function then returns.
+      probe_lines =
+        import_block_lines(block, position, directive, "@visible " <> expression, {"visible", expression}) ++
+          if(elem(block, 0) == :module, do: ["def visible, do: @visible"], else: [])
+
+      visible = probe_visible(render_lines_module(probe, probe_lines), probe)
+
+      call = "#{name}(a, b) # @#{site}"
+      lines = import_block_lines(block, position, directive, "def at_#{site}(a, b), do: " <> call, {"at_#{site}(a, b)", call})
+      path = Path.join(directory, Macro.underscore(world) <> "_" <> site <> ".ex")
+      source = "# #{@header}\n" <> render_lines_module(namespace <> "." <> Macro.camelize(site), lines)
+      File.write!(path, source)
+      calls = [{site, 0, name, 2, :unqualified}]
+
+      sites =
+        if "#{nfc(name)}/2" in visible,
+          do: caller_sites(path, source, compile_elixir(path, source), calls, backing, names),
+          else: broken_sites(path, source, calls, compile_expecting_failure(path, source))
+
+      {path, Enum.map(sites, &Map.put(&1, "visible", visible))}
+    end)
+    |> Enum.unzip()
+    |> then(fn {paths, sites} -> {paths, Enum.concat(sites)} end)
+  end
+
+  # The import block's lines with `statement` (module level) or `{head, expression}` (a function body) inside or after it.
+  defp import_block_lines({:module, opening}, position, directive, statement, _body), do: block_lines(opening, directive, statement, position)
+
+  defp import_block_lines({:body, opening}, position, directive, _statement, {head, expression}),
+    do: ["def #{head} do" | Enum.map(block_lines(opening, directive, expression, position), &indent/1)] ++ ["end"]
+
+  defp block_lines(opening, directive, line, :inside), do: [opening, indent(directive), indent(line), "end"]
+  defp block_lines(opening, directive, line, :after), do: [opening, indent(directive), "end", "", line]
+
+  defp indent(""), do: ""
+  defp indent(line), do: "  " <> line
+
+  defp render_lines_module(module, lines), do: "defmodule #{module} do\n" <> Enum.map_join(lines, "\n", &indent/1) <> "\nend\n"
+
   # The key of a directive the compiler rejected names nothing it can import: no binding, and what the compiler said.
   defp rejected_key(site, diagnostics) do
     said = Enum.find(diagnostics, &(position_line(&1.position) == site["line"])) ||
@@ -762,11 +837,18 @@ defmodule Matrix do
     source = """
     #{middle}defmodule #{probe} do
       #{directive}
-      @visible for {module, pairs} <- __ENV__.functions ++ __ENV__.macros, module == #{reference}, {name, arity} <- pairs, do: "\#{name}/\#{arity}"
+      @visible #{visible_expression(reference)}
       def visible, do: @visible
     end
     """
 
+    probe_visible(source, probe)
+  end
+
+  defp visible_expression(reference),
+    do: ~s[for {module, pairs} <- __ENV__.functions ++ __ENV__.macros, module == #{reference}, {name, arity} <- pairs, do: "\#{name}/\#{arity}"]
+
+  defp probe_visible(source, probe) do
     Matrix.Events.take()
     # A probe whose directive is unused would warn about it, and that is not what it is asking.
     {compiled, _diagnostics} =
@@ -2158,10 +2240,15 @@ defmodule Matrix do
     if 2 in arities, do: 2, else: Enum.max(arities)
   end
 
-  # A site's column is where the target's name starts after `do:` (or `->` in Erlang), counted in UTF-16 code units
-  # as the IDE's document offsets are.
+  # A site's column is where the target's name starts after `do:` (or `->` in Erlang), or on a line of a function body
+  # that is only the call, counted in UTF-16 code units as the IDE's document offsets are.
   defp name_column(text, name) do
-    [{body_start, _}] = Regex.run(~r/do: |-> /, text, return: :index)
+    body_start =
+      case Regex.run(~r/do: |-> /, text, return: :index) do
+        [{start, _}] -> start
+        nil -> 0
+      end
+
     escaped = Regex.escape(name)
     pattern = ~r/(?<![\w.:?!"])#{escaped}(?![\w?!\x{0300}-\x{036F}])|(?<=[.:"])#{escaped}(?![\w?!\x{0300}-\x{036F}])/u
     [{start, _}] = Regex.run(pattern, text, return: :index, offset: body_start)
