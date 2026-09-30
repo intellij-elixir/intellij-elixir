@@ -24,6 +24,10 @@ defmodule Matrix.Tracer do
     Matrix.Events.add(%{file: env.file, line: meta[:line], module: env.module, name: name, arity: arity, kind: kind})
   end
 
+  def trace({:alias_reference, meta, module}, env) do
+    Matrix.Events.add(%{file: env.file, line: meta[:line], module: module, name: nil, arity: 0, kind: :alias_reference})
+  end
+
   def trace(_event, _env), do: :ok
 end
 
@@ -123,6 +127,37 @@ defmodule Matrix do
   # The worlds where a call made before the definition is asked, which only a walk of the whole module can resolve.
   @local_forward_worlds ["w1", "x_if_else" | @wrapper_worlds ++ @use_wrapper_worlds]
 
+  # What `x_moduledoc_file` reads its doc from, relative to this directory, where the compiler runs.
+  @moduledoc_file "spec/moduledoc.md"
+  @moduledoc_file_text "The documented module, read from a file.\n"
+
+  # How the main module writes its `@moduledoc`s. The compiler keeps the one set last: metadata merges into it and
+  # `false` hides it, and under an `if`/`else` only the branch it takes is set at all, which here is the last written.
+  @moduledocs %{
+    "x_moduledoc" => [~s(@moduledoc "The documented module.")],
+    "x_moduledoc_twice" => [~s(@moduledoc "The first written."), ~s(@moduledoc "The documented module.")],
+    "x_moduledoc_since" => [~s(@moduledoc "The documented module."), ~s(@moduledoc since: "1.0.0")],
+    "x_moduledoc_since_list" => [~s(@moduledoc "The documented module."), ~s(@moduledoc [since: "1.0.0"])],
+    "x_moduledoc_empty_list" => [~s(@moduledoc "The documented module."), "@moduledoc []"],
+    # A value only evaluating it gives, as a README read into the doc is.
+    "x_moduledoc_file" => [~s(@moduledoc "The documented module."), ~s[@moduledoc File.read!("#{@moduledoc_file}")]],
+    "x_moduledoc_false" => [~s(@moduledoc "The documented module."), "@moduledoc false"],
+    "x_moduledoc_if" => ["if Code.ensure_loaded?(Kernel) do", ~s(  @moduledoc "The documented module."), "end"],
+    "x_moduledoc_if_else" => [
+      "if Code.ensure_loaded?(Matrix.Absent) do",
+      ~s(  @moduledoc "The branch not taken."),
+      "else",
+      ~s(  @moduledoc "The documented module."),
+      "end"
+    ]
+  }
+  @moduledoc_worlds Map.keys(@moduledocs)
+
+  # A reference to the module a moduledoc world documents from another module, `{site id, shape}`: by its whole name
+  # and through an `alias`. The places in the module itself come from `module_sites/4`.
+  @module_references [{"module_qualified", :module}, {"module_aliased", :module_aliased}]
+  @module_shapes [:module, :module_aliased]
+
   # The worlds whose main module's definitions a `use` injects.
   @use_worlds ["x_use_injected", "x_use_injected_defaults", "x_use_apply"]
   @injecting_worlds @use_worlds ++ @use_wrapper_worlds
@@ -142,7 +177,11 @@ defmodule Matrix do
     worlds = base_worlds()
     injected = worlds["x_use_injected"]
 
-    Enum.reduce(@use_wrapper_worlds, worlds, &Map.put(&2, &1, %{modules: injected.modules, calls: [], asks: ["local", "local_forward"]}))
+    worlds = Enum.reduce(@use_wrapper_worlds, worlds, &Map.put(&2, &1, %{modules: injected.modules, calls: [], asks: ["local", "local_forward"]}))
+    module_calls = for {id, shape} <- @module_references, do: {id, 0, nil, 0, shape}
+    module_asks = Enum.map(module_calls, &elem(&1, 0)) ++ ["module_local", "module_declaration"]
+
+    Enum.reduce(@moduledoc_worlds, worlds, &Map.put(&2, &1, %{modules: worlds["w1"].modules, calls: module_calls, asks: module_asks}))
   end
 
   defp base_worlds do
@@ -393,6 +432,12 @@ defmodule Matrix do
   def not_applicable(backing, form, "x_interpolated_atom") when backing.id != "src" or form.id != "def",
     do: "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function"
 
+  def not_applicable(%{id: backing}, _form, world) when world in @moduledoc_worlds and backing != "src",
+    do: "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies"
+
+  def not_applicable(_backing, form, world) when world in @moduledoc_worlds and form.id != "def",
+    do: "a moduledoc world asks about the module, so the form its functions are declared with changes nothing"
+
   def not_applicable(_backing, _form, _world), do: nil
 
   def run do
@@ -407,6 +452,8 @@ defmodule Matrix do
 
     provenance()
     sdk()
+    File.mkdir_p!(Path.dirname(@moduledoc_file))
+    File.write!(@moduledoc_file, @moduledoc_file_text)
 
     {scenarios, skipped} =
       for backing <- backings(), form <- forms(), {world, spec} <- Enum.sort(worlds()), reduce: {[], []} do
@@ -756,7 +803,7 @@ defmodule Matrix do
   # The shapes whose atom names a module the caller declares, where Go To Declaration must land.
   @module_atoms [:interpolated_atom, :module_atom]
 
-  defp defined?({_id, _module, _name, _arity, shape}, _modules) when shape in @not_calls, do: true
+  defp defined?({_id, _module, _name, _arity, shape}, _modules) when shape in @not_calls or shape in @module_shapes, do: true
 
   defp defined?({_id, module, name, arity, _shape}, modules) do
     modules
@@ -868,7 +915,7 @@ defmodule Matrix do
           end),
         calls:
           Enum.map(spec.calls, fn {id, module, name, arity, shape} ->
-            {id, module, if(name in @kernel_names, do: name, else: prefix <> name), arity, shape}
+            {id, module, if(name in @kernel_names or shape in @module_shapes, do: name, else: prefix <> name), arity, shape}
           end)
     }
   end
@@ -1179,7 +1226,8 @@ defmodule Matrix do
         unquote_name: world == "x_unquote_name",
         branches: world == "x_if_else",
         spec: primary != nil and backing.id == "src" and world in @spec_worlds and form.id in @function_forms,
-        local_forward: primary != nil and backing.id == "src" and world in @local_forward_worlds and form.id in @function_forms
+        local_forward: primary != nil and backing.id == "src" and world in @local_forward_worlds and form.id in @function_forms,
+        moduledoc: primary != nil && Map.get(@moduledocs, world)
       })
     extension = if(backing.language == :elixir, do: ".ex", else: ".erl")
     # Named after the whole module: every world's delegate target is a `Target`.
@@ -1191,7 +1239,7 @@ defmodule Matrix do
     File.mkdir_p!(Path.dirname(path))
     File.write!(path, source)
 
-    {beam, events} = compile_source(backing, module, path, source)
+    {beam, events, binary} = compile_source(backing, module, path, source)
 
     spec =
       if backing.language == :erlang do
@@ -1204,7 +1252,9 @@ defmodule Matrix do
 
     local =
       if primary,
-        do: local_sites(path, source, events, backing, module, primary, local_arity(definitions, primary)) ++ marked_sites(path, source, events, backing, module),
+        do:
+          local_sites(path, source, events, backing, module, primary, local_arity(definitions, primary)) ++
+            marked_sites(path, source, events, backing, module) ++ if(form[:moduledoc], do: module_sites(path, source, events, binary), else: []),
         else: []
 
     %{
@@ -1229,6 +1279,28 @@ defmodule Matrix do
           true -> []
         end,
       local: local
+    }
+    |> then(&if(form[:moduledoc], do: Map.put(&1, "moduledoc", moduledoc(binary, source)), else: &1))
+  end
+
+  # What `Code.fetch_docs/1` says of the module's documentation: its text, or that it is hidden. `written` is every
+  # text a `@moduledoc` in the source spells, which a hidden doc, or one set later, must not show.
+  defp moduledoc(binary, source) do
+    {:ok, {_module, [{~c"Docs", chunk}]}} = :beam_lib.chunks(binary, [~c"Docs"])
+    {:docs_v1, _anno, _language, _format, doc, _metadata, _docs} = :erlang.binary_to_term(chunk)
+
+    {_ast, written} =
+      source
+      |> Code.string_to_quoted!()
+      |> Macro.prewalk([], fn
+        {:@, _, [{:moduledoc, _, [text]}]} = node, acc when is_binary(text) -> {node, [text | acc]}
+        node, acc -> {node, acc}
+      end)
+
+    %{
+      "doc" => if(is_map(doc), do: Map.fetch!(doc, "en")),
+      "hidden" => doc == :hidden,
+      "written" => Enum.reverse(written)
     }
   end
 
@@ -1721,10 +1793,13 @@ defmodule Matrix do
         true -> ""
       end
 
+    moduledoc = if lines = form[:moduledoc], do: Enum.map_join(lines, &("  " <> &1 <> "\n")) <> "\n", else: ""
+    module_local = if form[:moduledoc], do: "\n\n  def module_local, do: #{module} # @module_local", else: ""
+
     """
     # #{@header}
     defmodule #{module} do
-    #{requires}#{forward}#{Enum.join(clauses, "\n")}#{local}#{uses}#{marker}
+    #{moduledoc}#{requires}#{forward}#{Enum.join(clauses, "\n")}#{local}#{uses}#{marker}#{module_local}
     end
     """
   end
@@ -1785,6 +1860,7 @@ defmodule Matrix do
         form[:private] -> ""
         # Nothing in the caller would use them, and the compiler would warn.
         Enum.all?(calls, &(elem(&1, 4) in @module_atoms)) -> ""
+        Enum.all?(calls, &(elem(&1, 4) in @module_shapes)) -> "  alias #{hd(references)}\n"
         form[:macro] -> aliases <> Enum.map_join(references, "", &"  require #{&1}\n") <> "  import #{hd(references)}\n"
         true -> aliases <> "  import #{hd(references)}\n"
       end
@@ -1814,6 +1890,8 @@ defmodule Matrix do
   defp call(:keyword, _backing, _module, name, _arity), do: "[#{name}: a, b: b]"
   defp call(:interpolated_atom, _backing, _module, name, _arity), do: ~s({:"#{name}", a, b})
   defp call(:module_atom, _backing, _module, name, _arity), do: "{:#{name}, a, b}"
+  defp call(:module, _backing, module, _name, _arity), do: module
+  defp call(:module_aliased, _backing, module, _name, _arity), do: last_segment(module)
 
   # Erlang keeps a decomposed name as written, so Elixir must quote it to call it; unquoted, it would normalise it.
   defp call_name(%{language: :erlang}, name), do: if(name == nfc(name), do: name, else: ~s("#{name}"))
@@ -1825,7 +1903,7 @@ defmodule Matrix do
 
   defp compile_source(%{language: :elixir} = backing, module, path, source) do
     {[{_module, binary}], events} = compile_elixir_modules(path, source)
-    {beam_path(backing, module, binary), events}
+    {beam_path(backing, module, binary), events, binary}
   end
 
   defp compile_source(%{language: :erlang} = backing, module, path, _source) do
@@ -1835,7 +1913,7 @@ defmodule Matrix do
     if warnings != [], do: raise("#{path} compiled with warnings: #{inspect(warnings)}")
     {:module, ^erlang_module} = :code.load_binary(erlang_module, String.to_charlist(path), binary)
 
-    {beam_path(backing, module, binary), :erlang}
+    {beam_path(backing, module, binary), :erlang, binary}
   end
 
   defp beam_path(%{compiled: false}, _module, _binary), do: nil
@@ -1870,6 +1948,8 @@ defmodule Matrix do
     diagnostics = Enum.reject(diagnostics, &(&1.message =~ ~r/^(function|macro) (\S+_x_use_\S+|__using__\/1|secret\/0) is unused/))
     # A module declared, and named, with quotes it does not need, on purpose.
     diagnostics = Enum.reject(diagnostics, &(&1.message =~ ~r/^found quoted atom "\S+_x_interpolated_atom_quoted" but the quotes are not required/))
+    # A moduledoc world setting the doc a second time, which is what it asks about.
+    diagnostics = Enum.reject(diagnostics, &(&1.message =~ ~r/^redefining @moduledoc attribute/ and path =~ ~r/x_moduledoc/))
     if diagnostics != [], do: raise("#{path} compiled with diagnostics: #{inspect(diagnostics)}")
     {modules, Matrix.Events.take()}
   end
@@ -1879,6 +1959,8 @@ defmodule Matrix do
 
     Enum.map(calls, fn {id, module, name, arity, shape} ->
       {text, line} = Enum.find(lines, fn {text, _} -> String.ends_with?(text, "# @#{id}") end)
+      # A module is asked at its own name, the alias's last segment: an earlier one names a module of its own.
+      name = if shape in @module_shapes, do: last_segment(Enum.at(names, module)), else: name
       binding = binding(events, path, line, name, shape, backing, Enum.at(names, module), arity)
 
       site = %{
@@ -1911,6 +1993,8 @@ defmodule Matrix do
     do: %{"module" => reference(backing, module), "name" => nfc(name), "arity" => arity, "kind" => to_string(shape)}
 
   defp binding(_events, _path, _line, _name, shape, _backing, _module, _arity) when shape in @not_calls, do: nil
+
+  defp binding(events, path, line, _name, shape, _backing, _module, _arity) when shape in @module_shapes, do: module_binding(events, path, line)
 
   defp binding(events, path, line, name, _shape, _backing, _module, _arity) do
     atom = String.to_atom(name)
@@ -1997,6 +2081,46 @@ defmodule Matrix do
           }
       end
     end
+  end
+
+  # The module an alias at [line] expands to, as the compiler traced it.
+  defp module_binding(events, path, line) do
+    case Enum.filter(events, &(&1.kind == :alias_reference and &1.file |> Path.relative_to_cwd() == path and &1.line == line)) do
+      [event] -> %{"module" => inspect(event.module), "name" => inspect(event.module), "arity" => 0, "kind" => "alias_reference"}
+      events -> raise("#{path}:#{line} has #{length(events)} traced alias references: #{inspect(events)}")
+    end
+  end
+
+  # A moduledoc world's places in its own module, each at the module's last segment: the reference `module_local`
+  # makes, and the `defmodule`'s name, which is the module the compiler defined.
+  defp module_sites(path, source, events, binary) do
+    lines = source |> String.split("\n") |> Enum.with_index(1)
+    {local_text, local_line} = Enum.find(lines, fn {text, _} -> String.ends_with?(text, "# @module_local") end)
+    [_, local_name] = Regex.run(~r/do: (?:\S+\.)?(\S+) #/, local_text)
+    {declaration_text, declaration_line} = Enum.find(lines, fn {text, _} -> String.starts_with?(text, "defmodule ") end)
+    [_, qualifier, declared] = Regex.run(~r/^defmodule ((?:\S+\.)?)(\S+) do$/, declaration_text)
+    {:ok, {defined, _}} = :beam_lib.chunks(binary, [])
+
+    [
+      %{
+        "id" => "module_local",
+        "file" => path,
+        "line" => local_line,
+        "column" => name_column(local_text, local_name),
+        "name" => local_name,
+        "arity" => 0,
+        "binding" => module_binding(events, path, local_line)
+      },
+      %{
+        "id" => "module_declaration",
+        "file" => path,
+        "line" => declaration_line,
+        "column" => String.length("defmodule " <> qualifier) + 1,
+        "name" => declared,
+        "arity" => 0,
+        "binding" => %{"module" => inspect(defined), "name" => inspect(defined), "arity" => 0, "kind" => "defmodule"}
+      }
+    ]
   end
 
   # `local_site` calls the primary's name with two arguments wherever some definition of it takes two, which is every

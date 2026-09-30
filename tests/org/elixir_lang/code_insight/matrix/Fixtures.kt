@@ -92,9 +92,17 @@ class DeclaringModule(
      * guard, the other clauses and sometimes the parameter names are gone for good.
      */
     val complete: Boolean,
+    /** What the compiler kept of the module's `@moduledoc`s, where a moduledoc world asks about it. */
+    val moduledoc: Moduledoc? = null,
 ) {
     val compiled: Boolean get() = beam != null
 }
+
+/**
+ * The module's documentation as `Code.fetch_docs/1` has it: [doc], or none where [hidden] by `@moduledoc false`.
+ * [written] is every text a `@moduledoc` in the source spells, whichever the compiler kept.
+ */
+class Moduledoc(val doc: String?, val hidden: Boolean, val written: List<String>)
 
 /** A clause head as `generate.exs` read it from the source; [Expected] turns these into the expected [Head]s. */
 class CommittedHead(
@@ -162,4 +170,9 @@ fun Site.sees(definition: Definition): Boolean =
 /** [severity] is the compiler's: a remote call at an unknown arity warns, a local one is an error. */
 class Diagnostic(val severity: String, val message: String)
 
-class Binding(val module: String, val name: String, val arity: Int, val kind: String)
+class Binding(val module: String, val name: String, val arity: Int, val kind: String) {
+    /** Whether this names a module rather than a function: an alias the compiler expanded, or a `defmodule`'s name. */
+    val namesModule: Boolean get() = kind in MODULE_KINDS
+}
+
+private val MODULE_KINDS = setOf("alias_reference", "defmodule")

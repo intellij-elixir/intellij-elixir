@@ -291,7 +291,7 @@ private class Group(val scenario: Scenario) {
             Feature.GO_TO_DECLARATION -> checkGoToDeclaration(binding)
             Feature.FIND_USAGES -> checkFindUsages(binding)
             Feature.LABEL -> checkLabel(binding)
-            Feature.QUICK_DOCUMENTATION -> checkQuickDocumentation(binding)
+            Feature.QUICK_DOCUMENTATION -> if (binding?.namesModule == true) checkModuleDocumentation(binding) else checkQuickDocumentation(binding)
             Feature.UNAVAILABLE_NOTICE -> checkUnavailableNotice(binding)
             Feature.PARAMETER_INFO -> checkParameterInfo(binding)
             Feature.CTRL_CLICK -> checkCtrlClick(binding!!)
@@ -1112,6 +1112,26 @@ private class Group(val scenario: Scenario) {
                 occurrences(header, "href=\"#") >= signatures.size
             )
         }
+    }
+
+    /**
+     * At a module's name, the documentation the compiler kept for it, and none of the texts it did not: an earlier
+     * `@moduledoc` it replaced, an `if` branch it never took, or any text at all once `@moduledoc false` hides it.
+     */
+    private fun checkModuleDocumentation(binding: Binding) {
+        openAt(place)
+        val html = myFixture.quickDocumentationAtCaret(project)?.let { nfc(it.replace('\n', ' ')) }
+        val moduledoc = scenario.module(binding.module).moduledoc
+            ?: throw AssertionError("${binding.module} has no moduledoc in the oracle")
+        val kept = moduledoc.doc?.trim()?.let(::nfc)
+
+        if (kept != null) assertTrue("Quick Documentation at ${place.id} does not show `$kept`: $html", html?.contains(kept) == true)
+
+        assertEquals(
+            "Quick Documentation at ${place.id} shows moduledoc text the compiler ${if (moduledoc.hidden) "hid" else "did not keep"}: $html",
+            emptyList<String>(),
+            moduledoc.written.map(::nfc).filter { it != kept && html?.contains(it) == true }
+        )
     }
 
     /**
