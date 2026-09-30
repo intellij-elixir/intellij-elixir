@@ -131,7 +131,8 @@ defmodule Matrix do
   @spec_worlds ["w1", "x_arity", "x_defaults", "x_defaults_head"]
 
   # EEx declares one clause per name and arity, with no guard and no defaults, so only the worlds made of those.
-  @eex_worlds ["w1", "x_arity", "x_other_module", "x_not_a_call", "x_arity_absent", "x_arity_zero", "x_arity_separate"]
+  # Under a wrapper, only the literal call and only the calls in its own module ask anything `def` does not.
+  @eex_worlds ["w1", "x_arity", "x_other_module", "x_not_a_call", "x_arity_absent", "x_arity_zero", "x_arity_separate" | @wrapper_worlds]
 
   # A world is its modules' definitions and the calls made to them. A definition is `{name, clauses}`; a clause is
   # `{parameters, guard}`, where a parameter is a name or `{name, default}` and a guard is `{function, parameter}`.
@@ -356,6 +357,9 @@ defmodule Matrix do
   def not_applicable(_backing, form, "x_embed") when not is_map_key(form, :embed),
     do: "x_embed's names are what a Mix.Generator embed declares"
 
+  def not_applicable(_backing, %{eex_attribute: _}, world) when world in @wrapper_worlds,
+    do: "reading the kind or the arguments from an attribute is w1's question; a wrapper does not change it"
+
   def not_applicable(_backing, %{eex: true}, world) when world not in @eex_worlds,
     do: "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom"
   def not_applicable(%{language: :erlang}, _form, world) when world in ["x_defaults", "x_defaults_head"],
@@ -447,7 +451,7 @@ defmodule Matrix do
   ]
 
   defp scenario(backing, form, world, spec) do
-    spec = scope(spec, backing, form, world)
+    spec = spec |> asked(form, world) |> scope(backing, form, world)
     # A second user never calls a private function it is injected with, so the compiler drops it from its `.beam`: a
     # private form asks the one user that does.
     spec = if form[:private] && world in @injecting_worlds, do: %{spec | modules: Enum.take(spec.modules, 1)}, else: spec
@@ -528,6 +532,11 @@ defmodule Matrix do
     }
     |> then(&if(asks = spec[:asks], do: Map.put(&1, "asks", asks), else: &1))
   end
+
+  defp asked(spec, %{eex: true}, world) when world in @wrapper_worlds,
+    do: Map.merge(spec, %{calls: [], asks: ["local", "local_forward"]})
+
+  defp asked(spec, _form, _world), do: spec
 
   defp atom_modules(spec, prefix),
     do: spec |> Map.get(:atom_modules, []) |> Enum.map_join(&"\ndefmodule #{atom_module(prefix, &1)} do end\n")

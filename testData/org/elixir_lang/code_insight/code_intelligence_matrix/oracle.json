@@ -2028,24 +2028,6 @@
       "backing": "src",
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
-      "world": "x_case"
-    },
-    {
-      "backing": "src",
-      "form": "eex_function_from",
-      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
-      "world": "x_cond"
-    },
-    {
-      "backing": "src",
-      "form": "eex_function_from",
-      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
-      "world": "x_conditional"
-    },
-    {
-      "backing": "src",
-      "form": "eex_function_from",
-      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_defaults"
     },
     {
@@ -2059,12 +2041,6 @@
       "form": "eex_function_from",
       "reason": "x_embed's names are what a Mix.Generator embed declares",
       "world": "x_embed"
-    },
-    {
-      "backing": "src",
-      "form": "eex_function_from",
-      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
-      "world": "x_for"
     },
     {
       "backing": "src",
@@ -2089,24 +2065,6 @@
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_nfc"
-    },
-    {
-      "backing": "src",
-      "form": "eex_function_from",
-      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
-      "world": "x_receive"
-    },
-    {
-      "backing": "src",
-      "form": "eex_function_from",
-      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
-      "world": "x_try"
-    },
-    {
-      "backing": "src",
-      "form": "eex_function_from",
-      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
-      "world": "x_unless"
     },
     {
       "backing": "src",
@@ -2179,12 +2137,6 @@
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_use_injected_defaults"
-    },
-    {
-      "backing": "src",
-      "form": "eex_function_from",
-      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
-      "world": "x_with"
     },
     {
       "backing": "src",
@@ -2207,19 +2159,19 @@
     {
       "backing": "src",
       "form": "eex_function_from_kind",
-      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "reason": "reading the kind or the arguments from an attribute is w1's question; a wrapper does not change it",
       "world": "x_case"
     },
     {
       "backing": "src",
       "form": "eex_function_from_kind",
-      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "reason": "reading the kind or the arguments from an attribute is w1's question; a wrapper does not change it",
       "world": "x_cond"
     },
     {
       "backing": "src",
       "form": "eex_function_from_kind",
-      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "reason": "reading the kind or the arguments from an attribute is w1's question; a wrapper does not change it",
       "world": "x_conditional"
     },
     {
@@ -2243,7 +2195,7 @@
     {
       "backing": "src",
       "form": "eex_function_from_kind",
-      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "reason": "reading the kind or the arguments from an attribute is w1's question; a wrapper does not change it",
       "world": "x_for"
     },
     {
@@ -2273,19 +2225,19 @@
     {
       "backing": "src",
       "form": "eex_function_from_kind",
-      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "reason": "reading the kind or the arguments from an attribute is w1's question; a wrapper does not change it",
       "world": "x_receive"
     },
     {
       "backing": "src",
       "form": "eex_function_from_kind",
-      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "reason": "reading the kind or the arguments from an attribute is w1's question; a wrapper does not change it",
       "world": "x_try"
     },
     {
       "backing": "src",
       "form": "eex_function_from_kind",
-      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "reason": "reading the kind or the arguments from an attribute is w1's question; a wrapper does not change it",
       "world": "x_unless"
     },
     {
@@ -2363,7 +2315,7 @@
     {
       "backing": "src",
       "form": "eex_function_from_kind",
-      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "reason": "reading the kind or the arguments from an attribute is w1's question; a wrapper does not change it",
       "world": "x_with"
     },
     {
@@ -2387,19 +2339,19 @@
     {
       "backing": "src",
       "form": "eex_function_from_args",
-      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "reason": "reading the kind or the arguments from an attribute is w1's question; a wrapper does not change it",
       "world": "x_case"
     },
     {
       "backing": "src",
       "form": "eex_function_from_args",
-      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "reason": "reading the kind or the arguments from an attribute is w1's question; a wrapper does not change it",
       "world": "x_cond"
     },
     {
       "backing": "src",
       "form": "eex_function_from_args",
-      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "reason": "reading the kind or the arguments from an attribute is w1's question; a wrapper does not change it",
       "world": "x_conditional"
     },
     {
@@ -2423,7 +2375,7 @@
     {
       "backing": "src",
       "form": "eex_function_from_args",
-      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "reason": "reading the kind or the arguments from an attribute is w1's question; a wrapper does not change it",
       "world": "x_for"
     },
     {
@@ -2453,19 +2405,19 @@
     {
       "backing": "src",
       "form": "eex_function_from_args",
-      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "reason": "reading the kind or the arguments from an attribute is w1's question; a wrapper does not change it",
       "world": "x_receive"
     },
     {
       "backing": "src",
       "form": "eex_function_from_args",
-      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "reason": "reading the kind or the arguments from an attribute is w1's question; a wrapper does not change it",
       "world": "x_try"
     },
     {
       "backing": "src",
       "form": "eex_function_from_args",
-      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "reason": "reading the kind or the arguments from an attribute is w1's question; a wrapper does not change it",
       "world": "x_unless"
     },
     {
@@ -2543,7 +2495,7 @@
     {
       "backing": "src",
       "form": "eex_function_from_args",
-      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "reason": "reading the kind or the arguments from an attribute is w1's question; a wrapper does not change it",
       "world": "x_with"
     },
     {
@@ -103507,6 +103459,422 @@
       "world": "x_arity_zero"
     },
     {
+      "asks": [
+        "local",
+        "local_forward"
+      ],
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/eex_function_from/x_case.ex",
+      "form": "eex_function_from",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 37,
+              "definer": "def",
+              "line": 9,
+              "name": "src_eex_function_from_x_case_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_eex_function_from_x_case_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_eex_function_from_x_case_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.EexFunctionFrom.XCase",
+          "source": "lib/src/src.eex_function_from.x_case.ex",
+          "spec": "lib/src/src.eex_function_from.x_case.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.EexFunctionFrom.XCase",
+            "name": "src_eex_function_from_x_case_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.eex_function_from.x_case.ex",
+          "id": "local",
+          "line": 12,
+          "name": "src_eex_function_from_x_case_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.EexFunctionFrom.XCase",
+            "name": "src_eex_function_from_x_case_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.eex_function_from.x_case.ex",
+          "id": "local_forward",
+          "line": 5,
+          "name": "src_eex_function_from_x_case_snoc"
+        }
+      ],
+      "world": "x_case"
+    },
+    {
+      "asks": [
+        "local",
+        "local_forward"
+      ],
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/eex_function_from/x_cond.ex",
+      "form": "eex_function_from",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 37,
+              "definer": "def",
+              "line": 9,
+              "name": "src_eex_function_from_x_cond_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_eex_function_from_x_cond_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_eex_function_from_x_cond_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.EexFunctionFrom.XCond",
+          "source": "lib/src/src.eex_function_from.x_cond.ex",
+          "spec": "lib/src/src.eex_function_from.x_cond.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.EexFunctionFrom.XCond",
+            "name": "src_eex_function_from_x_cond_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.eex_function_from.x_cond.ex",
+          "id": "local",
+          "line": 12,
+          "name": "src_eex_function_from_x_cond_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.EexFunctionFrom.XCond",
+            "name": "src_eex_function_from_x_cond_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.eex_function_from.x_cond.ex",
+          "id": "local_forward",
+          "line": 5,
+          "name": "src_eex_function_from_x_cond_snoc"
+        }
+      ],
+      "world": "x_cond"
+    },
+    {
+      "asks": [
+        "local",
+        "local_forward"
+      ],
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/eex_function_from/x_conditional.ex",
+      "form": "eex_function_from",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 37,
+              "definer": "def",
+              "line": 8,
+              "name": "src_eex_function_from_x_conditional_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_eex_function_from_x_conditional_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_eex_function_from_x_conditional_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.EexFunctionFrom.XConditional",
+          "source": "lib/src/src.eex_function_from.x_conditional.ex",
+          "spec": "lib/src/src.eex_function_from.x_conditional.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.EexFunctionFrom.XConditional",
+            "name": "src_eex_function_from_x_conditional_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.eex_function_from.x_conditional.ex",
+          "id": "local",
+          "line": 11,
+          "name": "src_eex_function_from_x_conditional_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.EexFunctionFrom.XConditional",
+            "name": "src_eex_function_from_x_conditional_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.eex_function_from.x_conditional.ex",
+          "id": "local_forward",
+          "line": 5,
+          "name": "src_eex_function_from_x_conditional_snoc"
+        }
+      ],
+      "world": "x_conditional"
+    },
+    {
+      "asks": [
+        "local",
+        "local_forward"
+      ],
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/eex_function_from/x_for.ex",
+      "form": "eex_function_from",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 37,
+              "definer": "def",
+              "line": 8,
+              "name": "src_eex_function_from_x_for_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_eex_function_from_x_for_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_eex_function_from_x_for_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.EexFunctionFrom.XFor",
+          "source": "lib/src/src.eex_function_from.x_for.ex",
+          "spec": "lib/src/src.eex_function_from.x_for.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.EexFunctionFrom.XFor",
+            "name": "src_eex_function_from_x_for_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.eex_function_from.x_for.ex",
+          "id": "local",
+          "line": 11,
+          "name": "src_eex_function_from_x_for_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.EexFunctionFrom.XFor",
+            "name": "src_eex_function_from_x_for_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.eex_function_from.x_for.ex",
+          "id": "local_forward",
+          "line": 5,
+          "name": "src_eex_function_from_x_for_snoc"
+        }
+      ],
+      "world": "x_for"
+    },
+    {
       "backing": "src",
       "brokenCallers": [],
       "caller": "lib/callers/src/eex_function_from/x_not_a_call.ex",
@@ -103934,6 +104302,422 @@
         }
       ],
       "world": "x_other_module"
+    },
+    {
+      "asks": [
+        "local",
+        "local_forward"
+      ],
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/eex_function_from/x_receive.ex",
+      "form": "eex_function_from",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 37,
+              "definer": "def",
+              "line": 11,
+              "name": "src_eex_function_from_x_receive_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_eex_function_from_x_receive_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_eex_function_from_x_receive_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.EexFunctionFrom.XReceive",
+          "source": "lib/src/src.eex_function_from.x_receive.ex",
+          "spec": "lib/src/src.eex_function_from.x_receive.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.EexFunctionFrom.XReceive",
+            "name": "src_eex_function_from_x_receive_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.eex_function_from.x_receive.ex",
+          "id": "local",
+          "line": 14,
+          "name": "src_eex_function_from_x_receive_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.EexFunctionFrom.XReceive",
+            "name": "src_eex_function_from_x_receive_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.eex_function_from.x_receive.ex",
+          "id": "local_forward",
+          "line": 5,
+          "name": "src_eex_function_from_x_receive_snoc"
+        }
+      ],
+      "world": "x_receive"
+    },
+    {
+      "asks": [
+        "local",
+        "local_forward"
+      ],
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/eex_function_from/x_try.ex",
+      "form": "eex_function_from",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 37,
+              "definer": "def",
+              "line": 8,
+              "name": "src_eex_function_from_x_try_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_eex_function_from_x_try_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_eex_function_from_x_try_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.EexFunctionFrom.XTry",
+          "source": "lib/src/src.eex_function_from.x_try.ex",
+          "spec": "lib/src/src.eex_function_from.x_try.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.EexFunctionFrom.XTry",
+            "name": "src_eex_function_from_x_try_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.eex_function_from.x_try.ex",
+          "id": "local",
+          "line": 13,
+          "name": "src_eex_function_from_x_try_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.EexFunctionFrom.XTry",
+            "name": "src_eex_function_from_x_try_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.eex_function_from.x_try.ex",
+          "id": "local_forward",
+          "line": 5,
+          "name": "src_eex_function_from_x_try_snoc"
+        }
+      ],
+      "world": "x_try"
+    },
+    {
+      "asks": [
+        "local",
+        "local_forward"
+      ],
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/eex_function_from/x_unless.ex",
+      "form": "eex_function_from",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 37,
+              "definer": "def",
+              "line": 8,
+              "name": "src_eex_function_from_x_unless_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_eex_function_from_x_unless_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_eex_function_from_x_unless_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.EexFunctionFrom.XUnless",
+          "source": "lib/src/src.eex_function_from.x_unless.ex",
+          "spec": "lib/src/src.eex_function_from.x_unless.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.EexFunctionFrom.XUnless",
+            "name": "src_eex_function_from_x_unless_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.eex_function_from.x_unless.ex",
+          "id": "local",
+          "line": 11,
+          "name": "src_eex_function_from_x_unless_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.EexFunctionFrom.XUnless",
+            "name": "src_eex_function_from_x_unless_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.eex_function_from.x_unless.ex",
+          "id": "local_forward",
+          "line": 5,
+          "name": "src_eex_function_from_x_unless_snoc"
+        }
+      ],
+      "world": "x_unless"
+    },
+    {
+      "asks": [
+        "local",
+        "local_forward"
+      ],
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/eex_function_from/x_with.ex",
+      "form": "eex_function_from",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 37,
+              "definer": "def",
+              "line": 8,
+              "name": "src_eex_function_from_x_with_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_eex_function_from_x_with_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_eex_function_from_x_with_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.EexFunctionFrom.XWith",
+          "source": "lib/src/src.eex_function_from.x_with.ex",
+          "spec": "lib/src/src.eex_function_from.x_with.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.EexFunctionFrom.XWith",
+            "name": "src_eex_function_from_x_with_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.eex_function_from.x_with.ex",
+          "id": "local",
+          "line": 11,
+          "name": "src_eex_function_from_x_with_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.EexFunctionFrom.XWith",
+            "name": "src_eex_function_from_x_with_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.eex_function_from.x_with.ex",
+          "id": "local_forward",
+          "line": 5,
+          "name": "src_eex_function_from_x_with_snoc"
+        }
+      ],
+      "world": "x_with"
     },
     {
       "backing": "src",
