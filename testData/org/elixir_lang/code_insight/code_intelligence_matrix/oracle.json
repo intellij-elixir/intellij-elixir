@@ -22630,7 +22630,7 @@
           "id": "nested",
           "line": 4,
           "name": "src_def_x_interpolated_atom_nes#{\"t\"}ed",
-          "targets": [9]
+          "targets": [12]
         },
         {
           "arity": 0,
@@ -22650,7 +22650,37 @@
           "id": "unanchored",
           "line": 6,
           "name": "src_def_x_interpolated_atom_ba#{\"r\"}e",
-          "targets": [11]
+          "targets": [14]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 36,
+          "file": "lib/callers/src/def/x_interpolated_atom.ex",
+          "id": "quoted_plain",
+          "line": 7,
+          "name": "src_def_x_interpolated_atom_quoted",
+          "targets": [18]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 38,
+          "file": "lib/callers/src/def/x_interpolated_atom.ex",
+          "id": "quoted_quoted",
+          "line": 8,
+          "name": "src_def_x_interpolated_atom_quoted",
+          "targets": [18]
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 44,
+          "file": "lib/callers/src/def/x_interpolated_atom.ex",
+          "id": "quoted_interpolated",
+          "line": 9,
+          "name": "src_def_x_interpolated_atom_quo#{\"t\"}ed",
+          "targets": [18]
         },
         {
           "arity": 2,
