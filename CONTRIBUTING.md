@@ -324,6 +324,7 @@ release cycles, when no pre-release is newer than the latest release, the build 
 ./gradlew check                                                        # everything
 ./gradlew test --tests "org.elixir_lang.psi.operation.PrefixTest"      # a single test
 ./gradlew test --tests "org.elixir_lang.parser_definition.*"           # just the parser suite
+./gradlew testFullMatrix                                               # the code intelligence matrix
 ```
 
 `test` runs on the JUnit Platform, with the JUnit 3 and 4 tests going through the Vintage engine, and
@@ -360,6 +361,10 @@ its output instead when run with `-PoverwriteTestData=true`; review the diff bef
 
 A new committed golden compares through `org.elixir_lang.golden.CommittedGolden.assertMatches`, which on CI also
 writes its diff to the job summary.
+
+`CodeIntelligenceMatrixTest` takes minutes, so it is a JUnit 5 (Jupiter) suite that only `testFullMatrix` runs:
+`test` (and so `check`) excludes it by name and never finds it, even under `--tests`. It needs neither the quoter
+nor an Elixir SDK. Its results are in `build/test-results/testFullMatrix/`.
 
 `test` builds and starts the Elixir quoter daemon, because the parser tests
 (`org.elixir_lang.parser_definition.*`) quote source through it and compare the result against the
@@ -450,7 +455,9 @@ update them in the same commit as `.github/ci-versions.json`.
 
 Tests always run against IntelliJ IDEA. The legs are every declared IDEA version on Ubuntu (arm64) with
 `beam.baseline`, plus one leg per `beam.additional` pair on the minimum supported IDEA, plus
-`beam.baseline` on Windows.
+`beam.baseline` on Windows. None of those runs the code intelligence matrix: its answers depend on the
+IDEA version alone, so each declared IDEA version gets one more leg, `matrix, IDEA <version>`, that runs
+only the matrix.
 
 Two scripts in `.github/scripts` read that file, so you can see what a change to it produces without
 pushing:
@@ -512,7 +519,7 @@ the phase it died in, so you can tell those apart.
 
 Each leg is named after the axis its group varies, so the part that distinguishes it survives the
 checks list's truncation: `test (IDEA 2026.2.2)`, `test (1.19.5+28.4)` (Elixir + OTP),
-`test (Win25, IDEA 2026.1.5)`. The same name is used for the leg's `Test Results (...)` check, so a
+`test (Win25, IDEA 2026.1.5)`, `test (matrix, IDEA 2026.1.5)`. The same name is used for the leg's `Test Results (...)` check, so a
 row in one list maps to the other without translating.
 
 A leg that stopped **before its tests ran** says so in the name:

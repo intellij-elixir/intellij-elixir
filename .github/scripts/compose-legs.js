@@ -64,11 +64,24 @@ async function main() {
   // OTP) though legal in a job name. It carries the declared version, not the build, so a pointer's
   // check keeps its name from one build to the next.
   // `continue-on-error` on either axis makes the leg informational; shared-test.yml reads only the leg's.
-  const leg = async (os, idea, beam, label) => {
+  //
+  // `suite` picks what the leg runs. The code intelligence matrix answers to the IDE version alone - every
+  // Elixir/OTP pair and Windows gave identical cells - so it runs once per IDEA version on a `matrix` leg,
+  // and the `full` legs leave it out. The matrix records what the plugin does today, red cells included, so
+  // its legs are informational: they run and report their counts, and never block the merge.
+  const leg = async (os, idea, beam, label, suite = 'full') => {
     const build = await buildFor('IU', idea.version);
     const continueOnError = Boolean(idea['continue-on-error'] || beam['continue-on-error']);
     return (
-      build && { os, 'idea-version': build, 'java-version': idea.java, beam, label, 'continue-on-error': continueOnError }
+      build && {
+        os,
+        'idea-version': build,
+        'java-version': idea.java,
+        beam,
+        label,
+        suite,
+        'continue-on-error': continueOnError,
+      }
     );
   };
 
@@ -81,6 +94,9 @@ async function main() {
         leg('ubuntu-24.04-arm', minimumSupported, beam, `${beam.elixir}+${beam.otp}`),
       ),
       leg('windows-2025', minimumSupported, base, `Win25, IDEA ${minimumSupported.version}`),
+      ...ideaVersions(declaration).map((idea) =>
+        leg('ubuntu-24.04-arm', idea, { ...base, 'continue-on-error': true }, `matrix, IDEA ${idea.version}`, 'matrix'),
+      ),
     ])
   ).filter(Boolean);
 
@@ -122,12 +138,13 @@ async function main() {
     [
       '### Test legs',
       '',
-      '| leg | os | IDEA | JBR | Elixir | OTP | informational |',
-      '| --- | --- | --- | --- | --- | --- | --- |',
+      '| leg | suite | os | IDEA | JBR | Elixir | OTP | informational |',
+      '| --- | --- | --- | --- | --- | --- | --- | --- |',
       ...legs.map((entry) =>
         [
           '',
           entry.label,
+          entry.suite,
           entry.os,
           entry['idea-version'],
           entry['java-version'],
