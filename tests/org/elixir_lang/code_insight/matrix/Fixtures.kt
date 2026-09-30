@@ -53,6 +53,9 @@ class Scenario(
 ) {
     val main: DeclaringModule get() = modules.first()
 
+    /** Whether the subject is a module attribute rather than a function; its module is then its own [caller]. */
+    val attribute: Boolean get() = form == ATTRIBUTE_FORM
+
     /** Whether the main module's definitions are written in another module's source, as a `use` injects them. */
     val injected: Boolean get() = main.declarations.any { it.file != null }
 
@@ -167,7 +170,16 @@ class Site(
     val visible: List<String>? = null,
     /** For an interpolated atom, the lines of [file] declaring the module it evaluates to: where Go To Declaration lands. */
     val targets: List<Int>? = null,
+    /** For a module attribute's read or write, what the compiler says of it; null at a call. */
+    val attribute: AttributeSite? = null,
 )
+
+/**
+ * A `@name value` ([write]) or `@name` read. [declarations] are the ids of the writes a read's value came from, under
+ * any branch choice, and a write's own id. [visible] is the user attributes set where a read is, under any branch
+ * choice; null at a write.
+ */
+class AttributeSite(val write: Boolean, val declarations: List<String>, val visible: List<String>? = null)
 
 /** Whether a bare call at [this] site can reach [definition] at any of its arities: always, unless [Site.visible] says. */
 fun Site.sees(definition: Definition): Boolean =

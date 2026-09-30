@@ -266,7 +266,7 @@ private class Group(val scenario: Scenario) {
         myFixture.enableInspections(References(), UnresolvableModuleQualifier())
 
         scenario.callers.forEach { callerFiles[it] = myFixture.copyFileToProject(it) }
-        scenario.modules.filterNot { it.compiled }.forEach { sourceFiles[it] = myFixture.copyFileToProject(it.source) }
+        scenario.modules.filterNot { it.compiled || it.source in callerFiles }.forEach { sourceFiles[it] = myFixture.copyFileToProject(it.source) }
         (callerFiles.values + sourceFiles.values).forEach { originals[it] = text(it) }
     }
 
@@ -287,6 +287,8 @@ private class Group(val scenario: Scenario) {
     }
 
     private fun check(feature: Feature, binding: Binding?) {
+        if (scenario.attribute) return checkAttribute(feature)
+
         when (feature) {
             Feature.GO_TO_DECLARATION -> checkGoToDeclaration(binding)
             Feature.FIND_USAGES -> checkFindUsages(binding)
@@ -666,6 +668,10 @@ private class Group(val scenario: Scenario) {
         val line = typedLine()
         val inserted = nfc(text.split('\n')[line.index])
         val site = siteOrNull()!!
+        if (site.attribute != null) {
+            assertEquals("Completing `@$prefix` to `@$name` at ${place.id} inserted the wrong text", nfc(line.before + name), inserted)
+            return
+        }
         val module = scenario.module(site.binding?.module ?: scenario.main.module)
         val signatures = module.definitions
             .filter { nfc(it.name) == nfc(name) && site.sees(it) }
@@ -783,6 +789,113 @@ private class Group(val scenario: Scenario) {
         }
     }
 
+    // -- Module attributes ------------------------------------------------------------------
+
+    private fun checkAttribute(feature: Feature) {
+        when (feature) {
+            Feature.GO_TO_DECLARATION -> checkAttributeGoToDeclaration()
+            Feature.FIND_USAGES -> checkAttributeFindUsages()
+            Feature.HIGHLIGHTING -> checkAttributeHighlighting()
+            Feature.DIAGNOSTIC -> checkAttributeDiagnostic()
+            Feature.COMPLETION_OFFERED -> checkCompletionOffered()
+            Feature.COMPLETION_INSERTED -> checkCompletionInserted()
+            Feature.RENAME -> checkAttributeRename()
+            else -> throw AssertionError("${feature.testName} is not asked of a module attribute")
+        }
+    }
+
+    /** Every read and write of the attribute at the caret, which is every one of its name in the module. */
+    private fun attributeSites(): List<Site> {
+        val name = nfc(siteOrNull()!!.name)
+        return scenario.sites.filter { it.attribute != null && nfc(it.name) == name }
+    }
+
+    /** A read lands on the writes its value came from; a write on itself; an undefined read nowhere. */
+    private fun checkAttributeGoToDeclaration() {
+        openAt(place)
+        val landed = myFixture.gotoDeclarationTargetsAtCaret().orEmpty().map { target ->
+            target.destination?.let(::describeLine) ?: "a target with no destination"
+        }.sorted()
+        val expected = siteOrNull()!!.attribute!!.declarations
+            .map { id -> scenario.sites.single { it.id == id }.let { describeLine(fileOf(it), it.line) } }
+            .sorted()
+
+        assertEquals("Go To Declaration from ${place.id} landed on the wrong writes", expected, landed)
+    }
+
+    /**
+     * From any read or write, every read and write of the name in the module, the starting one included: a redefined
+     * attribute is still one name, and a read before any write names it too.
+     */
+    private fun checkAttributeFindUsages() {
+        openAt(place)
+        val targets = myFixture.searchTargetCountAtCaret()
+        val found = myFixture.everyTargetPsiUsagesAtCaret(project).map { usage ->
+            attributeUsageSite(usage.file, usage.range.startOffset)
+        }.distinct().sorted()
+
+        assertEquals(
+            "Find Usages from ${place.id} found the wrong reads and writes from $targets search targets at the caret",
+            attributeSites().map { it.id }.sorted(),
+            found
+        )
+    }
+
+    /** Which site a usage starting at [offset] is, on its `@` or on its name. */
+    private fun attributeUsageSite(file: PsiFile, offset: Int): String {
+        val virtualFile = fileOf(file)
+        val site = scenario.sites.firstOrNull { site ->
+            callerFiles[site.file] == virtualFile && offsetOf(virtualFile!!, site.line, site.column) - offset in 0..1
+        }
+
+        return site?.id ?: "unexpected usage at ${describeLine(file, offset)}"
+    }
+
+    private fun checkAttributeHighlighting() {
+        openAt(place)
+        val site = siteOrNull()!!
+        val at = offsetOf(fileOf(site), site.line, site.column) - 1
+        val keys = highlightKeysAt(at)
+        val expected = ElixirSyntaxHighlighter.MODULE_ATTRIBUTE.externalName
+
+        assertTrue("@${site.name} at ${place.id} should be highlighted `$expected`, but has $keys", expected in keys)
+    }
+
+    /** A read the compiler reports as undefined is complained about; its wording is the implementation's. */
+    private fun checkAttributeDiagnostic() {
+        openAt(place)
+        val site = siteOrNull()!!
+
+        assertTrue(
+            "The editor says nothing about ${place.id}, which the compiler called: ${site.diagnostic!!.message.trim()}",
+            inspectionDescriptionsAtCaret().isNotEmpty()
+        )
+    }
+
+    /** Every read and write of the name is renamed, and nothing else changes. */
+    private fun checkAttributeRename() {
+        openAt(place)
+        val site = siteOrNull()!!
+        val newName = "renamed_${site.name}"
+        val positions = attributeSites().map { it.file to (it.line to it.column) }
+        val targets = myFixture.renameTargetsAtCaret()
+        rename(
+            targets.singleOrNull()
+                ?: throw AssertionError("Expected exactly one rename target at the caret, got ${targets.size}: $targets"),
+            newName
+        )
+
+        val wrong = originals.keys.mapNotNull { file ->
+            val path = callerFiles.entries.single { it.value == file }.key
+            val expected = replaceNames(originals.getValue(file), positions.filter { it.first == path }.map { it.second }, newName)
+            val actual = FileDocumentManager.getInstance().getDocument(file)!!.text
+
+            if (actual == expected) null else "${file.name}: ${firstDifference(expected, actual)}"
+        }
+
+        assertEquals("Renaming @${site.name} to @$newName from ${place.id} changed the wrong text", emptyList<String>(), wrong)
+    }
+
     // -- Typing a call ----------------------------------------------------------------------
 
     private class TypedLine(val index: Int, val before: String)
@@ -801,8 +914,8 @@ private class Group(val scenario: Scenario) {
         val site = scenario.sites.single { it.id == place.id }
         // The site's own name, not the binding's: a call at an arity nothing defines still names what it meant.
         val name = nfc(site.name)
-        // Every name starts with its scenario, so three letters of the name itself are the three after that.
-        val prefix = name.take(scope.length + 3)
+        // Every function name starts with its scenario, so three letters of the name itself are the three after that.
+        val prefix = name.take(if (scenario.attribute) 3 else scope.length + 3)
         val file = fileOf(site)
         val line = typedLine()
         // Opening rewrites the file on disk, which conflicts with an unsaved edit, so it comes first.
@@ -831,6 +944,7 @@ private class Group(val scenario: Scenario) {
      */
     private fun visibleNames(prefix: String): List<String> {
         val site = siteOrNull()!!
+        site.attribute?.let { attribute -> return attribute.visible.orEmpty().map(::nfc).filter { it.startsWith(prefix) }.distinct().sorted() }
         val module = scenario.module(site.binding?.module ?: scenario.main.module)
 
         return module.definitions.filter(site::sees).map { nfc(it.name) }.filter { it.startsWith(prefix) }.distinct().sorted()
@@ -1480,6 +1594,7 @@ private class Group(val scenario: Scenario) {
             ElixirSyntaxHighlighter.FUNCTION_DECLARATION,
             ElixirSyntaxHighlighter.MACRO_DECLARATION,
             ElixirSyntaxHighlighter.PREDEFINED_CALL,
+            ElixirSyntaxHighlighter.MODULE_ATTRIBUTE,
             GUARD_CALL,
             GUARD_DECLARATION,
         )
