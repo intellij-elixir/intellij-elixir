@@ -4,7 +4,12 @@ package org.elixir_lang.code_insight
 
 import com.intellij.codeInsight.CodeInsightSettings
 import com.intellij.codeInsight.completion.CompletionType
+import com.intellij.codeInsight.lookup.AutoCompletionPolicy
 import com.intellij.codeInsight.lookup.LookupElement
+import com.intellij.codeInsight.lookup.LookupEvent
+import com.intellij.codeInsight.lookup.LookupListener
+import com.intellij.codeInsight.lookup.LookupManager
+import com.intellij.codeInsight.lookup.LookupManagerListener
 import com.intellij.codeInsight.lookup.impl.LookupImpl
 import com.intellij.codeInsight.hint.ParameterInfoControllerBase
 import com.intellij.codeInsight.hint.ParameterInfoListener
@@ -402,6 +407,60 @@ fun CodeInsightTestFixture.completeCandidateOrSoleMatchAtCaret(
     }
 
     return file.text
+}
+
+/**
+ * One completion at the caret, read as [completionCandidatesAtCaret] would read it and then finished as
+ * [completeCandidateOrSoleMatchAtCaret] would finish it.
+ *
+ * It completes with auto-insertion on, as [completeCandidateOrSoleMatchAtCaret] does, so a lone match may insert
+ * itself; the items are taken from the lookup just before that, which is what the lookup would have shown with
+ * auto-insertion off.
+ */
+fun CodeInsightTestFixture.completionAtCaret(): CompletionAtCaret {
+    var autoInserted: List<LookupElement>? = null
+    val listener = object : LookupListener {
+        override fun beforeItemSelected(event: LookupEvent): Boolean {
+            if (autoInserted == null) autoInserted = event.lookup.items.toList()
+            return true
+        }
+    }
+    val connection = project.messageBus.connect()
+    try {
+        LookupManager.getInstance(project).activeLookup?.addLookupListener(listener)
+        connection.subscribe(LookupManagerListener.TOPIC, LookupManagerListener { _, lookup -> lookup?.addLookupListener(listener) })
+        val opened = completeBasic()
+        return CompletionAtCaret(this, opened, if (opened == null) autoInserted else null)
+    } finally {
+        connection.disconnect()
+    }
+}
+
+class CompletionAtCaret internal constructor(
+    private val fixture: CodeInsightTestFixture,
+    private val opened: Array<LookupElement>?,
+    private val autoInserted: List<LookupElement>?
+) {
+    /** What [completionCandidatesAtCaret] returns at the same caret. */
+    fun candidates(): List<String> {
+        opened?.let { return it.map(LookupElement::getLookupString) }
+        val items = checkNotNull(autoInserted) { "Completion inserted a candidate without a lookup item being selected" }
+        // With auto-insertion off, only a lone ALWAYS_AUTOCOMPLETE item still inserts itself.
+        if (items.singleOrNull()?.autoCompletionPolicy == AutoCompletionPolicy.ALWAYS_AUTOCOMPLETE) {
+            throw AssertionError("Expected the completion lookup to open, but a candidate was auto-inserted")
+        }
+        return items.map(LookupElement::getLookupString)
+    }
+
+    /** What [completeCandidateOrSoleMatchAtCaret] returns at the same caret. */
+    fun complete(lookupString: String, completionChar: Char, matches: (String) -> Boolean): String {
+        opened?.let { candidates ->
+            val candidate = candidates.firstOrNull { matches(it.lookupString) }?.lookupString ?: lookupString
+            fixture.acceptCompletionCandidate(candidates, candidate, completionChar)
+        }
+
+        return fixture.file.text
+    }
 }
 
 /**

@@ -161,12 +161,15 @@ private class Group(val scenario: Scenario) {
     private val originals = linkedMapOf<VirtualFile, String>()
     private var opened = false
 
-    private var unchecked = cellsOf(scenario).size
+    private val cells = cellsOf(scenario)
+    private var unchecked = cells.size
     private var closed = false
 
     /** Set once the scenario cannot go on - its fixture would not open, or a place would not bind - and failing every later cell. */
     private var broken: Throwable? = null
     private var binding: Binding? = null
+    /** completionInserted's outcome at [place], already decided by completionOffered's completion there. */
+    private var inserted: Result<Unit>? = null
 
     /**
      * Asks [feature] at [atPlace], opening the fixture for this scenario's first cell and closing it after its last.
@@ -182,17 +185,19 @@ private class Group(val scenario: Scenario) {
                 if (!this::place.isInitialized || place != atPlace) {
                     place = atPlace
                     opened = false
+                    inserted = null
                     binding = breakOnFailure { timed("binding", place = atPlace) { binding() } }
                 }
                 timed("check", feature, atPlace) {
+                    val answered = if (feature == Feature.COMPLETION_INSERTED) inserted.also { inserted = null } else null
                     try {
-                        check(feature, binding)
+                        if (answered != null) answered.getOrThrow() else check(feature, binding)
                     } catch (e: Throwable) {
                         if (e is ControlFlowException || e is CancellationException) breakOnFailure { throw e }
                         if (e is junit.framework.AssertionFailedError || e.javaClass == AssertionError::class.java) trimToCheck(e)
                         throw e
                     } finally {
-                        if (feature.edits && broken == null) restore()
+                        if (feature.edits && broken == null && answered == null) restore()
                     }
                 }
             }
@@ -231,7 +236,8 @@ private class Group(val scenario: Scenario) {
      * [block]'s result, with its wall time appended to [timing] when that is set.
      *
      * The XML charges a scenario's set-up to its first cell and a place's binding to that place's first; this says
-     * which phase the time goes to. A feature's time includes the [restore] after it.
+     * which phase the time goes to. A feature's time includes the [restore] after it, and completionOffered's includes
+     * completionInserted's at the same place, which it answers from the same completion.
      */
     private inline fun <T> timed(phase: String, feature: Feature? = null, place: Place? = null, block: () -> T): T {
         val file = timing ?: return block()
@@ -621,7 +627,20 @@ private class Group(val scenario: Scenario) {
     /** Every definition visible at the call whose name starts with what is typed; a look-alike's prefix is its own. */
     private fun checkCompletionOffered() {
         val (name, prefix) = typeCallPrefix()
-        val offered = myFixture.completionCandidatesAtCaret().map(::nfc).filter { it.startsWith(prefix) }.distinct().sorted()
+        if ((place to Feature.COMPLETION_INSERTED) !in cells) {
+            assertOffered(name, prefix, myFixture.completionCandidatesAtCaret())
+            return
+        }
+
+        val completion = myFixture.completionAtCaret()
+        // Decided before inserting, so that neither outcome can decide the other.
+        val offered = runCatching { assertOffered(name, prefix, completion.candidates()) }
+        inserted = runCatching { assertInserted(name, prefix, completion.complete(name, '\n') { nfc(it) == name }) }
+        offered.getOrThrow()
+    }
+
+    private fun assertOffered(name: String, prefix: String, candidates: List<String>) {
+        val offered = candidates.map(::nfc).filter { it.startsWith(prefix) }.distinct().sorted()
 
         assertEquals("Typing `$prefix` at ${place.id} offered the wrong names (typing toward `$name`)", visibleNames(prefix), offered)
     }
@@ -640,8 +659,11 @@ private class Group(val scenario: Scenario) {
      */
     private fun checkCompletionInserted() {
         val (name, prefix) = typeCallPrefix()
+        assertInserted(name, prefix, myFixture.completeCandidateOrSoleMatchAtCaret(name, '\n') { nfc(it) == name })
+    }
+
+    private fun assertInserted(name: String, prefix: String, text: String) {
         val line = typedLine()
-        val text = myFixture.completeCandidateOrSoleMatchAtCaret(name, '\n') { nfc(it) == name }
         val inserted = nfc(text.split('\n')[line.index])
         val site = siteOrNull()!!
         val module = scenario.module(site.binding?.module ?: scenario.main.module)
