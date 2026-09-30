@@ -139,6 +139,9 @@ const val LOOKALIKE_ABSENT = "x_lookalike_absent"
  */
 const val INTERPOLATED_ATOM = "x_interpolated_atom"
 
+/** The form whose subject is a module attribute: `@name value` writes it and `@name` reads it. */
+const val ATTRIBUTE_FORM = "attribute"
+
 /** Whether [id] is the name in a `@spec`, which `generate.exs` marks `spec_<arity>`. */
 fun specName(id: String): Boolean = id.startsWith("spec_")
 
@@ -187,6 +190,7 @@ object Crossing {
         val backing = Backing.of(scenario)
 
         return when {
+            scenario.attribute -> attributeApplicability(scenario, feature, place)
             place is Place.Marked && namesModule(scenario, place) && feature != Feature.QUICK_DOCUMENTATION ->
                 Applicability.NotApplicable("a moduledoc world asks only what Quick Documentation shows of the module")
             feature == Feature.GO_TO_RELATED && !(place is Place.Head && backing in setOf(Backing.EX_DBGI, Backing.EX_DOCS, Backing.EX_GEN)) ->
@@ -252,6 +256,37 @@ object Crossing {
             else -> Applicability.Applicable
         }
     }
+
+    /**
+     * A module attribute is asked what the compiler's `Kernel.@/1` answers: which writes a read's value came from, which
+     * reads and writes share its name in the module, what is set where it is read, and whether a read is undefined.
+     */
+    private fun attributeApplicability(scenario: Scenario, feature: Feature, place: Place): Applicability {
+        val site = scenario.sites.single { it.id == place.id }
+        val attribute = site.attribute!!
+
+        return when {
+            feature !in ATTRIBUTE_FEATURES ->
+                Applicability.NotApplicable("a module attribute has no function's heads, docs or arguments, and the compiler says nothing else about one")
+            (feature == Feature.COMPLETION_OFFERED || feature == Feature.COMPLETION_INSERTED) && attribute.write ->
+                Applicability.NotApplicable("a write names the attribute it sets; completion is asked where a read is typed")
+            feature == Feature.COMPLETION_INSERTED && attribute.visible.orEmpty().none { nfc(it) == nfc(site.name) } ->
+                Applicability.NotApplicable("nothing sets the attribute before the read, so there is nothing completion could insert; that it offers nothing is asked by completionOffered")
+            feature == Feature.DIAGNOSTIC && site.diagnostic == null ->
+                Applicability.NotApplicable("asked only where the compiler reports the read as undefined")
+            else -> Applicability.Applicable
+        }
+    }
+
+    private val ATTRIBUTE_FEATURES = setOf(
+        Feature.GO_TO_DECLARATION,
+        Feature.FIND_USAGES,
+        Feature.HIGHLIGHTING,
+        Feature.DIAGNOSTIC,
+        Feature.COMPLETION_OFFERED,
+        Feature.COMPLETION_INSERTED,
+        Feature.RENAME,
+    )
 
     /**
      * Whether the scenario's declaring file holds a call of its own definition at all.
