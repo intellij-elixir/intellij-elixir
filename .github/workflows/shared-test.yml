@@ -64,7 +64,7 @@ jobs:
   # vars and inputs contexts -- never a file.
   test-matrix:
     name: Test Matrix
-    runs-on: ubuntu-22.04
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     timeout-minutes: 5
     outputs:
       matrix: ${{ steps.compose.outputs.matrix }}
@@ -73,7 +73,7 @@ jobs:
     steps:
       - name: Checkout
         id: checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: useblacksmith/checkout@v1 # v7.0.1
         with:
           ref: ${{ inputs.ref || github.ref }}
           persist-credentials: false
@@ -465,13 +465,13 @@ jobs:
     needs: changes
     # Its only consumer here is `verify`, which skips on the same condition.
     if: ${{ needs.changes.outputs.code == 'true' }}
-    runs-on: ubuntu-22.04
+    runs-on: blacksmith-2vcpu-ubuntu-2204
     timeout-minutes: 30
 
     steps:
       - name: Checkout
         id: checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: useblacksmith/checkout@v1 # v7.0.1
         with:
           # The pull request's head commit, not `github.ref`. On a `pull_request` event `github.ref`
           # is `refs/pull/<n>/merge`, a merge commit GitHub synthesises for the run: it exists on no

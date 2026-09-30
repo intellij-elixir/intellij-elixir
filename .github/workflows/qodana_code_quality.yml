@@ -52,12 +52,12 @@ jobs:
   qodana:
     name: Qodana
     needs: changes
-    runs-on: ubuntu-22.04
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     timeout-minutes: 45
     steps:
       - name: Checkout
         id: checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: useblacksmith/checkout@v1 # v7.0.1
         with:
           # Qodana analyses the PR head rather than the merge commit, and pr-mode diffs against the
           # base, so it needs the full history.
