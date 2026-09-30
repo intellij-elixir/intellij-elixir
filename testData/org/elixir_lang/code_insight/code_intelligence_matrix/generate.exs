@@ -284,9 +284,13 @@ defmodule Matrix do
           {"nested", 0, ~S(nes#{"t"}ed), 0, :interpolated_atom},
           # `(` is literal in an atom and opens a group in a regex.
           {"unescaped", 0, ~S[a(#{"b"}], 0, :interpolated_atom},
-          {"unanchored", 0, ~S(ba#{"r"}e), 0, :interpolated_atom}
+          {"unanchored", 0, ~S(ba#{"r"}e), 0, :interpolated_atom},
+          # `quoted` is declared `defmodule :"...quoted"`; the atom names it however it is spelled.
+          {"quoted_plain", 0, "quoted", 0, :module_atom},
+          {"quoted_quoted", 0, "quoted", 0, :interpolated_atom},
+          {"quoted_interpolated", 0, ~S(quo#{"t"}ed), 0, :interpolated_atom}
         ],
-        atom_modules: ["nested", "bare", "bare_extra"]
+        atom_modules: ["nested", "bare", "bare_extra", {:quoted, "quoted"}]
       }
     }
   end
@@ -506,7 +510,10 @@ defmodule Matrix do
   end
 
   defp atom_modules(spec, prefix),
-    do: spec |> Map.get(:atom_modules, []) |> Enum.map_join(&"\ndefmodule :#{prefix}#{&1} do end\n")
+    do: spec |> Map.get(:atom_modules, []) |> Enum.map_join(&"\ndefmodule #{atom_module(prefix, &1)} do end\n")
+
+  defp atom_module(prefix, {:quoted, name}), do: ~s(:"#{prefix}#{name}")
+  defp atom_module(prefix, name), do: ":#{prefix}#{name}"
 
   # How a caller comes to be able to write `snoc(...)` bare, or not. Each is `{id, directive, calls}`, where the
   # directive is rendered against the declaring module and a call is `{site id, arity}`; which calls compile, and so
@@ -715,7 +722,10 @@ defmodule Matrix do
   end
 
   # The shapes that are not calls of the definition at all, so no arity can be wrong for them.
-  @not_calls [:variable, :atom, :keyword, :interpolated_atom]
+  @not_calls [:variable, :atom, :keyword, :interpolated_atom, :module_atom]
+
+  # The shapes whose atom names a module the caller declares, where Go To Declaration must land.
+  @module_atoms [:interpolated_atom, :module_atom]
 
   defp defined?({_id, _module, _name, _arity, shape}, _modules) when shape in @not_calls, do: true
 
@@ -1745,7 +1755,7 @@ defmodule Matrix do
       cond do
         form[:private] -> ""
         # Nothing in the caller would use them, and the compiler would warn.
-        Enum.all?(calls, &(elem(&1, 4) == :interpolated_atom)) -> ""
+        Enum.all?(calls, &(elem(&1, 4) in @module_atoms)) -> ""
         form[:macro] -> aliases <> Enum.map_join(references, "", &"  require #{&1}\n") <> "  import #{hd(references)}\n"
         true -> aliases <> "  import #{hd(references)}\n"
       end
@@ -1774,6 +1784,7 @@ defmodule Matrix do
   defp call(:atom, _backing, _module, name, _arity), do: "{:#{name}, a, b}"
   defp call(:keyword, _backing, _module, name, _arity), do: "[#{name}: a, b: b]"
   defp call(:interpolated_atom, _backing, _module, name, _arity), do: ~s({:"#{name}", a, b})
+  defp call(:module_atom, _backing, _module, name, _arity), do: "{:#{name}, a, b}"
 
   # Erlang keeps a decomposed name as written, so Elixir must quote it to call it; unquoted, it would normalise it.
   defp call_name(%{language: :erlang}, name), do: if(name == nfc(name), do: name, else: ~s("#{name}"))
@@ -1828,6 +1839,8 @@ defmodule Matrix do
     # `defmacrop __using__` no `use` can call, and the private function `x_use_apply`'s `__using__` reaches only
     # through `apply`. `@compile :nowarn_unused_function` does not silence these on 1.20.
     diagnostics = Enum.reject(diagnostics, &(&1.message =~ ~r/^(function|macro) (\S+_x_use_\S+|__using__\/1|secret\/0) is unused/))
+    # A module declared, and named, with quotes it does not need, on purpose.
+    diagnostics = Enum.reject(diagnostics, &(&1.message =~ ~r/^found quoted atom "\S+_x_interpolated_atom_quoted" but the quotes are not required/))
     if diagnostics != [], do: raise("#{path} compiled with diagnostics: #{inspect(diagnostics)}")
     {modules, Matrix.Events.take()}
   end
@@ -1849,15 +1862,18 @@ defmodule Matrix do
         "binding" => binding
       }
 
-      if shape == :interpolated_atom, do: Map.put(site, "targets", atom_targets(lines, name)), else: site
+      if shape in @module_atoms, do: Map.put(site, "targets", atom_targets(lines, name)), else: site
     end)
   end
 
   # The lines declaring the module the atom evaluates to; none where no module has that name.
   defp atom_targets(lines, name) do
-    {atom, _binding} = Code.eval_string(~s(:"#{name}"))
-    for {text, line} <- lines, text == "defmodule #{inspect(atom)} do end", do: line
+    atom = atom(~s(:"#{name}"))
+    for {text, line} <- lines, [_, declared] <- [Regex.run(~r/^defmodule (.+) do end$/, text)], atom(declared) == atom, do: line
   end
+
+  # Quotes the atom does not need are the point of some sites, so the warning they draw is not wanted here.
+  defp atom(source), do: source |> Code.string_to_quoted!(emit_warnings: false) |> Code.eval_quoted() |> elem(0)
 
   # The compiler binds nothing at the atom in `apply(M, :name, [...])`, but the plugin treats that atom as a
   # reference to M.name/length([...]), and so does this oracle. A variable, a bare atom and a keyword key bind to no
