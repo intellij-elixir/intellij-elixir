@@ -187,6 +187,8 @@ object Crossing {
         val backing = Backing.of(scenario)
 
         return when {
+            place is Place.Marked && namesModule(scenario, place) && feature != Feature.QUICK_DOCUMENTATION ->
+                Applicability.NotApplicable("a moduledoc world asks only what Quick Documentation shows of the module")
             feature == Feature.GO_TO_RELATED && !(place is Place.Head && backing in setOf(Backing.EX_DBGI, Backing.EX_DOCS, Backing.EX_GEN)) ->
                 Applicability.NotApplicable("Go To Related goes from an Elixir source declaration to its compiled module's decompiled definition, so it asks only where both exist")
             feature == Feature.GO_TO_RELATED && scenario.injected ->
@@ -264,6 +266,9 @@ object Crossing {
 
         return backing.hasBodies && !(backing.compiled && scenario.form in MACRO_FORMS)
     }
+
+    private fun namesModule(scenario: Scenario, place: Place.Marked): Boolean =
+        scenario.sites.firstOrNull { it.id == place.id }?.binding?.namesModule == true
 
     /** A call the compiler rejected, which is where it says what it thinks was meant. */
     private fun rejected(scenario: Scenario, place: Place): Boolean =
