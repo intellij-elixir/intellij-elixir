@@ -16,6 +16,14 @@ class MatrixFixtureTest : TestCase() {
      */
     private val GENERATED = setOf("__info__", "module_info")
 
+    /** A scenario in no shard, or in two, is silently skipped or asked twice by `testFullMatrix`. */
+    fun testShardsPartitionTheScenarios() {
+        val all = Shards.scenarios.map(Shards::name).sorted()
+        val wrong = (1..Shards.MAX).filter { shards -> Shards.of(shards).flatten().map(Shards::name).sorted() != all }
+
+        assertEquals("Shard counts whose shards do not partition the scenarios", emptyList<Int>(), wrong)
+    }
+
     fun testEachBeamDecompilesThroughItsClauseSource() {
         val wrong = Fixtures.oracle.scenarios.flatMap { it.modules }.filter { it.beam != null }.mapNotNull { module ->
             val beam = module.beam!!
