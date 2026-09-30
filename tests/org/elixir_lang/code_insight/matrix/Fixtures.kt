@@ -48,6 +48,8 @@ class Scenario(
     val importCallers: List<String> = emptyList(),
     val modules: List<DeclaringModule>,
     val sites: List<Site>,
+    /** The only marked places asked, where every other place would repeat another world's question; null asks all. */
+    val asks: List<String>? = null,
 ) {
     val main: DeclaringModule get() = modules.first()
 

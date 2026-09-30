@@ -295,8 +295,11 @@ object Crossing {
         return scenario.modules.none { module -> module.definitions.any { nfc(it.name) == nfc(site.name) } }
     }
 
-    fun places(scenario: Scenario): List<Place> =
-        scenario.main.definitions.flatMap { definition ->
+    fun places(scenario: Scenario): List<Place> {
+        val asks = scenario.asks ?: return scenario.main.definitions.flatMap { definition ->
             (0 until definition.clauses).map { Place.Head(definition.name, definition.maxArity, it) }
         } + scenario.sites.map { Place.Marked(it.id) }
+
+        return scenario.sites.filter { it.id in asks }.map { Place.Marked(it.id) }
+    }
 }
