@@ -4,6 +4,9 @@ defmodule Callers.Src.Def.XInterpolatedAtom do
   def at_nested(a, b), do: {:"src_def_x_interpolated_atom_nes#{"t"}ed", a, b} # @nested
   def at_unescaped(a, b), do: {:"src_def_x_interpolated_atom_a(#{"b"}", a, b} # @unescaped
   def at_unanchored(a, b), do: {:"src_def_x_interpolated_atom_ba#{"r"}e", a, b} # @unanchored
+  def at_quoted_plain(a, b), do: {:src_def_x_interpolated_atom_quoted, a, b} # @quoted_plain
+  def at_quoted_quoted(a, b), do: {:"src_def_x_interpolated_atom_quoted", a, b} # @quoted_quoted
+  def at_quoted_interpolated(a, b), do: {:"src_def_x_interpolated_atom_quo#{"t"}ed", a, b} # @quoted_interpolated
 end
 
 defmodule :src_def_x_interpolated_atom_nested do end
@@ -11,3 +14,5 @@ defmodule :src_def_x_interpolated_atom_nested do end
 defmodule :src_def_x_interpolated_atom_bare do end
 
 defmodule :src_def_x_interpolated_atom_bare_extra do end
+
+defmodule :"src_def_x_interpolated_atom_quoted" do end
