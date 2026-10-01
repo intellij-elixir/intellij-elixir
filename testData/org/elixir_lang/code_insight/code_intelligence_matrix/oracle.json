@@ -910,6 +910,12 @@
     },
     {
       "backing": "src",
+      "form": "defguardp",
+      "reason": "a `use` injects what its quote defines; these are the definers a quote is written with",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "src",
       "form": "defdelegate",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute"
@@ -1126,6 +1132,12 @@
     },
     {
       "backing": "src",
+      "form": "defdelegate",
+      "reason": "a `use` injects what its quote defines; these are the definers a quote is written with",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "src",
       "form": "defdelegate_compiled",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute"
@@ -1342,6 +1354,12 @@
     },
     {
       "backing": "src",
+      "form": "defdelegate_compiled",
+      "reason": "a `use` injects what its quote defines; these are the definers a quote is written with",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "src",
       "form": "defdelegate_unresolvable",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute"
@@ -1558,6 +1576,12 @@
     },
     {
       "backing": "src",
+      "form": "defdelegate_unresolvable",
+      "reason": "a `use` injects what its quote defines; these are the definers a quote is written with",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "src",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "w3"
@@ -1867,6 +1891,12 @@
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "src",
@@ -2214,6 +2244,12 @@
       "backing": "src",
       "form": "defdelegate_imports",
       "reason": "a target that only imports the function asks nothing w1 does not",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_imports",
+      "reason": "a target that only imports the function asks nothing w1 does not",
       "world": "x_with"
     },
     {
@@ -2556,6 +2592,12 @@
       "backing": "src",
       "form": "defdelegate_list",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_with"
     },
     {
@@ -2898,6 +2940,12 @@
       "backing": "src",
       "form": "defdelegate_list_trailing",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_with"
     },
     {
@@ -3240,6 +3288,12 @@
       "backing": "src",
       "form": "defdelegate_list_lines",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_with"
     },
     {
@@ -3582,6 +3636,12 @@
       "backing": "src",
       "form": "defdelegate_as_list",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_with"
     },
     {
@@ -3924,6 +3984,12 @@
       "backing": "src",
       "form": "defdelegate_as_attribute",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_with"
     },
     {
@@ -4261,6 +4327,12 @@
       "form": "defdelegate_doc",
       "reason": "a delegate's own `@doc` asks nothing w1 does not",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "src",
@@ -4528,6 +4600,12 @@
     },
     {
       "backing": "src",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "src",
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "w2"
@@ -4825,6 +4903,12 @@
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "src",
@@ -5131,6 +5215,12 @@
       "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "src",
@@ -5478,6 +5568,12 @@
       "backing": "src",
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "src",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_with"
     },
     {
@@ -5778,6 +5874,12 @@
       "backing": "src",
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "src",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_with"
     },
     {
@@ -6019,6 +6121,12 @@
       "form": "def",
       "reason": "compiled, the module is x_use_injected's; only its source puts the `use` under a wrapper",
       "world": "x_use_in_with"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "def",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "ex_dbgi",
@@ -6281,6 +6389,12 @@
     {
       "backing": "ex_dbgi",
       "form": "defp",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_with"
     },
@@ -6523,6 +6637,12 @@
       "form": "defmacro",
       "reason": "compiled, the module is x_use_injected's; only its source puts the `use` under a wrapper",
       "world": "x_use_in_with"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacro",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "ex_dbgi",
@@ -6871,6 +6991,12 @@
       "form": "defmacrop",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "ex_dbgi",
@@ -7151,6 +7277,12 @@
     {
       "backing": "ex_dbgi",
       "form": "defguard",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguard",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_with"
     },
@@ -7495,6 +7627,12 @@
       "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "ex_dbgi",
@@ -7763,6 +7901,12 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_with"
     },
@@ -8107,6 +8251,12 @@
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "ex_dbgi",
@@ -8375,6 +8525,12 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_unresolvable",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_unresolvable",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_with"
     },
@@ -8694,6 +8850,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_with"
     },
     {
@@ -9042,6 +9204,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_with"
     },
     {
@@ -9390,6 +9558,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_with"
     },
     {
@@ -9738,6 +9912,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_with"
     },
     {
@@ -10086,6 +10266,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_with"
     },
     {
@@ -10434,6 +10620,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_with"
     },
     {
@@ -10782,6 +10974,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_with"
     },
     {
@@ -11125,6 +11323,12 @@
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "ex_dbgi",
@@ -11435,6 +11639,12 @@
     {
       "backing": "ex_dbgi",
       "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_with"
     },
@@ -11741,6 +11951,12 @@
     {
       "backing": "ex_dbgi",
       "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_kind",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_with"
     },
@@ -12043,6 +12259,12 @@
       "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "ex_dbgi",
@@ -12389,6 +12611,12 @@
     {
       "backing": "ex_dbgi",
       "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "generator_embed",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_with"
     },
@@ -12733,6 +12961,12 @@
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "ex_dbgi",
@@ -12997,6 +13231,12 @@
       "form": "def",
       "reason": "compiled, an injected definition is an ordinary one of its user; ex_dbgi asks that, and the rest only strip it further",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "def",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "ex_docs",
@@ -13277,6 +13517,12 @@
     {
       "backing": "ex_docs",
       "form": "defp",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_with"
     },
@@ -13537,6 +13783,12 @@
       "form": "defmacro",
       "reason": "compiled, an injected definition is an ordinary one of its user; ex_dbgi asks that, and the rest only strip it further",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacro",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "ex_docs",
@@ -13885,6 +14137,12 @@
       "form": "defmacrop",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "ex_docs",
@@ -14177,6 +14435,12 @@
     {
       "backing": "ex_docs",
       "form": "defguard",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguard",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_with"
     },
@@ -14521,6 +14785,12 @@
       "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "ex_docs",
@@ -14789,6 +15059,12 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_with"
     },
@@ -15133,6 +15409,12 @@
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "ex_docs",
@@ -15401,6 +15683,12 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_unresolvable",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_unresolvable",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_with"
     },
@@ -15720,6 +16008,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_with"
     },
     {
@@ -16068,6 +16362,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_with"
     },
     {
@@ -16416,6 +16716,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_with"
     },
     {
@@ -16764,6 +17070,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_with"
     },
     {
@@ -17112,6 +17424,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_with"
     },
     {
@@ -17460,6 +17778,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_with"
     },
     {
@@ -17808,6 +18132,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_with"
     },
     {
@@ -18151,6 +18481,12 @@
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "ex_docs",
@@ -18461,6 +18797,12 @@
     {
       "backing": "ex_docs",
       "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_with"
     },
@@ -18767,6 +19109,12 @@
     {
       "backing": "ex_docs",
       "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_kind",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_with"
     },
@@ -19069,6 +19417,12 @@
       "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "ex_docs",
@@ -19415,6 +19769,12 @@
     {
       "backing": "ex_docs",
       "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "generator_embed",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_with"
     },
@@ -19759,6 +20119,12 @@
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "ex_docs",
@@ -20023,6 +20389,12 @@
       "form": "def",
       "reason": "compiled, an injected definition is an ordinary one of its user; ex_dbgi asks that, and the rest only strip it further",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "def",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "ex_gen",
@@ -20303,6 +20675,12 @@
     {
       "backing": "ex_gen",
       "form": "defp",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_with"
     },
@@ -20563,6 +20941,12 @@
       "form": "defmacro",
       "reason": "compiled, an injected definition is an ordinary one of its user; ex_dbgi asks that, and the rest only strip it further",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacro",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "ex_gen",
@@ -20911,6 +21295,12 @@
       "form": "defmacrop",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "ex_gen",
@@ -21203,6 +21593,12 @@
     {
       "backing": "ex_gen",
       "form": "defguard",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguard",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_with"
     },
@@ -21547,6 +21943,12 @@
       "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "ex_gen",
@@ -21815,6 +22217,12 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_with"
     },
@@ -22159,6 +22567,12 @@
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "ex_gen",
@@ -22427,6 +22841,12 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_unresolvable",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_unresolvable",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_with"
     },
@@ -22746,6 +23166,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_with"
     },
     {
@@ -23094,6 +23520,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_with"
     },
     {
@@ -23442,6 +23874,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_with"
     },
     {
@@ -23790,6 +24228,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_with"
     },
     {
@@ -24138,6 +24582,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_with"
     },
     {
@@ -24486,6 +24936,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_with"
     },
     {
@@ -24834,6 +25290,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_with"
     },
     {
@@ -25177,6 +25639,12 @@
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "ex_gen",
@@ -25487,6 +25955,12 @@
     {
       "backing": "ex_gen",
       "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_with"
     },
@@ -25793,6 +26267,12 @@
     {
       "backing": "ex_gen",
       "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_kind",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_with"
     },
@@ -26095,6 +26575,12 @@
       "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "ex_gen",
@@ -26441,6 +26927,12 @@
     {
       "backing": "ex_gen",
       "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "generator_embed",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_with"
     },
@@ -26785,6 +27277,12 @@
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "ex_gen",
@@ -27071,6 +27569,12 @@
     {
       "backing": "erl_abst",
       "form": "def",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "def",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_with"
     },
@@ -27365,6 +27869,12 @@
     {
       "backing": "erl_abst",
       "form": "defp",
+      "reason": "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_with"
     },
@@ -27714,6 +28224,12 @@
       "backing": "erl_abst",
       "form": "defmacro",
       "reason": "Erlang has only functions",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacro",
+      "reason": "Erlang has only functions",
       "world": "x_with"
     },
     {
@@ -28062,6 +28578,12 @@
       "backing": "erl_abst",
       "form": "defmacrop",
       "reason": "Erlang has only functions",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacrop",
+      "reason": "Erlang has only functions",
       "world": "x_with"
     },
     {
@@ -28410,6 +28932,12 @@
       "backing": "erl_abst",
       "form": "defguard",
       "reason": "Erlang has only functions",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguard",
+      "reason": "Erlang has only functions",
       "world": "x_with"
     },
     {
@@ -28758,6 +29286,12 @@
       "backing": "erl_abst",
       "form": "defguardp",
       "reason": "Erlang has only functions",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguardp",
+      "reason": "Erlang has only functions",
       "world": "x_with"
     },
     {
@@ -29106,6 +29640,12 @@
       "backing": "erl_abst",
       "form": "defdelegate",
       "reason": "Erlang has only functions",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate",
+      "reason": "Erlang has only functions",
       "world": "x_with"
     },
     {
@@ -29454,6 +29994,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_compiled",
       "reason": "Erlang has only functions",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_compiled",
+      "reason": "Erlang has only functions",
       "world": "x_with"
     },
     {
@@ -29802,6 +30348,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_unresolvable",
       "reason": "Erlang has only functions",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_unresolvable",
+      "reason": "Erlang has only functions",
       "world": "x_with"
     },
     {
@@ -30150,6 +30702,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_as",
       "reason": "Erlang has only functions",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as",
+      "reason": "Erlang has only functions",
       "world": "x_with"
     },
     {
@@ -30498,6 +31056,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_imports",
       "reason": "Erlang has only functions",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_imports",
+      "reason": "Erlang has only functions",
       "world": "x_with"
     },
     {
@@ -30846,6 +31410,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_list",
       "reason": "Erlang has only functions",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
       "world": "x_with"
     },
     {
@@ -31194,6 +31764,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_list_trailing",
       "reason": "Erlang has only functions",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_trailing",
+      "reason": "Erlang has only functions",
       "world": "x_with"
     },
     {
@@ -31542,6 +32118,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_list_lines",
       "reason": "Erlang has only functions",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_lines",
+      "reason": "Erlang has only functions",
       "world": "x_with"
     },
     {
@@ -31890,6 +32472,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_as_list",
       "reason": "Erlang has only functions",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
       "world": "x_with"
     },
     {
@@ -32238,6 +32826,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_as_attribute",
       "reason": "Erlang has only functions",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
       "world": "x_with"
     },
     {
@@ -32586,6 +33180,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_doc",
       "reason": "Erlang has only functions",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
       "world": "x_with"
     },
     {
@@ -32934,6 +33534,12 @@
       "backing": "erl_abst",
       "form": "eex_function_from",
       "reason": "Erlang has only functions",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from",
+      "reason": "Erlang has only functions",
       "world": "x_with"
     },
     {
@@ -33282,6 +33888,12 @@
       "backing": "erl_abst",
       "form": "eex_function_from_kind",
       "reason": "Erlang has only functions",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_kind",
+      "reason": "Erlang has only functions",
       "world": "x_with"
     },
     {
@@ -33630,6 +34242,12 @@
       "backing": "erl_abst",
       "form": "eex_function_from_args",
       "reason": "Erlang has only functions",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_args",
+      "reason": "Erlang has only functions",
       "world": "x_with"
     },
     {
@@ -33973,6 +34591,12 @@
       "form": "generator_embed",
       "reason": "Erlang has only functions",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "generator_embed",
+      "reason": "Erlang has only functions",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "erl_abst",
@@ -34326,6 +34950,12 @@
       "backing": "erl_abst",
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_with"
     },
     {
@@ -34663,6 +35293,12 @@
       "form": "def",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "def",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "erl_gen",
@@ -35016,6 +35652,12 @@
       "backing": "erl_gen",
       "form": "defp",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defp",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_with"
     },
     {
@@ -35364,6 +36006,12 @@
       "backing": "erl_gen",
       "form": "defmacro",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacro",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_with"
     },
     {
@@ -35712,6 +36360,12 @@
       "backing": "erl_gen",
       "form": "defmacrop",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacrop",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_with"
     },
     {
@@ -36060,6 +36714,12 @@
       "backing": "erl_gen",
       "form": "defguard",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguard",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_with"
     },
     {
@@ -36408,6 +37068,12 @@
       "backing": "erl_gen",
       "form": "defguardp",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguardp",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_with"
     },
     {
@@ -36756,6 +37422,12 @@
       "backing": "erl_gen",
       "form": "defdelegate",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_with"
     },
     {
@@ -37104,6 +37776,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_compiled",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_compiled",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_with"
     },
     {
@@ -37452,6 +38130,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_unresolvable",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_with"
     },
     {
@@ -37800,6 +38484,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_as",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_with"
     },
     {
@@ -38148,6 +38838,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_imports",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_imports",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_with"
     },
     {
@@ -38496,6 +39192,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_list",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_with"
     },
     {
@@ -38844,6 +39546,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_list_trailing",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_with"
     },
     {
@@ -39192,6 +39900,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_list_lines",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_with"
     },
     {
@@ -39540,6 +40254,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_as_list",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_with"
     },
     {
@@ -39888,6 +40608,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_as_attribute",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_with"
     },
     {
@@ -40236,6 +40962,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_doc",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_with"
     },
     {
@@ -40584,6 +41316,12 @@
       "backing": "erl_gen",
       "form": "eex_function_from",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_with"
     },
     {
@@ -40932,6 +41670,12 @@
       "backing": "erl_gen",
       "form": "eex_function_from_kind",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_kind",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_with"
     },
     {
@@ -41280,6 +42024,12 @@
       "backing": "erl_gen",
       "form": "eex_function_from_args",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_args",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_with"
     },
     {
@@ -41623,6 +42373,12 @@
       "form": "generator_embed",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "generator_embed",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "erl_gen",
@@ -41971,6 +42727,12 @@
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "erl_gen",
@@ -56942,6 +57704,1068 @@
     {
       "backing": "src",
       "brokenCallers": [],
+      "caller": "lib/callers/src/def/x_use_injected_parens.ex",
+      "form": "def",
+      "importCallers": [
+        "lib/callers/src/def/x_use_injected_parens_imports.ex",
+        "lib/callers/src/def/x_use_injected_parens_import_macros.ex",
+        "lib/callers/src/def/x_use_injected_parens_import_only_2.ex",
+        "lib/callers/src/def/x_use_injected_parens_import_except_1.ex",
+        "lib/callers/src/def/x_use_injected_parens_import_functions_except_1.ex",
+        "lib/callers/src/def/x_use_injected_parens_import_except_functions_1.ex",
+        "lib/callers/src/def/x_use_injected_parens_import_transitive.ex",
+        "lib/callers/src/def/x_use_injected_parens_require_only.ex",
+        "lib/callers/src/def/x_use_injected_parens_uses.ex",
+        "lib/callers/src/def/x_use_injected_parens_only_chained_snoc.ex",
+        "lib/callers/src/def/x_use_injected_parens_hidden.ex",
+        "lib/callers/src/def/x_use_injected_parens_helper.ex",
+        "lib/callers/src/def/x_use_injected_parens_def_using.ex",
+        "lib/callers/src/def/x_use_injected_parens_private_using.ex"
+      ],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "file": "lib/src/src.def.x_use_injected_parens.inner.ex",
+              "line": 4,
+              "name": "src_def_x_use_injected_parens_chained"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 10,
+              "definer": "defp",
+              "file": "lib/src/src.def.x_use_injected_parens.injector.ex",
+              "line": 6,
+              "name": "src_def_x_use_injected_parens_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "file": "lib/src/src.def.x_use_injected_parens.injector.ex",
+              "line": 7,
+              "name": "src_def_x_use_injected_parens_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "file": "lib/src/src.def.x_use_injected_parens.injector.ex",
+              "line": 8,
+              "name": "src_def_x_use_injected_parens_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_def_x_use_injected_parens_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_def_x_use_injected_parens_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_def_x_use_injected_parens_chained"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_def_x_use_injected_parens_hidden"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_use_injected_parens_chained",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_def_x_use_injected_parens_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_use_injected_parens_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_use_injected_parens_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Def.XUseInjectedParens",
+          "source": "lib/src/src.def.x_use_injected_parens.ex",
+          "spec": "lib/src/src.def.x_use_injected_parens.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "file": "lib/src/src.def.x_use_injected_parens.inner.ex",
+              "line": 4,
+              "name": "src_def_x_use_injected_parens_chained"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 10,
+              "definer": "defp",
+              "file": "lib/src/src.def.x_use_injected_parens.injector.ex",
+              "line": 6,
+              "name": "src_def_x_use_injected_parens_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "file": "lib/src/src.def.x_use_injected_parens.injector.ex",
+              "line": 7,
+              "name": "src_def_x_use_injected_parens_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "file": "lib/src/src.def.x_use_injected_parens.injector.ex",
+              "line": 8,
+              "name": "src_def_x_use_injected_parens_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_def_x_use_injected_parens_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_def_x_use_injected_parens_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_def_x_use_injected_parens_chained"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_def_x_use_injected_parens_hidden"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_use_injected_parens_chained",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_def_x_use_injected_parens_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_use_injected_parens_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_use_injected_parens_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Def.XUseInjectedParens.Other",
+          "source": "lib/src/src.def.x_use_injected_parens.other.ex",
+          "spec": "lib/src/src.def.x_use_injected_parens.other.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "src_def_x_use_injected_parens_helper"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_def_x_use_injected_parens_helper"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_use_injected_parens_helper",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Def.XUseInjectedParens.Helpers",
+          "source": "lib/src/src.def.x_use_injected_parens.helpers.ex",
+          "spec": "lib/src/src.def.x_use_injected_parens.helpers.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "line": 4,
+              "name": "src_def_x_use_injected_parens_chained"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_use_injected_parens_chained",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Def.XUseInjectedParens.Inner",
+          "source": "lib/src/src.def.x_use_injected_parens.inner.ex",
+          "spec": "lib/src/src.def.x_use_injected_parens.inner.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 10,
+              "definer": "defp",
+              "line": 6,
+              "name": "src_def_x_use_injected_parens_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "line": 7,
+              "name": "src_def_x_use_injected_parens_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "line": 8,
+              "name": "src_def_x_use_injected_parens_snoc"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_def_x_use_injected_parens_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_use_injected_parens_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_use_injected_parens_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Def.XUseInjectedParens.Injector",
+          "source": "lib/src/src.def.x_use_injected_parens.injector.ex",
+          "spec": "lib/src/src.def.x_use_injected_parens.injector.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "line": 4,
+              "name": "src_def_x_use_injected_parens_not_injected"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_use_injected_parens_not_injected",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Def.XUseInjectedParens.DefUsing",
+          "source": "lib/src/src.def.x_use_injected_parens.def_using.ex",
+          "spec": "lib/src/src.def.x_use_injected_parens.def_using.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "line": 4,
+              "name": "src_def_x_use_injected_parens_privately_injected"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacrop",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_use_injected_parens_privately_injected",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Def.XUseInjectedParens.PrivateUsing",
+          "source": "lib/src/src.def.x_use_injected_parens.private_using.ex",
+          "spec": "lib/src/src.def.x_use_injected_parens.private_using.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.Def.XUseInjectedParens",
+            "name": "src_def_x_use_injected_parens_snoc"
+          },
+          "column": 58,
+          "file": "lib/callers/src/def/x_use_injected_parens.ex",
+          "id": "qualified",
+          "line": 7,
+          "name": "src_def_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.Def.XUseInjectedParens",
+            "name": "src_def_x_use_injected_parens_snoc"
+          },
+          "column": 48,
+          "file": "lib/callers/src/def/x_use_injected_parens.ex",
+          "id": "aliased",
+          "line": 8,
+          "name": "src_def_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.Def.XUseInjectedParens",
+            "name": "src_def_x_use_injected_parens_snoc"
+          },
+          "column": 40,
+          "file": "lib/callers/src/def/x_use_injected_parens.ex",
+          "id": "aliased_as",
+          "line": 9,
+          "name": "src_def_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_function",
+            "module": "Src.Def.XUseInjectedParens",
+            "name": "src_def_x_use_injected_parens_snoc"
+          },
+          "column": 33,
+          "file": "lib/callers/src/def/x_use_injected_parens.ex",
+          "id": "unqualified",
+          "line": 10,
+          "name": "src_def_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_function",
+            "module": "Src.Def.XUseInjectedParens",
+            "name": "src_def_x_use_injected_parens_snoc"
+          },
+          "column": 31,
+          "file": "lib/callers/src/def/x_use_injected_parens.ex",
+          "id": "pipe",
+          "line": 11,
+          "name": "src_def_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.Def.XUseInjectedParens",
+            "name": "src_def_x_use_injected_parens_snoc"
+          },
+          "column": 58,
+          "file": "lib/callers/src/def/x_use_injected_parens.ex",
+          "id": "capture",
+          "line": 12,
+          "name": "src_def_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "apply",
+            "module": "Src.Def.XUseInjectedParens",
+            "name": "src_def_x_use_injected_parens_snoc"
+          },
+          "column": 62,
+          "file": "lib/callers/src/def/x_use_injected_parens.ex",
+          "id": "apply",
+          "line": 13,
+          "name": "src_def_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_function",
+            "module": "Src.Def.XUseInjectedParens",
+            "name": "src_def_x_use_injected_parens_snoc"
+          },
+          "column": 57,
+          "file": "lib/callers/src/def/x_use_injected_parens.ex",
+          "id": "arity_1",
+          "line": 14,
+          "name": "src_def_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.Def.XUseInjectedParens.Other",
+            "name": "src_def_x_use_injected_parens_snoc"
+          },
+          "column": 70,
+          "file": "lib/callers/src/def/x_use_injected_parens.ex",
+          "id": "other_qualified",
+          "line": 15,
+          "name": "src_def_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Def.XUseInjectedParens",
+            "name": "src_def_x_use_injected_parens_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.def.x_use_injected_parens.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_def_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_function",
+            "module": "Src.Def.XUseInjectedParens",
+            "name": "src_def_x_use_injected_parens_snoc"
+          },
+          "column": 38,
+          "file": "lib/callers/src/def/x_use_injected_parens_imports.ex",
+          "id": "import_functions",
+          "line": 5,
+          "name": "src_def_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_def_x_use_injected_parens_chained/1",
+            "src_def_x_use_injected_parens_snoc/1",
+            "src_def_x_use_injected_parens_snoc/2"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "imported_function",
+            "module": "Src.Def.XUseInjectedParens",
+            "name": "src_def_x_use_injected_parens_snoc"
+          },
+          "column": 36,
+          "file": "lib/callers/src/def/x_use_injected_parens_imports.ex",
+          "id": "import_only_1",
+          "line": 11,
+          "name": "src_def_x_use_injected_parens_snoc",
+          "visible": [
+            "src_def_x_use_injected_parens_snoc/1"
+          ]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_function",
+            "module": "Src.Def.XUseInjectedParens",
+            "name": "src_def_x_use_injected_parens_snoc"
+          },
+          "column": 37,
+          "file": "lib/callers/src/def/x_use_injected_parens_imports.ex",
+          "id": "import_except_2",
+          "line": 17,
+          "name": "src_def_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_def_x_use_injected_parens_chained/1",
+            "src_def_x_use_injected_parens_snoc/2"
+          ]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_function",
+            "module": "Src.Def.XUseInjectedParens",
+            "name": "src_def_x_use_injected_parens_snoc"
+          },
+          "column": 47,
+          "file": "lib/callers/src/def/x_use_injected_parens_imports.ex",
+          "id": "import_functions_except_2",
+          "line": 23,
+          "name": "src_def_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_def_x_use_injected_parens_chained/1",
+            "src_def_x_use_injected_parens_snoc/2"
+          ]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_function",
+            "module": "Src.Def.XUseInjectedParens",
+            "name": "src_def_x_use_injected_parens_snoc"
+          },
+          "column": 47,
+          "file": "lib/callers/src/def/x_use_injected_parens_imports.ex",
+          "id": "import_except_functions_2",
+          "line": 29,
+          "name": "src_def_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_def_x_use_injected_parens_chained/1",
+            "src_def_x_use_injected_parens_snoc/2"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "import_key",
+            "module": "Src.Def.XUseInjectedParens",
+            "name": "src_def_x_use_injected_parens_snoc"
+          },
+          "column": 45,
+          "file": "lib/callers/src/def/x_use_injected_parens_imports.ex",
+          "id": "import_only_key",
+          "line": 9,
+          "name": "src_def_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "import_key",
+            "module": "Src.Def.XUseInjectedParens",
+            "name": "src_def_x_use_injected_parens_snoc"
+          },
+          "column": 47,
+          "file": "lib/callers/src/def/x_use_injected_parens_imports.ex",
+          "id": "import_except_key",
+          "line": 15,
+          "name": "src_def_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "import_key",
+            "module": "Src.Def.XUseInjectedParens",
+            "name": "src_def_x_use_injected_parens_snoc"
+          },
+          "column": 65,
+          "file": "lib/callers/src/def/x_use_injected_parens_imports.ex",
+          "id": "import_functions_except_key",
+          "line": 21,
+          "name": "src_def_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "import_key",
+            "module": "Src.Def.XUseInjectedParens",
+            "name": "src_def_x_use_injected_parens_snoc"
+          },
+          "column": 47,
+          "file": "lib/callers/src/def/x_use_injected_parens_imports.ex",
+          "id": "import_except_functions_key",
+          "line": 27,
+          "name": "src_def_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 35,
+          "diagnostic": {
+            "message": "undefined function src_def_x_use_injected_parens_snoc/2 (expected Callers.Src.Def.XUseInjectedParens.ImportMacros to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/def/x_use_injected_parens_import_macros.ex",
+          "id": "import_macros",
+          "line": 5,
+          "name": "src_def_x_use_injected_parens_snoc",
+          "visible": []
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 35,
+          "diagnostic": {
+            "message": "undefined function src_def_x_use_injected_parens_snoc/2 (expected Callers.Src.Def.XUseInjectedParens.ImportOnly2 to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/def/x_use_injected_parens_import_only_2.ex",
+          "id": "import_only_2",
+          "line": 5,
+          "name": "src_def_x_use_injected_parens_snoc",
+          "visible": [
+            "src_def_x_use_injected_parens_snoc/1"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "import_key",
+            "module": "Src.Def.XUseInjectedParens",
+            "name": "src_def_x_use_injected_parens_snoc"
+          },
+          "column": 45,
+          "file": "lib/callers/src/def/x_use_injected_parens_import_only_2.ex",
+          "id": "import_only_2_key",
+          "line": 3,
+          "name": "src_def_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 38,
+          "diagnostic": {
+            "message": "undefined function src_def_x_use_injected_parens_snoc/1 (expected Callers.Src.Def.XUseInjectedParens.ImportExcept1 to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/def/x_use_injected_parens_import_except_1.ex",
+          "id": "import_except_1",
+          "line": 5,
+          "name": "src_def_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_def_x_use_injected_parens_chained/1",
+            "src_def_x_use_injected_parens_snoc/2"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "import_key",
+            "module": "Src.Def.XUseInjectedParens",
+            "name": "src_def_x_use_injected_parens_snoc"
+          },
+          "column": 47,
+          "file": "lib/callers/src/def/x_use_injected_parens_import_except_1.ex",
+          "id": "import_except_1_key",
+          "line": 3,
+          "name": "src_def_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 48,
+          "diagnostic": {
+            "message": "undefined function src_def_x_use_injected_parens_snoc/1 (expected Callers.Src.Def.XUseInjectedParens.ImportFunctionsExcept1 to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/def/x_use_injected_parens_import_functions_except_1.ex",
+          "id": "import_functions_except_1",
+          "line": 5,
+          "name": "src_def_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_def_x_use_injected_parens_chained/1",
+            "src_def_x_use_injected_parens_snoc/2"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "import_key",
+            "module": "Src.Def.XUseInjectedParens",
+            "name": "src_def_x_use_injected_parens_snoc"
+          },
+          "column": 65,
+          "file": "lib/callers/src/def/x_use_injected_parens_import_functions_except_1.ex",
+          "id": "import_functions_except_1_key",
+          "line": 3,
+          "name": "src_def_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 48,
+          "diagnostic": {
+            "message": "undefined function src_def_x_use_injected_parens_snoc/1 (expected Callers.Src.Def.XUseInjectedParens.ImportExceptFunctions1 to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/def/x_use_injected_parens_import_except_functions_1.ex",
+          "id": "import_except_functions_1",
+          "line": 5,
+          "name": "src_def_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_def_x_use_injected_parens_chained/1",
+            "src_def_x_use_injected_parens_snoc/2"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "import_key",
+            "module": "Src.Def.XUseInjectedParens",
+            "name": "src_def_x_use_injected_parens_snoc"
+          },
+          "column": 47,
+          "file": "lib/callers/src/def/x_use_injected_parens_import_except_functions_1.ex",
+          "id": "import_except_functions_1_key",
+          "line": 3,
+          "name": "src_def_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 39,
+          "diagnostic": {
+            "message": "undefined function src_def_x_use_injected_parens_snoc/2 (expected Callers.Src.Def.XUseInjectedParens.ImportTransitive to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/def/x_use_injected_parens_import_transitive.ex",
+          "id": "import_transitive",
+          "line": 10,
+          "name": "src_def_x_use_injected_parens_snoc",
+          "visible": []
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 34,
+          "diagnostic": {
+            "message": "undefined function src_def_x_use_injected_parens_snoc/2 (expected Callers.Src.Def.XUseInjectedParens.RequireOnly to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/def/x_use_injected_parens_require_only.ex",
+          "id": "require_only",
+          "line": 5,
+          "name": "src_def_x_use_injected_parens_snoc",
+          "visible": []
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "imported_function",
+            "module": "Src.Def.XUseInjectedParens",
+            "name": "src_def_x_use_injected_parens_chained"
+          },
+          "column": 30,
+          "file": "lib/callers/src/def/x_use_injected_parens_uses.ex",
+          "id": "chained",
+          "line": 5,
+          "name": "src_def_x_use_injected_parens_chained"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "imported_function",
+            "module": "Src.Def.XUseInjectedParens",
+            "name": "src_def_x_use_injected_parens_chained"
+          },
+          "column": 37,
+          "file": "lib/callers/src/def/x_use_injected_parens_uses.ex",
+          "id": "except_chained",
+          "line": 11,
+          "name": "src_def_x_use_injected_parens_chained",
+          "visible": [
+            "local_site/2",
+            "src_def_x_use_injected_parens_chained/1",
+            "src_def_x_use_injected_parens_snoc/2"
+          ]
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 39,
+          "diagnostic": {
+            "message": "undefined function src_def_x_use_injected_parens_snoc/2 (expected Callers.Src.Def.XUseInjectedParens.OnlyChainedSnoc to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/def/x_use_injected_parens_only_chained_snoc.ex",
+          "id": "only_chained_snoc",
+          "line": 5,
+          "name": "src_def_x_use_injected_parens_snoc",
+          "visible": [
+            "src_def_x_use_injected_parens_chained/1"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 29,
+          "diagnostic": {
+            "message": "undefined function src_def_x_use_injected_parens_hidden/1 (expected Callers.Src.Def.XUseInjectedParens.Hidden to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/def/x_use_injected_parens_hidden.ex",
+          "id": "hidden",
+          "line": 5,
+          "name": "src_def_x_use_injected_parens_hidden",
+          "visible": [
+            "local_site/2",
+            "src_def_x_use_injected_parens_chained/1",
+            "src_def_x_use_injected_parens_snoc/1",
+            "src_def_x_use_injected_parens_snoc/2"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 29,
+          "diagnostic": {
+            "message": "undefined function src_def_x_use_injected_parens_helper/1 (expected Callers.Src.Def.XUseInjectedParens.Helper to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/def/x_use_injected_parens_helper.ex",
+          "id": "helper",
+          "line": 5,
+          "name": "src_def_x_use_injected_parens_helper",
+          "visible": [
+            "local_site/2",
+            "src_def_x_use_injected_parens_chained/1",
+            "src_def_x_use_injected_parens_snoc/1",
+            "src_def_x_use_injected_parens_snoc/2"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 32,
+          "diagnostic": {
+            "message": "undefined function src_def_x_use_injected_parens_not_injected/1 (expected Callers.Src.Def.XUseInjectedParens.DefUsing to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/def/x_use_injected_parens_def_using.ex",
+          "id": "def_using",
+          "line": 5,
+          "name": "src_def_x_use_injected_parens_not_injected"
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 36,
+          "diagnostic": {
+            "message": "function Src.Def.XUseInjectedParens.PrivateUsing.__using__/1 is undefined or private",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/def/x_use_injected_parens_private_using.ex",
+          "id": "private_using",
+          "line": 5,
+          "name": "src_def_x_use_injected_parens_privately_injected"
+        }
+      ],
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
       "caller": "lib/callers/src/def/x_with.ex",
       "form": "def",
       "importCallers": [],
@@ -64804,6 +66628,452 @@
         }
       ],
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/defp/x_use_injected_parens.ex",
+      "form": "defp",
+      "importCallers": [
+        "lib/callers/src/defp/x_use_injected_parens_imports.ex",
+        "lib/callers/src/defp/x_use_injected_parens_import_whole.ex",
+        "lib/callers/src/defp/x_use_injected_parens_import_functions.ex",
+        "lib/callers/src/defp/x_use_injected_parens_import_only_private.ex"
+      ],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "file": "lib/src/src.defp.x_use_injected_parens.inner.ex",
+              "line": 4,
+              "name": "src_defp_x_use_injected_parens_chained"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 10,
+              "definer": "defp",
+              "file": "lib/src/src.defp.x_use_injected_parens.injector.ex",
+              "line": 6,
+              "name": "src_defp_x_use_injected_parens_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 10,
+              "definer": "defp",
+              "file": "lib/src/src.defp.x_use_injected_parens.injector.ex",
+              "line": 7,
+              "name": "src_defp_x_use_injected_parens_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 10,
+              "definer": "defp",
+              "file": "lib/src/src.defp.x_use_injected_parens.injector.ex",
+              "line": 8,
+              "name": "src_defp_x_use_injected_parens_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defp_x_use_injected_parens_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defp_x_use_injected_parens_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defp_x_use_injected_parens_chained"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defp_x_use_injected_parens_hidden"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defp_x_use_injected_parens_chained",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defp_x_use_injected_parens_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defp_x_use_injected_parens_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defp_x_use_injected_parens_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defp.XUseInjectedParens",
+          "source": "lib/src/src.defp.x_use_injected_parens.ex",
+          "spec": "lib/src/src.defp.x_use_injected_parens.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "src_defp_x_use_injected_parens_helper"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defp_x_use_injected_parens_helper"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defp_x_use_injected_parens_helper",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defp.XUseInjectedParens.Helpers",
+          "source": "lib/src/src.defp.x_use_injected_parens.helpers.ex",
+          "spec": "lib/src/src.defp.x_use_injected_parens.helpers.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "line": 4,
+              "name": "src_defp_x_use_injected_parens_chained"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defp_x_use_injected_parens_chained",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defp.XUseInjectedParens.Inner",
+          "source": "lib/src/src.defp.x_use_injected_parens.inner.ex",
+          "spec": "lib/src/src.defp.x_use_injected_parens.inner.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 10,
+              "definer": "defp",
+              "line": 6,
+              "name": "src_defp_x_use_injected_parens_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 10,
+              "definer": "defp",
+              "line": 7,
+              "name": "src_defp_x_use_injected_parens_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 10,
+              "definer": "defp",
+              "line": 8,
+              "name": "src_defp_x_use_injected_parens_snoc"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defp_x_use_injected_parens_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defp_x_use_injected_parens_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defp_x_use_injected_parens_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defp.XUseInjectedParens.Injector",
+          "source": "lib/src/src.defp.x_use_injected_parens.injector.ex",
+          "spec": "lib/src/src.defp.x_use_injected_parens.injector.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "line": 4,
+              "name": "src_defp_x_use_injected_parens_not_injected"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defp_x_use_injected_parens_not_injected",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defp.XUseInjectedParens.DefUsing",
+          "source": "lib/src/src.defp.x_use_injected_parens.def_using.ex",
+          "spec": "lib/src/src.defp.x_use_injected_parens.def_using.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "line": 4,
+              "name": "src_defp_x_use_injected_parens_privately_injected"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacrop",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defp_x_use_injected_parens_privately_injected",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defp.XUseInjectedParens.PrivateUsing",
+          "source": "lib/src/src.defp.x_use_injected_parens.private_using.ex",
+          "spec": "lib/src/src.defp.x_use_injected_parens.private_using.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.XUseInjectedParens",
+            "name": "src_defp_x_use_injected_parens_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defp.x_use_injected_parens.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defp_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_function",
+            "module": "Src.Defp.XUseInjectedParens",
+            "name": "src_defp_x_use_injected_parens_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defp.x_use_injected_parens.ex",
+          "id": "uses_0",
+          "line": 9,
+          "name": "src_defp_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 34,
+          "diagnostic": {
+            "message": "undefined function src_defp_x_use_injected_parens_snoc/2 (expected Callers.Src.Defp.XUseInjectedParens.ImportWhole to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defp/x_use_injected_parens_import_whole.ex",
+          "id": "import_whole",
+          "line": 5,
+          "name": "src_defp_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_defp_x_use_injected_parens_chained/1",
+            "uses/2"
+          ]
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 38,
+          "diagnostic": {
+            "message": "undefined function src_defp_x_use_injected_parens_snoc/2 (expected Callers.Src.Defp.XUseInjectedParens.ImportFunctions to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defp/x_use_injected_parens_import_functions.ex",
+          "id": "import_functions",
+          "line": 5,
+          "name": "src_defp_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_defp_x_use_injected_parens_chained/1",
+            "uses/2"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 46,
+          "diagnostic": {
+            "message": "cannot import Src.Defp.XUseInjectedParens.src_defp_x_use_injected_parens_snoc/1 because it is undefined or private",
+            "severity": "warning"
+          },
+          "file": "lib/callers/src/defp/x_use_injected_parens_import_only_private.ex",
+          "id": "import_only_private_key",
+          "line": 3,
+          "name": "src_defp_x_use_injected_parens_snoc",
+          "visible": []
+        }
+      ],
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "src",
@@ -77019,6 +79289,1037 @@
     {
       "backing": "src",
       "brokenCallers": [],
+      "caller": "lib/callers/src/defmacro/x_use_injected_parens.ex",
+      "form": "defmacro",
+      "importCallers": [
+        "lib/callers/src/defmacro/x_use_injected_parens_imports.ex",
+        "lib/callers/src/defmacro/x_use_injected_parens_import_functions.ex",
+        "lib/callers/src/defmacro/x_use_injected_parens_import_only_2.ex",
+        "lib/callers/src/defmacro/x_use_injected_parens_import_except_1.ex",
+        "lib/callers/src/defmacro/x_use_injected_parens_import_functions_except_2.ex",
+        "lib/callers/src/defmacro/x_use_injected_parens_import_functions_except_1.ex",
+        "lib/callers/src/defmacro/x_use_injected_parens_import_except_functions_2.ex",
+        "lib/callers/src/defmacro/x_use_injected_parens_import_except_functions_1.ex",
+        "lib/callers/src/defmacro/x_use_injected_parens_import_transitive.ex",
+        "lib/callers/src/defmacro/x_use_injected_parens_require_only.ex",
+        "lib/callers/src/defmacro/x_use_injected_parens_uses.ex",
+        "lib/callers/src/defmacro/x_use_injected_parens_only_chained_snoc.ex",
+        "lib/callers/src/defmacro/x_use_injected_parens_hidden.ex",
+        "lib/callers/src/defmacro/x_use_injected_parens_helper.ex",
+        "lib/callers/src/defmacro/x_use_injected_parens_def_using.ex",
+        "lib/callers/src/defmacro/x_use_injected_parens_private_using.ex"
+      ],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "file": "lib/src/src.defmacro.x_use_injected_parens.inner.ex",
+              "line": 4,
+              "name": "src_defmacro_x_use_injected_parens_chained"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 10,
+              "definer": "defp",
+              "file": "lib/src/src.defmacro.x_use_injected_parens.injector.ex",
+              "line": 6,
+              "name": "src_defmacro_x_use_injected_parens_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 14,
+              "definer": "defmacro",
+              "file": "lib/src/src.defmacro.x_use_injected_parens.injector.ex",
+              "line": 7,
+              "name": "src_defmacro_x_use_injected_parens_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 14,
+              "definer": "defmacro",
+              "file": "lib/src/src.defmacro.x_use_injected_parens.injector.ex",
+              "line": 8,
+              "name": "src_defmacro_x_use_injected_parens_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defmacro_x_use_injected_parens_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defmacro_x_use_injected_parens_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defmacro_x_use_injected_parens_chained"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defmacro_x_use_injected_parens_hidden"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defmacro_x_use_injected_parens_chained",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defmacro_x_use_injected_parens_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "src_defmacro_x_use_injected_parens_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "src_defmacro_x_use_injected_parens_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacro.XUseInjectedParens",
+          "source": "lib/src/src.defmacro.x_use_injected_parens.ex",
+          "spec": "lib/src/src.defmacro.x_use_injected_parens.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "file": "lib/src/src.defmacro.x_use_injected_parens.inner.ex",
+              "line": 4,
+              "name": "src_defmacro_x_use_injected_parens_chained"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 10,
+              "definer": "defp",
+              "file": "lib/src/src.defmacro.x_use_injected_parens.injector.ex",
+              "line": 6,
+              "name": "src_defmacro_x_use_injected_parens_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 14,
+              "definer": "defmacro",
+              "file": "lib/src/src.defmacro.x_use_injected_parens.injector.ex",
+              "line": 7,
+              "name": "src_defmacro_x_use_injected_parens_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 14,
+              "definer": "defmacro",
+              "file": "lib/src/src.defmacro.x_use_injected_parens.injector.ex",
+              "line": 8,
+              "name": "src_defmacro_x_use_injected_parens_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defmacro_x_use_injected_parens_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defmacro_x_use_injected_parens_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defmacro_x_use_injected_parens_chained"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defmacro_x_use_injected_parens_hidden"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defmacro_x_use_injected_parens_chained",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defmacro_x_use_injected_parens_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "src_defmacro_x_use_injected_parens_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "src_defmacro_x_use_injected_parens_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacro.XUseInjectedParens.Other",
+          "source": "lib/src/src.defmacro.x_use_injected_parens.other.ex",
+          "spec": "lib/src/src.defmacro.x_use_injected_parens.other.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "src_defmacro_x_use_injected_parens_helper"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defmacro_x_use_injected_parens_helper"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defmacro_x_use_injected_parens_helper",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacro.XUseInjectedParens.Helpers",
+          "source": "lib/src/src.defmacro.x_use_injected_parens.helpers.ex",
+          "spec": "lib/src/src.defmacro.x_use_injected_parens.helpers.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "line": 4,
+              "name": "src_defmacro_x_use_injected_parens_chained"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defmacro_x_use_injected_parens_chained",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacro.XUseInjectedParens.Inner",
+          "source": "lib/src/src.defmacro.x_use_injected_parens.inner.ex",
+          "spec": "lib/src/src.defmacro.x_use_injected_parens.inner.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 10,
+              "definer": "defp",
+              "line": 6,
+              "name": "src_defmacro_x_use_injected_parens_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 14,
+              "definer": "defmacro",
+              "line": 7,
+              "name": "src_defmacro_x_use_injected_parens_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 14,
+              "definer": "defmacro",
+              "line": 8,
+              "name": "src_defmacro_x_use_injected_parens_snoc"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defmacro_x_use_injected_parens_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "src_defmacro_x_use_injected_parens_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "src_defmacro_x_use_injected_parens_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacro.XUseInjectedParens.Injector",
+          "source": "lib/src/src.defmacro.x_use_injected_parens.injector.ex",
+          "spec": "lib/src/src.defmacro.x_use_injected_parens.injector.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "line": 4,
+              "name": "src_defmacro_x_use_injected_parens_not_injected"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defmacro_x_use_injected_parens_not_injected",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacro.XUseInjectedParens.DefUsing",
+          "source": "lib/src/src.defmacro.x_use_injected_parens.def_using.ex",
+          "spec": "lib/src/src.defmacro.x_use_injected_parens.def_using.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "line": 4,
+              "name": "src_defmacro_x_use_injected_parens_privately_injected"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacrop",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defmacro_x_use_injected_parens_privately_injected",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacro.XUseInjectedParens.PrivateUsing",
+          "source": "lib/src/src.defmacro.x_use_injected_parens.private_using.ex",
+          "spec": "lib/src/src.defmacro.x_use_injected_parens.private_using.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defmacro.XUseInjectedParens",
+            "name": "src_defmacro_x_use_injected_parens_snoc"
+          },
+          "column": 63,
+          "file": "lib/callers/src/defmacro/x_use_injected_parens.ex",
+          "id": "qualified",
+          "line": 9,
+          "name": "src_defmacro_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defmacro.XUseInjectedParens",
+            "name": "src_defmacro_x_use_injected_parens_snoc"
+          },
+          "column": 48,
+          "file": "lib/callers/src/defmacro/x_use_injected_parens.ex",
+          "id": "aliased",
+          "line": 10,
+          "name": "src_defmacro_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defmacro.XUseInjectedParens",
+            "name": "src_defmacro_x_use_injected_parens_snoc"
+          },
+          "column": 40,
+          "file": "lib/callers/src/defmacro/x_use_injected_parens.ex",
+          "id": "aliased_as",
+          "line": 11,
+          "name": "src_defmacro_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_macro",
+            "module": "Src.Defmacro.XUseInjectedParens",
+            "name": "src_defmacro_x_use_injected_parens_snoc"
+          },
+          "column": 33,
+          "file": "lib/callers/src/defmacro/x_use_injected_parens.ex",
+          "id": "unqualified",
+          "line": 12,
+          "name": "src_defmacro_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_macro",
+            "module": "Src.Defmacro.XUseInjectedParens",
+            "name": "src_defmacro_x_use_injected_parens_snoc"
+          },
+          "column": 31,
+          "file": "lib/callers/src/defmacro/x_use_injected_parens.ex",
+          "id": "pipe",
+          "line": 13,
+          "name": "src_defmacro_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_macro",
+            "module": "Src.Defmacro.XUseInjectedParens",
+            "name": "src_defmacro_x_use_injected_parens_snoc"
+          },
+          "column": 62,
+          "file": "lib/callers/src/defmacro/x_use_injected_parens.ex",
+          "id": "arity_1",
+          "line": 14,
+          "name": "src_defmacro_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defmacro.XUseInjectedParens.Other",
+            "name": "src_defmacro_x_use_injected_parens_snoc"
+          },
+          "column": 75,
+          "file": "lib/callers/src/defmacro/x_use_injected_parens.ex",
+          "id": "other_qualified",
+          "line": 15,
+          "name": "src_defmacro_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacro.XUseInjectedParens",
+            "name": "src_defmacro_x_use_injected_parens_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defmacro.x_use_injected_parens.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defmacro_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_macro",
+            "module": "Src.Defmacro.XUseInjectedParens",
+            "name": "src_defmacro_x_use_injected_parens_snoc"
+          },
+          "column": 35,
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_imports.ex",
+          "id": "import_macros",
+          "line": 5,
+          "name": "src_defmacro_x_use_injected_parens_snoc",
+          "visible": [
+            "src_defmacro_x_use_injected_parens_snoc/1",
+            "src_defmacro_x_use_injected_parens_snoc/2"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "imported_macro",
+            "module": "Src.Defmacro.XUseInjectedParens",
+            "name": "src_defmacro_x_use_injected_parens_snoc"
+          },
+          "column": 36,
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_imports.ex",
+          "id": "import_only_1",
+          "line": 11,
+          "name": "src_defmacro_x_use_injected_parens_snoc",
+          "visible": [
+            "src_defmacro_x_use_injected_parens_snoc/1"
+          ]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_macro",
+            "module": "Src.Defmacro.XUseInjectedParens",
+            "name": "src_defmacro_x_use_injected_parens_snoc"
+          },
+          "column": 37,
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_imports.ex",
+          "id": "import_except_2",
+          "line": 17,
+          "name": "src_defmacro_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_defmacro_x_use_injected_parens_chained/1",
+            "src_defmacro_x_use_injected_parens_snoc/2"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "import_key",
+            "module": "Src.Defmacro.XUseInjectedParens",
+            "name": "src_defmacro_x_use_injected_parens_snoc"
+          },
+          "column": 50,
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_imports.ex",
+          "id": "import_only_key",
+          "line": 9,
+          "name": "src_defmacro_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "import_key",
+            "module": "Src.Defmacro.XUseInjectedParens",
+            "name": "src_defmacro_x_use_injected_parens_snoc"
+          },
+          "column": 52,
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_imports.ex",
+          "id": "import_except_key",
+          "line": 15,
+          "name": "src_defmacro_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 38,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_use_injected_parens_snoc/2 (expected Callers.Src.Defmacro.XUseInjectedParens.ImportFunctions to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_import_functions.ex",
+          "id": "import_functions",
+          "line": 5,
+          "name": "src_defmacro_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_defmacro_x_use_injected_parens_chained/1"
+          ]
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 35,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_use_injected_parens_snoc/2 (expected Callers.Src.Defmacro.XUseInjectedParens.ImportOnly2 to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_import_only_2.ex",
+          "id": "import_only_2",
+          "line": 5,
+          "name": "src_defmacro_x_use_injected_parens_snoc",
+          "visible": [
+            "src_defmacro_x_use_injected_parens_snoc/1"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "import_key",
+            "module": "Src.Defmacro.XUseInjectedParens",
+            "name": "src_defmacro_x_use_injected_parens_snoc"
+          },
+          "column": 50,
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_import_only_2.ex",
+          "id": "import_only_2_key",
+          "line": 3,
+          "name": "src_defmacro_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 38,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_use_injected_parens_snoc/1 (expected Callers.Src.Defmacro.XUseInjectedParens.ImportExcept1 to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_import_except_1.ex",
+          "id": "import_except_1",
+          "line": 5,
+          "name": "src_defmacro_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_defmacro_x_use_injected_parens_chained/1",
+            "src_defmacro_x_use_injected_parens_snoc/2"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "import_key",
+            "module": "Src.Defmacro.XUseInjectedParens",
+            "name": "src_defmacro_x_use_injected_parens_snoc"
+          },
+          "column": 52,
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_import_except_1.ex",
+          "id": "import_except_1_key",
+          "line": 3,
+          "name": "src_defmacro_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 47,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_use_injected_parens_snoc/2 (expected Callers.Src.Defmacro.XUseInjectedParens.ImportFunctionsExcept2 to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_import_functions_except_2.ex",
+          "id": "import_functions_except_2",
+          "line": 5,
+          "name": "src_defmacro_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_defmacro_x_use_injected_parens_chained/1"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "import_key",
+            "module": "Src.Defmacro.XUseInjectedParens",
+            "name": "src_defmacro_x_use_injected_parens_snoc"
+          },
+          "column": 70,
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_import_functions_except_2.ex",
+          "id": "import_functions_except_2_key",
+          "line": 3,
+          "name": "src_defmacro_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 48,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_use_injected_parens_snoc/1 (expected Callers.Src.Defmacro.XUseInjectedParens.ImportFunctionsExcept1 to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_import_functions_except_1.ex",
+          "id": "import_functions_except_1",
+          "line": 5,
+          "name": "src_defmacro_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_defmacro_x_use_injected_parens_chained/1"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "import_key",
+            "module": "Src.Defmacro.XUseInjectedParens",
+            "name": "src_defmacro_x_use_injected_parens_snoc"
+          },
+          "column": 70,
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_import_functions_except_1.ex",
+          "id": "import_functions_except_1_key",
+          "line": 3,
+          "name": "src_defmacro_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 47,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_use_injected_parens_snoc/2 (expected Callers.Src.Defmacro.XUseInjectedParens.ImportExceptFunctions2 to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_import_except_functions_2.ex",
+          "id": "import_except_functions_2",
+          "line": 5,
+          "name": "src_defmacro_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_defmacro_x_use_injected_parens_chained/1"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "import_key",
+            "module": "Src.Defmacro.XUseInjectedParens",
+            "name": "src_defmacro_x_use_injected_parens_snoc"
+          },
+          "column": 52,
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_import_except_functions_2.ex",
+          "id": "import_except_functions_2_key",
+          "line": 3,
+          "name": "src_defmacro_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 48,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_use_injected_parens_snoc/1 (expected Callers.Src.Defmacro.XUseInjectedParens.ImportExceptFunctions1 to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_import_except_functions_1.ex",
+          "id": "import_except_functions_1",
+          "line": 5,
+          "name": "src_defmacro_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_defmacro_x_use_injected_parens_chained/1"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "import_key",
+            "module": "Src.Defmacro.XUseInjectedParens",
+            "name": "src_defmacro_x_use_injected_parens_snoc"
+          },
+          "column": 52,
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_import_except_functions_1.ex",
+          "id": "import_except_functions_1_key",
+          "line": 3,
+          "name": "src_defmacro_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 39,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_use_injected_parens_snoc/2 (expected Callers.Src.Defmacro.XUseInjectedParens.ImportTransitive to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_import_transitive.ex",
+          "id": "import_transitive",
+          "line": 10,
+          "name": "src_defmacro_x_use_injected_parens_snoc",
+          "visible": []
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 34,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_use_injected_parens_snoc/2 (expected Callers.Src.Defmacro.XUseInjectedParens.RequireOnly to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_require_only.ex",
+          "id": "require_only",
+          "line": 5,
+          "name": "src_defmacro_x_use_injected_parens_snoc",
+          "visible": []
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "imported_function",
+            "module": "Src.Defmacro.XUseInjectedParens",
+            "name": "src_defmacro_x_use_injected_parens_chained"
+          },
+          "column": 30,
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_uses.ex",
+          "id": "chained",
+          "line": 5,
+          "name": "src_defmacro_x_use_injected_parens_chained"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "imported_function",
+            "module": "Src.Defmacro.XUseInjectedParens",
+            "name": "src_defmacro_x_use_injected_parens_chained"
+          },
+          "column": 37,
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_uses.ex",
+          "id": "except_chained",
+          "line": 11,
+          "name": "src_defmacro_x_use_injected_parens_chained",
+          "visible": [
+            "local_site/2",
+            "src_defmacro_x_use_injected_parens_chained/1",
+            "src_defmacro_x_use_injected_parens_snoc/2"
+          ]
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 39,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_use_injected_parens_snoc/2 (expected Callers.Src.Defmacro.XUseInjectedParens.OnlyChainedSnoc to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_only_chained_snoc.ex",
+          "id": "only_chained_snoc",
+          "line": 5,
+          "name": "src_defmacro_x_use_injected_parens_snoc",
+          "visible": [
+            "src_defmacro_x_use_injected_parens_chained/1"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 29,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_use_injected_parens_hidden/1 (expected Callers.Src.Defmacro.XUseInjectedParens.Hidden to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_hidden.ex",
+          "id": "hidden",
+          "line": 5,
+          "name": "src_defmacro_x_use_injected_parens_hidden",
+          "visible": [
+            "local_site/2",
+            "src_defmacro_x_use_injected_parens_chained/1",
+            "src_defmacro_x_use_injected_parens_snoc/1",
+            "src_defmacro_x_use_injected_parens_snoc/2"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 29,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_use_injected_parens_helper/1 (expected Callers.Src.Defmacro.XUseInjectedParens.Helper to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_helper.ex",
+          "id": "helper",
+          "line": 5,
+          "name": "src_defmacro_x_use_injected_parens_helper",
+          "visible": [
+            "local_site/2",
+            "src_defmacro_x_use_injected_parens_chained/1",
+            "src_defmacro_x_use_injected_parens_snoc/1",
+            "src_defmacro_x_use_injected_parens_snoc/2"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 32,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_use_injected_parens_not_injected/1 (expected Callers.Src.Defmacro.XUseInjectedParens.DefUsing to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_def_using.ex",
+          "id": "def_using",
+          "line": 5,
+          "name": "src_defmacro_x_use_injected_parens_not_injected"
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 36,
+          "diagnostic": {
+            "message": "function Src.Defmacro.XUseInjectedParens.PrivateUsing.__using__/1 is undefined or private",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_use_injected_parens_private_using.ex",
+          "id": "private_using",
+          "line": 5,
+          "name": "src_defmacro_x_use_injected_parens_privately_injected"
+        }
+      ],
+      "world": "x_use_injected_parens"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
       "caller": "lib/callers/src/defmacro/x_with.ex",
       "form": "defmacro",
       "importCallers": [],
@@ -84389,6 +87690,452 @@
         }
       ],
       "world": "x_use_injected_defaults"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/defmacrop/x_use_injected_parens.ex",
+      "form": "defmacrop",
+      "importCallers": [
+        "lib/callers/src/defmacrop/x_use_injected_parens_imports.ex",
+        "lib/callers/src/defmacrop/x_use_injected_parens_import_whole.ex",
+        "lib/callers/src/defmacrop/x_use_injected_parens_import_functions.ex",
+        "lib/callers/src/defmacrop/x_use_injected_parens_import_only_private.ex"
+      ],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "file": "lib/src/src.defmacrop.x_use_injected_parens.inner.ex",
+              "line": 4,
+              "name": "src_defmacrop_x_use_injected_parens_chained"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 10,
+              "definer": "defp",
+              "file": "lib/src/src.defmacrop.x_use_injected_parens.injector.ex",
+              "line": 6,
+              "name": "src_defmacrop_x_use_injected_parens_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 15,
+              "definer": "defmacrop",
+              "file": "lib/src/src.defmacrop.x_use_injected_parens.injector.ex",
+              "line": 7,
+              "name": "src_defmacrop_x_use_injected_parens_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 15,
+              "definer": "defmacrop",
+              "file": "lib/src/src.defmacrop.x_use_injected_parens.injector.ex",
+              "line": 8,
+              "name": "src_defmacrop_x_use_injected_parens_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defmacrop_x_use_injected_parens_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defmacrop_x_use_injected_parens_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defmacrop_x_use_injected_parens_chained"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defmacrop_x_use_injected_parens_hidden"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defmacrop_x_use_injected_parens_chained",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defmacrop_x_use_injected_parens_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defmacrop",
+              "guard": null,
+              "name": "src_defmacrop_x_use_injected_parens_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defmacrop",
+              "guard": null,
+              "name": "src_defmacrop_x_use_injected_parens_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacrop.XUseInjectedParens",
+          "source": "lib/src/src.defmacrop.x_use_injected_parens.ex",
+          "spec": "lib/src/src.defmacrop.x_use_injected_parens.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "src_defmacrop_x_use_injected_parens_helper"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defmacrop_x_use_injected_parens_helper"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defmacrop_x_use_injected_parens_helper",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacrop.XUseInjectedParens.Helpers",
+          "source": "lib/src/src.defmacrop.x_use_injected_parens.helpers.ex",
+          "spec": "lib/src/src.defmacrop.x_use_injected_parens.helpers.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "line": 4,
+              "name": "src_defmacrop_x_use_injected_parens_chained"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defmacrop_x_use_injected_parens_chained",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacrop.XUseInjectedParens.Inner",
+          "source": "lib/src/src.defmacrop.x_use_injected_parens.inner.ex",
+          "spec": "lib/src/src.defmacrop.x_use_injected_parens.inner.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 10,
+              "definer": "defp",
+              "line": 6,
+              "name": "src_defmacrop_x_use_injected_parens_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 15,
+              "definer": "defmacrop",
+              "line": 7,
+              "name": "src_defmacrop_x_use_injected_parens_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 15,
+              "definer": "defmacrop",
+              "line": 8,
+              "name": "src_defmacrop_x_use_injected_parens_snoc"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defmacrop_x_use_injected_parens_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defmacrop",
+              "guard": null,
+              "name": "src_defmacrop_x_use_injected_parens_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defmacrop",
+              "guard": null,
+              "name": "src_defmacrop_x_use_injected_parens_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacrop.XUseInjectedParens.Injector",
+          "source": "lib/src/src.defmacrop.x_use_injected_parens.injector.ex",
+          "spec": "lib/src/src.defmacrop.x_use_injected_parens.injector.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "line": 4,
+              "name": "src_defmacrop_x_use_injected_parens_not_injected"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defmacrop_x_use_injected_parens_not_injected",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacrop.XUseInjectedParens.DefUsing",
+          "source": "lib/src/src.defmacrop.x_use_injected_parens.def_using.ex",
+          "spec": "lib/src/src.defmacrop.x_use_injected_parens.def_using.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "line": 4,
+              "name": "src_defmacrop_x_use_injected_parens_privately_injected"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacrop",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defmacrop_x_use_injected_parens_privately_injected",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defmacrop.XUseInjectedParens.PrivateUsing",
+          "source": "lib/src/src.defmacrop.x_use_injected_parens.private_using.ex",
+          "spec": "lib/src/src.defmacrop.x_use_injected_parens.private_using.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.XUseInjectedParens",
+            "name": "src_defmacrop_x_use_injected_parens_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defmacrop.x_use_injected_parens.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defmacrop_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.XUseInjectedParens",
+            "name": "src_defmacrop_x_use_injected_parens_snoc"
+          },
+          "column": 7,
+          "file": "lib/src/src.defmacrop.x_use_injected_parens.ex",
+          "id": "uses_0",
+          "line": 9,
+          "name": "src_defmacrop_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 34,
+          "diagnostic": {
+            "message": "undefined function src_defmacrop_x_use_injected_parens_snoc/2 (expected Callers.Src.Defmacrop.XUseInjectedParens.ImportWhole to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacrop/x_use_injected_parens_import_whole.ex",
+          "id": "import_whole",
+          "line": 5,
+          "name": "src_defmacrop_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_defmacrop_x_use_injected_parens_chained/1",
+            "uses/2"
+          ]
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 38,
+          "diagnostic": {
+            "message": "undefined function src_defmacrop_x_use_injected_parens_snoc/2 (expected Callers.Src.Defmacrop.XUseInjectedParens.ImportFunctions to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacrop/x_use_injected_parens_import_functions.ex",
+          "id": "import_functions",
+          "line": 5,
+          "name": "src_defmacrop_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_defmacrop_x_use_injected_parens_chained/1",
+            "uses/2"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 51,
+          "diagnostic": {
+            "message": "cannot import Src.Defmacrop.XUseInjectedParens.src_defmacrop_x_use_injected_parens_snoc/1 because it is undefined or private",
+            "severity": "warning"
+          },
+          "file": "lib/callers/src/defmacrop/x_use_injected_parens_import_only_private.ex",
+          "id": "import_only_private_key",
+          "line": 3,
+          "name": "src_defmacrop_x_use_injected_parens_snoc",
+          "visible": []
+        }
+      ],
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "src",
@@ -93554,6 +97301,1037 @@
         }
       ],
       "world": "x_use_injected"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/defguard/x_use_injected_parens.ex",
+      "form": "defguard",
+      "importCallers": [
+        "lib/callers/src/defguard/x_use_injected_parens_imports.ex",
+        "lib/callers/src/defguard/x_use_injected_parens_import_functions.ex",
+        "lib/callers/src/defguard/x_use_injected_parens_import_only_2.ex",
+        "lib/callers/src/defguard/x_use_injected_parens_import_except_1.ex",
+        "lib/callers/src/defguard/x_use_injected_parens_import_functions_except_2.ex",
+        "lib/callers/src/defguard/x_use_injected_parens_import_functions_except_1.ex",
+        "lib/callers/src/defguard/x_use_injected_parens_import_except_functions_2.ex",
+        "lib/callers/src/defguard/x_use_injected_parens_import_except_functions_1.ex",
+        "lib/callers/src/defguard/x_use_injected_parens_import_transitive.ex",
+        "lib/callers/src/defguard/x_use_injected_parens_require_only.ex",
+        "lib/callers/src/defguard/x_use_injected_parens_uses.ex",
+        "lib/callers/src/defguard/x_use_injected_parens_only_chained_snoc.ex",
+        "lib/callers/src/defguard/x_use_injected_parens_hidden.ex",
+        "lib/callers/src/defguard/x_use_injected_parens_helper.ex",
+        "lib/callers/src/defguard/x_use_injected_parens_def_using.ex",
+        "lib/callers/src/defguard/x_use_injected_parens_private_using.ex"
+      ],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "file": "lib/src/src.defguard.x_use_injected_parens.inner.ex",
+              "line": 4,
+              "name": "src_defguard_x_use_injected_parens_chained"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 10,
+              "definer": "defp",
+              "file": "lib/src/src.defguard.x_use_injected_parens.injector.ex",
+              "line": 6,
+              "name": "src_defguard_x_use_injected_parens_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 14,
+              "definer": "defguard",
+              "file": "lib/src/src.defguard.x_use_injected_parens.injector.ex",
+              "line": 7,
+              "name": "src_defguard_x_use_injected_parens_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 14,
+              "definer": "defguard",
+              "file": "lib/src/src.defguard.x_use_injected_parens.injector.ex",
+              "line": 8,
+              "name": "src_defguard_x_use_injected_parens_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defguard_x_use_injected_parens_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defguard_x_use_injected_parens_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defguard_x_use_injected_parens_chained"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defguard_x_use_injected_parens_hidden"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defguard_x_use_injected_parens_chained",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defguard_x_use_injected_parens_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defguard",
+              "guard": "is_list(q)",
+              "name": "src_defguard_x_use_injected_parens_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defguard",
+              "guard": "is_list(q) or is_list(x)",
+              "name": "src_defguard_x_use_injected_parens_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defguard.XUseInjectedParens",
+          "source": "lib/src/src.defguard.x_use_injected_parens.ex",
+          "spec": "lib/src/src.defguard.x_use_injected_parens.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "file": "lib/src/src.defguard.x_use_injected_parens.inner.ex",
+              "line": 4,
+              "name": "src_defguard_x_use_injected_parens_chained"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 10,
+              "definer": "defp",
+              "file": "lib/src/src.defguard.x_use_injected_parens.injector.ex",
+              "line": 6,
+              "name": "src_defguard_x_use_injected_parens_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 14,
+              "definer": "defguard",
+              "file": "lib/src/src.defguard.x_use_injected_parens.injector.ex",
+              "line": 7,
+              "name": "src_defguard_x_use_injected_parens_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 14,
+              "definer": "defguard",
+              "file": "lib/src/src.defguard.x_use_injected_parens.injector.ex",
+              "line": 8,
+              "name": "src_defguard_x_use_injected_parens_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defguard_x_use_injected_parens_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defguard_x_use_injected_parens_snoc"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defguard_x_use_injected_parens_chained"
+            },
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defguard_x_use_injected_parens_hidden"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defguard_x_use_injected_parens_chained",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defguard_x_use_injected_parens_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defguard",
+              "guard": "is_list(q)",
+              "name": "src_defguard_x_use_injected_parens_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defguard",
+              "guard": "is_list(q) or is_list(x)",
+              "name": "src_defguard_x_use_injected_parens_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defguard.XUseInjectedParens.Other",
+          "source": "lib/src/src.defguard.x_use_injected_parens.other.ex",
+          "spec": "lib/src/src.defguard.x_use_injected_parens.other.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "src_defguard_x_use_injected_parens_helper"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 1,
+              "minArity": 1,
+              "name": "src_defguard_x_use_injected_parens_helper"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defguard_x_use_injected_parens_helper",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defguard.XUseInjectedParens.Helpers",
+          "source": "lib/src/src.defguard.x_use_injected_parens.helpers.ex",
+          "spec": "lib/src/src.defguard.x_use_injected_parens.helpers.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "line": 4,
+              "name": "src_defguard_x_use_injected_parens_chained"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defguard_x_use_injected_parens_chained",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defguard.XUseInjectedParens.Inner",
+          "source": "lib/src/src.defguard.x_use_injected_parens.inner.ex",
+          "spec": "lib/src/src.defguard.x_use_injected_parens.inner.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 10,
+              "definer": "defp",
+              "line": 6,
+              "name": "src_defguard_x_use_injected_parens_hidden"
+            },
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 14,
+              "definer": "defguard",
+              "line": 7,
+              "name": "src_defguard_x_use_injected_parens_snoc"
+            },
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 14,
+              "definer": "defguard",
+              "line": 8,
+              "name": "src_defguard_x_use_injected_parens_snoc"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": null,
+              "name": "src_defguard_x_use_injected_parens_hidden",
+              "parameters": [
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defguard",
+              "guard": "is_list(q)",
+              "name": "src_defguard_x_use_injected_parens_snoc",
+              "parameters": [
+                "q"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defguard",
+              "guard": "is_list(q) or is_list(x)",
+              "name": "src_defguard_x_use_injected_parens_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defguard.XUseInjectedParens.Injector",
+          "source": "lib/src/src.defguard.x_use_injected_parens.injector.ex",
+          "spec": "lib/src/src.defguard.x_use_injected_parens.injector.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "line": 4,
+              "name": "src_defguard_x_use_injected_parens_not_injected"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defguard_x_use_injected_parens_not_injected",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defguard.XUseInjectedParens.DefUsing",
+          "source": "lib/src/src.defguard.x_use_injected_parens.def_using.ex",
+          "spec": "lib/src/src.defguard.x_use_injected_parens.def_using.ex"
+        },
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 1,
+              "clause": 0,
+              "column": 9,
+              "definer": "def",
+              "line": 4,
+              "name": "src_defguard_x_use_injected_parens_privately_injected"
+            }
+          ],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacrop",
+              "guard": null,
+              "name": "__using__",
+              "parameters": [
+                "_"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_defguard_x_use_injected_parens_privately_injected",
+              "parameters": [
+                "x"
+              ]
+            }
+          ],
+          "module": "Src.Defguard.XUseInjectedParens.PrivateUsing",
+          "source": "lib/src/src.defguard.x_use_injected_parens.private_using.ex",
+          "spec": "lib/src/src.defguard.x_use_injected_parens.private_using.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defguard.XUseInjectedParens",
+            "name": "src_defguard_x_use_injected_parens_snoc"
+          },
+          "column": 63,
+          "file": "lib/callers/src/defguard/x_use_injected_parens.ex",
+          "id": "qualified",
+          "line": 9,
+          "name": "src_defguard_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defguard.XUseInjectedParens",
+            "name": "src_defguard_x_use_injected_parens_snoc"
+          },
+          "column": 48,
+          "file": "lib/callers/src/defguard/x_use_injected_parens.ex",
+          "id": "aliased",
+          "line": 10,
+          "name": "src_defguard_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defguard.XUseInjectedParens",
+            "name": "src_defguard_x_use_injected_parens_snoc"
+          },
+          "column": 40,
+          "file": "lib/callers/src/defguard/x_use_injected_parens.ex",
+          "id": "aliased_as",
+          "line": 11,
+          "name": "src_defguard_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_macro",
+            "module": "Src.Defguard.XUseInjectedParens",
+            "name": "src_defguard_x_use_injected_parens_snoc"
+          },
+          "column": 33,
+          "file": "lib/callers/src/defguard/x_use_injected_parens.ex",
+          "id": "unqualified",
+          "line": 12,
+          "name": "src_defguard_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_macro",
+            "module": "Src.Defguard.XUseInjectedParens",
+            "name": "src_defguard_x_use_injected_parens_snoc"
+          },
+          "column": 31,
+          "file": "lib/callers/src/defguard/x_use_injected_parens.ex",
+          "id": "pipe",
+          "line": 13,
+          "name": "src_defguard_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "remote_macro",
+            "module": "Src.Defguard.XUseInjectedParens",
+            "name": "src_defguard_x_use_injected_parens_snoc"
+          },
+          "column": 62,
+          "file": "lib/callers/src/defguard/x_use_injected_parens.ex",
+          "id": "arity_1",
+          "line": 14,
+          "name": "src_defguard_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defguard.XUseInjectedParens.Other",
+            "name": "src_defguard_x_use_injected_parens_snoc"
+          },
+          "column": 75,
+          "file": "lib/callers/src/defguard/x_use_injected_parens.ex",
+          "id": "other_qualified",
+          "line": 15,
+          "name": "src_defguard_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defguard.XUseInjectedParens",
+            "name": "src_defguard_x_use_injected_parens_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defguard.x_use_injected_parens.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defguard_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_macro",
+            "module": "Src.Defguard.XUseInjectedParens",
+            "name": "src_defguard_x_use_injected_parens_snoc"
+          },
+          "column": 35,
+          "file": "lib/callers/src/defguard/x_use_injected_parens_imports.ex",
+          "id": "import_macros",
+          "line": 5,
+          "name": "src_defguard_x_use_injected_parens_snoc",
+          "visible": [
+            "src_defguard_x_use_injected_parens_snoc/1",
+            "src_defguard_x_use_injected_parens_snoc/2"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "imported_macro",
+            "module": "Src.Defguard.XUseInjectedParens",
+            "name": "src_defguard_x_use_injected_parens_snoc"
+          },
+          "column": 36,
+          "file": "lib/callers/src/defguard/x_use_injected_parens_imports.ex",
+          "id": "import_only_1",
+          "line": 11,
+          "name": "src_defguard_x_use_injected_parens_snoc",
+          "visible": [
+            "src_defguard_x_use_injected_parens_snoc/1"
+          ]
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_macro",
+            "module": "Src.Defguard.XUseInjectedParens",
+            "name": "src_defguard_x_use_injected_parens_snoc"
+          },
+          "column": 37,
+          "file": "lib/callers/src/defguard/x_use_injected_parens_imports.ex",
+          "id": "import_except_2",
+          "line": 17,
+          "name": "src_defguard_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_defguard_x_use_injected_parens_chained/1",
+            "src_defguard_x_use_injected_parens_snoc/2"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "import_key",
+            "module": "Src.Defguard.XUseInjectedParens",
+            "name": "src_defguard_x_use_injected_parens_snoc"
+          },
+          "column": 50,
+          "file": "lib/callers/src/defguard/x_use_injected_parens_imports.ex",
+          "id": "import_only_key",
+          "line": 9,
+          "name": "src_defguard_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "import_key",
+            "module": "Src.Defguard.XUseInjectedParens",
+            "name": "src_defguard_x_use_injected_parens_snoc"
+          },
+          "column": 52,
+          "file": "lib/callers/src/defguard/x_use_injected_parens_imports.ex",
+          "id": "import_except_key",
+          "line": 15,
+          "name": "src_defguard_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 38,
+          "diagnostic": {
+            "message": "undefined function src_defguard_x_use_injected_parens_snoc/2 (expected Callers.Src.Defguard.XUseInjectedParens.ImportFunctions to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defguard/x_use_injected_parens_import_functions.ex",
+          "id": "import_functions",
+          "line": 5,
+          "name": "src_defguard_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_defguard_x_use_injected_parens_chained/1"
+          ]
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 35,
+          "diagnostic": {
+            "message": "undefined function src_defguard_x_use_injected_parens_snoc/2 (expected Callers.Src.Defguard.XUseInjectedParens.ImportOnly2 to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defguard/x_use_injected_parens_import_only_2.ex",
+          "id": "import_only_2",
+          "line": 5,
+          "name": "src_defguard_x_use_injected_parens_snoc",
+          "visible": [
+            "src_defguard_x_use_injected_parens_snoc/1"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "import_key",
+            "module": "Src.Defguard.XUseInjectedParens",
+            "name": "src_defguard_x_use_injected_parens_snoc"
+          },
+          "column": 50,
+          "file": "lib/callers/src/defguard/x_use_injected_parens_import_only_2.ex",
+          "id": "import_only_2_key",
+          "line": 3,
+          "name": "src_defguard_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 38,
+          "diagnostic": {
+            "message": "undefined function src_defguard_x_use_injected_parens_snoc/1 (expected Callers.Src.Defguard.XUseInjectedParens.ImportExcept1 to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defguard/x_use_injected_parens_import_except_1.ex",
+          "id": "import_except_1",
+          "line": 5,
+          "name": "src_defguard_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_defguard_x_use_injected_parens_chained/1",
+            "src_defguard_x_use_injected_parens_snoc/2"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "import_key",
+            "module": "Src.Defguard.XUseInjectedParens",
+            "name": "src_defguard_x_use_injected_parens_snoc"
+          },
+          "column": 52,
+          "file": "lib/callers/src/defguard/x_use_injected_parens_import_except_1.ex",
+          "id": "import_except_1_key",
+          "line": 3,
+          "name": "src_defguard_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 47,
+          "diagnostic": {
+            "message": "undefined function src_defguard_x_use_injected_parens_snoc/2 (expected Callers.Src.Defguard.XUseInjectedParens.ImportFunctionsExcept2 to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defguard/x_use_injected_parens_import_functions_except_2.ex",
+          "id": "import_functions_except_2",
+          "line": 5,
+          "name": "src_defguard_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_defguard_x_use_injected_parens_chained/1"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "import_key",
+            "module": "Src.Defguard.XUseInjectedParens",
+            "name": "src_defguard_x_use_injected_parens_snoc"
+          },
+          "column": 70,
+          "file": "lib/callers/src/defguard/x_use_injected_parens_import_functions_except_2.ex",
+          "id": "import_functions_except_2_key",
+          "line": 3,
+          "name": "src_defguard_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 48,
+          "diagnostic": {
+            "message": "undefined function src_defguard_x_use_injected_parens_snoc/1 (expected Callers.Src.Defguard.XUseInjectedParens.ImportFunctionsExcept1 to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defguard/x_use_injected_parens_import_functions_except_1.ex",
+          "id": "import_functions_except_1",
+          "line": 5,
+          "name": "src_defguard_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_defguard_x_use_injected_parens_chained/1"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "import_key",
+            "module": "Src.Defguard.XUseInjectedParens",
+            "name": "src_defguard_x_use_injected_parens_snoc"
+          },
+          "column": 70,
+          "file": "lib/callers/src/defguard/x_use_injected_parens_import_functions_except_1.ex",
+          "id": "import_functions_except_1_key",
+          "line": 3,
+          "name": "src_defguard_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 47,
+          "diagnostic": {
+            "message": "undefined function src_defguard_x_use_injected_parens_snoc/2 (expected Callers.Src.Defguard.XUseInjectedParens.ImportExceptFunctions2 to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defguard/x_use_injected_parens_import_except_functions_2.ex",
+          "id": "import_except_functions_2",
+          "line": 5,
+          "name": "src_defguard_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_defguard_x_use_injected_parens_chained/1"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "import_key",
+            "module": "Src.Defguard.XUseInjectedParens",
+            "name": "src_defguard_x_use_injected_parens_snoc"
+          },
+          "column": 52,
+          "file": "lib/callers/src/defguard/x_use_injected_parens_import_except_functions_2.ex",
+          "id": "import_except_functions_2_key",
+          "line": 3,
+          "name": "src_defguard_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 48,
+          "diagnostic": {
+            "message": "undefined function src_defguard_x_use_injected_parens_snoc/1 (expected Callers.Src.Defguard.XUseInjectedParens.ImportExceptFunctions1 to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defguard/x_use_injected_parens_import_except_functions_1.ex",
+          "id": "import_except_functions_1",
+          "line": 5,
+          "name": "src_defguard_x_use_injected_parens_snoc",
+          "visible": [
+            "local_site/2",
+            "src_defguard_x_use_injected_parens_chained/1"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "import_key",
+            "module": "Src.Defguard.XUseInjectedParens",
+            "name": "src_defguard_x_use_injected_parens_snoc"
+          },
+          "column": 52,
+          "file": "lib/callers/src/defguard/x_use_injected_parens_import_except_functions_1.ex",
+          "id": "import_except_functions_1_key",
+          "line": 3,
+          "name": "src_defguard_x_use_injected_parens_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 39,
+          "diagnostic": {
+            "message": "undefined function src_defguard_x_use_injected_parens_snoc/2 (expected Callers.Src.Defguard.XUseInjectedParens.ImportTransitive to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defguard/x_use_injected_parens_import_transitive.ex",
+          "id": "import_transitive",
+          "line": 10,
+          "name": "src_defguard_x_use_injected_parens_snoc",
+          "visible": []
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 34,
+          "diagnostic": {
+            "message": "undefined function src_defguard_x_use_injected_parens_snoc/2 (expected Callers.Src.Defguard.XUseInjectedParens.RequireOnly to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defguard/x_use_injected_parens_require_only.ex",
+          "id": "require_only",
+          "line": 5,
+          "name": "src_defguard_x_use_injected_parens_snoc",
+          "visible": []
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "imported_function",
+            "module": "Src.Defguard.XUseInjectedParens",
+            "name": "src_defguard_x_use_injected_parens_chained"
+          },
+          "column": 30,
+          "file": "lib/callers/src/defguard/x_use_injected_parens_uses.ex",
+          "id": "chained",
+          "line": 5,
+          "name": "src_defguard_x_use_injected_parens_chained"
+        },
+        {
+          "arity": 1,
+          "binding": {
+            "arity": 1,
+            "kind": "imported_function",
+            "module": "Src.Defguard.XUseInjectedParens",
+            "name": "src_defguard_x_use_injected_parens_chained"
+          },
+          "column": 37,
+          "file": "lib/callers/src/defguard/x_use_injected_parens_uses.ex",
+          "id": "except_chained",
+          "line": 11,
+          "name": "src_defguard_x_use_injected_parens_chained",
+          "visible": [
+            "local_site/2",
+            "src_defguard_x_use_injected_parens_chained/1",
+            "src_defguard_x_use_injected_parens_snoc/2"
+          ]
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 39,
+          "diagnostic": {
+            "message": "undefined function src_defguard_x_use_injected_parens_snoc/2 (expected Callers.Src.Defguard.XUseInjectedParens.OnlyChainedSnoc to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defguard/x_use_injected_parens_only_chained_snoc.ex",
+          "id": "only_chained_snoc",
+          "line": 5,
+          "name": "src_defguard_x_use_injected_parens_snoc",
+          "visible": [
+            "src_defguard_x_use_injected_parens_chained/1"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 29,
+          "diagnostic": {
+            "message": "undefined function src_defguard_x_use_injected_parens_hidden/1 (expected Callers.Src.Defguard.XUseInjectedParens.Hidden to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defguard/x_use_injected_parens_hidden.ex",
+          "id": "hidden",
+          "line": 5,
+          "name": "src_defguard_x_use_injected_parens_hidden",
+          "visible": [
+            "local_site/2",
+            "src_defguard_x_use_injected_parens_chained/1",
+            "src_defguard_x_use_injected_parens_snoc/1",
+            "src_defguard_x_use_injected_parens_snoc/2"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 29,
+          "diagnostic": {
+            "message": "undefined function src_defguard_x_use_injected_parens_helper/1 (expected Callers.Src.Defguard.XUseInjectedParens.Helper to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defguard/x_use_injected_parens_helper.ex",
+          "id": "helper",
+          "line": 5,
+          "name": "src_defguard_x_use_injected_parens_helper",
+          "visible": [
+            "local_site/2",
+            "src_defguard_x_use_injected_parens_chained/1",
+            "src_defguard_x_use_injected_parens_snoc/1",
+            "src_defguard_x_use_injected_parens_snoc/2"
+          ]
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 32,
+          "diagnostic": {
+            "message": "undefined function src_defguard_x_use_injected_parens_not_injected/1 (expected Callers.Src.Defguard.XUseInjectedParens.DefUsing to define such a function or for it to be imported, but none are available)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defguard/x_use_injected_parens_def_using.ex",
+          "id": "def_using",
+          "line": 5,
+          "name": "src_defguard_x_use_injected_parens_not_injected"
+        },
+        {
+          "arity": 1,
+          "binding": null,
+          "column": 36,
+          "diagnostic": {
+            "message": "function Src.Defguard.XUseInjectedParens.PrivateUsing.__using__/1 is undefined or private",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defguard/x_use_injected_parens_private_using.ex",
+          "id": "private_using",
+          "line": 5,
+          "name": "src_defguard_x_use_injected_parens_privately_injected"
+        }
+      ],
+      "world": "x_use_injected_parens"
     },
     {
       "backing": "src",

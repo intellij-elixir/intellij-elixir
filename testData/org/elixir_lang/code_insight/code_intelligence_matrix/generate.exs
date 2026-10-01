@@ -129,6 +129,10 @@ defmodule Matrix do
   @use_wrappers Map.new(@wrappers, fn {"x_" <> wrapper, lines} -> {"x_use_in_" <> wrapper, lines} end)
   @use_wrapper_worlds Map.keys(@use_wrappers)
 
+  # `x_use_injected` with every `__using__` and the definitions its quote holds written as parenthesised calls:
+  # `defmacro(__using__(_), do: quote(do: def(x(), do: :ok)))`.
+  @use_parens_worlds ["x_use_injected_parens"]
+
   # The worlds where a call made before the definition is asked, which only a walk of the whole module can resolve.
   @local_forward_worlds ["w1", "x_if_else" | @wrapper_worlds ++ @use_wrapper_worlds]
 
@@ -197,7 +201,7 @@ defmodule Matrix do
 
   # The worlds whose main module's definitions a `use` injects.
   @use_worlds ["x_use_injected", "x_use_injected_defaults", "x_use_apply"]
-  @injecting_worlds @use_worlds ++ @use_wrapper_worlds
+  @injecting_worlds @use_worlds ++ @use_wrapper_worlds ++ @use_parens_worlds
 
   # A definition with defaults is one function at several arities, so a `@spec` of any of them is about it.
   @spec_worlds ["w1", "x_arity", "x_defaults", "x_defaults_head"]
@@ -215,6 +219,7 @@ defmodule Matrix do
     injected = worlds["x_use_injected"]
 
     worlds = Enum.reduce(@use_wrapper_worlds, worlds, &Map.put(&2, &1, %{modules: injected.modules, calls: [], asks: ["local", "local_forward"]}))
+    worlds = Enum.reduce(@use_parens_worlds, worlds, &Map.put(&2, &1, injected))
     module_calls = for {id, shape} <- @module_references, do: {id, 0, nil, 0, shape}
     module_asks = Enum.map(module_calls, &elem(&1, 0)) ++ ["module_local", "module_declaration"]
 
@@ -483,6 +488,9 @@ defmodule Matrix do
   def not_applicable(%{id: backing}, _form, world) when world in @use_wrapper_worlds and backing != "src",
     do: "compiled, the module is x_use_injected's; only its source puts the `use` under a wrapper"
 
+  def not_applicable(%{id: backing}, _form, world) when world in @use_parens_worlds and backing != "src",
+    do: "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently"
+
   def not_applicable(_backing, form, world) when world in @injecting_worlds and form.id not in ["def", "defp", "defmacro", "defmacrop", "defguard"],
     do: "a `use` injects what its quote defines; these are the definers a quote is written with"
 
@@ -551,7 +559,7 @@ defmodule Matrix do
   # The worlds with several arities of one name, which is where an import that names an arity can be told apart
   # from one that takes the whole name: `x_defaults` and `x_defaults_head` declare them with defaults, so one
   # definition covers the arity an `only:` keeps and the one it leaves out.
-  @import_worlds ["w2", "x_defaults", "x_defaults_head", "x_arity_separate", "x_use_injected"]
+  @import_worlds ["w2", "x_defaults", "x_defaults_head", "x_arity_separate", "x_use_injected" | @use_parens_worlds]
 
   # A private definition's remote calls: at the arity it declares and at fewer and more arguments than that. The compiler reads both as
   # "undefined or private", and names no private arity - so neither may the editor.
@@ -625,7 +633,7 @@ defmodule Matrix do
       end
 
     {use_paths, use_sites} =
-      if world in @use_worlds and !form[:private],
+      if world in @use_worlds ++ @use_parens_worlds and !form[:private],
         do: use_callers(backing, form, world, names, prefix),
         else: {[], []}
 
@@ -1260,14 +1268,20 @@ defmodule Matrix do
   # A macro's quote is `unquote: false`, so the macro's own `quote`/`unquote` inside it is written as it would be in a
   # module; every other form's is the plain `quote do` most `__using__`s are written with.
   defp use_supports(backing, form, world, main, prefix, definitions) do
-    style = if world == "x_use_apply", do: :apply, else: :macro
+    style =
+      cond do
+        world == "x_use_apply" -> :apply
+        world in @use_parens_worlds -> :parens
+        true -> :macro
+      end
+
     quote = if form[:macro] && !form[:guard], do: "quote unquote: false", else: "quote"
-    clauses = form |> Map.merge(%{wrapper: nil, unquote_name: false, branches: false, spec: false}) |> render_clauses(definitions)
-    quoted = clauses |> Enum.map_join("\n", &String.replace(&1, ~r/^/m, "    "))
+    clauses = form |> Map.merge(%{wrapper: nil, unquote_name: false, branches: false, spec: false, parens: style == :parens}) |> render_clauses(definitions)
+    quoted = clauses |> Enum.map_join("\n", &String.replace(&1, ~r/^/m, if(style == :parens, do: "  ", else: "    ")))
     module = fn suffix -> main <> "." <> suffix end
 
     extras =
-      if style == :macro,
+      if style in [:macro, :parens],
         do: [{prefix <> "chained", [{["x"], nil}]}, {prefix <> "hidden", [{["x"], nil}]}],
         else: []
 
@@ -1293,6 +1307,27 @@ defmodule Matrix do
              "  def __using__(_) do\n    quote do\n      def #{prefix}not_injected(x), do: x\n    end\n  end"},
             {"PrivateUsing", [],
              "  defmacrop __using__(_) do\n    quote do\n      def #{prefix}privately_injected(x), do: x\n    end\n  end"}
+          ]
+
+        # Each statement on a line of its own: `declarations/1` reads one definition per line. Several statements in a
+        # keyword `do:` are a parenthesised block.
+        :parens ->
+          quote = if form[:macro] && !form[:guard], do: "quote(unquote: false, do: (", else: "quote(do: ("
+
+          [
+            {"Helpers", [{prefix <> "helper", [{["x"], nil}]}], "  def(#{prefix}helper(x), do: x)"},
+            {"Inner", [], "  defmacro(__using__(_), do: quote(do:\n    def(#{prefix}chained(x), do: x)\n  ))"},
+            {"Injector", [],
+             """
+               defmacro(__using__(_), do: #{quote}
+                 use(#{module.("Inner")})
+                 import(#{module.("Helpers")}, warn: false)
+                 defp(#{prefix}hidden(x), do: x)
+             #{quoted}
+               )))\
+             """},
+            {"DefUsing", [], "  def(__using__(_), do: quote(do:\n    def(#{prefix}not_injected(x), do: x)\n  ))"},
+            {"PrivateUsing", [], "  defmacrop(__using__(_), do: quote(do:\n    def(#{prefix}privately_injected(x), do: x)\n  ))"}
           ]
 
         :apply ->
@@ -1363,7 +1398,7 @@ defmodule Matrix do
 
     {accepted, rejected} =
       case world do
-        "x_use_injected" ->
+        _ when world in ["x_use_injected" | @use_parens_worlds] ->
           {[
              {"chained", "import #{reference}", prefix <> "chained", 1},
              {"except_chained", "import #{reference}, except: [#{snoc}: 1]", prefix <> "chained", 1}
@@ -2026,6 +2061,7 @@ defmodule Matrix do
         guard = if guard, do: " when #{elem(guard, 0)}(#{elem(guard, 1)})", else: ""
 
         cond do
+          form[:parens] -> parenthesised(form, written, rendered, guard, variables, head?)
           # A bodiless head declares the defaults for the clauses that follow and defines nothing itself.
           head? -> "  #{form.definer} #{name}(#{rendered})"
           form[:delegate] -> "#{delegate_doc(form)}#{delegate_attribute(form, name)}  defdelegate #{name}(#{rendered}), #{delegate_options(form, name, target)}"
@@ -2052,6 +2088,16 @@ defmodule Matrix do
       end
 
     clauses
+  end
+
+  # A definition written as a call with its arguments in parentheses, as `__using__` quotes are sometimes written.
+  defp parenthesised(form, name, rendered, guard, variables, head?) do
+    cond do
+      head? -> "  #{form.definer}(#{name}(#{rendered}))"
+      form[:guard] -> "  #{form.definer}(#{name}(#{rendered}) when #{Enum.map_join(variables, " or ", &"is_list(#{&1})")})"
+      form[:macro] -> "  #{form.definer}(#{name}(#{rendered})#{guard}, do: quote(do: {#{Enum.map_join(variables, ", ", &"unquote(#{&1})")}}))"
+      true -> "  #{form.definer}(#{name}(#{rendered})#{guard}, do: {#{Enum.join(variables, ", ")}})"
+    end
   end
 
   defp render_module(%{protocol: true} = form, module, definitions, _primary, _clauses) do
@@ -2529,6 +2575,7 @@ defmodule Matrix do
       # An EEx function's name is the atom after its kind, and its parameters the atoms in its last list.
       case Regex.run(~r/^\s*(def|defp|defmacro|defmacrop) unquote\(:([^\s)]+)\)\((.*?)\)(?: when |, do:)/u, text, return: :index) ||
              Regex.run(~r/^\s*(def|defp|defmacro|defmacrop|defguard|defguardp|defdelegate) ([^\s(]+)\((.*?)\)(?: when |, do:|, to:|, \[to:|, \[$|\s*$)/u, text, return: :index) ||
+             Regex.run(~r/^\s*(def|defp|defmacro|defmacrop|defguard|defguardp)\(([^\s(]+)\((.*?)\)(?: when |, do:|\)$)/u, text, return: :index) ||
              Regex.run(~r/^\s*EEx\.function_from_string\(\s*:(def|defp), :([^\s,]+), .*, \[(.*)\]\)$/u, text, return: :index) do
         [_, {definer_start, definer_length}, {name_start, name_length}, {parameters_start, parameters_length}] ->
           name = binary_part(text, name_start, name_length)
