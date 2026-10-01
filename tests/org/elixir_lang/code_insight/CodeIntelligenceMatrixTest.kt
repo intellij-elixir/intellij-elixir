@@ -288,6 +288,7 @@ private class Group(val scenario: Scenario) {
 
     private fun check(feature: Feature, binding: Binding?) {
         if (scenario.attribute) return checkAttribute(feature)
+        if (scenario.variable) return checkVariable(feature)
 
         when (feature) {
             Feature.GO_TO_DECLARATION -> checkGoToDeclaration(binding)
@@ -894,6 +895,53 @@ private class Group(val scenario: Scenario) {
         }
 
         assertEquals("Renaming @${site.name} to @$newName from ${place.id} changed the wrong text", emptyList<String>(), wrong)
+    }
+
+    // -- Variables --------------------------------------------------------------------------
+
+    private fun checkVariable(feature: Feature) {
+        when (feature) {
+            Feature.GO_TO_DECLARATION -> checkVariableGoToDeclaration()
+            Feature.FIND_USAGES -> checkVariableFindUsages()
+            else -> throw AssertionError("${feature.testName} is not asked of a variable")
+        }
+    }
+
+    /** A read lands on the binding it is of. */
+    private fun checkVariableGoToDeclaration() {
+        openAt(place)
+        val landed = myFixture.gotoDeclarationTargetsAtCaret().orEmpty().map { target ->
+            target.destination?.let { variableUsageSite(it.containingFile, it.textOffset) } ?: "a target with no destination"
+        }.sorted()
+
+        assertEquals("Go To Declaration from ${place.id} landed on the wrong bindings", siteOrNull()!!.variable!!.declarations.sorted(), landed)
+    }
+
+    /** From a binding or any of its reads, every read of that binding; the binding itself may be reported as the declaration. */
+    private fun checkVariableFindUsages() {
+        openAt(place)
+        val bindings = siteOrNull()!!.variable!!.declarations.toSet()
+        val targets = myFixture.searchTargetCountAtCaret()
+        val found = myFixture.everyTargetPsiUsagesAtCaret(project).filterNot { it.declaration }.map { usage ->
+            variableUsageSite(usage.file, usage.range.startOffset)
+        }.distinct().sorted()
+        val expected = scenario.sites
+            .filter { site -> site.variable?.let { !it.binding && it.declarations.any(bindings::contains) } == true }
+            .map { it.id }
+            .sorted()
+
+        assertEquals("Find Usages from ${place.id} found the wrong reads from $targets search targets at the caret", expected, found)
+    }
+
+    /** Which site an element or usage starting at [offset] is, or where it is when no site is there. */
+    private fun variableUsageSite(file: PsiFile, offset: Int): String {
+        val virtualFile = fileOf(file)
+        val site = scenario.sites.firstOrNull { site -> callerFiles[site.file] == virtualFile && offsetOf(virtualFile!!, site.line, site.column) == offset }
+        if (site != null) return site.id
+        val text = file.text
+        val line = text.substring(0, offset).count { it == '\n' } + 1
+        val column = offset - text.lastIndexOf('\n', offset - 1)
+        return "unexpected ${virtualFile?.name}:$line:$column ${describeLine(file, offset)}"
     }
 
     // -- Typing a call ----------------------------------------------------------------------
