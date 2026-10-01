@@ -1,7 +1,6 @@
 package org.elixir_lang.psi.impl;
 
 import com.ericsson.otp.erlang.OtpErlangBinary;
-import com.ericsson.otp.erlang.OtpErlangList;
 import com.ericsson.otp.erlang.OtpErlangObject;
 import com.intellij.lang.ASTNode;
 import com.intellij.navigation.ItemPresentation;
@@ -1067,136 +1066,11 @@ public class ElixirPsiImplUtil {
         return Lowering.Companion.lower(file, ElixirLanguageLevelResolver.languageLevelFor(file)).toOtp(ParserOptions.DEFAULT);
     }
 
-    @Contract(pure = true)
-    @NotNull
-    public static OtpErlangObject quoteAsAtom(@NotNull final ElixirLine line) {
-        return AtomableImplKt.quoteLineAsAtom(line);
-    }
-
-    @RequiresReadLock
-    @Contract(pure = true)
-    @NotNull
-    public static OtpErlangObject quote(@NotNull final HeredocLineable heredocLineable, @NotNull final HeredocLiteral heredocLiteral, int prefixLength) {
-        return QuotableImpl.quote(heredocLineable, heredocLiteral, prefixLength);
-    }
-
-    /* Replaces `nil` argument in variables with the quoted ElixirMatchedNotParenthesesArguments.
-     *
-     */
     @RequiresReadLock
     @Contract(pure = true)
     @NotNull
     public static OtpErlangObject quote(PsiFile file) {
         return quote((ElixirFile) Objects.requireNonNull(file.getViewProvider().getPsi(ElixirLanguage.INSTANCE)));
-    }
-
-    @RequiresReadLock
-    @Contract(pure = true)
-    @NotNull
-    public static OtpErlangObject[] quoteArguments(@NotNull final Arguments arguments) {
-        return QuotableArgumentsImpl.quoteArguments(arguments);
-    }
-
-    @RequiresReadLock
-    @Contract(pure = true)
-    @NotNull
-    public static OtpErlangObject[] quoteArguments(@NotNull final ElixirBlockList blockList) {
-        return QuotableArgumentsImpl.quoteArguments(blockList);
-    }
-
-    @RequiresReadLock
-    @Contract(pure = true)
-    @NotNull
-    public static OtpErlangObject[] quoteArguments(
-            @NotNull ElixirUnqualifiedNoParenthesesManyArgumentsCall unqualifiedNoParenthesesManyArgumentsCall
-    ) {
-        return QuotableArgumentsImpl.quoteArguments(unqualifiedNoParenthesesManyArgumentsCall);
-    }
-
-    @RequiresReadLock
-    @Contract(pure = true)
-    @NotNull
-    public static OtpErlangObject[] quoteArguments(@NotNull final ElixirDoBlock doBlock) {
-        return QuotableArgumentsImpl.quoteArguments(doBlock);
-    }
-
-    @RequiresReadLock
-    @Contract(pure = true)
-    @NotNull
-    public static OtpErlangObject[] quoteArguments(
-            @NotNull final ElixirMapConstructionArguments mapConstructionArguments
-    ) {
-        return QuotableArgumentsImpl.quoteArguments(mapConstructionArguments);
-    }
-
-    @RequiresReadLock
-    @Contract(pure = true)
-    @NotNull
-    public static OtpErlangObject[] quoteArguments(@NotNull final ElixirNoParenthesesArguments noParenthesesArguments) {
-        return QuotableArgumentsImpl.quoteArguments(noParenthesesArguments);
-    }
-
-    @RequiresReadLock
-    @Contract(pure = true)
-    @NotNull
-    public static OtpErlangObject[] quoteArguments(ElixirParenthesesArguments parenthesesArguments) {
-        return QuotableArgumentsImpl.quoteArguments(parenthesesArguments);
-    }
-
-    @Contract(pure = true)
-    @NotNull
-    public static OtpErlangObject quoteBinary(ElixirLine elixirLine, OtpErlangList metadata, List<OtpErlangObject> argumentList) {
-        return ParentImpl.quoteBinary(elixirLine, metadata, argumentList);
-    }
-
-    @Contract(pure = true)
-    @NotNull
-    public static OtpErlangObject quoteBinary(ElixirHeredoc elixirHeredoc, OtpErlangList metadata, List<OtpErlangObject> argumentList) {
-        return ParentImpl.quoteBinary(elixirHeredoc, metadata, argumentList);
-    }
-
-    @Contract(pure = true)
-    @NotNull
-    public static OtpErlangObject quoteBinary(Sigil sigil, OtpErlangList metadata, List<OtpErlangObject> argumentList) {
-        return ParentImpl.quoteBinary(metadata, argumentList);
-    }
-
-    @Contract(pure = true)
-    @NotNull
-    public static OtpErlangObject quoteEmpty(Quote quote) {
-        return ParentImpl.quoteEmpty(quote);
-    }
-
-    @Contract(pure = true)
-    @NotNull
-    public static OtpErlangObject quoteEmpty(Sigil sigil) {
-        return ParentImpl.quoteEmpty();
-    }
-
-    @RequiresReadLock
-    @Contract(pure = true)
-    @NotNull
-    public static OtpErlangObject quoteInterpolation(Quote quote, ElixirInterpolation interpolation) {
-        return ParentImpl.quoteInterpolation(quote, interpolation);
-    }
-
-    @RequiresReadLock
-    @Contract(pure = true)
-    @NotNull
-    public static OtpErlangObject quoteInterpolation(Sigil sigil, ElixirInterpolation interpolation) {
-        return ParentImpl.quoteInterpolation(interpolation);
-    }
-
-    @Contract(pure = true)
-    @NotNull
-    public static OtpErlangObject quoteLiteral(Quote quote, List<Integer> codePointList) {
-        return ParentImpl.quoteLiteral(quote, codePointList);
-    }
-
-    @Contract(pure = true)
-    @NotNull
-    public static OtpErlangObject quoteLiteral(Sigil sigil, List<Integer> codePointList) {
-        return ParentImpl.quoteLiteral(codePointList);
     }
 
     @RequiresReadLock
@@ -1424,13 +1298,6 @@ public class ElixirPsiImplUtil {
     /*
      * Private static methods
      */
-
-    @RequiresReadLock
-    @Contract(pure = true)
-    @NotNull
-    public static OtpErlangObject quote(@NotNull Sigil sigil, @NotNull OtpErlangObject quotedContent) {
-        return QuotableImpl.quote(sigil, quotedContent);
-    }
 
     @NotNull
     public static List<Integer> addEscapedCharacterCodePoints(@NotNull Quote parent,

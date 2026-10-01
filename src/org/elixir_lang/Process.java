@@ -3,12 +3,12 @@ package org.elixir_lang;
 import com.ericsson.otp.erlang.*;
 import org.jetbrains.annotations.Nullable;
 
-import static org.elixir_lang.psi.impl.QuotableImpl.NIL;
-
 /**
  * Emulates the Process module in Elixir
  */
 public class Process {
+    private static final OtpErlangAtom NIL = new OtpErlangAtom("nil");
+
     @Nullable
     public static OtpErlangPid whereis(OtpMbox localMbox, OtpNode localNode, String remoteName, String remoteNode, int timeout) throws OtpErlangExit, OtpErlangDecodeException {
         OtpErlangObject response = RPC.INSTANCE.unmonitoredCall(

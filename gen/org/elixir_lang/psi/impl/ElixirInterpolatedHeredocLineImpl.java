@@ -10,8 +10,6 @@ import com.intellij.psi.util.PsiTreeUtil;
 import static org.elixir_lang.psi.ElixirTypes.*;
 import com.intellij.extapi.psi.ASTWrapperPsiElement;
 import org.elixir_lang.psi.*;
-import com.ericsson.otp.erlang.OtpErlangObject;
-import com.intellij.util.concurrency.annotations.RequiresReadLock;
 
 public class ElixirInterpolatedHeredocLineImpl extends ASTWrapperPsiElement implements ElixirInterpolatedHeredocLine {
 
@@ -50,12 +48,6 @@ public class ElixirInterpolatedHeredocLineImpl extends ASTWrapperPsiElement impl
   @Override
   public Body getBody() {
     return ElixirPsiImplUtil.getBody(this);
-  }
-
-  @Override
-  @RequiresReadLock
-  public @NotNull OtpErlangObject quote(@NotNull HeredocLiteral heredocLiteral, int prefixLength) {
-    return ElixirPsiImplUtil.quote(this, heredocLiteral, prefixLength);
   }
 
 }

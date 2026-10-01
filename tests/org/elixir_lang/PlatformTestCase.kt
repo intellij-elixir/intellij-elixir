@@ -79,7 +79,6 @@ abstract class PlatformTestCase : LightTestCase() {
      * @param block The code to execute
      * @return Pair of (result from block, errors in the order they were logged)
      */
-    // `List` is qualified because `org.elixir_lang.List` is a PSI class in this package and shadows it.
     protected fun <T> captureLoggedErrors(
         suppress: Boolean = true,
         block: () -> T

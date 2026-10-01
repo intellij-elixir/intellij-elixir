@@ -1,5 +1,6 @@
 package org.elixir_lang.psi.walk
 
+import com.intellij.psi.DummyBlockType
 import com.intellij.psi.impl.source.tree.PsiErrorElementImpl
 import org.elixir_lang.junit.UnitTestCase
 import org.elixir_lang.psi.Destructure
@@ -88,8 +89,12 @@ class ShapeCoverageTest : UnitTestCase() {
 
     fun testTypeAscentNamesEveryShape() = assertCovers(TypeAscent.classifier)
 
-    // an error element is met wherever the parser recovered
-    fun testLoweringNamesEveryShape() = assertCovers(Lowering.classifier, listOf(PsiErrorElementImpl::class.java))
+    // an error element is met wherever the parser recovered, and a dummy block wraps what a `recoverWhile` skipped
+    @Suppress("UnstableApiUsage")
+    fun testLoweringNamesEveryShape() = assertCovers(
+        Lowering.classifier,
+        listOf(PsiErrorElementImpl::class.java, DummyBlockType.DummyBlock::class.java)
+    )
 
     /** What the type descent reads through, the type ascent must climb, or a type variable inside loses its spec. */
     fun testTypeAscentClimbsWhatTheTypeDescentReads() {

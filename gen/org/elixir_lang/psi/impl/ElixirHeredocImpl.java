@@ -10,7 +10,6 @@ import com.intellij.psi.util.PsiTreeUtil;
 import static org.elixir_lang.psi.ElixirTypes.*;
 import com.intellij.extapi.psi.ASTWrapperPsiElement;
 import org.elixir_lang.psi.*;
-import com.ericsson.otp.erlang.OtpErlangList;
 import com.ericsson.otp.erlang.OtpErlangObject;
 import com.intellij.psi.LiteralTextEscaper;
 import com.intellij.psi.PsiLanguageInjectionHost;
@@ -90,27 +89,6 @@ public class ElixirHeredocImpl extends ASTWrapperPsiElement implements ElixirHer
   @RequiresReadLock
   public @NotNull OtpErlangObject quote() {
     return ElixirPsiImplUtil.quote(this);
-  }
-
-  @Override
-  public @NotNull OtpErlangObject quoteBinary(OtpErlangList metadata, List<OtpErlangObject> argumentList) {
-    return ElixirPsiImplUtil.quoteBinary(this, metadata, argumentList);
-  }
-
-  @Override
-  public @NotNull OtpErlangObject quoteEmpty() {
-    return ElixirPsiImplUtil.quoteEmpty(this);
-  }
-
-  @Override
-  @RequiresReadLock
-  public @NotNull OtpErlangObject quoteInterpolation(ElixirInterpolation interpolation) {
-    return ElixirPsiImplUtil.quoteInterpolation(this, interpolation);
-  }
-
-  @Override
-  public @NotNull OtpErlangObject quoteLiteral(List<Integer> codePointList) {
-    return ElixirPsiImplUtil.quoteLiteral(this, codePointList);
   }
 
   @Override

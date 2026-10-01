@@ -112,7 +112,10 @@ class Lowering private constructor(
                 unlowered(element)
             }
             Bucket.ERROR -> broken(element)
-            Bucket.UNKNOWN -> unlowered(element)
+            Bucket.UNKNOWN -> {
+                logger<Lowering>().error("${element.javaClass.simpleName} has no lowering: its shape table row names none")
+                unlowered(element)
+            }
         }
     }
 

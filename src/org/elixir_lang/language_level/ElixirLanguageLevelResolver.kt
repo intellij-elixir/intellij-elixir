@@ -22,10 +22,9 @@ import org.jetbrains.annotations.TestOnly
 /**
  * Resolves the [ElixirLanguageLevel] a given element is written for.
  *
- * Quoting recurses through the parameterless `Quotable.quote()`, so a child inherits nothing from
- * its parent's call, and consumers call `quote()` on arbitrary nodes rather than only on a file
- * root. The language level therefore has to be derivable from any element on its own, which is what this
- * resolves: element to containing file to module to Elixir SDK to version.
+ * Consumers lower arbitrary nodes rather than only a file root, so the language level has to be
+ * derivable from any element on its own, which is what this resolves: element to containing file to module to Elixir
+ * SDK to version.
  */
 object ElixirLanguageLevelResolver {
     /**

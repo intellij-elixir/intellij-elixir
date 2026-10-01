@@ -339,10 +339,6 @@
     indentation
     isValidHost
     quote
-    quoteBinary
-    quoteEmpty
-    quoteInterpolation
-    quoteLiteral
     sigilDelimiter
     sigilName
     updateText
@@ -360,10 +356,6 @@
     indentation
     isValidHost
     quote
-    quoteBinary
-    quoteEmpty
-    quoteInterpolation
-    quoteLiteral
     sigilDelimiter
     sigilName
     terminator
@@ -596,7 +588,6 @@ noParenthesesStrict ::= emptyParentheses |
                           ]
                           methods = [
                             arguments
-                            quoteArguments
                           ]
                         }
 
@@ -715,10 +706,6 @@ heredoc ::= HEREDOC_PROMOTER heredocOpening
                   isCharList
                   isValidHost
                   quote
-                  quoteBinary
-                  quoteEmpty
-                  quoteInterpolation
-                  quoteLiteral
                   updateText
               ]
               //noinspection BnfResolve
@@ -732,7 +719,6 @@ heredocLine ::= <<heredocLineEndAhead>> heredocLinePrefix heredocLineBody heredo
                   ]
                   methods = [
                     getBody
-                    quote
                   ]
                 }
 heredocLineBody ::= (interpolation | FRAGMENT | heredocEscapeSequence | escapedHeredocTerminator)*
@@ -767,7 +753,6 @@ interpolatedHeredocLine ::= <<heredocLineEndAhead>> heredocLinePrefix interpolat
                               ]
                               methods = [
                                 getBody
-                                quote
                               ]
                             }
 interpolatedHeredocLineBody ::= (interpolation | FRAGMENT | sigilHeredocEscapeSequence | escapedHeredocTerminator)*
@@ -800,7 +785,6 @@ literalHeredocLine ::= heredocLinePrefix literalHeredocLineBody heredocLineEnd
                          ]
                          methods = [
                            getBody
-                           quote
                          ]
                        }
 // literals can have escape sequences for escaped terminator
@@ -843,11 +827,6 @@ line ::= LINE_PROMOTER lineBody LINE_TERMINATOR
              isCharList
              isValidHost
              quote
-             quoteAsAtom
-             quoteBinary
-             quoteEmpty
-             quoteInterpolation
-             quoteLiteral
              updateText
            ]
            //noinspection BnfResolve
@@ -1411,7 +1390,6 @@ parenthesesArguments ::= OPENING_PARENTHESIS
                            ]
                            methods = [
                              arguments
-                             quoteArguments
                            ]
                          }
 
@@ -1470,7 +1448,6 @@ noParenthesesOneArgument ::= noParenthesesKeywords | // @see https://github.com/
                                methods = [
                                  arguments
                                  isModuleName
-                                 quoteArguments
                                ]
                              }
 
@@ -1892,7 +1869,6 @@ mapConstructionArguments ::= mapTailArguments
                                implements = "org.elixir_lang.psi.QuotableArguments"
                                methods = [
                                  arguments
-                                 quoteArguments
                                ]
                              }
 
@@ -1921,7 +1897,7 @@ private map ::= mapOperation |
 
 noParenthesesArguments ::= noParenthesesOneArgument |
                            noParenthesesManyArguments
-                           { implements = "org.elixir_lang.psi.QuotableArguments" methods = [quoteArguments] }
+                           { implements = "org.elixir_lang.psi.QuotableArguments" }
 
 // @see https://github.com/elixir-lang/elixir/blob/de39bbaca277002797e52ffbde617ace06233a2b/lib/elixir/src/elixir_parser.yrl#L276-L277
 stabNoParenthesesSignature ::= noParenthesesArguments
@@ -2574,7 +2550,7 @@ blockItem ::= blockIdentifier endOfExpressionMaybe // @see https://github.com/el
 
 // @see https://github.com/elixir-lang/elixir/blob/39b6789a8625071e149f0a7347ca7a2111f7c8f2/lib/elixir/src/elixir_parser.yrl#L316-L317
 blockList ::= blockItem+
-              { implements = "org.elixir_lang.psi.QuotableArguments" methods = [quoteArguments] }
+              { implements = "org.elixir_lang.psi.QuotableArguments" }
 private eexWhitespace ::= EEX_CLOSING EEX_OPENING EEX_EMPTY_MARKER
 private doStabSeparator ::= endOfExpression | eexWhitespace
 private doStabSeparatorMaybe ::= doStabSeparator?
@@ -2608,7 +2584,6 @@ doBlock ::= DO doStabSeparatorMaybe
             END
             {
               implements = "org.elixir_lang.psi.QuotableArguments"
-              methods = [quoteArguments]
               //noinspection BnfResolve
               pin = DO
             }

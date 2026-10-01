@@ -1,7 +1,5 @@
 package org.elixir_lang.psi;
 
-import com.ericsson.otp.erlang.OtpErlangList;
-import com.ericsson.otp.erlang.OtpErlangObject;
 import com.intellij.lang.ASTNode;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiLanguageInjectionHost;
@@ -28,12 +26,4 @@ public interface Parent extends PsiLanguageInjectionHost, PsiElement {
 
     @NotNull
     List<Integer> addHexadecimalEscapeSequenceCodePoints(@Nullable List<Integer> codePointList, @NotNull ASTNode child);
-
-    OtpErlangObject quoteBinary(OtpErlangList metadata, List<OtpErlangObject> argumentList);
-
-    OtpErlangObject quoteEmpty();
-
-    OtpErlangObject quoteInterpolation(ElixirInterpolation interpolation);
-
-    OtpErlangObject quoteLiteral(List<Integer> codePointList);
 }

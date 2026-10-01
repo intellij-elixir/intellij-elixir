@@ -1,5 +1,6 @@
 package org.elixir_lang.psi.walk
 
+import com.intellij.psi.DummyBlockType
 import com.intellij.psi.PsiErrorElement
 import com.intellij.psi.PsiFile
 import org.elixir_lang.annotator.ParameterWalk
@@ -813,6 +814,9 @@ object ShapeTable {
 
         // where the parser recovered from broken code
         Row(PsiErrorElement::class.java, lowering = Lowering.Bucket.ERROR),
+        // Experimental, but it is what `GeneratedParserUtilBase` wraps the tokens a `recoverWhile` skips in.
+        @Suppress("UnstableApiUsage")
+        Row(DummyBlockType.DummyBlock::class.java, lowering = Lowering.Bucket.ERROR),
 
         // the file
         Row(
