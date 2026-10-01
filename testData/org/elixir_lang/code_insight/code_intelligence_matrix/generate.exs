@@ -150,7 +150,16 @@ defmodule Matrix do
   @use_quote_wrappers Map.new(@wrappers, fn {"x_" <> wrapper, shape} -> {"x_use_in_quote_" <> wrapper, shape} end)
 
   @use_quote_wrapper_worlds Map.keys(@use_quote_wrappers)
-  @use_rewritten_worlds @use_parens_worlds ++ @use_quote_wrapper_worlds
+
+  # `x_use_injected` with the `__using__` quote written in other ways that take its body as a keyword value, which is
+  # then a parenthesised block of several statements: `{opening, closing}` and, for a macro's `unquote: false`, its own.
+  @use_quote_shapes %{
+    "x_use_quote_location_keep" => {{"quote(location: :keep, do: (", "))"}, {"quote(unquote: false, location: :keep, do: (", "))"}},
+    "x_use_quote_do_block" => {{"quote do: (", ")"}, {"quote do: (", "), unquote: false"}},
+    "x_use_quote_quoted_do" => {{~s[quote "do": (], ")"}, {~s[quote "do": (], "), unquote: false"}}
+  }
+  @use_quote_shape_worlds Map.keys(@use_quote_shapes)
+  @use_rewritten_worlds @use_parens_worlds ++ @use_quote_wrapper_worlds ++ @use_quote_shape_worlds
 
   # The worlds where a call made before the definition is asked, which only a walk of the whole module can resolve.
   @local_forward_worlds ["w1", "x_if_else" | @wrapper_worlds ++ @use_wrapper_worlds]
@@ -241,7 +250,7 @@ defmodule Matrix do
 
   # The worlds whose main module's definitions a `use` injects.
   @use_worlds ["x_use_injected", "x_use_injected_defaults", "x_use_apply"]
-  @injecting_worlds @use_worlds ++ @use_wrapper_worlds ++ @use_parens_worlds ++ @use_quote_wrapper_worlds
+  @injecting_worlds @use_worlds ++ @use_wrapper_worlds ++ @use_parens_worlds ++ @use_quote_wrapper_worlds ++ @use_quote_shape_worlds
 
   # A definition with defaults is one function at several arities, so a `@spec` of any of them is about it.
   @spec_worlds ["w1", "x_arity", "x_defaults", "x_defaults_head"]
@@ -1391,6 +1400,12 @@ defmodule Matrix do
         do: [{prefix <> "chained", [{["x"], nil}]}, {prefix <> "hidden", [{["x"], nil}]}],
         else: []
 
+    {opening, closing} =
+      case Map.get(@use_quote_shapes, world) do
+        nil -> {quote <> " do", "end"}
+        {plain, unquoting} -> if(form[:macro] && !form[:guard], do: unquoting, else: plain)
+      end
+
     sources =
       case style do
         :macro ->
@@ -1401,12 +1416,12 @@ defmodule Matrix do
             {"Injector", [],
              """
                defmacro __using__(_) do
-                 #{quote} do
+                 #{opening}
                    use #{module.("Inner")}
                    import #{module.("Helpers")}, warn: false
                    defp #{prefix}hidden(x), do: x
              #{quoted}
-                 end
+                 #{closing}
                end\
              """},
             {"DefUsing", [],
@@ -2440,6 +2455,7 @@ defmodule Matrix do
     diagnostics = Enum.reject(diagnostics, &(&1.message =~ ~r/^found quoted atom "\S+_x_interpolated_atom_quoted" but the quotes are not required/))
     # The quoted keyword a wrapper writes on purpose.
     diagnostics = Enum.reject(diagnostics, &(&1.message =~ ~r/^found quoted keyword "else" but the quotes are not required/ and path =~ ~r/else_quoted/))
+    diagnostics = Enum.reject(diagnostics, &(&1.message =~ ~r/^found quoted keyword "do" but the quotes are not required/ and path =~ ~r/quoted_do/))
     # A moduledoc world setting the doc a second time, which is what it asks about.
     diagnostics = Enum.reject(diagnostics, &(&1.message =~ ~r/^redefining @moduledoc attribute/ and path =~ ~r/x_moduledoc/))
     if diagnostics != [], do: raise("#{path} compiled with diagnostics: #{inspect(diagnostics)}")
