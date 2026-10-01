@@ -492,11 +492,11 @@ object CallImpl {
         resolvedModuleName: String,
         functionName: String
     ): Boolean {
-        val callResolvedModuleName = call.resolvedModuleName()
         val callFunctionName = call.functionName()
 
-        return callResolvedModuleName != null && callResolvedModuleName == resolvedModuleName &&
-                callFunctionName != null && callFunctionName == functionName
+        // The function name first: reading a qualified call's module quotes its qualifier.
+        return callFunctionName != null && callFunctionName == functionName &&
+                call.resolvedModuleName().let { it != null && it == resolvedModuleName }
     }
 
     /**
