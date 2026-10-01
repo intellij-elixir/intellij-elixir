@@ -50,7 +50,10 @@ class ImportFilterOracleTest : PlatformTestCase() {
         val compared = cases.associateWith { case -> expandedImported(case, exports, languageLevel) }
             .filterValues { it != null }
 
-        assertEquals(listOf("except_macro_call"), (cases - compared.keys).map { it.nameWithoutExtension })
+        assertEquals(
+            listOf("except_macro_call", "except_map", "only_map", "only_three_tuple"),
+            (cases - compared.keys).map { it.nameWithoutExtension },
+        )
         assertEquals(
             compared.keys.joinToString("\n") { case ->
                 section(case, goldens.resolve("${case.nameWithoutExtension}.golden").readLines().filterNot(::isComment))

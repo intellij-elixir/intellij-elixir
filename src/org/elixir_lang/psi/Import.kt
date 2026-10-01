@@ -1,7 +1,9 @@
 package org.elixir_lang.psi
 
 import com.ericsson.otp.erlang.OtpErlangAtom
+import com.ericsson.otp.erlang.OtpErlangBinary
 import com.ericsson.otp.erlang.OtpErlangList
+import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
@@ -35,17 +37,14 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.IMPORT_ONLY_SIGILS_R
 import org.elixir_lang.language_level.ElixirLanguageFeature.IMPORT_VALIDATES_EXCEPT_FIRST
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
-import org.elixir_lang.model.psi.FunctionArityKeywordPair
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.IMPORT
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.call.keywordArguments
-import org.elixir_lang.psi.impl.hasKeywordKey
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.psi.impl.siblingExpressions
-import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.scope.Recording
 import org.elixir_lang.psi.scope.reachedThrough
 import org.elixir_lang.structure_view.element.CallDefinitionHead
@@ -321,66 +320,41 @@ object Import {
                     ?.keywordArguments()
                     ?.quotableKeywordPairList()
                     .orEmpty()
+                    .map { term(it.quote()) }
 
-                if (options.any { pair -> OPTIONS.none { pair.hasKeywordKey(it) } }) {
-                    return Invalid(Invalid.Error.UNSUPPORTED_OPTION)
-                }
-
-                val only = options.firstOrNull { it.hasKeywordKey("only") }?.keywordValue
-                val except = options.firstOrNull { it.hasKeywordKey("except") }?.keywordValue
-                val exceptNameArities = except?.let { value ->
-                    val quoted = lazy(LazyThreadSafetyMode.NONE) { value.quote() }
-
-                    nameArities(value, quoted)
-                        ?: if (isCall(quoted.value)) null else return Invalid(Invalid.Error.INVALID_EXCEPT)
-                }
-
-                if (only == null) return Selecting(null, exceptNameArities, prior, languageLevel)
-
-                val quotedOnly = lazy(LazyThreadSafetyMode.NONE) { only.quote() }
-
-                nameArities(only, quotedOnly)?.let { onlyNameArities ->
-                    return if (except == null) Only(onlyNameArities) else Invalid(Invalid.Error.ONLY_AND_EXCEPT_GIVEN)
-                }
-
-                if (isCall(quotedOnly.value)) return Only(emptySet())
-
-                val selector = when ((quotedOnly.value as? OtpErlangAtom)?.atomValue()) {
-                    "functions" -> Selector.FUNCTIONS
-                    "macros" -> Selector.MACROS
-                    "sigils" -> Selector.SIGILS.takeIf { IMPORT_ONLY_SIGILS.isSufficient(languageLevel) }
-                    else -> null
-                } ?: return Invalid(Invalid.Error.INVALID_ONLY)
-
-                return Selecting(selector, exceptNameArities, prior, languageLevel)
+                return of(Term.List(options), languageLevel, prior).filter
             }
+
+            /** [quoted] as an option term, where a call, which quotes to `{name, meta, arguments}`, isn't expanded. */
+            private fun term(quoted: OtpErlangObject): Term =
+                when (quoted) {
+                    is OtpErlangAtom -> Term.Atom(quoted.atomValue())
+                    is OtpErlangLong -> Term.Integer(quoted.bigIntegerValue())
+                    is OtpErlangBinary -> Term.Binary(quoted.binaryValue())
+                    // A charlist.
+                    is OtpErlangString ->
+                        Term.List(
+                            quoted.stringValue().codePoints().toArray().map { Term.Integer(BigInteger.valueOf(it.toLong())) }
+                        )
+                    is OtpErlangList -> if (quoted.lastTail == null) Term.List(quoted.elements().map(::term)) else Term.Other
+                    is OtpErlangTuple ->
+                        when (quoted.arity()) {
+                            2 -> Term.Pair(term(quoted.elementAt(0)), term(quoted.elementAt(1)))
+                            3 ->
+                                if (quoted.elementAt(2) is OtpErlangAtom || quoted.elementAt(0) in LITERALS) {
+                                    Term.Other
+                                } else {
+                                    Term.Unexpanded
+                                }
+                            else -> Term.Other
+                        }
+                    else -> Term.Other
+                }
 
             private val OPTIONS = listOf("only", "except", "warn")
 
-            /** A variable quotes to the same `{name, meta, context}` shape, with an atom where a call has arguments. */
-            private fun isCall(quoted: OtpErlangObject): Boolean =
-                (quoted as? OtpErlangTuple)
-                    ?.takeIf { it.arity() == 3 }
-                    ?.elementAt(2)
-                    .let { it != null && it !is OtpErlangAtom }
-
-            /** The `name: arity` pairs of a literal list, skipping what is not one, or `null` when [value] is no list. */
-            private fun nameArities(value: Quotable, quoted: Lazy<OtpErlangObject>): Set<NameArity>? =
-                (value.stripAccessExpression() as? ElixirList)?.let { list ->
-                    (list.children.lastOrNull() as? QuotableKeywordList)
-                        ?.quotableKeywordPairList()
-                        ?.mapNotNull { pair ->
-                            FunctionArityKeywordPair.nameFromKey(pair.keywordKey)?.let { name ->
-                                FunctionArityKeywordPair.arityFromValue(pair.keywordValue)?.let { NameArity(name, it) }
-                            }
-                        }
-                        ?.toSet()
-                        .orEmpty()
-                } ?: emptySet<NameArity>().takeIf { isEmptyList(quoted.value) }
-
-            /** `''` is the empty list. */
-            private fun isEmptyList(quoted: OtpErlangObject): Boolean =
-                (quoted is OtpErlangList && quoted.arity() == 0) || (quoted is OtpErlangString && quoted.stringValue().isEmpty())
+            /** A tuple or map written out, which quotes like a call but is a value no option takes. */
+            private val LITERALS = listOf(OtpErlangAtom("{}"), OtpErlangAtom("%{}"))
         }
     }
 
