@@ -1,0 +1,2 @@
+<p><%= if a, do: :b, else: {:c, 1} %></p>
+<%= import B, only: [c: 1] %>

@@ -1,0 +1,16 @@
+1	call	`if a, do: :b, else: {:c, 1}`	{if,[{line,1}],[{a,[{line,1}],nil},[{do,b},{else,{c,1}}]]}
+2	call	`import B, only: [c: 1]`	{import,[{line,2}],[{'__aliases__',[{line,2}],['B']},[{only,[{c,1}]}]]}
+1	functionName	`if`	if
+1	functionName	`a`	a
+1	keywordKey	`do`	do
+1	keywordValue	`:b`	b
+1	atom	`:b`	b
+1	keywordKey	`else`	else
+1	keywordValue	`{:c, 1}`	{c,1}
+1	tuple	`{:c, 1}`	{c,1}
+1	atom	`:c`	c
+2	functionName	`import`	import
+2	keywordKey	`only`	only
+2	keywordValue	`[c: 1]`	[{c,1}]
+2	keywordKey	`c`	c
+2	keywordValue	`1`	1

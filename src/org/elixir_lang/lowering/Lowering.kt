@@ -87,6 +87,10 @@ class Lowering private constructor(
 
             return Lowering(languageLevel, text, Tokenization.lines(file, text, languageLevel))
         }
+
+        /** A lowering over [text] whose positions come from [lines], which the caller has built. */
+        internal fun of(text: CharSequence, lines: Lines, languageLevel: ElixirLanguageLevel): Lowering =
+            Lowering(languageLevel, text, lines)
     }
 
     /** [element] lowered by its shape's family. */
@@ -94,6 +98,7 @@ class Lowering private constructor(
     internal fun lower(element: PsiElement): ElixirAst {
         ThreadingAssertions.assertReadAccess()
         ProgressManager.checkCanceled()
+        LoweringCounters.count(LoweringCounters.elementLowerings)
 
         return when (classifier.classify(element.javaClass)) {
             Bucket.LITERAL -> literal(element)

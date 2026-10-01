@@ -90,7 +90,13 @@ fun functionNameAtomValue(call: Call): String? {
 fun headAtomValue(head: PsiElement): String? {
     ThreadingAssertions.assertReadAccess()
 
-    return (CallDefinitionHead.strip(head) as? Call)?.let { stripped ->
+    return headAtomQuotable(head)?.let(::quotedAtomValue)
+}
+
+/** The element [headAtomValue] reads for [head]. */
+@RequiresReadLock
+internal fun headAtomQuotable(head: PsiElement): Quotable? =
+    (CallDefinitionHead.strip(head) as? Call)?.let { stripped ->
         if (stripped.functionName() == UNQUOTE) {
             // Quoting a malformed operand can throw `NotImplementedError`.
             stripped.primaryArguments()?.singleOrNull()?.stripAccessExpression()
@@ -98,7 +104,4 @@ fun headAtomValue(head: PsiElement): String? {
         } else {
             stripped.functionNameElement()
         }
-    }
-        ?.let { it as? Quotable }
-        ?.let(::quotedAtomValue)
-}
+    } as? Quotable

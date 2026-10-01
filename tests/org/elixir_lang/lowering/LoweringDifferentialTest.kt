@@ -27,6 +27,23 @@ class LoweringDifferentialTest : ParsingTestCase() {
             reply.elementAt(0) == OtpErlangAtom("ok") && lowered.toOtp(COLUMNS_AND_TOKEN_METADATA) == reply.elementAt(1)
         }
 
+    /** [ElementLowering] against today's quoting on each element production code quotes or reads an atom from. */
+    fun testElementsLowerLikeQuotableOnEveryFile() {
+        val corpus = System.getenv(CORPUS)
+        assertFalse("$CORPUS is not set; the Gradle test task sets it", corpus.isNullOrEmpty())
+        val root = Path.of(corpus!!)
+        val differential = ElementDifferential()
+
+        for (path in ElixirLangElixirParsingTestCase.sourcePaths(root)) {
+            val text = FileUtil.loadFile(root.resolve(path).toFile(), Charsets.UTF_8.name(), true).trim()
+            val file = createPsiFile(FileUtilRt.getNameWithoutExtension(path.substringAfterLast('/')), text) as ElixirFile
+            ReadAction.computeBlocking<Unit, Throwable> { differential.compare(path, file) }
+        }
+
+        println(differential.counts().entries.joinToString("\n", "element differential:\n") { (key, count) -> "$key\t$count" })
+        assertEmpty(differential.disagreements().joinToString("\n"), differential.disagreements())
+    }
+
     private fun assertAgreesOnEveryFile(
         reference: String,
         agrees: (lowered: ElixirAst, file: ElixirFile, text: String) -> Boolean
