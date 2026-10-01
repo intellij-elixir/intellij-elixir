@@ -141,8 +141,9 @@ defmodule Matrix do
   @use_wrappers Map.new(@wrappers, fn {"x_" <> wrapper, shape} -> {"x_use_in_" <> wrapper, shape} end)
   @use_wrapper_worlds Map.keys(@use_wrappers)
 
-  # `x_use_injected` with every `__using__` and the definitions its quote holds written as parenthesised calls:
-  # `defmacro(__using__(_), do: quote(do: def(x(), do: :ok)))`.
+  # `x_use_injected` with every `__using__` and the definitions its quote holds written as calls with parentheses and a
+  # one-line `do:` body: `defmacro(__using__(_), do: quote(do: def(x(), do: :ok)))`. What it measures is the keyword
+  # `do:` body, not the parentheses, which `defmacro(__using__(_)) do ... end` also has.
   @use_parens_worlds ["x_use_injected_parens"]
 
   # `x_use_injected` with the injected definitions under each wrapper inside the `__using__` quote, which the user's
