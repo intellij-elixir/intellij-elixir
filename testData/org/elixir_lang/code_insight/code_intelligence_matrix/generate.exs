@@ -261,21 +261,47 @@ defmodule Matrix do
   @attribute_world_ids Map.keys(@attribute_worlds)
   @attribute :limit
 
-  # The variable worlds: `y = 1` bound in a function body, then read in a clause's guard and in its body. A guard binds
-  # nothing, so both reads are of `y = 1`; each parenthesised spelling has its unparenthesised one beside it. A world is
-  # `{the function's parameters, the line holding the clause}`.
+  # The variable worlds. A world is its variable, its module's lines and whether rename is asked. Each line marks its
+  # occurrences of the variable as `# @<id>`, in column order; `binding` is the one the reads are of.
+  #
+  # `x_guard_var_*`: `y = 1` bound in a function body, then read in a clause's guard and in its body. A guard binds
+  # nothing, so both reads are of `y = 1`; each parenthesised spelling has its unparenthesised one beside it.
+  guard_var = fn parameters, clause ->
+    %{variable: :y, lines: ["def run#{parameters} do", "  y = 1 # @binding", "  #{clause} # @guard @body", "end"], rename: false}
+  end
+
+  # `x_interp_var_*`: a module-level `for` generator read inside `"#{...}"` in a call's argument. ExUnit's `test` is the
+  # macro; its body is a function's, so it reads the generator only through `unquote`. `IO.puts` is the plain-call
+  # control. The list has one element, so a probe that turns the test name's read into `1` defines no test twice.
   @variable_worlds %{
-    "x_guard_var_fn_parens" => {"", "fn(x when x > y) -> y end"},
-    "x_guard_var_fn" => {"", "fn x when x > y -> y end"},
-    "x_guard_var_for_parens" => {"(list)", "for(x when x > y <- list, do: y)"},
-    "x_guard_var_for_parens_block" => {"(list)", "for(x when x > y <- list) do y end"},
-    "x_guard_var_for" => {"(list)", "for x when x > y <- list, do: y"},
-    "x_guard_var_for_block" => {"(list)", "for x when x > y <- list do y end"},
-    "x_guard_var_with_parens" => {"(v)", "with(x when x > y <- v, do: y)"},
-    "x_guard_var_with" => {"(v)", "with x when x > y <- v, do: y"}
+    "x_guard_var_fn_parens" => guard_var.("", "fn(x when x > y) -> y end"),
+    "x_guard_var_fn" => guard_var.("", "fn x when x > y -> y end"),
+    "x_guard_var_for_parens" => guard_var.("(list)", "for(x when x > y <- list, do: y)"),
+    "x_guard_var_for_parens_block" => guard_var.("(list)", "for(x when x > y <- list) do y end"),
+    "x_guard_var_for" => guard_var.("(list)", "for x when x > y <- list, do: y"),
+    "x_guard_var_for_block" => guard_var.("(list)", "for x when x > y <- list do y end"),
+    "x_guard_var_with_parens" => guard_var.("(v)", "with(x when x > y <- v, do: y)"),
+    "x_guard_var_with" => guard_var.("(v)", "with x when x > y <- v, do: y"),
+    "x_interp_var_for_test" => %{
+      variable: :x,
+      lines: [
+        "use ExUnit.Case",
+        "",
+        "for x <- [1] do # @binding",
+        ~S'  test "handles #{x}" do # @interpolation',
+        "    assert unquote(x) # @body",
+        "  end",
+        "end"
+      ],
+      rename: true
+    },
+    "x_interp_var_for_call" => %{
+      variable: :x,
+      lines: ["for x <- [1] do # @binding", ~S'  IO.puts("#{x}") # @interpolation', "end"],
+      rename: true
+    }
   }
   @variable_world_ids Map.keys(@variable_worlds)
-  @variable :y
 
   # The worlds whose main module's definitions a `use` injects.
   @use_worlds ["x_use_injected", "x_use_injected_defaults", "x_use_apply"]
@@ -1188,8 +1214,7 @@ defmodule Matrix do
   defp variable_scenario(backing, form, world) do
     [module] = module_names(backing, form, world, 1)
     path = Path.join(["lib", backing.id, (module |> Macro.underscore() |> String.replace("/", ".")) <> ".ex"])
-    {parameters, clause} = Map.fetch!(@variable_worlds, world)
-    lines = ["def run#{parameters} do", "  #{@variable} = 1 # @binding", "  #{clause} # @guard @body", "end"]
+    %{variable: variable, lines: lines, rename: rename} = Map.fetch!(@variable_worlds, world)
     source = "# #{@header}\n" <> render_lines_module(module, lines)
     File.mkdir_p!(Path.dirname(path))
     File.write!(path, source)
@@ -1201,7 +1226,7 @@ defmodule Matrix do
       source
       |> Code.string_to_quoted!(columns: true, emit_warnings: false)
       |> Macro.prewalk([], fn
-        {@variable, meta, context} = node, nodes when is_atom(context) -> {node, [{meta[:line], meta[:column]} | nodes]}
+        {^variable, meta, context} = node, nodes when is_atom(context) -> {node, [{meta[:line], meta[:column]} | nodes]}
         node, nodes -> {node, nodes}
       end)
 
@@ -1219,7 +1244,7 @@ defmodule Matrix do
         Enum.zip(ids, found)
       end)
 
-    if length(located) != length(nodes), do: raise("#{path}: #{inspect(nodes)} holds a `#{@variable}` no line marks")
+    if length(located) != length(nodes), do: raise("#{path}: #{inspect(nodes)} holds a `#{variable}` no line marks")
 
     sites =
       Enum.map(located, fn {id, {line, column}} ->
@@ -1230,10 +1255,10 @@ defmodule Matrix do
           "file" => path,
           "line" => line,
           "column" => column,
-          "name" => to_string(@variable),
+          "name" => to_string(variable),
           "arity" => 0,
           "binding" => nil,
-          "variable" => %{"binding" => id == "binding", "declarations" => declarations}
+          "variable" => Map.merge(%{"binding" => id == "binding", "declarations" => declarations}, if(rename, do: %{"rename" => true}, else: %{}))
         }
       end)
 
@@ -1264,6 +1289,8 @@ defmodule Matrix do
   end
 
   defp variable_compile!(source, path) do
+    # `use ExUnit.Case` raises after compiling unless the application is running.
+    {:ok, _} = Application.ensure_all_started(:ex_unit)
     Matrix.Events.take()
     {_modules, diagnostics} = Code.with_diagnostics(fn -> Code.compile_string(source, path) end)
     Matrix.Events.take()
@@ -1283,7 +1310,7 @@ defmodule Matrix do
 
     case variable_compile!(probe, "probe.ex") do
       [] -> ["binding"]
-      diagnostics -> raise("the probe leaving only #{id} did not read `#{@variable} = 1`: #{inspect(diagnostics)}")
+      diagnostics -> raise("the probe leaving only #{id} did not read the binding: #{inspect(diagnostics)}")
     end
   end
 

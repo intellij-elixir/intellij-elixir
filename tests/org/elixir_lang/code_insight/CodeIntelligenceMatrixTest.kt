@@ -903,6 +903,7 @@ private class Group(val scenario: Scenario) {
         when (feature) {
             Feature.GO_TO_DECLARATION -> checkVariableGoToDeclaration()
             Feature.FIND_USAGES -> checkVariableFindUsages()
+            Feature.RENAME -> checkVariableRename()
             else -> throw AssertionError("${feature.testName} is not asked of a variable")
         }
     }
@@ -931,6 +932,33 @@ private class Group(val scenario: Scenario) {
             .sorted()
 
         assertEquals("Find Usages from ${place.id} found the wrong reads from $targets search targets at the caret", expected, found)
+    }
+
+    /** The binding and every read of it are renamed, and nothing else changes. */
+    private fun checkVariableRename() {
+        openAt(place)
+        val site = siteOrNull()!!
+        val bindings = site.variable!!.declarations.toSet()
+        val newName = "renamed_${site.name}"
+        val positions = scenario.sites
+            .filter { other -> other.variable?.let { it.declarations.any(bindings::contains) } == true }
+            .map { it.file to (it.line to it.column) }
+        val targets = myFixture.renameTargetsAtCaret()
+        rename(
+            targets.singleOrNull()
+                ?: throw AssertionError("Expected exactly one rename target at the caret, got ${targets.size}: $targets"),
+            newName
+        )
+
+        val wrong = originals.keys.mapNotNull { file ->
+            val path = callerFiles.entries.single { it.value == file }.key
+            val expected = replaceNames(originals.getValue(file), positions.filter { it.first == path }.map { it.second }, newName)
+            val actual = FileDocumentManager.getInstance().getDocument(file)!!.text
+
+            if (actual == expected) null else "${file.name}: ${firstDifference(expected, actual)}"
+        }
+
+        assertEquals("Renaming ${site.name} to $newName from ${place.id} changed the wrong text", emptyList<String>(), wrong)
     }
 
     /** Which site an element or usage starting at [offset] is, or where it is when no site is there. */

@@ -282,13 +282,15 @@ object Crossing {
         }
     }
 
-    /** A variable is asked which binding each read is of, and which reads share that binding. */
+    /** A variable is asked which binding each read is of, which reads share that binding and, where its world asks, rename. */
     private fun variableApplicability(scenario: Scenario, feature: Feature, place: Place): Applicability {
         val site = scenario.sites.single { it.id == place.id }
 
         return when {
-            feature != Feature.GO_TO_DECLARATION && feature != Feature.FIND_USAGES ->
-                Applicability.NotApplicable("a variable is asked only which binding a read is of and which reads share it")
+            feature == Feature.RENAME && !site.variable!!.rename ->
+                Applicability.NotApplicable("this variable world does not ask rename")
+            feature != Feature.GO_TO_DECLARATION && feature != Feature.FIND_USAGES && feature != Feature.RENAME ->
+                Applicability.NotApplicable("a variable is asked only which binding a read is of, which reads share it, and rename")
             feature == Feature.GO_TO_DECLARATION && site.variable!!.binding ->
                 Applicability.NotApplicable("Ctrl+Click on a binding is Show Usages, asked as findUsages")
             else -> Applicability.Applicable
