@@ -16,6 +16,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.*
 import com.intellij.psi.FileViewProvider
 import com.intellij.psi.impl.PsiFileEx
+import com.intellij.psi.impl.PsiManagerEx
 import com.intellij.psi.impl.source.PsiFileImpl
 import com.intellij.psi.impl.source.PsiFileWithStubSupport
 import com.intellij.psi.impl.source.SourceTreeToPsiMap
@@ -60,6 +61,9 @@ class BeamFileImpl private constructor(
 
     @Volatile
     private var stub: JavaSoftReference<StubTree>? = null
+
+    @Volatile
+    private var possiblyInvalidated = false
 
     constructor(fileViewProvider: FileViewProvider) : this(fileViewProvider, false)
 
@@ -290,7 +294,31 @@ class BeamFileImpl private constructor(
      * @return true if the element is valid, false otherwise.
      * @see com.intellij.psi.PsiElement.isValid
      */
-    override fun isValid(): Boolean = isForDecompiling || virtualFile.isValid
+    override fun isValid(): Boolean {
+        if (isForDecompiling) return true
+        if (!virtualFile.isValid || manager.project.isDisposed) return false
+        if (!possiblyInvalidated) return true
+
+        val valid = isCachedViewProvider() && this in (fileViewProvider as AbstractFileViewProvider).cachedPsiFiles
+        if (valid) possiblyInvalidated = false
+        return valid
+    }
+
+    /**
+     * [markInvalidated] also marks a file the platform may resurrect, so this asks whether the file manager still
+     * holds this provider. The any-context lookup returns only one provider when shared sources give a file several.
+     */
+    @Suppress("UnstableApiUsage")
+    private fun isCachedViewProvider(): Boolean {
+        val project = manager.project
+        val fileManager = (manager as PsiManagerEx).fileManager
+
+        return if (isSharedSourceSupportEnabled(project)) {
+            fileManager.findCachedViewProviders(virtualFile).any { it === fileViewProvider }
+        } else {
+            fileManager.findCachedViewProvider(virtualFile) === fileViewProvider
+        }
+    }
 
     /**
      * Checks if the contents of the element can be modified (if it belongs to a
@@ -508,9 +536,9 @@ class BeamFileImpl private constructor(
         }
     }
 
-    // Validity stays tied to the VirtualFile: re-evaluating it after invalidation, as PsiBinaryFileImpl does, needs
-    // the @ApiStatus.Internal FileManagerEx.evaluateValidity.
-    override fun markInvalidated() {}
+    override fun markInvalidated() {
+        possiblyInvalidated = true
+    }
 
     companion object {
         private val LOGGER = Logger.getInstance(BeamFileImpl::class.java)
