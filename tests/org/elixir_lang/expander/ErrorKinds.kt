@@ -33,8 +33,20 @@ object ErrorKinds {
         "expected_compile_time_module" to
             """^invalid argument for (alias|require|import), expected a compile time atom or alias, got: """,
         "as_in_multi_alias_call" to """^:as option is not supported by multi-alias call$""",
-        "unsupported_option" to """^unsupported option :\S+ given to (alias|require|import)$""",
-        "options_are_not_keyword" to """^invalid options for (alias|require|import), expected a keyword list, got: """,
+        "unsupported_option" to """^unsupported option :\S+ given to (alias|require|import|quote)$""",
+        "options_are_not_keyword" to
+            """^invalid options for (alias|require|import|quote), expected a keyword list, got: """,
+        "unquote_outside_quote" to """^unquote(_splicing)? called outside quote$""",
+        "invalid_bind_quoted_for_quote" to
+            """^invalid :bind_quoted for quote, expected a keyword list of variable names, got: """,
+        "quote_in_pattern_with_unquote" to """^unquote is not allowed when quote is used inside a pattern or guard""",
+        // elixir_quote's ArgumentErrors
+        "quote_unquote_splicing" to
+            """^unquote_splicing only works inside arguments and block contexts, wrap it in parens if you want it to work with one-liners$""",
+        "quote_invalid_runtime_option" to """^invalid runtime value for option :(unquote|generated) in quote, got: """,
+        // elixir_dispatch
+        "ambiguous_call" to
+            """^(function \S+ imported from both \S+ and \S+, call is ambiguous|conflicting \S+ import from modules \S+ and \S+)""",
         // elixir_aliases
         "invalid_alias_module" to """^alias cannot be inferred automatically for module: .+, please use the :as option""",
         "invalid_alias_for_as" to """^invalid value for option :as, expected (an alias, got: |a simple alias, got nested alias: )""",
@@ -91,5 +103,10 @@ object ErrorKinds {
         "undefined_var_in_spec" to """^undefined variable ".+" in bitstring segment\. If the size of the binary is a variable""",
     ).mapValues { (_, pattern) -> Regex(pattern, RegexOption.DOT_MATCHES_ALL) }
 
+    /** The kinds Elixir raises at expansion as an exception other than `CompileError`, whose message has no line. */
+    private val WITHOUT_LINE = setOf("quote_unquote_splicing", "quote_invalid_runtime_option")
+
     fun pattern(kind: String): Regex = PATTERNS[kind] ?: throw AssertionError("no message pattern for error $kind")
+
+    fun hasLine(kind: String): Boolean = kind !in WITHOUT_LINE
 }

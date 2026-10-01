@@ -43,18 +43,30 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
     /**
      * A case body, the ranges of it to wrap in an identity probe, which must not overlap, and the statements of each
      * body nested in it, such as a `->` clause's.
+     *
+     * @property value the 1-based top-level statement after which the run-time value of the case's variable `q` is
+     *   sent, as a module-body statement of its own with no probe after it
      */
     class Case(
         val body: String,
         val identities: List<TextRange> = emptyList(),
         val bodies: List<List<TextRange>> = emptyList(),
+        val value: Int? = null,
     )
 
     /** What the probe at [tag] saw: `__CALLER__` as a map. */
     data class Observation(val tag: Tag, val env: OtpErlangMap)
 
-    /** [probeModule] and [caseModule] are atom text, as [Env] holds modules. */
-    class Batch(private val token: String, val observations: List<Observation>) {
+    /**
+     * [probeModule] and [caseModule] are atom text, as [Env] holds modules.
+     *
+     * @property values each case's [Case.value] as it was sent, by case
+     */
+    class Batch(
+        private val token: String,
+        val observations: List<Observation>,
+        val values: Map<Int, OtpErlangObject> = emptyMap(),
+    ) {
         val probeModule = "Elixir." + probeModule(token)
 
         fun caseModule(case: Int) = "Elixir." + caseModule(token, case)
@@ -127,8 +139,14 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
             }
         }
         val compiled = Quoter.compile(source, COMPILE_TIMEOUT)
+        val (values, probes) = compiled.messages.partition(::isValue)
+        val valuesByCase = values.associate { value ->
+            val (_, case, q) = (value as OtpErlangTuple).elements()
 
-        return Attempt(compiled, tags, bodyLines, Batch(token, compiled.messages.map(::observation)), source)
+            (case as OtpErlangLong).intValue() to q
+        }
+
+        return Attempt(compiled, tags, bodyLines, Batch(token, probes.map(::observation), valuesByCase), source)
     }
 
     /**
@@ -171,12 +189,16 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
             val tag = Tag(index, 0, statement + 1)
             tags.add(tag)
             insertions.add(Insertion(end, 1, "; " + probe(probeModule, tag)))
+
+            if (case.value == statement + 1) {
+                insertions.add(Insertion(end, 2, "; IntellijElixir.Quoter.Probe.send(__ENV__, {:value, $index, q})"))
+            }
         }
         case.bodies.forEachIndexed { block, statements ->
             val start = statements.first().startOffset
             val keywordValue = case.body.substring(0, start).trimEnd().endsWith(":")
 
-            if (keywordValue) insertions.add(Insertion(start, 2, "("))
+            if (keywordValue) insertions.add(Insertion(start, 3, "("))
 
             statements.forEachIndexed { statement, range ->
                 val tag = Tag(index, block + 1, statement + 1)
@@ -189,15 +211,15 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
             val statement = ends.indexOfFirst { range.endOffset <= it } + 1
             val tag = Tag(index, 0, statement, identity + 1)
             tags.add(tag)
-            insertions.add(Insertion(range.startOffset, 3, "$probeModule.i(${tagList(tag)}, "))
+            insertions.add(Insertion(range.startOffset, 4, "$probeModule.i(${tagList(tag)}, "))
             insertions.add(Insertion(range.endOffset, 0, ")"))
         }
 
         val probedBody = StringBuilder(case.body)
 
         // Each insertion at an offset lands left of those already there, so at one offset the result reads: the end of
-        // a wrapped range, then a statement probe, then a keyword value's opening parenthesis, then the start of the
-        // next range.
+        // a wrapped range, then a statement probe, then a value send, then a keyword value's opening parenthesis, then
+        // the start of the next range.
         insertions.sortedWith(compareByDescending<Insertion> { it.offset }.thenByDescending { it.order }).forEach {
             probedBody.insert(it.offset, it.text)
         }
@@ -222,6 +244,9 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
 
     private fun tagList(tag: Tag) =
         listOfNotNull(tag.case, tag.block, tag.statement, tag.identity.takeIf { it > 0 }).joinToString(", ", "[", "]")
+
+    private fun isValue(message: OtpErlangObject): Boolean =
+        message is OtpErlangTuple && message.arity() == 3 && message.elementAt(0) == OtpErlangAtom("value")
 
     private fun observation(message: OtpErlangObject): Observation {
         val (tag, env) = (message as OtpErlangTuple).elements()
