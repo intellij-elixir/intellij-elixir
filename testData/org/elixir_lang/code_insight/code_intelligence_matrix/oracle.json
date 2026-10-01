@@ -755,6 +755,12 @@
     {
       "backing": "src",
       "form": "defguard",
+      "reason": "a `defguard` head always has its `when`, so w1 already asks the guarded head written without parentheses",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "src",
+      "form": "defguard",
       "reason": "the question is defaults split across branches, which only `def` and `defmacro` and their private forms can declare",
       "world": "x_if_else"
     },
@@ -983,6 +989,12 @@
     {
       "backing": "src",
       "form": "defguardp",
+      "reason": "a `defguard` head always has its `when`, so w1 already asks the guarded head written without parentheses",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "src",
+      "form": "defguardp",
       "reason": "the question is defaults split across branches, which only `def` and `defmacro` and their private forms can declare",
       "world": "x_if_else"
     },
@@ -1403,6 +1415,12 @@
     {
       "backing": "src",
       "form": "defdelegate",
+      "reason": "the question is a guarded head written as a call, which only the definers of the `def` family have",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate",
       "reason": "the question is defaults split across branches, which only `def` and `defmacro` and their private forms can declare",
       "world": "x_if_else"
     },
@@ -1489,6 +1507,12 @@
       "form": "defdelegate",
       "reason": "a moduledoc world asks about the module, so the form its functions are declared with changes nothing",
       "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate",
+      "reason": "the question is a guarded head written as a call, which only the definers of the `def` family have",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "src",
@@ -1811,6 +1835,12 @@
     {
       "backing": "src",
       "form": "defdelegate_compiled",
+      "reason": "the question is a guarded head written as a call, which only the definers of the `def` family have",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_compiled",
       "reason": "the question is defaults split across branches, which only `def` and `defmacro` and their private forms can declare",
       "world": "x_if_else"
     },
@@ -1897,6 +1927,12 @@
       "form": "defdelegate_compiled",
       "reason": "a moduledoc world asks about the module, so the form its functions are declared with changes nothing",
       "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_compiled",
+      "reason": "the question is a guarded head written as a call, which only the definers of the `def` family have",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "src",
@@ -2219,6 +2255,12 @@
     {
       "backing": "src",
       "form": "defdelegate_unresolvable",
+      "reason": "the question is a guarded head written as a call, which only the definers of the `def` family have",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_unresolvable",
       "reason": "the question is defaults split across branches, which only `def` and `defmacro` and their private forms can declare",
       "world": "x_if_else"
     },
@@ -2305,6 +2347,12 @@
       "form": "defdelegate_unresolvable",
       "reason": "a moduledoc world asks about the module, so the form its functions are declared with changes nothing",
       "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_unresolvable",
+      "reason": "the question is a guarded head written as a call, which only the definers of the `def` family have",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "src",
@@ -2706,6 +2754,12 @@
       "backing": "src",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_if_else"
     },
     {
@@ -2809,6 +2863,12 @@
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_not_a_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "src",
@@ -3264,6 +3324,12 @@
       "backing": "src",
       "form": "defdelegate_imports",
       "reason": "a target that only imports the function asks nothing w1 does not",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_imports",
+      "reason": "a target that only imports the function asks nothing w1 does not",
       "world": "x_if_else"
     },
     {
@@ -3373,6 +3439,12 @@
       "form": "defdelegate_imports",
       "reason": "a target that only imports the function asks nothing w1 does not",
       "world": "x_other_module"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_imports",
+      "reason": "a target that only imports the function asks nothing w1 does not",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "src",
@@ -3828,6 +3900,12 @@
       "backing": "src",
       "form": "defdelegate_list",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_if_else"
     },
     {
@@ -3937,6 +4015,12 @@
       "form": "defdelegate_list",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_other_module"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "src",
@@ -4392,6 +4476,12 @@
       "backing": "src",
       "form": "defdelegate_list_trailing",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_if_else"
     },
     {
@@ -4501,6 +4591,12 @@
       "form": "defdelegate_list_trailing",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_other_module"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "src",
@@ -4956,6 +5052,12 @@
       "backing": "src",
       "form": "defdelegate_list_lines",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_if_else"
     },
     {
@@ -5065,6 +5167,12 @@
       "form": "defdelegate_list_lines",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_other_module"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "src",
@@ -5520,6 +5628,12 @@
       "backing": "src",
       "form": "defdelegate_as_list",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_if_else"
     },
     {
@@ -5629,6 +5743,12 @@
       "form": "defdelegate_as_list",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_other_module"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "src",
@@ -6084,6 +6204,12 @@
       "backing": "src",
       "form": "defdelegate_as_attribute",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_if_else"
     },
     {
@@ -6193,6 +6319,12 @@
       "form": "defdelegate_as_attribute",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_other_module"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "src",
@@ -6648,6 +6780,12 @@
       "backing": "src",
       "form": "defdelegate_doc",
       "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
       "world": "x_if_else"
     },
     {
@@ -6757,6 +6895,12 @@
       "form": "defdelegate_doc",
       "reason": "a delegate's own `@doc` asks nothing w1 does not",
       "world": "x_other_module"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "src",
@@ -7145,6 +7289,12 @@
     {
       "backing": "src",
       "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from",
       "reason": "the question is defaults split across branches, which only `def` and `defmacro` and their private forms can declare",
       "world": "x_if_else"
     },
@@ -7243,6 +7393,12 @@
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_nfc"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "src",
@@ -7637,6 +7793,12 @@
     {
       "backing": "src",
       "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_kind",
       "reason": "the question is defaults split across branches, which only `def` and `defmacro` and their private forms can declare",
       "world": "x_if_else"
     },
@@ -7735,6 +7897,12 @@
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_nfc"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "src",
@@ -8165,6 +8333,12 @@
     {
       "backing": "src",
       "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_args",
       "reason": "the question is defaults split across branches, which only `def` and `defmacro` and their private forms can declare",
       "world": "x_if_else"
     },
@@ -8263,6 +8437,12 @@
       "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_nfc"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "src",
@@ -8717,6 +8897,12 @@
     {
       "backing": "src",
       "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "src",
+      "form": "generator_embed",
       "reason": "the question is defaults split across branches, which only `def` and `defmacro` and their private forms can declare",
       "world": "x_if_else"
     },
@@ -8827,6 +9013,12 @@
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_other_module"
+    },
+    {
+      "backing": "src",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "src",
@@ -9204,6 +9396,12 @@
       "backing": "src",
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "src",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_if_else"
     },
     {
@@ -9313,6 +9511,12 @@
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_other_module"
+    },
+    {
+      "backing": "src",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "src",
@@ -9714,6 +9918,12 @@
       "backing": "ex_dbgi",
       "form": "def",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "def",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
     {
@@ -9799,6 +10009,12 @@
       "form": "def",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "def",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_dbgi",
@@ -10177,6 +10393,12 @@
       "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_for"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defp",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_guarded"
     },
     {
       "backing": "ex_dbgi",
@@ -10284,6 +10506,12 @@
       "backing": "ex_dbgi",
       "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_parens_guarded"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defp",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_receive"
     },
     {
@@ -10662,6 +10890,12 @@
       "backing": "ex_dbgi",
       "form": "defmacro",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacro",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
     {
@@ -10747,6 +10981,12 @@
       "form": "defmacro",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacro",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_dbgi",
@@ -11189,6 +11429,12 @@
     {
       "backing": "ex_dbgi",
       "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacrop",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
@@ -11299,6 +11545,12 @@
       "form": "defmacrop",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_dbgi",
@@ -11724,6 +11976,12 @@
       "backing": "ex_dbgi",
       "form": "defguard",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguard",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
     {
@@ -11809,6 +12067,12 @@
       "form": "defguard",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguard",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_dbgi",
@@ -12257,6 +12521,12 @@
     {
       "backing": "ex_dbgi",
       "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguardp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
@@ -12367,6 +12637,12 @@
       "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_dbgi",
@@ -12768,6 +13044,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
     {
@@ -12853,6 +13135,12 @@
       "form": "defdelegate",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_dbgi",
@@ -13313,6 +13601,12 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_compiled",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
@@ -13423,6 +13717,12 @@
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_dbgi",
@@ -13824,6 +14124,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_unresolvable",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_unresolvable",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
     {
@@ -13909,6 +14215,12 @@
       "form": "defdelegate_unresolvable",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_unresolvable",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_dbgi",
@@ -14346,6 +14658,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_if_else"
     },
     {
@@ -14449,6 +14767,12 @@
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_not_a_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_dbgi",
@@ -14910,6 +15234,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_if_else"
     },
     {
@@ -15019,6 +15349,12 @@
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_dbgi",
@@ -15480,6 +15816,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_if_else"
     },
     {
@@ -15589,6 +15931,12 @@
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_dbgi",
@@ -16050,6 +16398,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_if_else"
     },
     {
@@ -16159,6 +16513,12 @@
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_dbgi",
@@ -16620,6 +16980,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_if_else"
     },
     {
@@ -16729,6 +17095,12 @@
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_dbgi",
@@ -17190,6 +17562,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_if_else"
     },
     {
@@ -17299,6 +17677,12 @@
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_dbgi",
@@ -17760,6 +18144,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_if_else"
     },
     {
@@ -17869,6 +18259,12 @@
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_dbgi",
@@ -18330,6 +18726,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_if_else"
     },
     {
@@ -18439,6 +18841,12 @@
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_dbgi",
@@ -18869,6 +19277,12 @@
     {
       "backing": "ex_dbgi",
       "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
@@ -18967,6 +19381,12 @@
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_nfc"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_dbgi",
@@ -19397,6 +19817,12 @@
     {
       "backing": "ex_dbgi",
       "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_kind",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
@@ -19495,6 +19921,12 @@
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_nfc"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_dbgi",
@@ -19925,6 +20357,12 @@
     {
       "backing": "ex_dbgi",
       "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_args",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
@@ -20023,6 +20461,12 @@
       "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_nfc"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_dbgi",
@@ -20477,6 +20921,12 @@
     {
       "backing": "ex_dbgi",
       "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "generator_embed",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
@@ -20587,6 +21037,12 @@
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_dbgi",
@@ -21048,6 +21504,12 @@
       "backing": "ex_dbgi",
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_if_else"
     },
     {
@@ -21157,6 +21619,12 @@
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_dbgi",
@@ -21553,6 +22021,12 @@
       "form": "def",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_for"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "def",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_guarded"
     },
     {
       "backing": "ex_docs",
@@ -21648,6 +22122,12 @@
       "backing": "ex_docs",
       "form": "def",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_parens_guarded"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "def",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_receive"
     },
     {
@@ -22039,6 +22519,12 @@
       "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_for"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defp",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_guarded"
     },
     {
       "backing": "ex_docs",
@@ -22146,6 +22632,12 @@
       "backing": "ex_docs",
       "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_parens_guarded"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defp",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_receive"
     },
     {
@@ -22542,6 +23034,12 @@
       "backing": "ex_docs",
       "form": "defmacro",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacro",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
     {
@@ -22627,6 +23125,12 @@
       "form": "defmacro",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacro",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_docs",
@@ -23087,6 +23591,12 @@
     {
       "backing": "ex_docs",
       "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacrop",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
@@ -23197,6 +23707,12 @@
       "form": "defmacrop",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_docs",
@@ -23622,6 +24138,12 @@
       "backing": "ex_docs",
       "form": "defguard",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguard",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
     {
@@ -23707,6 +24229,12 @@
       "form": "defguard",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguard",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_docs",
@@ -24167,6 +24695,12 @@
     {
       "backing": "ex_docs",
       "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguardp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
@@ -24277,6 +24811,12 @@
       "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_docs",
@@ -24678,6 +25218,12 @@
       "backing": "ex_docs",
       "form": "defdelegate",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
     {
@@ -24763,6 +25309,12 @@
       "form": "defdelegate",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_docs",
@@ -25223,6 +25775,12 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_compiled",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
@@ -25333,6 +25891,12 @@
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_docs",
@@ -25734,6 +26298,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_unresolvable",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_unresolvable",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
     {
@@ -25824,6 +26394,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_unresolvable",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_parens_guarded"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_unresolvable",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_receive"
     },
     {
@@ -26256,6 +26832,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_if_else"
     },
     {
@@ -26359,6 +26941,12 @@
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_not_a_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_docs",
@@ -26820,6 +27408,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_if_else"
     },
     {
@@ -26929,6 +27523,12 @@
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_docs",
@@ -27390,6 +27990,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_if_else"
     },
     {
@@ -27499,6 +28105,12 @@
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_docs",
@@ -27960,6 +28572,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_if_else"
     },
     {
@@ -28069,6 +28687,12 @@
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_docs",
@@ -28530,6 +29154,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_if_else"
     },
     {
@@ -28639,6 +29269,12 @@
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_docs",
@@ -29100,6 +29736,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_if_else"
     },
     {
@@ -29209,6 +29851,12 @@
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_docs",
@@ -29670,6 +30318,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_if_else"
     },
     {
@@ -29779,6 +30433,12 @@
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_docs",
@@ -30240,6 +30900,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_if_else"
     },
     {
@@ -30349,6 +31015,12 @@
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_docs",
@@ -30779,6 +31451,12 @@
     {
       "backing": "ex_docs",
       "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
@@ -30877,6 +31555,12 @@
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_nfc"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_docs",
@@ -31307,6 +31991,12 @@
     {
       "backing": "ex_docs",
       "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_kind",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
@@ -31405,6 +32095,12 @@
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_nfc"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_docs",
@@ -31835,6 +32531,12 @@
     {
       "backing": "ex_docs",
       "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_args",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
@@ -31933,6 +32635,12 @@
       "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_nfc"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_docs",
@@ -32387,6 +33095,12 @@
     {
       "backing": "ex_docs",
       "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "generator_embed",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
@@ -32497,6 +33211,12 @@
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_docs",
@@ -32958,6 +33678,12 @@
       "backing": "ex_docs",
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_if_else"
     },
     {
@@ -33067,6 +33793,12 @@
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_docs",
@@ -33468,6 +34200,12 @@
       "backing": "ex_gen",
       "form": "def",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "def",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
     {
@@ -33553,6 +34291,12 @@
       "form": "def",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "def",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_gen",
@@ -33949,6 +34693,12 @@
       "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_for"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defp",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_guarded"
     },
     {
       "backing": "ex_gen",
@@ -34056,6 +34806,12 @@
       "backing": "ex_gen",
       "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_parens_guarded"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defp",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_receive"
     },
     {
@@ -34452,6 +35208,12 @@
       "backing": "ex_gen",
       "form": "defmacro",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacro",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
     {
@@ -34537,6 +35299,12 @@
       "form": "defmacro",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacro",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_gen",
@@ -34997,6 +35765,12 @@
     {
       "backing": "ex_gen",
       "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacrop",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
@@ -35107,6 +35881,12 @@
       "form": "defmacrop",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_gen",
@@ -35532,6 +36312,12 @@
       "backing": "ex_gen",
       "form": "defguard",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguard",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
     {
@@ -35617,6 +36403,12 @@
       "form": "defguard",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguard",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_gen",
@@ -36077,6 +36869,12 @@
     {
       "backing": "ex_gen",
       "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguardp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
@@ -36187,6 +36985,12 @@
       "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_gen",
@@ -36588,6 +37392,12 @@
       "backing": "ex_gen",
       "form": "defdelegate",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
     {
@@ -36673,6 +37483,12 @@
       "form": "defdelegate",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_gen",
@@ -37133,6 +37949,12 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_compiled",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
@@ -37243,6 +38065,12 @@
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_gen",
@@ -37644,6 +38472,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_unresolvable",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
     {
@@ -37734,6 +38568,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_unresolvable",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_parens_guarded"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_receive"
     },
     {
@@ -38166,6 +39006,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_if_else"
     },
     {
@@ -38269,6 +39115,12 @@
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_not_a_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_gen",
@@ -38730,6 +39582,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_if_else"
     },
     {
@@ -38839,6 +39697,12 @@
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_gen",
@@ -39300,6 +40164,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_if_else"
     },
     {
@@ -39409,6 +40279,12 @@
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_gen",
@@ -39870,6 +40746,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_if_else"
     },
     {
@@ -39979,6 +40861,12 @@
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_gen",
@@ -40440,6 +41328,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_if_else"
     },
     {
@@ -40549,6 +41443,12 @@
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_gen",
@@ -41010,6 +41910,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_if_else"
     },
     {
@@ -41119,6 +42025,12 @@
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_gen",
@@ -41580,6 +42492,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_if_else"
     },
     {
@@ -41689,6 +42607,12 @@
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_gen",
@@ -42150,6 +43074,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_if_else"
     },
     {
@@ -42259,6 +43189,12 @@
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_gen",
@@ -42689,6 +43625,12 @@
     {
       "backing": "ex_gen",
       "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
@@ -42787,6 +43729,12 @@
       "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_nfc"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_gen",
@@ -43217,6 +44165,12 @@
     {
       "backing": "ex_gen",
       "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_kind",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
@@ -43315,6 +44269,12 @@
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_nfc"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_gen",
@@ -43745,6 +44705,12 @@
     {
       "backing": "ex_gen",
       "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_args",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
@@ -43843,6 +44809,12 @@
       "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_nfc"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_gen",
@@ -44297,6 +45269,12 @@
     {
       "backing": "ex_gen",
       "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "generator_embed",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
@@ -44407,6 +45385,12 @@
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_gen",
@@ -44868,6 +45852,12 @@
       "backing": "ex_gen",
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_if_else"
     },
     {
@@ -44977,6 +45967,12 @@
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "ex_gen",
@@ -45385,6 +46381,12 @@
       "form": "def",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_for"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "def",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_guarded"
     },
     {
       "backing": "erl_abst",
@@ -45486,6 +46488,12 @@
       "backing": "erl_abst",
       "form": "def",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_parens_guarded"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "def",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_receive"
     },
     {
@@ -45894,6 +46902,12 @@
       "backing": "erl_abst",
       "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defp",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_if_else"
     },
     {
@@ -46002,6 +47016,12 @@
       "backing": "erl_abst",
       "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
+      "world": "x_parens_guarded"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defp",
+      "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_receive"
     },
     {
@@ -46458,6 +47478,12 @@
       "backing": "erl_abst",
       "form": "defmacro",
       "reason": "Erlang has only functions",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacro",
+      "reason": "Erlang has only functions",
       "world": "x_if_else"
     },
     {
@@ -46567,6 +47593,12 @@
       "form": "defmacro",
       "reason": "Erlang has only functions",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacro",
+      "reason": "Erlang has only functions",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_abst",
@@ -47028,6 +48060,12 @@
       "backing": "erl_abst",
       "form": "defmacrop",
       "reason": "Erlang has only functions",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacrop",
+      "reason": "Erlang has only functions",
       "world": "x_if_else"
     },
     {
@@ -47137,6 +48175,12 @@
       "form": "defmacrop",
       "reason": "Erlang has only functions",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacrop",
+      "reason": "Erlang has only functions",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_abst",
@@ -47598,6 +48642,12 @@
       "backing": "erl_abst",
       "form": "defguard",
       "reason": "Erlang has only functions",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguard",
+      "reason": "Erlang has only functions",
       "world": "x_if_else"
     },
     {
@@ -47707,6 +48757,12 @@
       "form": "defguard",
       "reason": "Erlang has only functions",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguard",
+      "reason": "Erlang has only functions",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_abst",
@@ -48168,6 +49224,12 @@
       "backing": "erl_abst",
       "form": "defguardp",
       "reason": "Erlang has only functions",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguardp",
+      "reason": "Erlang has only functions",
       "world": "x_if_else"
     },
     {
@@ -48277,6 +49339,12 @@
       "form": "defguardp",
       "reason": "Erlang has only functions",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguardp",
+      "reason": "Erlang has only functions",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_abst",
@@ -48738,6 +49806,12 @@
       "backing": "erl_abst",
       "form": "defdelegate",
       "reason": "Erlang has only functions",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate",
+      "reason": "Erlang has only functions",
       "world": "x_if_else"
     },
     {
@@ -48847,6 +49921,12 @@
       "form": "defdelegate",
       "reason": "Erlang has only functions",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate",
+      "reason": "Erlang has only functions",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_abst",
@@ -49308,6 +50388,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_compiled",
       "reason": "Erlang has only functions",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_compiled",
+      "reason": "Erlang has only functions",
       "world": "x_if_else"
     },
     {
@@ -49417,6 +50503,12 @@
       "form": "defdelegate_compiled",
       "reason": "Erlang has only functions",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_compiled",
+      "reason": "Erlang has only functions",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_abst",
@@ -49878,6 +50970,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_unresolvable",
       "reason": "Erlang has only functions",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_unresolvable",
+      "reason": "Erlang has only functions",
       "world": "x_if_else"
     },
     {
@@ -49987,6 +51085,12 @@
       "form": "defdelegate_unresolvable",
       "reason": "Erlang has only functions",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_unresolvable",
+      "reason": "Erlang has only functions",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_abst",
@@ -50448,6 +51552,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_as",
       "reason": "Erlang has only functions",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as",
+      "reason": "Erlang has only functions",
       "world": "x_if_else"
     },
     {
@@ -50557,6 +51667,12 @@
       "form": "defdelegate_as",
       "reason": "Erlang has only functions",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as",
+      "reason": "Erlang has only functions",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_abst",
@@ -51018,6 +52134,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_imports",
       "reason": "Erlang has only functions",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_imports",
+      "reason": "Erlang has only functions",
       "world": "x_if_else"
     },
     {
@@ -51127,6 +52249,12 @@
       "form": "defdelegate_imports",
       "reason": "Erlang has only functions",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_imports",
+      "reason": "Erlang has only functions",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_abst",
@@ -51588,6 +52716,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_list",
       "reason": "Erlang has only functions",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
       "world": "x_if_else"
     },
     {
@@ -51697,6 +52831,12 @@
       "form": "defdelegate_list",
       "reason": "Erlang has only functions",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_abst",
@@ -52158,6 +53298,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_list_trailing",
       "reason": "Erlang has only functions",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_trailing",
+      "reason": "Erlang has only functions",
       "world": "x_if_else"
     },
     {
@@ -52267,6 +53413,12 @@
       "form": "defdelegate_list_trailing",
       "reason": "Erlang has only functions",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_trailing",
+      "reason": "Erlang has only functions",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_abst",
@@ -52728,6 +53880,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_list_lines",
       "reason": "Erlang has only functions",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_lines",
+      "reason": "Erlang has only functions",
       "world": "x_if_else"
     },
     {
@@ -52837,6 +53995,12 @@
       "form": "defdelegate_list_lines",
       "reason": "Erlang has only functions",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_lines",
+      "reason": "Erlang has only functions",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_abst",
@@ -53298,6 +54462,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_as_list",
       "reason": "Erlang has only functions",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
       "world": "x_if_else"
     },
     {
@@ -53407,6 +54577,12 @@
       "form": "defdelegate_as_list",
       "reason": "Erlang has only functions",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_abst",
@@ -53868,6 +55044,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_as_attribute",
       "reason": "Erlang has only functions",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
       "world": "x_if_else"
     },
     {
@@ -53977,6 +55159,12 @@
       "form": "defdelegate_as_attribute",
       "reason": "Erlang has only functions",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_abst",
@@ -54438,6 +55626,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_doc",
       "reason": "Erlang has only functions",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
       "world": "x_if_else"
     },
     {
@@ -54547,6 +55741,12 @@
       "form": "defdelegate_doc",
       "reason": "Erlang has only functions",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_abst",
@@ -55008,6 +56208,12 @@
       "backing": "erl_abst",
       "form": "eex_function_from",
       "reason": "Erlang has only functions",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from",
+      "reason": "Erlang has only functions",
       "world": "x_if_else"
     },
     {
@@ -55117,6 +56323,12 @@
       "form": "eex_function_from",
       "reason": "Erlang has only functions",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from",
+      "reason": "Erlang has only functions",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_abst",
@@ -55578,6 +56790,12 @@
       "backing": "erl_abst",
       "form": "eex_function_from_kind",
       "reason": "Erlang has only functions",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_kind",
+      "reason": "Erlang has only functions",
       "world": "x_if_else"
     },
     {
@@ -55687,6 +56905,12 @@
       "form": "eex_function_from_kind",
       "reason": "Erlang has only functions",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_kind",
+      "reason": "Erlang has only functions",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_abst",
@@ -56148,6 +57372,12 @@
       "backing": "erl_abst",
       "form": "eex_function_from_args",
       "reason": "Erlang has only functions",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_args",
+      "reason": "Erlang has only functions",
       "world": "x_if_else"
     },
     {
@@ -56257,6 +57487,12 @@
       "form": "eex_function_from_args",
       "reason": "Erlang has only functions",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_args",
+      "reason": "Erlang has only functions",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_abst",
@@ -56718,6 +57954,12 @@
       "backing": "erl_abst",
       "form": "generator_embed",
       "reason": "Erlang has only functions",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "generator_embed",
+      "reason": "Erlang has only functions",
       "world": "x_if_else"
     },
     {
@@ -56827,6 +58069,12 @@
       "form": "generator_embed",
       "reason": "Erlang has only functions",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "generator_embed",
+      "reason": "Erlang has only functions",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_abst",
@@ -57288,6 +58536,12 @@
       "backing": "erl_abst",
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_if_else"
     },
     {
@@ -57397,6 +58651,12 @@
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_abst",
@@ -57852,6 +59112,12 @@
       "backing": "erl_gen",
       "form": "def",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "def",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
     },
     {
@@ -57961,6 +59227,12 @@
       "form": "def",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "def",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_gen",
@@ -58422,6 +59694,12 @@
       "backing": "erl_gen",
       "form": "defp",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defp",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
     },
     {
@@ -58531,6 +59809,12 @@
       "form": "defp",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defp",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_gen",
@@ -58992,6 +60276,12 @@
       "backing": "erl_gen",
       "form": "defmacro",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacro",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
     },
     {
@@ -59101,6 +60391,12 @@
       "form": "defmacro",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacro",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_gen",
@@ -59562,6 +60858,12 @@
       "backing": "erl_gen",
       "form": "defmacrop",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacrop",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
     },
     {
@@ -59671,6 +60973,12 @@
       "form": "defmacrop",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacrop",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_gen",
@@ -60132,6 +61440,12 @@
       "backing": "erl_gen",
       "form": "defguard",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguard",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
     },
     {
@@ -60241,6 +61555,12 @@
       "form": "defguard",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguard",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_gen",
@@ -60702,6 +62022,12 @@
       "backing": "erl_gen",
       "form": "defguardp",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguardp",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
     },
     {
@@ -60811,6 +62137,12 @@
       "form": "defguardp",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguardp",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_gen",
@@ -61272,6 +62604,12 @@
       "backing": "erl_gen",
       "form": "defdelegate",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
     },
     {
@@ -61381,6 +62719,12 @@
       "form": "defdelegate",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_gen",
@@ -61842,6 +63186,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_compiled",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_compiled",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
     },
     {
@@ -61951,6 +63301,12 @@
       "form": "defdelegate_compiled",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_compiled",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_gen",
@@ -62412,6 +63768,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_unresolvable",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
     },
     {
@@ -62521,6 +63883,12 @@
       "form": "defdelegate_unresolvable",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_gen",
@@ -62982,6 +64350,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_as",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
     },
     {
@@ -63091,6 +64465,12 @@
       "form": "defdelegate_as",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_gen",
@@ -63552,6 +64932,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_imports",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_imports",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
     },
     {
@@ -63661,6 +65047,12 @@
       "form": "defdelegate_imports",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_imports",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_gen",
@@ -64122,6 +65514,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_list",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
     },
     {
@@ -64231,6 +65629,12 @@
       "form": "defdelegate_list",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_gen",
@@ -64692,6 +66096,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_list_trailing",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
     },
     {
@@ -64801,6 +66211,12 @@
       "form": "defdelegate_list_trailing",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_gen",
@@ -65262,6 +66678,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_list_lines",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
     },
     {
@@ -65371,6 +66793,12 @@
       "form": "defdelegate_list_lines",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_gen",
@@ -65832,6 +67260,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_as_list",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
     },
     {
@@ -65941,6 +67375,12 @@
       "form": "defdelegate_as_list",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_gen",
@@ -66402,6 +67842,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_as_attribute",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
     },
     {
@@ -66511,6 +67957,12 @@
       "form": "defdelegate_as_attribute",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_gen",
@@ -66972,6 +68424,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_doc",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
     },
     {
@@ -67081,6 +68539,12 @@
       "form": "defdelegate_doc",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_gen",
@@ -67542,6 +69006,12 @@
       "backing": "erl_gen",
       "form": "eex_function_from",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
     },
     {
@@ -67651,6 +69121,12 @@
       "form": "eex_function_from",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_gen",
@@ -68112,6 +69588,12 @@
       "backing": "erl_gen",
       "form": "eex_function_from_kind",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_kind",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
     },
     {
@@ -68221,6 +69703,12 @@
       "form": "eex_function_from_kind",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_kind",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_gen",
@@ -68682,6 +70170,12 @@
       "backing": "erl_gen",
       "form": "eex_function_from_args",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_args",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
     },
     {
@@ -68791,6 +70285,12 @@
       "form": "eex_function_from_args",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_args",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_gen",
@@ -69252,6 +70752,12 @@
       "backing": "erl_gen",
       "form": "generator_embed",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "generator_embed",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_if_else"
     },
     {
@@ -69361,6 +70867,12 @@
       "form": "generator_embed",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "generator_embed",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_gen",
@@ -69822,6 +71334,12 @@
       "backing": "erl_gen",
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_guarded"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_if_else"
     },
     {
@@ -69931,6 +71449,12 @@
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_parens_guarded"
     },
     {
       "backing": "erl_gen",
@@ -76308,6 +77832,204 @@
     {
       "backing": "src",
       "brokenCallers": [],
+      "caller": "lib/callers/src/def/x_guarded.ex",
+      "form": "def",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 5,
+              "name": "src_def_x_guarded_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_def_x_guarded_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": "is_tuple(q)",
+              "name": "src_def_x_guarded_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Def.XGuarded",
+          "source": "lib/src/src.def.x_guarded.ex",
+          "spec": "lib/src/src.def.x_guarded.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.Def.XGuarded",
+            "name": "src_def_x_guarded_snoc"
+          },
+          "column": 48,
+          "file": "lib/callers/src/def/x_guarded.ex",
+          "id": "qualified",
+          "line": 7,
+          "name": "src_def_x_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.Def.XGuarded",
+            "name": "src_def_x_guarded_snoc"
+          },
+          "column": 38,
+          "file": "lib/callers/src/def/x_guarded.ex",
+          "id": "aliased",
+          "line": 8,
+          "name": "src_def_x_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.Def.XGuarded",
+            "name": "src_def_x_guarded_snoc"
+          },
+          "column": 40,
+          "file": "lib/callers/src/def/x_guarded.ex",
+          "id": "aliased_as",
+          "line": 9,
+          "name": "src_def_x_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_function",
+            "module": "Src.Def.XGuarded",
+            "name": "src_def_x_guarded_snoc"
+          },
+          "column": 33,
+          "file": "lib/callers/src/def/x_guarded.ex",
+          "id": "unqualified",
+          "line": 10,
+          "name": "src_def_x_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_function",
+            "module": "Src.Def.XGuarded",
+            "name": "src_def_x_guarded_snoc"
+          },
+          "column": 31,
+          "file": "lib/callers/src/def/x_guarded.ex",
+          "id": "pipe",
+          "line": 11,
+          "name": "src_def_x_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.Def.XGuarded",
+            "name": "src_def_x_guarded_snoc"
+          },
+          "column": 48,
+          "file": "lib/callers/src/def/x_guarded.ex",
+          "id": "capture",
+          "line": 12,
+          "name": "src_def_x_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "apply",
+            "module": "Src.Def.XGuarded",
+            "name": "src_def_x_guarded_snoc"
+          },
+          "column": 52,
+          "file": "lib/callers/src/def/x_guarded.ex",
+          "id": "apply",
+          "line": 13,
+          "name": "src_def_x_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Def.XGuarded",
+            "name": "src_def_x_guarded_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.def.x_guarded.ex",
+          "id": "local",
+          "line": 7,
+          "name": "src_def_x_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Def.XGuarded",
+            "name": "src_def_x_guarded_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.def.x_guarded.ex",
+          "id": "local_forward",
+          "line": 3,
+          "name": "src_def_x_guarded_snoc"
+        }
+      ],
+      "world": "x_guarded"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
       "caller": "lib/callers/src/def/x_if_else.ex",
       "form": "def",
       "importCallers": [],
@@ -79499,6 +81221,204 @@
         }
       ],
       "world": "x_other_module"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/def/x_parens_guarded.ex",
+      "form": "def",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 5,
+              "name": "src_def_x_parens_guarded_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_def_x_parens_guarded_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": "is_tuple(q)",
+              "name": "src_def_x_parens_guarded_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Def.XParensGuarded",
+          "source": "lib/src/src.def.x_parens_guarded.ex",
+          "spec": "lib/src/src.def.x_parens_guarded.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.Def.XParensGuarded",
+            "name": "src_def_x_parens_guarded_snoc"
+          },
+          "column": 54,
+          "file": "lib/callers/src/def/x_parens_guarded.ex",
+          "id": "qualified",
+          "line": 7,
+          "name": "src_def_x_parens_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.Def.XParensGuarded",
+            "name": "src_def_x_parens_guarded_snoc"
+          },
+          "column": 44,
+          "file": "lib/callers/src/def/x_parens_guarded.ex",
+          "id": "aliased",
+          "line": 8,
+          "name": "src_def_x_parens_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.Def.XParensGuarded",
+            "name": "src_def_x_parens_guarded_snoc"
+          },
+          "column": 40,
+          "file": "lib/callers/src/def/x_parens_guarded.ex",
+          "id": "aliased_as",
+          "line": 9,
+          "name": "src_def_x_parens_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_function",
+            "module": "Src.Def.XParensGuarded",
+            "name": "src_def_x_parens_guarded_snoc"
+          },
+          "column": 33,
+          "file": "lib/callers/src/def/x_parens_guarded.ex",
+          "id": "unqualified",
+          "line": 10,
+          "name": "src_def_x_parens_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_function",
+            "module": "Src.Def.XParensGuarded",
+            "name": "src_def_x_parens_guarded_snoc"
+          },
+          "column": 31,
+          "file": "lib/callers/src/def/x_parens_guarded.ex",
+          "id": "pipe",
+          "line": 11,
+          "name": "src_def_x_parens_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_function",
+            "module": "Src.Def.XParensGuarded",
+            "name": "src_def_x_parens_guarded_snoc"
+          },
+          "column": 54,
+          "file": "lib/callers/src/def/x_parens_guarded.ex",
+          "id": "capture",
+          "line": 12,
+          "name": "src_def_x_parens_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "apply",
+            "module": "Src.Def.XParensGuarded",
+            "name": "src_def_x_parens_guarded_snoc"
+          },
+          "column": 58,
+          "file": "lib/callers/src/def/x_parens_guarded.ex",
+          "id": "apply",
+          "line": 13,
+          "name": "src_def_x_parens_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Def.XParensGuarded",
+            "name": "src_def_x_parens_guarded_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.def.x_parens_guarded.ex",
+          "id": "local",
+          "line": 7,
+          "name": "src_def_x_parens_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Def.XParensGuarded",
+            "name": "src_def_x_parens_guarded_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.def.x_parens_guarded.ex",
+          "id": "local_forward",
+          "line": 3,
+          "name": "src_def_x_parens_guarded_snoc"
+        }
+      ],
+      "world": "x_parens_guarded"
     },
     {
       "backing": "src",
@@ -104272,6 +106192,116 @@
     {
       "backing": "src",
       "brokenCallers": [],
+      "caller": "lib/callers/src/defp/x_guarded.ex",
+      "form": "defp",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 8,
+              "definer": "defp",
+              "line": 5,
+              "name": "src_defp_x_guarded_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defp_x_guarded_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": "is_tuple(q)",
+              "name": "src_defp_x_guarded_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "uses",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Defp.XGuarded",
+          "source": "lib/src/src.defp.x_guarded.ex",
+          "spec": "lib/src/src.defp.x_guarded.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.XGuarded",
+            "name": "src_defp_x_guarded_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defp.x_guarded.ex",
+          "id": "local",
+          "line": 7,
+          "name": "src_defp_x_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.XGuarded",
+            "name": "src_defp_x_guarded_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defp.x_guarded.ex",
+          "id": "local_forward",
+          "line": 3,
+          "name": "src_defp_x_guarded_snoc"
+        }
+      ],
+      "world": "x_guarded"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
       "caller": "lib/callers/src/defp/x_if_else.ex",
       "form": "defp",
       "importCallers": [],
@@ -104754,6 +106784,116 @@
         }
       ],
       "world": "x_nfc"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/defp/x_parens_guarded.ex",
+      "form": "defp",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 8,
+              "definer": "defp",
+              "line": 5,
+              "name": "src_defp_x_parens_guarded_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defp_x_parens_guarded_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_forward",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "defp",
+              "guard": "is_tuple(q)",
+              "name": "src_defp_x_parens_guarded_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "uses",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Defp.XParensGuarded",
+          "source": "lib/src/src.defp.x_parens_guarded.ex",
+          "spec": "lib/src/src.defp.x_parens_guarded.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.XParensGuarded",
+            "name": "src_defp_x_parens_guarded_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defp.x_parens_guarded.ex",
+          "id": "local",
+          "line": 7,
+          "name": "src_defp_x_parens_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Defp.XParensGuarded",
+            "name": "src_defp_x_parens_guarded_snoc"
+          },
+          "column": 32,
+          "file": "lib/src/src.defp.x_parens_guarded.ex",
+          "id": "local_forward",
+          "line": 3,
+          "name": "src_defp_x_parens_guarded_snoc"
+        }
+      ],
+      "world": "x_parens_guarded"
     },
     {
       "backing": "src",
@@ -124511,6 +126651,152 @@
     {
       "backing": "src",
       "brokenCallers": [],
+      "caller": "lib/callers/src/defmacro/x_guarded.ex",
+      "form": "defmacro",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 12,
+              "definer": "defmacro",
+              "line": 3,
+              "name": "src_defmacro_x_guarded_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defmacro_x_guarded_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": "is_tuple(q)",
+              "name": "src_defmacro_x_guarded_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Defmacro.XGuarded",
+          "source": "lib/src/src.defmacro.x_guarded.ex",
+          "spec": "lib/src/src.defmacro.x_guarded.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defmacro.XGuarded",
+            "name": "src_defmacro_x_guarded_snoc"
+          },
+          "column": 53,
+          "file": "lib/callers/src/defmacro/x_guarded.ex",
+          "id": "qualified",
+          "line": 8,
+          "name": "src_defmacro_x_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defmacro.XGuarded",
+            "name": "src_defmacro_x_guarded_snoc"
+          },
+          "column": 38,
+          "file": "lib/callers/src/defmacro/x_guarded.ex",
+          "id": "aliased",
+          "line": 9,
+          "name": "src_defmacro_x_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defmacro.XGuarded",
+            "name": "src_defmacro_x_guarded_snoc"
+          },
+          "column": 40,
+          "file": "lib/callers/src/defmacro/x_guarded.ex",
+          "id": "aliased_as",
+          "line": 10,
+          "name": "src_defmacro_x_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_macro",
+            "module": "Src.Defmacro.XGuarded",
+            "name": "src_defmacro_x_guarded_snoc"
+          },
+          "column": 33,
+          "file": "lib/callers/src/defmacro/x_guarded.ex",
+          "id": "unqualified",
+          "line": 11,
+          "name": "src_defmacro_x_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_macro",
+            "module": "Src.Defmacro.XGuarded",
+            "name": "src_defmacro_x_guarded_snoc"
+          },
+          "column": 31,
+          "file": "lib/callers/src/defmacro/x_guarded.ex",
+          "id": "pipe",
+          "line": 12,
+          "name": "src_defmacro_x_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacro.XGuarded",
+            "name": "src_defmacro_x_guarded_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defmacro.x_guarded.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defmacro_x_guarded_snoc"
+        }
+      ],
+      "world": "x_guarded"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
       "caller": "lib/callers/src/defmacro/x_if_else.ex",
       "form": "defmacro",
       "importCallers": [],
@@ -125960,6 +128246,152 @@
         }
       ],
       "world": "x_other_module"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/defmacro/x_parens_guarded.ex",
+      "form": "defmacro",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 12,
+              "definer": "defmacro",
+              "line": 3,
+              "name": "src_defmacro_x_parens_guarded_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defmacro_x_parens_guarded_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": "is_tuple(q)",
+              "name": "src_defmacro_x_parens_guarded_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Defmacro.XParensGuarded",
+          "source": "lib/src/src.defmacro.x_parens_guarded.ex",
+          "spec": "lib/src/src.defmacro.x_parens_guarded.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defmacro.XParensGuarded",
+            "name": "src_defmacro_x_parens_guarded_snoc"
+          },
+          "column": 59,
+          "file": "lib/callers/src/defmacro/x_parens_guarded.ex",
+          "id": "qualified",
+          "line": 8,
+          "name": "src_defmacro_x_parens_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defmacro.XParensGuarded",
+            "name": "src_defmacro_x_parens_guarded_snoc"
+          },
+          "column": 44,
+          "file": "lib/callers/src/defmacro/x_parens_guarded.ex",
+          "id": "aliased",
+          "line": 9,
+          "name": "src_defmacro_x_parens_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defmacro.XParensGuarded",
+            "name": "src_defmacro_x_parens_guarded_snoc"
+          },
+          "column": 40,
+          "file": "lib/callers/src/defmacro/x_parens_guarded.ex",
+          "id": "aliased_as",
+          "line": 10,
+          "name": "src_defmacro_x_parens_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_macro",
+            "module": "Src.Defmacro.XParensGuarded",
+            "name": "src_defmacro_x_parens_guarded_snoc"
+          },
+          "column": 33,
+          "file": "lib/callers/src/defmacro/x_parens_guarded.ex",
+          "id": "unqualified",
+          "line": 11,
+          "name": "src_defmacro_x_parens_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_macro",
+            "module": "Src.Defmacro.XParensGuarded",
+            "name": "src_defmacro_x_parens_guarded_snoc"
+          },
+          "column": 31,
+          "file": "lib/callers/src/defmacro/x_parens_guarded.ex",
+          "id": "pipe",
+          "line": 12,
+          "name": "src_defmacro_x_parens_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacro.XParensGuarded",
+            "name": "src_defmacro_x_parens_guarded_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defmacro.x_parens_guarded.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defmacro_x_parens_guarded_snoc"
+        }
+      ],
+      "world": "x_parens_guarded"
     },
     {
       "backing": "src",
@@ -149275,6 +151707,92 @@
     {
       "backing": "src",
       "brokenCallers": [],
+      "caller": "lib/callers/src/defmacrop/x_guarded.ex",
+      "form": "defmacrop",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 13,
+              "definer": "defmacrop",
+              "line": 3,
+              "name": "src_defmacrop_x_guarded_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defmacrop_x_guarded_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacrop",
+              "guard": "is_tuple(q)",
+              "name": "src_defmacrop_x_guarded_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "uses",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Defmacrop.XGuarded",
+          "source": "lib/src/src.defmacrop.x_guarded.ex",
+          "spec": "lib/src/src.defmacrop.x_guarded.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.XGuarded",
+            "name": "src_defmacrop_x_guarded_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defmacrop.x_guarded.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defmacrop_x_guarded_snoc"
+        }
+      ],
+      "world": "x_guarded"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
       "caller": "lib/callers/src/defmacrop/x_if_else.ex",
       "form": "defmacrop",
       "importCallers": [],
@@ -149733,6 +152251,92 @@
         }
       ],
       "world": "x_nfc"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/defmacrop/x_parens_guarded.ex",
+      "form": "defmacrop",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 13,
+              "definer": "defmacrop",
+              "line": 3,
+              "name": "src_defmacrop_x_parens_guarded_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defmacrop_x_parens_guarded_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacrop",
+              "guard": "is_tuple(q)",
+              "name": "src_defmacrop_x_parens_guarded_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "uses",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Defmacrop.XParensGuarded",
+          "source": "lib/src/src.defmacrop.x_parens_guarded.ex",
+          "spec": "lib/src/src.defmacrop.x_parens_guarded.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacrop.XParensGuarded",
+            "name": "src_defmacrop_x_parens_guarded_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defmacrop.x_parens_guarded.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defmacrop_x_parens_guarded_snoc"
+        }
+      ],
+      "world": "x_parens_guarded"
     },
     {
       "backing": "src",
@@ -167999,6 +170603,152 @@
         }
       ],
       "world": "x_other_module"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/defguard/x_parens_guarded.ex",
+      "form": "defguard",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 12,
+              "definer": "defguard",
+              "line": 3,
+              "name": "src_defguard_x_parens_guarded_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defguard_x_parens_guarded_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defguard",
+              "guard": "is_list(q) or is_list(x)",
+              "name": "src_defguard_x_parens_guarded_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Defguard.XParensGuarded",
+          "source": "lib/src/src.defguard.x_parens_guarded.ex",
+          "spec": "lib/src/src.defguard.x_parens_guarded.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defguard.XParensGuarded",
+            "name": "src_defguard_x_parens_guarded_snoc"
+          },
+          "column": 59,
+          "file": "lib/callers/src/defguard/x_parens_guarded.ex",
+          "id": "qualified",
+          "line": 8,
+          "name": "src_defguard_x_parens_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defguard.XParensGuarded",
+            "name": "src_defguard_x_parens_guarded_snoc"
+          },
+          "column": 44,
+          "file": "lib/callers/src/defguard/x_parens_guarded.ex",
+          "id": "aliased",
+          "line": 9,
+          "name": "src_defguard_x_parens_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "remote_macro",
+            "module": "Src.Defguard.XParensGuarded",
+            "name": "src_defguard_x_parens_guarded_snoc"
+          },
+          "column": 40,
+          "file": "lib/callers/src/defguard/x_parens_guarded.ex",
+          "id": "aliased_as",
+          "line": 10,
+          "name": "src_defguard_x_parens_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_macro",
+            "module": "Src.Defguard.XParensGuarded",
+            "name": "src_defguard_x_parens_guarded_snoc"
+          },
+          "column": 33,
+          "file": "lib/callers/src/defguard/x_parens_guarded.ex",
+          "id": "unqualified",
+          "line": 11,
+          "name": "src_defguard_x_parens_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "imported_macro",
+            "module": "Src.Defguard.XParensGuarded",
+            "name": "src_defguard_x_parens_guarded_snoc"
+          },
+          "column": 31,
+          "file": "lib/callers/src/defguard/x_parens_guarded.ex",
+          "id": "pipe",
+          "line": 12,
+          "name": "src_defguard_x_parens_guarded_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defguard.XParensGuarded",
+            "name": "src_defguard_x_parens_guarded_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defguard.x_parens_guarded.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defguard_x_parens_guarded_snoc"
+        }
+      ],
+      "world": "x_parens_guarded"
     },
     {
       "backing": "src",
@@ -190208,6 +192958,92 @@
         }
       ],
       "world": "x_nfc"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/defguardp/x_parens_guarded.ex",
+      "form": "defguardp",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 13,
+              "definer": "defguardp",
+              "line": 3,
+              "name": "src_defguardp_x_parens_guarded_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defguardp_x_parens_guarded_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defguardp",
+              "guard": "is_list(q) or is_list(x)",
+              "name": "src_defguardp_x_parens_guarded_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "uses",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Defguardp.XParensGuarded",
+          "source": "lib/src/src.defguardp.x_parens_guarded.ex",
+          "spec": "lib/src/src.defguardp.x_parens_guarded.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defguardp.XParensGuarded",
+            "name": "src_defguardp_x_parens_guarded_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defguardp.x_parens_guarded.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defguardp_x_parens_guarded_snoc"
+        }
+      ],
+      "world": "x_parens_guarded"
     },
     {
       "backing": "src",
