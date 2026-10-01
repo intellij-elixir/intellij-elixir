@@ -168,7 +168,10 @@ class Site(
      * whole. Empty where nothing is brought in at all.
      */
     val visible: List<String>? = null,
-    /** For an interpolated atom, the lines of [file] declaring the module it evaluates to: where Go To Declaration lands. */
+    /**
+     * Where Go To Declaration lands, as lines of [file]: for an interpolated atom, those declaring the module it evaluates
+     * to; empty where it must land nowhere, even on a definition outside the scenario's modules.
+     */
     val targets: List<Int>? = null,
     /** For a module attribute's read or write, what the compiler says of it; null at a call. */
     val attribute: AttributeSite? = null,
