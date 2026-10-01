@@ -245,7 +245,8 @@ private fun rescue(arrow: ElixirAst, arg: ElixirAst, state: ExState, env: Env, r
                 rescueIn(arrow, arg, left, right, state, env, run)
             }
         }
-        // From 1.15 a call is macro-expanded once, which needs dispatch; before, it is expanded as `_ in` it.
+        // Elixir's `{_, _, _}` shape (a call, a block, a tuple not of two) is macro-expanded once from 1.15, and before
+        // is expanded as `_ in` it; neither is ported.
         arg is ElixirAst.Call || arg is ElixirAst.Block || arg is ElixirAst.Placeholder ||
             arg is ElixirAst.Tuple && arg.elements.size != 2 -> Expansion.Unported(arg)
         else -> rescueIn(arrow, arg, underscore(arg), arg, state, env, run)
@@ -344,7 +345,7 @@ private inline fun options(
 }
 
 /** The atom [option] pairs a value with, if it is such a pair. */
-private fun keyOf(option: ElixirAst): String? =
+internal fun keyOf(option: ElixirAst): String? =
     ((option as? ElixirAst.Tuple)?.takeIf { it.elements.size == 2 }?.elements?.first() as? ElixirAst.Literal.Atom)?.name
 
 /**
