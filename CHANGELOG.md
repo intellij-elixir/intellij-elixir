@@ -122,6 +122,13 @@
 
 ### Bug Fixes
 
+- [#4321](https://github.com/intellij-elixir/intellij-elixir/pull/4321) [@sh41](https://github.com/sh41)
+  - **A module written as a quoted atom or with an `Elixir.` prefix (`:"Elixir.Foo".f()`, `alias Elixir.Foo.Bar`,
+    `defmodule :"Elixir.Foo"`, a `` `Elixir.Foo` `` documentation link, `Elixir.EEx.function_from_file`, a quoted
+    `Router.Helpers` alias) is recognised as that module, as is a HEEx component defined with a quoted name; Find
+    Usages and Rename from a module nested in another reach its uses; a module nested in one named by an atom gets
+    the name Elixir gives it; and the debugger no longer sets breakpoints in a module that doesn't exist.** Fixes
+    [#4307](https://github.com/intellij-elixir/intellij-elixir/issues/4307).
 - [#4314](https://github.com/intellij-elixir/intellij-elixir/pull/4314) [@sh41](https://github.com/sh41)
   - **An `import` whose `only:` or `except:` list holds anything but `name: arity` pairs now brings in nothing, as
     Elixir rejects it, `only: [{:f, 1}]` brings in `f/1`, and `except: [{:f, 1}]` leaves it out.** Fixes [#4301](https://github.com/intellij-elixir/intellij-elixir/issues/4301).
