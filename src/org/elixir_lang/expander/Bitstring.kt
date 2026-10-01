@@ -18,12 +18,23 @@ import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import java.math.BigInteger
 
-/** `elixir_bitstring:expand/5`, outside a generator. */
-internal fun expandBitstring(node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion {
+/**
+ * `elixir_bitstring:expand/5`.
+ *
+ * @param requireSize whether every segment needs a size, as in a generator's pattern, and not only those before the
+ *   last in a pattern
+ */
+internal fun expandBitstring(
+    node: ElixirAst.Call,
+    state: ExState,
+    env: Env,
+    run: Run,
+    requireSize: Boolean = false,
+): Expansion {
     val segments = node.arguments!!
 
     return if (env.context == Env.Context.MATCH) {
-        expandSegments(node, segments, state, state, env, run).then { s, e ->
+        expandSegments(node, segments, state, state, env, run, requireSize).then { s, e ->
             if (!BITSTRING_PATTERN_SEGMENT_VALIDATED.isSufficient(run.level) && segments.any(::containsMatch)) {
                 Expansion.Error("nested_match", node)
             } else {
@@ -31,7 +42,7 @@ internal fun expandBitstring(node: ElixirAst.Call, state: ExState, env: Env, run
             }
         }
     } else {
-        argumentScope(state, env) { scope -> expandSegments(node, segments, scope, state, env, run) }
+        argumentScope(state, env) { scope -> expandSegments(node, segments, scope, state, env, run, requireSize) }
     }
 }
 
@@ -47,6 +58,7 @@ private fun expandSegments(
     original: ExState,
     env: Env,
     run: Run,
+    requireSize: Boolean,
 ): Expansion {
     val level = run.level
     val context = env.context
@@ -55,7 +67,7 @@ private fun expandSegments(
     var bareMeta = bitstring
 
     for ((index, segment) in segments.withIndex()) {
-        val matchSize = matchSize(context, index, segments)
+        val matchSize = requireSize || matchSize(context, index, segments)
         val typed = isCall(segment, "::", 2)
         val value = if (typed) (segment as ElixirAst.Call).arguments!![0] else segment
         val (metaNode, nextBareMeta) = if (typed) segment to bareMeta else bareMeta(segment, bareMeta, level)
@@ -537,7 +549,8 @@ private fun alignment(type: String, size: SpecArg?, unit: SpecArg?): Int? {
  * after checking its last part and, for `binary`, its alignment.
  *
  * @param at where the segment's own errors are reported
- * @param matchSize whether this segment is in a pattern and another follows it
+ * @param matchSize whether this segment needs a size: it is in a pattern and another follows it, or it is in a
+ *   generator's pattern
  */
 private fun concat(
     at: ElixirAst,

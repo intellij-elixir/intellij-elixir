@@ -152,14 +152,26 @@ internal fun clause(
     return head(arrow, elements, state, env).then { s, e -> Expander.expand(body, s, e, run) }
 }
 
-/** `elixir_clauses:head/4`: [args] as a pattern, and a guard after a `when` as a guard. */
-internal fun head(arrow: ElixirAst, args: List<ElixirAst>, state: ExState, env: Env, run: Run): Expansion {
+/**
+ * `elixir_clauses:head/4`: [args] as a pattern, and a guard after a `when` as a guard.
+ *
+ * @param before the state whose variables a `^` reads: [state] itself, except before 1.13, where a `<-` pattern starts
+ *   from what its right side bound and pins what was bound before it
+ */
+internal fun head(
+    arrow: ElixirAst,
+    args: List<ElixirAst>,
+    state: ExState,
+    env: Env,
+    run: Run,
+    before: ExState = state,
+): Expansion {
     val all = args.singleOrNull()?.let(::whenArguments)
 
     return if (!all.isNullOrEmpty()) {
-        guardedHead(arrow, all.dropLast(1), all.last(), state, env, run)
+        guardedHead(arrow, all.dropLast(1), all.last(), state, env, run, before)
     } else {
-        match(state, state, env, arrow) { s, e -> expandArgs(args, s, e, run) }
+        match(state, before, env, arrow) { s, e -> expandArgs(args, s, e, run) }
     }
 }
 
@@ -174,8 +186,9 @@ private fun guardedHead(
     state: ExState,
     env: Env,
     run: Run,
+    before: ExState = state,
 ): Expansion =
-    match(state, state, env, arrow) { s, e -> expandArgs(args, s, e, run) }.then { s, e ->
+    match(state, before, env, arrow) { s, e -> expandArgs(args, s, e, run) }.then { s, e ->
         guard(guardNode, s, e.copy(context = Env.Context.GUARD), run)
     }.then { s, e -> Expansion.Expanded(s, e.copy(context = Env.Context.NONE)) }
 
@@ -183,7 +196,7 @@ private fun guardedHead(
  * `elixir_clauses:expand_head/2`: one argument, as a pattern. A clause of another arity raises at the construct before
  * 1.18, and at the clause from it.
  */
-private fun expandHead(construct: ElixirAst, run: Run): HeadExpansion = { arrow, args, state, env ->
+internal fun expandHead(construct: ElixirAst, run: Run): HeadExpansion = { arrow, args, state, env ->
     val single = args.singleOrNull()
     val at = if (PARALLEL_MATCH.isSufficient(run.level)) arrow else construct
 

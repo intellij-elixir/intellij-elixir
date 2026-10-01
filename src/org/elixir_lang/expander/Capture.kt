@@ -1,0 +1,281 @@
+package org.elixir_lang.expander
+
+import org.elixir_lang.language_level.ElixirLanguageFeature.CAPTURE_ARGUMENT_BELOW_ONE_IS_INVALID_ARITY
+import org.elixir_lang.language_level.ElixirLanguageFeature.CAPTURE_REPORTED_AT_CALL
+import org.elixir_lang.language_level.ElixirLanguageFeature.REMOTE_CAPTURE_REPORTED_AT_CALL
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.lowering.ElixirAst
+import java.math.BigInteger
+
+/** The heads of `elixir_fn:capture/4` and `escape/3`, which aren't clauses of `expand`. */
+internal val CAPTURE_HEADS = listOf(
+    captureHead("{'/',_,[{{'.',_,[_,V1]},_,[]},V2]} when is_atom(V1), is_integer(V2)"),
+    captureHead("{'/',_,[{V1,_,V2},V3]} when is_atom(V1), is_integer(V3), is_atom(V2)"),
+    captureHead("{{'.',_,[_,V1]},_,V2} when is_atom(V1), is_list(V2)"),
+    captureHead("{{'.',_,[_]},_,V1} when is_list(V1)"),
+    captureHead("{'__block__',_,[_]}"),
+    captureHead("{'__block__',_,_}"),
+    captureHead("{V1,_,V2} when is_atom(V1), is_list(V2)"),
+    captureHead("{_,_}"),
+    captureHead("V1 when is_list(V1)"),
+    captureHead("V1 when is_integer(V1)"),
+    captureHead("_"),
+    escapeHead("{'&',_,[V1]} when is_integer(V1), V1 > 0"),
+    escapeHead("{'&',_,[V1]} when is_integer(V1)"),
+    escapeHead("{'&',_,_}"),
+    escapeHead("{_,_,_}"),
+    escapeHead("{_,_}"),
+    escapeHead("V1 when is_list(V1)"),
+    escapeHead("_"),
+)
+
+/**
+ * `elixir_expand:expand_fn_capture/4` through `elixir_fn:capture/4`, for [node], `&` of one argument. A capture that
+ * looks a function up isn't ported; any other expands as the `fn` Elixir rewrites it to, or is a remote capture on a
+ * variable, which reads only that variable.
+ */
+internal fun expandCapture(node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion =
+    capture(node, node.arguments!!.single(), state, env, run)
+
+/** Whether a capture's arguments are `&1` to `&N` in order: `check_sequential_and_not_empty/1`, or `&fun/arity`'s. */
+private enum class Arguments { ARITY, SEQUENTIAL, NON_SEQUENTIAL }
+
+private fun capture(amp: ElixirAst.Call, arg: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
+    val call = arg as? ElixirAst.Call
+    val dot = (call?.callee as? ElixirAst.Call)
+        ?.takeIf { (it.callee as? ElixirAst.Literal.Atom)?.name == "." }
+        ?.arguments
+    val name = (call?.callee as? ElixirAst.Literal.Atom)?.name
+    val atCall = captureAt(amp, arg, run)
+
+    return when {
+        isCall(arg, "/", 2) && isRemoteFunction((arg as ElixirAst.Call).arguments!![0]) && isInteger(arg.arguments!![1]) -> {
+            val (function, arity) = arg.arguments
+            val remote = function as ElixirAst.Call
+
+            argumentsFromArity(amp, arity)?.let { args ->
+                captureRequire(amp, ElixirAst.Call(remote.meta, remote.callee, args), Arguments.ARITY, state, env, run)
+            } ?: Expansion.Error("invalid_arity_for_capture", amp)
+        }
+        // `import_function/4` decides between an import, a macro and a local.
+        isCall(arg, "/", 2) && isVariable((arg as ElixirAst.Call).arguments!![0]) && isInteger(arg.arguments!![1]) ->
+            if (argumentsFromArity(amp, arg.arguments[1]) == null) {
+                Expansion.Error("invalid_arity_for_capture", amp)
+            } else {
+                Expansion.Unported(amp)
+            }
+        dot?.size == 2 && dot[1] is ElixirAst.Literal.Atom && call.arguments != null ->
+            captureRequire(amp, call, arguments(call.arguments), state, env, run)
+        dot?.size == 1 && call.arguments != null -> captureExpr(amp, call, Arguments.NON_SEQUENTIAL, state, env, run)
+        arg is ElixirAst.Block && arg.expressions.size == 1 -> capture(amp, arg.expressions.single(), state, env, run)
+        arg is ElixirAst.Block -> Expansion.Error("block_expr_in_capture", amp)
+        name != null && call.arguments != null -> captureImport(amp, atCall, call, name, call.arguments, state, env, run)
+        arg is ElixirAst.Alias -> captureImport(amp, atCall, arg, "__aliases__", arg.segments, state, env, run)
+        arg is ElixirAst.Tuple && arg.elements.size != 2 -> captureImport(amp, atCall, arg, "{}", arg.elements, state, env, run)
+        // `{left, right}` becomes `{'{}', Meta, [left, right]}` with the `&`'s metadata.
+        arg is ElixirAst.Tuple -> captureImport(amp, amp, arg, "{}", arg.elements, state, env, run)
+        arg is ElixirAst.ListNode -> captureExpr(amp, arg, arguments(arg.elements), state, env, run)
+        arg is ElixirAst.Literal.Integer -> Expansion.Error("capture_arg_outside_of_capture", amp)
+        arg is ElixirAst.Placeholder -> Expansion.Unported(arg)
+        else -> Expansion.Error("invalid_args_for_capture", amp)
+    }
+}
+
+/**
+ * `capture_import/4`: `import_function/4` looks up a call of sequential arguments, and answers `false` for a special
+ * form, which no import can name.
+ *
+ * @param at where the capture's errors are reported
+ */
+private fun captureImport(
+    amp: ElixirAst,
+    at: ElixirAst,
+    expr: ElixirAst,
+    name: String,
+    args: List<ElixirAst>,
+    state: ExState,
+    env: Env,
+    run: Run,
+): Expansion =
+    when (arguments(args)) {
+        Arguments.NON_SEQUENTIAL -> captureExpr(at, expr, Arguments.NON_SEQUENTIAL, state, env, run)
+        else ->
+            if (specialForm(name, args.size, run.level)) {
+                captureExpr(at, expr, Arguments.SEQUENTIAL, state, env, run)
+            } else {
+                Expansion.Unported(amp)
+            }
+    }
+
+/**
+ * `capture_require/4` for [call], a remote call: the module part, unless it has an `&N`, is expanded first. A module
+ * part that expands to a variable needs no lookup, and one that expands to an atom needs `require_function/5`.
+ */
+private fun captureRequire(
+    amp: ElixirAst,
+    call: ElixirAst.Call,
+    arguments: Arguments,
+    state: ExState,
+    env: Env,
+    run: Run,
+): Expansion {
+    val module = ((call.callee as ElixirAst.Call).arguments!!)[0]
+    val escape = Escape(run.level).apply { escape(module) }
+
+    escape.error?.let { return it }
+
+    return if (escape.variables.isNotEmpty()) {
+        captureExpr(captureAt(amp, call, run), call, arguments, state, env, run)
+    } else {
+        Expander.expand(module, state, env, run).then { s, e ->
+            val shape = expandedShape(module)
+
+            when {
+                arguments != Arguments.NON_SEQUENTIAL && isVariable(shape) -> Expansion.Expanded(s, e)
+                arguments != Arguments.NON_SEQUENTIAL && shape is ElixirAst.Literal.Atom -> Expansion.Unported(amp)
+                else -> captureExpr(captureAt(amp, call, run, plainRemote = true), call, arguments, s, e, run)
+            }
+        }
+    }
+}
+
+/**
+ * Where a capture of [call] reports its errors: [call] from 1.16, or from 1.14.0-rc.1 for a [plainRemote] call, one
+ * whose module part has no `&N`; [amp] before.
+ */
+private fun captureAt(amp: ElixirAst, call: ElixirAst, run: Run, plainRemote: Boolean = false): ElixirAst {
+    val entry = if (plainRemote) REMOTE_CAPTURE_REPORTED_AT_CALL else CAPTURE_REPORTED_AT_CALL
+
+    return if (entry.isSufficient(run.level)) call else amp
+}
+
+/**
+ * `capture_expr/6`: [expr] with each `&N` replaced by the variable for `N`, as the body of an `fn` whose parameters are
+ * those variables in order, which must be `&1` to the highest `&N`.
+ *
+ * @param at where the capture's errors are reported, and the `fn`'s metadata
+ */
+private fun captureExpr(
+    at: ElixirAst,
+    expr: ElixirAst,
+    arguments: Arguments,
+    state: ExState,
+    env: Env,
+    run: Run,
+): Expansion {
+    val escape = Escape(run.level)
+    val body = escape.escape(expr)
+
+    escape.error?.let { return it }
+
+    val positions = escape.variables.keys.toList()
+
+    return when {
+        positions.isEmpty() && arguments == Arguments.NON_SEQUENTIAL -> Expansion.Error("invalid_args_for_capture", at)
+        positions.withIndex().any { (index, position) -> position != (index + 1).toBigInteger() } ->
+            Expansion.Error("capture_arg_without_predecessor", at)
+        else -> {
+            val clause = ElixirAst.Call(
+                at.meta,
+                ElixirAst.Literal.Atom(at.meta, "->"),
+                listOf(ElixirAst.ListNode(at.meta, escape.variables.values.toList()), body)
+            )
+
+            expandFn(ElixirAst.Call(at.meta, ElixirAst.Literal.Atom(at.meta, "fn"), listOf(clause)), state, env, run)
+        }
+    }
+}
+
+/**
+ * `escape/3`: a node with each `&N` replaced by the variable for `N`, and the first error an `&` in it gives.
+ *
+ * The variable for `N` is named `&N` in the `nil` context, which no source variable can be: 1.16 names it so, and other
+ * releases name it apart from source variables in other ways.
+ */
+private class Escape(private val level: ElixirLanguageLevel) {
+    /** The variable for each `N`, at its first `&N`, by `N`. */
+    val variables = sortedMapOf<BigInteger, ElixirAst>()
+    var error: Expansion.Error? = null
+        private set
+
+    fun escape(node: ElixirAst): ElixirAst =
+        if (error != null) {
+            node
+        } else {
+            when (node) {
+                is ElixirAst.Call ->
+                    if ((node.callee as? ElixirAst.Literal.Atom)?.name == "&") {
+                        argument(node)
+                    } else {
+                        ElixirAst.Call(node.meta, escape(node.callee), node.arguments?.map(::escape))
+                    }
+                is ElixirAst.Tuple -> ElixirAst.Tuple(node.meta, node.elements.map(::escape))
+                is ElixirAst.ListNode -> ElixirAst.ListNode(node.meta, node.elements.map(::escape))
+                is ElixirAst.Block -> ElixirAst.Block(node.meta, node.expressions.map(::escape))
+                is ElixirAst.Alias -> ElixirAst.Alias(node.meta, node.segments.map(::escape))
+                is ElixirAst.Literal, is ElixirAst.Placeholder -> node
+            }
+        }
+
+    private fun argument(node: ElixirAst.Call): ElixirAst {
+        val position = (node.arguments?.singleOrNull() as? ElixirAst.Literal.Integer)?.value
+        val variable = ElixirAst.Call(node.meta, ElixirAst.Literal.Atom(node.meta, "&$position"), null)
+
+        when {
+            position == null -> error = Expansion.Error("nested_capture", node)
+            position.signum() <= 0 ->
+                error = Expansion.Error(
+                    if (CAPTURE_ARGUMENT_BELOW_ONE_IS_INVALID_ARITY.isSufficient(level)) {
+                        "invalid_arity_for_capture"
+                    } else {
+                        "unallowed_capture_arg"
+                    },
+                    node
+                )
+            else -> variables.putIfAbsent(position, variable)
+        }
+
+        return variable
+    }
+}
+
+/** `args_from_arity/3`: `&1` to `&arity`, or `null` where [arity] is outside 0 to 255. */
+private fun argumentsFromArity(amp: ElixirAst, arity: ElixirAst): List<ElixirAst>? {
+    val value = (arity as ElixirAst.Literal.Integer).value
+
+    return if (value.signum() >= 0 && value <= 255.toBigInteger()) {
+        (1..value.toInt()).map { position ->
+            ElixirAst.Call(amp.meta, ElixirAst.Literal.Atom(amp.meta, "&"), listOf(ElixirAst.Literal.Integer(amp.meta, position.toBigInteger())))
+        }
+    } else {
+        null
+    }
+}
+
+/** `check_sequential_and_not_empty/1`: [args] are `&1` to `&N` in order, and there is at least one. */
+private fun arguments(args: List<ElixirAst>): Arguments =
+    if (args.isNotEmpty() && args.withIndex().all { (index, arg) -> isCaptureArgument(arg, index + 1) }) {
+        Arguments.SEQUENTIAL
+    } else {
+        Arguments.NON_SEQUENTIAL
+    }
+
+private fun isCaptureArgument(node: ElixirAst, position: Int): Boolean =
+    isCall(node, "&", 1) &&
+        ((node as ElixirAst.Call).arguments!!.single() as? ElixirAst.Literal.Integer)?.value == position.toBigInteger()
+
+/** `{{'.', _, [_, Fun]}, _, []}` with an atom `Fun`: a remote call of no arguments. */
+private fun isRemoteFunction(node: ElixirAst): Boolean {
+    val dot = (node as? ElixirAst.Call)?.callee as? ElixirAst.Call ?: return false
+
+    return (dot.callee as? ElixirAst.Literal.Atom)?.name == "." &&
+        dot.arguments?.size == 2 &&
+        dot.arguments[1] is ElixirAst.Literal.Atom &&
+        node.arguments?.isEmpty() == true
+}
+
+private fun isInteger(node: ElixirAst) = node is ElixirAst.Literal.Integer
+
+private fun captureHead(pattern: String) = Clause.Head("elixir_fn", "capture", 2, pattern)
+
+private fun escapeHead(pattern: String) = Clause.Head("elixir_fn", "escape", 1, pattern)
