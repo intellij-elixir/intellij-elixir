@@ -108,6 +108,15 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             INVALID_MULTI_ALIAS_BASE_RAISES to ("1.19.0-rc.0" to "1.19.0-rc.1"),
             CIRCULAR_MODULE_CHECKED_FIRST to ("1.14.5" to "1.15.0-rc.0"),
             SIGIL_FILTER_TOLERATES_ANY_NAME to ("1.20.0-rc.4" to "1.20.0-rc.5"),
+            COMPILER_PARSES_COLUMNS to ("1.15.8" to "1.16.0-rc.0"),
+            QUOTE_IMPORTS_EVERY_ARITY to ("1.13.4" to "1.14.0-rc.0"),
+            QUOTE_KEEP_READS_LINE_OPTION to ("1.16.3" to "1.17.0-rc.0"),
+            QUOTED_DEF_CONTEXT_SKIPS_GUARD to ("1.15.8" to "1.16.0-rc.0"),
+            QUOTE_META_DROPS_COLUMN to ("1.15.8" to "1.16.0-rc.0"),
+            UNQUOTE_SHALLOW_VALIDATED to ("1.17.3" to "1.18.0-rc.0"),
+            QUOTE_BINDING_META_DROPS_COLUMN to ("1.19.0-rc.2" to "1.19.0"),
+            UNQUOTE_VALIDATED_BY_UNQUOTE to ("1.20.0-rc.6" to "1.20.0"),
+            QUOTE_IN_PATTERN_WITH_UNQUOTE_RAISES to ("1.20.1" to "1.20.2"),
         )
 
         assertEquals(entries.filter { it.sinceElixir != null }.toSet(), boundaries.keys)

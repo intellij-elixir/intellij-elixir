@@ -934,6 +934,83 @@ enum class ElixirLanguageFeature(
     SIGIL_FILTER_TOLERATES_ANY_NAME(sinceElixir = "1.20.0-rc.5"),
 
     /**
+     * The compiler parses source with `columns: true`, so a node's metadata carries its `column`.
+     *
+     * `elixir-lang/elixir@f632fc648` ("Set parser_options[:columns] to true by default", #12941), first released in
+     * v1.16.0-rc.0.
+     */
+    COMPILER_PARSES_COLUMNS(sinceElixir = "1.16.0-rc.0"),
+
+    /**
+     * A name `quote` finds imported is marked `imports: [{arity, module}]`, for every arity imported under that name,
+     * and a name two modules import at one arity raises `ambiguous_call` whatever the quoted arity. Before it, it is
+     * marked `import: module` for the quoted arity only.
+     *
+     * `elixir-lang/elixir@169595f53` ("Change import metadata to imports as a list") and `elixir-lang/elixir@c47b731f7`
+     * ("Track all arities in imports inside quotes", #11651), first released in v1.14.0-rc.0.
+     */
+    QUOTE_IMPORTS_EVERY_ARITY(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * A `quote` given `file:` keeps the `line:` option in `keep: {file, line}`: a node's own line for `line: true`,
+     * and 0 by default. Before it, `file:` keeps every node's own line whatever `line:` says.
+     *
+     * `elixir-lang/elixir@92e0e34a1` ("Respect line property when file is given", #13542), first released in
+     * v1.17.0-rc.0.
+     */
+    QUOTE_KEEP_READS_LINE_OPTION(sinceElixir = "1.17.0-rc.0"),
+
+    /**
+     * The head of a guarded definition, not its `when`, takes the `context:` a quoted `def`, `defp`, `defmacro`,
+     * `defmacrop` or `@` gives its first argument.
+     *
+     * `elixir-lang/elixir@9581ba791` ("Annotate function definition and not when guard"), first released in
+     * v1.16.0-rc.0.
+     */
+    QUOTED_DEF_CONTEXT_SKIPS_GUARD(sinceElixir = "1.16.0-rc.0"),
+
+    /**
+     * A quoted node's metadata leaves out the `column` of its source. Before it, a `column` the parser gave is kept.
+     *
+     * `elixir-lang/elixir@cb9de080e` ("Strip column information on quote"), first released in v1.16.0-rc.0.
+     */
+    QUOTE_META_DROPS_COLUMN(sinceElixir = "1.16.0-rc.0"),
+
+    /**
+     * An `unquote` inside a `quote` is passed to the remote call `:elixir_quote.shallow_validate_ast/1`. Before it,
+     * the unquoted expression is used as it is.
+     *
+     * `elixir-lang/elixir@cc68ad91c` ("Add shallow validation when unquoting AST", #13950), first released in
+     * v1.18.0-rc.0.
+     */
+    UNQUOTE_SHALLOW_VALIDATED(sinceElixir = "1.18.0-rc.0"),
+
+    /**
+     * A `quote`'s `bind_quoted` bindings leave out the `column` of the `quote`'s metadata.
+     *
+     * `elixir-lang/elixir@dea845602` ("Escape meta within existing quote extensions", #14832), first released in
+     * v1.19.0.
+     */
+    QUOTE_BINDING_META_DROPS_COLUMN(sinceElixir = "1.19.0"),
+
+    /**
+     * An `unquote` inside a `quote` is passed to `:elixir_quote.unquote/1` in place of `shallow_validate_ast/1`, and a
+     * `quote` outside a pattern or guard is wrapped in `:elixir_quote.validate_quote/1`.
+     *
+     * `elixir-lang/elixir@3a038d176` ("Wrap quote in a function that will implement recursive types"), first released
+     * in v1.20.0.
+     */
+    UNQUOTE_VALIDATED_BY_UNQUOTE(sinceElixir = "1.20.0"),
+
+    /**
+     * A `quote` with `unquote` in a pattern or guard raises `quote_in_pattern_with_unquote`.
+     *
+     * `elixir-lang/elixir@0f9072a1d` ("Cleaner error message for unquote when quote is used in a pattern", #15469),
+     * first released in v1.20.2.
+     */
+    QUOTE_IN_PATTERN_WITH_UNQUOTE_RAISES(sinceElixir = "1.20.2"),
+
+    /**
      * A bitstring segment whose value expands to a list or an atom raises `invalid_literal`.
      *
      * Removed by `elixir-lang/elixir@860f485bd` ("Inference of patterns", #13909), first released in v1.18.0-rc.0.

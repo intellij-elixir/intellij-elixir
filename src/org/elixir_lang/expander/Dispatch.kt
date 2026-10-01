@@ -14,6 +14,31 @@ sealed class ImportMatch {
     data object None : ImportMatch()
 }
 
+/** What `elixir_dispatch:find_imports/3` finds for a name. */
+sealed class NameImports {
+    /** `[{arity, module}]`, by arity. */
+    data class Found(val imports: List<Pair<Int, String>>) : NameImports()
+
+    /** Two modules import the name at [arity]: the one `E` holds later, then the one it holds first. */
+    data class Ambiguous(val arity: Int, val modules: List<String>) : NameImports()
+}
+
+/** `elixir_dispatch:find_imports/3`: every arity [env] imports [name] at, from its functions and then its macros. */
+fun findImports(name: String, env: Env): NameImports {
+    val found = sortedMapOf<Int, String>()
+
+    for ((module, nameArities) in env.functions + env.macros) {
+        for ((importedName, arity) in nameArities) {
+            if (importedName != name) continue
+
+            found[arity]?.let { return NameImports.Ambiguous(arity, listOf(module, it)) }
+            found[arity] = module
+        }
+    }
+
+    return NameImports.Found(found.map { (arity, module) -> arity to module })
+}
+
 /**
  * `elixir_dispatch:find_import_by_name_arity/4` for a call of [name] and [arity] in [env], with [extra] imported
  * macros ahead of [env]'s, as the dispatch site passes them. The branch that reads `imports:` from a quoted call's
