@@ -203,13 +203,19 @@ defmodule Matrix do
   @import_block_sites ["imported_inside", "imported_after"]
 
   # A module-level call runs while the module body is compiled, before any of the module's own definitions exist,
-  # so a call of a function the module defines later names nothing. Each site is such a call in an `if`'s keyword
-  # value, as `{lines before, the call's prefix, its suffix, lines after}`.
+  # so a call of a function the module defines later names nothing. Each site is such a call: in an `if`'s keyword
+  # value or block, bare or inside a list, map or tuple, as `{lines before, the call's prefix, its suffix, lines after}`.
   @compile_time_call_worlds ["x_compile_time_call"]
-  @compile_time_calls %{
-    "called_in_do" => {[], "if Code.ensure_loaded?(Kernel), do: ", "", []},
-    "called_in_else" => {[], "if Code.ensure_loaded?(Matrix.Absent), do: nil, else: ", "", []}
-  }
+  @compile_time_values [{"", "", ""}, {"_list", "[", "]"}, {"_map", "%{k: ", "}"}, {"_tuple", "{:k, ", "}"}]
+  @compile_time_calls Map.new(
+                        for {suffix, open, close} <- @compile_time_values,
+                            {site, shape} <- [
+                              {"called_in_do", {[], "if Code.ensure_loaded?(Kernel), do: " <> open, close, []}},
+                              {"called_in_block", {["if Code.ensure_loaded?(Kernel) do"], "  " <> open, close, ["end"]}}
+                            ],
+                            do: {site <> suffix, shape}
+                      )
+                      |> Map.put("called_in_else", {[], "if Code.ensure_loaded?(Matrix.Absent), do: nil, else: ", "", []})
 
   # The module attribute worlds, each a module body writing and reading `@limit`, and the branch choices its probes
   # compile: `true` is the one the shipped source takes. A branched world is probed once per choice, and a read's
