@@ -29,6 +29,26 @@ object ErrorKinds {
         "stacktrace_not_allowed" to
             """^__STACKTRACE__ is available only inside catch and rescue clauses of try expressions$""",
         "underscore_in_cond" to """^invalid use of _ inside "cond"\. If you want the last clause to always match""",
+        "invalid_alias" to """^invalid alias: ".+"\. If you wanted to define an alias, an alias must expand to an atom""",
+        "expected_compile_time_module" to
+            """^invalid argument for (alias|require|import), expected a compile time atom or alias, got: """,
+        "as_in_multi_alias_call" to """^:as option is not supported by multi-alias call$""",
+        "unsupported_option" to """^unsupported option :\S+ given to (alias|require|import)$""",
+        "options_are_not_keyword" to """^invalid options for (alias|require|import), expected a keyword list, got: """,
+        // elixir_aliases
+        "invalid_alias_module" to """^alias cannot be inferred automatically for module: .+, please use the :as option""",
+        "invalid_alias_for_as" to """^invalid value for option :as, expected (an alias, got: |a simple alias, got nested alias: )""",
+        "unloaded_module" to """^module \S+ is not loaded and could not be found$""",
+        "scheduled_module" to """^module \S+ is not loaded but was defined\.""",
+        "circular_module" to """^you are trying to use/import/require the module \S+ which is currently being defined""",
+        // elixir_import
+        "invalid_option" to
+            """^invalid :(only|except) option for import, expected (a keyword list with integer values$|value to be )""",
+        "only_and_except_given" to """^:only and :except can only be given together to import when :only is """,
+        "duplicated_import" to """^invalid :(only|except) option for import, \S+/\d+ is duplicated$""",
+        "invalid_import" to """^cannot import \S+ because it is undefined or private$""",
+        "special_form_conflict" to """^cannot import \S+ because it conflicts with Elixir special forms""",
+        "no_macros" to """^could not load macros from module \S+$""",
         // elixir_clauses
         "recursive" to """^(recursive|cyclic) variable definition in patterns:\n\n""",
         "bad_or_missing_clauses" to
