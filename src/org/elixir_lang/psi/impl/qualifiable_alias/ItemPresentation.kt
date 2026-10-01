@@ -11,6 +11,7 @@ import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.hasKeywordKey
 import org.elixir_lang.psi.impl.locationString
 import org.elixir_lang.reference.module.UnaliasedName
+import org.elixir_lang.util.ReadActions
 import javax.swing.Icon
 
 class ItemPresentation(private val qualifiableAlias: QualifiableAlias) : ItemPresentation {
@@ -22,13 +23,15 @@ class ItemPresentation(private val qualifiableAlias: QualifiableAlias) : ItemPre
         qualifiableAlias.containingFile.locationString(qualifiableAlias.project)
     }
 
-    private val _presentableText by lazy {
-        qualifiableAlias.parent.let { parent ->
+    private val _presentableText by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        ReadActions.compute {
+            qualifiableAlias.parent.let { parent ->
                 when (parent) {
                     is ElixirAccessExpression -> getPresentableText(parent)
                     else -> qualifiableAlias.fullyQualifiedName()
                 }
             }
+        }
     }
 
     private tailrec fun getPresentableText(ancestor: PsiElement): String? =

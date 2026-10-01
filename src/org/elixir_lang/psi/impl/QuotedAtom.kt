@@ -8,6 +8,7 @@ import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Macro
 import org.elixir_lang.Module.NO_VALUE
+import org.elixir_lang.lowering.ElementLowering
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirAtomKeyword
 import org.elixir_lang.psi.Quotable
@@ -17,14 +18,13 @@ import org.elixir_lang.psi.call.name.Function.__MODULE__
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 
 /**
- * The value of the atom [quotable] quotes to; `null` when it quotes to something else, as an interpolated atom does,
- * or to an atom longer than the 255 characters an atom can hold.
+ * The value of the atom [quotable] quotes to; `null` when it quotes to something else, as an interpolated atom does.
  */
 @RequiresReadLock
 fun quotedAtomValue(quotable: Quotable): String? {
     ThreadingAssertions.assertReadAccess()
 
-    return (quoteOrNull(quotable) as? OtpErlangAtom)?.atomValue()
+    return ElementLowering.atomName(quotable)
 }
 
 /**
@@ -37,7 +37,7 @@ fun quotedAtomValue(quotable: Quotable): String? {
 fun moduleName(element: PsiElement): ModuleName? {
     ThreadingAssertions.assertReadAccess()
 
-    return when (val quoted = (element as? Quotable)?.let(::quoteOrNull)) {
+    return when (val quoted = (element as? Quotable)?.quote()) {
         is OtpErlangAtom -> ModuleName(org.elixir_lang.Module.indexName(quoted.atomValue()), absolute = true)
         is OtpErlangTuple ->
             if (Macro.isAliases(quoted)) aliasesModuleName(Macro.callArguments(quoted).elements()) else null
@@ -46,18 +46,6 @@ fun moduleName(element: PsiElement): ModuleName? {
 }
 
 data class ModuleName(val name: String, val absolute: Boolean)
-
-// Broken code quotes by throwing any of these.
-private fun quoteOrNull(quotable: Quotable): OtpErlangObject? =
-    try {
-        quotable.quote()
-    } catch (_: IllegalArgumentException) {
-        null
-    } catch (_: NotImplementedError) {
-        null
-    } catch (_: ClassCastException) {
-        null
-    }
 
 private fun aliasesModuleName(segments: Array<OtpErlangObject>): ModuleName? {
     val head = segments.firstOrNull() ?: return null
@@ -98,7 +86,6 @@ fun headAtomValue(head: PsiElement): String? {
 internal fun headAtomQuotable(head: PsiElement): Quotable? =
     (CallDefinitionHead.strip(head) as? Call)?.let { stripped ->
         if (stripped.functionName() == UNQUOTE) {
-            // Quoting a malformed operand can throw `NotImplementedError`.
             stripped.primaryArguments()?.singleOrNull()?.stripAccessExpression()
                 ?.takeIf { it is ElixirAtom || it is ElixirAtomKeyword }
         } else {

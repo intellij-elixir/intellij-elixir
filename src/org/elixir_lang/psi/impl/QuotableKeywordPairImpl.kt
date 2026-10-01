@@ -1,34 +1,20 @@
 package org.elixir_lang.psi.impl
 
-import com.ericsson.otp.erlang.OtpErlangAtom
-import com.intellij.openapi.util.Computable
+import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Macro.KEYWORD_BLOCK_KEYWORDS
-import org.elixir_lang.mix.project.computeReadAction
+import org.elixir_lang.lowering.ElementLowering
 import org.elixir_lang.psi.ElixirKeywordPair
 import org.elixir_lang.psi.ElixirNoParenthesesKeywordPair
 import org.elixir_lang.psi.Quotable
 import org.elixir_lang.psi.QuotableKeywordList
 import org.elixir_lang.psi.QuotableKeywordPair
 
+@RequiresReadLock
 fun QuotableKeywordPair.hasKeywordKey(keywordKeyText: String): Boolean {
-    val keywordKey = keywordKey
-    var has = false
+    ThreadingAssertions.assertReadAccess()
 
-    if (computeReadAction(Computable<String> { keywordKey.text }) == keywordKeyText) {
-        has = true
-    } else {
-        val quotedKeywordKey = keywordKey.quote()
-
-        if (quotedKeywordKey is OtpErlangAtom) {
-
-            if (quotedKeywordKey.atomValue() == keywordKeyText) {
-                has = true
-            }
-        }
-    }
-
-    return has
+    return keywordKey.let { it.text == keywordKeyText || ElementLowering.atomName(it) == keywordKeyText }
 }
 
 /**
@@ -46,7 +32,7 @@ fun QuotableKeywordPair.blockKeyword(): String? =
 private fun QuotableKeywordPair.keywordAtom(): String? {
     val text = keywordKey.text
 
-    return if (text in KEYWORD_BLOCK_KEYWORDS) text else (keywordKey.quote() as? OtpErlangAtom)?.atomValue()
+    return if (text in KEYWORD_BLOCK_KEYWORDS) text else ElementLowering.atomName(keywordKey)
 }
 
 object QuotableKeywordPairImpl {

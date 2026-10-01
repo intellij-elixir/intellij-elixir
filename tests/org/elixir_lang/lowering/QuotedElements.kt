@@ -14,9 +14,6 @@ import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.headAtomQuotable
 import org.elixir_lang.structure_view.element.Callback
 
-/** The kinds of [quotedElements] whose atom production code reads. */
-val ATOM_KINDS = setOf("atom", "functionName", "head")
-
 /**
  * Each element of [file] that production code lowers on its own, with its kind: keyword keys and values, atoms, tuples,
  * and each call's function name and definition head.

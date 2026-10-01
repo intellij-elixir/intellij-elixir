@@ -5,7 +5,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiFile
 import com.intellij.usageView.UsageViewUtil
-import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.annotator.Parameter
 import org.elixir_lang.beam.psi.BeamFileImpl
 import org.elixir_lang.navigation.item_presentation.KeywordKey
@@ -20,13 +19,14 @@ import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.outerMostQualifiableAlias
 import org.elixir_lang.structure_view.element.CallDefinition
 import org.elixir_lang.structure_view.element.CallDefinitionClause
+import org.elixir_lang.util.ReadActions
 import java.io.File
 import javax.swing.Icon
 
 object PresentationImpl {
-    @RequiresReadLock
     @JvmStatic
     fun getPresentation(call: Call): ItemPresentation =
+        ReadActions.compute {
             when {
                 org.elixir_lang.psi.CallDefinitionClause.`is`(call) -> {
                     val callDefinitionClause = CallDefinitionClause.fromCall(call)
@@ -56,6 +56,7 @@ object PresentationImpl {
                 }
                 else -> getDefaultPresentation(call)
             }
+        }
 
     @JvmStatic
     fun getPresentation(identifier: ElixirIdentifier): ItemPresentation? {
@@ -77,9 +78,9 @@ object PresentationImpl {
 
     @JvmStatic
     fun getPresentation(qualifiableAlias: QualifiableAlias): ItemPresentation =
-        qualifiableAlias
-                .outerMostQualifiableAlias()
-                .let { org.elixir_lang.psi.impl.qualifiable_alias.ItemPresentation(it) }
+        ReadActions.compute {
+            org.elixir_lang.psi.impl.qualifiable_alias.ItemPresentation(qualifiableAlias.outerMostQualifiableAlias())
+        }
 
     private fun getDefaultPresentation(call: Call): ItemPresentation {
         val text = UsageViewUtil.createNodeText(call)

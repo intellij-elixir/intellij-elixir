@@ -243,7 +243,7 @@ object Destructure {
         container.childExpressions().toList().flatMap { child ->
             val stripped = child.stripAccessExpression()
 
-            // `[q, k: 1, j: 2]` is a list of three but `{q, k: 1, j: 2}` a tuple of two, as `QuotableImpl.quote` has it
+            // `[q, k: 1, j: 2]` is a list of three but `{q, k: 1, j: 2}` a tuple of two
             if (bucket(container) == Bucket.LIST && stripped is ElixirKeywords) {
                 stripped.keywordPairList
             } else {

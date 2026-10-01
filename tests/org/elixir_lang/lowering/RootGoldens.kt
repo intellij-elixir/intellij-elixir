@@ -11,7 +11,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import java.util.concurrent.Callable
 
-/** Each of a file root's [quotedElements], quoted, against a golden written from `Quotable.quote()`. */
+/** Each of a file root's [quotedElements], lowered and quoted, against a golden. */
 object RootGoldens {
     const val DIRECTORY = "testData/org/elixir_lang/lowering/roots"
     private const val REGENERATE =
@@ -19,20 +19,17 @@ object RootGoldens {
 
     fun assertQuotes(golden: String, root: PsiFile?) {
         assertNotNull("no Elixir root", root)
-        val (base, entry) = ReadAction.nonBlocking(Callable {
-            lines(root!!) { it.quote() } to lines(root) { ElementLowering.quote(it) }
-        }).executeSynchronously()
-        assertTrue("no elements in ${root!!.name}", base.isNotEmpty())
+        val lines = ReadAction.nonBlocking(Callable { lines(root!!) }).executeSynchronously()
+        assertTrue("no elements in ${root!!.name}", lines.isNotEmpty())
 
-        CommittedGolden.assertMatches("$DIRECTORY/$golden.txt", base, REGENERATE)
-        CommittedGolden.assertMatches("$DIRECTORY/$golden.txt", entry, REGENERATE)
+        CommittedGolden.assertMatches("$DIRECTORY/$golden.txt", lines, REGENERATE)
     }
 
     /** Outermost calls too, as their quotes carry line metadata, where names and literals have none. */
-    private fun lines(root: PsiFile, quote: (Quotable) -> Any): String =
+    private fun lines(root: PsiFile): String =
         (outermostCalls(root) + quotedElements(root)).joinToString("\n") { (kind, element) ->
             val line = StringUtil.offsetToLineNumber(root.text, element.textRange.startOffset) + 1
-            "$line\t$kind\t`${element.text.replace("\n", "\\n")}`\t${quote(element)}"
+            "$line\t$kind\t`${element.text.replace("\n", "\\n")}`\t${ElementLowering.quote(element)}"
         }
 
     private fun outermostCalls(root: PsiFile): List<Pair<String, Quotable>> =

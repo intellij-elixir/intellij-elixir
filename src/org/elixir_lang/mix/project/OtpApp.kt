@@ -10,6 +10,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.ResolveState
 import org.elixir_lang.ElixirScriptFileType
+import org.elixir_lang.lowering.ElementLowering
 import org.elixir_lang.mix.Project
 import org.elixir_lang.psi.CallDefinitionClause.capabilities
 import org.elixir_lang.psi.CallDefinitionClause.modularChildCalls
@@ -65,7 +66,7 @@ private fun appList(elixirFile: ElixirFile): List<String> {
                 keywordList.keywordValue("app")
             }
             .map { keywordValue ->
-                keywordValue.quote()
+                ElementLowering.quote(keywordValue)
             }
             .filterIsInstance<OtpErlangAtom>()
             .map(OtpErlangAtom::atomValue)

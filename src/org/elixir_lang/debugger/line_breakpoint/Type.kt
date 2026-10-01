@@ -27,12 +27,18 @@ import com.intellij.xdebugger.breakpoints.XLineBreakpointType
 import org.elixir_lang.ElixirFileType
 import org.elixir_lang.debugger.line_breakpoint.availability_processor.EEx
 import org.elixir_lang.debugger.line_breakpoint.availability_processor.Elixir
+import org.elixir_lang.util.ReadActions
 
 class Type private constructor() : XLineBreakpointType<Properties>(ID, NAME) {
     override fun canPutAt(file: VirtualFile, line: Int, project: Project): Boolean =
-        processor(file)?.let { processor ->
-           canPutAt(file, line, project, processor)
-        } ?: false
+        // A processor per attempt, as a non-blocking read action restarts after a write.
+        ReadActions.compute {
+            processor(file)?.let { processor ->
+                FileDocumentManager.getInstance().getDocument(file)?.let { document ->
+                    canPutAt(document, line, project, processor)
+                }
+            } ?: false
+        }
 
     override fun createBreakpointProperties(file: VirtualFile, line: Int): Properties =
             Properties()
@@ -40,16 +46,6 @@ class Type private constructor() : XLineBreakpointType<Properties>(ID, NAME) {
     companion object {
         private const val ID = "ElixirLineBreakpoint"
         private const val NAME = "Elixir Line Breakpoints"
-
-        private fun canPutAt(
-                file: VirtualFile,
-                line: Int,
-                project: Project,
-                availabilityProcessor: AvailabilityProcessor
-        ) =
-                FileDocumentManager.getInstance().getDocument(file)?.let { document ->
-                    canPutAt(document, line, project, availabilityProcessor)
-                } ?: false
 
         private fun canPutAt(
                 document: Document,

@@ -1,5 +1,6 @@
 package org.elixir_lang.lowering
 
+import com.ericsson.otp.erlang.OtpExternal
 import com.intellij.lang.ASTNode
 import com.intellij.psi.PsiElement
 import com.intellij.psi.tree.IElementType
@@ -146,7 +147,7 @@ private fun Lowering.charToken(charToken: ElixirCharToken): ElixirAst {
 // Atoms and aliases
 
 private fun Lowering.atom(atom: ElixirAtom): ElixirAst {
-    val line = atom.line ?: return ElixirAst.Literal.Atom(meta(atom), identifier(atom.node.lastChildNode.text))
+    val line = atom.line ?: return writtenAtom(atom, identifier(atom.node.lastChildNode.text))
     val delimiter =
         if (line.isCharList && isAvailable(DELIMITER_OF_SINGLE_QUOTED_ATOM)) "'" else "\""
 
@@ -160,7 +161,7 @@ private fun Lowering.atom(atom: ElixirAtom): ElixirAst {
 private fun Lowering.alias(alias: ElixirAlias): ElixirAst =
     ElixirAst.Alias(
         meta(alias, last(alias.textRange.startOffset), location(alias)),
-        listOf(ElixirAst.Literal.Atom(meta(alias), alias.text))
+        listOf(writtenAtom(alias, alias.text))
     )
 
 /** `Left.Right`: one alias of both, at `Left`, when `Left` is one; otherwise at the `.`. */
@@ -168,7 +169,7 @@ private fun Lowering.qualifiedAlias(qualifiedAlias: QualifiedAlias): ElixirAst {
     val children = qualifiedAlias.children
     val left = children.firstOrNull()?.let { lower(it) } ?: return broken(qualifiedAlias)
     val right = children.lastOrNull() as? ElixirAlias ?: return broken(qualifiedAlias)
-    val segment = ElixirAst.Literal.Atom(meta(right), right.text)
+    val segment = writtenAtom(right, right.text)
     val last = last(right.textRange.startOffset)
 
     return if (left is ElixirAst.Alias) {
@@ -269,7 +270,11 @@ private fun Lowering.content(parent: PsiElement, pieces: List<Piece>): Content? 
                 when {
                     byte != null -> buffer().add(RAW_BYTE_OFFSET + byte)
                     parent is Sigil -> buffer().addAll(codePoints(piece.text))
-                    else -> buffer().add((sequence as? EscapeSequence ?: return null).codePoint())
+                    else ->
+                        buffer().add(
+                            (sequence as? EscapeSequence ?: return null).codePoint()
+                                .takeIf { it <= Character.MAX_CODE_POINT && it !in SURROGATES } ?: return null
+                        )
                 }
             }
             else -> return null
@@ -404,7 +409,7 @@ internal fun Lowering.quotedAtom(element: PsiElement, line: ElixirLine, keys: Li
 
     return when (content) {
         is Content.Empty -> ElixirAst.Literal.Atom(meta(element), "")
-        is Content.Literal -> ElixirAst.Literal.Atom(meta(element), String(utf8(content.codePoints), Charsets.UTF_8))
+        is Content.Literal -> writtenAtom(element, String(utf8(content.codePoints), Charsets.UTF_8))
         is Content.Interpolated ->
             remoteCall(
                 element,
@@ -472,7 +477,7 @@ private fun Lowering.sigil(sigil: Sigil): ElixirAst {
 
     return ElixirAst.Call(
         meta(sigil, Meta.Key.Entry("delimiter", Meta.Value.Binary(sigil.sigilDelimiter())), location(sigil)),
-        atom(sigil, "sigil_${sigil.sigilName()}"),
+        writtenAtom(sigil, "sigil_${sigil.sigilName()}"),
         listOf(
             ElixirAst.Call(meta(sigil, indentation, location(sigil)), atom(sigil, "<<>>"), parts),
             modifiers(sigil.sigilModifiers)
@@ -500,7 +505,7 @@ private fun Lowering.keywordPair(keywordPair: ElixirKeywordPair): ElixirAst =
     ElixirAst.Tuple(meta(keywordPair), listOf(keywordKey(keywordPair.keywordKey), lower(keywordPair.keywordValue)))
 
 private fun Lowering.keywordKey(keywordKey: ElixirKeywordKey): ElixirAst {
-    val line = keywordKey.line ?: return ElixirAst.Literal.Atom(meta(keywordKey), identifier(keywordKey.text))
+    val line = keywordKey.line ?: return writtenAtom(keywordKey, identifier(keywordKey.text))
 
     return quotedAtom(
         keywordKey,
@@ -613,6 +618,17 @@ private fun elements(node: ElixirAst): List<ElixirAst> = (node as? ElixirAst.Lis
 // Building nodes
 
 private fun Lowering.atom(element: PsiElement, name: String): ElixirAst = ElixirAst.Literal.Atom(meta(element), name)
+
+/** The atom [element] writes as [name], broken when [name] is longer than an atom may be, as Elixir refuses it. */
+internal fun Lowering.writtenAtom(element: PsiElement, name: String): ElixirAst =
+    if (name.codePointCount(0, name.length) <= OtpExternal.maxAtomLength) {
+        ElixirAst.Literal.Atom(meta(element), name)
+    } else {
+        broken(element)
+    }
+
+/** Code points Elixir refuses in an escape, as UTF-8 cannot encode them. */
+private val SURROGATES = Character.MIN_SURROGATE.code..Character.MAX_SURROGATE.code
 
 private fun Lowering.dot(element: PsiElement, module: String, function: String): ElixirAst =
     ElixirAst.Call(

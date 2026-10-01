@@ -1,7 +1,6 @@
 package org.elixir_lang.lowering
 
 import com.ericsson.otp.erlang.OtpErlangObject
-import com.ericsson.otp.erlang.OtpExternal
 import com.intellij.lang.ASTNode
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.ModificationTracker
@@ -34,15 +33,16 @@ object ElementLowering {
     @JvmStatic
     fun lower(element: PsiElement): ElixirAst {
         ThreadingAssertions.assertReadAccess()
-        LoweringCounters.count(LoweringCounters.requests)
 
-        val root = root(element)
-        val file = element.containingFile
-        val languageLevel = ElixirLanguageLevelResolver.languageLevelFor(element)
-        val text = text(file, root)
-        val lines = Lines(text, Graphemes.of(languageLevel), lineStarts(file, root, text, languageLevel))
+        return LoweringCounters.request(element) {
+            val root = root(element)
+            val file = element.containingFile
+            val languageLevel = ElixirLanguageLevelResolver.languageLevelFor(element)
+            val text = text(file, root)
+            val lines = Lines(text, Graphemes.of(languageLevel), lineStarts(file, root, text, languageLevel))
 
-        return Lowering.of(text, lines, languageLevel).lower(element)
+            Lowering.of(text, lines, languageLevel).lower(element)
+        }
     }
 
     /** [element] as `Code.string_to_quoted` gives it with default options. */
@@ -50,11 +50,10 @@ object ElementLowering {
     @JvmStatic
     fun quote(element: Quotable): OtpErlangObject = lower(element).toOtp()
 
-    /** The atom [element] lowers to, or `null` when it lowers to anything else or to an atom too long for Erlang. */
+    /** The atom [element] lowers to, or `null` when it lowers to anything else. */
     @RequiresReadLock
     @JvmStatic
-    fun atomName(element: PsiElement): String? =
-        (lower(element) as? ElixirAst.Literal.Atom)?.name?.takeIf { it.codePointCount(0, it.length) <= OtpExternal.maxAtomLength }
+    fun atomName(element: PsiElement): String? = (lower(element) as? ElixirAst.Literal.Atom)?.name
 
     /** A stub build can lower while the file's tree loads from its stubs, and asking the file for its tree then loads it again. */
     private fun root(element: PsiElement): ASTNode = generateSequence(element.node) { it.treeParent }.last()

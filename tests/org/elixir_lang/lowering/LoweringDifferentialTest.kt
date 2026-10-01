@@ -9,44 +9,23 @@ import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.parser_definition.ElixirLangElixirParsingTestCase
 import org.elixir_lang.parser_definition.ParsingTestCase
 import org.elixir_lang.psi.ElixirFile
-import org.elixir_lang.psi.impl.ElixirPsiImplUtil
 import java.nio.file.Path
 
 /**
  * Lowers every file of the parser corpus, holds each one lowered completely, and holds the lowering's terms equal to
- * today's quoting, and to the quoter's with columns and token metadata. Prints how many files were covered.
+ * the quoter's with columns and token metadata. Prints how many files were covered.
  */
 class LoweringDifferentialTest : ParsingTestCase() {
-    fun testLoweringQuotesLikeQuotableOnEveryFile() =
-        assertAgreesOnEveryFile("quoting") { lowered, file, _ -> lowered.toOtp() == ElixirPsiImplUtil.quote(file) }
-
     fun testLoweringQuotesLikeTheQuoterWithColumnsAndTokenMetadataOnEveryFile() =
-        assertAgreesOnEveryFile("the quoter with columns and token metadata") { lowered, _, text ->
+        assertAgreesOnEveryFile("the quoter with columns and token metadata") { lowered, text ->
             val reply = Quoter.quote(text, COLUMNS_AND_TOKEN_METADATA)
 
             reply.elementAt(0) == OtpErlangAtom("ok") && lowered.toOtp(COLUMNS_AND_TOKEN_METADATA) == reply.elementAt(1)
         }
 
-    /** [ElementLowering] against today's quoting on each element production code quotes or reads an atom from. */
-    fun testElementsLowerLikeQuotableOnEveryFile() {
-        val corpus = System.getenv(CORPUS)
-        assertFalse("$CORPUS is not set; the Gradle test task sets it", corpus.isNullOrEmpty())
-        val root = Path.of(corpus!!)
-        val differential = ElementDifferential()
-
-        for (path in ElixirLangElixirParsingTestCase.sourcePaths(root)) {
-            val text = FileUtil.loadFile(root.resolve(path).toFile(), Charsets.UTF_8.name(), true).trim()
-            val file = createPsiFile(FileUtilRt.getNameWithoutExtension(path.substringAfterLast('/')), text) as ElixirFile
-            ReadAction.computeBlocking<Unit, Throwable> { differential.compare(path, file) }
-        }
-
-        println(differential.counts().entries.joinToString("\n", "element differential:\n") { (key, count) -> "$key\t$count" })
-        assertEmpty(differential.disagreements().joinToString("\n"), differential.disagreements())
-    }
-
     private fun assertAgreesOnEveryFile(
         reference: String,
-        agrees: (lowered: ElixirAst, file: ElixirFile, text: String) -> Boolean
+        agrees: (lowered: ElixirAst, text: String) -> Boolean
     ) {
         val corpus = System.getenv(CORPUS)
         assertFalse("$CORPUS is not set; the Gradle test task sets it", corpus.isNullOrEmpty())
@@ -78,7 +57,7 @@ class LoweringDifferentialTest : ParsingTestCase() {
     private fun compare(
         path: String,
         text: String,
-        agrees: (lowered: ElixirAst, file: ElixirFile, text: String) -> Boolean
+        agrees: (lowered: ElixirAst, text: String) -> Boolean
     ): Outcome {
         val file = createPsiFile(FileUtilRt.getNameWithoutExtension(path.substringAfterLast('/')), text) as ElixirFile
         val lowered = ReadAction.computeBlocking<ElixirAst, Throwable> {
@@ -87,7 +66,7 @@ class LoweringDifferentialTest : ParsingTestCase() {
 
         return when {
             lowered.hasUnlowered() -> Outcome.UNCOVERED
-            agrees(lowered, file, text) -> Outcome.AGREES
+            agrees(lowered, text) -> Outcome.AGREES
             else -> Outcome.DIFFERS
         }
     }

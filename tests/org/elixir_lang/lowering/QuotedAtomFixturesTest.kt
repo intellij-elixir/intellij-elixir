@@ -20,16 +20,6 @@ import java.io.File
  * and an atom over the 255 code points an atom can hold.
  */
 class QuotedAtomFixturesTest : ParsingTestCase() {
-    fun testFixturesLowerLikeQuotable() {
-        val differential = ElementDifferential()
-
-        for (name in listOf("DecomposedCall", "DecomposedDef", "LongQuotedAtom")) {
-            ReadAction.computeBlocking<Unit, Throwable> { differential.compare("$name.ex", fixture(name)) }
-        }
-
-        assertEmpty(differential.disagreements().joinToString("\n"), differential.disagreements())
-    }
-
     fun testDecomposedCallName() {
         val file = fixture("DecomposedCall")
 

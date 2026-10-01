@@ -98,7 +98,7 @@ class Lowering private constructor(
     internal fun lower(element: PsiElement): ElixirAst {
         ThreadingAssertions.assertReadAccess()
         ProgressManager.checkCanceled()
-        LoweringCounters.count(LoweringCounters.elementLowerings)
+        LoweringCounters.countLowering(element)
 
         return when (classifier.classify(element.javaClass)) {
             Bucket.LITERAL -> literal(element)
