@@ -142,6 +142,18 @@
     },
     {
       "backing": "src",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "src",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "src",
       "form": "defp",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute"
@@ -301,6 +313,18 @@
       "form": "defp",
       "reason": "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "src",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "src",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "src",
@@ -517,6 +541,18 @@
       "form": "defmacro",
       "reason": "a variable world's subject is its variable, which no other form declares",
       "world": "x_guard_var_with_parens"
+    },
+    {
+      "backing": "src",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "src",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "src",
@@ -757,6 +793,18 @@
       "form": "defmacrop",
       "reason": "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "src",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "src",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "src",
@@ -1049,6 +1097,18 @@
     {
       "backing": "src",
       "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "src",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "src",
+      "form": "defguard",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -1343,6 +1403,18 @@
     {
       "backing": "src",
       "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "src",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "src",
+      "form": "defguardp",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -1829,6 +1901,18 @@
     {
       "backing": "src",
       "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -2297,6 +2381,18 @@
     {
       "backing": "src",
       "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_compiled",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -2765,6 +2861,18 @@
     {
       "backing": "src",
       "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_unresolvable",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -3311,6 +3419,18 @@
     {
       "backing": "src",
       "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_interpolated_atom"
     },
@@ -3925,6 +4045,18 @@
       "form": "defdelegate_imports",
       "reason": "a target that only imports the function asks nothing w1 does not",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "src",
@@ -4565,6 +4697,18 @@
     {
       "backing": "src",
       "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_interpolated_atom"
     },
@@ -5201,6 +5345,18 @@
     {
       "backing": "src",
       "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_trailing",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_interpolated_atom"
     },
@@ -5837,6 +5993,18 @@
     {
       "backing": "src",
       "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_lines",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_interpolated_atom"
     },
@@ -6473,6 +6641,18 @@
     {
       "backing": "src",
       "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_interpolated_atom"
     },
@@ -7109,6 +7289,18 @@
     {
       "backing": "src",
       "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_interpolated_atom"
     },
@@ -7741,6 +7933,18 @@
       "form": "defdelegate_doc",
       "reason": "a delegate's own `@doc` asks nothing w1 does not",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "src",
@@ -8315,6 +8519,18 @@
     {
       "backing": "src",
       "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_interpolated_atom"
     },
@@ -8867,6 +9083,18 @@
     {
       "backing": "src",
       "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_interpolated_atom"
     },
@@ -9467,6 +9695,18 @@
     {
       "backing": "src",
       "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_interpolated_atom"
     },
@@ -10091,6 +10331,18 @@
     {
       "backing": "src",
       "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "src",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "src",
+      "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_interpolated_atom"
     },
@@ -10649,6 +10901,18 @@
     {
       "backing": "src",
       "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "src",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "src",
+      "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_interpolated_atom"
     },
@@ -11825,6 +12089,18 @@
     {
       "backing": "ex_dbgi",
       "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "def",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -12361,6 +12637,18 @@
       "form": "defp",
       "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_dbgi",
@@ -12913,6 +13201,18 @@
       "form": "defmacro",
       "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_dbgi",
@@ -13513,6 +13813,18 @@
       "form": "defmacrop",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_dbgi",
@@ -14123,6 +14435,18 @@
     {
       "backing": "ex_dbgi",
       "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguard",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -14729,6 +15053,18 @@
     {
       "backing": "ex_dbgi",
       "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_interpolated_atom"
     },
@@ -15307,6 +15643,18 @@
       "form": "defdelegate",
       "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_dbgi",
@@ -15929,6 +16277,18 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
       "world": "x_interpolated_atom"
     },
@@ -16507,6 +16867,18 @@
       "form": "defdelegate_unresolvable",
       "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_dbgi",
@@ -17105,6 +17477,18 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_interpolated_atom"
     },
@@ -17741,6 +18125,18 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_interpolated_atom"
     },
@@ -18383,6 +18779,18 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
@@ -19025,6 +19433,18 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
@@ -19667,6 +20087,18 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
@@ -20309,6 +20741,18 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
@@ -20951,6 +21395,18 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
@@ -21589,6 +22045,18 @@
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_dbgi",
@@ -22205,6 +22673,18 @@
     {
       "backing": "ex_dbgi",
       "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_interpolated_atom"
     },
@@ -22805,6 +23285,18 @@
     {
       "backing": "ex_dbgi",
       "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_interpolated_atom"
     },
@@ -23401,6 +23893,18 @@
       "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_dbgi",
@@ -24025,6 +24529,18 @@
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_dbgi",
@@ -24671,6 +25187,18 @@
     {
       "backing": "ex_dbgi",
       "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_interpolated_atom"
     },
@@ -25309,6 +25837,18 @@
       "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_dbgi",
@@ -25891,6 +26431,18 @@
       "form": "def",
       "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_docs",
@@ -26449,6 +27001,18 @@
       "form": "defp",
       "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_docs",
@@ -27023,6 +27587,18 @@
     {
       "backing": "ex_docs",
       "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacro",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -27637,6 +28213,18 @@
       "form": "defmacrop",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_docs",
@@ -28247,6 +28835,18 @@
     {
       "backing": "ex_docs",
       "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguard",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -28865,6 +29465,18 @@
     {
       "backing": "ex_docs",
       "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_interpolated_atom"
     },
@@ -29443,6 +30055,18 @@
       "form": "defdelegate",
       "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_docs",
@@ -30065,6 +30689,18 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
       "world": "x_interpolated_atom"
     },
@@ -30643,6 +31279,18 @@
       "form": "defdelegate_unresolvable",
       "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_docs",
@@ -31241,6 +31889,18 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_interpolated_atom"
     },
@@ -31877,6 +32537,18 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_interpolated_atom"
     },
@@ -32519,6 +33191,18 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
@@ -33161,6 +33845,18 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
@@ -33803,6 +34499,18 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
@@ -34445,6 +35153,18 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
@@ -35087,6 +35807,18 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
@@ -35725,6 +36457,18 @@
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_docs",
@@ -36341,6 +37085,18 @@
     {
       "backing": "ex_docs",
       "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_interpolated_atom"
     },
@@ -36941,6 +37697,18 @@
     {
       "backing": "ex_docs",
       "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_interpolated_atom"
     },
@@ -37537,6 +38305,18 @@
       "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_docs",
@@ -38161,6 +38941,18 @@
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_docs",
@@ -38807,6 +39599,18 @@
     {
       "backing": "ex_docs",
       "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_interpolated_atom"
     },
@@ -39445,6 +40249,18 @@
       "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_docs",
@@ -40027,6 +40843,18 @@
       "form": "def",
       "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_gen",
@@ -40585,6 +41413,18 @@
       "form": "defp",
       "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_gen",
@@ -41159,6 +41999,18 @@
     {
       "backing": "ex_gen",
       "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacro",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -41773,6 +42625,18 @@
       "form": "defmacrop",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_gen",
@@ -42383,6 +43247,18 @@
     {
       "backing": "ex_gen",
       "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguard",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -42997,6 +43873,18 @@
       "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_gen",
@@ -43583,6 +44471,18 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -44197,6 +45097,18 @@
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_gen",
@@ -44783,6 +45695,18 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_unresolvable",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -45377,6 +46301,18 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_interpolated_atom"
     },
@@ -46013,6 +46949,18 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_interpolated_atom"
     },
@@ -46655,6 +47603,18 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
@@ -47297,6 +48257,18 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
@@ -47939,6 +48911,18 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
@@ -48581,6 +49565,18 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
@@ -49223,6 +50219,18 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_interpolated_atom"
     },
@@ -49861,6 +50869,18 @@
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_gen",
@@ -50477,6 +51497,18 @@
     {
       "backing": "ex_gen",
       "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_interpolated_atom"
     },
@@ -51077,6 +52109,18 @@
     {
       "backing": "ex_gen",
       "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_interpolated_atom"
     },
@@ -51673,6 +52717,18 @@
       "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_gen",
@@ -52297,6 +53353,18 @@
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_gen",
@@ -52943,6 +54011,18 @@
     {
       "backing": "ex_gen",
       "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_interpolated_atom"
     },
@@ -53581,6 +54661,18 @@
       "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_gen",
@@ -54175,6 +55267,18 @@
       "form": "def",
       "reason": "an import block world asks how far the caller's `import` reaches, which the declaring module's backing does not change",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "erl_abst",
@@ -54755,6 +55859,18 @@
     {
       "backing": "erl_abst",
       "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defp",
       "reason": "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function",
       "world": "x_interpolated_atom"
     },
@@ -55391,6 +56507,18 @@
     {
       "backing": "erl_abst",
       "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacro",
       "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
@@ -56033,6 +57161,18 @@
     {
       "backing": "erl_abst",
       "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacrop",
       "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
@@ -56675,6 +57815,18 @@
     {
       "backing": "erl_abst",
       "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguard",
       "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
@@ -57317,6 +58469,18 @@
     {
       "backing": "erl_abst",
       "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguardp",
       "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
@@ -57959,6 +59123,18 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate",
       "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
@@ -58601,6 +59777,18 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_compiled",
       "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
@@ -59243,6 +60431,18 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_unresolvable",
       "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
@@ -59885,6 +61085,18 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as",
       "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
@@ -60527,6 +61739,18 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_imports",
       "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
@@ -61169,6 +62393,18 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
       "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
@@ -61811,6 +63047,18 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_trailing",
       "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
@@ -62453,6 +63701,18 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_lines",
       "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
@@ -63095,6 +64355,18 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
       "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
@@ -63737,6 +65009,18 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
       "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
@@ -64379,6 +65663,18 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
       "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
@@ -65021,6 +66317,18 @@
     {
       "backing": "erl_abst",
       "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from",
       "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
@@ -65663,6 +66971,18 @@
     {
       "backing": "erl_abst",
       "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_kind",
       "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
@@ -66305,6 +67625,18 @@
     {
       "backing": "erl_abst",
       "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_args",
       "reason": "Erlang has only functions",
       "world": "x_interpolated_atom"
     },
@@ -66943,6 +68275,18 @@
       "form": "generator_embed",
       "reason": "Erlang has only functions",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "erl_abst",
@@ -67585,6 +68929,18 @@
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "erl_abst",
@@ -68231,6 +69587,18 @@
     {
       "backing": "erl_abst",
       "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_interpolated_atom"
     },
@@ -68863,6 +70231,18 @@
       "form": "def",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "erl_gen",
@@ -69509,6 +70889,18 @@
     {
       "backing": "erl_gen",
       "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defp",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
@@ -70151,6 +71543,18 @@
     {
       "backing": "erl_gen",
       "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacro",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
@@ -70793,6 +72197,18 @@
     {
       "backing": "erl_gen",
       "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacrop",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
@@ -71435,6 +72851,18 @@
     {
       "backing": "erl_gen",
       "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguard",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
@@ -72077,6 +73505,18 @@
     {
       "backing": "erl_gen",
       "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguardp",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
@@ -72719,6 +74159,18 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
@@ -73361,6 +74813,18 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_compiled",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
@@ -74003,6 +75467,18 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_unresolvable",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
@@ -74645,6 +76121,18 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
@@ -75287,6 +76775,18 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_imports",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
@@ -75929,6 +77429,18 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
@@ -76571,6 +78083,18 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_trailing",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
@@ -77213,6 +78737,18 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_lines",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
@@ -77855,6 +79391,18 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
@@ -78497,6 +80045,18 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
@@ -79139,6 +80699,18 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
@@ -79781,6 +81353,18 @@
     {
       "backing": "erl_gen",
       "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
@@ -80423,6 +82007,18 @@
     {
       "backing": "erl_gen",
       "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_kind",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
@@ -81065,6 +82661,18 @@
     {
       "backing": "erl_gen",
       "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_args",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_interpolated_atom"
     },
@@ -81703,6 +83311,18 @@
       "form": "generator_embed",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "erl_gen",
@@ -82345,6 +83965,18 @@
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "erl_gen",
@@ -82987,6 +84619,18 @@
       "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_import_in_unless"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "erl_gen",
@@ -247703,6 +249347,136 @@
         }
       ],
       "world": "x_guard_var_with_parens"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/src/src.variable.x_interp_var_for_call.ex",
+      "form": "variable",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [],
+          "module": "Src.Variable.XInterpVarForCall",
+          "source": "lib/src/src.variable.x_interp_var_for_call.ex",
+          "spec": "lib/src/src.variable.x_interp_var_for_call.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 7,
+          "file": "lib/src/src.variable.x_interp_var_for_call.ex",
+          "id": "binding",
+          "line": 3,
+          "name": "x",
+          "variable": {
+            "binding": true,
+            "declarations": [
+              "binding"
+            ],
+            "rename": true
+          }
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 16,
+          "file": "lib/src/src.variable.x_interp_var_for_call.ex",
+          "id": "interpolation",
+          "line": 4,
+          "name": "x",
+          "variable": {
+            "binding": false,
+            "declarations": [
+              "binding"
+            ],
+            "rename": true
+          }
+        }
+      ],
+      "world": "x_interp_var_for_call"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/src/src.variable.x_interp_var_for_test.ex",
+      "form": "variable",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [],
+          "module": "Src.Variable.XInterpVarForTest",
+          "source": "lib/src/src.variable.x_interp_var_for_test.ex",
+          "spec": "lib/src/src.variable.x_interp_var_for_test.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 7,
+          "file": "lib/src/src.variable.x_interp_var_for_test.ex",
+          "id": "binding",
+          "line": 5,
+          "name": "x",
+          "variable": {
+            "binding": true,
+            "declarations": [
+              "binding"
+            ],
+            "rename": true
+          }
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 21,
+          "file": "lib/src/src.variable.x_interp_var_for_test.ex",
+          "id": "interpolation",
+          "line": 6,
+          "name": "x",
+          "variable": {
+            "binding": false,
+            "declarations": [
+              "binding"
+            ],
+            "rename": true
+          }
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 22,
+          "file": "lib/src/src.variable.x_interp_var_for_test.ex",
+          "id": "body",
+          "line": 7,
+          "name": "x",
+          "variable": {
+            "binding": false,
+            "declarations": [
+              "binding"
+            ],
+            "rename": true
+          }
+        }
+      ],
+      "world": "x_interp_var_for_test"
     },
     {
       "backing": "ex_dbgi",

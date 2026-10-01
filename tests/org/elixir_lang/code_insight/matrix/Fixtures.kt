@@ -189,8 +189,11 @@ class Site(
  */
 class AttributeSite(val write: Boolean, val declarations: List<String>, val visible: List<String>? = null)
 
-/** A variable's [binding] or read. [declarations] are the ids of the bindings a read is of, and a binding's own id. */
-class VariableSite(val binding: Boolean, val declarations: List<String>)
+/**
+ * A variable's [binding] or read. [declarations] are the ids of the bindings a read is of, and a binding's own id.
+ * [rename] says whether rename is asked here.
+ */
+class VariableSite(val binding: Boolean, val declarations: List<String>, val rename: Boolean = false)
 
 /** Whether a bare call at [this] site can reach [definition] at any of its arities: always, unless [Site.visible] says. */
 fun Site.sees(definition: Definition): Boolean =
