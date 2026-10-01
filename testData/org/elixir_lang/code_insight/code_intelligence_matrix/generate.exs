@@ -121,12 +121,24 @@ defmodule Matrix do
     "x_for" => {["for _ <- [:once] do"], ["end"]},
     "x_with" => {["with true <- Code.ensure_loaded?(Kernel) do"], ["end"]},
     # Nothing is ever sent to the compiling process, so `after 0` is the branch that runs and defines.
-    "x_receive" => {["receive do", "  :matrix_never_sent -> nil", "after", "  0 ->"], ["end"]}
+    "x_receive" => {["receive do", "  :matrix_never_sent -> nil", "after", "  0 ->"], ["end"]},
+    # The definitions as a keyword value: the condition fails, so `else:` is the branch that runs.
+    "x_else_keyword" => {["if Code.ensure_loaded?(Matrix.Absent), do: nil, else: ("], [")"]},
+    "x_else_quoted" => {[~s[if Code.ensure_loaded?(Matrix.Absent), do: nil, "else": (]], [")"]},
+    # A call without parentheses cannot be a list element beside another, so a list's definitions are written with
+    # them and separated by commas.
+    "x_else_list" => {["if Code.ensure_loaded?(Matrix.Absent), do: nil, else: ["], ["]"], :list},
+    "x_try_after" => {["try do", "  nil", "after"], ["end"]},
+    "x_rescue" => {["try do", ~s[  raise "matrix"], "rescue", "  _ ->"], ["end"]},
+    "x_catch" => {["try do", "  throw :matrix", "catch", "  _ ->"], ["end"]}
   }
   @wrapper_worlds Map.keys(@wrappers)
 
+  # The list wrappers, whose definitions only the definers written as calls with parentheses can be.
+  @list_wrapper_worlds for {world, {_opening, _closing, :list}} <- @wrappers, do: world
+
   # `x_use_injected` with the main module's `use` under each wrapper, asking only the calls in the module itself.
-  @use_wrappers Map.new(@wrappers, fn {"x_" <> wrapper, lines} -> {"x_use_in_" <> wrapper, lines} end)
+  @use_wrappers Map.new(@wrappers, fn {"x_" <> wrapper, shape} -> {"x_use_in_" <> wrapper, shape} end)
   @use_wrapper_worlds Map.keys(@use_wrappers)
 
   # `x_use_injected` with every `__using__` and the definitions its quote holds written as parenthesised calls:
@@ -135,7 +147,8 @@ defmodule Matrix do
 
   # `x_use_injected` with the injected definitions under each wrapper inside the `__using__` quote, which the user's
   # module body then runs.
-  @use_quote_wrappers Map.new(@wrappers, fn {"x_" <> wrapper, lines} -> {"x_use_in_quote_" <> wrapper, lines} end)
+  @use_quote_wrappers Map.new(@wrappers, fn {"x_" <> wrapper, shape} -> {"x_use_in_quote_" <> wrapper, shape} end)
+
   @use_quote_wrapper_worlds Map.keys(@use_quote_wrappers)
   @use_rewritten_worlds @use_parens_worlds ++ @use_quote_wrapper_worlds
 
@@ -344,6 +357,12 @@ defmodule Matrix do
       "x_for" => %{modules: [[snoc_2]], calls: one_calls},
       "x_with" => %{modules: [[snoc_2]], calls: one_calls},
       "x_receive" => %{modules: [[snoc_2]], calls: one_calls},
+      "x_else_keyword" => %{modules: [[snoc_2]], calls: one_calls},
+      "x_else_quoted" => %{modules: [[snoc_2]], calls: one_calls},
+      "x_else_list" => %{modules: [[snoc_2]], calls: one_calls},
+      "x_try_after" => %{modules: [[snoc_2]], calls: one_calls},
+      "x_rescue" => %{modules: [[snoc_2]], calls: one_calls},
+      "x_catch" => %{modules: [[snoc_2]], calls: one_calls},
       # A definition with defaults under a module-level `if`, and one of a lower arity under its `else`. Only the branch
       # the condition takes is compiled, so the two are never the same function: `snoc(a, b)` can only be the `if`'s, and
       # `snoc(a)` is the `if`'s too, because the `else` is never compiled at all. The first definition is the `if`'s and
@@ -493,6 +512,9 @@ defmodule Matrix do
 
   def not_applicable(%{id: backing}, _form, world) when world in @use_wrapper_worlds and backing != "src",
     do: "compiled, the module is x_use_injected's; only its source puts the `use` under a wrapper"
+
+  def not_applicable(_backing, form, world) when world in @list_wrapper_worlds and form.id not in ["def", "defp", "defmacro", "defmacrop", "defguard"],
+    do: "a list's definitions are calls with parentheses, which only the definers of the `def` family are written as here"
 
   def not_applicable(%{id: backing}, _form, world) when world in @use_rewritten_worlds and backing != "src",
     do: "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently"
@@ -864,7 +886,7 @@ defmodule Matrix do
 
     {_ast, nodes} =
       source
-      |> Code.string_to_quoted!(columns: true)
+      |> Code.string_to_quoted!(columns: true, emit_warnings: false)
       |> Macro.prewalk([], fn
         {:@, meta, [{@attribute, _, [_value]}]} = node, nodes -> {node, [{:write, meta[:line], meta[:column]} | nodes]}
         {:@, meta, [{@attribute, _, context}]} = node, nodes when is_atom(context) -> {node, [{:read, meta[:line], meta[:column]} | nodes]}
@@ -1282,7 +1304,8 @@ defmodule Matrix do
       end
 
     quote = if form[:macro] && !form[:guard], do: "quote unquote: false", else: "quote"
-    clauses = form |> Map.merge(%{wrapper: nil, unquote_name: false, branches: false, spec: false, parens: style == :parens}) |> render_clauses(definitions)
+    parens = style == :parens or match?({_, _, :list}, Map.get(@use_quote_wrappers, world))
+    clauses = form |> Map.merge(%{wrapper: nil, unquote_name: false, branches: false, spec: false, parens: parens}) |> render_clauses(definitions)
     clauses = wrap(clauses, Map.get(@use_quote_wrappers, world))
     quoted = clauses |> Enum.map_join("\n", &String.replace(&1, ~r/^/m, if(style == :parens, do: "  ", else: "    ")))
     module = fn suffix -> main <> "." <> suffix end
@@ -1564,6 +1587,7 @@ defmodule Matrix do
     form =
       Map.merge(form, %{
         wrapper: Map.get(@wrappers, world) || Map.get(@use_wrappers, world),
+        parens: world in @list_wrapper_worlds,
         unquote_name: world == "x_unquote_name",
         branches: world == "x_if_else",
         spec: primary != nil and backing.id == "src" and world in @spec_worlds and form.id in @function_forms,
@@ -1777,7 +1801,7 @@ defmodule Matrix do
 
     {_ast, {heads, _attributes}} =
       text
-      |> Code.string_to_quoted!()
+      |> Code.string_to_quoted!(emit_warnings: false)
       |> Macro.prewalk({[], %{}}, fn
         # A module attribute a later EEx call may read its kind or its arguments from.
         {:@, _, [{attribute, _, [value]}]} = node, {acc, attributes} when attribute in [:kind, :args] ->
@@ -2113,6 +2137,11 @@ defmodule Matrix do
   defp wrap(clauses, {opening, closing}),
     do: Enum.map(opening, &("  " <> &1)) ++ Enum.map(clauses, &String.replace(&1, ~r/^/m, "  ")) ++ Enum.map(closing, &("  " <> &1))
 
+  defp wrap(clauses, {opening, closing, :list}) do
+    {last, init} = List.pop_at(clauses, -1)
+    wrap(Enum.map(init, &(&1 <> ",")) ++ [last], {opening, closing})
+  end
+
   defp render_module(%{protocol: true} = form, module, definitions, _primary, _clauses) do
     heads = Enum.map_join(definitions, "\n", fn {name, [{parameters, _guard} | _]} -> "  def #{name}(#{Enum.join(parameters, ", ")})" end)
 
@@ -2333,6 +2362,8 @@ defmodule Matrix do
     diagnostics = Enum.reject(diagnostics, &(&1.message =~ ~r/^(function|macro) (\S+_x_use_\S+|__using__\/1|secret\/0) is unused/))
     # A module declared, and named, with quotes it does not need, on purpose.
     diagnostics = Enum.reject(diagnostics, &(&1.message =~ ~r/^found quoted atom "\S+_x_interpolated_atom_quoted" but the quotes are not required/))
+    # The quoted keyword a wrapper writes on purpose.
+    diagnostics = Enum.reject(diagnostics, &(&1.message =~ ~r/^found quoted keyword "else" but the quotes are not required/ and path =~ ~r/else_quoted/))
     # A moduledoc world setting the doc a second time, which is what it asks about.
     diagnostics = Enum.reject(diagnostics, &(&1.message =~ ~r/^redefining @moduledoc attribute/ and path =~ ~r/x_moduledoc/))
     if diagnostics != [], do: raise("#{path} compiled with diagnostics: #{inspect(diagnostics)}")
