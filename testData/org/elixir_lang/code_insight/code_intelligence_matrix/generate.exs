@@ -133,6 +133,12 @@ defmodule Matrix do
   # `defmacro(__using__(_), do: quote(do: def(x(), do: :ok)))`.
   @use_parens_worlds ["x_use_injected_parens"]
 
+  # `x_use_injected` with the injected definitions under each wrapper inside the `__using__` quote, which the user's
+  # module body then runs.
+  @use_quote_wrappers Map.new(@wrappers, fn {"x_" <> wrapper, lines} -> {"x_use_in_quote_" <> wrapper, lines} end)
+  @use_quote_wrapper_worlds Map.keys(@use_quote_wrappers)
+  @use_rewritten_worlds @use_parens_worlds ++ @use_quote_wrapper_worlds
+
   # The worlds where a call made before the definition is asked, which only a walk of the whole module can resolve.
   @local_forward_worlds ["w1", "x_if_else" | @wrapper_worlds ++ @use_wrapper_worlds]
 
@@ -201,7 +207,7 @@ defmodule Matrix do
 
   # The worlds whose main module's definitions a `use` injects.
   @use_worlds ["x_use_injected", "x_use_injected_defaults", "x_use_apply"]
-  @injecting_worlds @use_worlds ++ @use_wrapper_worlds ++ @use_parens_worlds
+  @injecting_worlds @use_worlds ++ @use_wrapper_worlds ++ @use_parens_worlds ++ @use_quote_wrapper_worlds
 
   # A definition with defaults is one function at several arities, so a `@spec` of any of them is about it.
   @spec_worlds ["w1", "x_arity", "x_defaults", "x_defaults_head"]
@@ -219,7 +225,7 @@ defmodule Matrix do
     injected = worlds["x_use_injected"]
 
     worlds = Enum.reduce(@use_wrapper_worlds, worlds, &Map.put(&2, &1, %{modules: injected.modules, calls: [], asks: ["local", "local_forward"]}))
-    worlds = Enum.reduce(@use_parens_worlds, worlds, &Map.put(&2, &1, injected))
+    worlds = Enum.reduce(@use_rewritten_worlds, worlds, &Map.put(&2, &1, injected))
     module_calls = for {id, shape} <- @module_references, do: {id, 0, nil, 0, shape}
     module_asks = Enum.map(module_calls, &elem(&1, 0)) ++ ["module_local", "module_declaration"]
 
@@ -488,7 +494,7 @@ defmodule Matrix do
   def not_applicable(%{id: backing}, _form, world) when world in @use_wrapper_worlds and backing != "src",
     do: "compiled, the module is x_use_injected's; only its source puts the `use` under a wrapper"
 
-  def not_applicable(%{id: backing}, _form, world) when world in @use_parens_worlds and backing != "src",
+  def not_applicable(%{id: backing}, _form, world) when world in @use_rewritten_worlds and backing != "src",
     do: "compiled, the module is x_use_injected's; only its source writes the `__using__` quote differently"
 
   def not_applicable(_backing, form, world) when world in @injecting_worlds and form.id not in ["def", "defp", "defmacro", "defmacrop", "defguard"],
@@ -1277,6 +1283,7 @@ defmodule Matrix do
 
     quote = if form[:macro] && !form[:guard], do: "quote unquote: false", else: "quote"
     clauses = form |> Map.merge(%{wrapper: nil, unquote_name: false, branches: false, spec: false, parens: style == :parens}) |> render_clauses(definitions)
+    clauses = wrap(clauses, Map.get(@use_quote_wrappers, world))
     quoted = clauses |> Enum.map_join("\n", &String.replace(&1, ~r/^/m, if(style == :parens, do: "  ", else: "    ")))
     module = fn suffix -> main <> "." <> suffix end
 
@@ -2100,6 +2107,12 @@ defmodule Matrix do
     end
   end
 
+  # [clauses], each two spaces in, under a wrapper's opening and closing lines.
+  defp wrap(clauses, nil), do: clauses
+
+  defp wrap(clauses, {opening, closing}),
+    do: Enum.map(opening, &("  " <> &1)) ++ Enum.map(clauses, &String.replace(&1, ~r/^/m, "  ")) ++ Enum.map(closing, &("  " <> &1))
+
   defp render_module(%{protocol: true} = form, module, definitions, _primary, _clauses) do
     heads = Enum.map_join(definitions, "\n", fn {name, [{parameters, _guard} | _]} -> "  def #{name}(#{Enum.join(parameters, ", ")})" end)
 
@@ -2114,14 +2127,7 @@ defmodule Matrix do
 
   defp render_module(form, module, definitions, primary, clauses) do
     # Under a module-level `if` and the like, which is how a definition that is only sometimes compiled is written.
-    clauses =
-      case form[:wrapper] do
-        {opening, closing} ->
-          Enum.map(opening, &("  " <> &1)) ++ Enum.map(clauses, &String.replace(&1, ~r/^/m, "  ")) ++ Enum.map(closing, &("  " <> &1))
-
-        nil ->
-          clauses
-      end
+    clauses = wrap(clauses, form[:wrapper])
 
     # A call made before the definition it calls, which a resolver walking the module top-down meets first.
     forward =
