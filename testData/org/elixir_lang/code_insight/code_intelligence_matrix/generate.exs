@@ -161,8 +161,13 @@ defmodule Matrix do
   @use_quote_shape_worlds Map.keys(@use_quote_shapes)
   @use_rewritten_worlds @use_parens_worlds ++ @use_quote_wrapper_worlds ++ @use_quote_shape_worlds
 
+  # w1 with a guard on its definition, written without parentheses and with them: `def(snoc(q, x) when is_tuple(q), do:
+  # ...)`. Inside parentheses `when` parses as a different operation from the one a bare head's does.
+  @guarded_worlds ["x_guarded", "x_parens_guarded"]
+  @parens_worlds ["x_parens_guarded"]
+
   # The worlds where a call made before the definition is asked, which only a walk of the whole module can resolve.
-  @local_forward_worlds ["w1", "x_if_else" | @wrapper_worlds ++ @use_wrapper_worlds]
+  @local_forward_worlds ["w1", "x_if_else" | @wrapper_worlds ++ @use_wrapper_worlds ++ @guarded_worlds]
 
   # What `x_moduledoc_file` reads its doc from, relative to this directory, where the compiler runs.
   @moduledoc_file "spec/moduledoc.md"
@@ -394,6 +399,9 @@ defmodule Matrix do
       "x_try_after" => %{modules: [[snoc_2]], calls: one_calls},
       "x_rescue" => %{modules: [[snoc_2]], calls: one_calls},
       "x_catch" => %{modules: [[snoc_2]], calls: one_calls},
+      # `is_tuple`: a macro's guard is checked against its arguments' AST, and each call passes a variable.
+      "x_guarded" => %{modules: [[{"snoc", [{["q", "x"], {"is_tuple", "q"}}]}]], calls: one_calls},
+      "x_parens_guarded" => %{modules: [[{"snoc", [{["q", "x"], {"is_tuple", "q"}}]}]], calls: one_calls},
       # A definition with defaults under a module-level `if`, and one of a lower arity under its `else`. Only the branch
       # the condition takes is compiled, so the two are never the same function: `snoc(a, b)` can only be the `if`'s, and
       # `snoc(a)` is the `if`'s too, because the `else` is never compiled at all. The first definition is the `if`'s and
@@ -575,6 +583,15 @@ defmodule Matrix do
 
   def not_applicable(_backing, form, world) when world in @compile_time_call_worlds and form.id not in ["def", "defmacro"],
     do: "a compile-time call world asks a call of a function or a macro its own module defines later"
+
+  def not_applicable(%{id: backing}, _form, world) when world in @guarded_worlds and backing != "src",
+    do: "compiled, the definition is an ordinary one; only its source is written differently"
+
+  def not_applicable(_backing, %{guard: true}, "x_guarded"),
+    do: "a `defguard` head always has its `when`, so w1 already asks the guarded head written without parentheses"
+
+  def not_applicable(_backing, form, world) when world in @guarded_worlds and form.id not in ["def", "defp", "defmacro", "defmacrop", "defguard", "defguardp"],
+    do: "the question is a guarded head written as a call, which only the definers of the `def` family have"
 
   def not_applicable(_backing, _form, _world), do: nil
 
@@ -1678,7 +1695,7 @@ defmodule Matrix do
     form =
       Map.merge(form, %{
         wrapper: Map.get(@wrappers, world) || Map.get(@use_wrappers, world),
-        parens: world in @list_wrapper_worlds,
+        parens: world in @list_wrapper_worlds or world in @parens_worlds,
         unquote_name: world == "x_unquote_name",
         branches: world == "x_if_else",
         spec: primary != nil and backing.id == "src" and world in @spec_worlds and form.id in @function_forms,
