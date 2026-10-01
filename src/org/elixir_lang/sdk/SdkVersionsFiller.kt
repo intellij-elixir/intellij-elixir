@@ -148,7 +148,8 @@ internal object SdkVersionsFiller {
     /**
      * For a platform hook that must answer synchronously, such as `SdkType.getVersionString`. Reads nothing while the
      * thread holds a lock, since resolving the home can boot a WSL distro; the caller answers from the store instead.
-     * Modal progress started inside a read action is handed a read permit, so the lock is checked again inside it.
+     * Before 2026.3, modal progress started inside a read action is handed a read permit, so the lock is checked again
+     * inside it.
      */
     fun fillIfUnreadBlocking(homePath: String) = fillIfUnreadBlocking(listOf(homePath))
 

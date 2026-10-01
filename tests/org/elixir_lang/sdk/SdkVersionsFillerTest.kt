@@ -4,7 +4,10 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.roots.ModuleRootModificationUtil
+import com.intellij.openapi.util.Computable
 import com.intellij.openapi.util.io.FileUtil
+import com.intellij.platform.ide.progress.ModalTaskOwner
+import com.intellij.platform.ide.progress.runWithModalProgressBlocking
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import com.intellij.testFramework.registerOrReplaceServiceInstance
 import org.elixir_lang.junit.onPooledThread
@@ -478,15 +481,24 @@ class SdkVersionsFillerTest : PlatformTestCase() {
 
     /**
      * On the EDT a read action holds no read permit of its own, so the refusal before the modal progress lets it
-     * through - and the progress is then handed one, which only the check inside it can see.
+     * through. Before 2026.3 the progress is then handed one, which only the check inside it can see; from 2026.3 it
+     * shares the EDT's write-intent instead (IJPL-253986), and the version is read with no read lock held.
      */
     @RequiresEdt
-    fun testABlockingFillReadsNothingInsideAReadActionOnTheEdt() {
+    fun testABlockingFillInsideAReadActionOnTheEdtReadsOnlyWithoutAReadLock() {
         val home = erlangHome("27", "27.3.4")
+        val app = ApplicationManager.getApplication()
+        val progressHoldsAReadLock = app.runReadAction(Computable {
+            runWithModalProgressBlocking(ModalTaskOwner.guess(), "") { app.holdsReadLock() }
+        })
 
-        ApplicationManager.getApplication().runReadAction { SdkVersionsFiller.fillIfUnreadBlocking(home) }
+        app.runReadAction { SdkVersionsFiller.fillIfUnreadBlocking(home) }
 
-        assertNull(store.otpVersion(home))
+        if (progressHoldsAReadLock) {
+            assertNull("modal progress holds a read lock here, so nothing may be read", store.otpVersion(home))
+        } else {
+            assertEquals("modal progress holds no read lock here, so the version is read", "27.3.4", store.otpVersion(home))
+        }
     }
 
     private fun published(): MutableList<String> {
