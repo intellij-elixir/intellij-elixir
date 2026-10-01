@@ -38,13 +38,14 @@ fun QualifiableAlias.computeReference(): PsiPolyVariantReference? =
 
         else ->
 
-            if (this.fullyQualifiedName() !in arrayOf(
+            if (moduleName(this) !in arrayOf(
                     // `BitString` is used for `defimpl ..., for: BitString` to define protocols on bitstrings
                     // (`<<...>>`)
-                    "BitString",
+                    ModuleName("BitString", absolute = false),
+                    ModuleName("BitString", absolute = true),
                     // There is no one module that defines the `Elixir` module.  It is only defined implicitly as the common
                     // namespace to all Aliases.
-                    "Elixir"
+                    ModuleName("Elixir", absolute = false)
                 )
             ) {
                 Module(this)
@@ -148,8 +149,8 @@ object QualifiableAliasImpl {
      * The name of [qualifiableAlias] with each call qualifier, such as `__MODULE__` in `__MODULE__.Endpoint`, named by
      * [callQualifierName].
      *
-     * [com.intellij.psi.PsiNamedElement.getName] for a [QualifiedAlias] is the raw source text, which matches nothing
-     * in the module name index when a qualifier is a call.
+     * [com.intellij.psi.PsiNamedElement.getName] of a [QualifiedAlias] whose qualifier is a call is its text, which
+     * matches nothing in the module name index.
      */
     fun selfQualifiedName(
         qualifiableAlias: QualifiableAlias,
