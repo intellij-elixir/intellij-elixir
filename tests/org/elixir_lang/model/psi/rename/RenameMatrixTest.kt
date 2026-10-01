@@ -35,6 +35,10 @@ class RenameMatrixTest : PlatformTestCase() {
     /** Nested name `Outer.Renamee`; a bare aliased reference follows the rename. */
     fun testModuleNested() = doTestFromEveryOccurrence("module_nested", "Renamee", "Outer.Fresh", expectedCarets = 3)
 
+    /** A module declared inside another, its bare use there and its qualified use elsewhere. */
+    fun testModuleNestedInModule() =
+        doTestFromEveryOccurrence("module_nested_in_module", "Renamee", "Fresh", expectedCarets = 3)
+
     /** Multi-alias `alias Grouped.{Renamee, Sibling}`. */
     fun testModuleMultiAlias() =
         doTestFromEveryOccurrence("module_multi_alias", "Renamee", "Grouped.Fresh", expectedCarets = 3)

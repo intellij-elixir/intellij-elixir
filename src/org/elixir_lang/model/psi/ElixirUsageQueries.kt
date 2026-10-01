@@ -41,6 +41,7 @@ import org.elixir_lang.model.psi.callback.BehaviourMembership
 import org.elixir_lang.model.psi.callback.Callback
 import org.elixir_lang.model.psi.function.FunctionArityKeywordPairReference
 import org.elixir_lang.model.psi.function.FunctionSymbol
+import org.elixir_lang.model.psi.module.ModuleReference
 import org.elixir_lang.model.psi.module.ModuleSymbol
 import org.elixir_lang.model.psi.module_attribute.ModuleAttributeReference
 import org.elixir_lang.model.psi.module_attribute.ModuleAttributeSymbol
@@ -532,34 +533,7 @@ internal object ElixirUsageQueries {
             // Primary: pure structural match via fullyQualifiedName(). Works for:
             //   alias MyApp.Module, use MyApp.Module, MyApp.{Module, Other}, MyApp.Module in code
             val fqn = alias.fullyQualifiedName().removeElixirPrefix()
-            if (fqn == symbol.moduleName) {
-                // When the matched node spells only a SUFFIX of the FQN - a multi-alias group
-                // member like `Renamee` in `alias Grouped.{Renamee, Sibling}` - a rename must
-                // write the new name RELATIVE to the surrounding qualifier: writing the full new
-                // name into the member slot would produce `Grouped.{Grouped.Fresh, Sibling}`.
-                // The qualifier prefix is recoverable without further PSI inspection: it is the
-                // FQN minus the node's own text. When the node spells the whole FQN the prefix is
-                // empty and the new name is written as-is. A rename that moves the module OUT of
-                // the qualifier (prefix no longer matches the new name) cannot be expressed
-                // inside the group; the full name is written then - imperfect, but it never
-                // corrupts the qualifier-preserving case.
-                val qualifierPrefix = fqn.removeSuffix(alias.text)
-                val usageTextByName: ((String) -> String)? =
-                    if (qualifierPrefix.isNotEmpty() && qualifierPrefix != fqn) {
-                        { newName -> if (newName.startsWith(qualifierPrefix)) newName.removePrefix(qualifierPrefix) else newName }
-                    } else {
-                        null
-                    }
-                return listOf(
-                    ElixirPsiUsage.create(
-                        alias,
-                        TextRange(0, alias.textLength),
-                        declaration = false,
-                        usageType = MODULE_REFERENCE,
-                        usageTextByName = usageTextByName
-                    )
-                )
-            }
+            if (fqn == symbol.moduleName) return listOf(moduleNameUsage(alias, fqn, symbol))
 
             // Secondary: bare short-name reference where the FQN is just the last segment.
             // e.g. `Module` in code where `alias MyApp.Module` is in lexical scope.
@@ -581,7 +555,46 @@ internal object ElixirUsageQueries {
                 )
             }
 
+            // Tertiary: a name relative to a module around it, `Inner` for a `defmodule Inner` in `A`; which module
+            // it names is the resolver's answer.
+            if (symbol.moduleName.endsWith(".$fqn") && symbol in ModuleReference.resolve(alias, fqn)) {
+                return listOf(moduleNameUsage(alias, symbol.moduleName, symbol))
+            }
+
             return emptyList()
+        }
+
+        /**
+         * [alias] spelling [fqn], [symbol]'s name, or a suffix of it.
+         *
+         * A rename's new name replaces the name as declared ([ModuleSymbol.targetName]), so the module's new name is
+         * the rest of the old one, `Outer.` for `Renamee` declared in `Outer`, then the new name. Where [alias]
+         * spells only a suffix - `Renamee` in `alias Grouped.{Renamee, Sibling}`, or inside `Outer` - the qualifier
+         * it leaves out is left out of the new text too, or the member would become `Grouped.Fresh`. A rename
+         * that moves the module out of that qualifier cannot be written there, so the full name is.
+         */
+        private fun moduleNameUsage(alias: QualifiableAlias, fqn: String, symbol: ModuleSymbol): PsiUsage {
+            val declaredPrefix =
+                if (symbol.moduleName.endsWith(symbol.targetName)) symbol.moduleName.removeSuffix(symbol.targetName) else ""
+            val qualifierPrefix = fqn.removeSuffix(alias.text).takeIf { it != fqn } ?: ""
+            val usageTextByName: ((String) -> String)? =
+                if (declaredPrefix == qualifierPrefix) {
+                    null
+                } else {
+                    { newName ->
+                        val newFqn = declaredPrefix + newName
+
+                        if (newFqn.startsWith(qualifierPrefix)) newFqn.removePrefix(qualifierPrefix) else newFqn
+                    }
+                }
+
+            return ElixirPsiUsage.create(
+                alias,
+                TextRange(0, alias.textLength),
+                declaration = false,
+                usageType = MODULE_REFERENCE,
+                usageTextByName = usageTextByName
+            )
         }
 
         private fun hasEnclosingModuleAlias(element: PsiElement, targetFqn: String): Boolean {

@@ -20,6 +20,14 @@ class InPlaceRenameTest : InPlaceSymbolRenameTestCase() {
         myFixture.checkResultByFile("declaration.ex", "after.ex", false)
     }
 
+    fun testNestedDeclarationInPlaceRename() {
+        myFixture.configureByFiles("nested_declaration.ex")
+
+        inPlaceRenameAtCaret("Renamed")
+
+        myFixture.checkResultByFile("nested_declaration.ex", "nested_declaration_after.ex", false)
+    }
+
     fun testUsageInPlaceRename() {
         myFixture.configureByFiles("usage.ex")
 

@@ -55,20 +55,20 @@ fun QualifiableAlias.computeReference(): PsiPolyVariantReference? =
     }
 
 /**
- * The enclosing module declaration ([ModuleSymbol.isDeclaration]) whose declared name [alias] is (part of).
- * Declaration names are anchored by `ModuleSymbolDeclarationProvider` and must not carry references -
+ * The enclosing module declaration ([ModuleSymbol.isDeclaration]) whose declared name [name], an alias or an atom,
+ * is (part of). Declaration names are anchored by `ModuleSymbolDeclarationProvider` and must not carry references -
  * an (even unresolving) reference over a declaration anchor shadows the declaration in the platform's
  * declaration-or-reference arbitration.
  */
 @RequiresReadLock
-internal fun declaringModuleCall(alias: QualifiableAlias): Call? {
-    val moduleCall = generateSequence(alias as PsiElement) { it.parent }
+internal fun declaringModuleCall(name: PsiElement): Call? {
+    val moduleCall = generateSequence(name) { it.parent }
         .filterIsInstance<Call>()
         .firstOrNull { ModuleSymbol.isDeclaration(it) }
         ?: return null
     val firstPrimaryArgument = moduleCall.primaryArguments()?.firstOrNull() ?: return null
 
-    return moduleCall.takeIf { PsiTreeUtil.isAncestor(firstPrimaryArgument, alias, false) }
+    return moduleCall.takeIf { PsiTreeUtil.isAncestor(firstPrimaryArgument, name, false) }
 }
 
 fun QualifiableAlias.cachedReference(): PsiPolyVariantReference? =
