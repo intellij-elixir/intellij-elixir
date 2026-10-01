@@ -7,7 +7,6 @@ import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.psi.PsiElementVisitor
-import com.intellij.psi.PsiNamedElement
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
@@ -15,6 +14,7 @@ import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.call.keywordArgument
 import org.elixir_lang.psi.impl.call.qualification.qualifiedToModulars
+import org.elixir_lang.psi.impl.moduleName
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.reference.module.UnaliasedName
 import org.elixir_lang.reference.resolver.Module as ModuleResolver
@@ -206,8 +206,7 @@ class UnresolvableModuleQualifier : LocalInspectionTool() {
                 val firstArg = finalArgs[0].stripAccessExpression()
                 return when (firstArg) {
                     is QualifiableAlias -> firstArg.fullyQualifiedName()
-                    is PsiNamedElement -> firstArg.name
-                    else -> null
+                    else -> moduleName(firstArg)?.name
                 }
             }
 
@@ -217,8 +216,8 @@ class UnresolvableModuleQualifier : LocalInspectionTool() {
              */
             private fun aliasNameIntroducedBy(aliasCall: Call): String? {
                 val asValue = aliasCall.keywordArgument("as")?.stripAccessExpression()
-                if (asValue is PsiNamedElement) {
-                    return asValue.name
+                if (asValue != null) {
+                    return moduleName(asValue)?.name
                 }
 
                 return aliasTargetName(aliasCall)

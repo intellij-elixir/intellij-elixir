@@ -93,6 +93,16 @@ class UnresolvableModuleQualifierTest : PlatformTestCase() {
         myFixture.checkHighlighting()
     }
 
+    fun testRouterHelpersQuotedAsSuppressedWhenRouterExists() {
+        myFixture.configureByFiles("router_helpers_quoted_as_suppressed.ex", "ic_web_router.ex")
+        myFixture.checkHighlighting()
+    }
+
+    fun testRouterHelpersQuotedAliasSuppressedWhenRouterExists() {
+        myFixture.configureByFiles("router_helpers_quoted_alias_suppressed.ex", "ic_web_router.ex")
+        myFixture.checkHighlighting()
+    }
+
     fun testUseInjectedAliasSuppressedWhenUseIsOpaque() {
         myFixture.configureByFiles("use_injected_alias.ex", "conn_case.ex")
         myFixture.checkHighlighting()
