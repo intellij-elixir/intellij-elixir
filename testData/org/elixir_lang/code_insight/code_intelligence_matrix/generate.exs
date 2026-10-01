@@ -102,9 +102,14 @@ defmodule Matrix do
     ]
   end
 
+  # w1 with its `@spec`'s argument in parentheses, as `{before the name, after the type}`. The compiler reads both as
+  # the unparenthesised `@spec`; the parser reads `@spec(...)` as an `@` operation and `@spec (...)` as a parenthetical.
+  @spec_parens %{"x_spec_parens" => {"(", ")"}, "x_spec_parens_space" => {" (", ")"}}
+  @spec_parens_worlds Map.keys(@spec_parens)
+
   # `as:` only changes which function of the target a delegate calls, so it asks nothing new in the worlds about
   # clauses, guards or lookalikes; these are the ones where a delegate's arity or module is the question.
-  @delegate_as_worlds ["w1", "w2", "x_defaults", "x_arity_absent", "x_other_module"]
+  @delegate_as_worlds ["w1", "w2", "x_defaults", "x_arity_absent", "x_other_module" | @spec_parens_worlds]
 
   # The forms that declare functions a caller can name before or after them, and name in a `@spec`.
   @function_forms ["def", "defp", "defdelegate", "defdelegate_compiled", "defdelegate_unresolvable", "defdelegate_as", "eex_function_from"]
@@ -259,11 +264,11 @@ defmodule Matrix do
   @injecting_worlds @use_worlds ++ @use_wrapper_worlds ++ @use_parens_worlds ++ @use_quote_wrapper_worlds ++ @use_quote_shape_worlds
 
   # A definition with defaults is one function at several arities, so a `@spec` of any of them is about it.
-  @spec_worlds ["w1", "x_arity", "x_defaults", "x_defaults_head"]
+  @spec_worlds ["w1", "x_arity", "x_defaults", "x_defaults_head" | @spec_parens_worlds]
 
   # EEx declares one clause per name and arity, with no guard and no defaults, so only the worlds made of those.
   # Under a wrapper, only the literal call and only the calls in its own module ask anything `def` does not.
-  @eex_worlds ["w1", "x_arity", "x_other_module", "x_not_a_call", "x_arity_absent", "x_arity_zero", "x_arity_separate" | @wrapper_worlds]
+  @eex_worlds ["w1", "x_arity", "x_other_module", "x_not_a_call", "x_arity_absent", "x_arity_zero", "x_arity_separate" | @wrapper_worlds ++ @spec_parens_worlds]
 
   # A world is its modules' definitions and the calls made to them. A definition is `{name, clauses}`; a clause is
   # `{parameters, guard}`, where a parameter is a name or `{name, default}` and a guard is `{function, parameter}`.
@@ -400,6 +405,8 @@ defmodule Matrix do
       "x_try_after" => %{modules: [[snoc_2]], calls: one_calls},
       "x_rescue" => %{modules: [[snoc_2]], calls: one_calls},
       "x_catch" => %{modules: [[snoc_2]], calls: one_calls},
+      "x_spec_parens" => %{modules: [[snoc_2]], calls: one_calls},
+      "x_spec_parens_space" => %{modules: [[snoc_2]], calls: one_calls},
       # `is_tuple`: a macro's guard is checked against its arguments' AST, and each call passes a variable.
       "x_guarded" => %{modules: [[{"snoc", [{["q", "x"], {"is_tuple", "q"}}]}]], calls: one_calls},
       "x_parens_guarded" => %{modules: [[{"snoc", [{["q", "x"], {"is_tuple", "q"}}]}]], calls: one_calls},
@@ -593,6 +600,12 @@ defmodule Matrix do
 
   def not_applicable(_backing, form, world) when world in @guarded_worlds and form.id not in ["def", "defp", "defmacro", "defmacrop", "defguard", "defguardp"],
     do: "the question is a guarded head written as a call, which only the definers of the `def` family have"
+
+  def not_applicable(%{id: backing}, _form, world) when world in @spec_parens_worlds and backing != "src",
+    do: "a `@spec` is written only in source, and compiled it is the same either way"
+
+  def not_applicable(_backing, form, world) when world in @spec_parens_worlds and form.id not in @function_forms,
+    do: "only the forms that declare functions are given a `@spec`"
 
   def not_applicable(_backing, _form, _world), do: nil
 
@@ -1699,7 +1712,7 @@ defmodule Matrix do
         parens: world in @list_wrapper_worlds or world in @parens_worlds,
         unquote_name: world == "x_unquote_name",
         branches: world == "x_if_else",
-        spec: primary != nil and backing.id == "src" and world in @spec_worlds and form.id in @function_forms,
+        spec: primary != nil and backing.id == "src" and world in @spec_worlds and form.id in @function_forms and Map.get(@spec_parens, world, {" ", ""}),
         local_forward: primary != nil and backing.id == "src" and world in @local_forward_worlds and form.id in @function_forms,
         moduledoc: primary != nil && Map.get(@moduledocs, world),
         protocol: primary != nil and world in @protocol_worlds
@@ -2189,10 +2202,11 @@ defmodule Matrix do
 
         # One `@spec` per arity the definition covers: with defaults it is one function at each of them.
         spec =
-          if form[:spec] and index == 0,
+          if form[:spec] && index == 0,
             do:
               Enum.map_join((length(parameters) - defaults)..length(parameters)//1, fn arity ->
-                "  @spec #{name}(#{Enum.join(List.duplicate("term()", arity), ", ")}) :: term() # @spec_#{arity}\n"
+                {open, close} = form.spec
+                "  @spec#{open}#{name}(#{Enum.join(List.duplicate("term()", arity), ", ")}) :: term()#{close} # @spec_#{arity}\n"
               end),
             else: ""
         written = if form[:unquote_name], do: "unquote(:#{name})", else: name
@@ -2609,7 +2623,7 @@ defmodule Matrix do
           }
 
         true ->
-          [_, {name_start, name_length}] = Regex.run(~r/@spec ([^\s(]+)\(/u, text, return: :index)
+          [_, {name_start, name_length}] = Regex.run(~r/@spec[ (]+([^\s(]+)\(/u, text, return: :index)
           name = binary_part(text, name_start, name_length)
           arity = id |> String.replace_prefix("spec_", "") |> String.to_integer()
 
