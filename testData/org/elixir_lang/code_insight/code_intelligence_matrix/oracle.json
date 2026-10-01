@@ -179,6 +179,12 @@
     {
       "backing": "src",
       "form": "defp",
+      "reason": "a compile-time call world asks a call of a function or a macro its own module defines later",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "src",
+      "form": "defp",
       "reason": "x_embed's names are what a Mix.Generator embed declares",
       "world": "x_embed"
     },
@@ -517,6 +523,12 @@
       "form": "defmacrop",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "src",
+      "form": "defmacrop",
+      "reason": "a compile-time call world asks a call of a function or a macro its own module defines later",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "src",
@@ -715,6 +727,12 @@
       "form": "defguard",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "src",
+      "form": "defguard",
+      "reason": "a compile-time call world asks a call of a function or a macro its own module defines later",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "src",
@@ -931,6 +949,12 @@
       "form": "defguardp",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "src",
+      "form": "defguardp",
+      "reason": "a compile-time call world asks a call of a function or a macro its own module defines later",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "src",
@@ -1343,6 +1367,12 @@
     {
       "backing": "src",
       "form": "defdelegate",
+      "reason": "a compile-time call world asks a call of a function or a macro its own module defines later",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate",
       "reason": "a list's definitions are calls with parentheses, which only the definers of the `def` family are written as here",
       "world": "x_else_list"
     },
@@ -1727,6 +1757,12 @@
     {
       "backing": "src",
       "form": "defdelegate_compiled",
+      "reason": "a compile-time call world asks a call of a function or a macro its own module defines later",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_compiled",
       "reason": "a list's definitions are calls with parentheses, which only the definers of the `def` family are written as here",
       "world": "x_else_list"
     },
@@ -2111,6 +2147,12 @@
     {
       "backing": "src",
       "form": "defdelegate_unresolvable",
+      "reason": "a compile-time call world asks a call of a function or a macro its own module defines later",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_unresolvable",
       "reason": "a list's definitions are calls with parentheses, which only the definers of the `def` family are written as here",
       "world": "x_else_list"
     },
@@ -2538,6 +2580,12 @@
       "backing": "src",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_cond"
     },
     {
@@ -3061,6 +3109,12 @@
       "form": "defdelegate_imports",
       "reason": "a target that only imports the function asks nothing w1 does not",
       "world": "x_catch"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_imports",
+      "reason": "a target that only imports the function asks nothing w1 does not",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "src",
@@ -3606,6 +3660,12 @@
       "backing": "src",
       "form": "defdelegate_list",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_cond"
     },
     {
@@ -4146,6 +4206,12 @@
       "backing": "src",
       "form": "defdelegate_list_trailing",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_cond"
     },
     {
@@ -4686,6 +4752,12 @@
       "backing": "src",
       "form": "defdelegate_list_lines",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_cond"
     },
     {
@@ -5226,6 +5298,12 @@
       "backing": "src",
       "form": "defdelegate_as_list",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_cond"
     },
     {
@@ -5766,6 +5844,12 @@
       "backing": "src",
       "form": "defdelegate_as_attribute",
       "reason": "how the options are spelled asks nothing w1 does not",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_cond"
     },
     {
@@ -6301,6 +6385,12 @@
       "form": "defdelegate_doc",
       "reason": "a delegate's own `@doc` asks nothing w1 does not",
       "world": "x_catch"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a delegate's own `@doc` asks nothing w1 does not",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "src",
@@ -6805,6 +6895,12 @@
       "form": "eex_function_from",
       "reason": "an attribute world's subject is its module attribute, which no function form declares",
       "world": "x_attribute_redefined"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "src",
@@ -7247,6 +7343,12 @@
     {
       "backing": "src",
       "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_kind",
       "reason": "reading the kind or the arguments from an attribute is w1's question; a wrapper does not change it",
       "world": "x_cond"
     },
@@ -7751,6 +7853,12 @@
     {
       "backing": "src",
       "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_args",
       "reason": "reading the kind or the arguments from an attribute is w1's question; a wrapper does not change it",
       "world": "x_cond"
     },
@@ -8286,6 +8394,12 @@
       "backing": "src",
       "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "src",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_cond"
     },
     {
@@ -8742,6 +8856,12 @@
       "backing": "src",
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "src",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_cond"
     },
     {
@@ -9239,6 +9359,12 @@
     {
       "backing": "ex_dbgi",
       "form": "def",
+      "reason": "a compile-time call world asks what a module-level call in the caller names, which the declaring module's backing does not change",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "def",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_cond"
     },
@@ -9679,6 +9805,12 @@
       "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defp",
+      "reason": "a compile-time call world asks what a module-level call in the caller names, which the declaring module's backing does not change",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_dbgi",
@@ -10135,6 +10267,12 @@
       "form": "defmacro",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacro",
+      "reason": "a compile-time call world asks what a module-level call in the caller names, which the declaring module's backing does not change",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_dbgi",
@@ -10627,6 +10765,12 @@
       "form": "defmacrop",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_dbgi",
@@ -11141,6 +11285,12 @@
     {
       "backing": "ex_dbgi",
       "form": "defguard",
+      "reason": "a compile-time call world asks what a module-level call in the caller names, which the declaring module's backing does not change",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguard",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_cond"
     },
@@ -11651,6 +11801,12 @@
     {
       "backing": "ex_dbgi",
       "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguardp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_cond"
     },
@@ -12145,6 +12301,12 @@
       "form": "defdelegate",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate",
+      "reason": "a compile-time call world asks what a module-level call in the caller names, which the declaring module's backing does not change",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_dbgi",
@@ -12659,6 +12821,12 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_compiled",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_cond"
     },
@@ -13153,6 +13321,12 @@
       "form": "defdelegate_unresolvable",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_unresolvable",
+      "reason": "a compile-time call world asks what a module-level call in the caller names, which the declaring module's backing does not change",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_dbgi",
@@ -13650,6 +13824,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_cond"
     },
     {
@@ -14179,6 +14359,12 @@
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_dbgi",
@@ -14730,6 +14916,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_cond"
     },
     {
@@ -15276,6 +15468,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_cond"
     },
     {
@@ -15822,6 +16020,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_cond"
     },
     {
@@ -16368,6 +16572,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_cond"
     },
     {
@@ -16914,6 +17124,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_cond"
     },
     {
@@ -17455,6 +17671,12 @@
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_dbgi",
@@ -17971,6 +18193,12 @@
       "form": "eex_function_from",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_dbgi",
@@ -18479,6 +18707,12 @@
     {
       "backing": "ex_dbgi",
       "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_kind",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_cond"
     },
@@ -18979,6 +19213,12 @@
       "form": "eex_function_from_args",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_dbgi",
@@ -19513,6 +19753,12 @@
       "form": "generator_embed",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_dbgi",
@@ -20058,6 +20304,12 @@
       "backing": "ex_dbgi",
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_cond"
     },
     {
@@ -20551,6 +20803,12 @@
       "form": "def",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "def",
+      "reason": "a compile-time call world asks what a module-level call in the caller names, which the declaring module's backing does not change",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_docs",
@@ -21013,6 +21271,12 @@
       "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defp",
+      "reason": "a compile-time call world asks what a module-level call in the caller names, which the declaring module's backing does not change",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_docs",
@@ -21491,6 +21755,12 @@
     {
       "backing": "ex_docs",
       "form": "defmacro",
+      "reason": "a compile-time call world asks what a module-level call in the caller names, which the declaring module's backing does not change",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacro",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_cond"
     },
@@ -21997,6 +22267,12 @@
       "form": "defmacrop",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_docs",
@@ -22511,6 +22787,12 @@
     {
       "backing": "ex_docs",
       "form": "defguard",
+      "reason": "a compile-time call world asks what a module-level call in the caller names, which the declaring module's backing does not change",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguard",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_cond"
     },
@@ -23033,6 +23315,12 @@
     {
       "backing": "ex_docs",
       "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguardp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_cond"
     },
@@ -23527,6 +23815,12 @@
       "form": "defdelegate",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate",
+      "reason": "a compile-time call world asks what a module-level call in the caller names, which the declaring module's backing does not change",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_docs",
@@ -24041,6 +24335,12 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_compiled",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_cond"
     },
@@ -24535,6 +24835,12 @@
       "form": "defdelegate_unresolvable",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_unresolvable",
+      "reason": "a compile-time call world asks what a module-level call in the caller names, which the declaring module's backing does not change",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_docs",
@@ -25032,6 +25338,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_cond"
     },
     {
@@ -25561,6 +25873,12 @@
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_docs",
@@ -26112,6 +26430,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_cond"
     },
     {
@@ -26658,6 +26982,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_cond"
     },
     {
@@ -27204,6 +27534,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_cond"
     },
     {
@@ -27750,6 +28086,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_cond"
     },
     {
@@ -28296,6 +28638,12 @@
       "backing": "ex_docs",
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_cond"
     },
     {
@@ -28837,6 +29185,12 @@
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_docs",
@@ -29353,6 +29707,12 @@
       "form": "eex_function_from",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_docs",
@@ -29861,6 +30221,12 @@
     {
       "backing": "ex_docs",
       "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_kind",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_cond"
     },
@@ -30361,6 +30727,12 @@
       "form": "eex_function_from_args",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_docs",
@@ -30895,6 +31267,12 @@
       "form": "generator_embed",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_docs",
@@ -31440,6 +31818,12 @@
       "backing": "ex_docs",
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_cond"
     },
     {
@@ -31933,6 +32317,12 @@
       "form": "def",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "def",
+      "reason": "a compile-time call world asks what a module-level call in the caller names, which the declaring module's backing does not change",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_gen",
@@ -32395,6 +32785,12 @@
       "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defp",
+      "reason": "a compile-time call world asks what a module-level call in the caller names, which the declaring module's backing does not change",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_gen",
@@ -32873,6 +33269,12 @@
     {
       "backing": "ex_gen",
       "form": "defmacro",
+      "reason": "a compile-time call world asks what a module-level call in the caller names, which the declaring module's backing does not change",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacro",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_cond"
     },
@@ -33379,6 +33781,12 @@
       "form": "defmacrop",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacrop",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_gen",
@@ -33893,6 +34301,12 @@
     {
       "backing": "ex_gen",
       "form": "defguard",
+      "reason": "a compile-time call world asks what a module-level call in the caller names, which the declaring module's backing does not change",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguard",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_cond"
     },
@@ -34415,6 +34829,12 @@
     {
       "backing": "ex_gen",
       "form": "defguardp",
+      "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguardp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_cond"
     },
@@ -34909,6 +35329,12 @@
       "form": "defdelegate",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate",
+      "reason": "a compile-time call world asks what a module-level call in the caller names, which the declaring module's backing does not change",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_gen",
@@ -35423,6 +35849,12 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_compiled",
+      "reason": "a compiled delegator's target is compiled either way",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_compiled",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_cond"
     },
@@ -35917,6 +36349,12 @@
       "form": "defdelegate_unresolvable",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "a compile-time call world asks what a module-level call in the caller names, which the declaring module's backing does not change",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_gen",
@@ -36414,6 +36852,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as",
+      "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_cond"
     },
     {
@@ -36943,6 +37387,12 @@
       "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_imports",
+      "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_gen",
@@ -37494,6 +37944,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_cond"
     },
     {
@@ -38040,6 +38496,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_cond"
     },
     {
@@ -38586,6 +39048,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_cond"
     },
     {
@@ -39132,6 +39600,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_cond"
     },
     {
@@ -39678,6 +40152,12 @@
       "backing": "ex_gen",
       "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_cond"
     },
     {
@@ -40219,6 +40699,12 @@
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_gen",
@@ -40735,6 +41221,12 @@
       "form": "eex_function_from",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_gen",
@@ -41243,6 +41735,12 @@
     {
       "backing": "ex_gen",
       "form": "eex_function_from_kind",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_kind",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_cond"
     },
@@ -41743,6 +42241,12 @@
       "form": "eex_function_from_args",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_args",
+      "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_gen",
@@ -42277,6 +42781,12 @@
       "form": "generator_embed",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "generator_embed",
+      "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "ex_gen",
@@ -42822,6 +43332,12 @@
       "backing": "ex_gen",
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_cond"
     },
     {
@@ -43315,6 +43831,12 @@
       "form": "def",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_catch"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "def",
+      "reason": "a compile-time call world asks what a module-level call in the caller names, which the declaring module's backing does not change",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "erl_abst",
@@ -43799,6 +44321,12 @@
     {
       "backing": "erl_abst",
       "form": "defp",
+      "reason": "a compile-time call world asks what a module-level call in the caller names, which the declaring module's backing does not change",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_cond"
     },
@@ -44340,6 +44868,12 @@
       "backing": "erl_abst",
       "form": "defmacro",
       "reason": "Erlang has only functions",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacro",
+      "reason": "Erlang has only functions",
       "world": "x_cond"
     },
     {
@@ -44886,6 +45420,12 @@
       "backing": "erl_abst",
       "form": "defmacrop",
       "reason": "Erlang has only functions",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacrop",
+      "reason": "Erlang has only functions",
       "world": "x_cond"
     },
     {
@@ -45432,6 +45972,12 @@
       "backing": "erl_abst",
       "form": "defguard",
       "reason": "Erlang has only functions",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguard",
+      "reason": "Erlang has only functions",
       "world": "x_cond"
     },
     {
@@ -45978,6 +46524,12 @@
       "backing": "erl_abst",
       "form": "defguardp",
       "reason": "Erlang has only functions",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguardp",
+      "reason": "Erlang has only functions",
       "world": "x_cond"
     },
     {
@@ -46524,6 +47076,12 @@
       "backing": "erl_abst",
       "form": "defdelegate",
       "reason": "Erlang has only functions",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate",
+      "reason": "Erlang has only functions",
       "world": "x_cond"
     },
     {
@@ -47070,6 +47628,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_compiled",
       "reason": "Erlang has only functions",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_compiled",
+      "reason": "Erlang has only functions",
       "world": "x_cond"
     },
     {
@@ -47616,6 +48180,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_unresolvable",
       "reason": "Erlang has only functions",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_unresolvable",
+      "reason": "Erlang has only functions",
       "world": "x_cond"
     },
     {
@@ -48162,6 +48732,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_as",
       "reason": "Erlang has only functions",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as",
+      "reason": "Erlang has only functions",
       "world": "x_cond"
     },
     {
@@ -48708,6 +49284,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_imports",
       "reason": "Erlang has only functions",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_imports",
+      "reason": "Erlang has only functions",
       "world": "x_cond"
     },
     {
@@ -49254,6 +49836,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_list",
       "reason": "Erlang has only functions",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "Erlang has only functions",
       "world": "x_cond"
     },
     {
@@ -49800,6 +50388,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_list_trailing",
       "reason": "Erlang has only functions",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_trailing",
+      "reason": "Erlang has only functions",
       "world": "x_cond"
     },
     {
@@ -50346,6 +50940,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_list_lines",
       "reason": "Erlang has only functions",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_lines",
+      "reason": "Erlang has only functions",
       "world": "x_cond"
     },
     {
@@ -50892,6 +51492,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_as_list",
       "reason": "Erlang has only functions",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "Erlang has only functions",
       "world": "x_cond"
     },
     {
@@ -51438,6 +52044,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_as_attribute",
       "reason": "Erlang has only functions",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "Erlang has only functions",
       "world": "x_cond"
     },
     {
@@ -51984,6 +52596,12 @@
       "backing": "erl_abst",
       "form": "defdelegate_doc",
       "reason": "Erlang has only functions",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "Erlang has only functions",
       "world": "x_cond"
     },
     {
@@ -52530,6 +53148,12 @@
       "backing": "erl_abst",
       "form": "eex_function_from",
       "reason": "Erlang has only functions",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from",
+      "reason": "Erlang has only functions",
       "world": "x_cond"
     },
     {
@@ -53076,6 +53700,12 @@
       "backing": "erl_abst",
       "form": "eex_function_from_kind",
       "reason": "Erlang has only functions",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_kind",
+      "reason": "Erlang has only functions",
       "world": "x_cond"
     },
     {
@@ -53622,6 +54252,12 @@
       "backing": "erl_abst",
       "form": "eex_function_from_args",
       "reason": "Erlang has only functions",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_args",
+      "reason": "Erlang has only functions",
       "world": "x_cond"
     },
     {
@@ -54163,6 +54799,12 @@
       "form": "generator_embed",
       "reason": "Erlang has only functions",
       "world": "x_catch"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "generator_embed",
+      "reason": "Erlang has only functions",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "erl_abst",
@@ -54714,6 +55356,12 @@
       "backing": "erl_abst",
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_cond"
     },
     {
@@ -55249,6 +55897,12 @@
       "form": "def",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_catch"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "def",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "erl_gen",
@@ -55800,6 +56454,12 @@
       "backing": "erl_gen",
       "form": "defp",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defp",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_cond"
     },
     {
@@ -56346,6 +57006,12 @@
       "backing": "erl_gen",
       "form": "defmacro",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacro",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_cond"
     },
     {
@@ -56892,6 +57558,12 @@
       "backing": "erl_gen",
       "form": "defmacrop",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacrop",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_cond"
     },
     {
@@ -57438,6 +58110,12 @@
       "backing": "erl_gen",
       "form": "defguard",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguard",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_cond"
     },
     {
@@ -57984,6 +58662,12 @@
       "backing": "erl_gen",
       "form": "defguardp",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguardp",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_cond"
     },
     {
@@ -58530,6 +59214,12 @@
       "backing": "erl_gen",
       "form": "defdelegate",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_cond"
     },
     {
@@ -59076,6 +59766,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_compiled",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_compiled",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_cond"
     },
     {
@@ -59622,6 +60318,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_unresolvable",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_cond"
     },
     {
@@ -60168,6 +60870,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_as",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_cond"
     },
     {
@@ -60714,6 +61422,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_imports",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_imports",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_cond"
     },
     {
@@ -61260,6 +61974,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_list",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_cond"
     },
     {
@@ -61806,6 +62526,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_list_trailing",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_cond"
     },
     {
@@ -62352,6 +63078,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_list_lines",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_cond"
     },
     {
@@ -62898,6 +63630,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_as_list",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_cond"
     },
     {
@@ -63444,6 +64182,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_as_attribute",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_cond"
     },
     {
@@ -63990,6 +64734,12 @@
       "backing": "erl_gen",
       "form": "defdelegate_doc",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_cond"
     },
     {
@@ -64536,6 +65286,12 @@
       "backing": "erl_gen",
       "form": "eex_function_from",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_cond"
     },
     {
@@ -65082,6 +65838,12 @@
       "backing": "erl_gen",
       "form": "eex_function_from_kind",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_kind",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_cond"
     },
     {
@@ -65628,6 +66390,12 @@
       "backing": "erl_gen",
       "form": "eex_function_from_args",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_compile_time_call"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_args",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_cond"
     },
     {
@@ -66169,6 +66937,12 @@
       "form": "generator_embed",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_catch"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "generator_embed",
+      "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "erl_gen",
@@ -66715,6 +67489,12 @@
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_catch"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "attribute",
+      "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
+      "world": "x_compile_time_call"
     },
     {
       "backing": "erl_gen",
@@ -70562,6 +71342,119 @@
         }
       ],
       "world": "x_catch"
+    },
+    {
+      "asks": [
+        "called_in_do",
+        "called_in_else"
+      ],
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/def/x_compile_time_call.ex",
+      "form": "def",
+      "importCallers": [
+        "lib/callers/src/def/x_compile_time_call_called_in_do.ex",
+        "lib/callers/src/def/x_compile_time_call_called_in_else.ex"
+      ],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 7,
+              "definer": "def",
+              "line": 3,
+              "name": "src_def_x_compile_time_call_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_def_x_compile_time_call_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "src_def_x_compile_time_call_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Def.XCompileTimeCall",
+          "source": "lib/src/src.def.x_compile_time_call.ex",
+          "spec": "lib/src/src.def.x_compile_time_call.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_function",
+            "module": "Src.Def.XCompileTimeCall",
+            "name": "src_def_x_compile_time_call_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.def.x_compile_time_call.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_def_x_compile_time_call_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 39,
+          "diagnostic": {
+            "message": "undefined function src_def_x_compile_time_call_snoc/2 (there is no such import)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/def/x_compile_time_call_called_in_do.ex",
+          "id": "called_in_do",
+          "line": 3,
+          "name": "src_def_x_compile_time_call_snoc",
+          "targets": [],
+          "visible": []
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 57,
+          "diagnostic": {
+            "message": "undefined function src_def_x_compile_time_call_snoc/2 (there is no such import)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/def/x_compile_time_call_called_in_else.ex",
+          "id": "called_in_else",
+          "line": 3,
+          "name": "src_def_x_compile_time_call_snoc",
+          "targets": [],
+          "visible": []
+        }
+      ],
+      "world": "x_compile_time_call"
     },
     {
       "backing": "src",
@@ -116044,6 +116937,119 @@
         }
       ],
       "world": "x_catch"
+    },
+    {
+      "asks": [
+        "called_in_do",
+        "called_in_else"
+      ],
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/callers/src/defmacro/x_compile_time_call.ex",
+      "form": "defmacro",
+      "importCallers": [
+        "lib/callers/src/defmacro/x_compile_time_call_called_in_do.ex",
+        "lib/callers/src/defmacro/x_compile_time_call_called_in_else.ex"
+      ],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [
+            {
+              "arity": 2,
+              "clause": 0,
+              "column": 12,
+              "definer": "defmacro",
+              "line": 3,
+              "name": "src_defmacro_x_compile_time_call_snoc"
+            }
+          ],
+          "definitions": [
+            {
+              "clauses": 1,
+              "maxArity": 2,
+              "minArity": 2,
+              "name": "src_defmacro_x_compile_time_call_snoc"
+            }
+          ],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [
+            {
+              "defaults": 0,
+              "definer": "defmacro",
+              "guard": null,
+              "name": "src_defmacro_x_compile_time_call_snoc",
+              "parameters": [
+                "q",
+                "x"
+              ]
+            },
+            {
+              "defaults": 0,
+              "definer": "def",
+              "guard": null,
+              "name": "local_site",
+              "parameters": [
+                "a",
+                "b"
+              ]
+            }
+          ],
+          "module": "Src.Defmacro.XCompileTimeCall",
+          "source": "lib/src/src.defmacro.x_compile_time_call.ex",
+          "spec": "lib/src/src.defmacro.x_compile_time_call.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": {
+            "arity": 2,
+            "kind": "local_macro",
+            "module": "Src.Defmacro.XCompileTimeCall",
+            "name": "src_defmacro_x_compile_time_call_snoc"
+          },
+          "column": 29,
+          "file": "lib/src/src.defmacro.x_compile_time_call.ex",
+          "id": "local",
+          "line": 5,
+          "name": "src_defmacro_x_compile_time_call_snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 39,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_compile_time_call_snoc/2 (there is no such import)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_compile_time_call_called_in_do.ex",
+          "id": "called_in_do",
+          "line": 3,
+          "name": "src_defmacro_x_compile_time_call_snoc",
+          "targets": [],
+          "visible": []
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 57,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_compile_time_call_snoc/2 (there is no such import)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_compile_time_call_called_in_else.ex",
+          "id": "called_in_else",
+          "line": 3,
+          "name": "src_defmacro_x_compile_time_call_snoc",
+          "targets": [],
+          "visible": []
+        }
+      ],
+      "world": "x_compile_time_call"
     },
     {
       "backing": "src",
