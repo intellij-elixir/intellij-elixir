@@ -213,6 +213,12 @@ defmodule Matrix do
     "x_attribute_in_for" => [true, false],
     "x_attribute_in_try" => [true, false],
     "x_attribute_in_with" => [true, false],
+    "x_attribute_in_else_keyword" => [true, false],
+    "x_attribute_in_else_quoted" => [true, false],
+    "x_attribute_in_else_list" => [true, false],
+    "x_attribute_in_try_after" => [nil],
+    "x_attribute_in_rescue" => [true, false],
+    "x_attribute_in_catch" => [true, false],
     "x_attribute_in_dsl" => [nil]
   }
   @attribute_world_ids Map.keys(@attribute_worlds)
@@ -877,6 +883,7 @@ defmodule Matrix do
     {_modules, diagnostics} = Code.with_diagnostics(fn -> Code.compile_string(source, path) end)
     events = Matrix.Events.take()
     {undefined, unexpected} = Enum.split_with(diagnostics, &(&1.message =~ ~r/^undefined module attribute @#{@attribute},/))
+    unexpected = Enum.reject(unexpected, &(&1.message =~ ~r/^found quoted keyword "else" but the quotes are not required/ and world =~ ~r/else_quoted/))
     if unexpected != [], do: raise("#{path} compiled with diagnostics: #{inspect(unexpected)}")
 
     expanded = fn line, column ->
@@ -1022,6 +1029,27 @@ defmodule Matrix do
 
   defp attribute_body("x_attribute_in_with", taken, w, r), do: [w.("before_with", 9), "with true <- #{loaded(taken)}, do: " <> w.("in_with", 10), r.("read")]
   defp attribute_body("x_attribute_in_dsl", _, w, r), do: ["block do", "  " <> w.("in_block", 11), "end", r.("read")]
+
+  # A keyword value, which runs when the condition fails, so `taken` fails it.
+  defp attribute_body("x_attribute_in_else_" <> shape, taken, w, r) do
+    {key, open, close} =
+      case shape do
+        "keyword" -> {"else", "(", ")"}
+        "quoted" -> {~s("else"), "(", ")"}
+        "list" -> {"else", "[", "]"}
+      end
+
+    [w.("before_if", 12), "if #{loaded(!taken)}, do: nil, #{key}: #{open}", "  " <> w.("in_else", 13), close, r.("read")]
+  end
+
+  defp attribute_body("x_attribute_in_try_after", _, w, r),
+    do: [w.("before_try", 14), "try do", "  :ok", "after", "  " <> w.("in_after", 15), "end", r.("read")]
+
+  defp attribute_body("x_attribute_in_rescue", taken, w, r),
+    do: [w.("before_try", 16), "try do", "  " <> if(taken, do: ~s(raise "matrix"), else: ":ok"), "rescue", "  _ -> " <> w.("in_rescue", 17), "end", r.("read")]
+
+  defp attribute_body("x_attribute_in_catch", taken, w, r),
+    do: [w.("before_try", 18), "try do", "  " <> if(taken, do: "throw :matrix", else: ":ok"), "catch", "  _ -> " <> w.("in_catch", 19), "end", r.("read")]
 
   defp loaded(true), do: "Code.ensure_loaded?(Kernel)"
   defp loaded(false), do: "Code.ensure_loaded?(Matrix.Absent)"
