@@ -98,7 +98,9 @@ defmodule Matrix do
       # names are the atom plus a suffix, so this form has a world of its own, `x_embed`.
       %{id: "generator_embed", definer: "def", embed: true, private: true},
       # Not a function: `@limit value` writes a module attribute and `@limit` reads it. Only the attribute worlds ask it.
-      %{id: "attribute", attribute: true}
+      %{id: "attribute", attribute: true},
+      # Not a function: a variable bound in a function body and read inside a nested clause. Only the variable worlds ask it.
+      %{id: "variable", variable: true}
     ]
   end
 
@@ -259,6 +261,22 @@ defmodule Matrix do
   @attribute_world_ids Map.keys(@attribute_worlds)
   @attribute :limit
 
+  # The variable worlds: `y = 1` bound in a function body, then read in a clause's guard and in its body. A guard binds
+  # nothing, so both reads are of `y = 1`; each parenthesised spelling has its unparenthesised one beside it. A world is
+  # `{the function's parameters, the line holding the clause}`.
+  @variable_worlds %{
+    "x_guard_var_fn_parens" => {"", "fn(x when x > y) -> y end"},
+    "x_guard_var_fn" => {"", "fn x when x > y -> y end"},
+    "x_guard_var_for_parens" => {"(list)", "for(x when x > y <- list, do: y)"},
+    "x_guard_var_for_parens_block" => {"(list)", "for(x when x > y <- list) do y end"},
+    "x_guard_var_for" => {"(list)", "for x when x > y <- list, do: y"},
+    "x_guard_var_for_block" => {"(list)", "for x when x > y <- list do y end"},
+    "x_guard_var_with_parens" => {"(v)", "with(x when x > y <- v, do: y)"},
+    "x_guard_var_with" => {"(v)", "with x when x > y <- v, do: y"}
+  }
+  @variable_world_ids Map.keys(@variable_worlds)
+  @variable :y
+
   # The worlds whose main module's definitions a `use` injects.
   @use_worlds ["x_use_injected", "x_use_injected_defaults", "x_use_apply"]
   @injecting_worlds @use_worlds ++ @use_wrapper_worlds ++ @use_parens_worlds ++ @use_quote_wrapper_worlds ++ @use_quote_shape_worlds
@@ -292,7 +310,8 @@ defmodule Matrix do
     worlds = Enum.reduce(@import_block_worlds, worlds, &Map.put(&2, &1, %{modules: worlds["w1"].modules, calls: [], asks: @import_block_sites}))
     worlds = Enum.reduce(@compile_time_call_worlds, worlds, &Map.put(&2, &1, %{modules: worlds["w1"].modules, calls: [], asks: Map.keys(@compile_time_calls)}))
 
-    Enum.reduce(@attribute_world_ids, worlds, &Map.put(&2, &1, %{attribute: true}))
+    worlds = Enum.reduce(@attribute_world_ids, worlds, &Map.put(&2, &1, %{attribute: true}))
+    Enum.reduce(@variable_world_ids, worlds, &Map.put(&2, &1, %{variable: true}))
   end
 
   defp base_worlds do
@@ -483,6 +502,15 @@ defmodule Matrix do
   # `beamLanguage = "elixir"` and picks the same decompiler `ex_gen` gets. Measured over 1,090 comparable cells,
   # the two never once disagreed - not coincidence but the same code. One scenario is kept so the fallback itself
   # can be pinned by a guard; asking the features again would cost seconds and red cells to learn nothing.
+  def not_applicable(_backing, %{variable: true}, world) when world not in @variable_world_ids,
+    do: "the variable form's subject is a variable, which only the variable worlds bind and read"
+
+  def not_applicable(_backing, form, world) when world in @variable_world_ids and not is_map_key(form, :variable),
+    do: "a variable world's subject is its variable, which no other form declares"
+
+  def not_applicable(%{id: backing}, %{variable: true}, _world) when backing != "src",
+    do: "a variable is a source concept: no compiled module keeps its name at its reads"
+
   def not_applicable(_backing, %{attribute: true}, world) when world not in @attribute_world_ids,
     do: "the attribute form's subject is a module attribute, which only the attribute worlds write and read"
 
@@ -628,7 +656,16 @@ defmodule Matrix do
       for backing <- backings(), form <- forms(), {world, spec} <- Enum.sort(worlds()), reduce: {[], []} do
         {scenarios, skipped} ->
           case not_applicable(backing, form, world) do
-            nil -> {[if(form[:attribute], do: attribute_scenario(backing, form, world), else: scenario(backing, form, world, spec)) | scenarios], skipped}
+            nil ->
+              built =
+                cond do
+                  form[:attribute] -> attribute_scenario(backing, form, world)
+                  form[:variable] -> variable_scenario(backing, form, world)
+                  true -> scenario(backing, form, world, spec)
+                end
+
+              {[built | scenarios], skipped}
+
             reason -> {scenarios, [%{"backing" => backing.id, "form" => form.id, "world" => world, "reason" => reason} | skipped]}
           end
       end
@@ -1141,6 +1178,114 @@ defmodule Matrix do
 
   defp loaded(true), do: "Code.ensure_loaded?(Kernel)"
   defp loaded(false), do: "Code.ensure_loaded?(Matrix.Absent)"
+
+  # A variable world's module and its sites: every `y` in the source, marked `# @<id>` in column order on its line.
+  # The first is the binding `y = 1`, whose declaration is itself.
+  #
+  # Which binding a read is of is asked of probes: the module with every other read replaced by `1`, which has the
+  # same width. A probe that compiles without a diagnostic used `y = 1` at the one read left, since otherwise the
+  # compiler calls `y` unused.
+  defp variable_scenario(backing, form, world) do
+    [module] = module_names(backing, form, world, 1)
+    path = Path.join(["lib", backing.id, (module |> Macro.underscore() |> String.replace("/", ".")) <> ".ex"])
+    {parameters, clause} = Map.fetch!(@variable_worlds, world)
+    lines = ["def run#{parameters} do", "  #{@variable} = 1 # @binding", "  #{clause} # @guard @body", "end"]
+    source = "# #{@header}\n" <> render_lines_module(module, lines)
+    File.mkdir_p!(Path.dirname(path))
+    File.write!(path, source)
+
+    diagnostics = variable_compile!(source, path)
+    if diagnostics != [], do: raise("#{path} compiled with diagnostics: #{inspect(diagnostics)}")
+
+    {_ast, nodes} =
+      source
+      |> Code.string_to_quoted!(columns: true, emit_warnings: false)
+      |> Macro.prewalk([], fn
+        {@variable, meta, context} = node, nodes when is_atom(context) -> {node, [{meta[:line], meta[:column]} | nodes]}
+        node, nodes -> {node, nodes}
+      end)
+
+    marked =
+      for {text, line} <- Enum.with_index(String.split(source, "\n"), 1),
+          [_, ids] <- [Regex.run(~r/# ((?:@\w+ ?)+)$/, text)],
+          do: {line, ids |> String.split() |> Enum.map(&String.trim_leading(&1, "@"))}
+
+    positions = nodes |> Enum.sort() |> Enum.group_by(&elem(&1, 0))
+
+    located =
+      Enum.flat_map(marked, fn {line, ids} ->
+        found = Map.get(positions, line, [])
+        if length(found) != length(ids), do: raise("#{path}:#{line}: the variables there, #{inspect(found)}, are not the marked #{inspect(ids)}")
+        Enum.zip(ids, found)
+      end)
+
+    if length(located) != length(nodes), do: raise("#{path}: #{inspect(nodes)} holds a `#{@variable}` no line marks")
+
+    sites =
+      Enum.map(located, fn {id, {line, column}} ->
+        declarations = if id == "binding", do: [id], else: variable_probe!(source, located, id)
+
+        %{
+          "id" => id,
+          "file" => path,
+          "line" => line,
+          "column" => column,
+          "name" => to_string(@variable),
+          "arity" => 0,
+          "binding" => nil,
+          "variable" => %{"binding" => id == "binding", "declarations" => declarations}
+        }
+      end)
+
+    %{
+      "backing" => backing.id,
+      "form" => form.id,
+      "world" => world,
+      "caller" => path,
+      "brokenCallers" => [],
+      "importCallers" => [],
+      "modules" => [
+        %{
+          "module" => module,
+          "source" => path,
+          "spec" => path,
+          "heads" => [],
+          "complete" => true,
+          "beam" => nil,
+          "clauseSource" => nil,
+          "delegateTo" => nil,
+          "delegateAs" => nil,
+          "definitions" => [],
+          "declarations" => []
+        }
+      ],
+      "sites" => sites
+    }
+  end
+
+  defp variable_compile!(source, path) do
+    Matrix.Events.take()
+    {_modules, diagnostics} = Code.with_diagnostics(fn -> Code.compile_string(source, path) end)
+    Matrix.Events.take()
+    diagnostics
+  end
+
+  defp variable_probe!(source, located, id) do
+    others = for {other, position} <- located, other not in [id, "binding"], do: position
+    lines = String.split(source, "\n")
+
+    probed =
+      Enum.reduce(others, lines, fn {line, column}, lines ->
+        List.update_at(lines, line - 1, fn text -> String.slice(text, 0, column - 1) <> "1" <> String.slice(text, column..-1//1) end)
+      end)
+
+    probe = Enum.join(probed, "\n") |> String.replace(~r/defmodule (\S+) do/, "defmodule \\1.Probe#{Macro.camelize(id)} do", global: false)
+
+    case variable_compile!(probe, "probe.ex") do
+      [] -> ["binding"]
+      diagnostics -> raise("the probe leaving only #{id} did not read `#{@variable} = 1`: #{inspect(diagnostics)}")
+    end
+  end
 
   # The key of a directive the compiler rejected names nothing it can import: no binding, and what the compiler said.
   defp rejected_key(site, diagnostics) do

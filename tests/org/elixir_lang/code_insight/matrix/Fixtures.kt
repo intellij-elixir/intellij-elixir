@@ -56,6 +56,9 @@ class Scenario(
     /** Whether the subject is a module attribute rather than a function; its module is then its own [caller]. */
     val attribute: Boolean get() = form == ATTRIBUTE_FORM
 
+    /** Whether the subject is a variable rather than a function; its module is then its own [caller]. */
+    val variable: Boolean get() = form == VARIABLE_FORM
+
     /** Whether the main module's definitions are written in another module's source, as a `use` injects them. */
     val injected: Boolean get() = main.declarations.any { it.file != null }
 
@@ -175,6 +178,8 @@ class Site(
     val targets: List<Int>? = null,
     /** For a module attribute's read or write, what the compiler says of it; null at a call. */
     val attribute: AttributeSite? = null,
+    /** For a variable's binding or read, what the compiler says of it; null at a call. */
+    val variable: VariableSite? = null,
 )
 
 /**
@@ -183,6 +188,9 @@ class Site(
  * choice; null at a write.
  */
 class AttributeSite(val write: Boolean, val declarations: List<String>, val visible: List<String>? = null)
+
+/** A variable's [binding] or read. [declarations] are the ids of the bindings a read is of, and a binding's own id. */
+class VariableSite(val binding: Boolean, val declarations: List<String>)
 
 /** Whether a bare call at [this] site can reach [definition] at any of its arities: always, unless [Site.visible] says. */
 fun Site.sees(definition: Definition): Boolean =
