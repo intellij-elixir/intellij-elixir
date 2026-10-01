@@ -1,5 +1,6 @@
 package org.elixir_lang.code_insight
 
+import com.intellij.openapi.actionSystem.IdeActions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.psi.CallDefinitionClause
@@ -13,7 +14,7 @@ class GotoSuperTest : PlatformTestCase() {
     fun testDefimplFunctionNavigatesToProtocolFunction() {
         myFixture.configureByFile("defimpl_to_defprotocol.ex")
 
-        GotoSuper().invoke(project, myFixture.editor, myFixture.file)
+        myFixture.performEditorAction(IdeActions.ACTION_GOTO_SUPER)
 
         val leaf = myFixture.file.findElementAt(myFixture.caretOffset)
         assertNotNull("Goto Super should move caret to a protocol function", leaf)
@@ -33,7 +34,7 @@ class GotoSuperTest : PlatformTestCase() {
     fun testDefimplOfModuleAliasFunctionNavigatesToProtocolFunction() {
         myFixture.configureByFile("defimpl_of_module_alias_to_defprotocol.ex")
 
-        GotoSuper().invoke(project, myFixture.editor, myFixture.file)
+        myFixture.performEditorAction(IdeActions.ACTION_GOTO_SUPER)
 
         assertEquals(myFixture.file.text.indexOf("def run(value)") + "def ".length, myFixture.caretOffset)
     }
