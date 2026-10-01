@@ -4,6 +4,7 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiManager
+import org.elixir_lang.Module
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.impl.getModuleName
 
@@ -15,3 +16,8 @@ internal fun breakpointModuleNames(project: Project, file: VirtualFile, offset: 
             elixirFile.findElementAt(offset)?.getModuleName()?.let { setOf(it) } ?: emptySet()
         }
     }
+
+/** The atoms the debugger sets breakpoints in; a module whose name has no value until run time has none. */
+internal fun moduleAtoms(moduleNames: Set<String>): Set<String> = moduleNames.mapNotNull(Module::atom).toSet()
+
+internal fun beamFileModuleName(fileName: String): String = Module.indexName(fileName.removeSuffix(".beam"))
