@@ -71345,7 +71345,14 @@
     },
     {
       "asks": [
+        "called_in_block",
+        "called_in_block_list",
+        "called_in_block_map",
+        "called_in_block_tuple",
         "called_in_do",
+        "called_in_do_list",
+        "called_in_do_map",
+        "called_in_do_tuple",
         "called_in_else"
       ],
       "backing": "src",
@@ -71353,7 +71360,14 @@
       "caller": "lib/callers/src/def/x_compile_time_call.ex",
       "form": "def",
       "importCallers": [
+        "lib/callers/src/def/x_compile_time_call_called_in_block.ex",
+        "lib/callers/src/def/x_compile_time_call_called_in_block_list.ex",
+        "lib/callers/src/def/x_compile_time_call_called_in_block_map.ex",
+        "lib/callers/src/def/x_compile_time_call_called_in_block_tuple.ex",
         "lib/callers/src/def/x_compile_time_call_called_in_do.ex",
+        "lib/callers/src/def/x_compile_time_call_called_in_do_list.ex",
+        "lib/callers/src/def/x_compile_time_call_called_in_do_map.ex",
+        "lib/callers/src/def/x_compile_time_call_called_in_do_tuple.ex",
         "lib/callers/src/def/x_compile_time_call_called_in_else.ex"
       ],
       "modules": [
@@ -71426,6 +71440,66 @@
         {
           "arity": 2,
           "binding": null,
+          "column": 5,
+          "diagnostic": {
+            "message": "undefined function src_def_x_compile_time_call_snoc/2 (there is no such import)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/def/x_compile_time_call_called_in_block.ex",
+          "id": "called_in_block",
+          "line": 4,
+          "name": "src_def_x_compile_time_call_snoc",
+          "targets": [],
+          "visible": []
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 6,
+          "diagnostic": {
+            "message": "undefined function src_def_x_compile_time_call_snoc/2 (there is no such import)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/def/x_compile_time_call_called_in_block_list.ex",
+          "id": "called_in_block_list",
+          "line": 4,
+          "name": "src_def_x_compile_time_call_snoc",
+          "targets": [],
+          "visible": []
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 10,
+          "diagnostic": {
+            "message": "undefined function src_def_x_compile_time_call_snoc/2 (there is no such import)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/def/x_compile_time_call_called_in_block_map.ex",
+          "id": "called_in_block_map",
+          "line": 4,
+          "name": "src_def_x_compile_time_call_snoc",
+          "targets": [],
+          "visible": []
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 10,
+          "diagnostic": {
+            "message": "undefined function src_def_x_compile_time_call_snoc/2 (there is no such import)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/def/x_compile_time_call_called_in_block_tuple.ex",
+          "id": "called_in_block_tuple",
+          "line": 4,
+          "name": "src_def_x_compile_time_call_snoc",
+          "targets": [],
+          "visible": []
+        },
+        {
+          "arity": 2,
+          "binding": null,
           "column": 39,
           "diagnostic": {
             "message": "undefined function src_def_x_compile_time_call_snoc/2 (there is no such import)",
@@ -71433,6 +71507,51 @@
           },
           "file": "lib/callers/src/def/x_compile_time_call_called_in_do.ex",
           "id": "called_in_do",
+          "line": 3,
+          "name": "src_def_x_compile_time_call_snoc",
+          "targets": [],
+          "visible": []
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 40,
+          "diagnostic": {
+            "message": "undefined function src_def_x_compile_time_call_snoc/2 (there is no such import)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/def/x_compile_time_call_called_in_do_list.ex",
+          "id": "called_in_do_list",
+          "line": 3,
+          "name": "src_def_x_compile_time_call_snoc",
+          "targets": [],
+          "visible": []
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 44,
+          "diagnostic": {
+            "message": "undefined function src_def_x_compile_time_call_snoc/2 (there is no such import)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/def/x_compile_time_call_called_in_do_map.ex",
+          "id": "called_in_do_map",
+          "line": 3,
+          "name": "src_def_x_compile_time_call_snoc",
+          "targets": [],
+          "visible": []
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 44,
+          "diagnostic": {
+            "message": "undefined function src_def_x_compile_time_call_snoc/2 (there is no such import)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/def/x_compile_time_call_called_in_do_tuple.ex",
+          "id": "called_in_do_tuple",
           "line": 3,
           "name": "src_def_x_compile_time_call_snoc",
           "targets": [],
@@ -116940,7 +117059,14 @@
     },
     {
       "asks": [
+        "called_in_block",
+        "called_in_block_list",
+        "called_in_block_map",
+        "called_in_block_tuple",
         "called_in_do",
+        "called_in_do_list",
+        "called_in_do_map",
+        "called_in_do_tuple",
         "called_in_else"
       ],
       "backing": "src",
@@ -116948,7 +117074,14 @@
       "caller": "lib/callers/src/defmacro/x_compile_time_call.ex",
       "form": "defmacro",
       "importCallers": [
+        "lib/callers/src/defmacro/x_compile_time_call_called_in_block.ex",
+        "lib/callers/src/defmacro/x_compile_time_call_called_in_block_list.ex",
+        "lib/callers/src/defmacro/x_compile_time_call_called_in_block_map.ex",
+        "lib/callers/src/defmacro/x_compile_time_call_called_in_block_tuple.ex",
         "lib/callers/src/defmacro/x_compile_time_call_called_in_do.ex",
+        "lib/callers/src/defmacro/x_compile_time_call_called_in_do_list.ex",
+        "lib/callers/src/defmacro/x_compile_time_call_called_in_do_map.ex",
+        "lib/callers/src/defmacro/x_compile_time_call_called_in_do_tuple.ex",
         "lib/callers/src/defmacro/x_compile_time_call_called_in_else.ex"
       ],
       "modules": [
@@ -117021,6 +117154,66 @@
         {
           "arity": 2,
           "binding": null,
+          "column": 5,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_compile_time_call_snoc/2 (there is no such import)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_compile_time_call_called_in_block.ex",
+          "id": "called_in_block",
+          "line": 4,
+          "name": "src_defmacro_x_compile_time_call_snoc",
+          "targets": [],
+          "visible": []
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 6,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_compile_time_call_snoc/2 (there is no such import)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_compile_time_call_called_in_block_list.ex",
+          "id": "called_in_block_list",
+          "line": 4,
+          "name": "src_defmacro_x_compile_time_call_snoc",
+          "targets": [],
+          "visible": []
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 10,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_compile_time_call_snoc/2 (there is no such import)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_compile_time_call_called_in_block_map.ex",
+          "id": "called_in_block_map",
+          "line": 4,
+          "name": "src_defmacro_x_compile_time_call_snoc",
+          "targets": [],
+          "visible": []
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 10,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_compile_time_call_snoc/2 (there is no such import)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_compile_time_call_called_in_block_tuple.ex",
+          "id": "called_in_block_tuple",
+          "line": 4,
+          "name": "src_defmacro_x_compile_time_call_snoc",
+          "targets": [],
+          "visible": []
+        },
+        {
+          "arity": 2,
+          "binding": null,
           "column": 39,
           "diagnostic": {
             "message": "undefined function src_defmacro_x_compile_time_call_snoc/2 (there is no such import)",
@@ -117028,6 +117221,51 @@
           },
           "file": "lib/callers/src/defmacro/x_compile_time_call_called_in_do.ex",
           "id": "called_in_do",
+          "line": 3,
+          "name": "src_defmacro_x_compile_time_call_snoc",
+          "targets": [],
+          "visible": []
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 40,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_compile_time_call_snoc/2 (there is no such import)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_compile_time_call_called_in_do_list.ex",
+          "id": "called_in_do_list",
+          "line": 3,
+          "name": "src_defmacro_x_compile_time_call_snoc",
+          "targets": [],
+          "visible": []
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 44,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_compile_time_call_snoc/2 (there is no such import)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_compile_time_call_called_in_do_map.ex",
+          "id": "called_in_do_map",
+          "line": 3,
+          "name": "src_defmacro_x_compile_time_call_snoc",
+          "targets": [],
+          "visible": []
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 44,
+          "diagnostic": {
+            "message": "undefined function src_defmacro_x_compile_time_call_snoc/2 (there is no such import)",
+            "severity": "error"
+          },
+          "file": "lib/callers/src/defmacro/x_compile_time_call_called_in_do_tuple.ex",
+          "id": "called_in_do_tuple",
           "line": 3,
           "name": "src_defmacro_x_compile_time_call_snoc",
           "targets": [],
