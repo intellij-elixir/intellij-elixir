@@ -202,6 +202,15 @@ defmodule Matrix do
   @import_block_worlds Map.keys(@import_blocks)
   @import_block_sites ["imported_inside", "imported_after"]
 
+  # A module-level call runs while the module body is compiled, before any of the module's own definitions exist,
+  # so a call of a function the module defines later names nothing. Each site is such a call in an `if`'s keyword
+  # value, as `{lines before, the call's prefix, its suffix, lines after}`.
+  @compile_time_call_worlds ["x_compile_time_call"]
+  @compile_time_calls %{
+    "called_in_do" => {[], "if Code.ensure_loaded?(Kernel), do: ", "", []},
+    "called_in_else" => {[], "if Code.ensure_loaded?(Matrix.Absent), do: nil, else: ", "", []}
+  }
+
   # The module attribute worlds, each a module body writing and reading `@limit`, and the branch choices its probes
   # compile: `true` is the one the shipped source takes. A branched world is probed once per choice, and a read's
   # declarations are the writes its value came from under any of them.
@@ -255,6 +264,7 @@ defmodule Matrix do
     worlds = Enum.reduce(@protocol_worlds, worlds, &Map.put(&2, &1, %{&2[&1] | calls: protocol_calls, asks: protocol_asks}))
 
     worlds = Enum.reduce(@import_block_worlds, worlds, &Map.put(&2, &1, %{modules: worlds["w1"].modules, calls: [], asks: @import_block_sites}))
+    worlds = Enum.reduce(@compile_time_call_worlds, worlds, &Map.put(&2, &1, %{modules: worlds["w1"].modules, calls: [], asks: Map.keys(@compile_time_calls)}))
 
     Enum.reduce(@attribute_world_ids, worlds, &Map.put(&2, &1, %{attribute: true}))
   end
@@ -545,6 +555,12 @@ defmodule Matrix do
   def not_applicable(_backing, form, world) when world in @import_block_worlds and form.id not in ["def", "defmacro"],
     do: "an import block world asks how far the caller's `import` reaches; a function and a macro are what it brings in"
 
+  def not_applicable(%{id: backing}, _form, world) when world in @compile_time_call_worlds and backing != "src",
+    do: "a compile-time call world asks what a module-level call in the caller names, which the declaring module's backing does not change"
+
+  def not_applicable(_backing, form, world) when world in @compile_time_call_worlds and form.id not in ["def", "defmacro"],
+    do: "a compile-time call world asks a call of a function or a macro its own module defines later"
+
   def not_applicable(_backing, _form, _world), do: nil
 
   def run do
@@ -663,6 +679,7 @@ defmodule Matrix do
       cond do
         world in @import_worlds -> import_callers(backing, form, world, names, elem(primary, 0))
         world in @import_block_worlds -> import_block_callers(backing, form, world, names, elem(primary, 0))
+        world in @compile_time_call_worlds -> compile_time_callers(backing, form, world, elem(primary, 0))
         true -> {[], []}
       end
 
@@ -842,6 +859,31 @@ defmodule Matrix do
           else: broken_sites(path, source, calls, compile_expecting_failure(path, source))
 
       {path, Enum.map(sites, &Map.put(&1, "visible", visible))}
+    end)
+    |> Enum.unzip()
+    |> then(fn {paths, sites} -> {paths, Enum.concat(sites)} end)
+  end
+
+  # A caller per site of a compile-time call world: a module calling `name/2` at module level, then defining it in
+  # the world's form. Every such call is one the compiler rejects, so nothing is callable there.
+  defp compile_time_callers(backing, form, world, name) do
+    namespace = "Callers.#{Macro.camelize(backing.prefix)}.#{Macro.camelize(form.id)}.#{Macro.camelize(world)}"
+    directory = Path.join(["lib", "callers", backing.id, form.id])
+
+    body =
+      if form[:macro], do: "quote(do: {unquote(q), unquote(x)})", else: "{q, x}"
+
+    @compile_time_calls
+    |> Enum.sort()
+    |> Enum.map(fn {site, {before, open, close, after_lines}} ->
+      lines = before ++ [open <> "#{name}(1, 2)#{close} # @#{site}"] ++ after_lines ++ ["", "#{form.definer} #{name}(q, x), do: #{body}"]
+      path = Path.join(directory, Macro.underscore(world) <> "_" <> site <> ".ex")
+      source = "# #{@header}\n" <> render_lines_module(namespace <> "." <> Macro.camelize(site), lines)
+      File.write!(path, source)
+      sites = broken_sites(path, source, [{site, 0, name, 2, :unqualified}], compile_expecting_failure(path, source))
+      # Go To Declaration lands nowhere, not merely on none of the declaring module's heads: the later definition is
+      # the caller's own.
+      {path, Enum.map(sites, &Map.merge(&1, %{"visible" => [], "targets" => []}))}
     end)
     |> Enum.unzip()
     |> then(fn {paths, sites} -> {paths, Enum.concat(sites)} end)
