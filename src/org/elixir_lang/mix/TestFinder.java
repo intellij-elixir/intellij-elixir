@@ -119,7 +119,11 @@ public final class TestFinder implements com.intellij.testIntegration.TestFinder
     public Collection<PsiElement> findTestsForClass(@NotNull PsiElement element) {
         return corresponding(
                 element,
-                canonicalName -> canonicalName + TEST_SUFFIX,
+                canonicalName -> {
+                    String atom = org.elixir_lang.Module.atom(canonicalName);
+
+                    return atom != null ? org.elixir_lang.Module.indexName(atom + TEST_SUFFIX) : null;
+                },
                 Module::is
         );
     }
@@ -130,11 +134,12 @@ public final class TestFinder implements com.intellij.testIntegration.TestFinder
         return corresponding(
                 element,
                 canonicalName -> {
+                    String atom = org.elixir_lang.Module.atom(canonicalName);
                     String correspondingCanonicalName = null;
 
-                    if (canonicalName.endsWith(TEST_SUFFIX)) {
+                    if (atom != null && atom.endsWith(TEST_SUFFIX)) {
                         correspondingCanonicalName =
-                                canonicalName.substring(0, canonicalName.length() - TEST_SUFFIX.length());
+                                org.elixir_lang.Module.indexName(atom.substring(0, atom.length() - TEST_SUFFIX.length()));
                     }
 
                     return correspondingCanonicalName;
