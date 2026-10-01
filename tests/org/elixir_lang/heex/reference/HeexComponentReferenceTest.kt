@@ -1,11 +1,13 @@
 package org.elixir_lang.heex.reference
 
+import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.codeInspection.htmlInspections.XmlEntitiesInspection
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.xml.XmlTag
 import org.elixir_lang.code_insight.assertGotoDeclarationLandsIn
 import org.elixir_lang.heex.inspections.HTMLInspectionSuppressor
 import org.elixir_lang.heex.xml.HeexComponentResolver
+import org.elixir_lang.heex.xml.HeexComponentTagNameProvider
 import org.elixir_lang.psi.CallDefinitionClause
 
 /**
@@ -288,6 +290,24 @@ class HeexComponentReferenceTest : HeexHostTestCase() {
         val names = HeexComponentResolver.localComponentDefinitions(tag).mapNotNull { CallDefinitionClause.nameIdentifier(it)?.text }
 
         assertEquals(listOf("button"), names)
+    }
+
+    /** A component is offered by the atom its definition names. */
+    fun testTagNameVariantOfAnUnquotedAtomDefinition() = assertTagNameVariant(".button")
+
+    fun testTagNameVariantOfADecomposedDefinitionIsComposed() = assertTagNameVariant(".café")
+
+    private fun assertTagNameVariant(expected: String) {
+        myFixture.configureByFiles("completion_atom/page_live.html.heex", "completion_atom/page_live.ex")
+        val tag = PsiTreeUtil.findChildOfType(
+            myFixture.file.viewProvider.getPsi(com.intellij.lang.html.HTMLLanguage.INSTANCE),
+            XmlTag::class.java
+        )!!
+        val variants = mutableListOf<LookupElement>()
+
+        HeexComponentTagNameProvider().addTagNameVariants(variants, tag, "")
+
+        assertTrue("$expected in ${variants.map { it.lookupString }}", expected in variants.map { it.lookupString })
     }
 
     /**
