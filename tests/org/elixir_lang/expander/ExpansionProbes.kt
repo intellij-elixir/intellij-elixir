@@ -94,7 +94,7 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
                 }
             }
 
-            outcome = Expander.expand(statement, state, env, level, observer)
+            outcome = Expander.expand(statement, state, env, level, legExports, observer)
 
             when (val expansion = outcome) {
                 is Expansion.Expanded -> {

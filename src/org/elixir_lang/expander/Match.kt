@@ -11,6 +11,7 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.expander.ExState.Prematch.Dependency
 import org.elixir_lang.expander.ExState.Prematch.InMatch
 import org.elixir_lang.expander.ExState.Write
+import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import java.math.BigDecimal
 
@@ -84,13 +85,21 @@ internal fun refuteParallelBitstringMatch(
     parallel: Boolean,
     state: ExState,
     env: Env,
-): Expansion = parallelBitstring(expandedShape(left), expandedShape(right), parallel) ?: Expansion.Expanded(state, env)
+    level: ElixirLanguageLevel,
+): Expansion =
+    parallelBitstring(expandedShape(left), expandedShape(right), parallel, env, level) ?: Expansion.Expanded(state, env)
 
 /** The error, or the `Unported`, that matching [left] and [right] in parallel gives, if any. */
-private fun parallelBitstring(left: ElixirAst, right: ElixirAst, parallel: Boolean): Expansion? {
+private fun parallelBitstring(
+    left: ElixirAst,
+    right: ElixirAst,
+    parallel: Boolean,
+    env: Env,
+    level: ElixirLanguageLevel,
+): Expansion? {
     fun each(lefts: List<ElixirAst>, rights: List<ElixirAst>) =
         lefts.zip(rights).firstNotNullOfOrNull { (l, r) ->
-            parallelBitstring(expandedShape(l), expandedShape(r), parallel)
+            parallelBitstring(expandedShape(l), expandedShape(r), parallel, env, level)
         }
 
     return when {
@@ -98,8 +107,8 @@ private fun parallelBitstring(left: ElixirAst, right: ElixirAst, parallel: Boole
         isCall(right, "=", 2) -> {
             val (matchLeft, matchRight) = (right as ElixirAst.Call).arguments!!
 
-            parallelBitstring(left, expandedShape(matchLeft), true)
-                ?: parallelBitstring(left, expandedShape(matchRight), parallel)
+            parallelBitstring(left, expandedShape(matchLeft), true, env, level)
+                ?: parallelBitstring(left, expandedShape(matchRight), parallel, env, level)
         }
         left is ElixirAst.ListNode && right is ElixirAst.ListNode -> each(left.elements, right.elements)
         left is ElixirAst.Tuple && right is ElixirAst.Tuple && (left.elements.size == 2) == (right.elements.size == 2) ->
@@ -112,18 +121,21 @@ private fun parallelBitstring(left: ElixirAst, right: ElixirAst, parallel: Boole
             // A non-literal key's term carries its metadata, so whether two pair up depends on where they sit.
             if (leftFields.any { (key, value) ->
                     !isLiteral(key) && rightNonLiteral.any { (_, other) ->
-                        parallelBitstring(expandedShape(value), expandedShape(other), parallel) != null
+                        parallelBitstring(expandedShape(value), expandedShape(other), parallel, env, level) != null
                     }
                 }
             ) {
                 Expansion.Unported(right)
             } else {
-                val rightValues = literalKeyed(rightFields).toMap()
+                val rightValues = literalKeyed(rightFields, env, level).toMap()
 
                 // `lists:sort/1` puts the fields in key order.
-                literalKeyed(leftFields).sortedWith { (key, _), (otherKey, _) -> compareTerms(key, otherKey) }
+                literalKeyed(leftFields, env, level)
+                    .sortedWith { (key, _), (otherKey, _) -> compareTerms(key, otherKey) }
                     .firstNotNullOfOrNull { (key, value) ->
-                        rightValues[key]?.let { parallelBitstring(expandedShape(value), expandedShape(it), parallel) }
+                        rightValues[key]?.let {
+                            parallelBitstring(expandedShape(value), expandedShape(it), parallel, env, level)
+                        }
                     }
             }
         }
@@ -137,8 +149,12 @@ private fun fields(map: ElixirAst): List<Pair<ElixirAst, ElixirAst>> =
         .map { (key, value) -> key to value }
 
 /** The fields whose keys are literals, by the key's term. */
-private fun literalKeyed(fields: List<Pair<ElixirAst, ElixirAst>>): List<Pair<OtpErlangObject, ElixirAst>> =
-    fields.filter { (key, _) -> isLiteral(key) }.map { (key, value) -> literalShape(key).toOtp() to value }
+private fun literalKeyed(
+    fields: List<Pair<ElixirAst, ElixirAst>>,
+    env: Env,
+    level: ElixirLanguageLevel,
+): List<Pair<OtpErlangObject, ElixirAst>> =
+    fields.filter { (key, _) -> isLiteral(key) }.map { (key, value) -> literalShape(key, env, level).toOtp() to value }
 
 /**
  * Erlang's term order over the terms a literal key can be: numbers, then atoms, tuples, lists and binaries.

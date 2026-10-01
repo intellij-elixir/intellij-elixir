@@ -253,7 +253,7 @@ private fun expandSpecs(spec: ElixirAst, state: ExState, original: ExState, env:
             }
         }
 
-        val value = SpecArg.of(arg)
+        val value = SpecArg.of(literalShape(arg, accEnv, run.level))
 
         specArgError(builtin.key, value, accState, original, accEnv, run.level)?.let {
             return Specs.Stopped(Expansion.Error(it, segment))

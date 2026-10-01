@@ -9,16 +9,18 @@ import org.elixir_lang.lowering.ElixirAst
  */
 object Expander {
     /**
-     * [ast] expanded from [state] and [env] as Elixir at [level] expands it, up to the first error Elixir raises or
-     * the first node that isn't ported. [observer] is told of each node reached.
+     * [ast] expanded from [state] and [env] as Elixir at [level] expands it, with [exports] standing for the modules
+     * Elixir would load, up to the first error Elixir raises or the first node that isn't ported. [observer] is told
+     * of each node reached.
      */
     fun expand(
         ast: ElixirAst,
         state: ExState,
         env: Env,
         level: ElixirLanguageLevel,
+        exports: Exports,
         observer: ExpansionObserver = ExpansionObserver.NONE,
-    ): Expansion = expand(ast, state, env, Run(level, observer))
+    ): Expansion = expand(ast, state, env, Run(level, observer, exports))
 
     internal fun expand(ast: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
         ProgressManager.checkCanceled()
@@ -36,7 +38,7 @@ object Expander {
 }
 
 /** What every recursive expansion of one [Expander.expand] call shares. */
-internal class Run(val level: ElixirLanguageLevel, val observer: ExpansionObserver)
+internal class Run(val level: ElixirLanguageLevel, val observer: ExpansionObserver, val exports: Exports)
 
 internal inline fun Expansion.then(next: (ExState, Env) -> Expansion): Expansion =
     when (this) {
@@ -145,15 +147,20 @@ internal fun whenArguments(node: ElixirAst): List<ElixirAst>? =
 
 /**
  * [node] in the shape its expansion has, as far as a ported clause's check reads it: a block of one expression is that
- * expression, and an empty block is `nil`. Every other ported clause keeps its node's shape.
+ * expression, an empty block is `nil`, and an alias is an atom. Every other ported clause keeps its node's shape.
  */
 internal fun expandedShape(node: ElixirAst): ElixirAst =
-    if (node is ElixirAst.Block) {
-        when (node.expressions.size) {
-            0 -> ElixirAst.Literal.Atom(node.meta, "nil")
-            1 -> expandedShape(node.expressions.single())
-            else -> node
-        }
-    } else {
-        node
+    when (node) {
+        is ElixirAst.Block ->
+            when (node.expressions.size) {
+                0 -> ElixirAst.Literal.Atom(node.meta, "nil")
+                1 -> expandedShape(node.expressions.single())
+                else -> node
+            }
+        // The name is as written: only `literalShape` reads it, through the aliases.
+        is ElixirAst.Alias ->
+            node.segments
+                .map { (it as? ElixirAst.Literal.Atom)?.name ?: return node }
+                .let { ElixirAst.Literal.Atom(node.meta, concat(it)) }
+        else -> node
     }

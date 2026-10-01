@@ -32,6 +32,7 @@ import org.elixir_lang.declaration.Reach
 import org.elixir_lang.language_level.ElixirLanguageFeature.DIGITS_IN_SIGIL_NAMES
 import org.elixir_lang.language_level.ElixirLanguageFeature.IMPORT_ONLY_SIGILS
 import org.elixir_lang.language_level.ElixirLanguageFeature.IMPORT_ONLY_SIGILS_READS_SIGIL_NAMES
+import org.elixir_lang.language_level.ElixirLanguageFeature.IMPORT_VALIDATES_EXCEPT_FIRST
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.model.psi.FunctionArityKeywordPair
@@ -49,6 +50,7 @@ import org.elixir_lang.psi.scope.Recording
 import org.elixir_lang.psi.scope.reachedThrough
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.Delegation
+import java.math.BigInteger
 
 /**
  * An `import` call
@@ -64,6 +66,48 @@ object Import {
     data class Imports(val functions: Set<NameArity>, val macros: Set<NameArity>) {
         fun of(macro: Boolean): Set<NameArity> = if (macro) macros else functions
     }
+
+    /** An option term as the compiler reads it once the options are expanded. */
+    sealed class Term {
+        data class Atom(val name: String) : Term()
+
+        data class Integer(val value: BigInteger) : Term()
+
+        class Binary(val bytes: ByteArray) : Term()
+
+        data class List(val elements: kotlin.collections.List<Term>) : Term()
+
+        /** A two-element tuple, as each keyword pair is. */
+        data class Pair(val first: Term, val second: Term) : Term()
+
+        /** A variable, or any other value that isn't a call. */
+        data object Other : Term()
+
+        /** A call that isn't expanded where the term is read, such as `unquote(x)`, `@attr` or a macro. */
+        data object Unexpanded : Term()
+
+        /** The value of this list's first `{key, _}` pair, as `lists:keyfind/3` finds it. */
+        fun keyfind(key: String): Term? =
+            (this as? List)?.elements?.firstNotNullOfOrNull { element ->
+                (element as? Pair)?.takeIf { (it.first as? Atom)?.name == key }?.second
+            }
+    }
+
+    /**
+     * The `elixir_expand:validate_opts/5` error for [options] of a directive taking [allowed]: `unsupported_option`
+     * for a pair whose key isn't allowed, or `options_are_not_keyword` when [options] isn't a list.
+     */
+    fun optionsError(options: Term, allowed: Collection<String>): String? =
+        when (options) {
+            is Term.List ->
+                "unsupported_option".takeIf {
+                    options.elements.any { element ->
+                        element is Term.Pair && (element.first as? Term.Atom)?.name !in allowed
+                    }
+                }
+            Term.Unexpanded -> null
+            else -> "options_are_not_keyword"
+        }
 
     /**
      * What an `import`'s options bring in, as the compiler of a language level reads them: the first `only:` and the
@@ -95,11 +139,12 @@ object Import {
 
         /** An unsupported option, an `only:` list with `except:`, or a value `only:` or `except:` does not take. */
         class Invalid(val error: Error) : Filter() {
-            enum class Error(val kind: String) {
-                UNSUPPORTED_OPTION("unsupported_option"),
-                ONLY_AND_EXCEPT_GIVEN("only_and_except_given"),
-                INVALID_ONLY("invalid_option only"),
-                INVALID_EXCEPT("invalid_option except"),
+            /** @property atom the error's reason, as `elixir_import` raises it */
+            enum class Error(val kind: String, val atom: String) {
+                UNSUPPORTED_OPTION("unsupported_option", "unsupported_option"),
+                ONLY_AND_EXCEPT_GIVEN("only_and_except_given", "only_and_except_given"),
+                INVALID_ONLY("invalid_option only", "invalid_option"),
+                INVALID_EXCEPT("invalid_option except", "invalid_option"),
             }
 
             override fun admits(name: Name, arity: Arity, macro: Boolean): Boolean = false
@@ -160,7 +205,8 @@ object Import {
             }
         }
 
-        private enum class Selector {
+        /** A selector `only:` names in place of a list. */
+        enum class Selector {
             FUNCTIONS,
             MACROS,
             SIGILS;
@@ -173,8 +219,92 @@ object Import {
                 }
         }
 
+        /**
+         * What [of] reads from an `import`'s options.
+         *
+         * @property selector the `only:` selector, or `null` when `only:` is a list or not given
+         * @property only the `only:` list as written, duplicates included, or `null` when it isn't a valid one
+         * @property except the `except:` list as written, duplicates included, or `null` when it isn't a valid one
+         */
+        class Options(
+            val filter: Filter,
+            val selector: Selector?,
+            val only: List<NameArity>?,
+            val except: List<NameArity>?,
+        )
+
         companion object {
             private const val SIGIL_ARITY = 2
+
+            /**
+             * The filter an `import`'s [options], expanded, make at [languageLevel], checked as that level's
+             * `elixir_import` checks them. [prior] is what an earlier `import` of the same module in scope brings in,
+             * which `except:` subtracts from, or `null` when there is none.
+             */
+            fun of(options: Term.List, languageLevel: ElixirLanguageLevel, prior: Imports?): Options {
+                if (optionsError(options, OPTIONS) != null) return invalid(Invalid.Error.UNSUPPORTED_OPTION)
+
+                val only = options.keyfind("only")
+                val except = options.keyfind("except")
+                val exceptList = (except as? Term.List)?.let(::nameArities)
+                val exceptInvalid = except != null && except != Term.Unexpanded && exceptList == null
+
+                if (exceptInvalid && IMPORT_VALIDATES_EXCEPT_FIRST.isSufficient(languageLevel)) {
+                    return invalid(Invalid.Error.INVALID_EXCEPT)
+                }
+
+                val selector = when (only) {
+                    null, Term.Unexpanded, is Term.List -> null
+                    else -> when ((only as? Term.Atom)?.name) {
+                        "functions" -> Selector.FUNCTIONS
+                        "macros" -> Selector.MACROS
+                        "sigils" -> Selector.SIGILS.takeIf { IMPORT_ONLY_SIGILS.isSufficient(languageLevel) }
+                        else -> null
+                    } ?: return invalid(Invalid.Error.INVALID_ONLY)
+                }
+
+                if (only is Term.List) {
+                    val onlyList = nameArities(only) ?: return invalid(Invalid.Error.INVALID_ONLY)
+                    val filter = if (except == null) {
+                        Only(onlyList.toSet())
+                    } else {
+                        Invalid(Invalid.Error.ONLY_AND_EXCEPT_GIVEN)
+                    }
+
+                    return Options(filter, null, onlyList, null)
+                }
+
+                return when {
+                    exceptInvalid -> invalid(Invalid.Error.INVALID_EXCEPT)
+                    only == Term.Unexpanded -> Options(Only(emptySet()), null, null, exceptList)
+                    else -> {
+                        val filter = Selecting(selector, exceptList?.toSet(), prior, languageLevel)
+
+                        Options(filter, selector, null, exceptList)
+                    }
+                }
+            }
+
+            private fun invalid(error: Invalid.Error) = Options(Invalid(error), null, null, null)
+
+            /**
+             * `ensure_keyword_list/1`: the `name: arity` pairs of [list], or `null` when it holds anything else. An
+             * element that is or holds [Term.Unexpanded] is skipped, as is an arity no [Arity] can hold.
+             */
+            private fun nameArities(list: Term.List): List<NameArity>? =
+                list.elements.mapNotNull { element ->
+                    val name = ((element as? Term.Pair)?.first as? Term.Atom)?.name
+                    val arity = ((element as? Term.Pair)?.second as? Term.Integer)?.value
+
+                    when {
+                        element == Term.Unexpanded -> null
+                        element is Term.Pair && Term.Unexpanded in listOf(element.first, element.second) -> null
+                        name == null || arity == null -> return null
+                        arity.bitLength() < Int.SIZE_BITS -> NameArity(name, arity.toInt())
+                        else -> null
+                    }
+                }
+
             private const val SIGIL_PREFIX = "sigil_"
 
             /**

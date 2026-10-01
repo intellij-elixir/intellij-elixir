@@ -29,13 +29,14 @@ internal fun expandMap(node: ElixirAst.Call, state: ExState, env: Env, run: Run)
 }
 
 private fun validated(node: ElixirAst, kv: List<ElixirAst>, state: ExState, env: Env, level: ElixirLanguageLevel) =
-    kvError(kv, env.context, level)?.let { Expansion.Error(it, node) } ?: Expansion.Expanded(state, env)
+    kvError(kv, env, level)?.let { Expansion.Error(it, node) } ?: Expansion.Expanded(state, env)
 
 /**
  * The error `elixir_map:validate_kv/4` raises, if any: each argument must be a pair, and in a pattern each key must be
  * one a pattern may have, and no literal key may repeat.
  */
-private fun kvError(args: List<ElixirAst>, context: Env.Context, level: ElixirLanguageLevel): String? {
+private fun kvError(args: List<ElixirAst>, env: Env, level: ElixirLanguageLevel): String? {
+    val context = env.context
     val used = mutableSetOf<OtpErlangObject>()
 
     for (arg in args) {
@@ -49,7 +50,11 @@ private fun kvError(args: List<ElixirAst>, context: Env.Context, level: ElixirLa
         if (context == Env.Context.MATCH) matchKeyError(key, level)?.let { return it }
 
         // Outside a pattern a repeated key only warns.
-        if (isLiteral(key) && !used.add(literalShape(key).toOtp()) && context == Env.Context.MATCH) return "repeated_key"
+        if (isLiteral(key) && !used.add(literalShape(pair.elements[0], env, level).toOtp()) &&
+            context == Env.Context.MATCH
+        ) {
+            return "repeated_key"
+        }
     }
 
     return null
@@ -93,10 +98,17 @@ internal fun isLiteral(node: ElixirAst): Boolean {
     }
 }
 
-/** A literal key as its expansion is, at every depth, so equal keys give equal terms. */
-internal fun literalShape(node: ElixirAst): ElixirAst =
+/** A literal key as its expansion in [env] is, at every depth, so equal keys give equal terms. */
+internal fun literalShape(node: ElixirAst, env: Env, level: ElixirLanguageLevel): ElixirAst =
     when (val key = expandedShape(node)) {
-        is ElixirAst.Tuple -> ElixirAst.Tuple(key.meta, key.elements.map(::literalShape))
-        is ElixirAst.ListNode -> ElixirAst.ListNode(key.meta, key.elements.map(::literalShape))
-        else -> key
+        is ElixirAst.Tuple -> ElixirAst.Tuple(key.meta, key.elements.map { literalShape(it, env, level) })
+        is ElixirAst.ListNode -> ElixirAst.ListNode(key.meta, key.elements.map { literalShape(it, env, level) })
+        else ->
+            (withoutBlocks(node) as? ElixirAst.Alias)
+                ?.let { aliasesModule(it, env, level) }
+                ?.let { ElixirAst.Literal.Atom(key.meta, it) }
+                ?: key
     }
+
+private fun withoutBlocks(node: ElixirAst): ElixirAst =
+    if (node is ElixirAst.Block && node.expressions.size == 1) withoutBlocks(node.expressions.single()) else node

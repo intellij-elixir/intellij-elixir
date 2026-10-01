@@ -829,6 +829,111 @@ enum class ElixirLanguageFeature(
     CLAUSES_TAKE_VERSION(sinceElixir = "1.20.0-rc.5"),
 
     /**
+     * `alias` without `:as` of a module whose name isn't an Elixir alias, such as `alias :lists`, raises
+     * `invalid_alias_module`. Before it, the alias is `Elixir.` and the text after the module's last dot.
+     *
+     * `elixir-lang/elixir@50579b41d` ("Compile time error when aliasing non-Elixir modules without :as", #11008),
+     * first released in v1.13.0-rc.0.
+     */
+    IMPLICIT_ALIAS_NEEDS_ELIXIR_MODULE(sinceElixir = "1.13.0-rc.0"),
+
+    /**
+     * The pattern of `=` is expanded in the env the right side leaves, so it sees an alias, `require` or `import` made
+     * there. Before it, the pattern sees the env from before the right side; the env after the `=` is the right
+     * side's either way.
+     *
+     * `elixir-lang/elixir@739ad53fe` ("Break Macro.Env apart", #11164), first released in v1.13.0-rc.0.
+     */
+    PATTERN_SEES_RIGHT_SIDE_ENV(sinceElixir = "1.13.0-rc.0"),
+
+    /**
+     * `as: nil` raises `invalid_alias_for_as`, and a `require` or `import` without `:as` leaves the aliases alone.
+     * Before it, `as: nil` and a missing `:as` both alias the module to itself, which removes any alias named after it.
+     *
+     * `elixir-lang/elixir@69255ecbc` ("Do not leak alias from Elixir root and simplify defmodule implementation"),
+     * first released in v1.16.0-rc.0.
+     */
+    ALIAS_AS_NIL_REJECTED(sinceElixir = "1.16.0-rc.0"),
+
+    /**
+     * An alias expands one step, to the module it was stored with. Before it, the module is looked up again among the
+     * aliases, and so on until it names none.
+     *
+     * `elixir-lang/elixir@bc45fabd9` ("Do not expand aliases recursively", #12822), first released in v1.16.0-rc.0.
+     */
+    ALIAS_EXPANDS_ONE_STEP(sinceElixir = "1.16.0-rc.0"),
+
+    /**
+     * An `import`'s `only:` naming a definition the module doesn't export, or an `only:` or `except:` list naming one
+     * twice, warns, and the duplicate is dropped. Before it, they raise `invalid_import` and `duplicated_import`.
+     *
+     * `elixir-lang/elixir@b24869687` ("Introduce mechanism to collect several errors in a module", #12275), first
+     * released in v1.15.0-rc.0.
+     */
+    IMPORT_OPTION_MISTAKES_WARN(sinceElixir = "1.15.0-rc.0"),
+
+    /**
+     * An `import` of a module without `__info__/1` leaves out its `behaviour_info/1` and `module_info/0,1` before the
+     * options apply. Before it, only `module_info/0,1` is left out, and only after them.
+     *
+     * `elixir-lang/elixir@90dd12a5b` ("Do not import _info functions from Erlang"), first released in v1.15.0-rc.0.
+     */
+    ERLANG_IMPORT_DROPS_BEHAVIOUR_INFO(sinceElixir = "1.15.0-rc.0"),
+
+    /**
+     * An `import` that would bring in a special form warns and leaves it out, keeping the module's entry even when
+     * nothing else is left. Before it, it raises `special_form_conflict`.
+     *
+     * `elixir-lang/elixir@206a81bc6` ("Refactor elixir_import to work with ok/error tuples"), first released in
+     * v1.17.0-rc.0.
+     */
+    IMPORT_DISCARDS_SPECIAL_FORMS(sinceElixir = "1.17.0-rc.0"),
+
+    /**
+     * An `import`'s `except:` is checked before its `only:`. Before it, `only:` is checked first, and an `except:`
+     * beside an `only:` list is `only_and_except_given` whatever its value.
+     *
+     * `elixir-lang/elixir@206a81bc6` ("Refactor elixir_import to work with ok/error tuples"), first released in
+     * v1.17.0-rc.0.
+     */
+    IMPORT_VALIDATES_EXCEPT_FIRST(sinceElixir = "1.17.0-rc.0"),
+
+    /**
+     * `import M, only: :macros` of a module without `__info__/1` brings in no macros. Before it, it raises
+     * `no_macros`.
+     *
+     * `elixir-lang/elixir@ac844f4db` ("Add Macro.Env.define_import/4"), first released in v1.17.0-rc.0.
+     */
+    IMPORT_ONLY_MACROS_WITHOUT_INFO(sinceElixir = "1.17.0-rc.0"),
+
+    /**
+     * The base of a multi-alias call (`alias base.{A, B}`) that doesn't expand to an atom raises `invalid_alias`.
+     * Before it, the expander crashes.
+     *
+     * `elixir-lang/elixir@764235f1d` ("Fix expand crash on invalid multialias root", #14698), first released in
+     * v1.19.0-rc.1.
+     */
+    INVALID_MULTI_ALIAS_BASE_RAISES(sinceElixir = "1.19.0-rc.1"),
+
+    /**
+     * A `require` or `import` of the module being defined raises `circular_module` before the module is looked for.
+     * Before it, only a module that can't be loaded and is among the context modules raises it.
+     *
+     * `elixir-lang/elixir@44bdc7af2` ("Consistently raise for circular module requires", #12225), first released in
+     * v1.15.0-rc.0.
+     */
+    CIRCULAR_MODULE_CHECKED_FIRST(sinceElixir = "1.15.0-rc.0"),
+
+    /**
+     * `import M, only: :sigils` passes over an arity-2 `sigil_` export whose letters are neither one lower-case letter
+     * nor start with an upper-case one. From [DIGITS_IN_SIGIL_NAMES] until it, `is_sigil/1` crashes on one.
+     *
+     * `elixir-lang/elixir@b7a832ea3` ("Add missing catch-all in :elixir_import.is_sigil/1", #15264), first released in
+     * v1.20.0-rc.5.
+     */
+    SIGIL_FILTER_TOLERATES_ANY_NAME(sinceElixir = "1.20.0-rc.5"),
+
+    /**
      * A bitstring segment whose value expands to a list or an atom raises `invalid_literal`.
      *
      * Removed by `elixir-lang/elixir@860f485bd` ("Inference of patterns", #13909), first released in v1.18.0-rc.0.

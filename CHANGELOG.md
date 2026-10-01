@@ -547,6 +547,8 @@
 
 ### Threading / Platform Hygiene
 
+- [#4314](https://github.com/intellij-elixir/intellij-elixir/pull/4314) [@sh41](https://github.com/sh41)
+  - **The expander applies `alias`, `require` and `import` as each Elixir release does; nothing uses it yet.** Fixes [#4301](https://github.com/intellij-elixir/intellij-elixir/issues/4301).
 - [#4309](https://github.com/intellij-elixir/intellij-elixir/pull/4309) [@sh41](https://github.com/sh41)
   - **The expander expands `case`, `cond`, `receive`, `try` and `fn`, as each Elixir release does; nothing uses it yet.** Fixes [#4302](https://github.com/intellij-elixir/intellij-elixir/issues/4302).
 - [#4306](https://github.com/intellij-elixir/intellij-elixir/pull/4306) [@sh41](https://github.com/sh41)

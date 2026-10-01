@@ -9,10 +9,15 @@ import org.elixir_lang.psi.ElixirFile
 
 /** Expands snippets at chosen language levels, without Elixir, from the start of an empty module body. */
 abstract class ExpanderTestCase : ParsingTestCase() {
+    /** The modules the expanded snippets can load. */
+    protected open val exports: Exports = NO_EXPORTS
+
     /** [code], lowered and expanded at [version], from the empty env and an empty [ExState]. */
     protected fun expand(code: String, version: String, observer: ExpansionObserver = ExpansionObserver.NONE) =
         ElixirLanguageLevel.of(version).let { level ->
-            Expander.expand(lower(code, level), ExState.empty(level), Env.empty(level, NO_KERNEL), level, observer)
+            Expander.expand(
+                lower(code, level), ExState.empty(level), Env.empty(level, NO_KERNEL), level, exports, observer
+            )
         }
 
     protected fun lower(code: String, level: ElixirLanguageLevel): ElixirAst {
@@ -25,7 +30,7 @@ abstract class ExpanderTestCase : ParsingTestCase() {
      * [expansion] as text: the read variables sorted by name with their versions and then the next version, or the
      * error's kind and the source of its node, or the source of the node that isn't ported.
      */
-    protected fun render(code: String, expansion: Expansion): String =
+    protected open fun render(code: String, expansion: Expansion): String =
         when (expansion) {
             is Expansion.Expanded -> {
                 val state = expansion.state
@@ -87,6 +92,9 @@ abstract class ExpanderTestCase : ParsingTestCase() {
     companion object {
         /** The expander doesn't consult imports in the clauses it ports, so the tests need no `Kernel` `.beam`. */
         val NO_KERNEL = KernelImports(emptyList(), emptyList())
+
+        /** No module is loaded. */
+        val NO_EXPORTS = Exports { ModuleExports.Absent }
 
         /** The last tag of each supported minor. */
         val LEVELS = listOf(

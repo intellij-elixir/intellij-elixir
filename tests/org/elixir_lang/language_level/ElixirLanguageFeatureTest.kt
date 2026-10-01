@@ -96,6 +96,18 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             STACKTRACE_REFUSED_IN_PATTERN to ("1.12.3" to "1.13.0-rc.0"),
             CATCH_WHEN_ARITY_CHECKED to ("1.17.3" to "1.18.0-rc.0"),
             CLAUSES_TAKE_VERSION to ("1.20.0-rc.4" to "1.20.0-rc.5"),
+            IMPLICIT_ALIAS_NEEDS_ELIXIR_MODULE to ("1.12.3" to "1.13.0-rc.0"),
+            PATTERN_SEES_RIGHT_SIDE_ENV to ("1.12.3" to "1.13.0-rc.0"),
+            ALIAS_AS_NIL_REJECTED to ("1.15.8" to "1.16.0-rc.0"),
+            ALIAS_EXPANDS_ONE_STEP to ("1.15.8" to "1.16.0-rc.0"),
+            IMPORT_OPTION_MISTAKES_WARN to ("1.14.5" to "1.15.0-rc.0"),
+            ERLANG_IMPORT_DROPS_BEHAVIOUR_INFO to ("1.14.5" to "1.15.0-rc.0"),
+            IMPORT_DISCARDS_SPECIAL_FORMS to ("1.16.3" to "1.17.0-rc.0"),
+            IMPORT_VALIDATES_EXCEPT_FIRST to ("1.16.3" to "1.17.0-rc.0"),
+            IMPORT_ONLY_MACROS_WITHOUT_INFO to ("1.16.3" to "1.17.0-rc.0"),
+            INVALID_MULTI_ALIAS_BASE_RAISES to ("1.19.0-rc.0" to "1.19.0-rc.1"),
+            CIRCULAR_MODULE_CHECKED_FIRST to ("1.14.5" to "1.15.0-rc.0"),
+            SIGIL_FILTER_TOLERATES_ANY_NAME to ("1.20.0-rc.4" to "1.20.0-rc.5"),
         )
 
         assertEquals(entries.filter { it.sinceElixir != null }.toSet(), boundaries.keys)
