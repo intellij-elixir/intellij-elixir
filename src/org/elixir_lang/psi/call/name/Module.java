@@ -36,20 +36,4 @@ public class Module {
 
         return atomString;
     }
-
-    /**
-     * Strips {@code "Elixir."} from the module name if it is present
-     *
-     * @param maybeFullyQualified a fully qualified module name or a module name without the {@code "Elixir."} prefix
-     */
-    @NotNull
-    public static String stripElixirPrefix(@NotNull String maybeFullyQualified) {
-        String stripped = maybeFullyQualified;
-
-        if (maybeFullyQualified.startsWith(ELIXIR_PREFIX)) {
-            stripped = maybeFullyQualified.substring(ELIXIR_PREFIX.length());
-        }
-
-        return stripped;
-    }
 }

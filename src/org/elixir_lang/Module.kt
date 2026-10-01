@@ -38,12 +38,16 @@ object Module {
      */
     @Contract(pure = true)
     @JvmStatic
-    fun indexName(atom: String): String =
+    fun indexName(atom: String): String = inspectedAlias(atom) ?: ":$atom"
+
+    /** The alias `inspect` writes for [atom] when it is an `Elixir.` atom shaped as an alias; otherwise `null`. */
+    @Contract(pure = true)
+    @JvmStatic
+    fun inspectedAlias(atom: String): String? =
         atom
             .takeIf { it.startsWith(ELIXIR_PREFIX) }
             ?.substring(ELIXIR_PREFIX.length)
             ?.takeIf { ElixirModulesUtil.elixirAliasSegmentsRegex.matches(it) }
-            ?: ":$atom"
 
     /**
      * The alias [relative] nested in the module [parentIndexName], composed as `elixir_aliases:concat/1` does: `Inner`
