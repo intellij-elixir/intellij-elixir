@@ -29,6 +29,11 @@ class BreakpointModuleTest : PlatformTestCase() {
     /** The module's name is only known at run time, so there is no atom to set the breakpoint in. */
     fun testInterpolatedAtom() = assertModuleAtoms("defmodule :\"#{x}\" do\n  <caret>x = 1\nend\n")
 
+    fun testAliasInAnAtomNamedModule() = assertModuleAtoms(
+        "defmodule :foo do\n  defmodule Inner do\n    <caret>x = 1\n  end\nend\n",
+        "Elixir.foo.Inner",
+    )
+
     /** An EEx template's module comes from the name of the `.beam` file whose line chunk names the template. */
     fun testBeamFileOfAnAliasNamedModule() =
         assertEquals(setOf("Elixir.Foo.Templates"), moduleAtoms(setOf(beamFileModuleName("Elixir.Foo.Templates.beam"))))

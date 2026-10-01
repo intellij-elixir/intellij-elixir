@@ -1,6 +1,7 @@
 package org.elixir_lang.psi.impl.call
 
 import org.elixir_lang.Module.NO_VALUE
+import org.elixir_lang.Module.nest
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
 import org.elixir_lang.psi.Implementation
 import org.elixir_lang.psi.Module
@@ -32,7 +33,7 @@ object CanonicallyNamedImpl {
                 moduleName?.takeIf { it.absolute }?.name ?: if (canonicalNameSuffix != null && isModuleRelative(canonicalNameSuffix)) {
                     expandModule(canonicalNameSuffix, call) ?: NO_VALUE
                 } else if (enclosing != null) {
-                    "${enclosing.canonicalName() ?: NO_VALUE}.${canonicalNameSuffix ?: NO_VALUE}"
+                    nest(enclosing.canonicalName() ?: NO_VALUE, canonicalNameSuffix ?: NO_VALUE)
                 } else {
                     canonicalNameSuffix ?: NO_VALUE
                 }
@@ -61,7 +62,7 @@ object CanonicallyNamedImpl {
                 } else {
                     enclosingModularMacroCall(call)
                         ?.canonicalNameSet()
-                        ?.map { canonicalNamePrefix -> "$canonicalNamePrefix.$canonicalNameSuffix" }
+                        ?.map { canonicalNamePrefix -> nest(canonicalNamePrefix, canonicalNameSuffix) }
                         ?.toSet()
                         ?: setOf(canonicalNameSuffix)
                 }
@@ -74,9 +75,9 @@ object CanonicallyNamedImpl {
     @RequiresReadLock
     fun expandModule(name: String, call: SyntacticCall): String? =
         if (isModuleRelative(name)) {
-            val relative = name.removePrefix(__MODULE__)
+            val relative = name.removePrefix(__MODULE__).removePrefix(".")
 
-            enclosingModuleName(call)?.let { "$it$relative" } ?: relative.removePrefix(".").ifEmpty { null }
+            enclosingModuleName(call)?.let { if (relative.isEmpty()) it else nest(it, relative) } ?: relative.ifEmpty { null }
         } else {
             name
         }

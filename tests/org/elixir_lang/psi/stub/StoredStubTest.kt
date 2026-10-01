@@ -359,6 +359,50 @@ class StoredStubTest : PlatformTestCase() {
         "MODULE Inner []",
     )
 
+    /** Elixir names it `elixir_aliases:concat([:foo, :Inner])`, `:"Elixir.foo.Inner"`. */
+    fun testModuleNestedInAnAtomNamedModule() = assertKeys(
+        "defmodule :foo do\n  defmodule Inner do\n  end\nend\n",
+        "MODULE :foo [elixir.all.name::foo, elixir.modular.name::foo]",
+        "MODULE Inner [elixir.all.name::Elixir.foo.Inner, elixir.modular.name::Elixir.foo.Inner]",
+    )
+
+    fun testModuleOfModuleAliasNestedInAnAtomNamedModule() = assertKeys(
+        "defmodule :foo do\n  defmodule __MODULE__.Rel do\n  end\nend\n",
+        "MODULE :foo [elixir.all.name::foo, elixir.modular.name::foo]",
+        "MODULE __MODULE__.Rel [elixir.all.name::Elixir.foo.Rel, elixir.modular.name::Elixir.foo.Rel]",
+    )
+
+    /** Elixir rejects `x.Inner` as a module name at compile time, so there is no module to key. */
+    fun testModuleWithNoValueNestedInAnAtomNamedModuleWritesNoNameKey() = assertKeys(
+        "defmodule :foo do\n  defmodule x.Inner do\n  end\nend\n",
+        "MODULE :foo [elixir.all.name::foo, elixir.modular.name::foo]",
+        "MODULE ?.Inner []",
+    )
+
+    fun testModuleNestedInAnAliasNamedModule() = assertKeys(
+        "defmodule Foo do\n  defmodule Inner do\n  end\nend\n",
+        "MODULE Foo [elixir.all.name:Foo, elixir.modular.name:Foo]",
+        "MODULE Inner [elixir.all.name:Foo.Inner, elixir.modular.name:Foo.Inner]",
+    )
+
+    fun testModuleNestedInAModuleNamedByAnElixirPrefixedAtomShapedAsAnAlias() = assertKeys(
+        "defmodule :\"Elixir.Foo\" do\n  defmodule Inner do\n  end\nend\n",
+        "MODULE Foo [elixir.all.name:Foo, elixir.modular.name:Foo]",
+        "MODULE Inner [elixir.all.name:Foo.Inner, elixir.modular.name:Foo.Inner]",
+    )
+
+    fun testModuleNestedInAModuleNamedByAnElixirPrefixedAtomNotShapedAsAnAlias() = assertKeys(
+        "defmodule :\"Elixir.foo\" do\n  defmodule Inner do\n  end\nend\n",
+        "MODULE :Elixir.foo [elixir.all.name::Elixir.foo, elixir.modular.name::Elixir.foo]",
+        "MODULE Inner [elixir.all.name::Elixir.foo.Inner, elixir.modular.name::Elixir.foo.Inner]",
+    )
+
+    fun testModuleNestedInAModuleNamedByAnInterpolatedAtomWritesNoNameKey() = assertKeys(
+        "defmodule :\"#{x}\" do\n  defmodule Inner do\n  end\nend\n",
+        "MODULE ? []",
+        "MODULE Inner []",
+    )
+
     fun testDefimplWithoutForKeepsItsProtocolKey() = assertKeys(
         "defimpl P do\nend\n",
         "IMPLEMENTATION ? [elixir.implemented_protocol.name:P]",
