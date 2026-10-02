@@ -4,8 +4,19 @@ import org.elixir_lang.expander.ExState.Prematch.OutsideMatch.Mode
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNDEFINED_VARIABLE_RAISES
 import org.elixir_lang.language_level.ElixirLanguageLevel
 
-/** `{name, context}`, both as atom text: the context is `nil` for a variable written in source. */
-data class Variable(val name: String, val context: String)
+/** `{name, context}`, the name as atom text: the context is `nil` for a variable written in source. */
+data class Variable(val name: String, val context: Context) {
+    /** What `elixir_utils:var_context/2` gives: the variable's own context, or the counter of the macro that made it. */
+    sealed class Context {
+        data class Atom(val text: String) : Context()
+
+        data class Counter(val counter: Env.Counter) : Context()
+    }
+
+    companion object {
+        val NIL: Context = Context.Atom("nil")
+    }
+}
 
 /**
  * The part of Elixir's expansion state `#elixir_ex{}` that the ported clauses read and write. On 1.11–1.12 Elixir kept

@@ -38,6 +38,10 @@ class LoweringDifferentialTest : ParsingTestCase() {
         }
         val covered = outcomes.values.count { it != Outcome.UNCOVERED }
         println("covered $covered of ${paths.size} files")
+        assertTrue(
+            "lowered nodes carry a form only the expander builds in ${expanderForms.size} files:\n  ${expanderForms.joinToString("\n  ")}",
+            expanderForms.isEmpty()
+        )
 
         val differing = outcomes.filterValues { it == Outcome.DIFFERS }.keys
         assertTrue(
@@ -54,6 +58,29 @@ class LoweringDifferentialTest : ParsingTestCase() {
 
     private enum class Outcome { UNCOVERED, AGREES, DIFFERS }
 
+    /** The files whose lowering has a variable context, a tuple metadata value or a built mark. */
+    private val expanderForms = mutableListOf<String>()
+
+    private fun hasExpanderForm(node: ElixirAst): Boolean {
+        fun isTuple(value: Meta.Value): Boolean =
+            value is Meta.Value.Tuple ||
+                value is Meta.Value.Keywords && value.keys.any { it is Meta.Key.Entry && isTuple(it.value) }
+
+        val children = when (node) {
+            is ElixirAst.Call -> listOf(node.callee) + node.arguments.orEmpty()
+            is ElixirAst.Alias -> node.segments
+            is ElixirAst.Tuple -> node.elements
+            is ElixirAst.ListNode -> node.elements
+            is ElixirAst.Block -> node.expressions
+            is ElixirAst.Literal, is ElixirAst.Placeholder -> emptyList()
+        }
+
+        return node is ElixirAst.Call && node.context != ElixirAst.VariableContext.Nil ||
+            node.meta.built ||
+            node.meta.keys.any { it is Meta.Key.Entry && isTuple(it.value) } ||
+            children.any(::hasExpanderForm)
+    }
+
     private fun compare(
         path: String,
         text: String,
@@ -63,6 +90,8 @@ class LoweringDifferentialTest : ParsingTestCase() {
         val lowered = ReadAction.computeBlocking<ElixirAst, Throwable> {
             Lowering.lower(file, ElixirLanguageLevelResolver.languageLevelFor(file))
         }
+
+        if (hasExpanderForm(lowered)) expanderForms.add(path)
 
         return when {
             lowered.hasUnlowered() -> Outcome.UNCOVERED

@@ -1,6 +1,7 @@
 package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangAtom
+import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.psi.ElixirFile
 
@@ -14,8 +15,35 @@ class QuoteProbeTest : ProbeTestCase() {
     fun testQuoteSiteVariables() {
         val expansions = SITE_FORMS.associateWith { probes.expand("l = 3\nf = \"x.ex\"\n$it", PLACEHOLDER) }
 
-        assertUnported(expansions, SITE_FORMS.filter(::isUnportedSite))
+        assertUnported(expansions, emptyList())
         probes.assertMatchesElixir(expansions)
+    }
+
+    /** Each probe is delivered, and then the module body raises when it runs. */
+    fun testAnInvalidRunTimeOptionRaisesWhenTheBodyRuns() {
+        val expansions = listOf("l = :bad\n_ = quote(line: l, do: x)").associateWith { probes.expand(it) }
+
+        assertUnported(expansions, emptyList())
+        probes.assertMatchesElixir(expansions)
+
+        val status = harness.attempt(listOf(expansions.values.single().case)).compiled.status as OtpErlangTuple
+
+        assertEquals(
+            "raise Elixir.ArgumentError invalid runtime value for option :line in quote, got: :bad",
+            listOf(status.elementAt(0), status.elementAt(1)).joinToString(" ") { (it as OtpErlangAtom).atomValue() } +
+                " " + utf8(status.elementAt(2)),
+        )
+    }
+
+    /** The prelude expands an option's value a second time, which dispatches the first expansion's result. */
+    fun testADynamicOptionHoldingACallIsUnportedAtItsValue() {
+        val body = "quote(file: f = String.trim(\"x.ex\"), do: x)"
+        val outcome = probes.expand(body).outcome
+
+        assertEquals(
+            "f = String.trim(\"x.ex\")",
+            (outcome as? Expansion.Unported)?.at?.meta?.origin?.substring(body) ?: outcome.toString(),
+        )
     }
 
     fun testErrors() {
@@ -93,13 +121,8 @@ class QuoteProbeTest : ProbeTestCase() {
             "quote(do: unquote(y = 1))",
             "quote(bind_quoted: [b: z = 2], do: b)",
             "quote(do: foo(unquote_splicing([l])))",
+            "case 1 do\n  _ -> quote(do: foo(unquote(y = 1)))\nend",
         )
-
-        fun isUnportedSite(form: String) =
-            when (form) {
-                "quote(line: l, do: x)", "quote(context: c = Foo, do: x)", "quote(file: f, do: x)" -> true
-                else -> false
-            }
 
         const val AMBIGUOUS = "import Map, only: [get: 2]\nimport Keyword, only: [get: 2]"
 
@@ -113,6 +136,7 @@ class QuoteProbeTest : ProbeTestCase() {
             "quote(:foo, do: 1)",
             "quote(bind_quoted: 1, do: 1)",
             "x = 1\nquote(do: unquote(x)) = 1",
+            "l = 3\nquote(line: l, do: x) = 1",
             "case 1 do\ny when quote(do: unquote(y)) -> y\nend",
             "quote(do: unquote_splicing([1]))",
             "g = true\nquote(generated: g, do: 1)",

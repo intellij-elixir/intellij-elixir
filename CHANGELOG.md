@@ -574,6 +574,8 @@
 
 ### Threading / Platform Hygiene
 
+- [#4339](https://github.com/intellij-elixir/intellij-elixir/pull/4339) [@sh41](https://github.com/sh41)
+  - **The expander tracks macro hygiene, `var!` and `alias!`, and the variables a quote's run-time options bind, as each Elixir release does; nothing uses it yet.** Fixes [#4325](https://github.com/intellij-elixir/intellij-elixir/issues/4325).
 - [#4335](https://github.com/intellij-elixir/intellij-elixir/pull/4335) [@sh41](https://github.com/sh41)
   - **The expander resolves calls and `__MODULE__`/`__ENV__` as each Elixir release does, and marks macro calls it doesn't model; nothing uses it yet.** Fixes [#4308](https://github.com/intellij-elixir/intellij-elixir/issues/4308).
 - [#4322](https://github.com/intellij-elixir/intellij-elixir/pull/4322) [@sh41](https://github.com/sh41)

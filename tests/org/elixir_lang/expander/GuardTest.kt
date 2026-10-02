@@ -27,7 +27,7 @@ class GuardTest : ExpanderTestCase() {
         )
 
     private companion object {
-        val X = Variable("x", "nil")
-        val Y = Variable("y", "nil")
+        val X = Variable("x", Variable.NIL)
+        val Y = Variable("y", Variable.NIL)
     }
 }

@@ -17,6 +17,8 @@ object ErrorKinds {
     private val PATTERNS = mapOf(
         // elixir_expand
         "undefined_var" to """^undefined variable "[^"]+"( \(context [^)]+\))?$""",
+        "undefined_var_bang" to
+            """^expected "[^"]+"( \(context [^)]+\))? to expand to an existing variable or be part of a match$""",
         "undefined_var_pin" to
             """^undefined variable \^\S+\. No variable "[^"]+"( \(context [^)]+\))? has been defined before the current pattern$""",
         "invalid_arg_for_pin" to """^invalid argument for unary operator \^, expected an existing variable, got: \^""",
@@ -71,6 +73,10 @@ object ErrorKinds {
         "quote_unquote_splicing" to
             """^unquote_splicing only works inside arguments and block contexts, wrap it in parens if you want it to work with one-liners$""",
         "quote_invalid_runtime_option" to """^invalid runtime value for option :(unquote|generated) in quote, got: """,
+        // Kernel's macros
+        "var_bang_not_a_variable" to """^expected a variable to be given to var!, got: """,
+        "var_bang_context_not_atom" to """^expected var! context to expand to an atom, got: """,
+        "alias_bang_function_clause" to """^no function clause matching in Kernel\.alias!/1""",
         // elixir_dispatch
         "ambiguous_call" to
             """^(function \S+ imported from both \S+ and \S+, call is ambiguous|conflicting \S+ import from modules \S+ and \S+)""",
@@ -147,7 +153,13 @@ object ErrorKinds {
     ).mapValues { (_, pattern) -> Regex(pattern, RegexOption.DOT_MATCHES_ALL) }
 
     /** The kinds Elixir raises at expansion as an exception other than `CompileError`, whose message has no line. */
-    private val WITHOUT_LINE = setOf("quote_unquote_splicing", "quote_invalid_runtime_option")
+    private val WITHOUT_LINE = setOf(
+        "quote_unquote_splicing",
+        "quote_invalid_runtime_option",
+        "var_bang_not_a_variable",
+        "var_bang_context_not_atom",
+        "alias_bang_function_clause",
+    )
 
     fun pattern(kind: String): Regex = PATTERNS[kind] ?: throw AssertionError("no message pattern for error $kind")
 

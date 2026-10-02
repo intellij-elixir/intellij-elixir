@@ -60,8 +60,8 @@ class ExStateTest {
     }
 
     private companion object {
-        val X = Variable("x", "nil")
-        val Y = Variable("y", "nil")
+        val X = Variable("x", Variable.NIL)
+        val Y = Variable("y", Variable.NIL)
         val EMPTY = ExState.empty(ElixirLanguageLevel.of("1.20.4"))
     }
 }

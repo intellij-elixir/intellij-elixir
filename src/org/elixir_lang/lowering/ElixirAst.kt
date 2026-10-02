@@ -21,10 +21,23 @@ sealed class ElixirAst {
     /**
      * `{callee, meta, arguments}`: a local call's callee is an atom, a remote call's is the `.` call.
      *
-     * @property arguments `null` for the `nil` that a variable, or a bare name that may be a local call, has in place
-     *   of arguments
+     * @property arguments `null` for the context that a variable, or a bare name that may be a local call, has in
+     *   place of arguments
+     * @property context that context, read only when [arguments] is `null`; the lowering always gives
+     *   [VariableContext.Nil], and only the expander builds a [VariableContext.Atom]
      */
-    class Call(override val meta: Meta, val callee: ElixirAst, val arguments: List<ElixirAst>?) : ElixirAst()
+    class Call(
+        override val meta: Meta,
+        val callee: ElixirAst,
+        val arguments: List<ElixirAst>?,
+        val context: VariableContext = VariableContext.Nil,
+    ) : ElixirAst()
+
+    sealed class VariableContext {
+        data object Nil : VariableContext()
+
+        data class Atom(val name: String) : VariableContext()
+    }
 
     /** `{:__aliases__, meta, segments}`: atoms, after an expression when the alias starts with one (`__MODULE__.A`). */
     class Alias(override val meta: Meta, val segments: List<ElixirAst>) : ElixirAst()
@@ -73,7 +86,12 @@ sealed class ElixirAst {
             is Call -> tuple(
                 callee.toOtp(options),
                 meta.toOtp(options),
-                arguments?.let { list(it, options) } ?: OtpErlangAtom("nil")
+                arguments?.let { list(it, options) } ?: OtpErlangAtom(
+                    when (context) {
+                        VariableContext.Nil -> "nil"
+                        is VariableContext.Atom -> context.name
+                    }
+                )
             )
             is Alias -> tuple(OtpErlangAtom("__aliases__"), meta.toOtp(options), list(segments, options))
             is Literal.Atom -> OtpErlangAtom(name)

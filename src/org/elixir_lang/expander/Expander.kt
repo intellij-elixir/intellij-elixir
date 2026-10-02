@@ -12,7 +12,7 @@ object Expander {
     /**
      * [ast] expanded from [state] and [env] as Elixir at [level] expands it, with [exports] standing for the modules
      * Elixir would load, up to the first error Elixir raises or the first node that isn't ported. [observer] is told
-     * of each node reached.
+     * of each node reached, and [counters] gives each macro expansion its hygiene counter.
      */
     fun expand(
         ast: ElixirAst,
@@ -21,25 +21,33 @@ object Expander {
         level: ElixirLanguageLevel,
         exports: Exports,
         observer: ExpansionObserver = ExpansionObserver.NONE,
-    ): Expansion = expand(ast, state, env, Run(level, observer, exports))
+        counters: Counters = Counters(),
+    ): Expansion = expand(ast, state, env, Run(level, observer, exports, counters))
 
     internal fun expand(ast: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
         ProgressManager.checkCanceled()
-        run.observer.entering(ast, state, env)
+        // A built node shares its source node's origin, so an observer would take it for that node.
+        val observed = !ast.meta.built
+        if (observed) run.observer.entering(ast, state, env)
 
         val expansion = Clause.entries
             .firstOrNull { it.matches(ast, state, env, run.level) }
             ?.expand(ast, state, env, run)
             ?: Expansion.Unported(ast)
 
-        run.observer.left(ast, expansion)
+        if (observed) run.observer.left(ast, expansion)
 
         return expansion
     }
 }
 
 /** What every recursive expansion of one [Expander.expand] call shares. */
-internal class Run(val level: ElixirLanguageLevel, val observer: ExpansionObserver, val exports: Exports)
+internal class Run(
+    val level: ElixirLanguageLevel,
+    val observer: ExpansionObserver,
+    val exports: Exports,
+    val counters: Counters = Counters(),
+)
 
 internal inline fun Expansion.then(next: (ExState, Env) -> Expansion): Expansion =
     thenValue { state, env, _ -> next(state, env) }
