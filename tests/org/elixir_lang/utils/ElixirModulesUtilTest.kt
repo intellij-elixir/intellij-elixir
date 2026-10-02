@@ -13,12 +13,12 @@ class ElixirModulesUtilTest : UnitTestCase() {
 
     fun testAtomWithColonAfterElixirPrefix() {
         // @bench_tab :"#{__MODULE__}:tests" produces atom 'Elixir.Benchfella:tests'
-        // This is NOT a valid alias - must be rendered as a quoted atom
-        assertEquals(":\"Benchfella:tests\"", ElixirModulesUtil.erlangModuleNameToElixir("Elixir.Benchfella:tests"))
+        // This is NOT a valid alias - must be rendered as the whole quoted atom
+        assertEquals(":\"Elixir.Benchfella:tests\"", ElixirModulesUtil.erlangModuleNameToElixir("Elixir.Benchfella:tests"))
     }
 
     fun testAtomWithSpaceAfterElixirPrefix() {
-        assertEquals(":\"Foo bar\"", ElixirModulesUtil.erlangModuleNameToElixir("Elixir.Foo bar"))
+        assertEquals(":\"Elixir.Foo bar\"", ElixirModulesUtil.erlangModuleNameToElixir("Elixir.Foo bar"))
     }
 
     fun testErlangAtom() {
@@ -34,6 +34,6 @@ class ElixirModulesUtilTest : UnitTestCase() {
 
     fun testAtomWithQuoteAfterElixirPrefix() {
         // Atom containing a double-quote should be escaped
-        assertEquals(":\"Foo\\\"Bar\"", ElixirModulesUtil.erlangModuleNameToElixir("Elixir.Foo\"Bar"))
+        assertEquals(":\"Elixir.Foo\\\"Bar\"", ElixirModulesUtil.erlangModuleNameToElixir("Elixir.Foo\"Bar"))
     }
 }

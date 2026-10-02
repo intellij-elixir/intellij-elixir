@@ -205,12 +205,12 @@ defmodule :idna do
 
   defp check_context([cP | rest], label, checkJoiners, pos) do
     case :idna_table.lookup(cP) do
-      :"PVALID" ->
+      :PVALID ->
         check_context(rest, label, checkJoiners, pos + 1)
-      :"CONTEXTJ" ->
+      :CONTEXTJ ->
         :ok = valid_contextj(cP, label, pos, checkJoiners)
         check_context(rest, label, checkJoiners, pos + 1)
-      :"CONTEXTO" ->
+      :CONTEXTO ->
         :ok = valid_contexto(cP, label, pos, checkJoiners)
         check_context(rest, label, checkJoiners, pos + 1)
       _Status ->
@@ -353,11 +353,11 @@ defmodule :idna do
         {s, :undefined}
     end
     cond do
-      status === :"V" or status === :"D" and transitional === false or status === :"3" and std3Rules === true and replacement === :undefined ->
+      status === :V or status === :D and transitional === false or status === :"3" and std3Rules === true and replacement === :undefined ->
         [cp] ++ uts46_remap_1(rs, std3Rules, transitional)
-      replacement !== :undefined and status === :"M" or status === :"3" and std3Rules === false or status === :"D" and transitional === true ->
+      replacement !== :undefined and status === :M or status === :"3" and std3Rules === false or status === :D and transitional === true ->
         replacement ++ uts46_remap_1(rs, std3Rules, transitional)
-      status === :"I" ->
+      status === :I ->
         uts46_remap_1(rs, std3Rules, transitional)
       true ->
         :erlang.exit({:invalid_codepoint, cp})

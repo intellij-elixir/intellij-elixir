@@ -568,7 +568,7 @@ defmodule :dialyzer_callgraph do
   defp condensation(g) do
     {pid, ref} = :erlang.spawn_monitor(do_condensation(g, self()))
     receive do
-    {:"DOWN", ^ref, :process, ^pid, result} ->
+    {:DOWN, ^ref, :process, ^pid, result} ->
         {sCCInts, outETS, inETS, mapsETS} = result
         newSCCs = for sCCInt <- sCCInts do
           :ets.lookup_element(mapsETS, sCCInt, 2)

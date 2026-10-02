@@ -56,6 +56,20 @@ class AtomCompletionTest : PlatformTestCase() {
         myFixture.checkResult(applyModule(definitions, "unique_target"))
     }
 
+    fun testMfaApplyAtomCompletionQuotesANameThatNeedsIt() {
+        val definitions = "def unquote(:\"unique target\")(), do: :ok"
+        configureApplyCompletion(definitions, "unique")
+        myFixture.completeBasic()
+        myFixture.checkResult(applyModule(definitions, "\"unique target\""))
+    }
+
+    fun testMfaApplyAtomCompletionKeepsTheElixirPrefixOfAnAliasName() {
+        val definitions = "def unquote(:\"Elixir.Unique\")(), do: :ok"
+        configureApplyCompletion(definitions, "Elixir")
+        myFixture.completeBasic()
+        myFixture.checkResult(applyModule(definitions, "\"Elixir.Unique\""))
+    }
+
     /*
      * Private Instance Methods
      */

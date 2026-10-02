@@ -12,6 +12,7 @@ import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.v1.definitions.Defini
 import org.elixir_lang.beam.decompiler.Options
 import org.elixir_lang.beam.decompiler.decompiler
 import org.elixir_lang.beam.term.inspect
+import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.toOtpErlangList
 
 
@@ -49,7 +50,7 @@ class Clause(
             decompiled.append(guardsString)
 
             decompiled.toString()
-        } ?: "${definition.name}(${argumentStrings.joinToString(", ")})${guardsString}"
+        } ?: "${definition.name?.let(InspectAtom::localCall)}(${argumentStrings.joinToString(", ")})${guardsString}"
     }
 
     fun toMacroString(options: Options): String? =

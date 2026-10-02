@@ -2,8 +2,6 @@ package org.elixir_lang.code
 
 import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangObject
-import org.elixir_lang.Atom
-import org.elixir_lang.string.Tokenizer
 
 typealias Precedence = Int
 
@@ -17,20 +15,6 @@ object Identifier {
 
 
     data class AssociativityPrecedence(val associativity: Associativity, val precedence: Precedence)
-
-    enum class Classification {
-        ALIAS,
-        CALLABLE_LOCAL,
-        CALLABLE_OPERATOR,
-        NOT_CALLABLE,
-        IDENTIFIER,
-        OTHER
-    }
-
-    private val aliasRegex = Regex("Elixir(.[A-Z][a-zA-Z0-9_]*)+")
-    // Not Unicode Identifier, based on Elixir.flex IDENTIFIER_TOKEN
-    private val identifierRegex = Regex("[a-z_][a-zA-Z0-9_]*[?!]?")
-    private val notCallableAtomValues = arrayOf("%", "%{}", "{}", "<<>>", "...", "..", ".", "->")
 
     // https://github.com/elixir-lang/elixir/blob/v1.6.0-rc.1/lib/elixir/lib/code/identifier.ex#L23-L53
     fun binaryOperator(atom: OtpErlangAtom) = binaryOperator(atom.atomValue())
@@ -63,76 +47,16 @@ object Identifier {
             else -> null
         }
 
-    private fun classify(atomValue: String): Classification =
-            when {
-                atomValue in notCallableAtomValues ->
-                    Classification.NOT_CALLABLE
-                (unaryOperator(atomValue) ?: binaryOperator(atomValue)) != null ->
-                    Classification.CALLABLE_OPERATOR
-                isValidAlias(atomValue) ->
-                    Classification.ALIAS
-                isIdentifier(atomValue) ->
-                    Classification.CALLABLE_LOCAL
-                else ->
-                    when (val tokenized = Tokenizer.tokenize(atomValue)) {
-                        // https://github.com/elixir-lang/elixir/blob/6289cd6b9685a3c63c9ea445f1672004fc713cb8/lib/elixir/lib/code/identifier.ex#L101-L106
-                        is Tokenizer.Tokenized.Kind -> if (tokenized.rest.isEmpty()) {
-                            if (tokenized.kind == Tokenizer.Kind.IDENTIFIER && !tokenized.special.contains('@')) {
-                                Classification.CALLABLE_LOCAL
-                            } else {
-                                Classification.NOT_CALLABLE
-                            }
-                        } else {
-                            Classification.OTHER
-                        }
-                        // https://github.com/elixir-lang/elixir/blob/6289cd6b9685a3c63c9ea445f1672004fc713cb8/lib/elixir/lib/code/identifier.ex#L108-L109
-                        else -> Classification.OTHER
-                    }
-            }
-
-    // https://github.com/elixir-lang/elixir/blob/v1.6.0-rc.1/lib/elixir/lib/code/identifier.ex#L168-L188
+    /** The name of a remote call, or with [local] of a local call or definition head. */
     fun inspectAsFunction(atom: OtpErlangAtom, local: Boolean = false): String =
             inspectAsFunction(atom.atomValue(), local)
 
-    fun inspectAsFunction(string: String, local: Boolean = false): String {
-        val classification = classify(string)
+    fun inspectAsFunction(string: String, local: Boolean = false): String =
+            if (local) InspectAtom.localCall(string) else InspectAtom.remoteCall(string)
 
-        return if (classification in arrayOf(Classification.CALLABLE_LOCAL, Classification.CALLABLE_OPERATOR)
-            && !(local && string in RESERVED_VARIABLE_KEYWORDS)) {
-            string
-        } else {
-           val escaped = if (classification in arrayOf(Classification.ALIAS, Classification.NOT_CALLABLE)) {
-               string
-           } else {
-               escapeForElixirQuotedString(string)
-           }
+    fun inspectAsKey(atom: OtpErlangAtom): String = inspectAsKey(atom.atomValue())
 
-           val quoted = "\"$escaped\""
-
-            if (local) {
-                "unquote(:${quoted})"
-            } else {
-                quoted
-            }
-        }
-    }
-
-    fun inspectAsKey(atom: OtpErlangAtom): String = Atom.toString(atom).let { inspectAsKey(it) }
-
-    fun inspectAsKey(atomValue: String): String {
-        return if (classify(atomValue) in arrayOf(Classification.CALLABLE_LOCAL, Classification.CALLABLE_OPERATOR, Classification.NOT_CALLABLE)) {
-            "$atomValue:"
-        } else {
-            val escaped = escapeForElixirQuotedString(atomValue)
-
-            "\"$escaped\":"
-        }
-    }
-
-    fun isIdentifier(atomValue: String): Boolean = identifierRegex.matches(atomValue)
-
-    // https://github.com/elixir-lang/elixir/blob/v1.6.0-rc.1/lib/elixir/lib/code/identifier.ex#L104-L105
-    fun isValidAlias(atomValue: String): Boolean = aliasRegex.matches(atomValue)
+    fun inspectAsKey(atomValue: String): String = InspectAtom.key(atomValue)
 
     // https://github.com/elixir-lang/elixir/blob/v1.6.0-rc.1/lib/elixir/lib/code/identifier.ex#L4-L21
     fun unaryOperator(atom: OtpErlangAtom) = unaryOperator(atom.atomValue())

@@ -48,6 +48,11 @@ class ElixirClausePresentationTest : PlatformTestCase() {
     fun testInAModuleNamedWithAnAtomWrittenQuoted() =
         assertEquals(":plain", containerText("defmodule :\"plain\" do\n  def f(_), do: 1\nend\n"))
 
+    fun testInAModuleNamedWithAnElixirPrefixedAtomThatIsNotAnAlias() = assertEquals(
+        ":\"Elixir.foo bar\"",
+        containerText("defmodule :\"Elixir.foo bar\" do\n  def f(_), do: 1\nend\n"),
+    )
+
     fun testInANestedModule() = assertEquals(
         "Outer.Inner",
         containerText("defmodule Outer do\n  defmodule Inner do\n    def f(_), do: 1\n  end\nend\n"),

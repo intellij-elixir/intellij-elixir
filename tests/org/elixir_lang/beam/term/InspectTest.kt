@@ -38,9 +38,9 @@ class InspectTest : UnitTestCase() {
 
     // Atoms starting with "Elixir." but containing invalid alias characters
     // (e.g. :"Benchfella:tests" which is atom 'Elixir.Benchfella:tests' in Erlang)
-    // must be rendered as quoted atoms, not bare aliases.
+    // must be rendered as the whole quoted atom, not bare aliases.
     fun testAtomWithColonInElixirPrefix() {
-        assertEquals(":\"Benchfella:tests\"", inspect(OtpErlangAtom("Elixir.Benchfella:tests")))
+        assertEquals(":\"Elixir.Benchfella:tests\"", inspect(OtpErlangAtom("Elixir.Benchfella:tests")))
     }
 
     fun testValidElixirModuleAtom() {

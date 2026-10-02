@@ -1,6 +1,7 @@
 package org.elixir_lang.code_insight.lookup.element_renderer;
 
 import com.intellij.codeInsight.lookup.LookupElement;
+import com.intellij.codeInsight.lookup.LookupElementBuilder;
 import com.intellij.codeInsight.lookup.LookupElementPresentation;
 import com.intellij.psi.PsiElement;
 import org.elixir_lang.junit.LightTestCase;
@@ -70,9 +71,8 @@ public class CallDefinitionClauseTest extends LightTestCase {
 
         assertTrue(org.elixir_lang.psi.CallDefinitionClause.is(maybeDefCall));
 
-        return org.elixir_lang.code_insight.lookup.element.CallDefinitionClause.createWithSmartPointer(
-                name,
-                maybeDefElement
-        );
+        return LookupElementBuilder
+                .createWithSmartPointer(name, maybeDefElement)
+                .withRenderer(new CallDefinitionClause(name));
     }
 }

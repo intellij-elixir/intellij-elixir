@@ -1,6 +1,7 @@
 package org.elixir_lang
 
 import com.intellij.openapi.util.Condition
+import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.psi.call.name.Module.ELIXIR_PREFIX
 import org.elixir_lang.utils.ElixirModulesUtil
 import org.jetbrains.annotations.Contract
@@ -87,11 +88,10 @@ object Module {
     fun atom(indexName: String): String? =
         nonElixirAtom(indexName) ?: indexName.takeUnless { NO_VALUE in split(it) }?.let { ELIXIR_PREFIX + it }
 
-    /** The module [indexName] names, as Elixir writes it; an alias, or a name that is not an atom, as it is. */
+    /** The module [indexName] names, as Elixir writes it; a name with no value as it is. */
     @Contract(pure = true)
     @JvmStatic
-    fun inspect(indexName: String): String =
-        nonElixirAtom(indexName)?.let(ElixirModulesUtil::erlangModuleNameToElixir) ?: indexName
+    fun inspect(indexName: String): String = atom(indexName)?.let(InspectAtom::literal) ?: indexName
 
     /** The atom [indexName] encodes when it is not an `Elixir.` atom. */
     private fun nonElixirAtom(indexName: String): String? = indexName.takeIf { it.startsWith(":") }?.substring(1)

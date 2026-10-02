@@ -73,9 +73,13 @@ class VisibleTest : PlatformTestCase() {
 
     private fun assertLookupsAreVisible(inputDirectory: String) {
         for (call in uses(inputDirectory)) {
-            val (lookups, visible) = keys(call)
+            val lookups = offered(call).map { it.lookupString to it.psiElement!! }.toSet()
+            val entries = sourceFor(Feature.COMPLETION).visible(call)
+            val visible = entries.map { it.lookupName to it.element }.toSet()
+            // A visible entry with no name is a spelling to show, with nothing to insert.
+            val named = entries.filter { it.name != null }.map { it.lookupName to it.element }.toSet()
 
-            assertEquals("visible without a lookup at ${call.text}", emptySet<Pair<String, PsiElement>>(), visible - lookups)
+            assertEquals("visible without a lookup at ${call.text}", emptySet<Pair<String, PsiElement>>(), named - lookups)
             assertEquals(
                 "lookups without a visible entry at ${call.text} other than `def unquote(...)` heads",
                 emptyList<String>(),

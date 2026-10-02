@@ -256,14 +256,14 @@ defmodule Kernel do
   defmacro unquote(:!)({:!, _, [value]}) do
     (
       assert_no_match_or_guard_scope(__CALLER__.context(), "!")
-      optimize_boolean({:case, [], [value, [do: [{:"->", [], [[{:when, [], [{:x, [], Kernel}, {{:".", [], [Kernel, :in]}, [], [{:x, [], Kernel}, [false, nil]]}]}], false]}, {:"->", [], [[{:_, [], Kernel}], true]}]]]})
+      optimize_boolean({:case, [], [value, [do: [{:->, [], [[{:when, [], [{:x, [], Kernel}, {{:., [], [Kernel, :in]}, [], [{:x, [], Kernel}, [false, nil]]}]}], false]}, {:->, [], [[{:_, [], Kernel}], true]}]]]})
     )
   end
 
   defmacro unquote(:!)(value) do
     (
       assert_no_match_or_guard_scope(__CALLER__.context(), "!")
-      optimize_boolean({:case, [], [value, [do: [{:"->", [], [[{:when, [], [{:x, [], Kernel}, {{:".", [], [Kernel, :in]}, [], [{:x, [], Kernel}, [false, nil]]}]}], true]}, {:"->", [], [[{:_, [], Kernel}], false]}]]]})
+      optimize_boolean({:case, [], [value, [do: [{:->, [], [[{:when, [], [{:x, [], Kernel}, {{:., [], [Kernel, :in]}, [], [{:x, [], Kernel}, [false, nil]]}]}], true]}, {:->, [], [[{:_, [], Kernel}], false]}]]]})
     )
   end
 
@@ -298,7 +298,7 @@ defmodule Kernel do
   defmacro left && right do
     (
       assert_no_match_or_guard_scope(__CALLER__.context(), "&&")
-      {:case, [], [left, [do: [{:"->", [], [[{:when, [], [{:x, [], Kernel}, {{:".", [], [Kernel, :in]}, [], [{:x, [], Kernel}, [false, nil]]}]}], {:x, [], Kernel}]}, {:"->", [], [[{:_, [], Kernel}], right]}]]]}
+      {:case, [], [left, [do: [{:->, [], [[{:when, [], [{:x, [], Kernel}, {{:., [], [Kernel, :in]}, [], [{:x, [], Kernel}, [false, nil]]}]}], {:x, [], Kernel}]}, {:->, [], [[{:_, [], Kernel}], right]}]]]}
     )
   end
 
@@ -364,7 +364,7 @@ defmodule Kernel do
 
 
   """
-  defmacro unquote(:"..//")(first, last, step) do
+  defmacro unquote(:..//)(first, last, step) do
     case(bootstrapped?(Macro)) do
       true ->
         first = Macro.expand(first, __CALLER__)
@@ -402,7 +402,7 @@ defmodule Kernel do
   defmacro left <> right do
     (
       concats = extract_concatenations({:<>, [], [left, right]}, __CALLER__)
-      {:"<<>>", [], :elixir_quote.list(concats, [])}
+      {:<<>>, [], :elixir_quote.list(concats, [])}
     )
   end
 
@@ -539,7 +539,7 @@ defmodule Kernel do
             true ->
               pos = :elixir_locals.cache_env(__CALLER__)
               %{line: line, file: file, module: module} = __CALLER__
-              {{:".", [], [{:__aliases__, [alias: false], [:"Kernel", :"Typespec"]}, :deftypespec]}, [], [name, Macro.escape(:erlang.hd(args), unquote: true), line, file, module, pos]}
+              {{:., [], [{:__aliases__, [alias: false], [:Kernel, :Typespec]}, :deftypespec]}, [], [name, Macro.escape(:erlang.hd(args), unquote: true), line, file, module, pos]}
           end
         true ->
           do_at(args, meta, name, function?, __CALLER__)
@@ -593,7 +593,7 @@ defmodule Kernel do
       :match ->
         invalid_match!(:and)
       :guard ->
-        {{:".", [], [:erlang, :andalso]}, [], [left, right]}
+        {{:., [], [:erlang, :andalso]}, [], [left, right]}
     end
   end
 
@@ -824,7 +824,7 @@ defmodule Kernel do
         _ ->
           opts
       end
-      {:__block__, [], [{:=, [], [{:funs, [line: 5562], Kernel}, funs]}, {:=, [], [{:opts, [line: 5562], Kernel}, opts]}, {:__block__, [], [{:=, [], [{:target, [], Kernel}, {:||, [context: Kernel, import: Kernel], [{{:".", [], [{:__aliases__, [alias: false], [:"Keyword"]}, :get]}, [], [{:opts, [], Kernel}, :to]}, {:raise, [context: Kernel, import: Kernel], [{:__aliases__, [alias: false], [:"ArgumentError"]}, "expected to: to be given as argument"]}]}]}, {:if, [context: Kernel, import: Kernel], [{:is_list, [context: Kernel, import: Kernel], [{:funs, [], Kernel}]}, [do: {{:".", [], [{:__aliases__, [alias: false], [:"IO"]}, :warn]}, [], ["passing a list to Kernel.defdelegate/2 is deprecated, please define each delegate separately", {{:".", [], [{:__aliases__, [alias: false], [:"Macro", :"Env"]}, :stacktrace]}, [], [{:__ENV__, [], Kernel}]}]}]]}, {:if, [context: Kernel, import: Kernel], [{{:".", [], [{:__aliases__, [alias: false], [:"Keyword"]}, :has_key?]}, [], [{:opts, [], Kernel}, :append_first]}, [do: {{:".", [], [{:__aliases__, [alias: false], [:"IO"]}, :warn]}, [], ["Kernel.defdelegate/2 :append_first option is deprecated", {{:".", [], [{:__aliases__, [alias: false], [:"Macro", :"Env"]}, :stacktrace]}, [], [{:__ENV__, [], Kernel}]}]}]]}, {:for, [], [{:<-, [], [{:fun, [], Kernel}, {{:".", [], [{:__aliases__, [alias: false], [:"List"]}, :wrap]}, [], [{:funs, [], Kernel}]}]}, [do: {:__block__, [], [{:=, [], [{:"{}", [], [{:name, [], Kernel}, {:args, [], Kernel}, {:as, [], Kernel}, {:as_args, [], Kernel}]}, {{:".", [], [{:__aliases__, [alias: false], [:"Kernel", :"Utils"]}, :defdelegate]}, [], [{:fun, [], Kernel}, {:opts, [], Kernel}]}]}, {:@, [context: Kernel, import: :elixir_bootstrap], [{:doc, [context: Kernel], [[delegate_to: {:"{}", [], [{:target, [], Kernel}, {:as, [], Kernel}, {{:".", [], [:erlang, :length]}, [], [{:as_args, [], Kernel}]}]}]]}]}, {:def, [context: Kernel, import: :elixir_bootstrap], [{:unquote, [context: Kernel], [{:"{}", [], [{:name, [], Kernel}, [line: {{:".", [], [{:__ENV__, [], Kernel}, :line]}, [no_parens: true], []}], {:args, [], Kernel}]}]}, [do: {{{:".", [], [{:unquote, [], [{:target, [], Kernel}]}, :unquote]}, [], [{:as, [], Kernel}]}, [], [{:unquote_splicing, [], [{:as_args, [], Kernel}]}]}]]}]}]]}]}]}
+      {:__block__, [], [{:=, [], [{:funs, [line: 5562], Kernel}, funs]}, {:=, [], [{:opts, [line: 5562], Kernel}, opts]}, {:__block__, [], [{:=, [], [{:target, [], Kernel}, {:||, [context: Kernel, import: Kernel], [{{:., [], [{:__aliases__, [alias: false], [:Keyword]}, :get]}, [], [{:opts, [], Kernel}, :to]}, {:raise, [context: Kernel, import: Kernel], [{:__aliases__, [alias: false], [:ArgumentError]}, "expected to: to be given as argument"]}]}]}, {:if, [context: Kernel, import: Kernel], [{:is_list, [context: Kernel, import: Kernel], [{:funs, [], Kernel}]}, [do: {{:., [], [{:__aliases__, [alias: false], [:IO]}, :warn]}, [], ["passing a list to Kernel.defdelegate/2 is deprecated, please define each delegate separately", {{:., [], [{:__aliases__, [alias: false], [:Macro, :Env]}, :stacktrace]}, [], [{:__ENV__, [], Kernel}]}]}]]}, {:if, [context: Kernel, import: Kernel], [{{:., [], [{:__aliases__, [alias: false], [:Keyword]}, :has_key?]}, [], [{:opts, [], Kernel}, :append_first]}, [do: {{:., [], [{:__aliases__, [alias: false], [:IO]}, :warn]}, [], ["Kernel.defdelegate/2 :append_first option is deprecated", {{:., [], [{:__aliases__, [alias: false], [:Macro, :Env]}, :stacktrace]}, [], [{:__ENV__, [], Kernel}]}]}]]}, {:for, [], [{:<-, [], [{:fun, [], Kernel}, {{:., [], [{:__aliases__, [alias: false], [:List]}, :wrap]}, [], [{:funs, [], Kernel}]}]}, [do: {:__block__, [], [{:=, [], [{:{}, [], [{:name, [], Kernel}, {:args, [], Kernel}, {:as, [], Kernel}, {:as_args, [], Kernel}]}, {{:., [], [{:__aliases__, [alias: false], [:Kernel, :Utils]}, :defdelegate]}, [], [{:fun, [], Kernel}, {:opts, [], Kernel}]}]}, {:@, [context: Kernel, import: :elixir_bootstrap], [{:doc, [context: Kernel], [[delegate_to: {:{}, [], [{:target, [], Kernel}, {:as, [], Kernel}, {{:., [], [:erlang, :length]}, [], [{:as_args, [], Kernel}]}]}]]}]}, {:def, [context: Kernel, import: :elixir_bootstrap], [{:unquote, [context: Kernel], [{:{}, [], [{:name, [], Kernel}, [line: {{:., [], [{:__ENV__, [], Kernel}, :line]}, [no_parens: true], []}], {:args, [], Kernel}]}]}, [do: {{{:., [], [{:unquote, [], [{:target, [], Kernel}]}, :unquote]}, [], [{:as, [], Kernel}]}, [], [{:unquote_splicing, [], [{:as_args, [], Kernel}]}]}]]}]}]]}]}]}
     )
   end
 
@@ -882,7 +882,7 @@ defmodule Kernel do
 
   """
   defmacro defexception(fields) do
-    {:__block__, [], [{:=, [], [{:fields, [line: 5108], Kernel}, fields]}, {:__block__, [], [{:@, [context: Kernel, import: :elixir_bootstrap], [{:behaviour, [context: Kernel], [{:__aliases__, [alias: false], [:"Exception"]}]}]}, {:=, [], [{:struct, [], Kernel}, {:defstruct, [context: Kernel, import: Kernel], [{:++, [context: Kernel, import: Kernel], [[__exception__: true], {:fields, [], Kernel}]}]}]}, {:if, [context: Kernel, import: Kernel], [{{:".", [], [{:__aliases__, [alias: false], [:"Map"]}, :has_key?]}, [], [{:struct, [], Kernel}, :message]}, [do: {:__block__, [], [{:@, [context: Kernel, import: :elixir_bootstrap], [{:impl, [context: Kernel], [true]}]}, {:def, [context: Kernel, import: :elixir_bootstrap], [{:message, [context: Kernel], [{:exception, [], Kernel}]}, [do: {{:".", [], [{:exception, [], Kernel}, :message]}, [no_parens: true], []}]]}, {:defoverridable, [context: Kernel, import: Kernel], [[message: 1]]}, {:@, [context: Kernel, import: :elixir_bootstrap], [{:impl, [context: Kernel], [true]}]}, {:def, [context: Kernel, import: :elixir_bootstrap], [{:when, [context: Kernel], [{:exception, [], [{:msg, [], Kernel}]}, {{:".", [], [{:__aliases__, [alias: false], [:"Kernel"]}, :is_binary]}, [], [{:msg, [], Kernel}]}]}, [do: {:exception, [], [[message: {:msg, [], Kernel}]]}]]}]}]]}, {:@, [context: Kernel, import: :elixir_bootstrap], [{:impl, [context: Kernel], [true]}]}, {:def, [context: Kernel, import: :elixir_bootstrap], [{:when, [context: Kernel], [{:exception, [], [{:args, [], Kernel}]}, {{:".", [], [{:__aliases__, [alias: false], [:"Kernel"]}, :is_list]}, [], [{:args, [], Kernel}]}]}, [do: {:__block__, [], [{:=, [], [{:struct, [], Kernel}, {:__struct__, [], []}]}, {:=, [], [{{:valid, [], Kernel}, {:invalid, [], Kernel}}, {{:".", [], [{:__aliases__, [alias: false], [:"Enum"]}, :split_with]}, [], [{:args, [], Kernel}, {:fn, [], [{:"->", [], [[{{:k, [], Kernel}, {:_, [], Kernel}}], {{:".", [], [{:__aliases__, [alias: false], [:"Map"]}, :has_key?]}, [], [{:struct, [], Kernel}, {:k, [], Kernel}]}]}]}]}]}, {:case, [], [{:invalid, [], Kernel}, [do: [{:"->", [], [[[]], :ok]}, {:"->", [], [[{:_, [], Kernel}], {{:".", [], [{:__aliases__, [alias: false], [:"IO"]}, :warn]}, [], [{:<>, [context: Kernel, import: Kernel], ["the following fields are unknown when raising ", {:<>, [context: Kernel, import: Kernel], [{:"<<>>", [], [{:::, [], [{{:".", [], [Kernel, :to_string]}, [], [{{:".", [], [{:__aliases__, [alias: false], [:"Kernel"]}, :inspect]}, [], [{:__MODULE__, [], Kernel}]}]}, {:binary, [], Kernel}]}, ": ", {:::, [], [{{:".", [], [Kernel, :to_string]}, [], [{{:".", [], [{:__aliases__, [alias: false], [:"Kernel"]}, :inspect]}, [], [{:invalid, [], Kernel}]}]}, {:binary, [], Kernel}]}, ". "]}, {:<>, [context: Kernel, import: Kernel], ["Please make sure to only give known fields when raising ", {:<>, [context: Kernel, import: Kernel], [{:"<<>>", [], ["or redefine ", {:::, [], [{{:".", [], [Kernel, :to_string]}, [], [{{:".", [], [{:__aliases__, [alias: false], [:"Kernel"]}, :inspect]}, [], [{:__MODULE__, [], Kernel}]}]}, {:binary, [], Kernel}]}, ".exception/1 to "]}, {:<>, [context: Kernel, import: Kernel], ["discard unknown fields. Future Elixir versions will raise on ", "unknown fields given to raise/2"]}]}]}]}]}]}]}]]]}, {{:".", [], [{:__aliases__, [alias: false], [:"Kernel"]}, :struct!]}, [], [{:struct, [], Kernel}, {:valid, [], Kernel}]}]}]]}, {:defoverridable, [context: Kernel, import: Kernel], [[exception: 1]]}]}]}
+    {:__block__, [], [{:=, [], [{:fields, [line: 5108], Kernel}, fields]}, {:__block__, [], [{:@, [context: Kernel, import: :elixir_bootstrap], [{:behaviour, [context: Kernel], [{:__aliases__, [alias: false], [:Exception]}]}]}, {:=, [], [{:struct, [], Kernel}, {:defstruct, [context: Kernel, import: Kernel], [{:++, [context: Kernel, import: Kernel], [[__exception__: true], {:fields, [], Kernel}]}]}]}, {:if, [context: Kernel, import: Kernel], [{{:., [], [{:__aliases__, [alias: false], [:Map]}, :has_key?]}, [], [{:struct, [], Kernel}, :message]}, [do: {:__block__, [], [{:@, [context: Kernel, import: :elixir_bootstrap], [{:impl, [context: Kernel], [true]}]}, {:def, [context: Kernel, import: :elixir_bootstrap], [{:message, [context: Kernel], [{:exception, [], Kernel}]}, [do: {{:., [], [{:exception, [], Kernel}, :message]}, [no_parens: true], []}]]}, {:defoverridable, [context: Kernel, import: Kernel], [[message: 1]]}, {:@, [context: Kernel, import: :elixir_bootstrap], [{:impl, [context: Kernel], [true]}]}, {:def, [context: Kernel, import: :elixir_bootstrap], [{:when, [context: Kernel], [{:exception, [], [{:msg, [], Kernel}]}, {{:., [], [{:__aliases__, [alias: false], [:Kernel]}, :is_binary]}, [], [{:msg, [], Kernel}]}]}, [do: {:exception, [], [[message: {:msg, [], Kernel}]]}]]}]}]]}, {:@, [context: Kernel, import: :elixir_bootstrap], [{:impl, [context: Kernel], [true]}]}, {:def, [context: Kernel, import: :elixir_bootstrap], [{:when, [context: Kernel], [{:exception, [], [{:args, [], Kernel}]}, {{:., [], [{:__aliases__, [alias: false], [:Kernel]}, :is_list]}, [], [{:args, [], Kernel}]}]}, [do: {:__block__, [], [{:=, [], [{:struct, [], Kernel}, {:__struct__, [], []}]}, {:=, [], [{{:valid, [], Kernel}, {:invalid, [], Kernel}}, {{:., [], [{:__aliases__, [alias: false], [:Enum]}, :split_with]}, [], [{:args, [], Kernel}, {:fn, [], [{:->, [], [[{{:k, [], Kernel}, {:_, [], Kernel}}], {{:., [], [{:__aliases__, [alias: false], [:Map]}, :has_key?]}, [], [{:struct, [], Kernel}, {:k, [], Kernel}]}]}]}]}]}, {:case, [], [{:invalid, [], Kernel}, [do: [{:->, [], [[[]], :ok]}, {:->, [], [[{:_, [], Kernel}], {{:., [], [{:__aliases__, [alias: false], [:IO]}, :warn]}, [], [{:<>, [context: Kernel, import: Kernel], ["the following fields are unknown when raising ", {:<>, [context: Kernel, import: Kernel], [{:<<>>, [], [{:"::", [], [{{:., [], [Kernel, :to_string]}, [], [{{:., [], [{:__aliases__, [alias: false], [:Kernel]}, :inspect]}, [], [{:__MODULE__, [], Kernel}]}]}, {:binary, [], Kernel}]}, ": ", {:"::", [], [{{:., [], [Kernel, :to_string]}, [], [{{:., [], [{:__aliases__, [alias: false], [:Kernel]}, :inspect]}, [], [{:invalid, [], Kernel}]}]}, {:binary, [], Kernel}]}, ". "]}, {:<>, [context: Kernel, import: Kernel], ["Please make sure to only give known fields when raising ", {:<>, [context: Kernel, import: Kernel], [{:<<>>, [], ["or redefine ", {:"::", [], [{{:., [], [Kernel, :to_string]}, [], [{{:., [], [{:__aliases__, [alias: false], [:Kernel]}, :inspect]}, [], [{:__MODULE__, [], Kernel}]}]}, {:binary, [], Kernel}]}, ".exception/1 to "]}, {:<>, [context: Kernel, import: Kernel], ["discard unknown fields. Future Elixir versions will raise on ", "unknown fields given to raise/2"]}]}]}]}]}]}]}]]]}, {{:., [], [{:__aliases__, [alias: false], [:Kernel]}, :struct!]}, [], [{:struct, [], Kernel}, {:valid, [], Kernel}]}]}]]}, {:defoverridable, [context: Kernel, import: Kernel], [[exception: 1]]}]}]}
   end
 
   @doc ~S"""
@@ -1121,16 +1121,16 @@ defmodule Kernel do
         false ->
           {expanded, nil}
       end
-      block = {:__block__, [], [{:=, [], [{:result, [], Kernel}, block]}, {{:".", [], [:elixir_utils, :noop]}, [], []}, {:result, [], Kernel}]}
+      block = {:__block__, [], [{:=, [], [{:result, [], Kernel}, block]}, {{:., [], [:elixir_utils, :noop]}, [], []}, {:result, [], Kernel}]}
       escaped = case(env) do
         %{function: nil, lexical_tracker: pid} when is_pid(pid) ->
           integer = Kernel.LexicalTracker.write_cache(pid, block)
-          {{:".", [], [{:__aliases__, [alias: false], [:"Kernel", :"LexicalTracker"]}, :read_cache]}, [], [pid, integer]}
+          {{:., [], [{:__aliases__, [alias: false], [:Kernel, :LexicalTracker]}, :read_cache]}, [], [pid, integer]}
         %{} ->
           :elixir_quote.escape(block, :none, false)
       end
-      module_vars = :lists.map(&:module_var/1, :maps.keys(env.versioned_vars()))
-      {:__block__, [], [with_alias, {{:".", [], [:elixir_module, :compile]}, [], [expanded, escaped, module_vars, {:__ENV__, [], Kernel}]}]}
+      module_vars = :lists.map(&module_var/1, :maps.keys(env.versioned_vars()))
+      {:__block__, [], [with_alias, {{:., [], [:elixir_module, :compile]}, [], [expanded, escaped, module_vars, {:__ENV__, [], Kernel}]}]}
     )
   end
 
@@ -1207,7 +1207,7 @@ defmodule Kernel do
 
   """
   defmacro defoverridable(keywords_or_behaviour) do
-    {{:".", [], [{:__aliases__, [alias: false], [:"Module"]}, :make_overridable]}, [], [{:__MODULE__, [], Kernel}, keywords_or_behaviour]}
+    {{:., [], [{:__aliases__, [alias: false], [:Module]}, :make_overridable]}, [], [{:__MODULE__, [], Kernel}, keywords_or_behaviour]}
   end
 
   defmacro defp(call) do
@@ -1376,11 +1376,11 @@ defmodule Kernel do
     (
       builder = case(bootstrapped?(Enum)) do
         true ->
-          {:case, [], [{:@, [context: Kernel, import: :elixir_bootstrap], [{:enforce_keys, [context: Kernel], Kernel}]}, [do: [{:"->", [], [[[]], {:def, [context: Kernel, import: :elixir_bootstrap], [{:__struct__, [context: Kernel], [{:kv, [], Kernel}]}, [do: {{:".", [], [{:__aliases__, [alias: false], [:"Enum"]}, :reduce]}, [], [{:kv, [], Kernel}, {:@, [context: Kernel, import: :elixir_bootstrap], [{:__struct__, [context: Kernel], Kernel}]}, {:fn, [], [{:"->", [], [[{{:key, [], Kernel}, {:val, [], Kernel}}, {:map, [], Kernel}], {{:".", [], [{:__aliases__, [alias: false], [:"Map"]}, :replace!]}, [], [{:map, [], Kernel}, {:key, [], Kernel}, {:val, [], Kernel}]}]}]}]}]]}]}, {:"->", [], [[{:_, [], Kernel}], {:def, [context: Kernel, import: :elixir_bootstrap], [{:__struct__, [context: Kernel], [{:kv, [], Kernel}]}, [do: {:__block__, [], [{:=, [], [{{:map, [], Kernel}, {:keys, [], Kernel}}, {{:".", [], [{:__aliases__, [alias: false], [:"Enum"]}, :reduce]}, [], [{:kv, [], Kernel}, {{:@, [context: Kernel, import: :elixir_bootstrap], [{:__struct__, [context: Kernel], Kernel}]}, {:@, [context: Kernel, import: :elixir_bootstrap], [{:enforce_keys, [context: Kernel], Kernel}]}}, {:fn, [], [{:"->", [], [[{{:key, [], Kernel}, {:val, [], Kernel}}, {{:map, [], Kernel}, {:keys, [], Kernel}}], {{{:".", [], [{:__aliases__, [alias: false], [:"Map"]}, :replace!]}, [], [{:map, [], Kernel}, {:key, [], Kernel}, {:val, [], Kernel}]}, {{:".", [], [{:__aliases__, [alias: false], [:"List"]}, :delete]}, [], [{:keys, [], Kernel}, {:key, [], Kernel}]}}]}]}]}]}, {:case, [], [{:keys, [], Kernel}, [do: [{:"->", [], [[[]], {:map, [], Kernel}]}, {:"->", [], [[{:_, [], Kernel}], {:raise, [context: Kernel, import: Kernel], [{:__aliases__, [alias: false], [:"ArgumentError"]}, {:<>, [context: Kernel, import: Kernel], ["the following keys must also be given when building ", {:"<<>>", [], ["struct ", {:::, [], [{{:".", [], [Kernel, :to_string]}, [], [{:inspect, [context: Kernel, import: Kernel], [{:__MODULE__, [], Kernel}]}]}, {:binary, [], Kernel}]}, ": ", {:::, [], [{{:".", [], [Kernel, :to_string]}, [], [{:inspect, [context: Kernel, import: Kernel], [{:keys, [], Kernel}]}]}, {:binary, [], Kernel}]}]}]}]}]}]]]}]}]]}]}]]]}
+          {:case, [], [{:@, [context: Kernel, import: :elixir_bootstrap], [{:enforce_keys, [context: Kernel], Kernel}]}, [do: [{:->, [], [[[]], {:def, [context: Kernel, import: :elixir_bootstrap], [{:__struct__, [context: Kernel], [{:kv, [], Kernel}]}, [do: {{:., [], [{:__aliases__, [alias: false], [:Enum]}, :reduce]}, [], [{:kv, [], Kernel}, {:@, [context: Kernel, import: :elixir_bootstrap], [{:__struct__, [context: Kernel], Kernel}]}, {:fn, [], [{:->, [], [[{{:key, [], Kernel}, {:val, [], Kernel}}, {:map, [], Kernel}], {{:., [], [{:__aliases__, [alias: false], [:Map]}, :replace!]}, [], [{:map, [], Kernel}, {:key, [], Kernel}, {:val, [], Kernel}]}]}]}]}]]}]}, {:->, [], [[{:_, [], Kernel}], {:def, [context: Kernel, import: :elixir_bootstrap], [{:__struct__, [context: Kernel], [{:kv, [], Kernel}]}, [do: {:__block__, [], [{:=, [], [{{:map, [], Kernel}, {:keys, [], Kernel}}, {{:., [], [{:__aliases__, [alias: false], [:Enum]}, :reduce]}, [], [{:kv, [], Kernel}, {{:@, [context: Kernel, import: :elixir_bootstrap], [{:__struct__, [context: Kernel], Kernel}]}, {:@, [context: Kernel, import: :elixir_bootstrap], [{:enforce_keys, [context: Kernel], Kernel}]}}, {:fn, [], [{:->, [], [[{{:key, [], Kernel}, {:val, [], Kernel}}, {{:map, [], Kernel}, {:keys, [], Kernel}}], {{{:., [], [{:__aliases__, [alias: false], [:Map]}, :replace!]}, [], [{:map, [], Kernel}, {:key, [], Kernel}, {:val, [], Kernel}]}, {{:., [], [{:__aliases__, [alias: false], [:List]}, :delete]}, [], [{:keys, [], Kernel}, {:key, [], Kernel}]}}]}]}]}]}, {:case, [], [{:keys, [], Kernel}, [do: [{:->, [], [[[]], {:map, [], Kernel}]}, {:->, [], [[{:_, [], Kernel}], {:raise, [context: Kernel, import: Kernel], [{:__aliases__, [alias: false], [:ArgumentError]}, {:<>, [context: Kernel, import: Kernel], ["the following keys must also be given when building ", {:<<>>, [], ["struct ", {:"::", [], [{{:., [], [Kernel, :to_string]}, [], [{:inspect, [context: Kernel, import: Kernel], [{:__MODULE__, [], Kernel}]}]}, {:binary, [], Kernel}]}, ": ", {:"::", [], [{{:., [], [Kernel, :to_string]}, [], [{:inspect, [context: Kernel, import: Kernel], [{:keys, [], Kernel}]}]}, {:binary, [], Kernel}]}]}]}]}]}]]]}]}]]}]}]]]}
         false ->
-          {:__block__, [], [{:=, [], [{:_, [], Kernel}, {:@, [context: Kernel, import: :elixir_bootstrap], [{:enforce_keys, [context: Kernel], Kernel}]}]}, {:def, [context: Kernel, import: :elixir_bootstrap], [{:__struct__, [context: Kernel], [{:kv, [], Kernel}]}, [do: {{:".", [], [:lists, :foldl]}, [], [{:fn, [], [{:"->", [], [[{{:key, [], Kernel}, {:val, [], Kernel}}, {:acc, [], Kernel}], {{:".", [], [{:__aliases__, [alias: false], [:"Map"]}, :replace!]}, [], [{:acc, [], Kernel}, {:key, [], Kernel}, {:val, [], Kernel}]}]}]}, {:@, [context: Kernel, import: :elixir_bootstrap], [{:__struct__, [context: Kernel], Kernel}]}, {:kv, [], Kernel}]}]]}]}
+          {:__block__, [], [{:=, [], [{:_, [], Kernel}, {:@, [context: Kernel, import: :elixir_bootstrap], [{:enforce_keys, [context: Kernel], Kernel}]}]}, {:def, [context: Kernel, import: :elixir_bootstrap], [{:__struct__, [context: Kernel], [{:kv, [], Kernel}]}, [do: {{:., [], [:lists, :foldl]}, [], [{:fn, [], [{:->, [], [[{{:key, [], Kernel}, {:val, [], Kernel}}, {:acc, [], Kernel}], {{:., [], [{:__aliases__, [alias: false], [:Map]}, :replace!]}, [], [{:acc, [], Kernel}, {:key, [], Kernel}, {:val, [], Kernel}]}]}]}, {:@, [context: Kernel, import: :elixir_bootstrap], [{:__struct__, [context: Kernel], Kernel}]}, {:kv, [], Kernel}]}]]}]}
       end
-      {:__block__, [], [{:if, [context: Kernel, import: Kernel], [{{:".", [], [{:__aliases__, [alias: false], [:"Module"]}, :has_attribute?]}, [], [{:__MODULE__, [], Kernel}, :__struct__]}, [do: {:raise, [context: Kernel, import: Kernel], [{:__aliases__, [alias: false], [:"ArgumentError"]}, {:<>, [context: Kernel, import: Kernel], ["defstruct has already been called for ", {:"<<>>", [], [{:::, [], [{{:".", [], [Kernel, :to_string]}, [], [{{:".", [], [{:__aliases__, [alias: false], [:"Kernel"]}, :inspect]}, [], [{:__MODULE__, [], Kernel}]}]}, {:binary, [], Kernel}]}, ", defstruct can only be called once per module"]}]}]}]]}, {:=, [], [{:"{}", [], [{:struct, [], Kernel}, {:keys, [], Kernel}, {:derive, [], Kernel}]}, {{:".", [], [{:__aliases__, [alias: false], [:"Kernel", :"Utils"]}, :defstruct]}, [], [{:__MODULE__, [], Kernel}, fields]}]}, {:@, [context: Kernel, import: :elixir_bootstrap], [{:__struct__, [context: Kernel], [{:struct, [], Kernel}]}]}, {:@, [context: Kernel, import: :elixir_bootstrap], [{:enforce_keys, [context: Kernel], [{:keys, [], Kernel}]}]}, {:case, [], [{:derive, [], Kernel}, [do: [{:"->", [], [[[]], :ok]}, {:"->", [], [[{:_, [], Kernel}], {{:".", [], [{:__aliases__, [alias: false], [:"Protocol"]}, :__derive__]}, [], [{:derive, [], Kernel}, {:__MODULE__, [], Kernel}, {:__ENV__, [], Kernel}]}]}]]]}, {:def, [context: Kernel, import: :elixir_bootstrap], [{:__struct__, [context: Kernel], []}, [do: {:@, [context: Kernel, import: :elixir_bootstrap], [{:__struct__, [context: Kernel], Kernel}]}]]}, builder, {{:".", [], [{:__aliases__, [alias: false], [:"Kernel", :"Utils"]}, :announce_struct]}, [], [{:__MODULE__, [], Kernel}]}, {:struct, [], Kernel}]}
+      {:__block__, [], [{:if, [context: Kernel, import: Kernel], [{{:., [], [{:__aliases__, [alias: false], [:Module]}, :has_attribute?]}, [], [{:__MODULE__, [], Kernel}, :__struct__]}, [do: {:raise, [context: Kernel, import: Kernel], [{:__aliases__, [alias: false], [:ArgumentError]}, {:<>, [context: Kernel, import: Kernel], ["defstruct has already been called for ", {:<<>>, [], [{:"::", [], [{{:., [], [Kernel, :to_string]}, [], [{{:., [], [{:__aliases__, [alias: false], [:Kernel]}, :inspect]}, [], [{:__MODULE__, [], Kernel}]}]}, {:binary, [], Kernel}]}, ", defstruct can only be called once per module"]}]}]}]]}, {:=, [], [{:{}, [], [{:struct, [], Kernel}, {:keys, [], Kernel}, {:derive, [], Kernel}]}, {{:., [], [{:__aliases__, [alias: false], [:Kernel, :Utils]}, :defstruct]}, [], [{:__MODULE__, [], Kernel}, fields]}]}, {:@, [context: Kernel, import: :elixir_bootstrap], [{:__struct__, [context: Kernel], [{:struct, [], Kernel}]}]}, {:@, [context: Kernel, import: :elixir_bootstrap], [{:enforce_keys, [context: Kernel], [{:keys, [], Kernel}]}]}, {:case, [], [{:derive, [], Kernel}, [do: [{:->, [], [[[]], :ok]}, {:->, [], [[{:_, [], Kernel}], {{:., [], [{:__aliases__, [alias: false], [:Protocol]}, :__derive__]}, [], [{:derive, [], Kernel}, {:__MODULE__, [], Kernel}, {:__ENV__, [], Kernel}]}]}]]]}, {:def, [context: Kernel, import: :elixir_bootstrap], [{:__struct__, [context: Kernel], []}, [do: {:@, [context: Kernel, import: :elixir_bootstrap], [{:__struct__, [context: Kernel], Kernel}]}]]}, builder, {{:., [], [{:__aliases__, [alias: false], [:Kernel, :Utils]}, :announce_struct]}, [], [{:__MODULE__, [], Kernel}]}, {:struct, [], Kernel}]}
     )
   end
 
@@ -1418,7 +1418,7 @@ defmodule Kernel do
 
   """
   defmacro destructure(left, right) when is_list(left) do
-    {:=, [], [left, {{:".", [], [{:__aliases__, [alias: false], [:"Kernel", :"Utils"]}, :destructure]}, [], [right, length(left)]}]}
+    {:=, [], [left, {{:., [], [{:__aliases__, [alias: false], [:Kernel, :Utils]}, :destructure]}, [], [right, length(left)]}]}
   end
 
   @doc ~S"""
@@ -1594,12 +1594,12 @@ defmodule Kernel do
             true ->
               in_var(in_body?, left, fn x1 -> in_list(x1, head, tail, expand, list, in_body?) end)
             false ->
-              {{:".", [], [:lists, :member]}, [], [left, right]}
+              {{:., [], [:lists, :member]}, [], [left, right]}
           end
-        {:"%{}", _meta, [__struct__: Range, first: first, last: last, step: step]} ->
+        {:%{}, _meta, [__struct__: Range, first: first, last: last, step: step]} ->
           in_var(in_body?, left, fn x1 -> in_range(x1, expand.(first), expand.(last), expand.(step)) end)
         right when in_body? ->
-          {{:".", [], [{:__aliases__, [], [:"Elixir", :"Enum"]}, :member?]}, [], [right, left]}
+          {{:., [], [{:__aliases__, [], [Elixir, :Enum]}, :member?]}, [], [right, left]}
         %Range{first: _, last: _, step: _} ->
           raise(ArgumentError, "non-literal range in guard should be escaped with Macro.escape/2")
         right ->
@@ -1626,11 +1626,11 @@ defmodule Kernel do
   defmacro is_exception(term) do
     case(__CALLER__.context()) do
       nil ->
-        {:case, [], [term, [do: [{:"->", [], [[{:"%", [], [{:_, [], Kernel}, {:"%{}", [], [__exception__: true]}]}], true]}, {:"->", [], [[{:_, [], Kernel}], false]}]]]}
+        {:case, [], [term, [do: [{:->, [], [[{:%, [], [{:_, [], Kernel}, {:%{}, [], [__exception__: true]}]}], true]}, {:->, [], [[{:_, [], Kernel}], false]}]]]}
       :match ->
         invalid_match!(:is_exception)
       :guard ->
-        {:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{:is_map, [context: Kernel, import: Kernel], [term]}, {{:".", [], [:erlang, :is_map_key]}, [], [:__struct__, term]}]}, {:is_atom, [context: Kernel, import: Kernel], [{{:".", [], [:erlang, :map_get]}, [], [:__struct__, term]}]}]}, {{:".", [], [:erlang, :is_map_key]}, [], [:__exception__, term]}]}, {:==, [context: Kernel, import: Kernel], [{{:".", [], [:erlang, :map_get]}, [], [:__exception__, term]}, true]}]}
+        {:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{:is_map, [context: Kernel, import: Kernel], [term]}, {{:., [], [:erlang, :is_map_key]}, [], [:__struct__, term]}]}, {:is_atom, [context: Kernel, import: Kernel], [{{:., [], [:erlang, :map_get]}, [], [:__struct__, term]}]}]}, {{:., [], [:erlang, :is_map_key]}, [], [:__exception__, term]}]}, {:==, [context: Kernel, import: Kernel], [{{:., [], [:erlang, :map_get]}, [], [:__exception__, term]}, true]}]}
     end
   end
 
@@ -1652,11 +1652,11 @@ defmodule Kernel do
   defmacro is_exception(term, name) do
     case(__CALLER__.context()) do
       nil ->
-        {:case, [], [name, [do: [{:"->", [], [[{:when, [], [{:name, [], Kernel}, {:is_atom, [context: Kernel, import: Kernel], [{:name, [], Kernel}]}]}], {:case, [], [term, [do: [{:"->", [], [[{:"%{}", [], [__struct__: {:^, [], [{:name, [], Kernel}]}, __exception__: true]}], true]}, {:"->", [], [[{:_, [], Kernel}], false]}]]]}]}, {:"->", [], [[{:_, [], Kernel}], {:raise, [context: Kernel, import: Kernel], [{:__aliases__, [alias: false], [:"ArgumentError"]}]}]}]]]}
+        {:case, [], [name, [do: [{:->, [], [[{:when, [], [{:name, [], Kernel}, {:is_atom, [context: Kernel, import: Kernel], [{:name, [], Kernel}]}]}], {:case, [], [term, [do: [{:->, [], [[{:%{}, [], [__struct__: {:^, [], [{:name, [], Kernel}]}, __exception__: true]}], true]}, {:->, [], [[{:_, [], Kernel}], false]}]]]}]}, {:->, [], [[{:_, [], Kernel}], {:raise, [context: Kernel, import: Kernel], [{:__aliases__, [alias: false], [:ArgumentError]}]}]}]]]}
       :match ->
         invalid_match!(:is_exception)
       :guard ->
-        {:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{:is_map, [context: Kernel, import: Kernel], [term]}, {:or, [context: Kernel, import: Kernel], [{:is_atom, [context: Kernel, import: Kernel], [name]}, :fail]}]}, {{:".", [], [:erlang, :is_map_key]}, [], [:__struct__, term]}]}, {:==, [context: Kernel, import: Kernel], [{{:".", [], [:erlang, :map_get]}, [], [:__struct__, term]}, name]}]}, {{:".", [], [:erlang, :is_map_key]}, [], [:__exception__, term]}]}, {:==, [context: Kernel, import: Kernel], [{{:".", [], [:erlang, :map_get]}, [], [:__exception__, term]}, true]}]}
+        {:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{:is_map, [context: Kernel, import: Kernel], [term]}, {:or, [context: Kernel, import: Kernel], [{:is_atom, [context: Kernel, import: Kernel], [name]}, :fail]}]}, {{:., [], [:erlang, :is_map_key]}, [], [:__struct__, term]}]}, {:==, [context: Kernel, import: Kernel], [{{:., [], [:erlang, :map_get]}, [], [:__struct__, term]}, name]}]}, {{:., [], [:erlang, :is_map_key]}, [], [:__exception__, term]}]}, {:==, [context: Kernel, import: Kernel], [{{:., [], [:erlang, :map_get]}, [], [:__exception__, term]}, true]}]}
     end
   end
 
@@ -1697,11 +1697,11 @@ defmodule Kernel do
   defmacro is_struct(term) do
     case(__CALLER__.context()) do
       nil ->
-        {:case, [], [term, [do: [{:"->", [], [[{:"%", [], [{:_, [], Kernel}, {:"%{}", [], []}]}], true]}, {:"->", [], [[{:_, [], Kernel}], false]}]]]}
+        {:case, [], [term, [do: [{:->, [], [[{:%, [], [{:_, [], Kernel}, {:%{}, [], []}]}], true]}, {:->, [], [[{:_, [], Kernel}], false]}]]]}
       :match ->
         invalid_match!(:is_struct)
       :guard ->
-        {:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{:is_map, [context: Kernel, import: Kernel], [term]}, {{:".", [], [:erlang, :is_map_key]}, [], [:__struct__, term]}]}, {:is_atom, [context: Kernel, import: Kernel], [{{:".", [], [:erlang, :map_get]}, [], [:__struct__, term]}]}]}
+        {:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{:is_map, [context: Kernel, import: Kernel], [term]}, {{:., [], [:erlang, :is_map_key]}, [], [:__struct__, term]}]}, {:is_atom, [context: Kernel, import: Kernel], [{{:., [], [:erlang, :map_get]}, [], [:__struct__, term]}]}]}
     end
   end
 
@@ -1723,11 +1723,11 @@ defmodule Kernel do
   defmacro is_struct(term, name) do
     case(__CALLER__.context()) do
       nil ->
-        {:case, [generated: true], [name, [do: [{:"->", [generated: true], [[{:when, [generated: true], [{:name, [generated: true], Kernel}, {:is_atom, [generated: true, context: Kernel, import: Kernel], [{:name, [generated: true], Kernel}]}]}], {:case, [generated: true], [term, [do: [{:"->", [generated: true], [[{:"%{}", [generated: true], [__struct__: {:^, [generated: true], [{:name, [generated: true], Kernel}]}]}], true]}, {:"->", [generated: true], [[{:_, [generated: true], Kernel}], false]}]]]}]}, {:"->", [generated: true], [[{:_, [generated: true], Kernel}], {:raise, [generated: true, context: Kernel, import: Kernel], [{:__aliases__, [generated: true, alias: false], [:"ArgumentError"]}]}]}]]]}
+        {:case, [generated: true], [name, [do: [{:->, [generated: true], [[{:when, [generated: true], [{:name, [generated: true], Kernel}, {:is_atom, [generated: true, context: Kernel, import: Kernel], [{:name, [generated: true], Kernel}]}]}], {:case, [generated: true], [term, [do: [{:->, [generated: true], [[{:%{}, [generated: true], [__struct__: {:^, [generated: true], [{:name, [generated: true], Kernel}]}]}], true]}, {:->, [generated: true], [[{:_, [generated: true], Kernel}], false]}]]]}]}, {:->, [generated: true], [[{:_, [generated: true], Kernel}], {:raise, [generated: true, context: Kernel, import: Kernel], [{:__aliases__, [generated: true, alias: false], [:ArgumentError]}]}]}]]]}
       :match ->
         invalid_match!(:is_struct)
       :guard ->
-        {:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{:is_map, [context: Kernel, import: Kernel], [term]}, {:or, [context: Kernel, import: Kernel], [{:is_atom, [context: Kernel, import: Kernel], [name]}, :fail]}]}, {{:".", [], [:erlang, :is_map_key]}, [], [:__struct__, term]}]}, {:==, [context: Kernel, import: Kernel], [{{:".", [], [:erlang, :map_get]}, [], [:__struct__, term]}, name]}]}
+        {:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{:is_map, [context: Kernel, import: Kernel], [term]}, {:or, [context: Kernel, import: Kernel], [{:is_atom, [context: Kernel, import: Kernel], [name]}, :fail]}]}, {{:., [], [:erlang, :is_map_key]}, [], [:__struct__, term]}]}, {:==, [context: Kernel, import: Kernel], [{{:., [], [:erlang, :map_get]}, [], [:__struct__, term]}, name]}]}
     end
   end
 
@@ -1794,8 +1794,8 @@ defmodule Kernel do
   """
   defmacro match?(pattern, expr) do
     (
-      success = [{:"->", [], [[pattern], true]}]
-      failure = [{:"->", [generated: true], [[{:_, [generated: true], Kernel}], false]}]
+      success = [{:->, [], [[pattern], true]}]
+      failure = [{:->, [generated: true], [[{:_, [generated: true], Kernel}], false]}]
       {:case, [], [expr, [do: success ++ failure]]}
     )
   end
@@ -1831,7 +1831,7 @@ defmodule Kernel do
       :match ->
         invalid_match!(:or)
       :guard ->
-        {{:".", [], [:erlang, :orelse]}, [], [left, right]}
+        {{:., [], [:erlang, :orelse]}, [], [left, right]}
     end
   end
 
@@ -1908,10 +1908,10 @@ defmodule Kernel do
   defmacro put_in(path, value) do
     case(unnest(path, [], true, "put_in/2")) do
       {[h | t], true} ->
-        nest_update_in(h, t, {:fn, [], [{:"->", [], [[{:_, [], Kernel}], value]}]})
+        nest_update_in(h, t, {:fn, [], [{:->, [], [[{:_, [], Kernel}], value]}]})
       {[h | t], false} ->
-        expr = nest_get_and_update_in(h, t, {:fn, [], [{:"->", [], [[{:_, [], Kernel}], {nil, value}]}]})
-        {{:".", [], [:erlang, :element]}, [], [2, expr]}
+        expr = nest_get_and_update_in(h, t, {:fn, [], [{:->, [], [[{:_, [], Kernel}], {nil, value}]}]})
+        {{:., [], [:erlang, :element]}, [], [2, expr]}
     end
   end
 
@@ -1953,19 +1953,19 @@ defmodule Kernel do
       end
       erlang_error = case(:erlang.system_info(:otp_release) >= '24') do
         true ->
-          fn x -> {{:".", [], [:erlang, :error]}, [], [x, :none, [error_info: {:"%{}", [], [module: {:__aliases__, [alias: false], [:"Exception"]}]}]]} end
+          fn x -> {{:., [], [:erlang, :error]}, [], [x, :none, [error_info: {:%{}, [], [module: {:__aliases__, [alias: false], [:Exception]}]}]]} end
         false ->
-          fn x -> {{:".", [], [:erlang, :error]}, [], [x]} end
+          fn x -> {{:., [], [:erlang, :error]}, [], [x]} end
       end
       case(message) do
         message when is_binary(message) ->
-          erlang_error.({{:".", [], [{:__aliases__, [alias: false], [:"RuntimeError"]}, :exception]}, [], [message]})
-        {:"<<>>", _, _} = message ->
-          erlang_error.({{:".", [], [{:__aliases__, [alias: false], [:"RuntimeError"]}, :exception]}, [], [message]})
+          erlang_error.({{:., [], [{:__aliases__, [alias: false], [:RuntimeError]}, :exception]}, [], [message]})
+        {:<<>>, _, _} = message ->
+          erlang_error.({{:., [], [{:__aliases__, [alias: false], [:RuntimeError]}, :exception]}, [], [message]})
         alias when is_atom(alias) ->
-          erlang_error.({{:".", [], [alias, :exception]}, [], [[]]})
+          erlang_error.({{:., [], [alias, :exception]}, [], [[]]})
         _ ->
-          erlang_error.({{:".", [], [{:__aliases__, [alias: false], [:"Kernel", :"Utils"]}, :raise]}, [], [message]})
+          erlang_error.({{:., [], [{:__aliases__, [alias: false], [:Kernel, :Utils]}, :raise]}, [], [message]})
       end
     )
   end
@@ -1989,7 +1989,7 @@ defmodule Kernel do
 
   """
   defmacro raise(exception, attributes) do
-    {{:".", [], [:erlang, :error]}, [], [{{:".", [], [exception, :exception]}, [], [attributes]}]}
+    {{:., [], [:erlang, :error]}, [], [{{:., [], [exception, :exception]}, [], [attributes]}]}
   end
 
   @doc ~S"""
@@ -2014,13 +2014,13 @@ defmodule Kernel do
   defmacro reraise(message, stacktrace) do
     case(Macro.expand(message, __CALLER__)) do
       message when is_binary(message) ->
-        {{:".", [], [:erlang, :error]}, [], [{{:".", [], [:erlang, :raise]}, [], [:error, {{:".", [], [{:__aliases__, [alias: false], [:"RuntimeError"]}, :exception]}, [], [message]}, stacktrace]}]}
-      {:"<<>>", _, _} = message ->
-        {{:".", [], [:erlang, :error]}, [], [{{:".", [], [:erlang, :raise]}, [], [:error, {{:".", [], [{:__aliases__, [alias: false], [:"RuntimeError"]}, :exception]}, [], [message]}, stacktrace]}]}
+        {{:., [], [:erlang, :error]}, [], [{{:., [], [:erlang, :raise]}, [], [:error, {{:., [], [{:__aliases__, [alias: false], [:RuntimeError]}, :exception]}, [], [message]}, stacktrace]}]}
+      {:<<>>, _, _} = message ->
+        {{:., [], [:erlang, :error]}, [], [{{:., [], [:erlang, :raise]}, [], [:error, {{:., [], [{:__aliases__, [alias: false], [:RuntimeError]}, :exception]}, [], [message]}, stacktrace]}]}
       alias when is_atom(alias) ->
-        {{:".", [], [:erlang, :error]}, [], [{{:".", [], [:erlang, :raise]}, [], [:error, {{:".", [], [alias, :exception]}, [], [[]]}, stacktrace]}]}
+        {{:., [], [:erlang, :error]}, [], [{{:., [], [:erlang, :raise]}, [], [:error, {{:., [], [alias, :exception]}, [], [[]]}, stacktrace]}]}
       message ->
-        {{:".", [], [:erlang, :error]}, [], [{{:".", [], [:erlang, :raise]}, [], [:error, {{:".", [], [{:__aliases__, [alias: false], [:"Kernel", :"Utils"]}, :raise]}, [], [message]}, stacktrace]}]}
+        {{:., [], [:erlang, :error]}, [], [{{:., [], [:erlang, :raise]}, [], [:error, {{:., [], [{:__aliases__, [alias: false], [:Kernel, :Utils]}, :raise]}, [], [message]}, stacktrace]}]}
     end
   end
 
@@ -2042,7 +2042,7 @@ defmodule Kernel do
 
   """
   defmacro reraise(exception, attributes, stacktrace) do
-    {{:".", [], [:erlang, :raise]}, [], [:error, {{:".", [], [exception, :exception]}, [], [attributes]}, stacktrace]}
+    {{:., [], [:erlang, :raise]}, [], [:error, {{:., [], [exception, :exception]}, [], [attributes]}, stacktrace]}
   end
 
   @doc ~S"""
@@ -2062,7 +2062,7 @@ defmodule Kernel do
 
 
   """
-  defmacro sigil_C({:"<<>>", _meta, [string]}, []) when is_binary(string) do
+  defmacro sigil_C({:<<>>, _meta, [string]}, []) when is_binary(string) do
     String.to_charlist(string)
   end
 
@@ -2096,7 +2096,7 @@ defmodule Kernel do
 
 
   """
-  defmacro sigil_D({:"<<>>", _, [string]}, []) do
+  defmacro sigil_D({:<<>>, _, [string]}, []) do
     (
       {{:ok, {year, month, day}}, calendar} = parse_with_calendar!(string, :parse_date, "Date")
       to_calendar_struct(Date, calendar: calendar, year: year, month: month, day: day)
@@ -2139,7 +2139,7 @@ defmodule Kernel do
 
 
   """
-  defmacro sigil_N({:"<<>>", _, [string]}, []) do
+  defmacro sigil_N({:<<>>, _, [string]}, []) do
     (
       {{:ok, {year, month, day, hour, minute, second, microsecond}}, calendar} = parse_with_calendar!(string, :parse_naive_datetime, "NaiveDateTime")
       to_calendar_struct(NaiveDateTime, calendar: calendar, year: year, month: month, day: day, hour: hour, minute: minute, second: second, microsecond: microsecond)
@@ -2163,7 +2163,7 @@ defmodule Kernel do
 
 
   """
-  defmacro sigil_R({:"<<>>", _meta, [string]}, options) when is_binary(string) do
+  defmacro sigil_R({:<<>>, _meta, [string]}, options) when is_binary(string) do
     (
       regex = Regex.compile!(string, :binary.list_to_bin(options))
       Macro.escape(regex)
@@ -2194,7 +2194,7 @@ defmodule Kernel do
 
 
   """
-  defmacro sigil_S({:"<<>>", _, [binary]}, []) when is_binary(binary) do
+  defmacro sigil_S({:<<>>, _, [binary]}, []) when is_binary(binary) do
     binary
   end
 
@@ -2232,7 +2232,7 @@ defmodule Kernel do
 
 
   """
-  defmacro sigil_T({:"<<>>", _, [string]}, []) do
+  defmacro sigil_T({:<<>>, _, [string]}, []) do
     (
       {{:ok, {hour, minute, second, microsecond}}, calendar} = parse_with_calendar!(string, :parse_time, "Time")
       to_calendar_struct(Time, calendar: calendar, hour: hour, minute: minute, second: second, microsecond: microsecond)
@@ -2277,7 +2277,7 @@ defmodule Kernel do
 
 
   """
-  defmacro sigil_U({:"<<>>", _, [string]}, []) do
+  defmacro sigil_U({:<<>>, _, [string]}, []) do
     (
       {{:ok, {year, month, day, hour, minute, second, microsecond}, offset}, calendar} = parse_with_calendar!(string, :parse_utc_datetime, "UTC DateTime")
       case(offset != 0) do
@@ -2310,7 +2310,7 @@ defmodule Kernel do
 
 
   """
-  defmacro sigil_W({:"<<>>", _meta, [string]}, modifiers) when is_binary(string) do
+  defmacro sigil_W({:<<>>, _meta, [string]}, modifiers) when is_binary(string) do
     split_words(string, modifiers, __CALLER__)
   end
 
@@ -2333,12 +2333,12 @@ defmodule Kernel do
 
 
   """
-  defmacro sigil_c({:"<<>>", _meta, [string]}, []) when is_binary(string) do
+  defmacro sigil_c({:<<>>, _meta, [string]}, []) when is_binary(string) do
     String.to_charlist(:elixir_interpolation.unescape_string(string))
   end
 
-  defmacro sigil_c({:"<<>>", _meta, pieces}, []) do
-    {{:".", [], [{:__aliases__, [alias: false], [:"List"]}, :to_charlist]}, [], [unescape_list_tokens(pieces)]}
+  defmacro sigil_c({:<<>>, _meta, pieces}, []) do
+    {{:., [], [{:__aliases__, [alias: false], [:List]}, :to_charlist]}, [], [unescape_list_tokens(pieces)]}
   end
 
   @doc ~S"""
@@ -2362,7 +2362,7 @@ defmodule Kernel do
   regex characters.
 
   """
-  defmacro sigil_r({:"<<>>", _meta, [string]}, options) when is_binary(string) do
+  defmacro sigil_r({:<<>>, _meta, [string]}, options) when is_binary(string) do
     (
       binary = :elixir_interpolation.unescape_string(string, &Regex.unescape_map/1)
       regex = Regex.compile!(binary, :binary.list_to_bin(options))
@@ -2370,10 +2370,10 @@ defmodule Kernel do
     )
   end
 
-  defmacro sigil_r({:"<<>>", meta, pieces}, options) do
+  defmacro sigil_r({:<<>>, meta, pieces}, options) do
     (
-      binary = {:"<<>>", meta, unescape_tokens(pieces, &Regex.unescape_map/1)}
-      {{:".", [], [{:__aliases__, [alias: false], [:"Regex"]}, :compile!]}, [], [binary, :binary.list_to_bin(options)]}
+      binary = {:<<>>, meta, unescape_tokens(pieces, &Regex.unescape_map/1)}
+      {{:., [], [{:__aliases__, [alias: false], [:Regex]}, :compile!]}, [], [binary, :binary.list_to_bin(options)]}
     )
   end
 
@@ -2396,12 +2396,12 @@ defmodule Kernel do
 
 
   """
-  defmacro sigil_s({:"<<>>", _, [piece]}, []) when is_binary(piece) do
+  defmacro sigil_s({:<<>>, _, [piece]}, []) when is_binary(piece) do
     :elixir_interpolation.unescape_string(piece)
   end
 
-  defmacro sigil_s({:"<<>>", line, pieces}, []) do
-    {:"<<>>", line, unescape_tokens(pieces)}
+  defmacro sigil_s({:<<>>, line, pieces}, []) do
+    {:<<>>, line, unescape_tokens(pieces)}
   end
 
   @doc ~S"""
@@ -2435,13 +2435,13 @@ defmodule Kernel do
 
 
   """
-  defmacro sigil_w({:"<<>>", _meta, [string]}, modifiers) when is_binary(string) do
+  defmacro sigil_w({:<<>>, _meta, [string]}, modifiers) when is_binary(string) do
     split_words(:elixir_interpolation.unescape_string(string), modifiers, __CALLER__)
   end
 
-  defmacro sigil_w({:"<<>>", meta, pieces}, modifiers) do
+  defmacro sigil_w({:<<>>, meta, pieces}, modifiers) do
     (
-      binary = {:"<<>>", meta, unescape_tokens(pieces)}
+      binary = {:<<>>, meta, unescape_tokens(pieces)}
       split_words(binary, modifiers, __CALLER__)
     )
   end
@@ -2468,7 +2468,7 @@ defmodule Kernel do
 
   """
   defmacro tap(value, fun) do
-    {:__block__, [], [{:=, [], [{:fun, [line: 1199], Kernel}, fun]}, {:=, [], [{:value, [line: 1199], Kernel}, value]}, {:__block__, [], [{:=, [], [{:_, [], Kernel}, {{:".", [], [{:fun, [], Kernel}]}, [], [{:value, [], Kernel}]}]}, {:value, [], Kernel}]}]}
+    {:__block__, [], [{:=, [], [{:fun, [line: 1199], Kernel}, fun]}, {:=, [], [{:value, [line: 1199], Kernel}, value]}, {:__block__, [], [{:=, [], [{:_, [], Kernel}, {{:., [], [{:fun, [], Kernel}]}, [], [{:value, [], Kernel}]}]}, {:value, [], Kernel}]}]}
   end
 
   @doc ~S"""
@@ -2488,14 +2488,14 @@ defmodule Kernel do
 
   """
   defmacro then(value, fun) do
-    {{:".", [], [fun]}, [], [value]}
+    {{:., [], [fun]}, [], [value]}
   end
 
   @doc false
   defmacro to_char_list(arg) do
     (
       IO.warn("Kernel.to_char_list/1 is deprecated, use Kernel.to_charlist/1 instead", Macro.Env.stacktrace(__CALLER__))
-      {{:".", [], [{:__aliases__, [alias: false], [:"Kernel"]}, :to_charlist]}, [], [arg]}
+      {{:., [], [{:__aliases__, [alias: false], [:Kernel]}, :to_charlist]}, [], [arg]}
     )
   end
 
@@ -2510,7 +2510,7 @@ defmodule Kernel do
 
   """
   defmacro to_charlist(term) do
-    {{:".", [], [{:__aliases__, [alias: false], [:"List", :"Chars"]}, :to_charlist]}, [], [term]}
+    {{:., [], [{:__aliases__, [alias: false], [:List, :Chars]}, :to_charlist]}, [], [term]}
   end
 
   @doc ~S"""
@@ -2527,7 +2527,7 @@ defmodule Kernel do
 
   """
   defmacro to_string(term) do
-    {{:".", [], [String.Chars, :to_string]}, [], [term]}
+    {{:., [], [String.Chars, :to_string]}, [], [term]}
   end
 
   @doc ~S"""
@@ -2598,8 +2598,8 @@ defmodule Kernel do
       {[h | t], true} ->
         nest_update_in(h, t, fun)
       {[h | t], false} ->
-        expr = nest_get_and_update_in(h, t, {:fn, [], [{:"->", [], [[{:x, [], Kernel}], {nil, {{:".", [], [fun]}, [], [{:x, [], Kernel}]}}]}]})
-        {{:".", [], [:erlang, :element]}, [], [2, expr]}
+        expr = nest_get_and_update_in(h, t, {:fn, [], [{:->, [], [[{:x, [], Kernel}], {nil, {{:., [], [fun]}, [], [{:x, [], Kernel}]}}]}]})
+        {{:., [], [:erlang, :element]}, [], [2, expr]}
     end
   end
 
@@ -2711,7 +2711,7 @@ defmodule Kernel do
     (
       calls = Enum.map(expand_aliases(module, __CALLER__), fn
        expanded when is_atom(expanded) ->
-          {:__block__, [], [{:require, [context: Kernel], [expanded]}, {{:".", [], [expanded, :__using__]}, [], [opts]}]}
+          {:__block__, [], [{:require, [context: Kernel], [expanded]}, {{:., [], [expanded, :__using__]}, [], [opts]}]}
         _otherwise ->
           raise(ArgumentError, <<"invalid arguments for use, "::binary(), "expected a compile time atom or alias, got: "::binary(), Macro.to_string(module)::binary()>>)
       end)
@@ -2865,7 +2865,7 @@ defmodule Kernel do
   defmacro left || right do
     (
       assert_no_match_or_guard_scope(__CALLER__.context(), "||")
-      {:case, [], [left, [do: [{:"->", [], [[{:when, [], [{:x, [], Kernel}, {{:".", [], [Kernel, :in]}, [], [{:x, [], Kernel}, [false, nil]]}]}], right]}, {:"->", [], [[{:x, [], Kernel}], {:x, [], Kernel}]}]]]}
+      {:case, [], [left, [do: [{:->, [], [[{:when, [], [{:x, [], Kernel}, {{:., [], [Kernel, :in]}, [], [{:x, [], Kernel}, [false, nil]]}]}], right]}, {:->, [], [[{:x, [], Kernel}], {:x, [], Kernel}]}]]]}
     )
   end
 
@@ -4350,7 +4350,7 @@ defmodule Kernel do
 
 
   """
-  def not(value) do
+  def unquote(:not)(value) do
     not(value)
   end
 
@@ -5010,7 +5010,7 @@ defmodule Kernel do
     # body not decompiled
   end
 
-  defp alias_defmodule({:__aliases__, _, [:"Elixir", _ | _]}, module, _env) do
+  defp alias_defmodule({:__aliases__, _, [Elixir, _ | _]}, module, _env) do
     {module, module, nil}
   end
 
@@ -5073,7 +5073,7 @@ defmodule Kernel do
   end
 
   defp build_boolean_check(operator, check, true_clause, false_clause) do
-    optimize_boolean({:case, [], [check, [do: [{:"->", [], [[false], false_clause]}, {:"->", [], [[true], true_clause]}, {:"->", [], [[{:other, [], Kernel}], {{:".", [], [:erlang, :error]}, [], [{:"{}", [], [:badbool, operator, {:other, [], Kernel}]}]}]}]]]})
+    optimize_boolean({:case, [], [check, [do: [{:->, [], [[false], false_clause]}, {:->, [], [[true], true_clause]}, {:->, [], [[{:other, [], Kernel}], {{:., [], [:erlang, :error]}, [], [{:{}, [], [:badbool, operator, {:other, [], Kernel}]}]}]}]]]})
   end
 
   defp build_if(condition, [do: do_clause]) do
@@ -5085,7 +5085,7 @@ defmodule Kernel do
   end
 
   defp build_if(condition, [do: do_clause, else: else_clause]) do
-    optimize_boolean({:case, [], [condition, [do: [{:"->", [], [[{:when, [], [{:x, [], Kernel}, {{:".", [], [Kernel, :in]}, [], [{:x, [], Kernel}, [false, nil]]}]}], else_clause]}, {:"->", [], [[{:_, [], Kernel}], do_clause]}]]]})
+    optimize_boolean({:case, [], [condition, [do: [{:->, [], [[{:when, [], [{:x, [], Kernel}, {{:., [], [Kernel, :in]}, [], [{:x, [], Kernel}, [false, nil]]}]}], else_clause]}, {:->, [], [[{:_, [], Kernel}], do_clause]}]]]})
   end
 
   defp build_if(_condition, _arguments) do
@@ -5111,22 +5111,22 @@ defmodule Kernel do
   defp comp(left, {:|, _, [head, tail]}, expand, right, in_body?) do
     case(expand.(tail)) do
       [] ->
-        {{:".", [], [:erlang, :"=:="]}, [], [left, head]}
+        {{:., [], [:erlang, :"=:="]}, [], [left, head]}
       [tail_head | tail] ->
-        {{:".", [], [:erlang, :orelse]}, [], [{{:".", [], [:erlang, :"=:="]}, [], [left, head]}, in_list(left, tail_head, tail, expand, right, in_body?)]}
+        {{:., [], [:erlang, :orelse]}, [], [{{:., [], [:erlang, :"=:="]}, [], [left, head]}, in_list(left, tail_head, tail, expand, right, in_body?)]}
       tail when in_body? ->
-        {{:".", [], [:erlang, :orelse]}, [], [{{:".", [], [:erlang, :"=:="]}, [], [left, head]}, {{:".", [], [:lists, :member]}, [], [left, tail]}]}
+        {{:., [], [:erlang, :orelse]}, [], [{{:., [], [:erlang, :"=:="]}, [], [left, head]}, {{:., [], [:lists, :member]}, [], [left, tail]}]}
       _ ->
         raise_on_invalid_args_in_2(right)
     end
   end
 
   defp comp(left, right, _expand, _right, _in_body?) do
-    {{:".", [], [:erlang, :"=:="]}, [], [left, right]}
+    {{:., [], [:erlang, :"=:="]}, [], [left, right]}
   end
 
   defp decreasing_compare(var, first, last) do
-    {{:".", [], [:erlang, :andalso]}, [], [{{:".", [], [:erlang, :"=<"]}, [], [var, first]}, {{:".", [], [:erlang, :>=]}, [], [var, last]}]}
+    {{:., [], [:erlang, :andalso]}, [], [{{:., [], [:erlang, :"=<"]}, [], [var, first]}, {{:., [], [:erlang, :>=]}, [], [var, last]}]}
   end
 
   defp define(kind, call, expr, env) do
@@ -5142,7 +5142,7 @@ defmodule Kernel do
         false ->
           key = :erlang.unique_integer()
           :elixir_module.write_cache(module, key, expr)
-          {{:".", [], [:elixir_module, :read_cache]}, [], [module, key]}
+          {{:., [], [:elixir_module, :read_cache]}, [], [module, key]}
       end
       check_clauses = not(case(unquoted_expr) do
         false ->
@@ -5153,7 +5153,7 @@ defmodule Kernel do
           :erlang.error({:badbool, :or, other})
       end)
       pos = :elixir_locals.cache_env(env)
-      {{:".", [], [:elixir_def, :store_definition]}, [], [kind, check_clauses, escaped_call, escaped_expr, pos]}
+      {{:., [], [:elixir_def, :store_definition]}, [], [kind, check_clauses, escaped_call, escaped_expr, pos]}
     )
   end
 
@@ -5169,7 +5169,7 @@ defmodule Kernel do
               [] ->
                 define(kind, call, nil, env)
               [guard] ->
-                quoted = {:__block__, [], [{:require, [context: Kernel], [{:__aliases__, [alias: false], [:"Kernel", :"Utils"]}]}, {{:".", [], [{:__aliases__, [alias: false], [:"Kernel", :"Utils"]}, :defguard]}, [], [args, guard]}]}
+                quoted = {:__block__, [], [{:require, [context: Kernel], [{:__aliases__, [alias: false], [:Kernel, :Utils]}]}, {{:., [], [{:__aliases__, [alias: false], [:Kernel, :Utils]}, :defguard]}, [], [args, guard]}]}
                 define(kind, call, [do: quoted], env)
             end
             {:__block__, [], [{:@, [context: Kernel, import: :elixir_bootstrap], [{:doc, [context: Kernel], [[guard: true]]}]}, macro_definition]}
@@ -5195,10 +5195,10 @@ defmodule Kernel do
           IO.warn(warn_message, Macro.Env.stacktrace(env))
         :lists.member(name, [:moduledoc, :typedoc, :doc]) ->
           arg = {env.line(), arg}
-          {{:".", [], [{:__aliases__, [alias: false], [:"Module"]}, :__put_attribute__]}, [], [{:__MODULE__, [], Kernel}, name, arg, line]}
+          {{:., [], [{:__aliases__, [alias: false], [:Module]}, :__put_attribute__]}, [], [{:__MODULE__, [], Kernel}, name, arg, line]}
         true ->
           arg = expand_attribute(name, arg, env)
-          {{:".", [], [{:__aliases__, [alias: false], [:"Module"]}, :__put_attribute__]}, [], [{:__MODULE__, [], Kernel}, name, arg, line]}
+          {{:., [], [{:__aliases__, [alias: false], [:Module]}, :__put_attribute__]}, [], [{:__MODULE__, [], Kernel}, name, arg, line]}
       end
     )
   end
@@ -5229,9 +5229,9 @@ defmodule Kernel do
               raise(ArgumentError, <<"cannot inject attribute @"::binary(), String.Chars.to_string(name)::binary(), " into function/macro because "::binary(), Exception.message(ex)::binary()>>)
           end
         false when doc_attr? ->
-          {:case, [], [{{:".", [], [{:__aliases__, [alias: false], [:"Module"]}, :__get_attribute__]}, [], [{:__MODULE__, [], Kernel}, name, line]}, [do: [{:"->", [], [[{{:_, [], Kernel}, {:doc, [], Kernel}}], {:doc, [], Kernel}]}, {:"->", [], [[{:other, [], Kernel}], {:other, [], Kernel}]}]]]}
+          {:case, [], [{{:., [], [{:__aliases__, [alias: false], [:Module]}, :__get_attribute__]}, [], [{:__MODULE__, [], Kernel}, name, line]}, [do: [{:->, [], [[{{:_, [], Kernel}, {:doc, [], Kernel}}], {:doc, [], Kernel}]}, {:->, [], [[{:other, [], Kernel}], {:other, [], Kernel}]}]]]}
         false ->
-          {{:".", [], [{:__aliases__, [alias: false], [:"Module"]}, :__get_attribute__]}, [], [{:__MODULE__, [], Kernel}, name, line]}
+          {{:., [], [{:__aliases__, [alias: false], [:Module]}, :__get_attribute__]}, [], [{:__MODULE__, [], Kernel}, name, line]}
       end
     )
   end
@@ -5253,7 +5253,7 @@ defmodule Kernel do
     raise(ArgumentError, <<"expected 0 or 1 argument for @"::binary(), String.Chars.to_string(name)::binary(), ", got: "::binary(), String.Chars.to_string(length(args))::binary()>>)
   end
 
-  defp expand_aliases({{:".", _, [base, :"{}"]}, _, refs}, env) do
+  defp expand_aliases({{:., _, [base, :{}]}, _, refs}, env) do
     (
       base = Macro.expand(base, env)
       Enum.map(refs, fn
@@ -5275,8 +5275,8 @@ defmodule Kernel do
     Macro.prewalk(arg, fn
      {elem, {:__aliases__, _, _} = alias} ->
         {elem, Macro.expand(alias, %{env | function: {:__info__, 1}})}
-      {:"{}", meta, [{:__aliases__, _, _} = alias, fun, arity]} ->
-        {:"{}", meta, [Macro.expand(alias, %{env | function: {:__info__, 1}}), fun, arity]}
+      {:{}, meta, [{:__aliases__, _, _} = alias, fun, arity]} ->
+        {:{}, meta, [Macro.expand(alias, %{env | function: {:__info__, 1}}), fun, arity]}
       node ->
         node
     end)
@@ -5348,12 +5348,12 @@ defmodule Kernel do
   defp in_list(left, head, tail, expand, right, in_body?) do
     (
       [head | tail] = :lists.map(fn x1 -> comp(left, x1, expand, right, in_body?) end, [head | tail])
-      :lists.foldl(fn x1, x2 -> {{:".", [], [:erlang, :orelse]}, [], [x2, x1]} end, head, tail)
+      :lists.foldl(fn x1, x2 -> {{:., [], [:erlang, :orelse]}, [], [x2, x1]} end, head, tail)
     )
   end
 
   defp in_range(left, first, last, nil) do
-    {:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{{:".", [], [:erlang, :is_integer]}, [], [left]}, {{:".", [], [:erlang, :is_integer]}, [], [first]}]}, {{:".", [], [:erlang, :is_integer]}, [], [last]}]}, {:or, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{{:".", [], [:erlang, :"=<"]}, [], [first, last]}, increasing_compare(left, first, last)]}, {:and, [context: Kernel, import: Kernel], [{{:".", [], [:erlang, :<]}, [], [last, first]}, decreasing_compare(left, first, last)]}]}]}
+    {:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{{:., [], [:erlang, :is_integer]}, [], [left]}, {{:., [], [:erlang, :is_integer]}, [], [first]}]}, {{:., [], [:erlang, :is_integer]}, [], [last]}]}, {:or, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{{:., [], [:erlang, :"=<"]}, [], [first, last]}, increasing_compare(left, first, last)]}, {:and, [context: Kernel, import: Kernel], [{{:., [], [:erlang, :<]}, [], [last, first]}, decreasing_compare(left, first, last)]}]}]}
   end
 
   defp in_range(left, first, last, step) when is_integer(step) do
@@ -5362,25 +5362,25 @@ defmodule Kernel do
 
   defp in_range(left, first, last, step) do
     (
-      quoted = {:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{{:".", [], [:erlang, :is_integer]}, [], [left]}, {{:".", [], [:erlang, :is_integer]}, [], [first]}]}, {{:".", [], [:erlang, :is_integer]}, [], [last]}]}, {:or, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{{:".", [], [:erlang, :>]}, [], [step, 0]}, increasing_compare(left, first, last)]}, {:and, [context: Kernel, import: Kernel], [{{:".", [], [:erlang, :<]}, [], [step, 0]}, decreasing_compare(left, first, last)]}]}]}
+      quoted = {:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{{:., [], [:erlang, :is_integer]}, [], [left]}, {{:., [], [:erlang, :is_integer]}, [], [first]}]}, {{:., [], [:erlang, :is_integer]}, [], [last]}]}, {:or, [context: Kernel, import: Kernel], [{:and, [context: Kernel, import: Kernel], [{{:., [], [:erlang, :>]}, [], [step, 0]}, increasing_compare(left, first, last)]}, {:and, [context: Kernel, import: Kernel], [{{:., [], [:erlang, :<]}, [], [step, 0]}, decreasing_compare(left, first, last)]}]}]}
       in_range_step(quoted, left, first, step)
     )
   end
 
   defp in_range_literal(left, first, first, _step) when is_integer(first) do
-    {{:".", [], [:erlang, :"=:="]}, [], [left, first]}
+    {{:., [], [:erlang, :"=:="]}, [], [left, first]}
   end
 
   defp in_range_literal(left, first, last, step) when step > 0 do
     (
-      quoted = {{:".", [], [:erlang, :andalso]}, [], [{{:".", [], [:erlang, :is_integer]}, [], [left]}, increasing_compare(left, first, last)]}
+      quoted = {{:., [], [:erlang, :andalso]}, [], [{{:., [], [:erlang, :is_integer]}, [], [left]}, increasing_compare(left, first, last)]}
       in_range_step(quoted, left, first, step)
     )
   end
 
   defp in_range_literal(left, first, last, step) when step < 0 do
     (
-      quoted = {{:".", [], [:erlang, :andalso]}, [], [{{:".", [], [:erlang, :is_integer]}, [], [left]}, decreasing_compare(left, first, last)]}
+      quoted = {{:., [], [:erlang, :andalso]}, [], [{{:., [], [:erlang, :is_integer]}, [], [left]}, decreasing_compare(left, first, last)]}
       in_range_step(quoted, left, first, step)
     )
   end
@@ -5390,7 +5390,7 @@ defmodule Kernel do
   end
 
   defp in_range_step(quoted, left, first, step) do
-    {{:".", [], [:erlang, :andalso]}, [], [quoted, {{:".", [], [:erlang, :"=:="]}, [], [{{:".", [], [:erlang, :rem]}, [], [{:-, [context: Kernel, import: Kernel], [left, first]}, step]}, 0]}]}
+    {{:., [], [:erlang, :andalso]}, [], [quoted, {{:., [], [:erlang, :"=:="]}, [], [{{:., [], [:erlang, :rem]}, [], [{:-, [context: Kernel, import: Kernel], [left, first]}, step]}, 0]}]}
   end
 
   defp in_var(false, ast, fun) do
@@ -5406,7 +5406,7 @@ defmodule Kernel do
   end
 
   defp increasing_compare(var, first, last) do
-    {{:".", [], [:erlang, :andalso]}, [], [{{:".", [], [:erlang, :>=]}, [], [var, first]}, {{:".", [], [:erlang, :"=<"]}, [], [var, last]}]}
+    {{:., [], [:erlang, :andalso]}, [], [{{:., [], [:erlang, :>=]}, [], [var, first]}, {{:., [], [:erlang, :"=<"]}, [], [var, last]}]}
   end
 
   defp integer_pow(_, _, 0) do
@@ -5465,23 +5465,23 @@ defmodule Kernel do
   end
 
   defp nest_get_and_update_in(list, fun) do
-    {:fn, [], [{:"->", [], [[{:x, [], Kernel}], nest_get_and_update_in({:x, [], Kernel}, list, fun)]}]}
+    {:fn, [], [{:->, [], [[{:x, [], Kernel}], nest_get_and_update_in({:x, [], Kernel}, list, fun)]}]}
   end
 
   defp nest_get_and_update_in(h, [{:access, key} | t], fun) do
-    {{:".", [], [{:__aliases__, [alias: false], [:"Access"]}, :get_and_update]}, [], [h, key, nest_get_and_update_in(t, fun)]}
+    {{:., [], [{:__aliases__, [alias: false], [:Access]}, :get_and_update]}, [], [h, key, nest_get_and_update_in(t, fun)]}
   end
 
   defp nest_get_and_update_in(h, [{:map, key} | t], fun) do
-    {{:".", [], [{:__aliases__, [alias: false], [:"Map"]}, :get_and_update!]}, [], [h, key, nest_get_and_update_in(t, fun)]}
+    {{:., [], [{:__aliases__, [alias: false], [:Map]}, :get_and_update!]}, [], [h, key, nest_get_and_update_in(t, fun)]}
   end
 
   defp nest_pop_in(kind, list) do
-    {:fn, [], [{:"->", [], [[{:x, [], Kernel}], nest_pop_in(kind, {:x, [], Kernel}, list)]}]}
+    {:fn, [], [{:->, [], [[{:x, [], Kernel}], nest_pop_in(kind, {:x, [], Kernel}, list)]}]}
   end
 
   defp nest_pop_in(:map, h, [access: key]) do
-    {:case, [], [h, [do: [{:"->", [], [[nil], {nil, nil}]}, {:"->", [], [[{:h, [], Kernel}], {{:".", [], [{:__aliases__, [alias: false], [:"Access"]}, :pop]}, [], [{:h, [], Kernel}, key]}]}]]]}
+    {:case, [], [h, [do: [{:->, [], [[nil], {nil, nil}]}, {:->, [], [[{:h, [], Kernel}], {{:., [], [{:__aliases__, [alias: false], [:Access]}, :pop]}, [], [{:h, [], Kernel}, key]}]}]]]}
   end
 
   defp nest_pop_in(_, _, [map: key]) do
@@ -5489,15 +5489,15 @@ defmodule Kernel do
   end
 
   defp nest_pop_in(_, h, [{:map, key} | t]) do
-    {{:".", [], [{:__aliases__, [alias: false], [:"Map"]}, :get_and_update!]}, [], [h, key, nest_pop_in(:map, t)]}
+    {{:., [], [{:__aliases__, [alias: false], [:Map]}, :get_and_update!]}, [], [h, key, nest_pop_in(:map, t)]}
   end
 
   defp nest_pop_in(_, h, [access: key]) do
-    {:case, [], [h, [do: [{:"->", [], [[nil], :pop]}, {:"->", [], [[{:h, [], Kernel}], {{:".", [], [{:__aliases__, [alias: false], [:"Access"]}, :pop]}, [], [{:h, [], Kernel}, key]}]}]]]}
+    {:case, [], [h, [do: [{:->, [], [[nil], :pop]}, {:->, [], [[{:h, [], Kernel}], {{:., [], [{:__aliases__, [alias: false], [:Access]}, :pop]}, [], [{:h, [], Kernel}, key]}]}]]]}
   end
 
   defp nest_pop_in(_, h, [{:access, key} | t]) do
-    {{:".", [], [{:__aliases__, [alias: false], [:"Access"]}, :get_and_update]}, [], [h, key, nest_pop_in(:access, t)]}
+    {{:., [], [{:__aliases__, [alias: false], [:Access]}, :get_and_update]}, [], [h, key, nest_pop_in(:access, t)]}
   end
 
   defp nest_update_in([], fun) do
@@ -5505,11 +5505,11 @@ defmodule Kernel do
   end
 
   defp nest_update_in(list, fun) do
-    {:fn, [], [{:"->", [], [[{:x, [], Kernel}], nest_update_in({:x, [], Kernel}, list, fun)]}]}
+    {:fn, [], [{:->, [], [[{:x, [], Kernel}], nest_update_in({:x, [], Kernel}, list, fun)]}]}
   end
 
   defp nest_update_in(h, [{:map, key} | t], fun) do
-    {{:".", [], [{:__aliases__, [alias: false], [:"Map"]}, :update!]}, [], [h, key, nest_update_in(t, fun)]}
+    {{:., [], [{:__aliases__, [alias: false], [:Map]}, :update!]}, [], [h, key, nest_update_in(t, fun)]}
   end
 
   defp optimize_boolean({:case, meta, args}) do
@@ -5544,7 +5544,7 @@ defmodule Kernel do
     Access.get_and_update(data, key, fn x1 -> pop_in_data(x1, tail) end)
   end
 
-  defp proper_start?({{:".", _, [expr, _]}, _, _args}) when is_atom(expr) or elem(expr, 0) == :__aliases__ or elem(expr, 0) == :__MODULE__ do
+  defp proper_start?({{:., _, [expr, _]}, _, _args}) when is_atom(expr) or elem(expr, 0) == :__aliases__ or elem(expr, 0) == :__MODULE__ do
     true
   end
 
@@ -5568,28 +5568,28 @@ defmodule Kernel do
         true ->
           1
       end
-      {:"%{}", [], [__struct__: Range, first: first, last: last, step: step]}
+      {:%{}, [], [__struct__: Range, first: first, last: last, step: step]}
     )
   end
 
   defp range(nil, first, last) do
-    {{:".", [], [{:__aliases__, [], [:"Elixir", :"Range"]}, :new]}, [], [first, last]}
+    {{:., [], [{:__aliases__, [], [Elixir, :Range]}, :new]}, [], [first, last]}
   end
 
   defp range(:guard, first, last) do
-    {:"%{}", [], [__struct__: Range, first: first, last: last, step: nil]}
+    {:%{}, [], [__struct__: Range, first: first, last: last, step: nil]}
   end
 
   defp range(:match, first, last) do
-    {:"%{}", [], [__struct__: Range, first: first, last: last]}
+    {:%{}, [], [__struct__: Range, first: first, last: last]}
   end
 
   defp range(context, first, last, step) when is_integer(first) and is_integer(last) and is_integer(step) or context != nil do
-    {:"%{}", [], [__struct__: Range, first: first, last: last, step: step]}
+    {:%{}, [], [__struct__: Range, first: first, last: last, step: step]}
   end
 
   defp range(nil, first, last, step) do
-    {{:".", [], [{:__aliases__, [], [:"Elixir", :"Range"]}, :new]}, [], [first, last, step]}
+    {{:., [], [{:__aliases__, [], [Elixir, :Range]}, :new]}, [], [first, last, step]}
   end
 
   defp small_literal_list?(list) when is_list(list) and length(list) <= 32 do
@@ -5625,14 +5625,14 @@ defmodule Kernel do
             :lists.map(&String.to_charlist/1, parts)
         end
       false ->
-        parts = {{:".", [], [{:__aliases__, [alias: false], [:"String"]}, :split]}, [], [string]}
+        parts = {{:., [], [{:__aliases__, [alias: false], [:String]}, :split]}, [], [string]}
         case(mod) do
           115 ->
             parts
           97 ->
-            {{:".", [], [:lists, :map]}, [], [{:&, [], [{:/, [context: Kernel, import: Kernel], [{{:".", [], [{:__aliases__, [alias: false], [:"String"]}, :to_atom]}, [no_parens: true], []}, 1]}]}, parts]}
+            {{:., [], [:lists, :map]}, [], [{:&, [], [{:/, [context: Kernel, import: Kernel], [{{:., [], [{:__aliases__, [alias: false], [:String]}, :to_atom]}, [no_parens: true], []}, 1]}]}, parts]}
           99 ->
-            {{:".", [], [:lists, :map]}, [], [{:&, [], [{:/, [context: Kernel, import: Kernel], [{{:".", [], [{:__aliases__, [alias: false], [:"String"]}, :to_charlist]}, [no_parens: true], []}, 1]}]}, parts]}
+            {{:., [], [:lists, :map]}, [], [{:&, [], [{:/, [context: Kernel, import: Kernel], [{{:., [], [{:__aliases__, [alias: false], [:String]}, :to_charlist]}, [no_parens: true], []}, 1]}]}, parts]}
         end
     end
   end
@@ -5658,7 +5658,7 @@ defmodule Kernel do
   end
 
   defp to_calendar_struct(type, fields) do
-    {:"%{}", [], :elixir_quote.list([__struct__: type] ++ fields, [])}
+    {:%{}, [], :elixir_quote.list([__struct__: type] ++ fields, [])}
   end
 
   defp typespec?(:type) do
@@ -5692,7 +5692,7 @@ defmodule Kernel do
   defp unescape_list_tokens(tokens) do
     (
       escape = fn
-       {:::, _, [expr, _]} ->
+       {:"::", _, [expr, _]} ->
           expr
         binary when is_binary(binary) ->
           :elixir_interpolation.unescape_string(binary)
@@ -5719,11 +5719,11 @@ defmodule Kernel do
     end end, tokens)
   end
 
-  defp unnest({{:".", _, [Access, :get]}, _, [expr, key]}, acc, _all_map?, kind) do
+  defp unnest({{:., _, [Access, :get]}, _, [expr, key]}, acc, _all_map?, kind) do
     unnest(expr, [{:access, key} | acc], false, kind)
   end
 
-  defp unnest({{:".", _, [expr, key]}, _, []}, acc, all_map?, kind) when is_tuple(expr) and elem(expr, 0) != :__aliases__ and elem(expr, 0) != :__MODULE__ do
+  defp unnest({{:., _, [expr, key]}, _, []}, acc, all_map?, kind) when is_tuple(expr) and elem(expr, 0) != :__aliases__ and elem(expr, 0) != :__MODULE__ do
     unnest(expr, [{:map, key} | acc], all_map?, kind)
   end
 
@@ -5741,7 +5741,7 @@ defmodule Kernel do
   end
 
   defp validate_range!(first, last) when :erlang.is_float(first) or :erlang.is_float(last) or is_atom(first) or is_atom(last) or is_binary(first) or is_binary(last) or is_list(first) or is_list(last) do
-    raise(ArgumentError, <<"ranges (first..last//step) expect both sides to be integers, "::binary(), "got: "::binary(), Macro.to_string({:"..", [], [first, last]})::binary()>>)
+    raise(ArgumentError, <<"ranges (first..last//step) expect both sides to be integers, "::binary(), "got: "::binary(), Macro.to_string({:.., [], [first, last]})::binary()>>)
   end
 
   defp validate_range!(_, _) do
@@ -5804,7 +5804,7 @@ defmodule Kernel do
   defp wrap_concatenation(other, side, caller) do
     (
       expanded = expand_concat_argument(other, side, caller)
-      {:::, [], [expanded, {:binary, [], nil}]}
+      {:"::", [], [expanded, {:binary, [], nil}]}
     )
   end
 end

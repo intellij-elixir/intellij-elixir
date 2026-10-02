@@ -7,6 +7,7 @@ import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.v1.definitions.compon
 import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.v1.definitions.component3
 import org.elixir_lang.beam.term.inspect
 import org.elixir_lang.code.Identifier
+import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.code.sanitizeErlangVariableName
 import kotlin.collections.List
 
@@ -310,18 +311,18 @@ object Macro {
                                                         2
                                                     ) as OtpErlangList
 
-                                                    "&${toString(rewrittenModule)}.${(rewrittenRelativeFunction as OtpErlangAtom).atomValue()}/${
+                                                    "&${toString(rewrittenModule)}.${InspectAtom.remoteCall((rewrittenRelativeFunction as OtpErlangAtom).atomValue())}/${
                                                         toString(
                                                             arity
                                                         )
                                                     }"
                                                 }
-                                                null -> "&:erlang.${function.atomValue()}/${toString(arity)}"
+                                                null -> "&:erlang.${InspectAtom.remoteCall(function.atomValue())}/${toString(arity)}"
                                                 else -> TODO("Don' know how to convert $rewrittenFunction to capture string")
                                             }
 
                                         } else {
-                                            "&${toString(module)}.${function.atomValue()}/${toString(arity)}"
+                                            "&${toString(module)}.${InspectAtom.remoteCall(function.atomValue())}/${toString(arity)}"
                                         }
                                     } else {
                                         null
@@ -372,8 +373,6 @@ object Macro {
             arguments.joinToString(", ") { toString(it) }
         }
     }
-
-    private fun atomToString(atom: OtpErlangAtom): String = inspect(atom)
 
     // https://github.com/elixir-lang/elixir/blob/v1.6.0-rc.1/lib/elixir/lib/macro.ex#L662-L669
     private fun ifAccessToString(macro: OtpErlangObject): String? =
@@ -576,7 +575,7 @@ object Macro {
                                             val value = values.elementAt(0)
                                             val valueString = toString(value)
 
-                                            "@$name $valueString"
+                                            "@${name.atomValue()} $valueString"
                                         } else {
                                             null
                                         }
@@ -633,7 +632,7 @@ object Macro {
                                         val (name, _, context) = nameContextTuple
 
                                         if (name is OtpErlangAtom && context is OtpErlangAtom && arity is OtpErlangLong) {
-                                            "&${atomToString(name)}/${toString(arity)}"
+                                            "&${InspectAtom.localCall(name.atomValue())}/${toString(arity)}"
                                         } else {
                                             null
                                         }
@@ -990,11 +989,11 @@ object Macro {
                 // as closing the outer block.
                 //
                 // We check the rendered string rather than the raw AST structure because
-                // deinlining rewrites (e.g. `case` → `||` via ifSymbolicOrRewriteTo) may
+                // deinlining rewrites (e.g. `case` -> `||` via ifSymbolicOrRewriteTo) may
                 // eliminate the do...end block entirely.  Right-side operands are safe
                 // because `end` comes last with no trailing operator token.
                 //
-                // Excluded: `::` (type annotation in binary segments) — inside `<<>>`,
+                // Excluded: `::` (type annotation in binary segments) - inside `<<>>`,
                 // `case...end::binary()` is parsed correctly by Elixir.
                 //
                 // Analogous to `MacroString.group()` in the Erlang abstract code

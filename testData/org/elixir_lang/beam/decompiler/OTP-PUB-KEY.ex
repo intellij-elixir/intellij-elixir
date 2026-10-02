@@ -52,7 +52,7 @@ defmodule :"OTP-PUB-KEY" do
     {term1, tlv2} = case tlv1 do
       [{2, v1} | tempTlv2] ->
         {(val1 = decode_integer(v1, []); cond do
-          0 <= val1 and val1 <= :"MAX" ->
+          0 <= val1 and val1 <= :MAX ->
             val1
           true ->
             exit({:error, {:asn1, :bad_range}})
@@ -84,7 +84,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv5}}})
     end
-    res1 = {:"AAControls", term1, term2, term3, term4}
+    res1 = {:AAControls, term1, term2, term3, term4}
     res1
   end
 
@@ -102,7 +102,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"ACClearAttrs", term1, term2, term3}
+    res1 = {:ACClearAttrs, term1, term2, term3}
     res1
   end
 
@@ -118,7 +118,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"AccessDescription", term1, term2}
+    res1 = {:AccessDescription, term1, term2}
     res1
   end
 
@@ -166,7 +166,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"Algorithm", term1, term2}
+    res1 = {:Algorithm, term1, term2}
     res1
   end
 
@@ -186,7 +186,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"AlgorithmIdentifier", term1, term2}
+    res1 = {:AlgorithmIdentifier, term1, term2}
     res1
   end
 
@@ -202,7 +202,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"AlgorithmNull", term1, term2}
+    res1 = {:AlgorithmNull, term1, term2}
     res1
   end
 
@@ -218,7 +218,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"AnotherName", term1, term2}
+    res1 = {:AnotherName, term1, term2}
     res1
   end
 
@@ -254,7 +254,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"AttCertValidityPeriod", term1, term2}
+    res1 = {:AttCertValidityPeriod, term1, term2}
     res1
   end
 
@@ -279,7 +279,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"Attribute", term1, term2}
+    res1 = {:Attribute, term1, term2}
     res1
   end
 
@@ -297,7 +297,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"AttributeCertificate", term1, term2, term3}
+    res1 = {:AttributeCertificate, term1, term2, term3}
     res1
   end
 
@@ -335,7 +335,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv10}}})
     end
-    res1 = {:"AttributeCertificateInfo", term1, term2, term3, term4, term5, term6, term7, term8, term9}
+    res1 = {:AttributeCertificateInfo, term1, term2, term3, term4, term5, term6, term7, term8, term9}
     res1
   end
 
@@ -353,7 +353,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"AttributeTypeAndValue", term1, term2}
+    res1 = {:AttributeTypeAndValue, term1, term2}
     res1
   end
 
@@ -392,13 +392,13 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"AuthorityKeyIdentifier", term1, term2, term3}
+    res1 = {:AuthorityKeyIdentifier, term1, term2, term3}
     res1
   end
 
   def dec_BaseCRLNumber(tlv, tagIn) do
     (val1 = decode_integer(tlv, tagIn); cond do
-      0 <= val1 and val1 <= :"MAX" ->
+      0 <= val1 and val1 <= :MAX ->
         val1
       true ->
         exit({:error, {:asn1, :bad_range}})
@@ -407,7 +407,7 @@ defmodule :"OTP-PUB-KEY" do
 
   def dec_BaseDistance(tlv, tagIn) do
     (val1 = decode_integer(tlv, tagIn); cond do
-      0 <= val1 and val1 <= :"MAX" ->
+      0 <= val1 and val1 <= :MAX ->
         val1
       true ->
         exit({:error, {:asn1, :bad_range}})
@@ -425,7 +425,7 @@ defmodule :"OTP-PUB-KEY" do
     {term2, tlv3} = case tlv2 do
       [{2, v2} | tempTlv3] ->
         {(val1 = decode_integer(v2, []); cond do
-          0 <= val1 and val1 <= :"MAX" ->
+          0 <= val1 and val1 <= :MAX ->
             val1
           true ->
             exit({:error, {:asn1, :bad_range}})
@@ -439,7 +439,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"BasicConstraints", term1, term2}
+    res1 = {:BasicConstraints, term1, term2}
     res1
   end
 
@@ -467,7 +467,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"BuiltInDomainDefinedAttribute", term1, term2}
+    res1 = {:BuiltInDomainDefinedAttribute, term1, term2}
     res1
   end
 
@@ -560,7 +560,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv10}}})
     end
-    res1 = {:"BuiltInStandardAttributes", term1, term2, term3, term4, term5, term6, term7, term8, term9}
+    res1 = {:BuiltInStandardAttributes, term1, term2, term3, term4, term5, term6, term7, term8, term9}
     res1
   end
 
@@ -575,7 +575,7 @@ defmodule :"OTP-PUB-KEY" do
 
   def dec_CRLNumber(tlv, tagIn) do
     (val1 = decode_integer(tlv, tagIn); cond do
-      0 <= val1 and val1 <= :"MAX" ->
+      0 <= val1 and val1 <= :MAX ->
         val1
       true ->
         exit({:error, {:asn1, :bad_range}})
@@ -632,7 +632,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"Certificate", term1, term2, term3}
+    res1 = {:Certificate, term1, term2, term3}
     res1
   end
 
@@ -652,7 +652,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"CertificateList", term1, term2, term3}
+    res1 = {:CertificateList, term1, term2, term3}
     res1
   end
 
@@ -693,7 +693,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"CertificationRequest", term1, term2, term3}
+    res1 = {:CertificationRequest, term1, term2, term3}
     res1
   end
 
@@ -713,7 +713,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv5}}})
     end
-    res1 = {:"CertificationRequestInfo", term1, term2, term3, term4}
+    res1 = {:CertificationRequestInfo, term1, term2, term3, term4}
     res1
   end
 
@@ -759,7 +759,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"Clearance", term1, term2, term3}
+    res1 = {:Clearance, term1, term2, term3}
     res1
   end
 
@@ -788,12 +788,12 @@ defmodule :"OTP-PUB-KEY" do
         :asn1_NOVALUE
       _ ->
         try do
-          decObjalgorithmTerm1.(:"Type", tmpterm1, [])
+          decObjalgorithmTerm1.(:Type, tmpterm1, [])
         catch
           error -> error
         end
         |> case do
-          {:"EXIT", reason1} ->
+          {:EXIT, reason1} ->
             exit({:"Type not compatible with table constraint", reason1})
           tmpterm2 ->
             tmpterm2
@@ -805,7 +805,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"ContentEncryptionAlgorithmIdentifier", term1, term2}
+    res1 = {:ContentEncryptionAlgorithmIdentifier, term1, term2}
     res1
   end
 
@@ -825,12 +825,12 @@ defmodule :"OTP-PUB-KEY" do
         :asn1_NOVALUE
       _ ->
         try do
-          decObjcontentTypeTerm1.(:"Type", tmpterm1, [])
+          decObjcontentTypeTerm1.(:Type, tmpterm1, [])
         catch
           error -> error
         end
         |> case do
-          {:"EXIT", reason1} ->
+          {:EXIT, reason1} ->
             exit({:"Type not compatible with table constraint", reason1})
           tmpterm2 ->
             tmpterm2
@@ -842,7 +842,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"ContentInfo", term1, term2}
+    res1 = {:ContentInfo, term1, term2}
     res1
   end
 
@@ -894,7 +894,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"Curve", term1, term2, term3}
+    res1 = {:Curve, term1, term2, term3}
     res1
   end
 
@@ -916,7 +916,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"DHParameter", term1, term2, term3}
+    res1 = {:DHParameter, term1, term2, term3}
     res1
   end
 
@@ -960,7 +960,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv7}}})
     end
-    res1 = {:"DSAPrivateKey", term1, term2, term3, term4, term5, term6}
+    res1 = {:DSAPrivateKey, term1, term2, term3, term4, term5, term6}
     res1
   end
 
@@ -986,12 +986,12 @@ defmodule :"OTP-PUB-KEY" do
         :asn1_NOVALUE
       _ ->
         try do
-          decObjalgorithmTerm1.(:"Type", tmpterm1, [])
+          decObjalgorithmTerm1.(:Type, tmpterm1, [])
         catch
           error -> error
         end
         |> case do
-          {:"EXIT", reason1} ->
+          {:EXIT, reason1} ->
             exit({:"Type not compatible with table constraint", reason1})
           tmpterm2 ->
             tmpterm2
@@ -1003,7 +1003,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"DigestAlgorithmIdentifier", term1, term2}
+    res1 = {:DigestAlgorithmIdentifier, term1, term2}
     res1
   end
 
@@ -1041,12 +1041,12 @@ defmodule :"OTP-PUB-KEY" do
         :asn1_NOVALUE
       _ ->
         try do
-          decObjalgorithmTerm1.(:"Type", tmpterm1, [])
+          decObjalgorithmTerm1.(:Type, tmpterm1, [])
         catch
           error -> error
         end
         |> case do
-          {:"EXIT", reason1} ->
+          {:EXIT, reason1} ->
             exit({:"Type not compatible with table constraint", reason1})
           tmpterm2 ->
             tmpterm2
@@ -1058,7 +1058,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"DigestEncryptionAlgorithmIdentifier", term1, term2}
+    res1 = {:DigestEncryptionAlgorithmIdentifier, term1, term2}
     res1
   end
 
@@ -1074,7 +1074,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"DigestInfoNull", term1, term2}
+    res1 = {:DigestInfoNull, term1, term2}
     res1
   end
 
@@ -1126,7 +1126,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv5}}})
     end
-    res1 = {:"DigestedData", term1, term2, term3, term4}
+    res1 = {:DigestedData, term1, term2, term3, term4}
     res1
   end
 
@@ -1141,21 +1141,21 @@ defmodule :"OTP-PUB-KEY" do
     |> case do
       {20, v1} ->
         {:teletexString, (val1 = decode_restricted_string(v1, []); c1 = byte_size(val1); cond do
-          1 <= c1 and c1 <= :"MAX" ->
+          1 <= c1 and c1 <= :MAX ->
             binary_to_list(val1)
           true ->
             exit({:error, {:asn1, :bad_range}})
         end)}
       {19, v1} ->
         {:printableString, (val2 = decode_restricted_string(v1, []); c2 = byte_size(val2); cond do
-          1 <= c2 and c2 <= :"MAX" ->
+          1 <= c2 and c2 <= :MAX ->
             binary_to_list(val2)
           true ->
             exit({:error, {:asn1, :bad_range}})
         end)}
       {28, v1} ->
         {:universalString, (val3 = decode_universal_string(v1, []); c3 = length(val3); cond do
-          1 <= c3 and c3 <= :"MAX" ->
+          1 <= c3 and c3 <= :MAX ->
             val3
           true ->
             exit({:error, {:asn1, :bad_range}})
@@ -1164,7 +1164,7 @@ defmodule :"OTP-PUB-KEY" do
         {:utf8String, decode_UTF8_string(v1, [])}
       {30, v1} ->
         {:bmpString, (val4 = decode_BMP_string(v1, []); c4 = length(val4); cond do
-          1 <= c4 and c4 <= :"MAX" ->
+          1 <= c4 and c4 <= :MAX ->
             val4
           true ->
             exit({:error, {:asn1, :bad_range}})
@@ -1239,7 +1239,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"DistributionPoint", term1, term2, term3}
+    res1 = {:DistributionPoint, term1, term2, term3}
     res1
   end
 
@@ -1289,7 +1289,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv6}}})
     end
-    res1 = {:"DomainParameters", term1, term2, term3, term4, term5}
+    res1 = {:DomainParameters, term1, term2, term3, term4, term5}
     res1
   end
 
@@ -1369,7 +1369,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv7}}})
     end
-    res1 = {:"ECParameters", term1, term2, term3, term4, term5, term6}
+    res1 = {:ECParameters, term1, term2, term3, term4, term5, term6}
     res1
   end
 
@@ -1399,7 +1399,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv5}}})
     end
-    res1 = {:"ECPrivateKey", term1, term2, term3, term4}
+    res1 = {:ECPrivateKey, term1, term2, term3, term4}
     res1
   end
 
@@ -1419,7 +1419,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"EDIPartyName", term1, term2}
+    res1 = {:EDIPartyName, term1, term2}
     res1
   end
 
@@ -1472,7 +1472,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"EncryptedContentInfo", term1, term2, term3}
+    res1 = {:EncryptedContentInfo, term1, term2, term3}
     res1
   end
 
@@ -1488,7 +1488,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"EncryptedData", term1, term2}
+    res1 = {:EncryptedData, term1, term2}
     res1
   end
 
@@ -1510,7 +1510,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"EnvelopedData", term1, term2, term3}
+    res1 = {:EnvelopedData, term1, term2, term3}
     res1
   end
 
@@ -1584,7 +1584,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"Extension", term1, term2, term3}
+    res1 = {:Extension, term1, term2, term3}
     res1
   end
 
@@ -1627,7 +1627,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"ExtensionAttribute", term1, term2}
+    res1 = {:ExtensionAttribute, term1, term2}
     res1
   end
 
@@ -1665,7 +1665,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"FieldID", term1, term2}
+    res1 = {:FieldID, term1, term2}
     res1
   end
 
@@ -1717,7 +1717,7 @@ defmodule :"OTP-PUB-KEY" do
     {term2, tlv3} = case tlv2 do
       [{131072, v2} | tempTlv3] ->
         {(val1 = decode_integer(v2, []); cond do
-          0 <= val1 and val1 <= :"MAX" ->
+          0 <= val1 and val1 <= :MAX ->
             val1
           true ->
             exit({:error, {:asn1, :bad_range}})
@@ -1728,7 +1728,7 @@ defmodule :"OTP-PUB-KEY" do
     {term3, tlv4} = case tlv3 do
       [{131073, v3} | tempTlv4] ->
         {(val2 = decode_integer(v3, []); cond do
-          0 <= val2 and val2 <= :"MAX" ->
+          0 <= val2 and val2 <= :MAX ->
             val2
           true ->
             exit({:error, {:asn1, :bad_range}})
@@ -1742,7 +1742,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"GeneralSubtree", term1, term2, term3}
+    res1 = {:GeneralSubtree, term1, term2, term3}
     res1
   end
 
@@ -1781,7 +1781,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"Holder", term1, term2, term3}
+    res1 = {:Holder, term1, term2, term3}
     res1
   end
 
@@ -1801,13 +1801,13 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"IetfAttrSyntax", term1, term2}
+    res1 = {:IetfAttrSyntax, term1, term2}
     res1
   end
 
   def dec_InhibitAnyPolicy(tlv, tagIn) do
     (val1 = decode_integer(tlv, tagIn); cond do
-      0 <= val1 and val1 <= :"MAX" ->
+      0 <= val1 and val1 <= :MAX ->
         val1
       true ->
         exit({:error, {:asn1, :bad_range}})
@@ -1830,7 +1830,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"IssuerAndSerialNumber", term1, term2}
+    res1 = {:IssuerAndSerialNumber, term1, term2}
     res1
   end
 
@@ -1852,7 +1852,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"IssuerSerial", term1, term2, term3}
+    res1 = {:IssuerSerial, term1, term2, term3}
     res1
   end
 
@@ -1900,7 +1900,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv7}}})
     end
-    res1 = {:"IssuingDistributionPoint", term1, term2, term3, term4, term5, term6}
+    res1 = {:IssuingDistributionPoint, term1, term2, term3, term4, term5, term6}
     res1
   end
 
@@ -1924,12 +1924,12 @@ defmodule :"OTP-PUB-KEY" do
         :asn1_NOVALUE
       _ ->
         try do
-          decObjalgorithmTerm1.(:"Type", tmpterm1, [])
+          decObjalgorithmTerm1.(:Type, tmpterm1, [])
         catch
           error -> error
         end
         |> case do
-          {:"EXIT", reason1} ->
+          {:EXIT, reason1} ->
             exit({:"Type not compatible with table constraint", reason1})
           tmpterm2 ->
             tmpterm2
@@ -1941,7 +1941,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"KeyEncryptionAlgorithmIdentifier", term1, term2}
+    res1 = {:KeyEncryptionAlgorithmIdentifier, term1, term2}
     res1
   end
 
@@ -1991,7 +1991,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"NameConstraints", term1, term2}
+    res1 = {:NameConstraints, term1, term2}
     res1
   end
 
@@ -2016,7 +2016,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"NoticeReference", term1, term2}
+    res1 = {:NoticeReference, term1, term2}
     res1
   end
 
@@ -2051,7 +2051,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"ORAddress", term1, term2, term3}
+    res1 = {:ORAddress, term1, term2, term3}
     res1
   end
 
@@ -2109,12 +2109,12 @@ defmodule :"OTP-PUB-KEY" do
     tmpterm1 = decode_open_type(v2, [])
     decObjtypeTerm1 = :"OTP-PUB-KEY".getdec_SupportedAttributeTypeAndValues(term1)
     term2 = try do
-      decObjtypeTerm1.(:"Type", tmpterm1, [])
+      decObjtypeTerm1.(:Type, tmpterm1, [])
     catch
       error -> error
     end
     |> case do
-      {:"EXIT", reason1} ->
+      {:EXIT, reason1} ->
         exit({:"Type not compatible with table constraint", reason1})
       tmpterm2 ->
         tmpterm2
@@ -2125,7 +2125,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"OTPAttributeTypeAndValue", term1, term2}
+    res1 = {:OTPAttributeTypeAndValue, term1, term2}
     res1
   end
 
@@ -2143,7 +2143,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"OTPCertificate", term1, term2, term3}
+    res1 = {:OTPCertificate, term1, term2, term3}
     res1
   end
 
@@ -2157,12 +2157,12 @@ defmodule :"OTP-PUB-KEY" do
     tmpterm1 = decode_open_type(v3, [])
     decObjbasisTerm2 = :"OTP-PUB-KEY".getdec_SupportedCharacteristicTwos(term2)
     term3 = try do
-      decObjbasisTerm2.(:"Type", tmpterm1, [])
+      decObjbasisTerm2.(:Type, tmpterm1, [])
     catch
       error -> error
     end
     |> case do
-      {:"EXIT", reason1} ->
+      {:EXIT, reason1} ->
         exit({:"Type not compatible with table constraint", reason1})
       tmpterm2 ->
         tmpterm2
@@ -2191,12 +2191,12 @@ defmodule :"OTP-PUB-KEY" do
     tmpterm1 = decode_open_type(v3, [])
     decObjextnIDTerm1 = :"OTP-PUB-KEY".getdec_SupportedExtensions(term1)
     term3 = try do
-      decObjextnIDTerm1.(:"Type", tmpterm1, [])
+      decObjextnIDTerm1.(:Type, tmpterm1, [])
     catch
       error -> error
     end
     |> case do
-      {:"EXIT", reason1} ->
+      {:EXIT, reason1} ->
         exit({:"Type not compatible with table constraint", reason1})
       tmpterm2 ->
         tmpterm2
@@ -2207,7 +2207,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"OTPExtension", term1, term2, term3}
+    res1 = {:OTPExtension, term1, term2, term3}
     res1
   end
 
@@ -2219,12 +2219,12 @@ defmodule :"OTP-PUB-KEY" do
     tmpterm1 = decode_open_type(v2, [131073])
     decObjextensionAttributeTypeTerm1 = :"OTP-PUB-KEY".getdec_SupportedExtensionAttributes(term1)
     term2 = try do
-      decObjextensionAttributeTypeTerm1.(:"Type", tmpterm1, [])
+      decObjextensionAttributeTypeTerm1.(:Type, tmpterm1, [])
     catch
       error -> error
     end
     |> case do
-      {:"EXIT", reason1} ->
+      {:EXIT, reason1} ->
         exit({:"Type not compatible with table constraint", reason1})
       tmpterm2 ->
         tmpterm2
@@ -2235,7 +2235,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"OTPExtensionAttribute", term1, term2}
+    res1 = {:OTPExtensionAttribute, term1, term2}
     res1
   end
 
@@ -2261,12 +2261,12 @@ defmodule :"OTP-PUB-KEY" do
     tmpterm1 = decode_open_type(v2, [])
     decObjfieldTypeTerm1 = :"OTP-PUB-KEY".getdec_SupportedFieldIds(term1)
     term2 = try do
-      decObjfieldTypeTerm1.(:"Type", tmpterm1, [])
+      decObjfieldTypeTerm1.(:Type, tmpterm1, [])
     catch
       error -> error
     end
     |> case do
-      {:"EXIT", reason1} ->
+      {:EXIT, reason1} ->
         exit({:"Type not compatible with table constraint", reason1})
       tmpterm2 ->
         tmpterm2
@@ -2277,7 +2277,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"OTPFieldID", term1, term2}
+    res1 = {:OTPFieldID, term1, term2}
     res1
   end
 
@@ -2289,12 +2289,12 @@ defmodule :"OTP-PUB-KEY" do
     tmpterm1 = decode_open_type(v2, [])
     decObjalgorithmTerm1 = :"OTP-PUB-KEY".getdec_SupportedPublicKeyAlgorithms(element(2, term1))
     term2 = try do
-      decObjalgorithmTerm1.(:"PublicKeyType", tmpterm1, [])
+      decObjalgorithmTerm1.(:PublicKeyType, tmpterm1, [])
     catch
       error -> error
     end
     |> case do
-      {:"EXIT", reason1} ->
+      {:EXIT, reason1} ->
         exit({:"Type not compatible with table constraint", reason1})
       tmpterm2 ->
         tmpterm2
@@ -2305,7 +2305,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"OTPOLDSubjectPublicKeyInfo", term1, term2}
+    res1 = {:OTPOLDSubjectPublicKeyInfo, term1, term2}
     res1
   end
 
@@ -2321,7 +2321,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"OTPSubjectPublicKeyInfo", term1, term2}
+    res1 = {:OTPSubjectPublicKeyInfo, term1, term2}
     res1
   end
 
@@ -2385,7 +2385,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv11}}})
     end
-    res1 = {:"OTPTBSCertificate", term1, term2, term3, term4, term5, term6, term7, term8, term9, term10}
+    res1 = {:OTPTBSCertificate, term1, term2, term3, term4, term5, term6, term7, term8, term9, term10}
     res1
   end
 
@@ -2420,7 +2420,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv5}}})
     end
-    res1 = {:"ObjectDigestInfo", term1, term2, term3, term4}
+    res1 = {:ObjectDigestInfo, term1, term2, term3, term4}
     res1
   end
 
@@ -2468,7 +2468,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"OtherPrimeInfo", term1, term2, term3}
+    res1 = {:OtherPrimeInfo, term1, term2, term3}
     res1
   end
 
@@ -2534,7 +2534,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"PDSParameter", term1, term2}
+    res1 = {:PDSParameter, term1, term2}
     res1
   end
 
@@ -2552,7 +2552,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"Pentanomial", term1, term2, term3}
+    res1 = {:Pentanomial, term1, term2, term3}
     res1
   end
 
@@ -2624,7 +2624,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv6}}})
     end
-    res1 = {:"PersonalName", term1, term2, term3, term4}
+    res1 = {:PersonalName, term1, term2, term3, term4}
     res1
   end
 
@@ -2669,7 +2669,7 @@ defmodule :"OTP-PUB-KEY" do
     {term1, tlv2} = case tlv1 do
       [{131072, v1} | tempTlv2] ->
         {(val1 = decode_integer(v1, []); cond do
-          0 <= val1 and val1 <= :"MAX" ->
+          0 <= val1 and val1 <= :MAX ->
             val1
           true ->
             exit({:error, {:asn1, :bad_range}})
@@ -2680,7 +2680,7 @@ defmodule :"OTP-PUB-KEY" do
     {term2, tlv3} = case tlv2 do
       [{131073, v2} | tempTlv3] ->
         {(val2 = decode_integer(v2, []); cond do
-          0 <= val2 and val2 <= :"MAX" ->
+          0 <= val2 and val2 <= :MAX ->
             val2
           true ->
             exit({:error, {:asn1, :bad_range}})
@@ -2694,7 +2694,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"PolicyConstraints", term1, term2}
+    res1 = {:PolicyConstraints, term1, term2}
     res1
   end
 
@@ -2714,7 +2714,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"PolicyInformation", term1, term2}
+    res1 = {:PolicyInformation, term1, term2}
     res1
   end
 
@@ -2739,7 +2739,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"PolicyQualifierInfo", term1, term2}
+    res1 = {:PolicyQualifierInfo, term1, term2}
     res1
   end
 
@@ -2803,7 +2803,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv5}}})
     end
-    res1 = {:"PresentationAddress", term1, term2, term3, term4}
+    res1 = {:PresentationAddress, term1, term2, term3, term4}
     res1
   end
 
@@ -2857,7 +2857,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"PrivateKeyUsagePeriod", term1, term2}
+    res1 = {:PrivateKeyUsagePeriod, term1, term2}
     res1
   end
 
@@ -2884,12 +2884,12 @@ defmodule :"OTP-PUB-KEY" do
         :asn1_NOVALUE
       _ ->
         try do
-          decObjalgorithmTerm1.(:"Type", tmpterm1, [])
+          decObjalgorithmTerm1.(:Type, tmpterm1, [])
         catch
           error -> error
         end
         |> case do
-          {:"EXIT", reason1} ->
+          {:EXIT, reason1} ->
             exit({:"Type not compatible with table constraint", reason1})
           tmpterm2 ->
             tmpterm2
@@ -2901,7 +2901,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"PublicKeyAlgorithm", term1, term2}
+    res1 = {:PublicKeyAlgorithm, term1, term2}
     res1
   end
 
@@ -2944,7 +2944,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv11}}})
     end
-    res1 = {:"RSAPrivateKey", term1, term2, term3, term4, term5, term6, term7, term8, term9, term10}
+    res1 = {:RSAPrivateKey, term1, term2, term3, term4, term5, term6, term7, term8, term9, term10}
     res1
   end
 
@@ -2960,7 +2960,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"RSAPublicKey", term1, term2}
+    res1 = {:RSAPublicKey, term1, term2}
     res1
   end
 
@@ -3010,7 +3010,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv5}}})
     end
-    res1 = {:"RecipientInfo", term1, term2, term3, term4}
+    res1 = {:RecipientInfo, term1, term2, term3, term4}
     res1
   end
 
@@ -3055,7 +3055,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"RoleSyntax", term1, term2}
+    res1 = {:RoleSyntax, term1, term2}
     res1
   end
 
@@ -3071,7 +3071,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"SecurityCategory", term1, term2}
+    res1 = {:SecurityCategory, term1, term2}
     res1
   end
 
@@ -3091,12 +3091,12 @@ defmodule :"OTP-PUB-KEY" do
         :asn1_NOVALUE
       _ ->
         try do
-          decObjalgorithmTerm1.(:"Type", tmpterm1, [])
+          decObjalgorithmTerm1.(:Type, tmpterm1, [])
         catch
           error -> error
         end
         |> case do
-          {:"EXIT", reason1} ->
+          {:EXIT, reason1} ->
             exit({:"Type not compatible with table constraint", reason1})
           tmpterm2 ->
             tmpterm2
@@ -3108,7 +3108,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"SignatureAlgorithm", term1, term2}
+    res1 = {:SignatureAlgorithm, term1, term2}
     res1
   end
 
@@ -3166,7 +3166,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv8}}})
     end
-    res1 = {:"SignedAndEnvelopedData", term1, term2, term3, term4, term5, term6, term7}
+    res1 = {:SignedAndEnvelopedData, term1, term2, term3, term4, term5, term6, term7}
     res1
   end
 
@@ -3202,7 +3202,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv7}}})
     end
-    res1 = {:"SignedData", term1, term2, term3, term4, term5, term6}
+    res1 = {:SignedData, term1, term2, term3, term4, term5, term6}
     res1
   end
 
@@ -3240,7 +3240,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv8}}})
     end
-    res1 = {:"SignerInfo", term1, term2, term3, term4, term5, term6, term7}
+    res1 = {:SignerInfo, term1, term2, term3, term4, term5, term6, term7}
     res1
   end
 
@@ -3284,7 +3284,7 @@ defmodule :"OTP-PUB-KEY" do
 
   def dec_SkipCerts(tlv, tagIn) do
     (val1 = decode_integer(tlv, tagIn); cond do
-      0 <= val1 and val1 <= :"MAX" ->
+      0 <= val1 and val1 <= :MAX ->
         val1
       true ->
         exit({:error, {:asn1, :bad_range}})
@@ -3323,7 +3323,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"SubjectPublicKeyInfo", term1, term2}
+    res1 = {:SubjectPublicKeyInfo, term1, term2}
     res1
   end
 
@@ -3345,7 +3345,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"SvceAuthInfo", term1, term2, term3}
+    res1 = {:SvceAuthInfo, term1, term2, term3}
     res1
   end
 
@@ -3389,7 +3389,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv8}}})
     end
-    res1 = {:"TBSCertList", term1, term2, term3, term4, term5, term6, term7}
+    res1 = {:TBSCertList, term1, term2, term3, term4, term5, term6, term7}
     res1
   end
 
@@ -3437,7 +3437,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv11}}})
     end
-    res1 = {:"TBSCertificate", term1, term2, term3, term4, term5, term6, term7, term8, term9, term10}
+    res1 = {:TBSCertificate, term1, term2, term3, term4, term5, term6, term7, term8, term9, term10}
     res1
   end
 
@@ -3499,7 +3499,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"TargetCert", term1, term2, term3}
+    res1 = {:TargetCert, term1, term2, term3}
     res1
   end
 
@@ -3541,7 +3541,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"TeletexDomainDefinedAttribute", term1, term2}
+    res1 = {:TeletexDomainDefinedAttribute, term1, term2}
     res1
   end
 
@@ -3650,7 +3650,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv6}}})
     end
-    res1 = {:"TeletexPersonalName", term1, term2, term3, term4}
+    res1 = {:TeletexPersonalName, term1, term2, term3, term4}
     res1
   end
 
@@ -3736,7 +3736,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"UnformattedPostalAddress", term1, term2}
+    res1 = {:UnformattedPostalAddress, term1, term2}
     res1
   end
 
@@ -3770,7 +3770,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"UserNotice", term1, term2}
+    res1 = {:UserNotice, term1, term2}
     res1
   end
 
@@ -3800,7 +3800,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"V2Form", term1, term2, term3}
+    res1 = {:V2Form, term1, term2, term3}
     res1
   end
 
@@ -3816,7 +3816,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"ValidationParms", term1, term2}
+    res1 = {:ValidationParms, term1, term2}
     res1
   end
 
@@ -3832,7 +3832,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"Validity", term1, term2}
+    res1 = {:Validity, term1, term2}
     res1
   end
 
@@ -4221,49 +4221,49 @@ defmodule :"OTP-PUB-KEY" do
     end
   end
 
-  def dec_authorityInfoAccess(:"Type", bytes, _) do
+  def dec_authorityInfoAccess(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_AuthorityInfoAccessSyntax(tlv, [16])
   end
 
-  def dec_authorityKeyIdentifier(:"Type", bytes, _) do
+  def dec_authorityKeyIdentifier(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_AuthorityKeyIdentifier(tlv, [16])
   end
 
-  def dec_basicConstraints(:"Type", bytes, _) do
+  def dec_basicConstraints(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_BasicConstraints(tlv, [16])
   end
 
-  def dec_cRLDistributionPoints(:"Type", bytes, _) do
+  def dec_cRLDistributionPoints(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_CRLDistributionPoints(tlv, [16])
   end
 
-  def dec_cRLNumber(:"Type", bytes, _) do
+  def dec_cRLNumber(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_CRLNumber(tlv, [2])
   end
 
-  def dec_cRLReasons(:"Type", bytes, _) do
+  def dec_cRLReasons(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_CRLReason(tlv, [10])
   end
 
-  def dec_certificateIssuer(:"Type", bytes, _) do
+  def dec_certificateIssuer(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_CertificateIssuer(tlv, [16])
   end
 
-  def dec_certificatePolicies(:"Type", bytes, _) do
+  def dec_certificatePolicies(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_CertificatePolicies(tlv, [16])
   end
 
   def dec_challengePassword(:derivation, _, _), do: exit({:error, {:"illegal use of missing field in object", :derivation}})
 
-  def dec_challengePassword(:"Type", bytes, _) do
+  def dec_challengePassword(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_DirectoryString(tlv, [])
   end
@@ -4274,14 +4274,14 @@ defmodule :"OTP-PUB-KEY" do
 
   def dec_challengePassword(:"substrings-match", _, _), do: exit({:error, {:"illegal use of missing field in object", :"substrings-match"}})
 
-  def dec_commonName(:"Type", bytes, _) do
+  def dec_commonName(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_X520CommonName(tlv, [])
   end
 
   def dec_contentType(:derivation, _, _), do: exit({:error, {:"illegal use of missing field in object", :derivation}})
 
-  def dec_contentType(:"Type", bytes, _) do
+  def dec_contentType(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_ContentType(tlv, [6])
   end
@@ -4294,7 +4294,7 @@ defmodule :"OTP-PUB-KEY" do
 
   def dec_counterSignature(:derivation, _, _), do: exit({:error, {:"illegal use of missing field in object", :derivation}})
 
-  def dec_counterSignature(:"Type", bytes, _) do
+  def dec_counterSignature(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_SignerInfo(tlv, [16])
   end
@@ -4305,104 +4305,104 @@ defmodule :"OTP-PUB-KEY" do
 
   def dec_counterSignature(:"substrings-match", _, _), do: exit({:error, {:"illegal use of missing field in object", :"substrings-match"}})
 
-  def dec_countryName(:"Type", bytes, _) do
+  def dec_countryName(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_X520countryName(tlv, [19])
   end
 
-  def dec_deltaCRLIndicator(:"Type", bytes, _) do
+  def dec_deltaCRLIndicator(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_BaseCRLNumber(tlv, [2])
   end
 
-  def dec_dh(:"Type", bytes, _) do
+  def dec_dh(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_DomainParameters(tlv, [16])
   end
 
-  def dec_dh(:"PublicKeyType", bytes, _) do
+  def dec_dh(:PublicKeyType, bytes, _) do
     tlv = tlv_format(bytes)
     dec_DHPublicKey(tlv, [2])
   end
 
-  def dec_dnQualifier(:"Type", bytes, _) do
+  def dec_dnQualifier(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_X520dnQualifier(tlv, [19])
   end
 
-  def dec_domainComponent(:"Type", bytes, _) do
+  def dec_domainComponent(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_DomainComponent(tlv, [22])
   end
 
-  def dec_dsa(:"Type", bytes, _) do
+  def dec_dsa(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_DSAParams(tlv, [])
   end
 
-  def dec_dsa(:"PublicKeyType", bytes, _) do
+  def dec_dsa(:PublicKeyType, bytes, _) do
     tlv = tlv_format(bytes)
     dec_DSAPublicKey(tlv, [2])
   end
 
-  def unquote(:"dec_dsa-with-sha1")(:"Type", bytes, _) do
+  def unquote(:"dec_dsa-with-sha1")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_DSAParams(tlv, [])
   end
 
-  def dec_dsaWithSHA1(:"Type", bytes, _) do
+  def dec_dsaWithSHA1(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_DSAParams(tlv, [])
   end
 
-  def unquote(:"dec_ec-public-key")(:"Type", bytes, _) do
+  def unquote(:"dec_ec-public-key")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_EcpkParameters(tlv, [])
   end
 
-  def unquote(:"dec_ec-public-key")(:"PublicKeyType", bytes, _) do
+  def unquote(:"dec_ec-public-key")(:PublicKeyType, bytes, _) do
     tlv = tlv_format(bytes)
     dec_ECPoint(tlv, [4])
   end
 
-  def unquote(:"dec_ecdsa-with-sha1")(:"Type", bytes, _) do
+  def unquote(:"dec_ecdsa-with-sha1")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_EcpkParameters(tlv, [])
   end
 
-  def unquote(:"dec_ecdsa-with-sha224")(:"Type", bytes, _) do
+  def unquote(:"dec_ecdsa-with-sha224")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_EcpkParameters(tlv, [])
   end
 
-  def unquote(:"dec_ecdsa-with-sha256")(:"Type", bytes, _) do
+  def unquote(:"dec_ecdsa-with-sha256")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_EcpkParameters(tlv, [])
   end
 
-  def unquote(:"dec_ecdsa-with-sha384")(:"Type", bytes, _) do
+  def unquote(:"dec_ecdsa-with-sha384")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_EcpkParameters(tlv, [])
   end
 
-  def unquote(:"dec_ecdsa-with-sha512")(:"Type", bytes, _) do
+  def unquote(:"dec_ecdsa-with-sha512")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_EcpkParameters(tlv, [])
   end
 
-  def dec_emailAddress(:"Type", bytes, _) do
+  def dec_emailAddress(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_EmailAddress(tlv, [22])
   end
 
-  def dec_extKeyUsage(:"Type", bytes, _) do
+  def dec_extKeyUsage(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_ExtKeyUsageSyntax(tlv, [16])
   end
 
   def dec_extensionRequest(:derivation, _, _), do: exit({:error, {:"illegal use of missing field in object", :derivation}})
 
-  def dec_extensionRequest(:"Type", bytes, _) do
+  def dec_extensionRequest(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_ExtensionRequest(tlv, [16])
   end
@@ -4415,7 +4415,7 @@ defmodule :"OTP-PUB-KEY" do
 
   def dec_failInfo(:derivation, _, _), do: exit({:error, {:"illegal use of missing field in object", :derivation}})
 
-  def dec_failInfo(:"Type", bytes, _) do
+  def dec_failInfo(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     (binary_to_list(decode_restricted_string(tlv, [19])))
   end
@@ -4426,99 +4426,99 @@ defmodule :"OTP-PUB-KEY" do
 
   def dec_failInfo(:"substrings-match", _, _), do: exit({:error, {:"illegal use of missing field in object", :"substrings-match"}})
 
-  def unquote(:"dec_field-characteristic-two")(:"Type", bytes, _) do
+  def unquote(:"dec_field-characteristic-two")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     apply(__MODULE__, :"dec_Characteristic-two", [tlv, [16]])
   end
 
-  def unquote(:"dec_field-prime-field")(:"Type", bytes, _) do
+  def unquote(:"dec_field-prime-field")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     apply(__MODULE__, :"dec_Prime-p", [tlv, [2]])
   end
 
-  def dec_freshestCRL(:"Type", bytes, _) do
+  def dec_freshestCRL(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_FreshestCRL(tlv, [16])
   end
 
-  def dec_generationQualifier(:"Type", bytes, _) do
+  def dec_generationQualifier(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_X520name(tlv, [])
   end
 
-  def dec_givenName(:"Type", bytes, _) do
+  def dec_givenName(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_X520name(tlv, [])
   end
 
-  def unquote(:"dec_gn-basis")(:"Type", bytes, _) do
+  def unquote(:"dec_gn-basis")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     decode_null(tlv, [5])
   end
 
-  def dec_holdInstructionCode(:"Type", bytes, _) do
+  def dec_holdInstructionCode(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_HoldInstructionCode(tlv, [6])
   end
 
-  def dec_inhibitAnyPolicy(:"Type", bytes, _) do
+  def dec_inhibitAnyPolicy(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_InhibitAnyPolicy(tlv, [2])
   end
 
-  def dec_initials(:"Type", bytes, _) do
+  def dec_initials(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_X520name(tlv, [])
   end
 
-  def dec_invalidityDate(:"Type", bytes, _) do
+  def dec_invalidityDate(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_InvalidityDate(tlv, [24])
   end
 
-  def dec_issuerAltName(:"Type", bytes, _) do
+  def dec_issuerAltName(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_IssuerAltName(tlv, [16])
   end
 
-  def dec_issuingDistributionPoint(:"Type", bytes, _) do
+  def dec_issuingDistributionPoint(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_IssuingDistributionPoint(tlv, [16])
   end
 
-  def dec_kea(:"Type", bytes, _) do
+  def dec_kea(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     apply(__MODULE__, :"dec_KEA-Parms-Id", [tlv, [4]])
   end
 
-  def dec_kea(:"PublicKeyType", bytes, _) do
+  def dec_kea(:PublicKeyType, bytes, _) do
     tlv = tlv_format(bytes)
     apply(__MODULE__, :"dec_KEA-PublicKey", [tlv, [2]])
   end
 
-  def dec_keyUsage(:"Type", bytes, _) do
+  def dec_keyUsage(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_KeyUsage(tlv, [3])
   end
 
-  def dec_localityName(:"Type", bytes, _) do
+  def dec_localityName(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_X520LocalityName(tlv, [])
   end
 
-  def unquote(:"dec_md2-with-rsa-encryption")(:"Type", bytes, _) do
+  def unquote(:"dec_md2-with-rsa-encryption")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     decode_null(tlv, [5])
   end
 
-  def unquote(:"dec_md5-with-rsa-encryption")(:"Type", bytes, _) do
+  def unquote(:"dec_md5-with-rsa-encryption")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     decode_null(tlv, [5])
   end
 
   def dec_messageDigest(:derivation, _, _), do: exit({:error, {:"illegal use of missing field in object", :derivation}})
 
-  def dec_messageDigest(:"Type", bytes, _) do
+  def dec_messageDigest(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_MessageDigest(tlv, [4])
   end
@@ -4531,7 +4531,7 @@ defmodule :"OTP-PUB-KEY" do
 
   def dec_messageType(:derivation, _, _), do: exit({:error, {:"illegal use of missing field in object", :derivation}})
 
-  def dec_messageType(:"Type", bytes, _) do
+  def dec_messageType(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     (binary_to_list(decode_restricted_string(tlv, [19])))
   end
@@ -4542,29 +4542,29 @@ defmodule :"OTP-PUB-KEY" do
 
   def dec_messageType(:"substrings-match", _, _), do: exit({:error, {:"illegal use of missing field in object", :"substrings-match"}})
 
-  def dec_name(:"Type", bytes, _) do
+  def dec_name(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_X520name(tlv, [])
   end
 
-  def dec_nameConstraints(:"Type", bytes, _) do
+  def dec_nameConstraints(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_NameConstraints(tlv, [16])
   end
 
-  def dec_organizationName(:"Type", bytes, _) do
+  def dec_organizationName(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_X520OrganizationName(tlv, [])
   end
 
-  def dec_organizationalUnitName(:"Type", bytes, _) do
+  def dec_organizationalUnitName(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_X520OrganizationalUnitName(tlv, [])
   end
 
   def dec_pkiStatus(:derivation, _, _), do: exit({:error, {:"illegal use of missing field in object", :derivation}})
 
-  def dec_pkiStatus(:"Type", bytes, _) do
+  def dec_pkiStatus(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     (binary_to_list(decode_restricted_string(tlv, [19])))
   end
@@ -4575,34 +4575,34 @@ defmodule :"OTP-PUB-KEY" do
 
   def dec_pkiStatus(:"substrings-match", _, _), do: exit({:error, {:"illegal use of missing field in object", :"substrings-match"}})
 
-  def dec_policyConstraints(:"Type", bytes, _) do
+  def dec_policyConstraints(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_PolicyConstraints(tlv, [16])
   end
 
-  def dec_policyMappings(:"Type", bytes, _) do
+  def dec_policyMappings(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_PolicyMappings(tlv, [16])
   end
 
-  def unquote(:"dec_pp-basis")(:"Type", bytes, _) do
+  def unquote(:"dec_pp-basis")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_Pentanomial(tlv, [16])
   end
 
-  def dec_privateKeyUsagePeriod(:"Type", bytes, _) do
+  def dec_privateKeyUsagePeriod(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_PrivateKeyUsagePeriod(tlv, [16])
   end
 
-  def dec_pseudonym(:"Type", bytes, _) do
+  def dec_pseudonym(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_X520Pseudonym(tlv, [])
   end
 
   def dec_recipientNonce(:derivation, _, _), do: exit({:error, {:"illegal use of missing field in object", :derivation}})
 
-  def dec_recipientNonce(:"Type", bytes, _) do
+  def dec_recipientNonce(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     decode_octet_string(tlv, [4])
   end
@@ -4613,19 +4613,19 @@ defmodule :"OTP-PUB-KEY" do
 
   def dec_recipientNonce(:"substrings-match", _, _), do: exit({:error, {:"illegal use of missing field in object", :"substrings-match"}})
 
-  def unquote(:"dec_rsa-encryption")(:"Type", bytes, _) do
+  def unquote(:"dec_rsa-encryption")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     decode_null(tlv, [5])
   end
 
-  def unquote(:"dec_rsa-encryption")(:"PublicKeyType", bytes, _) do
+  def unquote(:"dec_rsa-encryption")(:PublicKeyType, bytes, _) do
     tlv = tlv_format(bytes)
     dec_RSAPublicKey(tlv, [16])
   end
 
   def dec_senderNonce(:derivation, _, _), do: exit({:error, {:"illegal use of missing field in object", :derivation}})
 
-  def dec_senderNonce(:"Type", bytes, _) do
+  def dec_senderNonce(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     decode_octet_string(tlv, [4])
   end
@@ -4636,44 +4636,44 @@ defmodule :"OTP-PUB-KEY" do
 
   def dec_senderNonce(:"substrings-match", _, _), do: exit({:error, {:"illegal use of missing field in object", :"substrings-match"}})
 
-  def dec_serialNumber(:"Type", bytes, _) do
+  def dec_serialNumber(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_X520SerialNumber(tlv, [19])
   end
 
-  def unquote(:"dec_sha-1with-rsa-encryption")(:"Type", bytes, _) do
+  def unquote(:"dec_sha-1with-rsa-encryption")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     decode_null(tlv, [5])
   end
 
-  def unquote(:"dec_sha1-with-rsa-encryption")(:"Type", bytes, _) do
+  def unquote(:"dec_sha1-with-rsa-encryption")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     decode_null(tlv, [5])
   end
 
-  def unquote(:"dec_sha224-with-rsa-encryption")(:"Type", bytes, _) do
+  def unquote(:"dec_sha224-with-rsa-encryption")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     decode_null(tlv, [5])
   end
 
-  def unquote(:"dec_sha256-with-rsa-encryption")(:"Type", bytes, _) do
+  def unquote(:"dec_sha256-with-rsa-encryption")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     decode_null(tlv, [5])
   end
 
-  def unquote(:"dec_sha384-with-rsa-encryption")(:"Type", bytes, _) do
+  def unquote(:"dec_sha384-with-rsa-encryption")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     decode_null(tlv, [5])
   end
 
-  def unquote(:"dec_sha512-with-rsa-encryption")(:"Type", bytes, _) do
+  def unquote(:"dec_sha512-with-rsa-encryption")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     decode_null(tlv, [5])
   end
 
   def dec_signingTime(:derivation, _, _), do: exit({:error, {:"illegal use of missing field in object", :derivation}})
 
-  def dec_signingTime(:"Type", bytes, _) do
+  def dec_signingTime(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_SigningTime(tlv, [])
   end
@@ -4684,49 +4684,49 @@ defmodule :"OTP-PUB-KEY" do
 
   def dec_signingTime(:"substrings-match", _, _), do: exit({:error, {:"illegal use of missing field in object", :"substrings-match"}})
 
-  def dec_stateOrProvinceName(:"Type", bytes, _) do
+  def dec_stateOrProvinceName(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_X520StateOrProvinceName(tlv, [])
   end
 
-  def dec_subjectAltName(:"Type", bytes, _) do
+  def dec_subjectAltName(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_SubjectAltName(tlv, [16])
   end
 
-  def dec_subjectDirectoryAttributes(:"Type", bytes, _) do
+  def dec_subjectDirectoryAttributes(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_SubjectDirectoryAttributes(tlv, [16])
   end
 
-  def dec_subjectInfoAccess(:"Type", bytes, _) do
+  def dec_subjectInfoAccess(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_SubjectInfoAccessSyntax(tlv, [16])
   end
 
-  def dec_subjectKeyIdentifier(:"Type", bytes, _) do
+  def dec_subjectKeyIdentifier(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_SubjectKeyIdentifier(tlv, [4])
   end
 
-  def dec_surname(:"Type", bytes, _) do
+  def dec_surname(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_X520name(tlv, [])
   end
 
-  def dec_title(:"Type", bytes, _) do
+  def dec_title(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_X520Title(tlv, [])
   end
 
-  def unquote(:"dec_tp-basis")(:"Type", bytes, _) do
+  def unquote(:"dec_tp-basis")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_Trinomial(tlv, [2])
   end
 
   def dec_transactionID(:derivation, _, _), do: exit({:error, {:"illegal use of missing field in object", :derivation}})
 
-  def dec_transactionID(:"Type", bytes, _) do
+  def dec_transactionID(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     (binary_to_list(decode_restricted_string(tlv, [19])))
   end
@@ -4737,107 +4737,107 @@ defmodule :"OTP-PUB-KEY" do
 
   def dec_transactionID(:"substrings-match", _, _), do: exit({:error, {:"illegal use of missing field in object", :"substrings-match"}})
 
-  def unquote(:"dec_x400-common-name")(:"Type", bytes, _) do
+  def unquote(:"dec_x400-common-name")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_CommonName(tlv, [19])
   end
 
-  def unquote(:"dec_x400-extended-network-address")(:"Type", bytes, _) do
+  def unquote(:"dec_x400-extended-network-address")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_ExtendedNetworkAddress(tlv, [])
   end
 
-  def unquote(:"dec_x400-extension-OR-address-components")(:"Type", bytes, _) do
+  def unquote(:"dec_x400-extension-OR-address-components")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_ExtensionORAddressComponents(tlv, [17])
   end
 
-  def unquote(:"dec_x400-extension-physical-delivery-address-components")(:"Type", bytes, _) do
+  def unquote(:"dec_x400-extension-physical-delivery-address-components")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_ExtensionPhysicalDeliveryAddressComponents(tlv, [17])
   end
 
-  def unquote(:"dec_x400-local-postal-attributes")(:"Type", bytes, _) do
+  def unquote(:"dec_x400-local-postal-attributes")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_LocalPostalAttributes(tlv, [17])
   end
 
-  def unquote(:"dec_x400-pds-name")(:"Type", bytes, _) do
+  def unquote(:"dec_x400-pds-name")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_PDSName(tlv, [19])
   end
 
-  def unquote(:"dec_x400-physical-delivery-country-name")(:"Type", bytes, _) do
+  def unquote(:"dec_x400-physical-delivery-country-name")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_PhysicalDeliveryCountryName(tlv, [])
   end
 
-  def unquote(:"dec_x400-physical-delivery-office-name")(:"Type", bytes, _) do
+  def unquote(:"dec_x400-physical-delivery-office-name")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_PhysicalDeliveryOfficeName(tlv, [17])
   end
 
-  def unquote(:"dec_x400-physical-delivery-office-number")(:"Type", bytes, _) do
+  def unquote(:"dec_x400-physical-delivery-office-number")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_PhysicalDeliveryOfficeNumber(tlv, [17])
   end
 
-  def unquote(:"dec_x400-physical-delivery-organization-name")(:"Type", bytes, _) do
+  def unquote(:"dec_x400-physical-delivery-organization-name")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_PhysicalDeliveryOrganizationName(tlv, [17])
   end
 
-  def unquote(:"dec_x400-physical-delivery-personal-name")(:"Type", bytes, _) do
+  def unquote(:"dec_x400-physical-delivery-personal-name")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_PhysicalDeliveryPersonalName(tlv, [17])
   end
 
-  def unquote(:"dec_x400-post-office-box-address")(:"Type", bytes, _) do
+  def unquote(:"dec_x400-post-office-box-address")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_PostOfficeBoxAddress(tlv, [17])
   end
 
-  def unquote(:"dec_x400-postal-code")(:"Type", bytes, _) do
+  def unquote(:"dec_x400-postal-code")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_PostalCode(tlv, [])
   end
 
-  def unquote(:"dec_x400-poste-restante-address")(:"Type", bytes, _) do
+  def unquote(:"dec_x400-poste-restante-address")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_PosteRestanteAddress(tlv, [17])
   end
 
-  def unquote(:"dec_x400-street-address")(:"Type", bytes, _) do
+  def unquote(:"dec_x400-street-address")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_StreetAddress(tlv, [17])
   end
 
-  def unquote(:"dec_x400-teletex-common-name")(:"Type", bytes, _) do
+  def unquote(:"dec_x400-teletex-common-name")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_TeletexCommonName(tlv, [20])
   end
 
-  def unquote(:"dec_x400-teletex-domain-defined-attributes")(:"Type", bytes, _) do
+  def unquote(:"dec_x400-teletex-domain-defined-attributes")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_TeletexDomainDefinedAttributes(tlv, [16])
   end
 
-  def unquote(:"dec_x400-teletex-personal-name")(:"Type", bytes, _) do
+  def unquote(:"dec_x400-teletex-personal-name")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_TeletexPersonalName(tlv, [17])
   end
 
-  def unquote(:"dec_x400-terminal-type")(:"Type", bytes, _) do
+  def unquote(:"dec_x400-terminal-type")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_TerminalType(tlv, [2])
   end
 
-  def unquote(:"dec_x400-unformatted-postal-address")(:"Type", bytes, _) do
+  def unquote(:"dec_x400-unformatted-postal-address")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_UnformattedPostalAddress(tlv, [17])
   end
 
-  def unquote(:"dec_x400-unique-postal-name")(:"Type", bytes, _) do
+  def unquote(:"dec_x400-unique-postal-name")(:Type, bytes, _) do
     tlv = tlv_format(bytes)
     dec_UniquePostalName(tlv, [17])
   end
@@ -4860,9 +4860,9 @@ defmodule :"OTP-PUB-KEY" do
     end
   end
 
-  def decode_TBSCertList_exclusive(bytes), do: decode_partial_incomplete(:"CertificateList", bytes, [:mandatory, [[:undec, 16]]])
+  def decode_TBSCertList_exclusive(bytes), do: decode_partial_incomplete(:CertificateList, bytes, [:mandatory, [[:undec, 16]]])
 
-  def decode_TBSCert_exclusive(bytes), do: decode_partial_incomplete(:"Certificate", bytes, [:mandatory, [[:undec, 16]]])
+  def decode_TBSCert_exclusive(bytes), do: decode_partial_incomplete(:Certificate, bytes, [:mandatory, [[:undec, 16]]])
 
   def decode_part(type, data0) when is_binary(data0) do
     try do
@@ -4871,9 +4871,9 @@ defmodule :"OTP-PUB-KEY" do
       error -> error
     end
     |> case do
-      {:"EXIT", {:error, reason}} ->
+      {:EXIT, {:error, reason}} ->
         {:error, reason}
-      {:"EXIT", reason} ->
+      {:EXIT, reason} ->
         {:error, {:asn1, reason}}
       result ->
         {:ok, result}
@@ -4887,9 +4887,9 @@ defmodule :"OTP-PUB-KEY" do
       error -> error
     end
     |> case do
-      {:"EXIT", {:error, reason}} ->
+      {:EXIT, {:error, reason}} ->
         {:error, reason}
-      {:"EXIT", reason} ->
+      {:EXIT, reason} ->
         {:error, {:asn1, reason}}
       result ->
         {:ok, result}
@@ -5393,7 +5393,7 @@ defmodule :"OTP-PUB-KEY" do
       :asn1_NOVALUE ->
         {<<>>, 0}
       _ ->
-        {tmpBytes2, _} = objalgorithm.(:"Type", cindex2, [])
+        {tmpBytes2, _} = objalgorithm.(:Type, cindex2, [])
         encode_open_type(tmpBytes2, [])
     end
     bytesSoFar = [encBytes1, encBytes2]
@@ -5409,7 +5409,7 @@ defmodule :"OTP-PUB-KEY" do
       :asn1_NOVALUE ->
         {<<>>, 0}
       _ ->
-        {tmpBytes2, _} = objcontentType.(:"Type", cindex2, [])
+        {tmpBytes2, _} = objcontentType.(:Type, cindex2, [])
         encode_open_type(tmpBytes2, [<<160>>])
     end
     bytesSoFar = [encBytes1, encBytes2]
@@ -5502,7 +5502,7 @@ defmodule :"OTP-PUB-KEY" do
       :asn1_NOVALUE ->
         {<<>>, 0}
       _ ->
-        {tmpBytes2, _} = objalgorithm.(:"Type", cindex2, [])
+        {tmpBytes2, _} = objalgorithm.(:Type, cindex2, [])
         encode_open_type(tmpBytes2, [])
     end
     bytesSoFar = [encBytes1, encBytes2]
@@ -5530,7 +5530,7 @@ defmodule :"OTP-PUB-KEY" do
       :asn1_NOVALUE ->
         {<<>>, 0}
       _ ->
-        {tmpBytes2, _} = objalgorithm.(:"Type", cindex2, [])
+        {tmpBytes2, _} = objalgorithm.(:Type, cindex2, [])
         encode_open_type(tmpBytes2, [])
     end
     bytesSoFar = [encBytes1, encBytes2]
@@ -6100,7 +6100,7 @@ defmodule :"OTP-PUB-KEY" do
       :asn1_NOVALUE ->
         {<<>>, 0}
       _ ->
-        {tmpBytes2, _} = objalgorithm.(:"Type", cindex2, [])
+        {tmpBytes2, _} = objalgorithm.(:Type, cindex2, [])
         encode_open_type(tmpBytes2, [])
     end
     bytesSoFar = [encBytes1, encBytes2]
@@ -6208,7 +6208,7 @@ defmodule :"OTP-PUB-KEY" do
     {_, cindex1, cindex2} = val
     objtype = :"OTP-PUB-KEY".getenc_SupportedAttributeTypeAndValues(cindex1)
     {encBytes1, encLen1} = encode_object_identifier(cindex1, [<<6>>])
-    {tmpBytes2, _} = objtype.(:"Type", cindex2, [])
+    {tmpBytes2, _} = objtype.(:Type, cindex2, [])
     {encBytes2, encLen2} = encode_open_type(tmpBytes2, [])
     bytesSoFar = [encBytes1, encBytes2]
     lenSoFar = encLen1 + encLen2
@@ -6230,7 +6230,7 @@ defmodule :"OTP-PUB-KEY" do
     objbasis = :"OTP-PUB-KEY".getenc_SupportedCharacteristicTwos(cindex2)
     {encBytes1, encLen1} = encode_integer(cindex1, [<<2>>])
     {encBytes2, encLen2} = encode_object_identifier(cindex2, [<<6>>])
-    {tmpBytes3, _} = objbasis.(:"Type", cindex3, [])
+    {tmpBytes3, _} = objbasis.(:Type, cindex3, [])
     {encBytes3, encLen3} = encode_open_type(tmpBytes3, [])
     bytesSoFar = [encBytes1, encBytes2, encBytes3]
     lenSoFar = encLen1 + encLen2 + encLen3
@@ -6247,7 +6247,7 @@ defmodule :"OTP-PUB-KEY" do
       false ->
         encode_boolean(cindex2, [<<1>>])
     end
-    {tmpBytes3, _} = objextnID.(:"Type", cindex3, [])
+    {tmpBytes3, _} = objextnID.(:Type, cindex3, [])
     {encBytes3, encLen3} = encode_open_type(tmpBytes3, [])
     bytesSoFar = [encBytes1, encBytes2, encBytes3]
     lenSoFar = encLen1 + encLen2 + encLen3
@@ -6258,7 +6258,7 @@ defmodule :"OTP-PUB-KEY" do
     {_, cindex1, cindex2} = val
     objextensionAttributeType = :"OTP-PUB-KEY".getenc_SupportedExtensionAttributes(cindex1)
     {encBytes1, encLen1} = encode_integer(cindex1, [<<128>>])
-    {tmpBytes2, _} = objextensionAttributeType.(:"Type", cindex2, [])
+    {tmpBytes2, _} = objextensionAttributeType.(:Type, cindex2, [])
     {encBytes2, encLen2} = encode_open_type(tmpBytes2, [<<161>>])
     bytesSoFar = [encBytes1, encBytes2]
     lenSoFar = encLen1 + encLen2
@@ -6279,7 +6279,7 @@ defmodule :"OTP-PUB-KEY" do
     {_, cindex1, cindex2} = val
     objfieldType = :"OTP-PUB-KEY".getenc_SupportedFieldIds(cindex1)
     {encBytes1, encLen1} = encode_object_identifier(cindex1, [<<6>>])
-    {tmpBytes2, _} = objfieldType.(:"Type", cindex2, [])
+    {tmpBytes2, _} = objfieldType.(:Type, cindex2, [])
     {encBytes2, encLen2} = encode_open_type(tmpBytes2, [])
     bytesSoFar = [encBytes1, encBytes2]
     lenSoFar = encLen1 + encLen2
@@ -6290,7 +6290,7 @@ defmodule :"OTP-PUB-KEY" do
     {_, cindex1, cindex2} = val
     objalgorithm = :"OTP-PUB-KEY".getenc_SupportedPublicKeyAlgorithms(element(2, cindex1))
     {encBytes1, encLen1} = enc_OTPOLDSubjectPublicKeyInfo_algorithm(cindex1, [<<48>>])
-    {tmpBytes2, _} = objalgorithm.(:"PublicKeyType", cindex2, [])
+    {tmpBytes2, _} = objalgorithm.(:PublicKeyType, cindex2, [])
     {encBytes2, encLen2} = encode_open_type(tmpBytes2, [])
     bytesSoFar = [encBytes1, encBytes2]
     lenSoFar = encLen1 + encLen2
@@ -6617,7 +6617,7 @@ defmodule :"OTP-PUB-KEY" do
       :asn1_NOVALUE ->
         {<<>>, 0}
       _ ->
-        {tmpBytes2, _} = objalgorithm.(:"Type", cindex2, [])
+        {tmpBytes2, _} = objalgorithm.(:Type, cindex2, [])
         encode_open_type(tmpBytes2, [])
     end
     bytesSoFar = [encBytes1, encBytes2]
@@ -6743,7 +6743,7 @@ defmodule :"OTP-PUB-KEY" do
       :asn1_NOVALUE ->
         {<<>>, 0}
       _ ->
-        {tmpBytes2, _} = objalgorithm.(:"Type", cindex2, [])
+        {tmpBytes2, _} = objalgorithm.(:Type, cindex2, [])
         encode_open_type(tmpBytes2, [])
     end
     bytesSoFar = [encBytes1, encBytes2]
@@ -7326,25 +7326,25 @@ defmodule :"OTP-PUB-KEY" do
     encode_tags(tagIn, encBytes, encLen)
   end
 
-  def enc_authorityInfoAccess(:"Type", val, _RestPrimFieldName), do: enc_AuthorityInfoAccessSyntax(val, [<<48>>])
+  def enc_authorityInfoAccess(:Type, val, _RestPrimFieldName), do: enc_AuthorityInfoAccessSyntax(val, [<<48>>])
 
-  def enc_authorityKeyIdentifier(:"Type", val, _RestPrimFieldName), do: enc_AuthorityKeyIdentifier(val, [<<48>>])
+  def enc_authorityKeyIdentifier(:Type, val, _RestPrimFieldName), do: enc_AuthorityKeyIdentifier(val, [<<48>>])
 
-  def enc_basicConstraints(:"Type", val, _RestPrimFieldName), do: enc_BasicConstraints(val, [<<48>>])
+  def enc_basicConstraints(:Type, val, _RestPrimFieldName), do: enc_BasicConstraints(val, [<<48>>])
 
-  def enc_cRLDistributionPoints(:"Type", val, _RestPrimFieldName), do: enc_CRLDistributionPoints(val, [<<48>>])
+  def enc_cRLDistributionPoints(:Type, val, _RestPrimFieldName), do: enc_CRLDistributionPoints(val, [<<48>>])
 
-  def enc_cRLNumber(:"Type", val, _RestPrimFieldName), do: enc_CRLNumber(val, [<<2>>])
+  def enc_cRLNumber(:Type, val, _RestPrimFieldName), do: enc_CRLNumber(val, [<<2>>])
 
-  def enc_cRLReasons(:"Type", val, _RestPrimFieldName), do: enc_CRLReason(val, [<<10>>])
+  def enc_cRLReasons(:Type, val, _RestPrimFieldName), do: enc_CRLReason(val, [<<10>>])
 
-  def enc_certificateIssuer(:"Type", val, _RestPrimFieldName), do: enc_CertificateIssuer(val, [<<48>>])
+  def enc_certificateIssuer(:Type, val, _RestPrimFieldName), do: enc_CertificateIssuer(val, [<<48>>])
 
-  def enc_certificatePolicies(:"Type", val, _RestPrimFieldName), do: enc_CertificatePolicies(val, [<<48>>])
+  def enc_certificatePolicies(:Type, val, _RestPrimFieldName), do: enc_CertificatePolicies(val, [<<48>>])
 
   def enc_challengePassword(:derivation, _, _), do: exit({:error, {:"use of missing field in object", :derivation}})
 
-  def enc_challengePassword(:"Type", val, _RestPrimFieldName), do: enc_DirectoryString(val, [])
+  def enc_challengePassword(:Type, val, _RestPrimFieldName), do: enc_DirectoryString(val, [])
 
   def enc_challengePassword(:"equality-match", _, _), do: exit({:error, {:"use of missing field in object", :"equality-match"}})
 
@@ -7352,11 +7352,11 @@ defmodule :"OTP-PUB-KEY" do
 
   def enc_challengePassword(:"substrings-match", _, _), do: exit({:error, {:"use of missing field in object", :"substrings-match"}})
 
-  def enc_commonName(:"Type", val, _RestPrimFieldName), do: enc_X520CommonName(val, [])
+  def enc_commonName(:Type, val, _RestPrimFieldName), do: enc_X520CommonName(val, [])
 
   def enc_contentType(:derivation, _, _), do: exit({:error, {:"use of missing field in object", :derivation}})
 
-  def enc_contentType(:"Type", val, _RestPrimFieldName), do: enc_ContentType(val, [<<6>>])
+  def enc_contentType(:Type, val, _RestPrimFieldName), do: enc_ContentType(val, [<<6>>])
 
   def enc_contentType(:"equality-match", _, _), do: exit({:error, {:"use of missing field in object", :"equality-match"}})
 
@@ -7366,7 +7366,7 @@ defmodule :"OTP-PUB-KEY" do
 
   def enc_counterSignature(:derivation, _, _), do: exit({:error, {:"use of missing field in object", :derivation}})
 
-  def enc_counterSignature(:"Type", val, _RestPrimFieldName), do: enc_SignerInfo(val, [<<48>>])
+  def enc_counterSignature(:Type, val, _RestPrimFieldName), do: enc_SignerInfo(val, [<<48>>])
 
   def enc_counterSignature(:"equality-match", _, _), do: exit({:error, {:"use of missing field in object", :"equality-match"}})
 
@@ -7374,47 +7374,47 @@ defmodule :"OTP-PUB-KEY" do
 
   def enc_counterSignature(:"substrings-match", _, _), do: exit({:error, {:"use of missing field in object", :"substrings-match"}})
 
-  def enc_countryName(:"Type", val, _RestPrimFieldName), do: enc_X520countryName(val, [<<19>>])
+  def enc_countryName(:Type, val, _RestPrimFieldName), do: enc_X520countryName(val, [<<19>>])
 
-  def enc_deltaCRLIndicator(:"Type", val, _RestPrimFieldName), do: enc_BaseCRLNumber(val, [<<2>>])
+  def enc_deltaCRLIndicator(:Type, val, _RestPrimFieldName), do: enc_BaseCRLNumber(val, [<<2>>])
 
-  def enc_dh(:"Type", val, _RestPrimFieldName), do: enc_DomainParameters(val, [<<48>>])
+  def enc_dh(:Type, val, _RestPrimFieldName), do: enc_DomainParameters(val, [<<48>>])
 
-  def enc_dh(:"PublicKeyType", val, _RestPrimFieldName), do: enc_DHPublicKey(val, [<<2>>])
+  def enc_dh(:PublicKeyType, val, _RestPrimFieldName), do: enc_DHPublicKey(val, [<<2>>])
 
-  def enc_dnQualifier(:"Type", val, _RestPrimFieldName), do: enc_X520dnQualifier(val, [<<19>>])
+  def enc_dnQualifier(:Type, val, _RestPrimFieldName), do: enc_X520dnQualifier(val, [<<19>>])
 
-  def enc_domainComponent(:"Type", val, _RestPrimFieldName), do: enc_DomainComponent(val, [<<22>>])
+  def enc_domainComponent(:Type, val, _RestPrimFieldName), do: enc_DomainComponent(val, [<<22>>])
 
-  def enc_dsa(:"Type", val, _RestPrimFieldName), do: enc_DSAParams(val, [])
+  def enc_dsa(:Type, val, _RestPrimFieldName), do: enc_DSAParams(val, [])
 
-  def enc_dsa(:"PublicKeyType", val, _RestPrimFieldName), do: enc_DSAPublicKey(val, [<<2>>])
+  def enc_dsa(:PublicKeyType, val, _RestPrimFieldName), do: enc_DSAPublicKey(val, [<<2>>])
 
-  def unquote(:"enc_dsa-with-sha1")(:"Type", val, _RestPrimFieldName), do: enc_DSAParams(val, [])
+  def unquote(:"enc_dsa-with-sha1")(:Type, val, _RestPrimFieldName), do: enc_DSAParams(val, [])
 
-  def enc_dsaWithSHA1(:"Type", val, _RestPrimFieldName), do: enc_DSAParams(val, [])
+  def enc_dsaWithSHA1(:Type, val, _RestPrimFieldName), do: enc_DSAParams(val, [])
 
-  def unquote(:"enc_ec-public-key")(:"Type", val, _RestPrimFieldName), do: enc_EcpkParameters(val, [])
+  def unquote(:"enc_ec-public-key")(:Type, val, _RestPrimFieldName), do: enc_EcpkParameters(val, [])
 
-  def unquote(:"enc_ec-public-key")(:"PublicKeyType", val, _RestPrimFieldName), do: enc_ECPoint(val, [<<4>>])
+  def unquote(:"enc_ec-public-key")(:PublicKeyType, val, _RestPrimFieldName), do: enc_ECPoint(val, [<<4>>])
 
-  def unquote(:"enc_ecdsa-with-sha1")(:"Type", val, _RestPrimFieldName), do: enc_EcpkParameters(val, [])
+  def unquote(:"enc_ecdsa-with-sha1")(:Type, val, _RestPrimFieldName), do: enc_EcpkParameters(val, [])
 
-  def unquote(:"enc_ecdsa-with-sha224")(:"Type", val, _RestPrimFieldName), do: enc_EcpkParameters(val, [])
+  def unquote(:"enc_ecdsa-with-sha224")(:Type, val, _RestPrimFieldName), do: enc_EcpkParameters(val, [])
 
-  def unquote(:"enc_ecdsa-with-sha256")(:"Type", val, _RestPrimFieldName), do: enc_EcpkParameters(val, [])
+  def unquote(:"enc_ecdsa-with-sha256")(:Type, val, _RestPrimFieldName), do: enc_EcpkParameters(val, [])
 
-  def unquote(:"enc_ecdsa-with-sha384")(:"Type", val, _RestPrimFieldName), do: enc_EcpkParameters(val, [])
+  def unquote(:"enc_ecdsa-with-sha384")(:Type, val, _RestPrimFieldName), do: enc_EcpkParameters(val, [])
 
-  def unquote(:"enc_ecdsa-with-sha512")(:"Type", val, _RestPrimFieldName), do: enc_EcpkParameters(val, [])
+  def unquote(:"enc_ecdsa-with-sha512")(:Type, val, _RestPrimFieldName), do: enc_EcpkParameters(val, [])
 
-  def enc_emailAddress(:"Type", val, _RestPrimFieldName), do: enc_EmailAddress(val, [<<22>>])
+  def enc_emailAddress(:Type, val, _RestPrimFieldName), do: enc_EmailAddress(val, [<<22>>])
 
-  def enc_extKeyUsage(:"Type", val, _RestPrimFieldName), do: enc_ExtKeyUsageSyntax(val, [<<48>>])
+  def enc_extKeyUsage(:Type, val, _RestPrimFieldName), do: enc_ExtKeyUsageSyntax(val, [<<48>>])
 
   def enc_extensionRequest(:derivation, _, _), do: exit({:error, {:"use of missing field in object", :derivation}})
 
-  def enc_extensionRequest(:"Type", val, _RestPrimFieldName), do: enc_ExtensionRequest(val, [<<48>>])
+  def enc_extensionRequest(:Type, val, _RestPrimFieldName), do: enc_ExtensionRequest(val, [<<48>>])
 
   def enc_extensionRequest(:"equality-match", _, _), do: exit({:error, {:"use of missing field in object", :"equality-match"}})
 
@@ -7424,7 +7424,7 @@ defmodule :"OTP-PUB-KEY" do
 
   def enc_failInfo(:derivation, _, _), do: exit({:error, {:"use of missing field in object", :derivation}})
 
-  def enc_failInfo(:"Type", val, _RestPrimFieldName), do: encode_restricted_string(val, [<<19>>])
+  def enc_failInfo(:Type, val, _RestPrimFieldName), do: encode_restricted_string(val, [<<19>>])
 
   def enc_failInfo(:"equality-match", _, _), do: exit({:error, {:"use of missing field in object", :"equality-match"}})
 
@@ -7432,45 +7432,45 @@ defmodule :"OTP-PUB-KEY" do
 
   def enc_failInfo(:"substrings-match", _, _), do: exit({:error, {:"use of missing field in object", :"substrings-match"}})
 
-  def unquote(:"enc_field-characteristic-two")(:"Type", val, _RestPrimFieldName), do: apply(__MODULE__, :"enc_Characteristic-two", [val, [<<48>>]])
+  def unquote(:"enc_field-characteristic-two")(:Type, val, _RestPrimFieldName), do: apply(__MODULE__, :"enc_Characteristic-two", [val, [<<48>>]])
 
-  def unquote(:"enc_field-prime-field")(:"Type", val, _RestPrimFieldName), do: apply(__MODULE__, :"enc_Prime-p", [val, [<<2>>]])
+  def unquote(:"enc_field-prime-field")(:Type, val, _RestPrimFieldName), do: apply(__MODULE__, :"enc_Prime-p", [val, [<<2>>]])
 
-  def enc_freshestCRL(:"Type", val, _RestPrimFieldName), do: enc_FreshestCRL(val, [<<48>>])
+  def enc_freshestCRL(:Type, val, _RestPrimFieldName), do: enc_FreshestCRL(val, [<<48>>])
 
-  def enc_generationQualifier(:"Type", val, _RestPrimFieldName), do: enc_X520name(val, [])
+  def enc_generationQualifier(:Type, val, _RestPrimFieldName), do: enc_X520name(val, [])
 
-  def enc_givenName(:"Type", val, _RestPrimFieldName), do: enc_X520name(val, [])
+  def enc_givenName(:Type, val, _RestPrimFieldName), do: enc_X520name(val, [])
 
-  def unquote(:"enc_gn-basis")(:"Type", val, _RestPrimFieldName), do: encode_null(val, [<<5>>])
+  def unquote(:"enc_gn-basis")(:Type, val, _RestPrimFieldName), do: encode_null(val, [<<5>>])
 
-  def enc_holdInstructionCode(:"Type", val, _RestPrimFieldName), do: enc_HoldInstructionCode(val, [<<6>>])
+  def enc_holdInstructionCode(:Type, val, _RestPrimFieldName), do: enc_HoldInstructionCode(val, [<<6>>])
 
-  def enc_inhibitAnyPolicy(:"Type", val, _RestPrimFieldName), do: enc_InhibitAnyPolicy(val, [<<2>>])
+  def enc_inhibitAnyPolicy(:Type, val, _RestPrimFieldName), do: enc_InhibitAnyPolicy(val, [<<2>>])
 
-  def enc_initials(:"Type", val, _RestPrimFieldName), do: enc_X520name(val, [])
+  def enc_initials(:Type, val, _RestPrimFieldName), do: enc_X520name(val, [])
 
-  def enc_invalidityDate(:"Type", val, _RestPrimFieldName), do: enc_InvalidityDate(val, [<<24>>])
+  def enc_invalidityDate(:Type, val, _RestPrimFieldName), do: enc_InvalidityDate(val, [<<24>>])
 
-  def enc_issuerAltName(:"Type", val, _RestPrimFieldName), do: enc_IssuerAltName(val, [<<48>>])
+  def enc_issuerAltName(:Type, val, _RestPrimFieldName), do: enc_IssuerAltName(val, [<<48>>])
 
-  def enc_issuingDistributionPoint(:"Type", val, _RestPrimFieldName), do: enc_IssuingDistributionPoint(val, [<<48>>])
+  def enc_issuingDistributionPoint(:Type, val, _RestPrimFieldName), do: enc_IssuingDistributionPoint(val, [<<48>>])
 
-  def enc_kea(:"Type", val, _RestPrimFieldName), do: apply(__MODULE__, :"enc_KEA-Parms-Id", [val, [<<4>>]])
+  def enc_kea(:Type, val, _RestPrimFieldName), do: apply(__MODULE__, :"enc_KEA-Parms-Id", [val, [<<4>>]])
 
-  def enc_kea(:"PublicKeyType", val, _RestPrimFieldName), do: apply(__MODULE__, :"enc_KEA-PublicKey", [val, [<<2>>]])
+  def enc_kea(:PublicKeyType, val, _RestPrimFieldName), do: apply(__MODULE__, :"enc_KEA-PublicKey", [val, [<<2>>]])
 
-  def enc_keyUsage(:"Type", val, _RestPrimFieldName), do: enc_KeyUsage(val, [<<3>>])
+  def enc_keyUsage(:Type, val, _RestPrimFieldName), do: enc_KeyUsage(val, [<<3>>])
 
-  def enc_localityName(:"Type", val, _RestPrimFieldName), do: enc_X520LocalityName(val, [])
+  def enc_localityName(:Type, val, _RestPrimFieldName), do: enc_X520LocalityName(val, [])
 
-  def unquote(:"enc_md2-with-rsa-encryption")(:"Type", val, _RestPrimFieldName), do: encode_null(val, [<<5>>])
+  def unquote(:"enc_md2-with-rsa-encryption")(:Type, val, _RestPrimFieldName), do: encode_null(val, [<<5>>])
 
-  def unquote(:"enc_md5-with-rsa-encryption")(:"Type", val, _RestPrimFieldName), do: encode_null(val, [<<5>>])
+  def unquote(:"enc_md5-with-rsa-encryption")(:Type, val, _RestPrimFieldName), do: encode_null(val, [<<5>>])
 
   def enc_messageDigest(:derivation, _, _), do: exit({:error, {:"use of missing field in object", :derivation}})
 
-  def enc_messageDigest(:"Type", val, _RestPrimFieldName), do: enc_MessageDigest(val, [<<4>>])
+  def enc_messageDigest(:Type, val, _RestPrimFieldName), do: enc_MessageDigest(val, [<<4>>])
 
   def enc_messageDigest(:"equality-match", _, _), do: exit({:error, {:"use of missing field in object", :"equality-match"}})
 
@@ -7480,7 +7480,7 @@ defmodule :"OTP-PUB-KEY" do
 
   def enc_messageType(:derivation, _, _), do: exit({:error, {:"use of missing field in object", :derivation}})
 
-  def enc_messageType(:"Type", val, _RestPrimFieldName), do: encode_restricted_string(val, [<<19>>])
+  def enc_messageType(:Type, val, _RestPrimFieldName), do: encode_restricted_string(val, [<<19>>])
 
   def enc_messageType(:"equality-match", _, _), do: exit({:error, {:"use of missing field in object", :"equality-match"}})
 
@@ -7488,17 +7488,17 @@ defmodule :"OTP-PUB-KEY" do
 
   def enc_messageType(:"substrings-match", _, _), do: exit({:error, {:"use of missing field in object", :"substrings-match"}})
 
-  def enc_name(:"Type", val, _RestPrimFieldName), do: enc_X520name(val, [])
+  def enc_name(:Type, val, _RestPrimFieldName), do: enc_X520name(val, [])
 
-  def enc_nameConstraints(:"Type", val, _RestPrimFieldName), do: enc_NameConstraints(val, [<<48>>])
+  def enc_nameConstraints(:Type, val, _RestPrimFieldName), do: enc_NameConstraints(val, [<<48>>])
 
-  def enc_organizationName(:"Type", val, _RestPrimFieldName), do: enc_X520OrganizationName(val, [])
+  def enc_organizationName(:Type, val, _RestPrimFieldName), do: enc_X520OrganizationName(val, [])
 
-  def enc_organizationalUnitName(:"Type", val, _RestPrimFieldName), do: enc_X520OrganizationalUnitName(val, [])
+  def enc_organizationalUnitName(:Type, val, _RestPrimFieldName), do: enc_X520OrganizationalUnitName(val, [])
 
   def enc_pkiStatus(:derivation, _, _), do: exit({:error, {:"use of missing field in object", :derivation}})
 
-  def enc_pkiStatus(:"Type", val, _RestPrimFieldName), do: encode_restricted_string(val, [<<19>>])
+  def enc_pkiStatus(:Type, val, _RestPrimFieldName), do: encode_restricted_string(val, [<<19>>])
 
   def enc_pkiStatus(:"equality-match", _, _), do: exit({:error, {:"use of missing field in object", :"equality-match"}})
 
@@ -7506,19 +7506,19 @@ defmodule :"OTP-PUB-KEY" do
 
   def enc_pkiStatus(:"substrings-match", _, _), do: exit({:error, {:"use of missing field in object", :"substrings-match"}})
 
-  def enc_policyConstraints(:"Type", val, _RestPrimFieldName), do: enc_PolicyConstraints(val, [<<48>>])
+  def enc_policyConstraints(:Type, val, _RestPrimFieldName), do: enc_PolicyConstraints(val, [<<48>>])
 
-  def enc_policyMappings(:"Type", val, _RestPrimFieldName), do: enc_PolicyMappings(val, [<<48>>])
+  def enc_policyMappings(:Type, val, _RestPrimFieldName), do: enc_PolicyMappings(val, [<<48>>])
 
-  def unquote(:"enc_pp-basis")(:"Type", val, _RestPrimFieldName), do: enc_Pentanomial(val, [<<48>>])
+  def unquote(:"enc_pp-basis")(:Type, val, _RestPrimFieldName), do: enc_Pentanomial(val, [<<48>>])
 
-  def enc_privateKeyUsagePeriod(:"Type", val, _RestPrimFieldName), do: enc_PrivateKeyUsagePeriod(val, [<<48>>])
+  def enc_privateKeyUsagePeriod(:Type, val, _RestPrimFieldName), do: enc_PrivateKeyUsagePeriod(val, [<<48>>])
 
-  def enc_pseudonym(:"Type", val, _RestPrimFieldName), do: enc_X520Pseudonym(val, [])
+  def enc_pseudonym(:Type, val, _RestPrimFieldName), do: enc_X520Pseudonym(val, [])
 
   def enc_recipientNonce(:derivation, _, _), do: exit({:error, {:"use of missing field in object", :derivation}})
 
-  def enc_recipientNonce(:"Type", val, _RestPrimFieldName), do: encode_restricted_string(val, [<<4>>])
+  def enc_recipientNonce(:Type, val, _RestPrimFieldName), do: encode_restricted_string(val, [<<4>>])
 
   def enc_recipientNonce(:"equality-match", _, _), do: exit({:error, {:"use of missing field in object", :"equality-match"}})
 
@@ -7526,13 +7526,13 @@ defmodule :"OTP-PUB-KEY" do
 
   def enc_recipientNonce(:"substrings-match", _, _), do: exit({:error, {:"use of missing field in object", :"substrings-match"}})
 
-  def unquote(:"enc_rsa-encryption")(:"Type", val, _RestPrimFieldName), do: encode_null(val, [<<5>>])
+  def unquote(:"enc_rsa-encryption")(:Type, val, _RestPrimFieldName), do: encode_null(val, [<<5>>])
 
-  def unquote(:"enc_rsa-encryption")(:"PublicKeyType", val, _RestPrimFieldName), do: enc_RSAPublicKey(val, [<<48>>])
+  def unquote(:"enc_rsa-encryption")(:PublicKeyType, val, _RestPrimFieldName), do: enc_RSAPublicKey(val, [<<48>>])
 
   def enc_senderNonce(:derivation, _, _), do: exit({:error, {:"use of missing field in object", :derivation}})
 
-  def enc_senderNonce(:"Type", val, _RestPrimFieldName), do: encode_restricted_string(val, [<<4>>])
+  def enc_senderNonce(:Type, val, _RestPrimFieldName), do: encode_restricted_string(val, [<<4>>])
 
   def enc_senderNonce(:"equality-match", _, _), do: exit({:error, {:"use of missing field in object", :"equality-match"}})
 
@@ -7540,23 +7540,23 @@ defmodule :"OTP-PUB-KEY" do
 
   def enc_senderNonce(:"substrings-match", _, _), do: exit({:error, {:"use of missing field in object", :"substrings-match"}})
 
-  def enc_serialNumber(:"Type", val, _RestPrimFieldName), do: enc_X520SerialNumber(val, [<<19>>])
+  def enc_serialNumber(:Type, val, _RestPrimFieldName), do: enc_X520SerialNumber(val, [<<19>>])
 
-  def unquote(:"enc_sha-1with-rsa-encryption")(:"Type", val, _RestPrimFieldName), do: encode_null(val, [<<5>>])
+  def unquote(:"enc_sha-1with-rsa-encryption")(:Type, val, _RestPrimFieldName), do: encode_null(val, [<<5>>])
 
-  def unquote(:"enc_sha1-with-rsa-encryption")(:"Type", val, _RestPrimFieldName), do: encode_null(val, [<<5>>])
+  def unquote(:"enc_sha1-with-rsa-encryption")(:Type, val, _RestPrimFieldName), do: encode_null(val, [<<5>>])
 
-  def unquote(:"enc_sha224-with-rsa-encryption")(:"Type", val, _RestPrimFieldName), do: encode_null(val, [<<5>>])
+  def unquote(:"enc_sha224-with-rsa-encryption")(:Type, val, _RestPrimFieldName), do: encode_null(val, [<<5>>])
 
-  def unquote(:"enc_sha256-with-rsa-encryption")(:"Type", val, _RestPrimFieldName), do: encode_null(val, [<<5>>])
+  def unquote(:"enc_sha256-with-rsa-encryption")(:Type, val, _RestPrimFieldName), do: encode_null(val, [<<5>>])
 
-  def unquote(:"enc_sha384-with-rsa-encryption")(:"Type", val, _RestPrimFieldName), do: encode_null(val, [<<5>>])
+  def unquote(:"enc_sha384-with-rsa-encryption")(:Type, val, _RestPrimFieldName), do: encode_null(val, [<<5>>])
 
-  def unquote(:"enc_sha512-with-rsa-encryption")(:"Type", val, _RestPrimFieldName), do: encode_null(val, [<<5>>])
+  def unquote(:"enc_sha512-with-rsa-encryption")(:Type, val, _RestPrimFieldName), do: encode_null(val, [<<5>>])
 
   def enc_signingTime(:derivation, _, _), do: exit({:error, {:"use of missing field in object", :derivation}})
 
-  def enc_signingTime(:"Type", val, _RestPrimFieldName), do: enc_SigningTime(val, [])
+  def enc_signingTime(:Type, val, _RestPrimFieldName), do: enc_SigningTime(val, [])
 
   def enc_signingTime(:"equality-match", _, _), do: exit({:error, {:"use of missing field in object", :"equality-match"}})
 
@@ -7564,25 +7564,25 @@ defmodule :"OTP-PUB-KEY" do
 
   def enc_signingTime(:"substrings-match", _, _), do: exit({:error, {:"use of missing field in object", :"substrings-match"}})
 
-  def enc_stateOrProvinceName(:"Type", val, _RestPrimFieldName), do: enc_X520StateOrProvinceName(val, [])
+  def enc_stateOrProvinceName(:Type, val, _RestPrimFieldName), do: enc_X520StateOrProvinceName(val, [])
 
-  def enc_subjectAltName(:"Type", val, _RestPrimFieldName), do: enc_SubjectAltName(val, [<<48>>])
+  def enc_subjectAltName(:Type, val, _RestPrimFieldName), do: enc_SubjectAltName(val, [<<48>>])
 
-  def enc_subjectDirectoryAttributes(:"Type", val, _RestPrimFieldName), do: enc_SubjectDirectoryAttributes(val, [<<48>>])
+  def enc_subjectDirectoryAttributes(:Type, val, _RestPrimFieldName), do: enc_SubjectDirectoryAttributes(val, [<<48>>])
 
-  def enc_subjectInfoAccess(:"Type", val, _RestPrimFieldName), do: enc_SubjectInfoAccessSyntax(val, [<<48>>])
+  def enc_subjectInfoAccess(:Type, val, _RestPrimFieldName), do: enc_SubjectInfoAccessSyntax(val, [<<48>>])
 
-  def enc_subjectKeyIdentifier(:"Type", val, _RestPrimFieldName), do: enc_SubjectKeyIdentifier(val, [<<4>>])
+  def enc_subjectKeyIdentifier(:Type, val, _RestPrimFieldName), do: enc_SubjectKeyIdentifier(val, [<<4>>])
 
-  def enc_surname(:"Type", val, _RestPrimFieldName), do: enc_X520name(val, [])
+  def enc_surname(:Type, val, _RestPrimFieldName), do: enc_X520name(val, [])
 
-  def enc_title(:"Type", val, _RestPrimFieldName), do: enc_X520Title(val, [])
+  def enc_title(:Type, val, _RestPrimFieldName), do: enc_X520Title(val, [])
 
-  def unquote(:"enc_tp-basis")(:"Type", val, _RestPrimFieldName), do: enc_Trinomial(val, [<<2>>])
+  def unquote(:"enc_tp-basis")(:Type, val, _RestPrimFieldName), do: enc_Trinomial(val, [<<2>>])
 
   def enc_transactionID(:derivation, _, _), do: exit({:error, {:"use of missing field in object", :derivation}})
 
-  def enc_transactionID(:"Type", val, _RestPrimFieldName), do: encode_restricted_string(val, [<<19>>])
+  def enc_transactionID(:Type, val, _RestPrimFieldName), do: encode_restricted_string(val, [<<19>>])
 
   def enc_transactionID(:"equality-match", _, _), do: exit({:error, {:"use of missing field in object", :"equality-match"}})
 
@@ -7590,47 +7590,47 @@ defmodule :"OTP-PUB-KEY" do
 
   def enc_transactionID(:"substrings-match", _, _), do: exit({:error, {:"use of missing field in object", :"substrings-match"}})
 
-  def unquote(:"enc_x400-common-name")(:"Type", val, _RestPrimFieldName), do: enc_CommonName(val, [<<19>>])
+  def unquote(:"enc_x400-common-name")(:Type, val, _RestPrimFieldName), do: enc_CommonName(val, [<<19>>])
 
-  def unquote(:"enc_x400-extended-network-address")(:"Type", val, _RestPrimFieldName), do: enc_ExtendedNetworkAddress(val, [])
+  def unquote(:"enc_x400-extended-network-address")(:Type, val, _RestPrimFieldName), do: enc_ExtendedNetworkAddress(val, [])
 
-  def unquote(:"enc_x400-extension-OR-address-components")(:"Type", val, _RestPrimFieldName), do: enc_ExtensionORAddressComponents(val, [<<49>>])
+  def unquote(:"enc_x400-extension-OR-address-components")(:Type, val, _RestPrimFieldName), do: enc_ExtensionORAddressComponents(val, [<<49>>])
 
-  def unquote(:"enc_x400-extension-physical-delivery-address-components")(:"Type", val, _RestPrimFieldName), do: enc_ExtensionPhysicalDeliveryAddressComponents(val, [<<49>>])
+  def unquote(:"enc_x400-extension-physical-delivery-address-components")(:Type, val, _RestPrimFieldName), do: enc_ExtensionPhysicalDeliveryAddressComponents(val, [<<49>>])
 
-  def unquote(:"enc_x400-local-postal-attributes")(:"Type", val, _RestPrimFieldName), do: enc_LocalPostalAttributes(val, [<<49>>])
+  def unquote(:"enc_x400-local-postal-attributes")(:Type, val, _RestPrimFieldName), do: enc_LocalPostalAttributes(val, [<<49>>])
 
-  def unquote(:"enc_x400-pds-name")(:"Type", val, _RestPrimFieldName), do: enc_PDSName(val, [<<19>>])
+  def unquote(:"enc_x400-pds-name")(:Type, val, _RestPrimFieldName), do: enc_PDSName(val, [<<19>>])
 
-  def unquote(:"enc_x400-physical-delivery-country-name")(:"Type", val, _RestPrimFieldName), do: enc_PhysicalDeliveryCountryName(val, [])
+  def unquote(:"enc_x400-physical-delivery-country-name")(:Type, val, _RestPrimFieldName), do: enc_PhysicalDeliveryCountryName(val, [])
 
-  def unquote(:"enc_x400-physical-delivery-office-name")(:"Type", val, _RestPrimFieldName), do: enc_PhysicalDeliveryOfficeName(val, [<<49>>])
+  def unquote(:"enc_x400-physical-delivery-office-name")(:Type, val, _RestPrimFieldName), do: enc_PhysicalDeliveryOfficeName(val, [<<49>>])
 
-  def unquote(:"enc_x400-physical-delivery-office-number")(:"Type", val, _RestPrimFieldName), do: enc_PhysicalDeliveryOfficeNumber(val, [<<49>>])
+  def unquote(:"enc_x400-physical-delivery-office-number")(:Type, val, _RestPrimFieldName), do: enc_PhysicalDeliveryOfficeNumber(val, [<<49>>])
 
-  def unquote(:"enc_x400-physical-delivery-organization-name")(:"Type", val, _RestPrimFieldName), do: enc_PhysicalDeliveryOrganizationName(val, [<<49>>])
+  def unquote(:"enc_x400-physical-delivery-organization-name")(:Type, val, _RestPrimFieldName), do: enc_PhysicalDeliveryOrganizationName(val, [<<49>>])
 
-  def unquote(:"enc_x400-physical-delivery-personal-name")(:"Type", val, _RestPrimFieldName), do: enc_PhysicalDeliveryPersonalName(val, [<<49>>])
+  def unquote(:"enc_x400-physical-delivery-personal-name")(:Type, val, _RestPrimFieldName), do: enc_PhysicalDeliveryPersonalName(val, [<<49>>])
 
-  def unquote(:"enc_x400-post-office-box-address")(:"Type", val, _RestPrimFieldName), do: enc_PostOfficeBoxAddress(val, [<<49>>])
+  def unquote(:"enc_x400-post-office-box-address")(:Type, val, _RestPrimFieldName), do: enc_PostOfficeBoxAddress(val, [<<49>>])
 
-  def unquote(:"enc_x400-postal-code")(:"Type", val, _RestPrimFieldName), do: enc_PostalCode(val, [])
+  def unquote(:"enc_x400-postal-code")(:Type, val, _RestPrimFieldName), do: enc_PostalCode(val, [])
 
-  def unquote(:"enc_x400-poste-restante-address")(:"Type", val, _RestPrimFieldName), do: enc_PosteRestanteAddress(val, [<<49>>])
+  def unquote(:"enc_x400-poste-restante-address")(:Type, val, _RestPrimFieldName), do: enc_PosteRestanteAddress(val, [<<49>>])
 
-  def unquote(:"enc_x400-street-address")(:"Type", val, _RestPrimFieldName), do: enc_StreetAddress(val, [<<49>>])
+  def unquote(:"enc_x400-street-address")(:Type, val, _RestPrimFieldName), do: enc_StreetAddress(val, [<<49>>])
 
-  def unquote(:"enc_x400-teletex-common-name")(:"Type", val, _RestPrimFieldName), do: enc_TeletexCommonName(val, [<<20>>])
+  def unquote(:"enc_x400-teletex-common-name")(:Type, val, _RestPrimFieldName), do: enc_TeletexCommonName(val, [<<20>>])
 
-  def unquote(:"enc_x400-teletex-domain-defined-attributes")(:"Type", val, _RestPrimFieldName), do: enc_TeletexDomainDefinedAttributes(val, [<<48>>])
+  def unquote(:"enc_x400-teletex-domain-defined-attributes")(:Type, val, _RestPrimFieldName), do: enc_TeletexDomainDefinedAttributes(val, [<<48>>])
 
-  def unquote(:"enc_x400-teletex-personal-name")(:"Type", val, _RestPrimFieldName), do: enc_TeletexPersonalName(val, [<<49>>])
+  def unquote(:"enc_x400-teletex-personal-name")(:Type, val, _RestPrimFieldName), do: enc_TeletexPersonalName(val, [<<49>>])
 
-  def unquote(:"enc_x400-terminal-type")(:"Type", val, _RestPrimFieldName), do: enc_TerminalType(val, [<<2>>])
+  def unquote(:"enc_x400-terminal-type")(:Type, val, _RestPrimFieldName), do: enc_TerminalType(val, [<<2>>])
 
-  def unquote(:"enc_x400-unformatted-postal-address")(:"Type", val, _RestPrimFieldName), do: enc_UnformattedPostalAddress(val, [<<49>>])
+  def unquote(:"enc_x400-unformatted-postal-address")(:Type, val, _RestPrimFieldName), do: enc_UnformattedPostalAddress(val, [<<49>>])
 
-  def unquote(:"enc_x400-unique-postal-name")(:"Type", val, _RestPrimFieldName), do: enc_UniquePostalName(val, [<<49>>])
+  def unquote(:"enc_x400-unique-postal-name")(:Type, val, _RestPrimFieldName), do: enc_UniquePostalName(val, [<<49>>])
 
   def encode(type, data) do
     try do
@@ -7716,7 +7716,7 @@ defmodule :"OTP-PUB-KEY" do
   def getdec_Contents({1, 2, 840, 113549, 1, 7, 1}) do
     fn type, bytes, _RestPrimFieldName ->
         case type do
-          :"Type" ->
+          :Type ->
             dec_Data(bytes)
         end
     end
@@ -7725,7 +7725,7 @@ defmodule :"OTP-PUB-KEY" do
   def getdec_Contents({1, 2, 840, 113549, 1, 7, 2}) do
     fn type, bytes, _RestPrimFieldName ->
         case type do
-          :"Type" ->
+          :Type ->
             dec_SignedData(bytes)
         end
     end
@@ -7734,7 +7734,7 @@ defmodule :"OTP-PUB-KEY" do
   def getdec_Contents({1, 2, 840, 113549, 1, 7, 3}) do
     fn type, bytes, _RestPrimFieldName ->
         case type do
-          :"Type" ->
+          :Type ->
             dec_EnvelopedData(bytes)
         end
     end
@@ -7743,7 +7743,7 @@ defmodule :"OTP-PUB-KEY" do
   def getdec_Contents({1, 2, 840, 113549, 1, 7, 4}) do
     fn type, bytes, _RestPrimFieldName ->
         case type do
-          :"Type" ->
+          :Type ->
             dec_SignedAndEnvelopedData(bytes)
         end
     end
@@ -7752,7 +7752,7 @@ defmodule :"OTP-PUB-KEY" do
   def getdec_Contents({1, 2, 840, 113549, 1, 7, 5}) do
     fn type, bytes, _RestPrimFieldName ->
         case type do
-          :"Type" ->
+          :Type ->
             dec_DigestedData(bytes)
         end
     end
@@ -7761,7 +7761,7 @@ defmodule :"OTP-PUB-KEY" do
   def getdec_Contents({1, 2, 840, 113549, 1, 7, 6}) do
     fn type, bytes, _RestPrimFieldName ->
         case type do
-          :"Type" ->
+          :Type ->
             dec_EncryptedData(bytes)
         end
     end
@@ -8307,7 +8307,7 @@ defmodule :"OTP-PUB-KEY" do
   def getenc_Contents({1, 2, 840, 113549, 1, 7, 1}) do
     fn type, val, _RestPrimFieldName ->
         case type do
-          :"Type" ->
+          :Type ->
             enc_Data(val)
         end
     end
@@ -8316,7 +8316,7 @@ defmodule :"OTP-PUB-KEY" do
   def getenc_Contents({1, 2, 840, 113549, 1, 7, 2}) do
     fn type, val, _RestPrimFieldName ->
         case type do
-          :"Type" ->
+          :Type ->
             enc_SignedData(val)
         end
     end
@@ -8325,7 +8325,7 @@ defmodule :"OTP-PUB-KEY" do
   def getenc_Contents({1, 2, 840, 113549, 1, 7, 3}) do
     fn type, val, _RestPrimFieldName ->
         case type do
-          :"Type" ->
+          :Type ->
             enc_EnvelopedData(val)
         end
     end
@@ -8334,7 +8334,7 @@ defmodule :"OTP-PUB-KEY" do
   def getenc_Contents({1, 2, 840, 113549, 1, 7, 4}) do
     fn type, val, _RestPrimFieldName ->
         case type do
-          :"Type" ->
+          :Type ->
             enc_SignedAndEnvelopedData(val)
         end
     end
@@ -8343,7 +8343,7 @@ defmodule :"OTP-PUB-KEY" do
   def getenc_Contents({1, 2, 840, 113549, 1, 7, 5}) do
     fn type, val, _RestPrimFieldName ->
         case type do
-          :"Type" ->
+          :Type ->
             enc_DigestedData(val)
         end
     end
@@ -8352,7 +8352,7 @@ defmodule :"OTP-PUB-KEY" do
   def getenc_Contents({1, 2, 840, 113549, 1, 7, 6}) do
     fn type, val, _RestPrimFieldName ->
         case type do
-          :"Type" ->
+          :Type ->
             enc_EncryptedData(val)
         end
     end
@@ -10945,7 +10945,7 @@ defmodule :"OTP-PUB-KEY" do
   defp unquote(:"dec-inc-Certificate")(tlv, tagIn) do
     tlv1 = match_tags(tlv, tagIn)
     [v1 | tlv2] = tlv1
-    term1 = {:"Certificate_tbsCertificate", v1}
+    term1 = {:Certificate_tbsCertificate, v1}
     [v2 | tlv3] = tlv2
     term2 = dec_AlgorithmIdentifier(v2, [16])
     [v3 | tlv4] = tlv3
@@ -10956,7 +10956,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"Certificate", term1, term2, term3}
+    res1 = {:Certificate, term1, term2, term3}
     res1
   end
 
@@ -10965,7 +10965,7 @@ defmodule :"OTP-PUB-KEY" do
   defp unquote(:"dec-inc-CertificateList")(tlv, tagIn) do
     tlv1 = match_tags(tlv, tagIn)
     [v1 | tlv2] = tlv1
-    term1 = {:"CertificateList_tbsCertList", v1}
+    term1 = {:CertificateList_tbsCertList, v1}
     [v2 | tlv3] = tlv2
     term2 = dec_AlgorithmIdentifier(v2, [16])
     [v3 | tlv4] = tlv3
@@ -10976,7 +10976,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"CertificateList", term1, term2, term3}
+    res1 = {:CertificateList, term1, term2, term3}
     res1
   end
 
@@ -11115,12 +11115,12 @@ defmodule :"OTP-PUB-KEY" do
     tlv1 = match_tags(tlv, tagIn)
     for v1 <- tlv1 do
       (tmptlv1 = decode_open_type(v1, []); try do
-      objFun.(:"Type", tmptlv1, [])
+      objFun.(:Type, tmptlv1, [])
     catch
       error -> error
     end
     |> case do
-      {:"EXIT", reason1} ->
+      {:EXIT, reason1} ->
         exit({:"Type not compatible with table constraint", reason1})
       tmpterm1 ->
         tmpterm1
@@ -11140,7 +11140,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"CertificationRequestInfo_subjectPKInfo", term1, term2}
+    res1 = {:CertificationRequestInfo_subjectPKInfo, term1, term2}
     res1
   end
 
@@ -11160,12 +11160,12 @@ defmodule :"OTP-PUB-KEY" do
         :asn1_NOVALUE
       _ ->
         try do
-          decObjalgorithmTerm1.(:"Type", tmpterm1, [])
+          decObjalgorithmTerm1.(:Type, tmpterm1, [])
         catch
           error -> error
         end
         |> case do
-          {:"EXIT", reason1} ->
+          {:EXIT, reason1} ->
             exit({:"Type not compatible with table constraint", reason1})
           tmpterm2 ->
             tmpterm2
@@ -11177,7 +11177,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"CertificationRequestInfo_subjectPKInfo_algorithm", term1, term2}
+    res1 = {:CertificationRequestInfo_subjectPKInfo_algorithm, term1, term2}
     res1
   end
 
@@ -11197,12 +11197,12 @@ defmodule :"OTP-PUB-KEY" do
         :asn1_NOVALUE
       _ ->
         try do
-          decObjalgorithmTerm1.(:"Type", tmpterm1, [])
+          decObjalgorithmTerm1.(:Type, tmpterm1, [])
         catch
           error -> error
         end
         |> case do
-          {:"EXIT", reason1} ->
+          {:EXIT, reason1} ->
             exit({:"Type not compatible with table constraint", reason1})
           tmpterm2 ->
             tmpterm2
@@ -11214,7 +11214,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"CertificationRequest_signatureAlgorithm", term1, term2}
+    res1 = {:CertificationRequest_signatureAlgorithm, term1, term2}
     res1
   end
 
@@ -11519,12 +11519,12 @@ defmodule :"OTP-PUB-KEY" do
         :asn1_NOVALUE
       _ ->
         try do
-          decObjalgoTerm1.(:"Type", tmpterm1, [])
+          decObjalgoTerm1.(:Type, tmpterm1, [])
         catch
           error -> error
         end
         |> case do
-          {:"EXIT", reason1} ->
+          {:EXIT, reason1} ->
             exit({:"Type not compatible with table constraint", reason1})
           tmpterm2 ->
             tmpterm2
@@ -11536,7 +11536,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"OTPOLDSubjectPublicKeyInfo_algorithm", term1, term2}
+    res1 = {:OTPOLDSubjectPublicKeyInfo_algorithm, term1, term2}
     res1
   end
 
@@ -11603,7 +11603,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv3}}})
     end
-    res1 = {:"PolicyMappings_SEQOF", term1, term2}
+    res1 = {:PolicyMappings_SEQOF, term1, term2}
     res1
   end
 
@@ -11782,12 +11782,12 @@ defmodule :"OTP-PUB-KEY" do
     tlv1 = match_tags(tlv, tagIn)
     for v1 <- tlv1 do
       (tmptlv1 = decode_open_type(v1, []); try do
-      objFun.(:"Type", tmptlv1, [])
+      objFun.(:Type, tmptlv1, [])
     catch
       error -> error
     end
     |> case do
-      {:"EXIT", reason1} ->
+      {:EXIT, reason1} ->
         exit({:"Type not compatible with table constraint", reason1})
       tmpterm1 ->
         tmpterm1
@@ -11823,12 +11823,12 @@ defmodule :"OTP-PUB-KEY" do
     tlv1 = match_tags(tlv, tagIn)
     for v1 <- tlv1 do
       (tmptlv1 = decode_open_type(v1, []); try do
-      objFun.(:"Type", tmptlv1, [])
+      objFun.(:Type, tmptlv1, [])
     catch
       error -> error
     end
     |> case do
-      {:"EXIT", reason1} ->
+      {:EXIT, reason1} ->
         exit({:"Type not compatible with table constraint", reason1})
       tmpterm1 ->
         tmpterm1
@@ -11882,12 +11882,12 @@ defmodule :"OTP-PUB-KEY" do
     tlv1 = match_tags(tlv, tagIn)
     for v1 <- tlv1 do
       (tmptlv1 = decode_open_type(v1, []); try do
-      objFun.(:"Type", tmptlv1, [])
+      objFun.(:Type, tmptlv1, [])
     catch
       error -> error
     end
     |> case do
-      {:"EXIT", reason1} ->
+      {:EXIT, reason1} ->
         exit({:"Type not compatible with table constraint", reason1})
       tmpterm1 ->
         tmpterm1
@@ -11923,12 +11923,12 @@ defmodule :"OTP-PUB-KEY" do
     tlv1 = match_tags(tlv, tagIn)
     for v1 <- tlv1 do
       (tmptlv1 = decode_open_type(v1, []); try do
-      objFun.(:"Type", tmptlv1, [])
+      objFun.(:Type, tmptlv1, [])
     catch
       error -> error
     end
     |> case do
-      {:"EXIT", reason1} ->
+      {:EXIT, reason1} ->
         exit({:"Type not compatible with table constraint", reason1})
       tmpterm1 ->
         tmpterm1
@@ -11997,7 +11997,7 @@ defmodule :"OTP-PUB-KEY" do
       _ ->
         exit({:error, {:asn1, {:unexpected, tlv4}}})
     end
-    res1 = {:"TBSCertList_revokedCertificates_SEQOF", term1, term2, term3}
+    res1 = {:TBSCertList_revokedCertificates_SEQOF, term1, term2, term3}
     res1
   end
 
@@ -12207,49 +12207,49 @@ defmodule :"OTP-PUB-KEY" do
     decode_constructed_indefinite(rest, [tlv | acc])
   end
 
-  defp decode_disp(:"ECPrivateKey", data), do: dec_ECPrivateKey(data)
+  defp decode_disp(:ECPrivateKey, data), do: dec_ECPrivateKey(data)
 
-  defp decode_disp(:"DSAPrivateKey", data), do: dec_DSAPrivateKey(data)
+  defp decode_disp(:DSAPrivateKey, data), do: dec_DSAPrivateKey(data)
 
-  defp decode_disp(:"DHParameter", data), do: dec_DHParameter(data)
+  defp decode_disp(:DHParameter, data), do: dec_DHParameter(data)
 
-  defp decode_disp(:"DigestInfoNull", data), do: dec_DigestInfoNull(data)
+  defp decode_disp(:DigestInfoNull, data), do: dec_DigestInfoNull(data)
 
   defp decode_disp(:"DigestInfoPKCS-1", data), do: apply(__MODULE__, :"dec_DigestInfoPKCS-1", [data])
 
-  defp decode_disp(:"TrailerField", data), do: dec_TrailerField(data)
+  defp decode_disp(:TrailerField, data), do: dec_TrailerField(data)
 
   defp decode_disp(:"RSASSA-PSS-params", data), do: apply(__MODULE__, :"dec_RSASSA-PSS-params", [data])
 
-  defp decode_disp(:"AlgorithmNull", data), do: dec_AlgorithmNull(data)
+  defp decode_disp(:AlgorithmNull, data), do: dec_AlgorithmNull(data)
 
-  defp decode_disp(:"Algorithm", data), do: dec_Algorithm(data)
+  defp decode_disp(:Algorithm, data), do: dec_Algorithm(data)
 
-  defp decode_disp(:"OtherPrimeInfo", data), do: dec_OtherPrimeInfo(data)
+  defp decode_disp(:OtherPrimeInfo, data), do: dec_OtherPrimeInfo(data)
 
-  defp decode_disp(:"OtherPrimeInfos", data), do: dec_OtherPrimeInfos(data)
+  defp decode_disp(:OtherPrimeInfos, data), do: dec_OtherPrimeInfos(data)
 
   defp decode_disp(:"VersionPKCS-1", data), do: apply(__MODULE__, :"dec_VersionPKCS-1", [data])
 
-  defp decode_disp(:"RSAPrivateKey", data), do: dec_RSAPrivateKey(data)
+  defp decode_disp(:RSAPrivateKey, data), do: dec_RSAPrivateKey(data)
 
-  defp decode_disp(:"RSAPublicKey", data), do: dec_RSAPublicKey(data)
+  defp decode_disp(:RSAPublicKey, data), do: dec_RSAPublicKey(data)
 
-  defp decode_disp(:"Curve", data), do: dec_Curve(data)
+  defp decode_disp(:Curve, data), do: dec_Curve(data)
 
-  defp decode_disp(:"ECPVer", data), do: dec_ECPVer(data)
+  defp decode_disp(:ECPVer, data), do: dec_ECPVer(data)
 
-  defp decode_disp(:"ECParameters", data), do: dec_ECParameters(data)
+  defp decode_disp(:ECParameters, data), do: dec_ECParameters(data)
 
-  defp decode_disp(:"EcpkParameters", data), do: dec_EcpkParameters(data)
+  defp decode_disp(:EcpkParameters, data), do: dec_EcpkParameters(data)
 
-  defp decode_disp(:"ECPoint", data), do: dec_ECPoint(data)
+  defp decode_disp(:ECPoint, data), do: dec_ECPoint(data)
 
-  defp decode_disp(:"FieldElement", data), do: dec_FieldElement(data)
+  defp decode_disp(:FieldElement, data), do: dec_FieldElement(data)
 
-  defp decode_disp(:"Pentanomial", data), do: dec_Pentanomial(data)
+  defp decode_disp(:Pentanomial, data), do: dec_Pentanomial(data)
 
-  defp decode_disp(:"Trinomial", data), do: dec_Trinomial(data)
+  defp decode_disp(:Trinomial, data), do: dec_Trinomial(data)
 
   defp decode_disp(:"Characteristic-two", data), do: apply(__MODULE__, :"dec_Characteristic-two", [data])
 
@@ -12257,441 +12257,441 @@ defmodule :"OTP-PUB-KEY" do
 
   defp decode_disp(:"ECDSA-Sig-Value", data), do: apply(__MODULE__, :"dec_ECDSA-Sig-Value", [data])
 
-  defp decode_disp(:"FieldID", data), do: dec_FieldID(data)
+  defp decode_disp(:FieldID, data), do: dec_FieldID(data)
 
   defp decode_disp(:"KEA-Parms-Id", data), do: apply(__MODULE__, :"dec_KEA-Parms-Id", [data])
 
-  defp decode_disp(:"ValidationParms", data), do: dec_ValidationParms(data)
+  defp decode_disp(:ValidationParms, data), do: dec_ValidationParms(data)
 
-  defp decode_disp(:"DomainParameters", data), do: dec_DomainParameters(data)
+  defp decode_disp(:DomainParameters, data), do: dec_DomainParameters(data)
 
-  defp decode_disp(:"DHPublicKey", data), do: dec_DHPublicKey(data)
+  defp decode_disp(:DHPublicKey, data), do: dec_DHPublicKey(data)
 
   defp decode_disp(:"Dss-Sig-Value", data), do: apply(__MODULE__, :"dec_Dss-Sig-Value", [data])
 
   defp decode_disp(:"Dss-Parms", data), do: apply(__MODULE__, :"dec_Dss-Parms", [data])
 
-  defp decode_disp(:"DSAPublicKey", data), do: dec_DSAPublicKey(data)
+  defp decode_disp(:DSAPublicKey, data), do: dec_DSAPublicKey(data)
 
-  defp decode_disp(:"ProxyInfo", data), do: dec_ProxyInfo(data)
+  defp decode_disp(:ProxyInfo, data), do: dec_ProxyInfo(data)
 
-  defp decode_disp(:"ACClearAttrs", data), do: dec_ACClearAttrs(data)
+  defp decode_disp(:ACClearAttrs, data), do: dec_ACClearAttrs(data)
 
-  defp decode_disp(:"AttrSpec", data), do: dec_AttrSpec(data)
+  defp decode_disp(:AttrSpec, data), do: dec_AttrSpec(data)
 
-  defp decode_disp(:"AAControls", data), do: dec_AAControls(data)
+  defp decode_disp(:AAControls, data), do: dec_AAControls(data)
 
-  defp decode_disp(:"SecurityCategory", data), do: dec_SecurityCategory(data)
+  defp decode_disp(:SecurityCategory, data), do: dec_SecurityCategory(data)
 
-  defp decode_disp(:"ClassList", data), do: dec_ClassList(data)
+  defp decode_disp(:ClassList, data), do: dec_ClassList(data)
 
-  defp decode_disp(:"Clearance", data), do: dec_Clearance(data)
+  defp decode_disp(:Clearance, data), do: dec_Clearance(data)
 
-  defp decode_disp(:"RoleSyntax", data), do: dec_RoleSyntax(data)
+  defp decode_disp(:RoleSyntax, data), do: dec_RoleSyntax(data)
 
-  defp decode_disp(:"SvceAuthInfo", data), do: dec_SvceAuthInfo(data)
+  defp decode_disp(:SvceAuthInfo, data), do: dec_SvceAuthInfo(data)
 
-  defp decode_disp(:"IetfAttrSyntax", data), do: dec_IetfAttrSyntax(data)
+  defp decode_disp(:IetfAttrSyntax, data), do: dec_IetfAttrSyntax(data)
 
-  defp decode_disp(:"TargetCert", data), do: dec_TargetCert(data)
+  defp decode_disp(:TargetCert, data), do: dec_TargetCert(data)
 
-  defp decode_disp(:"Target", data), do: dec_Target(data)
+  defp decode_disp(:Target, data), do: dec_Target(data)
 
-  defp decode_disp(:"Targets", data), do: dec_Targets(data)
+  defp decode_disp(:Targets, data), do: dec_Targets(data)
 
-  defp decode_disp(:"AttCertValidityPeriod", data), do: dec_AttCertValidityPeriod(data)
+  defp decode_disp(:AttCertValidityPeriod, data), do: dec_AttCertValidityPeriod(data)
 
-  defp decode_disp(:"IssuerSerial", data), do: dec_IssuerSerial(data)
+  defp decode_disp(:IssuerSerial, data), do: dec_IssuerSerial(data)
 
-  defp decode_disp(:"V2Form", data), do: dec_V2Form(data)
+  defp decode_disp(:V2Form, data), do: dec_V2Form(data)
 
-  defp decode_disp(:"AttCertIssuer", data), do: dec_AttCertIssuer(data)
+  defp decode_disp(:AttCertIssuer, data), do: dec_AttCertIssuer(data)
 
-  defp decode_disp(:"ObjectDigestInfo", data), do: dec_ObjectDigestInfo(data)
+  defp decode_disp(:ObjectDigestInfo, data), do: dec_ObjectDigestInfo(data)
 
-  defp decode_disp(:"Holder", data), do: dec_Holder(data)
+  defp decode_disp(:Holder, data), do: dec_Holder(data)
 
-  defp decode_disp(:"AttCertVersion", data), do: dec_AttCertVersion(data)
+  defp decode_disp(:AttCertVersion, data), do: dec_AttCertVersion(data)
 
-  defp decode_disp(:"AttributeCertificateInfo", data), do: dec_AttributeCertificateInfo(data)
+  defp decode_disp(:AttributeCertificateInfo, data), do: dec_AttributeCertificateInfo(data)
 
-  defp decode_disp(:"AttributeCertificate", data), do: dec_AttributeCertificate(data)
+  defp decode_disp(:AttributeCertificate, data), do: dec_AttributeCertificate(data)
 
-  defp decode_disp(:"InvalidityDate", data), do: dec_InvalidityDate(data)
+  defp decode_disp(:InvalidityDate, data), do: dec_InvalidityDate(data)
 
-  defp decode_disp(:"HoldInstructionCode", data), do: dec_HoldInstructionCode(data)
+  defp decode_disp(:HoldInstructionCode, data), do: dec_HoldInstructionCode(data)
 
-  defp decode_disp(:"CertificateIssuer", data), do: dec_CertificateIssuer(data)
+  defp decode_disp(:CertificateIssuer, data), do: dec_CertificateIssuer(data)
 
-  defp decode_disp(:"CRLReason", data), do: dec_CRLReason(data)
+  defp decode_disp(:CRLReason, data), do: dec_CRLReason(data)
 
-  defp decode_disp(:"BaseCRLNumber", data), do: dec_BaseCRLNumber(data)
+  defp decode_disp(:BaseCRLNumber, data), do: dec_BaseCRLNumber(data)
 
-  defp decode_disp(:"IssuingDistributionPoint", data), do: dec_IssuingDistributionPoint(data)
+  defp decode_disp(:IssuingDistributionPoint, data), do: dec_IssuingDistributionPoint(data)
 
-  defp decode_disp(:"CRLNumber", data), do: dec_CRLNumber(data)
+  defp decode_disp(:CRLNumber, data), do: dec_CRLNumber(data)
 
-  defp decode_disp(:"SubjectInfoAccessSyntax", data), do: dec_SubjectInfoAccessSyntax(data)
+  defp decode_disp(:SubjectInfoAccessSyntax, data), do: dec_SubjectInfoAccessSyntax(data)
 
-  defp decode_disp(:"AccessDescription", data), do: dec_AccessDescription(data)
+  defp decode_disp(:AccessDescription, data), do: dec_AccessDescription(data)
 
-  defp decode_disp(:"AuthorityInfoAccessSyntax", data), do: dec_AuthorityInfoAccessSyntax(data)
+  defp decode_disp(:AuthorityInfoAccessSyntax, data), do: dec_AuthorityInfoAccessSyntax(data)
 
-  defp decode_disp(:"FreshestCRL", data), do: dec_FreshestCRL(data)
+  defp decode_disp(:FreshestCRL, data), do: dec_FreshestCRL(data)
 
-  defp decode_disp(:"InhibitAnyPolicy", data), do: dec_InhibitAnyPolicy(data)
+  defp decode_disp(:InhibitAnyPolicy, data), do: dec_InhibitAnyPolicy(data)
 
-  defp decode_disp(:"KeyPurposeId", data), do: dec_KeyPurposeId(data)
+  defp decode_disp(:KeyPurposeId, data), do: dec_KeyPurposeId(data)
 
-  defp decode_disp(:"ExtKeyUsageSyntax", data), do: dec_ExtKeyUsageSyntax(data)
+  defp decode_disp(:ExtKeyUsageSyntax, data), do: dec_ExtKeyUsageSyntax(data)
 
-  defp decode_disp(:"ReasonFlags", data), do: dec_ReasonFlags(data)
+  defp decode_disp(:ReasonFlags, data), do: dec_ReasonFlags(data)
 
-  defp decode_disp(:"DistributionPointName", data), do: dec_DistributionPointName(data)
+  defp decode_disp(:DistributionPointName, data), do: dec_DistributionPointName(data)
 
-  defp decode_disp(:"DistributionPoint", data), do: dec_DistributionPoint(data)
+  defp decode_disp(:DistributionPoint, data), do: dec_DistributionPoint(data)
 
-  defp decode_disp(:"CRLDistributionPoints", data), do: dec_CRLDistributionPoints(data)
+  defp decode_disp(:CRLDistributionPoints, data), do: dec_CRLDistributionPoints(data)
 
-  defp decode_disp(:"SkipCerts", data), do: dec_SkipCerts(data)
+  defp decode_disp(:SkipCerts, data), do: dec_SkipCerts(data)
 
-  defp decode_disp(:"PolicyConstraints", data), do: dec_PolicyConstraints(data)
+  defp decode_disp(:PolicyConstraints, data), do: dec_PolicyConstraints(data)
 
-  defp decode_disp(:"BaseDistance", data), do: dec_BaseDistance(data)
+  defp decode_disp(:BaseDistance, data), do: dec_BaseDistance(data)
 
-  defp decode_disp(:"GeneralSubtree", data), do: dec_GeneralSubtree(data)
+  defp decode_disp(:GeneralSubtree, data), do: dec_GeneralSubtree(data)
 
-  defp decode_disp(:"GeneralSubtrees", data), do: dec_GeneralSubtrees(data)
+  defp decode_disp(:GeneralSubtrees, data), do: dec_GeneralSubtrees(data)
 
-  defp decode_disp(:"NameConstraints", data), do: dec_NameConstraints(data)
+  defp decode_disp(:NameConstraints, data), do: dec_NameConstraints(data)
 
-  defp decode_disp(:"BasicConstraints", data), do: dec_BasicConstraints(data)
+  defp decode_disp(:BasicConstraints, data), do: dec_BasicConstraints(data)
 
-  defp decode_disp(:"SubjectDirectoryAttributes", data), do: dec_SubjectDirectoryAttributes(data)
+  defp decode_disp(:SubjectDirectoryAttributes, data), do: dec_SubjectDirectoryAttributes(data)
 
-  defp decode_disp(:"IssuerAltName", data), do: dec_IssuerAltName(data)
+  defp decode_disp(:IssuerAltName, data), do: dec_IssuerAltName(data)
 
-  defp decode_disp(:"EDIPartyName", data), do: dec_EDIPartyName(data)
+  defp decode_disp(:EDIPartyName, data), do: dec_EDIPartyName(data)
 
-  defp decode_disp(:"AnotherName", data), do: dec_AnotherName(data)
+  defp decode_disp(:AnotherName, data), do: dec_AnotherName(data)
 
-  defp decode_disp(:"GeneralName", data), do: dec_GeneralName(data)
+  defp decode_disp(:GeneralName, data), do: dec_GeneralName(data)
 
-  defp decode_disp(:"GeneralNames", data), do: dec_GeneralNames(data)
+  defp decode_disp(:GeneralNames, data), do: dec_GeneralNames(data)
 
-  defp decode_disp(:"SubjectAltName", data), do: dec_SubjectAltName(data)
+  defp decode_disp(:SubjectAltName, data), do: dec_SubjectAltName(data)
 
-  defp decode_disp(:"PolicyMappings", data), do: dec_PolicyMappings(data)
+  defp decode_disp(:PolicyMappings, data), do: dec_PolicyMappings(data)
 
-  defp decode_disp(:"DisplayText", data), do: dec_DisplayText(data)
+  defp decode_disp(:DisplayText, data), do: dec_DisplayText(data)
 
-  defp decode_disp(:"NoticeReference", data), do: dec_NoticeReference(data)
+  defp decode_disp(:NoticeReference, data), do: dec_NoticeReference(data)
 
-  defp decode_disp(:"UserNotice", data), do: dec_UserNotice(data)
+  defp decode_disp(:UserNotice, data), do: dec_UserNotice(data)
 
-  defp decode_disp(:"CPSuri", data), do: dec_CPSuri(data)
+  defp decode_disp(:CPSuri, data), do: dec_CPSuri(data)
 
-  defp decode_disp(:"PolicyQualifierId", data), do: dec_PolicyQualifierId(data)
+  defp decode_disp(:PolicyQualifierId, data), do: dec_PolicyQualifierId(data)
 
-  defp decode_disp(:"PolicyQualifierInfo", data), do: dec_PolicyQualifierInfo(data)
+  defp decode_disp(:PolicyQualifierInfo, data), do: dec_PolicyQualifierInfo(data)
 
-  defp decode_disp(:"CertPolicyId", data), do: dec_CertPolicyId(data)
+  defp decode_disp(:CertPolicyId, data), do: dec_CertPolicyId(data)
 
-  defp decode_disp(:"PolicyInformation", data), do: dec_PolicyInformation(data)
+  defp decode_disp(:PolicyInformation, data), do: dec_PolicyInformation(data)
 
-  defp decode_disp(:"CertificatePolicies", data), do: dec_CertificatePolicies(data)
+  defp decode_disp(:CertificatePolicies, data), do: dec_CertificatePolicies(data)
 
-  defp decode_disp(:"PrivateKeyUsagePeriod", data), do: dec_PrivateKeyUsagePeriod(data)
+  defp decode_disp(:PrivateKeyUsagePeriod, data), do: dec_PrivateKeyUsagePeriod(data)
 
-  defp decode_disp(:"KeyUsage", data), do: dec_KeyUsage(data)
+  defp decode_disp(:KeyUsage, data), do: dec_KeyUsage(data)
 
-  defp decode_disp(:"SubjectKeyIdentifier", data), do: dec_SubjectKeyIdentifier(data)
+  defp decode_disp(:SubjectKeyIdentifier, data), do: dec_SubjectKeyIdentifier(data)
 
-  defp decode_disp(:"KeyIdentifier", data), do: dec_KeyIdentifier(data)
+  defp decode_disp(:KeyIdentifier, data), do: dec_KeyIdentifier(data)
 
-  defp decode_disp(:"AuthorityKeyIdentifier", data), do: dec_AuthorityKeyIdentifier(data)
+  defp decode_disp(:AuthorityKeyIdentifier, data), do: dec_AuthorityKeyIdentifier(data)
 
-  defp decode_disp(:"EncryptedData", data), do: dec_EncryptedData(data)
+  defp decode_disp(:EncryptedData, data), do: dec_EncryptedData(data)
 
-  defp decode_disp(:"DigestedData", data), do: dec_DigestedData(data)
+  defp decode_disp(:DigestedData, data), do: dec_DigestedData(data)
 
-  defp decode_disp(:"SignedAndEnvelopedData", data), do: dec_SignedAndEnvelopedData(data)
+  defp decode_disp(:SignedAndEnvelopedData, data), do: dec_SignedAndEnvelopedData(data)
 
-  defp decode_disp(:"EncryptedKey", data), do: dec_EncryptedKey(data)
+  defp decode_disp(:EncryptedKey, data), do: dec_EncryptedKey(data)
 
-  defp decode_disp(:"RecipientInfo", data), do: dec_RecipientInfo(data)
+  defp decode_disp(:RecipientInfo, data), do: dec_RecipientInfo(data)
 
-  defp decode_disp(:"EncryptedContent", data), do: dec_EncryptedContent(data)
+  defp decode_disp(:EncryptedContent, data), do: dec_EncryptedContent(data)
 
-  defp decode_disp(:"EncryptedContentInfo", data), do: dec_EncryptedContentInfo(data)
+  defp decode_disp(:EncryptedContentInfo, data), do: dec_EncryptedContentInfo(data)
 
-  defp decode_disp(:"RecipientInfos", data), do: dec_RecipientInfos(data)
+  defp decode_disp(:RecipientInfos, data), do: dec_RecipientInfos(data)
 
-  defp decode_disp(:"EnvelopedData", data), do: dec_EnvelopedData(data)
+  defp decode_disp(:EnvelopedData, data), do: dec_EnvelopedData(data)
 
-  defp decode_disp(:"Digest", data), do: dec_Digest(data)
+  defp decode_disp(:Digest, data), do: dec_Digest(data)
 
   defp decode_disp(:"DigestInfoPKCS-7", data), do: apply(__MODULE__, :"dec_DigestInfoPKCS-7", [data])
 
-  defp decode_disp(:"EncryptedDigest", data), do: dec_EncryptedDigest(data)
+  defp decode_disp(:EncryptedDigest, data), do: dec_EncryptedDigest(data)
 
-  defp decode_disp(:"SignerInfo", data), do: dec_SignerInfo(data)
+  defp decode_disp(:SignerInfo, data), do: dec_SignerInfo(data)
 
-  defp decode_disp(:"DigestAlgorithmIdentifiers", data), do: dec_DigestAlgorithmIdentifiers(data)
+  defp decode_disp(:DigestAlgorithmIdentifiers, data), do: dec_DigestAlgorithmIdentifiers(data)
 
-  defp decode_disp(:"SignerInfos", data), do: dec_SignerInfos(data)
+  defp decode_disp(:SignerInfos, data), do: dec_SignerInfos(data)
 
-  defp decode_disp(:"SignedData", data), do: dec_SignedData(data)
+  defp decode_disp(:SignedData, data), do: dec_SignedData(data)
 
-  defp decode_disp(:"Data", data), do: dec_Data(data)
+  defp decode_disp(:Data, data), do: dec_Data(data)
 
-  defp decode_disp(:"ContentType", data), do: dec_ContentType(data)
+  defp decode_disp(:ContentType, data), do: dec_ContentType(data)
 
-  defp decode_disp(:"ContentInfo", data), do: dec_ContentInfo(data)
+  defp decode_disp(:ContentInfo, data), do: dec_ContentInfo(data)
 
-  defp decode_disp(:"KeyEncryptionAlgorithmIdentifier", data), do: dec_KeyEncryptionAlgorithmIdentifier(data)
+  defp decode_disp(:KeyEncryptionAlgorithmIdentifier, data), do: dec_KeyEncryptionAlgorithmIdentifier(data)
 
-  defp decode_disp(:"IssuerAndSerialNumber", data), do: dec_IssuerAndSerialNumber(data)
+  defp decode_disp(:IssuerAndSerialNumber, data), do: dec_IssuerAndSerialNumber(data)
 
-  defp decode_disp(:"ExtendedCertificatesAndCertificates", data), do: dec_ExtendedCertificatesAndCertificates(data)
+  defp decode_disp(:ExtendedCertificatesAndCertificates, data), do: dec_ExtendedCertificatesAndCertificates(data)
 
-  defp decode_disp(:"ExtendedCertificate", data), do: dec_ExtendedCertificate(data)
+  defp decode_disp(:ExtendedCertificate, data), do: dec_ExtendedCertificate(data)
 
-  defp decode_disp(:"ExtendedCertificateOrCertificate", data), do: dec_ExtendedCertificateOrCertificate(data)
+  defp decode_disp(:ExtendedCertificateOrCertificate, data), do: dec_ExtendedCertificateOrCertificate(data)
 
-  defp decode_disp(:"DigestEncryptionAlgorithmIdentifier", data), do: dec_DigestEncryptionAlgorithmIdentifier(data)
+  defp decode_disp(:DigestEncryptionAlgorithmIdentifier, data), do: dec_DigestEncryptionAlgorithmIdentifier(data)
 
-  defp decode_disp(:"DigestAlgorithmIdentifier", data), do: dec_DigestAlgorithmIdentifier(data)
+  defp decode_disp(:DigestAlgorithmIdentifier, data), do: dec_DigestAlgorithmIdentifier(data)
 
-  defp decode_disp(:"ContentEncryptionAlgorithmIdentifier", data), do: dec_ContentEncryptionAlgorithmIdentifier(data)
+  defp decode_disp(:ContentEncryptionAlgorithmIdentifier, data), do: dec_ContentEncryptionAlgorithmIdentifier(data)
 
-  defp decode_disp(:"CRLSequence", data), do: dec_CRLSequence(data)
+  defp decode_disp(:CRLSequence, data), do: dec_CRLSequence(data)
 
-  defp decode_disp(:"Certificates", data), do: dec_Certificates(data)
+  defp decode_disp(:Certificates, data), do: dec_Certificates(data)
 
-  defp decode_disp(:"CertificateRevocationLists", data), do: dec_CertificateRevocationLists(data)
+  defp decode_disp(:CertificateRevocationLists, data), do: dec_CertificateRevocationLists(data)
 
-  defp decode_disp(:"SignerInfoAuthenticatedAttributes", data), do: dec_SignerInfoAuthenticatedAttributes(data)
+  defp decode_disp(:SignerInfoAuthenticatedAttributes, data), do: dec_SignerInfoAuthenticatedAttributes(data)
 
-  defp decode_disp(:"SigningTime", data), do: dec_SigningTime(data)
+  defp decode_disp(:SigningTime, data), do: dec_SigningTime(data)
 
-  defp decode_disp(:"MessageDigest", data), do: dec_MessageDigest(data)
+  defp decode_disp(:MessageDigest, data), do: dec_MessageDigest(data)
 
-  defp decode_disp(:"CertificationRequest", data), do: dec_CertificationRequest(data)
+  defp decode_disp(:CertificationRequest, data), do: dec_CertificationRequest(data)
 
-  defp decode_disp(:"CertificationRequestInfo", data), do: dec_CertificationRequestInfo(data)
+  defp decode_disp(:CertificationRequestInfo, data), do: dec_CertificationRequestInfo(data)
 
-  defp decode_disp(:"ExtensionRequest", data), do: dec_ExtensionRequest(data)
+  defp decode_disp(:ExtensionRequest, data), do: dec_ExtensionRequest(data)
 
-  defp decode_disp(:"TeletexDomainDefinedAttribute", data), do: dec_TeletexDomainDefinedAttribute(data)
+  defp decode_disp(:TeletexDomainDefinedAttribute, data), do: dec_TeletexDomainDefinedAttribute(data)
 
-  defp decode_disp(:"TeletexDomainDefinedAttributes", data), do: dec_TeletexDomainDefinedAttributes(data)
+  defp decode_disp(:TeletexDomainDefinedAttributes, data), do: dec_TeletexDomainDefinedAttributes(data)
 
-  defp decode_disp(:"TerminalType", data), do: dec_TerminalType(data)
+  defp decode_disp(:TerminalType, data), do: dec_TerminalType(data)
 
-  defp decode_disp(:"PresentationAddress", data), do: dec_PresentationAddress(data)
+  defp decode_disp(:PresentationAddress, data), do: dec_PresentationAddress(data)
 
-  defp decode_disp(:"ExtendedNetworkAddress", data), do: dec_ExtendedNetworkAddress(data)
+  defp decode_disp(:ExtendedNetworkAddress, data), do: dec_ExtendedNetworkAddress(data)
 
-  defp decode_disp(:"PDSParameter", data), do: dec_PDSParameter(data)
+  defp decode_disp(:PDSParameter, data), do: dec_PDSParameter(data)
 
-  defp decode_disp(:"LocalPostalAttributes", data), do: dec_LocalPostalAttributes(data)
+  defp decode_disp(:LocalPostalAttributes, data), do: dec_LocalPostalAttributes(data)
 
-  defp decode_disp(:"UniquePostalName", data), do: dec_UniquePostalName(data)
+  defp decode_disp(:UniquePostalName, data), do: dec_UniquePostalName(data)
 
-  defp decode_disp(:"PosteRestanteAddress", data), do: dec_PosteRestanteAddress(data)
+  defp decode_disp(:PosteRestanteAddress, data), do: dec_PosteRestanteAddress(data)
 
-  defp decode_disp(:"PostOfficeBoxAddress", data), do: dec_PostOfficeBoxAddress(data)
+  defp decode_disp(:PostOfficeBoxAddress, data), do: dec_PostOfficeBoxAddress(data)
 
-  defp decode_disp(:"StreetAddress", data), do: dec_StreetAddress(data)
+  defp decode_disp(:StreetAddress, data), do: dec_StreetAddress(data)
 
-  defp decode_disp(:"UnformattedPostalAddress", data), do: dec_UnformattedPostalAddress(data)
+  defp decode_disp(:UnformattedPostalAddress, data), do: dec_UnformattedPostalAddress(data)
 
-  defp decode_disp(:"ExtensionPhysicalDeliveryAddressComponents", data), do: dec_ExtensionPhysicalDeliveryAddressComponents(data)
+  defp decode_disp(:ExtensionPhysicalDeliveryAddressComponents, data), do: dec_ExtensionPhysicalDeliveryAddressComponents(data)
 
-  defp decode_disp(:"PhysicalDeliveryOrganizationName", data), do: dec_PhysicalDeliveryOrganizationName(data)
+  defp decode_disp(:PhysicalDeliveryOrganizationName, data), do: dec_PhysicalDeliveryOrganizationName(data)
 
-  defp decode_disp(:"PhysicalDeliveryPersonalName", data), do: dec_PhysicalDeliveryPersonalName(data)
+  defp decode_disp(:PhysicalDeliveryPersonalName, data), do: dec_PhysicalDeliveryPersonalName(data)
 
-  defp decode_disp(:"ExtensionORAddressComponents", data), do: dec_ExtensionORAddressComponents(data)
+  defp decode_disp(:ExtensionORAddressComponents, data), do: dec_ExtensionORAddressComponents(data)
 
-  defp decode_disp(:"PhysicalDeliveryOfficeNumber", data), do: dec_PhysicalDeliveryOfficeNumber(data)
+  defp decode_disp(:PhysicalDeliveryOfficeNumber, data), do: dec_PhysicalDeliveryOfficeNumber(data)
 
-  defp decode_disp(:"PhysicalDeliveryOfficeName", data), do: dec_PhysicalDeliveryOfficeName(data)
+  defp decode_disp(:PhysicalDeliveryOfficeName, data), do: dec_PhysicalDeliveryOfficeName(data)
 
-  defp decode_disp(:"PostalCode", data), do: dec_PostalCode(data)
+  defp decode_disp(:PostalCode, data), do: dec_PostalCode(data)
 
-  defp decode_disp(:"PhysicalDeliveryCountryName", data), do: dec_PhysicalDeliveryCountryName(data)
+  defp decode_disp(:PhysicalDeliveryCountryName, data), do: dec_PhysicalDeliveryCountryName(data)
 
-  defp decode_disp(:"PDSName", data), do: dec_PDSName(data)
+  defp decode_disp(:PDSName, data), do: dec_PDSName(data)
 
-  defp decode_disp(:"TeletexOrganizationalUnitName", data), do: dec_TeletexOrganizationalUnitName(data)
+  defp decode_disp(:TeletexOrganizationalUnitName, data), do: dec_TeletexOrganizationalUnitName(data)
 
-  defp decode_disp(:"TeletexOrganizationalUnitNames", data), do: dec_TeletexOrganizationalUnitNames(data)
+  defp decode_disp(:TeletexOrganizationalUnitNames, data), do: dec_TeletexOrganizationalUnitNames(data)
 
-  defp decode_disp(:"TeletexPersonalName", data), do: dec_TeletexPersonalName(data)
+  defp decode_disp(:TeletexPersonalName, data), do: dec_TeletexPersonalName(data)
 
-  defp decode_disp(:"TeletexOrganizationName", data), do: dec_TeletexOrganizationName(data)
+  defp decode_disp(:TeletexOrganizationName, data), do: dec_TeletexOrganizationName(data)
 
-  defp decode_disp(:"TeletexCommonName", data), do: dec_TeletexCommonName(data)
+  defp decode_disp(:TeletexCommonName, data), do: dec_TeletexCommonName(data)
 
-  defp decode_disp(:"CommonName", data), do: dec_CommonName(data)
+  defp decode_disp(:CommonName, data), do: dec_CommonName(data)
 
-  defp decode_disp(:"ExtensionAttribute", data), do: dec_ExtensionAttribute(data)
+  defp decode_disp(:ExtensionAttribute, data), do: dec_ExtensionAttribute(data)
 
-  defp decode_disp(:"ExtensionAttributes", data), do: dec_ExtensionAttributes(data)
+  defp decode_disp(:ExtensionAttributes, data), do: dec_ExtensionAttributes(data)
 
-  defp decode_disp(:"BuiltInDomainDefinedAttribute", data), do: dec_BuiltInDomainDefinedAttribute(data)
+  defp decode_disp(:BuiltInDomainDefinedAttribute, data), do: dec_BuiltInDomainDefinedAttribute(data)
 
-  defp decode_disp(:"BuiltInDomainDefinedAttributes", data), do: dec_BuiltInDomainDefinedAttributes(data)
+  defp decode_disp(:BuiltInDomainDefinedAttributes, data), do: dec_BuiltInDomainDefinedAttributes(data)
 
-  defp decode_disp(:"OrganizationalUnitName", data), do: dec_OrganizationalUnitName(data)
+  defp decode_disp(:OrganizationalUnitName, data), do: dec_OrganizationalUnitName(data)
 
-  defp decode_disp(:"OrganizationalUnitNames", data), do: dec_OrganizationalUnitNames(data)
+  defp decode_disp(:OrganizationalUnitNames, data), do: dec_OrganizationalUnitNames(data)
 
-  defp decode_disp(:"PersonalName", data), do: dec_PersonalName(data)
+  defp decode_disp(:PersonalName, data), do: dec_PersonalName(data)
 
-  defp decode_disp(:"NumericUserIdentifier", data), do: dec_NumericUserIdentifier(data)
+  defp decode_disp(:NumericUserIdentifier, data), do: dec_NumericUserIdentifier(data)
 
-  defp decode_disp(:"OrganizationName", data), do: dec_OrganizationName(data)
+  defp decode_disp(:OrganizationName, data), do: dec_OrganizationName(data)
 
-  defp decode_disp(:"PrivateDomainName", data), do: dec_PrivateDomainName(data)
+  defp decode_disp(:PrivateDomainName, data), do: dec_PrivateDomainName(data)
 
-  defp decode_disp(:"TerminalIdentifier", data), do: dec_TerminalIdentifier(data)
+  defp decode_disp(:TerminalIdentifier, data), do: dec_TerminalIdentifier(data)
 
-  defp decode_disp(:"X121Address", data), do: dec_X121Address(data)
+  defp decode_disp(:X121Address, data), do: dec_X121Address(data)
 
-  defp decode_disp(:"NetworkAddress", data), do: dec_NetworkAddress(data)
+  defp decode_disp(:NetworkAddress, data), do: dec_NetworkAddress(data)
 
-  defp decode_disp(:"AdministrationDomainName", data), do: dec_AdministrationDomainName(data)
+  defp decode_disp(:AdministrationDomainName, data), do: dec_AdministrationDomainName(data)
 
-  defp decode_disp(:"CountryName", data), do: dec_CountryName(data)
+  defp decode_disp(:CountryName, data), do: dec_CountryName(data)
 
-  defp decode_disp(:"BuiltInStandardAttributes", data), do: dec_BuiltInStandardAttributes(data)
+  defp decode_disp(:BuiltInStandardAttributes, data), do: dec_BuiltInStandardAttributes(data)
 
-  defp decode_disp(:"ORAddress", data), do: dec_ORAddress(data)
+  defp decode_disp(:ORAddress, data), do: dec_ORAddress(data)
 
-  defp decode_disp(:"AlgorithmIdentifier", data), do: dec_AlgorithmIdentifier(data)
+  defp decode_disp(:AlgorithmIdentifier, data), do: dec_AlgorithmIdentifier(data)
 
-  defp decode_disp(:"TBSCertList", data), do: dec_TBSCertList(data)
+  defp decode_disp(:TBSCertList, data), do: dec_TBSCertList(data)
 
-  defp decode_disp(:"CertificateList", data), do: dec_CertificateList(data)
+  defp decode_disp(:CertificateList, data), do: dec_CertificateList(data)
 
-  defp decode_disp(:"Extension", data), do: dec_Extension(data)
+  defp decode_disp(:Extension, data), do: dec_Extension(data)
 
-  defp decode_disp(:"Extensions", data), do: dec_Extensions(data)
+  defp decode_disp(:Extensions, data), do: dec_Extensions(data)
 
-  defp decode_disp(:"SubjectPublicKeyInfo", data), do: dec_SubjectPublicKeyInfo(data)
+  defp decode_disp(:SubjectPublicKeyInfo, data), do: dec_SubjectPublicKeyInfo(data)
 
-  defp decode_disp(:"UniqueIdentifier", data), do: dec_UniqueIdentifier(data)
+  defp decode_disp(:UniqueIdentifier, data), do: dec_UniqueIdentifier(data)
 
-  defp decode_disp(:"Time", data), do: dec_Time(data)
+  defp decode_disp(:Time, data), do: dec_Time(data)
 
-  defp decode_disp(:"Validity", data), do: dec_Validity(data)
+  defp decode_disp(:Validity, data), do: dec_Validity(data)
 
-  defp decode_disp(:"CertificateSerialNumber", data), do: dec_CertificateSerialNumber(data)
+  defp decode_disp(:CertificateSerialNumber, data), do: dec_CertificateSerialNumber(data)
 
-  defp decode_disp(:"VersionPKIX1Explicit88", data), do: dec_VersionPKIX1Explicit88(data)
+  defp decode_disp(:VersionPKIX1Explicit88, data), do: dec_VersionPKIX1Explicit88(data)
 
-  defp decode_disp(:"TBSCertificate", data), do: dec_TBSCertificate(data)
+  defp decode_disp(:TBSCertificate, data), do: dec_TBSCertificate(data)
 
-  defp decode_disp(:"Certificate", data), do: dec_Certificate(data)
+  defp decode_disp(:Certificate, data), do: dec_Certificate(data)
 
-  defp decode_disp(:"DirectoryString", data), do: dec_DirectoryString(data)
+  defp decode_disp(:DirectoryString, data), do: dec_DirectoryString(data)
 
-  defp decode_disp(:"RelativeDistinguishedName", data), do: dec_RelativeDistinguishedName(data)
+  defp decode_disp(:RelativeDistinguishedName, data), do: dec_RelativeDistinguishedName(data)
 
-  defp decode_disp(:"DistinguishedName", data), do: dec_DistinguishedName(data)
+  defp decode_disp(:DistinguishedName, data), do: dec_DistinguishedName(data)
 
-  defp decode_disp(:"RDNSequence", data), do: dec_RDNSequence(data)
+  defp decode_disp(:RDNSequence, data), do: dec_RDNSequence(data)
 
-  defp decode_disp(:"Name", data), do: dec_Name(data)
+  defp decode_disp(:Name, data), do: dec_Name(data)
 
-  defp decode_disp(:"EmailAddress", data), do: dec_EmailAddress(data)
+  defp decode_disp(:EmailAddress, data), do: dec_EmailAddress(data)
 
-  defp decode_disp(:"DomainComponent", data), do: dec_DomainComponent(data)
+  defp decode_disp(:DomainComponent, data), do: dec_DomainComponent(data)
 
-  defp decode_disp(:"X520Pseudonym", data), do: dec_X520Pseudonym(data)
+  defp decode_disp(:X520Pseudonym, data), do: dec_X520Pseudonym(data)
 
-  defp decode_disp(:"X520SerialNumber", data), do: dec_X520SerialNumber(data)
+  defp decode_disp(:X520SerialNumber, data), do: dec_X520SerialNumber(data)
 
-  defp decode_disp(:"X520countryName", data), do: dec_X520countryName(data)
+  defp decode_disp(:X520countryName, data), do: dec_X520countryName(data)
 
-  defp decode_disp(:"X520dnQualifier", data), do: dec_X520dnQualifier(data)
+  defp decode_disp(:X520dnQualifier, data), do: dec_X520dnQualifier(data)
 
-  defp decode_disp(:"X520Title", data), do: dec_X520Title(data)
+  defp decode_disp(:X520Title, data), do: dec_X520Title(data)
 
-  defp decode_disp(:"X520OrganizationalUnitName", data), do: dec_X520OrganizationalUnitName(data)
+  defp decode_disp(:X520OrganizationalUnitName, data), do: dec_X520OrganizationalUnitName(data)
 
-  defp decode_disp(:"X520OrganizationName", data), do: dec_X520OrganizationName(data)
+  defp decode_disp(:X520OrganizationName, data), do: dec_X520OrganizationName(data)
 
-  defp decode_disp(:"X520StateOrProvinceName", data), do: dec_X520StateOrProvinceName(data)
+  defp decode_disp(:X520StateOrProvinceName, data), do: dec_X520StateOrProvinceName(data)
 
-  defp decode_disp(:"X520LocalityName", data), do: dec_X520LocalityName(data)
+  defp decode_disp(:X520LocalityName, data), do: dec_X520LocalityName(data)
 
-  defp decode_disp(:"X520CommonName", data), do: dec_X520CommonName(data)
+  defp decode_disp(:X520CommonName, data), do: dec_X520CommonName(data)
 
-  defp decode_disp(:"X520name", data), do: dec_X520name(data)
+  defp decode_disp(:X520name, data), do: dec_X520name(data)
 
-  defp decode_disp(:"AttributeTypeAndValue", data), do: dec_AttributeTypeAndValue(data)
+  defp decode_disp(:AttributeTypeAndValue, data), do: dec_AttributeTypeAndValue(data)
 
-  defp decode_disp(:"AttributeValue", data), do: dec_AttributeValue(data)
+  defp decode_disp(:AttributeValue, data), do: dec_AttributeValue(data)
 
-  defp decode_disp(:"AttributeType", data), do: dec_AttributeType(data)
+  defp decode_disp(:AttributeType, data), do: dec_AttributeType(data)
 
-  defp decode_disp(:"Attribute", data), do: dec_Attribute(data)
+  defp decode_disp(:Attribute, data), do: dec_Attribute(data)
 
   defp decode_disp(:"Extension-Any", data), do: apply(__MODULE__, :"dec_Extension-Any", [data])
 
-  defp decode_disp(:"Any", data), do: dec_Any(data)
+  defp decode_disp(:Any, data), do: dec_Any(data)
 
-  defp decode_disp(:"Boolean", data), do: dec_Boolean(data)
+  defp decode_disp(:Boolean, data), do: dec_Boolean(data)
 
-  defp decode_disp(:"ObjId", data), do: dec_ObjId(data)
+  defp decode_disp(:ObjId, data), do: dec_ObjId(data)
 
-  defp decode_disp(:"OTPExtension", data), do: dec_OTPExtension(data)
+  defp decode_disp(:OTPExtension, data), do: dec_OTPExtension(data)
 
-  defp decode_disp(:"OTPExtensions", data), do: dec_OTPExtensions(data)
+  defp decode_disp(:OTPExtensions, data), do: dec_OTPExtensions(data)
 
-  defp decode_disp(:"OTPExtensionAttribute", data), do: dec_OTPExtensionAttribute(data)
+  defp decode_disp(:OTPExtensionAttribute, data), do: dec_OTPExtensionAttribute(data)
 
-  defp decode_disp(:"OTPExtensionAttributes", data), do: dec_OTPExtensionAttributes(data)
+  defp decode_disp(:OTPExtensionAttributes, data), do: dec_OTPExtensionAttributes(data)
 
   defp decode_disp(:"OTPCharacteristic-two", data), do: apply(__MODULE__, :"dec_OTPCharacteristic-two", [data])
 
-  defp decode_disp(:"OTPFieldID", data), do: dec_OTPFieldID(data)
+  defp decode_disp(:OTPFieldID, data), do: dec_OTPFieldID(data)
 
   defp decode_disp(:"KEA-PublicKey", data), do: apply(__MODULE__, :"dec_KEA-PublicKey", [data])
 
-  defp decode_disp(:"DSAParams", data), do: dec_DSAParams(data)
+  defp decode_disp(:DSAParams, data), do: dec_DSAParams(data)
 
-  defp decode_disp(:"PublicKeyAlgorithm", data), do: dec_PublicKeyAlgorithm(data)
+  defp decode_disp(:PublicKeyAlgorithm, data), do: dec_PublicKeyAlgorithm(data)
 
   defp decode_disp(:"SignatureAlgorithm-Any", data), do: apply(__MODULE__, :"dec_SignatureAlgorithm-Any", [data])
 
-  defp decode_disp(:"SignatureAlgorithm", data), do: dec_SignatureAlgorithm(data)
+  defp decode_disp(:SignatureAlgorithm, data), do: dec_SignatureAlgorithm(data)
 
   defp decode_disp(:"OTPSubjectPublicKeyInfo-Any", data), do: apply(__MODULE__, :"dec_OTPSubjectPublicKeyInfo-Any", [data])
 
-  defp decode_disp(:"OTPSubjectPublicKeyInfo", data), do: dec_OTPSubjectPublicKeyInfo(data)
+  defp decode_disp(:OTPSubjectPublicKeyInfo, data), do: dec_OTPSubjectPublicKeyInfo(data)
 
-  defp decode_disp(:"OTPOLDSubjectPublicKeyInfo", data), do: dec_OTPOLDSubjectPublicKeyInfo(data)
+  defp decode_disp(:OTPOLDSubjectPublicKeyInfo, data), do: dec_OTPOLDSubjectPublicKeyInfo(data)
 
   defp decode_disp(:"OTP-emailAddress", data), do: apply(__MODULE__, :"dec_OTP-emailAddress", [data])
 
   defp decode_disp(:"OTP-X520countryname", data), do: apply(__MODULE__, :"dec_OTP-X520countryname", [data])
 
-  defp decode_disp(:"OTPAttributeTypeAndValue", data), do: dec_OTPAttributeTypeAndValue(data)
+  defp decode_disp(:OTPAttributeTypeAndValue, data), do: dec_OTPAttributeTypeAndValue(data)
 
-  defp decode_disp(:"OTPTBSCertificate", data), do: dec_OTPTBSCertificate(data)
+  defp decode_disp(:OTPTBSCertificate, data), do: dec_OTPTBSCertificate(data)
 
-  defp decode_disp(:"OTPCertificate", data), do: dec_OTPCertificate(data)
+  defp decode_disp(:OTPCertificate, data), do: dec_OTPCertificate(data)
 
   defp decode_disp(type, _Data), do: exit({:error, {:asn1, {:undefined_type, type}}})
 
-  defp decode_inc_disp(:"CertificateList_tbsCertList", data), do: dec_TBSCertList(data, [16])
+  defp decode_inc_disp(:CertificateList_tbsCertList, data), do: dec_TBSCertList(data, [16])
 
-  defp decode_inc_disp(:"Certificate_tbsCertificate", data), do: dec_TBSCertificate(data, [16])
+  defp decode_inc_disp(:Certificate_tbsCertificate, data), do: dec_TBSCertificate(data, [16])
 
   defp decode_incomplete2(_Form = 2, tagNo, v, tagMatch, _) do
     {vlist, rest2} = decode_constr_indef_incomplete(tagMatch, v, [])
@@ -12750,7 +12750,7 @@ defmodule :"OTP-PUB-KEY" do
     val = match_tags(tlv, tags)
     case val do
       <<>> ->
-        :"NULL"
+        :NULL
       _ ->
         exit({:error, {:asn1, {:decode_null, val}}})
     end
@@ -12787,9 +12787,9 @@ defmodule :"OTP-PUB-KEY" do
 
   defp decode_open_type_as_binary(tlv, tagIn), do: ber_encode(match_tags(tlv, tagIn))
 
-  defp decode_partial_inc_disp(:"Certificate", data), do: apply(__MODULE__, :"dec-inc-Certificate", [data])
+  defp decode_partial_inc_disp(:Certificate, data), do: apply(__MODULE__, :"dec-inc-Certificate", [data])
 
-  defp decode_partial_inc_disp(:"CertificateList", data), do: apply(__MODULE__, :"dec-inc-CertificateList", [data])
+  defp decode_partial_inc_disp(:CertificateList, data), do: apply(__MODULE__, :"dec-inc-CertificateList", [data])
 
   defp decode_partial_incomplete(type, data0, pattern) do
     {data, _RestBin} = decode_primitive_incomplete(pattern, data0)
@@ -12799,9 +12799,9 @@ defmodule :"OTP-PUB-KEY" do
       error -> error
     end
     |> case do
-      {:"EXIT", {:error, reason}} ->
+      {:EXIT, {:error, reason}} ->
         {:error, reason}
-      {:"EXIT", reason} ->
+      {:EXIT, reason} ->
         {:error, {:asn1, reason}}
       result ->
         {:ok, result}
@@ -13216,7 +13216,7 @@ defmodule :"OTP-PUB-KEY" do
   defp unquote(:"enc_CertificationRequestInfo_attributes_AttributePKCS-10_values_components")([], _, accBytes, accLen), do: {dynamicsort_SETOF(accBytes), accLen}
 
   defp unquote(:"enc_CertificationRequestInfo_attributes_AttributePKCS-10_values_components")([h | t], objFun, accBytes, accLen) do
-    {tmpBytes, _} = objFun.(:"Type", h, [])
+    {tmpBytes, _} = objFun.(:Type, h, [])
     {encBytes, encLen} = encode_open_type(tmpBytes, [])
     apply(__MODULE__, :"enc_CertificationRequestInfo_attributes_AttributePKCS-10_values_components", [t, objFun, [encBytes | accBytes], accLen + encLen])
   end
@@ -13245,7 +13245,7 @@ defmodule :"OTP-PUB-KEY" do
       :asn1_NOVALUE ->
         {<<>>, 0}
       _ ->
-        {tmpBytes2, _} = objalgorithm.(:"Type", cindex2, [])
+        {tmpBytes2, _} = objalgorithm.(:Type, cindex2, [])
         encode_open_type(tmpBytes2, [])
     end
     bytesSoFar = [encBytes1, encBytes2]
@@ -13261,7 +13261,7 @@ defmodule :"OTP-PUB-KEY" do
       :asn1_NOVALUE ->
         {<<>>, 0}
       _ ->
-        {tmpBytes2, _} = objalgorithm.(:"Type", cindex2, [])
+        {tmpBytes2, _} = objalgorithm.(:Type, cindex2, [])
         encode_open_type(tmpBytes2, [])
     end
     bytesSoFar = [encBytes1, encBytes2]
@@ -13621,7 +13621,7 @@ defmodule :"OTP-PUB-KEY" do
       :asn1_NOVALUE ->
         {<<>>, 0}
       _ ->
-        {tmpBytes2, _} = objalgo.(:"Type", cindex2, [])
+        {tmpBytes2, _} = objalgo.(:Type, cindex2, [])
         encode_open_type(tmpBytes2, [])
     end
     bytesSoFar = [encBytes1, encBytes2]
@@ -13897,7 +13897,7 @@ defmodule :"OTP-PUB-KEY" do
   defp unquote(:"enc_SignerInfoAuthenticatedAttributes_aaSequence_AttributePKCS-7_values_components")([], _, accBytes, accLen), do: {dynamicsort_SETOF(accBytes), accLen}
 
   defp unquote(:"enc_SignerInfoAuthenticatedAttributes_aaSequence_AttributePKCS-7_values_components")([h | t], objFun, accBytes, accLen) do
-    {tmpBytes, _} = objFun.(:"Type", h, [])
+    {tmpBytes, _} = objFun.(:Type, h, [])
     {encBytes, encLen} = encode_open_type(tmpBytes, [])
     apply(__MODULE__, :"enc_SignerInfoAuthenticatedAttributes_aaSequence_AttributePKCS-7_values_components", [t, objFun, [encBytes | accBytes], accLen + encLen])
   end
@@ -13932,7 +13932,7 @@ defmodule :"OTP-PUB-KEY" do
   defp unquote(:"enc_SignerInfoAuthenticatedAttributes_aaSet_AttributePKCS-7_values_components")([], _, accBytes, accLen), do: {dynamicsort_SETOF(accBytes), accLen}
 
   defp unquote(:"enc_SignerInfoAuthenticatedAttributes_aaSet_AttributePKCS-7_values_components")([h | t], objFun, accBytes, accLen) do
-    {tmpBytes, _} = objFun.(:"Type", h, [])
+    {tmpBytes, _} = objFun.(:Type, h, [])
     {encBytes, encLen} = encode_open_type(tmpBytes, [])
     apply(__MODULE__, :"enc_SignerInfoAuthenticatedAttributes_aaSet_AttributePKCS-7_values_components", [t, objFun, [encBytes | accBytes], accLen + encLen])
   end
@@ -13979,7 +13979,7 @@ defmodule :"OTP-PUB-KEY" do
   defp unquote(:"enc_SignerInfo_unauthenticatedAttributes_uaSequence_AttributePKCS-7_values_components")([], _, accBytes, accLen), do: {dynamicsort_SETOF(accBytes), accLen}
 
   defp unquote(:"enc_SignerInfo_unauthenticatedAttributes_uaSequence_AttributePKCS-7_values_components")([h | t], objFun, accBytes, accLen) do
-    {tmpBytes, _} = objFun.(:"Type", h, [])
+    {tmpBytes, _} = objFun.(:Type, h, [])
     {encBytes, encLen} = encode_open_type(tmpBytes, [])
     apply(__MODULE__, :"enc_SignerInfo_unauthenticatedAttributes_uaSequence_AttributePKCS-7_values_components", [t, objFun, [encBytes | accBytes], accLen + encLen])
   end
@@ -14014,7 +14014,7 @@ defmodule :"OTP-PUB-KEY" do
   defp unquote(:"enc_SignerInfo_unauthenticatedAttributes_uaSet_AttributePKCS-7_values_components")([], _, accBytes, accLen), do: {dynamicsort_SETOF(accBytes), accLen}
 
   defp unquote(:"enc_SignerInfo_unauthenticatedAttributes_uaSet_AttributePKCS-7_values_components")([h | t], objFun, accBytes, accLen) do
-    {tmpBytes, _} = objFun.(:"Type", h, [])
+    {tmpBytes, _} = objFun.(:Type, h, [])
     {encBytes, encLen} = encode_open_type(tmpBytes, [])
     apply(__MODULE__, :"enc_SignerInfo_unauthenticatedAttributes_uaSet_AttributePKCS-7_values_components", [t, objFun, [encBytes | accBytes], accLen + encLen])
   end
@@ -14262,49 +14262,49 @@ defmodule :"OTP-PUB-KEY" do
 
   defp encode_boolean(x, _), do: exit({:error, {:asn1, {:encode_boolean, x}}})
 
-  defp encode_disp(:"ECPrivateKey", data), do: enc_ECPrivateKey(data)
+  defp encode_disp(:ECPrivateKey, data), do: enc_ECPrivateKey(data)
 
-  defp encode_disp(:"DSAPrivateKey", data), do: enc_DSAPrivateKey(data)
+  defp encode_disp(:DSAPrivateKey, data), do: enc_DSAPrivateKey(data)
 
-  defp encode_disp(:"DHParameter", data), do: enc_DHParameter(data)
+  defp encode_disp(:DHParameter, data), do: enc_DHParameter(data)
 
-  defp encode_disp(:"DigestInfoNull", data), do: enc_DigestInfoNull(data)
+  defp encode_disp(:DigestInfoNull, data), do: enc_DigestInfoNull(data)
 
   defp encode_disp(:"DigestInfoPKCS-1", data), do: apply(__MODULE__, :"enc_DigestInfoPKCS-1", [data])
 
-  defp encode_disp(:"TrailerField", data), do: enc_TrailerField(data)
+  defp encode_disp(:TrailerField, data), do: enc_TrailerField(data)
 
   defp encode_disp(:"RSASSA-PSS-params", data), do: apply(__MODULE__, :"enc_RSASSA-PSS-params", [data])
 
-  defp encode_disp(:"AlgorithmNull", data), do: enc_AlgorithmNull(data)
+  defp encode_disp(:AlgorithmNull, data), do: enc_AlgorithmNull(data)
 
-  defp encode_disp(:"Algorithm", data), do: enc_Algorithm(data)
+  defp encode_disp(:Algorithm, data), do: enc_Algorithm(data)
 
-  defp encode_disp(:"OtherPrimeInfo", data), do: enc_OtherPrimeInfo(data)
+  defp encode_disp(:OtherPrimeInfo, data), do: enc_OtherPrimeInfo(data)
 
-  defp encode_disp(:"OtherPrimeInfos", data), do: enc_OtherPrimeInfos(data)
+  defp encode_disp(:OtherPrimeInfos, data), do: enc_OtherPrimeInfos(data)
 
   defp encode_disp(:"VersionPKCS-1", data), do: apply(__MODULE__, :"enc_VersionPKCS-1", [data])
 
-  defp encode_disp(:"RSAPrivateKey", data), do: enc_RSAPrivateKey(data)
+  defp encode_disp(:RSAPrivateKey, data), do: enc_RSAPrivateKey(data)
 
-  defp encode_disp(:"RSAPublicKey", data), do: enc_RSAPublicKey(data)
+  defp encode_disp(:RSAPublicKey, data), do: enc_RSAPublicKey(data)
 
-  defp encode_disp(:"Curve", data), do: enc_Curve(data)
+  defp encode_disp(:Curve, data), do: enc_Curve(data)
 
-  defp encode_disp(:"ECPVer", data), do: enc_ECPVer(data)
+  defp encode_disp(:ECPVer, data), do: enc_ECPVer(data)
 
-  defp encode_disp(:"ECParameters", data), do: enc_ECParameters(data)
+  defp encode_disp(:ECParameters, data), do: enc_ECParameters(data)
 
-  defp encode_disp(:"EcpkParameters", data), do: enc_EcpkParameters(data)
+  defp encode_disp(:EcpkParameters, data), do: enc_EcpkParameters(data)
 
-  defp encode_disp(:"ECPoint", data), do: enc_ECPoint(data)
+  defp encode_disp(:ECPoint, data), do: enc_ECPoint(data)
 
-  defp encode_disp(:"FieldElement", data), do: enc_FieldElement(data)
+  defp encode_disp(:FieldElement, data), do: enc_FieldElement(data)
 
-  defp encode_disp(:"Pentanomial", data), do: enc_Pentanomial(data)
+  defp encode_disp(:Pentanomial, data), do: enc_Pentanomial(data)
 
-  defp encode_disp(:"Trinomial", data), do: enc_Trinomial(data)
+  defp encode_disp(:Trinomial, data), do: enc_Trinomial(data)
 
   defp encode_disp(:"Characteristic-two", data), do: apply(__MODULE__, :"enc_Characteristic-two", [data])
 
@@ -14312,435 +14312,435 @@ defmodule :"OTP-PUB-KEY" do
 
   defp encode_disp(:"ECDSA-Sig-Value", data), do: apply(__MODULE__, :"enc_ECDSA-Sig-Value", [data])
 
-  defp encode_disp(:"FieldID", data), do: enc_FieldID(data)
+  defp encode_disp(:FieldID, data), do: enc_FieldID(data)
 
   defp encode_disp(:"KEA-Parms-Id", data), do: apply(__MODULE__, :"enc_KEA-Parms-Id", [data])
 
-  defp encode_disp(:"ValidationParms", data), do: enc_ValidationParms(data)
+  defp encode_disp(:ValidationParms, data), do: enc_ValidationParms(data)
 
-  defp encode_disp(:"DomainParameters", data), do: enc_DomainParameters(data)
+  defp encode_disp(:DomainParameters, data), do: enc_DomainParameters(data)
 
-  defp encode_disp(:"DHPublicKey", data), do: enc_DHPublicKey(data)
+  defp encode_disp(:DHPublicKey, data), do: enc_DHPublicKey(data)
 
   defp encode_disp(:"Dss-Sig-Value", data), do: apply(__MODULE__, :"enc_Dss-Sig-Value", [data])
 
   defp encode_disp(:"Dss-Parms", data), do: apply(__MODULE__, :"enc_Dss-Parms", [data])
 
-  defp encode_disp(:"DSAPublicKey", data), do: enc_DSAPublicKey(data)
+  defp encode_disp(:DSAPublicKey, data), do: enc_DSAPublicKey(data)
 
-  defp encode_disp(:"ProxyInfo", data), do: enc_ProxyInfo(data)
+  defp encode_disp(:ProxyInfo, data), do: enc_ProxyInfo(data)
 
-  defp encode_disp(:"ACClearAttrs", data), do: enc_ACClearAttrs(data)
+  defp encode_disp(:ACClearAttrs, data), do: enc_ACClearAttrs(data)
 
-  defp encode_disp(:"AttrSpec", data), do: enc_AttrSpec(data)
+  defp encode_disp(:AttrSpec, data), do: enc_AttrSpec(data)
 
-  defp encode_disp(:"AAControls", data), do: enc_AAControls(data)
+  defp encode_disp(:AAControls, data), do: enc_AAControls(data)
 
-  defp encode_disp(:"SecurityCategory", data), do: enc_SecurityCategory(data)
+  defp encode_disp(:SecurityCategory, data), do: enc_SecurityCategory(data)
 
-  defp encode_disp(:"ClassList", data), do: enc_ClassList(data)
+  defp encode_disp(:ClassList, data), do: enc_ClassList(data)
 
-  defp encode_disp(:"Clearance", data), do: enc_Clearance(data)
+  defp encode_disp(:Clearance, data), do: enc_Clearance(data)
 
-  defp encode_disp(:"RoleSyntax", data), do: enc_RoleSyntax(data)
+  defp encode_disp(:RoleSyntax, data), do: enc_RoleSyntax(data)
 
-  defp encode_disp(:"SvceAuthInfo", data), do: enc_SvceAuthInfo(data)
+  defp encode_disp(:SvceAuthInfo, data), do: enc_SvceAuthInfo(data)
 
-  defp encode_disp(:"IetfAttrSyntax", data), do: enc_IetfAttrSyntax(data)
+  defp encode_disp(:IetfAttrSyntax, data), do: enc_IetfAttrSyntax(data)
 
-  defp encode_disp(:"TargetCert", data), do: enc_TargetCert(data)
+  defp encode_disp(:TargetCert, data), do: enc_TargetCert(data)
 
-  defp encode_disp(:"Target", data), do: enc_Target(data)
+  defp encode_disp(:Target, data), do: enc_Target(data)
 
-  defp encode_disp(:"Targets", data), do: enc_Targets(data)
+  defp encode_disp(:Targets, data), do: enc_Targets(data)
 
-  defp encode_disp(:"AttCertValidityPeriod", data), do: enc_AttCertValidityPeriod(data)
+  defp encode_disp(:AttCertValidityPeriod, data), do: enc_AttCertValidityPeriod(data)
 
-  defp encode_disp(:"IssuerSerial", data), do: enc_IssuerSerial(data)
+  defp encode_disp(:IssuerSerial, data), do: enc_IssuerSerial(data)
 
-  defp encode_disp(:"V2Form", data), do: enc_V2Form(data)
+  defp encode_disp(:V2Form, data), do: enc_V2Form(data)
 
-  defp encode_disp(:"AttCertIssuer", data), do: enc_AttCertIssuer(data)
+  defp encode_disp(:AttCertIssuer, data), do: enc_AttCertIssuer(data)
 
-  defp encode_disp(:"ObjectDigestInfo", data), do: enc_ObjectDigestInfo(data)
+  defp encode_disp(:ObjectDigestInfo, data), do: enc_ObjectDigestInfo(data)
 
-  defp encode_disp(:"Holder", data), do: enc_Holder(data)
+  defp encode_disp(:Holder, data), do: enc_Holder(data)
 
-  defp encode_disp(:"AttCertVersion", data), do: enc_AttCertVersion(data)
+  defp encode_disp(:AttCertVersion, data), do: enc_AttCertVersion(data)
 
-  defp encode_disp(:"AttributeCertificateInfo", data), do: enc_AttributeCertificateInfo(data)
+  defp encode_disp(:AttributeCertificateInfo, data), do: enc_AttributeCertificateInfo(data)
 
-  defp encode_disp(:"AttributeCertificate", data), do: enc_AttributeCertificate(data)
+  defp encode_disp(:AttributeCertificate, data), do: enc_AttributeCertificate(data)
 
-  defp encode_disp(:"InvalidityDate", data), do: enc_InvalidityDate(data)
+  defp encode_disp(:InvalidityDate, data), do: enc_InvalidityDate(data)
 
-  defp encode_disp(:"HoldInstructionCode", data), do: enc_HoldInstructionCode(data)
+  defp encode_disp(:HoldInstructionCode, data), do: enc_HoldInstructionCode(data)
 
-  defp encode_disp(:"CertificateIssuer", data), do: enc_CertificateIssuer(data)
+  defp encode_disp(:CertificateIssuer, data), do: enc_CertificateIssuer(data)
 
-  defp encode_disp(:"CRLReason", data), do: enc_CRLReason(data)
+  defp encode_disp(:CRLReason, data), do: enc_CRLReason(data)
 
-  defp encode_disp(:"BaseCRLNumber", data), do: enc_BaseCRLNumber(data)
+  defp encode_disp(:BaseCRLNumber, data), do: enc_BaseCRLNumber(data)
 
-  defp encode_disp(:"IssuingDistributionPoint", data), do: enc_IssuingDistributionPoint(data)
+  defp encode_disp(:IssuingDistributionPoint, data), do: enc_IssuingDistributionPoint(data)
 
-  defp encode_disp(:"CRLNumber", data), do: enc_CRLNumber(data)
+  defp encode_disp(:CRLNumber, data), do: enc_CRLNumber(data)
 
-  defp encode_disp(:"SubjectInfoAccessSyntax", data), do: enc_SubjectInfoAccessSyntax(data)
+  defp encode_disp(:SubjectInfoAccessSyntax, data), do: enc_SubjectInfoAccessSyntax(data)
 
-  defp encode_disp(:"AccessDescription", data), do: enc_AccessDescription(data)
+  defp encode_disp(:AccessDescription, data), do: enc_AccessDescription(data)
 
-  defp encode_disp(:"AuthorityInfoAccessSyntax", data), do: enc_AuthorityInfoAccessSyntax(data)
+  defp encode_disp(:AuthorityInfoAccessSyntax, data), do: enc_AuthorityInfoAccessSyntax(data)
 
-  defp encode_disp(:"FreshestCRL", data), do: enc_FreshestCRL(data)
+  defp encode_disp(:FreshestCRL, data), do: enc_FreshestCRL(data)
 
-  defp encode_disp(:"InhibitAnyPolicy", data), do: enc_InhibitAnyPolicy(data)
+  defp encode_disp(:InhibitAnyPolicy, data), do: enc_InhibitAnyPolicy(data)
 
-  defp encode_disp(:"KeyPurposeId", data), do: enc_KeyPurposeId(data)
+  defp encode_disp(:KeyPurposeId, data), do: enc_KeyPurposeId(data)
 
-  defp encode_disp(:"ExtKeyUsageSyntax", data), do: enc_ExtKeyUsageSyntax(data)
+  defp encode_disp(:ExtKeyUsageSyntax, data), do: enc_ExtKeyUsageSyntax(data)
 
-  defp encode_disp(:"ReasonFlags", data), do: enc_ReasonFlags(data)
+  defp encode_disp(:ReasonFlags, data), do: enc_ReasonFlags(data)
 
-  defp encode_disp(:"DistributionPointName", data), do: enc_DistributionPointName(data)
+  defp encode_disp(:DistributionPointName, data), do: enc_DistributionPointName(data)
 
-  defp encode_disp(:"DistributionPoint", data), do: enc_DistributionPoint(data)
+  defp encode_disp(:DistributionPoint, data), do: enc_DistributionPoint(data)
 
-  defp encode_disp(:"CRLDistributionPoints", data), do: enc_CRLDistributionPoints(data)
+  defp encode_disp(:CRLDistributionPoints, data), do: enc_CRLDistributionPoints(data)
 
-  defp encode_disp(:"SkipCerts", data), do: enc_SkipCerts(data)
+  defp encode_disp(:SkipCerts, data), do: enc_SkipCerts(data)
 
-  defp encode_disp(:"PolicyConstraints", data), do: enc_PolicyConstraints(data)
+  defp encode_disp(:PolicyConstraints, data), do: enc_PolicyConstraints(data)
 
-  defp encode_disp(:"BaseDistance", data), do: enc_BaseDistance(data)
+  defp encode_disp(:BaseDistance, data), do: enc_BaseDistance(data)
 
-  defp encode_disp(:"GeneralSubtree", data), do: enc_GeneralSubtree(data)
+  defp encode_disp(:GeneralSubtree, data), do: enc_GeneralSubtree(data)
 
-  defp encode_disp(:"GeneralSubtrees", data), do: enc_GeneralSubtrees(data)
+  defp encode_disp(:GeneralSubtrees, data), do: enc_GeneralSubtrees(data)
 
-  defp encode_disp(:"NameConstraints", data), do: enc_NameConstraints(data)
+  defp encode_disp(:NameConstraints, data), do: enc_NameConstraints(data)
 
-  defp encode_disp(:"BasicConstraints", data), do: enc_BasicConstraints(data)
+  defp encode_disp(:BasicConstraints, data), do: enc_BasicConstraints(data)
 
-  defp encode_disp(:"SubjectDirectoryAttributes", data), do: enc_SubjectDirectoryAttributes(data)
+  defp encode_disp(:SubjectDirectoryAttributes, data), do: enc_SubjectDirectoryAttributes(data)
 
-  defp encode_disp(:"IssuerAltName", data), do: enc_IssuerAltName(data)
+  defp encode_disp(:IssuerAltName, data), do: enc_IssuerAltName(data)
 
-  defp encode_disp(:"EDIPartyName", data), do: enc_EDIPartyName(data)
+  defp encode_disp(:EDIPartyName, data), do: enc_EDIPartyName(data)
 
-  defp encode_disp(:"AnotherName", data), do: enc_AnotherName(data)
+  defp encode_disp(:AnotherName, data), do: enc_AnotherName(data)
 
-  defp encode_disp(:"GeneralName", data), do: enc_GeneralName(data)
+  defp encode_disp(:GeneralName, data), do: enc_GeneralName(data)
 
-  defp encode_disp(:"GeneralNames", data), do: enc_GeneralNames(data)
+  defp encode_disp(:GeneralNames, data), do: enc_GeneralNames(data)
 
-  defp encode_disp(:"SubjectAltName", data), do: enc_SubjectAltName(data)
+  defp encode_disp(:SubjectAltName, data), do: enc_SubjectAltName(data)
 
-  defp encode_disp(:"PolicyMappings", data), do: enc_PolicyMappings(data)
+  defp encode_disp(:PolicyMappings, data), do: enc_PolicyMappings(data)
 
-  defp encode_disp(:"DisplayText", data), do: enc_DisplayText(data)
+  defp encode_disp(:DisplayText, data), do: enc_DisplayText(data)
 
-  defp encode_disp(:"NoticeReference", data), do: enc_NoticeReference(data)
+  defp encode_disp(:NoticeReference, data), do: enc_NoticeReference(data)
 
-  defp encode_disp(:"UserNotice", data), do: enc_UserNotice(data)
+  defp encode_disp(:UserNotice, data), do: enc_UserNotice(data)
 
-  defp encode_disp(:"CPSuri", data), do: enc_CPSuri(data)
+  defp encode_disp(:CPSuri, data), do: enc_CPSuri(data)
 
-  defp encode_disp(:"PolicyQualifierId", data), do: enc_PolicyQualifierId(data)
+  defp encode_disp(:PolicyQualifierId, data), do: enc_PolicyQualifierId(data)
 
-  defp encode_disp(:"PolicyQualifierInfo", data), do: enc_PolicyQualifierInfo(data)
+  defp encode_disp(:PolicyQualifierInfo, data), do: enc_PolicyQualifierInfo(data)
 
-  defp encode_disp(:"CertPolicyId", data), do: enc_CertPolicyId(data)
+  defp encode_disp(:CertPolicyId, data), do: enc_CertPolicyId(data)
 
-  defp encode_disp(:"PolicyInformation", data), do: enc_PolicyInformation(data)
+  defp encode_disp(:PolicyInformation, data), do: enc_PolicyInformation(data)
 
-  defp encode_disp(:"CertificatePolicies", data), do: enc_CertificatePolicies(data)
+  defp encode_disp(:CertificatePolicies, data), do: enc_CertificatePolicies(data)
 
-  defp encode_disp(:"PrivateKeyUsagePeriod", data), do: enc_PrivateKeyUsagePeriod(data)
+  defp encode_disp(:PrivateKeyUsagePeriod, data), do: enc_PrivateKeyUsagePeriod(data)
 
-  defp encode_disp(:"KeyUsage", data), do: enc_KeyUsage(data)
+  defp encode_disp(:KeyUsage, data), do: enc_KeyUsage(data)
 
-  defp encode_disp(:"SubjectKeyIdentifier", data), do: enc_SubjectKeyIdentifier(data)
+  defp encode_disp(:SubjectKeyIdentifier, data), do: enc_SubjectKeyIdentifier(data)
 
-  defp encode_disp(:"KeyIdentifier", data), do: enc_KeyIdentifier(data)
+  defp encode_disp(:KeyIdentifier, data), do: enc_KeyIdentifier(data)
 
-  defp encode_disp(:"AuthorityKeyIdentifier", data), do: enc_AuthorityKeyIdentifier(data)
+  defp encode_disp(:AuthorityKeyIdentifier, data), do: enc_AuthorityKeyIdentifier(data)
 
-  defp encode_disp(:"EncryptedData", data), do: enc_EncryptedData(data)
+  defp encode_disp(:EncryptedData, data), do: enc_EncryptedData(data)
 
-  defp encode_disp(:"DigestedData", data), do: enc_DigestedData(data)
+  defp encode_disp(:DigestedData, data), do: enc_DigestedData(data)
 
-  defp encode_disp(:"SignedAndEnvelopedData", data), do: enc_SignedAndEnvelopedData(data)
+  defp encode_disp(:SignedAndEnvelopedData, data), do: enc_SignedAndEnvelopedData(data)
 
-  defp encode_disp(:"EncryptedKey", data), do: enc_EncryptedKey(data)
+  defp encode_disp(:EncryptedKey, data), do: enc_EncryptedKey(data)
 
-  defp encode_disp(:"RecipientInfo", data), do: enc_RecipientInfo(data)
+  defp encode_disp(:RecipientInfo, data), do: enc_RecipientInfo(data)
 
-  defp encode_disp(:"EncryptedContent", data), do: enc_EncryptedContent(data)
+  defp encode_disp(:EncryptedContent, data), do: enc_EncryptedContent(data)
 
-  defp encode_disp(:"EncryptedContentInfo", data), do: enc_EncryptedContentInfo(data)
+  defp encode_disp(:EncryptedContentInfo, data), do: enc_EncryptedContentInfo(data)
 
-  defp encode_disp(:"RecipientInfos", data), do: enc_RecipientInfos(data)
+  defp encode_disp(:RecipientInfos, data), do: enc_RecipientInfos(data)
 
-  defp encode_disp(:"EnvelopedData", data), do: enc_EnvelopedData(data)
+  defp encode_disp(:EnvelopedData, data), do: enc_EnvelopedData(data)
 
-  defp encode_disp(:"Digest", data), do: enc_Digest(data)
+  defp encode_disp(:Digest, data), do: enc_Digest(data)
 
   defp encode_disp(:"DigestInfoPKCS-7", data), do: apply(__MODULE__, :"enc_DigestInfoPKCS-7", [data])
 
-  defp encode_disp(:"EncryptedDigest", data), do: enc_EncryptedDigest(data)
+  defp encode_disp(:EncryptedDigest, data), do: enc_EncryptedDigest(data)
 
-  defp encode_disp(:"SignerInfo", data), do: enc_SignerInfo(data)
+  defp encode_disp(:SignerInfo, data), do: enc_SignerInfo(data)
 
-  defp encode_disp(:"DigestAlgorithmIdentifiers", data), do: enc_DigestAlgorithmIdentifiers(data)
+  defp encode_disp(:DigestAlgorithmIdentifiers, data), do: enc_DigestAlgorithmIdentifiers(data)
 
-  defp encode_disp(:"SignerInfos", data), do: enc_SignerInfos(data)
+  defp encode_disp(:SignerInfos, data), do: enc_SignerInfos(data)
 
-  defp encode_disp(:"SignedData", data), do: enc_SignedData(data)
+  defp encode_disp(:SignedData, data), do: enc_SignedData(data)
 
-  defp encode_disp(:"Data", data), do: enc_Data(data)
+  defp encode_disp(:Data, data), do: enc_Data(data)
 
-  defp encode_disp(:"ContentType", data), do: enc_ContentType(data)
+  defp encode_disp(:ContentType, data), do: enc_ContentType(data)
 
-  defp encode_disp(:"ContentInfo", data), do: enc_ContentInfo(data)
+  defp encode_disp(:ContentInfo, data), do: enc_ContentInfo(data)
 
-  defp encode_disp(:"KeyEncryptionAlgorithmIdentifier", data), do: enc_KeyEncryptionAlgorithmIdentifier(data)
+  defp encode_disp(:KeyEncryptionAlgorithmIdentifier, data), do: enc_KeyEncryptionAlgorithmIdentifier(data)
 
-  defp encode_disp(:"IssuerAndSerialNumber", data), do: enc_IssuerAndSerialNumber(data)
+  defp encode_disp(:IssuerAndSerialNumber, data), do: enc_IssuerAndSerialNumber(data)
 
-  defp encode_disp(:"ExtendedCertificatesAndCertificates", data), do: enc_ExtendedCertificatesAndCertificates(data)
+  defp encode_disp(:ExtendedCertificatesAndCertificates, data), do: enc_ExtendedCertificatesAndCertificates(data)
 
-  defp encode_disp(:"ExtendedCertificate", data), do: enc_ExtendedCertificate(data)
+  defp encode_disp(:ExtendedCertificate, data), do: enc_ExtendedCertificate(data)
 
-  defp encode_disp(:"ExtendedCertificateOrCertificate", data), do: enc_ExtendedCertificateOrCertificate(data)
+  defp encode_disp(:ExtendedCertificateOrCertificate, data), do: enc_ExtendedCertificateOrCertificate(data)
 
-  defp encode_disp(:"DigestEncryptionAlgorithmIdentifier", data), do: enc_DigestEncryptionAlgorithmIdentifier(data)
+  defp encode_disp(:DigestEncryptionAlgorithmIdentifier, data), do: enc_DigestEncryptionAlgorithmIdentifier(data)
 
-  defp encode_disp(:"DigestAlgorithmIdentifier", data), do: enc_DigestAlgorithmIdentifier(data)
+  defp encode_disp(:DigestAlgorithmIdentifier, data), do: enc_DigestAlgorithmIdentifier(data)
 
-  defp encode_disp(:"ContentEncryptionAlgorithmIdentifier", data), do: enc_ContentEncryptionAlgorithmIdentifier(data)
+  defp encode_disp(:ContentEncryptionAlgorithmIdentifier, data), do: enc_ContentEncryptionAlgorithmIdentifier(data)
 
-  defp encode_disp(:"CRLSequence", data), do: enc_CRLSequence(data)
+  defp encode_disp(:CRLSequence, data), do: enc_CRLSequence(data)
 
-  defp encode_disp(:"Certificates", data), do: enc_Certificates(data)
+  defp encode_disp(:Certificates, data), do: enc_Certificates(data)
 
-  defp encode_disp(:"CertificateRevocationLists", data), do: enc_CertificateRevocationLists(data)
+  defp encode_disp(:CertificateRevocationLists, data), do: enc_CertificateRevocationLists(data)
 
-  defp encode_disp(:"SignerInfoAuthenticatedAttributes", data), do: enc_SignerInfoAuthenticatedAttributes(data)
+  defp encode_disp(:SignerInfoAuthenticatedAttributes, data), do: enc_SignerInfoAuthenticatedAttributes(data)
 
-  defp encode_disp(:"SigningTime", data), do: enc_SigningTime(data)
+  defp encode_disp(:SigningTime, data), do: enc_SigningTime(data)
 
-  defp encode_disp(:"MessageDigest", data), do: enc_MessageDigest(data)
+  defp encode_disp(:MessageDigest, data), do: enc_MessageDigest(data)
 
-  defp encode_disp(:"CertificationRequest", data), do: enc_CertificationRequest(data)
+  defp encode_disp(:CertificationRequest, data), do: enc_CertificationRequest(data)
 
-  defp encode_disp(:"CertificationRequestInfo", data), do: enc_CertificationRequestInfo(data)
+  defp encode_disp(:CertificationRequestInfo, data), do: enc_CertificationRequestInfo(data)
 
-  defp encode_disp(:"ExtensionRequest", data), do: enc_ExtensionRequest(data)
+  defp encode_disp(:ExtensionRequest, data), do: enc_ExtensionRequest(data)
 
-  defp encode_disp(:"TeletexDomainDefinedAttribute", data), do: enc_TeletexDomainDefinedAttribute(data)
+  defp encode_disp(:TeletexDomainDefinedAttribute, data), do: enc_TeletexDomainDefinedAttribute(data)
 
-  defp encode_disp(:"TeletexDomainDefinedAttributes", data), do: enc_TeletexDomainDefinedAttributes(data)
+  defp encode_disp(:TeletexDomainDefinedAttributes, data), do: enc_TeletexDomainDefinedAttributes(data)
 
-  defp encode_disp(:"TerminalType", data), do: enc_TerminalType(data)
+  defp encode_disp(:TerminalType, data), do: enc_TerminalType(data)
 
-  defp encode_disp(:"PresentationAddress", data), do: enc_PresentationAddress(data)
+  defp encode_disp(:PresentationAddress, data), do: enc_PresentationAddress(data)
 
-  defp encode_disp(:"ExtendedNetworkAddress", data), do: enc_ExtendedNetworkAddress(data)
+  defp encode_disp(:ExtendedNetworkAddress, data), do: enc_ExtendedNetworkAddress(data)
 
-  defp encode_disp(:"PDSParameter", data), do: enc_PDSParameter(data)
+  defp encode_disp(:PDSParameter, data), do: enc_PDSParameter(data)
 
-  defp encode_disp(:"LocalPostalAttributes", data), do: enc_LocalPostalAttributes(data)
+  defp encode_disp(:LocalPostalAttributes, data), do: enc_LocalPostalAttributes(data)
 
-  defp encode_disp(:"UniquePostalName", data), do: enc_UniquePostalName(data)
+  defp encode_disp(:UniquePostalName, data), do: enc_UniquePostalName(data)
 
-  defp encode_disp(:"PosteRestanteAddress", data), do: enc_PosteRestanteAddress(data)
+  defp encode_disp(:PosteRestanteAddress, data), do: enc_PosteRestanteAddress(data)
 
-  defp encode_disp(:"PostOfficeBoxAddress", data), do: enc_PostOfficeBoxAddress(data)
+  defp encode_disp(:PostOfficeBoxAddress, data), do: enc_PostOfficeBoxAddress(data)
 
-  defp encode_disp(:"StreetAddress", data), do: enc_StreetAddress(data)
+  defp encode_disp(:StreetAddress, data), do: enc_StreetAddress(data)
 
-  defp encode_disp(:"UnformattedPostalAddress", data), do: enc_UnformattedPostalAddress(data)
+  defp encode_disp(:UnformattedPostalAddress, data), do: enc_UnformattedPostalAddress(data)
 
-  defp encode_disp(:"ExtensionPhysicalDeliveryAddressComponents", data), do: enc_ExtensionPhysicalDeliveryAddressComponents(data)
+  defp encode_disp(:ExtensionPhysicalDeliveryAddressComponents, data), do: enc_ExtensionPhysicalDeliveryAddressComponents(data)
 
-  defp encode_disp(:"PhysicalDeliveryOrganizationName", data), do: enc_PhysicalDeliveryOrganizationName(data)
+  defp encode_disp(:PhysicalDeliveryOrganizationName, data), do: enc_PhysicalDeliveryOrganizationName(data)
 
-  defp encode_disp(:"PhysicalDeliveryPersonalName", data), do: enc_PhysicalDeliveryPersonalName(data)
+  defp encode_disp(:PhysicalDeliveryPersonalName, data), do: enc_PhysicalDeliveryPersonalName(data)
 
-  defp encode_disp(:"ExtensionORAddressComponents", data), do: enc_ExtensionORAddressComponents(data)
+  defp encode_disp(:ExtensionORAddressComponents, data), do: enc_ExtensionORAddressComponents(data)
 
-  defp encode_disp(:"PhysicalDeliveryOfficeNumber", data), do: enc_PhysicalDeliveryOfficeNumber(data)
+  defp encode_disp(:PhysicalDeliveryOfficeNumber, data), do: enc_PhysicalDeliveryOfficeNumber(data)
 
-  defp encode_disp(:"PhysicalDeliveryOfficeName", data), do: enc_PhysicalDeliveryOfficeName(data)
+  defp encode_disp(:PhysicalDeliveryOfficeName, data), do: enc_PhysicalDeliveryOfficeName(data)
 
-  defp encode_disp(:"PostalCode", data), do: enc_PostalCode(data)
+  defp encode_disp(:PostalCode, data), do: enc_PostalCode(data)
 
-  defp encode_disp(:"PhysicalDeliveryCountryName", data), do: enc_PhysicalDeliveryCountryName(data)
+  defp encode_disp(:PhysicalDeliveryCountryName, data), do: enc_PhysicalDeliveryCountryName(data)
 
-  defp encode_disp(:"PDSName", data), do: enc_PDSName(data)
+  defp encode_disp(:PDSName, data), do: enc_PDSName(data)
 
-  defp encode_disp(:"TeletexOrganizationalUnitName", data), do: enc_TeletexOrganizationalUnitName(data)
+  defp encode_disp(:TeletexOrganizationalUnitName, data), do: enc_TeletexOrganizationalUnitName(data)
 
-  defp encode_disp(:"TeletexOrganizationalUnitNames", data), do: enc_TeletexOrganizationalUnitNames(data)
+  defp encode_disp(:TeletexOrganizationalUnitNames, data), do: enc_TeletexOrganizationalUnitNames(data)
 
-  defp encode_disp(:"TeletexPersonalName", data), do: enc_TeletexPersonalName(data)
+  defp encode_disp(:TeletexPersonalName, data), do: enc_TeletexPersonalName(data)
 
-  defp encode_disp(:"TeletexOrganizationName", data), do: enc_TeletexOrganizationName(data)
+  defp encode_disp(:TeletexOrganizationName, data), do: enc_TeletexOrganizationName(data)
 
-  defp encode_disp(:"TeletexCommonName", data), do: enc_TeletexCommonName(data)
+  defp encode_disp(:TeletexCommonName, data), do: enc_TeletexCommonName(data)
 
-  defp encode_disp(:"CommonName", data), do: enc_CommonName(data)
+  defp encode_disp(:CommonName, data), do: enc_CommonName(data)
 
-  defp encode_disp(:"ExtensionAttribute", data), do: enc_ExtensionAttribute(data)
+  defp encode_disp(:ExtensionAttribute, data), do: enc_ExtensionAttribute(data)
 
-  defp encode_disp(:"ExtensionAttributes", data), do: enc_ExtensionAttributes(data)
+  defp encode_disp(:ExtensionAttributes, data), do: enc_ExtensionAttributes(data)
 
-  defp encode_disp(:"BuiltInDomainDefinedAttribute", data), do: enc_BuiltInDomainDefinedAttribute(data)
+  defp encode_disp(:BuiltInDomainDefinedAttribute, data), do: enc_BuiltInDomainDefinedAttribute(data)
 
-  defp encode_disp(:"BuiltInDomainDefinedAttributes", data), do: enc_BuiltInDomainDefinedAttributes(data)
+  defp encode_disp(:BuiltInDomainDefinedAttributes, data), do: enc_BuiltInDomainDefinedAttributes(data)
 
-  defp encode_disp(:"OrganizationalUnitName", data), do: enc_OrganizationalUnitName(data)
+  defp encode_disp(:OrganizationalUnitName, data), do: enc_OrganizationalUnitName(data)
 
-  defp encode_disp(:"OrganizationalUnitNames", data), do: enc_OrganizationalUnitNames(data)
+  defp encode_disp(:OrganizationalUnitNames, data), do: enc_OrganizationalUnitNames(data)
 
-  defp encode_disp(:"PersonalName", data), do: enc_PersonalName(data)
+  defp encode_disp(:PersonalName, data), do: enc_PersonalName(data)
 
-  defp encode_disp(:"NumericUserIdentifier", data), do: enc_NumericUserIdentifier(data)
+  defp encode_disp(:NumericUserIdentifier, data), do: enc_NumericUserIdentifier(data)
 
-  defp encode_disp(:"OrganizationName", data), do: enc_OrganizationName(data)
+  defp encode_disp(:OrganizationName, data), do: enc_OrganizationName(data)
 
-  defp encode_disp(:"PrivateDomainName", data), do: enc_PrivateDomainName(data)
+  defp encode_disp(:PrivateDomainName, data), do: enc_PrivateDomainName(data)
 
-  defp encode_disp(:"TerminalIdentifier", data), do: enc_TerminalIdentifier(data)
+  defp encode_disp(:TerminalIdentifier, data), do: enc_TerminalIdentifier(data)
 
-  defp encode_disp(:"X121Address", data), do: enc_X121Address(data)
+  defp encode_disp(:X121Address, data), do: enc_X121Address(data)
 
-  defp encode_disp(:"NetworkAddress", data), do: enc_NetworkAddress(data)
+  defp encode_disp(:NetworkAddress, data), do: enc_NetworkAddress(data)
 
-  defp encode_disp(:"AdministrationDomainName", data), do: enc_AdministrationDomainName(data)
+  defp encode_disp(:AdministrationDomainName, data), do: enc_AdministrationDomainName(data)
 
-  defp encode_disp(:"CountryName", data), do: enc_CountryName(data)
+  defp encode_disp(:CountryName, data), do: enc_CountryName(data)
 
-  defp encode_disp(:"BuiltInStandardAttributes", data), do: enc_BuiltInStandardAttributes(data)
+  defp encode_disp(:BuiltInStandardAttributes, data), do: enc_BuiltInStandardAttributes(data)
 
-  defp encode_disp(:"ORAddress", data), do: enc_ORAddress(data)
+  defp encode_disp(:ORAddress, data), do: enc_ORAddress(data)
 
-  defp encode_disp(:"AlgorithmIdentifier", data), do: enc_AlgorithmIdentifier(data)
+  defp encode_disp(:AlgorithmIdentifier, data), do: enc_AlgorithmIdentifier(data)
 
-  defp encode_disp(:"TBSCertList", data), do: enc_TBSCertList(data)
+  defp encode_disp(:TBSCertList, data), do: enc_TBSCertList(data)
 
-  defp encode_disp(:"CertificateList", data), do: enc_CertificateList(data)
+  defp encode_disp(:CertificateList, data), do: enc_CertificateList(data)
 
-  defp encode_disp(:"Extension", data), do: enc_Extension(data)
+  defp encode_disp(:Extension, data), do: enc_Extension(data)
 
-  defp encode_disp(:"Extensions", data), do: enc_Extensions(data)
+  defp encode_disp(:Extensions, data), do: enc_Extensions(data)
 
-  defp encode_disp(:"SubjectPublicKeyInfo", data), do: enc_SubjectPublicKeyInfo(data)
+  defp encode_disp(:SubjectPublicKeyInfo, data), do: enc_SubjectPublicKeyInfo(data)
 
-  defp encode_disp(:"UniqueIdentifier", data), do: enc_UniqueIdentifier(data)
+  defp encode_disp(:UniqueIdentifier, data), do: enc_UniqueIdentifier(data)
 
-  defp encode_disp(:"Time", data), do: enc_Time(data)
+  defp encode_disp(:Time, data), do: enc_Time(data)
 
-  defp encode_disp(:"Validity", data), do: enc_Validity(data)
+  defp encode_disp(:Validity, data), do: enc_Validity(data)
 
-  defp encode_disp(:"CertificateSerialNumber", data), do: enc_CertificateSerialNumber(data)
+  defp encode_disp(:CertificateSerialNumber, data), do: enc_CertificateSerialNumber(data)
 
-  defp encode_disp(:"VersionPKIX1Explicit88", data), do: enc_VersionPKIX1Explicit88(data)
+  defp encode_disp(:VersionPKIX1Explicit88, data), do: enc_VersionPKIX1Explicit88(data)
 
-  defp encode_disp(:"TBSCertificate", data), do: enc_TBSCertificate(data)
+  defp encode_disp(:TBSCertificate, data), do: enc_TBSCertificate(data)
 
-  defp encode_disp(:"Certificate", data), do: enc_Certificate(data)
+  defp encode_disp(:Certificate, data), do: enc_Certificate(data)
 
-  defp encode_disp(:"DirectoryString", data), do: enc_DirectoryString(data)
+  defp encode_disp(:DirectoryString, data), do: enc_DirectoryString(data)
 
-  defp encode_disp(:"RelativeDistinguishedName", data), do: enc_RelativeDistinguishedName(data)
+  defp encode_disp(:RelativeDistinguishedName, data), do: enc_RelativeDistinguishedName(data)
 
-  defp encode_disp(:"DistinguishedName", data), do: enc_DistinguishedName(data)
+  defp encode_disp(:DistinguishedName, data), do: enc_DistinguishedName(data)
 
-  defp encode_disp(:"RDNSequence", data), do: enc_RDNSequence(data)
+  defp encode_disp(:RDNSequence, data), do: enc_RDNSequence(data)
 
-  defp encode_disp(:"Name", data), do: enc_Name(data)
+  defp encode_disp(:Name, data), do: enc_Name(data)
 
-  defp encode_disp(:"EmailAddress", data), do: enc_EmailAddress(data)
+  defp encode_disp(:EmailAddress, data), do: enc_EmailAddress(data)
 
-  defp encode_disp(:"DomainComponent", data), do: enc_DomainComponent(data)
+  defp encode_disp(:DomainComponent, data), do: enc_DomainComponent(data)
 
-  defp encode_disp(:"X520Pseudonym", data), do: enc_X520Pseudonym(data)
+  defp encode_disp(:X520Pseudonym, data), do: enc_X520Pseudonym(data)
 
-  defp encode_disp(:"X520SerialNumber", data), do: enc_X520SerialNumber(data)
+  defp encode_disp(:X520SerialNumber, data), do: enc_X520SerialNumber(data)
 
-  defp encode_disp(:"X520countryName", data), do: enc_X520countryName(data)
+  defp encode_disp(:X520countryName, data), do: enc_X520countryName(data)
 
-  defp encode_disp(:"X520dnQualifier", data), do: enc_X520dnQualifier(data)
+  defp encode_disp(:X520dnQualifier, data), do: enc_X520dnQualifier(data)
 
-  defp encode_disp(:"X520Title", data), do: enc_X520Title(data)
+  defp encode_disp(:X520Title, data), do: enc_X520Title(data)
 
-  defp encode_disp(:"X520OrganizationalUnitName", data), do: enc_X520OrganizationalUnitName(data)
+  defp encode_disp(:X520OrganizationalUnitName, data), do: enc_X520OrganizationalUnitName(data)
 
-  defp encode_disp(:"X520OrganizationName", data), do: enc_X520OrganizationName(data)
+  defp encode_disp(:X520OrganizationName, data), do: enc_X520OrganizationName(data)
 
-  defp encode_disp(:"X520StateOrProvinceName", data), do: enc_X520StateOrProvinceName(data)
+  defp encode_disp(:X520StateOrProvinceName, data), do: enc_X520StateOrProvinceName(data)
 
-  defp encode_disp(:"X520LocalityName", data), do: enc_X520LocalityName(data)
+  defp encode_disp(:X520LocalityName, data), do: enc_X520LocalityName(data)
 
-  defp encode_disp(:"X520CommonName", data), do: enc_X520CommonName(data)
+  defp encode_disp(:X520CommonName, data), do: enc_X520CommonName(data)
 
-  defp encode_disp(:"X520name", data), do: enc_X520name(data)
+  defp encode_disp(:X520name, data), do: enc_X520name(data)
 
-  defp encode_disp(:"AttributeTypeAndValue", data), do: enc_AttributeTypeAndValue(data)
+  defp encode_disp(:AttributeTypeAndValue, data), do: enc_AttributeTypeAndValue(data)
 
-  defp encode_disp(:"AttributeValue", data), do: enc_AttributeValue(data)
+  defp encode_disp(:AttributeValue, data), do: enc_AttributeValue(data)
 
-  defp encode_disp(:"AttributeType", data), do: enc_AttributeType(data)
+  defp encode_disp(:AttributeType, data), do: enc_AttributeType(data)
 
-  defp encode_disp(:"Attribute", data), do: enc_Attribute(data)
+  defp encode_disp(:Attribute, data), do: enc_Attribute(data)
 
   defp encode_disp(:"Extension-Any", data), do: apply(__MODULE__, :"enc_Extension-Any", [data])
 
-  defp encode_disp(:"Any", data), do: enc_Any(data)
+  defp encode_disp(:Any, data), do: enc_Any(data)
 
-  defp encode_disp(:"Boolean", data), do: enc_Boolean(data)
+  defp encode_disp(:Boolean, data), do: enc_Boolean(data)
 
-  defp encode_disp(:"ObjId", data), do: enc_ObjId(data)
+  defp encode_disp(:ObjId, data), do: enc_ObjId(data)
 
-  defp encode_disp(:"OTPExtension", data), do: enc_OTPExtension(data)
+  defp encode_disp(:OTPExtension, data), do: enc_OTPExtension(data)
 
-  defp encode_disp(:"OTPExtensions", data), do: enc_OTPExtensions(data)
+  defp encode_disp(:OTPExtensions, data), do: enc_OTPExtensions(data)
 
-  defp encode_disp(:"OTPExtensionAttribute", data), do: enc_OTPExtensionAttribute(data)
+  defp encode_disp(:OTPExtensionAttribute, data), do: enc_OTPExtensionAttribute(data)
 
-  defp encode_disp(:"OTPExtensionAttributes", data), do: enc_OTPExtensionAttributes(data)
+  defp encode_disp(:OTPExtensionAttributes, data), do: enc_OTPExtensionAttributes(data)
 
   defp encode_disp(:"OTPCharacteristic-two", data), do: apply(__MODULE__, :"enc_OTPCharacteristic-two", [data])
 
-  defp encode_disp(:"OTPFieldID", data), do: enc_OTPFieldID(data)
+  defp encode_disp(:OTPFieldID, data), do: enc_OTPFieldID(data)
 
   defp encode_disp(:"KEA-PublicKey", data), do: apply(__MODULE__, :"enc_KEA-PublicKey", [data])
 
-  defp encode_disp(:"DSAParams", data), do: enc_DSAParams(data)
+  defp encode_disp(:DSAParams, data), do: enc_DSAParams(data)
 
-  defp encode_disp(:"PublicKeyAlgorithm", data), do: enc_PublicKeyAlgorithm(data)
+  defp encode_disp(:PublicKeyAlgorithm, data), do: enc_PublicKeyAlgorithm(data)
 
   defp encode_disp(:"SignatureAlgorithm-Any", data), do: apply(__MODULE__, :"enc_SignatureAlgorithm-Any", [data])
 
-  defp encode_disp(:"SignatureAlgorithm", data), do: enc_SignatureAlgorithm(data)
+  defp encode_disp(:SignatureAlgorithm, data), do: enc_SignatureAlgorithm(data)
 
   defp encode_disp(:"OTPSubjectPublicKeyInfo-Any", data), do: apply(__MODULE__, :"enc_OTPSubjectPublicKeyInfo-Any", [data])
 
-  defp encode_disp(:"OTPSubjectPublicKeyInfo", data), do: enc_OTPSubjectPublicKeyInfo(data)
+  defp encode_disp(:OTPSubjectPublicKeyInfo, data), do: enc_OTPSubjectPublicKeyInfo(data)
 
-  defp encode_disp(:"OTPOLDSubjectPublicKeyInfo", data), do: enc_OTPOLDSubjectPublicKeyInfo(data)
+  defp encode_disp(:OTPOLDSubjectPublicKeyInfo, data), do: enc_OTPOLDSubjectPublicKeyInfo(data)
 
   defp encode_disp(:"OTP-emailAddress", data), do: apply(__MODULE__, :"enc_OTP-emailAddress", [data])
 
   defp encode_disp(:"OTP-X520countryname", data), do: apply(__MODULE__, :"enc_OTP-X520countryname", [data])
 
-  defp encode_disp(:"OTPAttributeTypeAndValue", data), do: enc_OTPAttributeTypeAndValue(data)
+  defp encode_disp(:OTPAttributeTypeAndValue, data), do: enc_OTPAttributeTypeAndValue(data)
 
-  defp encode_disp(:"OTPTBSCertificate", data), do: enc_OTPTBSCertificate(data)
+  defp encode_disp(:OTPTBSCertificate, data), do: enc_OTPTBSCertificate(data)
 
-  defp encode_disp(:"OTPCertificate", data), do: enc_OTPCertificate(data)
+  defp encode_disp(:OTPCertificate, data), do: enc_OTPCertificate(data)
 
   defp encode_disp(type, _Data), do: exit({:error, {:asn1, {:undefined_type, type}}})
 

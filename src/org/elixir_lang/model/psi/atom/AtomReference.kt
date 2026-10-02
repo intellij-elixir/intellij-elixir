@@ -8,6 +8,7 @@ import com.intellij.psi.*
 import com.intellij.psi.impl.source.resolve.ResolveCache
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.code_insight.completion.callDefinitionClauseLookupElements
+import org.elixir_lang.code_insight.completion.insert_handler.QualifiedName
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.call.Call
@@ -39,7 +40,7 @@ class AtomReference(
             incompleteCode = true
         )
 
-        return callDefinitionClauseLookupElements(modulars, appendParentheses = false).toTypedArray()
+        return callDefinitionClauseLookupElements(modulars, QualifiedName.ATOM).toTypedArray()
     }
 
     override fun getAbsoluteRange(): TextRange =

@@ -25,7 +25,7 @@ defmodule :diameter_gen_relay do
 
   def avp_header(_), do: :erlang.error(:badarg)
 
-  def avp_name(_, _), do: :"AVP"
+  def avp_name(_, _), do: :AVP
 
   def decode_avps(name, avps, opts), do: :diameter_gen.decode_avps(name, avps, %{opts | :module => :diameter_gen_relay})
 
@@ -63,7 +63,7 @@ defmodule :diameter_gen_relay do
 
   def vendor_id(), do: 0
 
-  def vendor_name(), do: :"IETF"
+  def vendor_name(), do: :IETF
 
   # Private Functions
 

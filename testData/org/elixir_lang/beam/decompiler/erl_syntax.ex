@@ -2004,7 +2004,7 @@ defmodule :erl_syntax do
             fs
           {:error, _} = error ->
             :erlang.error(error)
-          {:"EXIT", r} ->
+          {:EXIT, r} ->
             exit(r)
           r ->
             throw(r)

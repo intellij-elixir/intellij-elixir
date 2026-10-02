@@ -20,7 +20,7 @@ package org.elixir_lang.debugger.stack_frame.value
 import com.ericsson.otp.erlang.*
 import org.elixir_lang.utils.ElixirModulesUtil.erlangModuleNameToElixir
 import com.intellij.xdebugger.frame.presentation.XValuePresentation
-import org.elixir_lang.code.Identifier
+import org.elixir_lang.code.InspectAtom
 import java.nio.ByteBuffer
 import java.nio.charset.Charset
 import java.nio.charset.CharacterCodingException
@@ -66,8 +66,8 @@ class Presentation(private val myValue: Any) : XValuePresentation() {
                     }
                     if (symbolKeys) {
                         assert(key is OtpErlangAtom)
-                        renderer.renderKeywordValue((key as OtpErlangAtom).atomValue())
-                        renderer.renderKeywordValue(": ")
+                        renderer.renderKeywordValue(InspectAtom.key((key as OtpErlangAtom).atomValue()))
+                        renderer.renderKeywordValue(" ")
                     } else {
                         renderObject(key, renderer)
                         renderer.renderSpecialSymbol(" => ")
@@ -150,7 +150,7 @@ class Presentation(private val myValue: Any) : XValuePresentation() {
             val functionField = externalFun.javaClass.getDeclaredField("function")
             functionField.isAccessible = true
             val function = functionField.get(externalFun) as String
-            renderer.renderKeywordValue(Identifier.inspectAsFunction(function))
+            renderer.renderKeywordValue(InspectAtom.remoteCall(function))
 
             renderer.renderSpecialSymbol("/")
 

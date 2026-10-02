@@ -15,7 +15,7 @@ defmodule AtU8Test do
     # body not decompiled
   end
 
-  def unquote(:"こんにちは世界")() do
+  def こんにちは世界() do
     (
       :こんにちは世界
       saudação = "Bom dia!"

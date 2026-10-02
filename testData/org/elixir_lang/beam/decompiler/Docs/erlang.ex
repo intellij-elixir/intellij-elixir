@@ -900,7 +900,7 @@ defmodule :erlang do
   @spec nodes(arg) :: nodes when arg: (nodeType | [nodeType]), nodeType: (:visible | :hidden | :connected | :this | :known), nodes: [node()]
   def nodes(_Arg), do: :erlang.nif_error(:undefined)
 
-  def not(_A), do: :erlang.nif_error(:undefined)
+  def unquote(:not)(_A), do: :erlang.nif_error(:undefined)
 
   @spec now() :: timestamp when timestamp: timestamp()
   def now(), do: :erlang.nif_error(:undefined)
@@ -1245,7 +1245,7 @@ defmodule :erlang do
 
   def seq_trace_print(_P1, _P2), do: :erlang.nif_error(:undefined)
 
-  def set_cookie(node, c) when node !== :"nonode@nohost" and :erlang.is_atom(node) do
+  def set_cookie(node, c) when node !== :nonode@nohost and :erlang.is_atom(node) do
     case :erlang.is_atom(c) do
       true ->
         :auth.set_cookie(node, c)
@@ -2173,7 +2173,7 @@ defmodule :erlang do
     end
   end
 
-  defp remote_spawn_error({:"EXIT", {{:nodedown, n}, _}}, {l, ^n, m, f, a, o}) do
+  defp remote_spawn_error({:EXIT, {{:nodedown, n}, _}}, {l, ^n, m, f, a, o}) do
     {opts, lL} = case l === :link do
       true ->
         {[:link | o], [:link]}
@@ -2183,9 +2183,9 @@ defmodule :erlang do
     :erlang.spawn_opt(:erts_internal, :crasher, [n, m, f, a, opts, :noconnection], lL)
   end
 
-  defp remote_spawn_error({:"EXIT", {reason, _}}, _), do: {:fault, reason}
+  defp remote_spawn_error({:EXIT, {reason, _}}, _), do: {:fault, reason}
 
-  defp remote_spawn_error({:"EXIT", reason}, _), do: {:fault, reason}
+  defp remote_spawn_error({:EXIT, reason}, _), do: {:fault, reason}
 
   defp remote_spawn_error(other, _), do: {:fault, other}
 
