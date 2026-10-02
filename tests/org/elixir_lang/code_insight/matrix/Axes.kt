@@ -39,6 +39,7 @@ enum class Feature(val testName: String, val edits: Boolean = false) {
     GO_TO_DECLARATION("goToDeclaration"),
     FIND_USAGES("findUsages"),
     LABEL("label"),
+    DESCRIPTION("description"),
     QUICK_DOCUMENTATION("quickDocumentation"),
     UNAVAILABLE_NOTICE("unavailableNotice"),
     PARAMETER_INFO("parameterInfo"),
@@ -180,7 +181,7 @@ fun privateUse(id: String): Boolean = id.startsWith("uses_")
 /** A cell asking [feature] at [place]; a completionInserted cell with a [name] completes that name instead of the site's. */
 data class Cell(val scenario: Scenario, val feature: Feature, val place: Place, val name: String? = null) {
     val testName: String
-        get() = "${feature.testName}[${scenario.backing},${scenario.form},${scenario.world},${place.id}${name?.let { ",->$it" }.orEmpty()}]"
+        get() = "${feature.testName}[${scenario.backing},${scenario.form},${scenario.world},${place.id}${name?.let { if (feature == Feature.DESCRIPTION) ",$it" else ",->$it" }.orEmpty()}]"
 }
 
 sealed interface Applicability {
@@ -219,6 +220,8 @@ object Crossing {
                 Applicability.NotApplicable("a compiled body holds the macro's expansion, not a call to it")
             place is Place.Head && place.clause > 0 && !backing.keepsEveryClause ->
                 Applicability.NotApplicable("the ${backing.id} mirror keeps only the first clause")
+            feature == Feature.DESCRIPTION && place is Place.Marked && scenario.sites.single { it.id == place.id }.binding == null ->
+                Applicability.NotApplicable("nothing resolves there, so there is no target to describe; that nothing does is asked by goToDeclaration")
             feature == Feature.GO_TO_DECLARATION && place is Place.Head ->
                 Applicability.NotApplicable("Ctrl+Click on a declaration is Show Usages, asked separately")
             feature == Feature.CTRL_CLICK && place !is Place.Head ->
