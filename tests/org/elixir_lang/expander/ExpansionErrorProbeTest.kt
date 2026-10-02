@@ -307,6 +307,15 @@ class ExpansionErrorProbeTest : ProbeTestCase() {
             Case("y = 1\ncase y do\nz when Integer.is_odd(z) -> z\nend"),
             Case("<<x::size(Integer.to_string(1))>> = <<1>>"),
             Case("m = %{a: 8}\n<<x::size(m.a())>> = <<1>>"),
+            // var! and alias!
+            Case("var!(nope)"),
+            Case("var!(1)"),
+            Case("var!(x, String.to_atom(\"a\"))"),
+            Case("var!(x, foo())"),
+            Case("var!(x, Nope.f())"),
+            Case("var!(x, inspect(:a))"),
+            Case("^var!(nope) = 1"),
+            Case("_ = alias!(1)"),
         )
     }
 }

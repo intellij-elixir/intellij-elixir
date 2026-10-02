@@ -5,8 +5,8 @@ import org.elixir_lang.lowering.inspect
 import org.elixir_lang.psi.ElixirFile
 
 /**
- * Each call the expander dispatches, in its order, against the dispatch events the leg's compiler traces for the same
- * case module body, as [DispatchEvents] normalises them.
+ * Each call the expander dispatches and each import a `quote` traces, in its order, against the events the leg's
+ * compiler traces for the same case module body, as [DispatchEvents] normalises them.
  */
 class DispatchProbeTest : ProbeTestCase() {
     private val probes = ExpansionProbes(harness) { createPsiFile(getTestName(false), it) as ElixirFile }
@@ -78,6 +78,15 @@ class DispatchProbeTest : ProbeTestCase() {
             "_ = System.stacktrace()",
             "import System, only: [stacktrace: 0]\ntry do\n  :ok\nrescue\n  _ -> stacktrace()\nend",
             "x = 1\n_ = fn -> Integer.parse(\"1\") end\n_ = x",
+            "_ = quote(do: is_atom(1) and is_nil(2))",
+            "_ = quote(do: &inspect/1)",
+            "_ = quote(do: inspect)",
+            "l = 3\n_ = quote(line: l, do: is_atom(1))",
+            "import String, only: [split: 1, split: 3]\nimport Regex, only: [split: 2]\n_ = quote(do: split)",
+            "var!(x) = 1",
+            "var!(x, Kernel) = 1",
+            "Kernel.var!(z) = 3",
+            "_ = alias!(Foo)",
         )
     }
 }

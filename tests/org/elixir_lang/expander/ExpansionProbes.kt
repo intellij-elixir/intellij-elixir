@@ -34,10 +34,20 @@ import kotlin.time.TimeSource
  * clause's guard, is wrapped in an identity probe, which the expander matches when it enters that node. Each statement
  * of a body nested in a clause, such as a `->` clause's, is followed by a probe, which the expander matches when it
  * leaves that statement.
+ *
+ * With [accounting], each probe also compares the hygiene counters taken: Elixir's `counter_before`, less the probes
+ * delivered before it, each of which took one, against the expander's count.
  */
-internal class ExpansionProbes(private val harness: ProbeHarness, private val parse: (String) -> ElixirFile) {
-    /** What the expander saw at the probe [tag], whose `case` is always 0. */
-    class Step(val tag: Tag, val read: Map<Variable, Int>, val env: Env, val stacktrace: Boolean)
+internal class ExpansionProbes(
+    private val harness: ProbeHarness,
+    private val accounting: Boolean = false,
+    private val parse: (String) -> ElixirFile,
+) {
+    /**
+     * What the expander saw at the probe [tag], whose `case` is always 0, and [count], the hygiene counters its module
+     * had given.
+     */
+    class Step(val tag: Tag, val read: Map<Variable, Int>, val env: Env, val stacktrace: Boolean, val count: Long)
 
     /**
      * [case] expanded from the start of an empty module body.
@@ -46,7 +56,8 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
      * @property outcome the last statement's expansion, or the first that isn't [Expansion.Expanded]
      * @property statements the top-level statements, lowered
      * @property starts the state and env each top-level statement the expander reached was expanded from
-     * @property dispatches each dispatch the expander reported, as [DispatchEvents] keys it, in its order
+     * @property dispatches each dispatch and quoted import the expander reported, as [DispatchEvents] keys them, in
+     *   its order
      * @property bodyStatements the 1-based top-level statement each nested body, block 1 onward, is in
      */
     class CaseExpansion(
@@ -89,7 +100,10 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
             .toMap()
         var state = ExState.empty(level)
         var env = Env.empty(level, legKernel).copy(module = module)
-        val steps = mutableListOf(Step(Tag(0, 0, 0), state.read, env, state.stacktrace))
+        // Elixir keeps the counter in the module, across the statements of its body.
+        val counters = Counters()
+        fun step(tag: Tag, state: ExState, env: Env) = Step(tag, state.read, env, state.stacktrace, counters.count(env.module))
+        val steps = mutableListOf(step(Tag(0, 0, 0), state, env))
         val starts = mutableListOf<Pair<ExState, Env>>()
         val dispatches = mutableListOf<String>()
         var outcome: Expansion = Expansion.Expanded(state, env, Import.Term.Atom("nil"))
@@ -102,7 +116,7 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
                 override fun entering(node: ElixirAst, state: ExState, env: Env) {
                     identities[node.meta.origin]?.let { identity ->
                         if (entered.add(node.meta.origin)) {
-                            steps.add(Step(Tag(0, 0, index + 1, identity), state.read, env, state.stacktrace))
+                            steps.add(step(Tag(0, 0, index + 1, identity), state, env))
                         }
                     }
                 }
@@ -111,23 +125,33 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
                     dispatches.add(DispatchEvents.key(node, dispatch))
                 }
 
+                override fun quotedImport(
+                    node: ElixirAst,
+                    kind: QuotedImportKind,
+                    module: String,
+                    name: String,
+                    arities: List<Int>,
+                ) {
+                    dispatches.add(DispatchEvents.key(node, kind, module, name, arities))
+                }
+
                 // Nodes that share an origin, such as a block of one expression and that expression, leave with one state.
                 override fun left(node: ElixirAst, expansion: Expansion) {
                     val tag = nested[node.meta.origin]
 
                     if (tag != null && expansion is Expansion.Expanded && left.add(node.meta.origin)) {
-                        steps.add(Step(tag, expansion.state.read, expansion.env, expansion.state.stacktrace))
+                        steps.add(step(tag, expansion.state, expansion.env))
                     }
                 }
             }
 
-            outcome = Expander.expand(statement, state, env, level, exports, observer)
+            outcome = Expander.expand(statement, state, env, level, exports, observer, counters)
 
             when (val expansion = outcome) {
                 is Expansion.Expanded -> {
                     state = expansion.state
                     env = expansion.env
-                    steps.add(Step(Tag(0, 0, index + 1), state.read, env, state.stacktrace))
+                    steps.add(step(Tag(0, 0, index + 1), state, env))
                 }
                 is Expansion.Error, is Expansion.Unported, is Expansion.Opaque -> break
             }
@@ -200,10 +224,11 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
             val tags = expansion.steps.map { it.tag }.toSet()
             // Every probe before the macro's statement, and inside it those the expander reached before the macro.
             val macroStatement = expansion.starts.size
-            val observed = attempt.batch.observations.filter { observation ->
+            val delivered = attempt.batch.observations.filter { it.tag.case == index }
+            val observed = delivered.filter { observation ->
                 val tag = observation.tag.copy(case = 0)
 
-                observation.tag.case == index && expansion.statementOf(tag).let { statement ->
+                expansion.statementOf(tag).let { statement ->
                     statement < macroStatement || statement == macroStatement && tag in tags
                 }
             }
@@ -219,7 +244,7 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
             val prefix = if (end < 0) events + "no macro event on line $line" else events.take(end + 1)
 
             expected.add(render(name, expansion.steps) + "\n" + (expansion.dispatches + macro).joinToString("\n"))
-            actual.add(render(name, observed, attempt.batch.probeModule) + "\n" + prefix.joinToString("\n"))
+            actual.add(render(name, observed, attempt.batch.probeModule, delivered) + "\n" + prefix.joinToString("\n"))
         }
 
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
@@ -338,26 +363,42 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
         }
     }
 
-    /** One line per probe: its tag and the variables' classes, numbered across [steps]; then its env's fields. */
+    /**
+     * One line per probe: its tag, the variables' classes, numbered across [steps], and with [accounting] the counters
+     * taken; then its env's fields.
+     */
     private fun render(name: String, steps: List<Step>): String =
         render(
             name,
             steps.map { it.tag },
             VariableClasses.canonical(steps.map { it.read }),
+            steps.map { it.count },
             steps.map { ProbedEnvNormaliser.render(ProbedEnvNormaliser.projected(it.env, it.stacktrace, legLevel())) }
         )
 
-    private fun render(name: String, observations: List<ProbeHarness.Observation>, probeModule: String): String =
+    /**
+     * [observations] as [render] renders steps, where the counters taken at each are its `counter_before` less the
+     * probes [delivered] before it in its case.
+     */
+    private fun render(
+        name: String,
+        observations: List<ProbeHarness.Observation>,
+        probeModule: String,
+        delivered: List<ProbeHarness.Observation> = observations,
+    ): String =
         render(
             name,
             observations.map { it.tag.copy(case = 0) },
             VariableClasses.canonical(observations.map { VariableClasses.observed(it.env) }),
+            if (accounting) observations.map { it.counterBefore - delivered.indexOf(it) } else emptyList(),
             observations.map { ProbedEnvNormaliser.render(ProbedEnvNormaliser.observed(it.env, probeModule)) }
         )
 
-    private fun render(name: String, tags: List<Tag>, classes: List<String>, envs: List<String>): String =
+    private fun render(name: String, tags: List<Tag>, classes: List<String>, counts: List<Long>, envs: List<String>) =
         "== $name\n" +
-            tags.indices.joinToString("\n") { "$it ${tags[it]}: ${classes[it]}" } + "\n" +
+            tags.indices.joinToString("\n") {
+                "$it ${tags[it]}: ${classes[it]}" + if (accounting) " counters ${counts[it]}" else ""
+            } + "\n" +
             tags.indices.joinToString("\n") { "${tags[it]}\n${envs[it].prependIndent("  ")}" }
 
     private fun errors(diagnostics: List<com.ericsson.otp.erlang.OtpErlangObject>) =
@@ -636,8 +677,21 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
                 emptyList()
             }
 
+        /** A `var!`'s argument isn't a site: `var!` takes only a variable. */
         fun guardSites(guard: ElixirAst): List<ElixirAst> =
-            if (isVariable(guard)) listOf(guard) else children(guard).flatMap(::guardSites)
+            when {
+                isVariable(guard) -> listOf(guard)
+                isVarBang(guard) -> emptyList()
+                else -> children(guard).flatMap(::guardSites)
+            }
+
+        /** `var!` or `Kernel.var!`, whose first argument must stay a variable. */
+        fun isVarBang(node: ElixirAst): Boolean {
+            val dot = (node as? ElixirAst.Call)?.callee as? ElixirAst.Call
+            val name = dot?.takeIf { isCall(it, ".", 2) }?.arguments?.get(1)
+
+            return isNamedCall(node, "var!") || (name as? ElixirAst.Literal.Atom)?.name == "var!"
+        }
 
         /**
          * The bodies nested in [node]'s clauses and `try` parts, each as its statements, outermost first, outside any

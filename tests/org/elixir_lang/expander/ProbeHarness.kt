@@ -21,7 +21,8 @@ import kotlin.time.Duration.Companion.seconds
 /**
  * Compiles case module bodies through [Quoter.compile], one batch per call, with a probe macro after each statement
  * that sends its `__CALLER__` back, and an identity probe macro around each of a case's [Case.identities], which sends
- * its `__CALLER__` and returns its argument. Each probe is a macro expansion, so it advances its module's counter.
+ * its `__CALLER__` and returns its argument. Each probe is a macro expansion, so its module's hygiene counter advances
+ * once it returns; each also sends the counter as it was before that, as `counter_before`.
  * Probes are inserted on their statement's own line, so lines are kept and columns are not.
  *
  * The harness's modules carry a token unique to the compile: test forks share one quoter node, and two compiles
@@ -54,8 +55,8 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
         val value: Int? = null,
     )
 
-    /** What the probe at [tag] saw: `__CALLER__` as a map. */
-    data class Observation(val tag: Tag, val env: OtpErlangMap)
+    /** What the probe at [tag] saw: `__CALLER__` as a map, and its module's hygiene counter before it took one. */
+    data class Observation(val tag: Tag, val env: OtpErlangMap, val counterBefore: Long)
 
     /**
      * [probeModule] and [caseModule] are atom text, as [Env] holds modules.
@@ -118,13 +119,19 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
                 """
                 defmodule $probeModule do
                   defmacro p(tag) do
-                    IntellijElixir.Quoter.Probe.send(__CALLER__, {List.to_tuple(tag), Map.from_struct(__CALLER__)})
+                    IntellijElixir.Quoter.Probe.send(__CALLER__, observation(tag, __CALLER__))
                     nil
                   end
 
                   defmacro i(tag, expr) do
-                    IntellijElixir.Quoter.Probe.send(__CALLER__, {List.to_tuple(tag), Map.from_struct(__CALLER__)})
+                    IntellijElixir.Quoter.Probe.send(__CALLER__, observation(tag, __CALLER__))
                     expr
+                  end
+
+                  defp observation(tag, caller) do
+                    {data, _} = :elixir_module.data_tables(caller.module)
+
+                    {List.to_tuple(tag), Map.from_struct(caller), :ets.lookup_element(data, {:elixir, :counter}, 2)}
                   end
                 end
 
@@ -253,10 +260,14 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
         message is OtpErlangTuple && message.arity() == 3 && message.elementAt(0) == OtpErlangAtom("value")
 
     private fun observation(message: OtpErlangObject): Observation {
-        val (tag, env) = (message as OtpErlangTuple).elements()
+        val (tag, env, counterBefore) = (message as OtpErlangTuple).elements()
         val numbers = (tag as OtpErlangTuple).elements().map { (it as OtpErlangLong).intValue() }
 
-        return Observation(Tag(numbers[0], numbers[1], numbers[2], numbers.getOrElse(3) { 0 }), env as OtpErlangMap)
+        return Observation(
+            Tag(numbers[0], numbers[1], numbers[2], numbers.getOrElse(3) { 0 }),
+            env as OtpErlangMap,
+            (counterBefore as OtpErlangLong).longValue(),
+        )
     }
 
     private companion object {
