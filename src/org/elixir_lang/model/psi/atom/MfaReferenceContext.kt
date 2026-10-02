@@ -1,7 +1,6 @@
 package org.elixir_lang.model.psi.atom
 
 import com.intellij.psi.PsiElement
-import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.ElixirAccessExpression
 import org.elixir_lang.psi.ElixirAtom
@@ -61,7 +60,7 @@ private fun ElixirAtom.applyContext(): MfaReferenceContext? {
         ?: return null
     val finalArguments = applyCall.finalArguments() ?: return null
     if (finalArguments.size != 3) return null
-    if (!PsiTreeUtil.isAncestor(finalArguments[1], this, false)) return null
+    if (finalArguments[1].stripAccessExpression() !== this) return null
 
     val moduleElement = moduleElement(finalArguments[0].stripAccessExpression()) ?: return null
 
