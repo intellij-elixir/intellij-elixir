@@ -8,7 +8,8 @@ import java.io.File
  * After each statement of a case module body, and at each identity probe in its patterns, the expander's variables
  * fall into the same classes as Elixir's, and its env's other fields equal Elixir's, on the leg's Elixir. A case the
  * expander reports an error for is compared as an error. One that reaches an unported clause at any statement is
- * counted as uncovered, and one that stops at a macro whose expansion isn't modelled is counted apart.
+ * counted as uncovered, and one that stops at a macro whose expansion isn't modelled is counted apart and compared up
+ * to that macro.
  */
 class VariableClassProbeTest : ProbeTestCase() {
     private val probes = ExpansionProbes(harness) { createPsiFile(getTestName(false), it) as ElixirFile }
@@ -48,6 +49,7 @@ class VariableClassProbeTest : ProbeTestCase() {
         probes.assertMatchesElixir(
             expansions.filterValues { it.outcome !is Expansion.Unported && it.outcome !is Expansion.Opaque }
         )
+        probes.assertMatchesElixirUpToMacro(opaque)
         assertTrue("covered ${covered.size} of ${cases.size}, below $FLOOR", covered.size >= FLOOR)
     }
 

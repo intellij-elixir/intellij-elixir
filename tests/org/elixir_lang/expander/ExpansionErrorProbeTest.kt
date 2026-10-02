@@ -6,7 +6,8 @@ import org.elixir_lang.psi.ElixirFile
 /**
  * Each own case, compiled as a module body on the leg's Elixir, ends as the expander says: an error at its line and
  * for its reason, or a compile, with the same variables and env at every probe on the way, identity probes in patterns
- * included. Which route a case takes on a leg is the expander's answer there.
+ * included, or, at a macro whose expansion isn't modelled, a stop that agrees with Elixir up to the macro. Which route
+ * a case takes on a leg is the expander's answer there.
  */
 class ExpansionErrorProbeTest : ProbeTestCase() {
     private val probes = ExpansionProbes(harness) { createPsiFile(getTestName(false), it) as ElixirFile }
@@ -22,6 +23,7 @@ class ExpansionErrorProbeTest : ProbeTestCase() {
         )
 
         probes.assertMatchesElixir(expansions)
+        probes.assertMatchesElixirUpToMacro(expansions.filterValues { it.outcome is Expansion.Opaque })
     }
 
     /** [code] is compared from [from], where Elixir's answer before it isn't one the expander gives. */

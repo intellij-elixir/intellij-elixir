@@ -104,8 +104,11 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
         return attempt.batch
     }
 
-    /** Compiles each of [cases] as the body of a module of its own, and returns what happened, however it ended. */
-    fun attempt(cases: List<Case>): Attempt {
+    /**
+     * Compiles each of [cases] as the body of a module of its own, after [preamble]'s modules, and returns what
+     * happened, however it ended.
+     */
+    fun attempt(cases: List<Case>, preamble: String = ""): Attempt {
         val token = "ProbeCase" + UUID.randomUUID().toString().replace("-", "")
         val probeModule = probeModule(token)
         val tags = mutableListOf<Tag>()
@@ -127,6 +130,7 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
 
                 """.trimIndent()
             )
+            append(preamble)
 
             cases.forEachIndexed { index, case ->
                 append("\ndefmodule ${caseModule(token, index)} do\n")
