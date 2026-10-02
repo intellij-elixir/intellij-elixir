@@ -38,7 +38,7 @@ defmodule Matrix do
 
   # Everything this script owns: wiped before a run and hashed into `manifest.json` after it, so the two can never
   # disagree about what a fixture is.
-  @generated_directories ["lib", "spec", "_build", "provenance"]
+  @generated_directories ["lib", "spec", "_build", "stale", "provenance"]
 
   # `c` followed by U+0301 COMBINING ACUTE ACCENT: Elixir normalises it to `ć` (U+0107) in identifiers, Erlang does not.
   @decomposed "snoć"
@@ -111,7 +111,10 @@ defmodule Matrix do
 
   # `as:` only changes which function of the target a delegate calls, so it asks nothing new in the worlds about
   # clauses, guards or lookalikes; these are the ones where a delegate's arity or module is the question.
-  @delegate_as_worlds ["w1", "w2", "x_defaults", "x_arity_absent", "x_other_module" | @spec_parens_worlds]
+  # Worlds that ask w1's question in another setting, so every form w1 has.
+  @w1_shaped ["w1", "src_stale_beam"]
+
+  @delegate_as_worlds ["w1", "src_stale_beam", "w2", "x_defaults", "x_arity_absent", "x_other_module" | @spec_parens_worlds]
 
   # The forms that declare functions a caller can name before or after them, and name in a `@spec`.
   @function_forms ["def", "defp", "defdelegate", "defdelegate_compiled", "defdelegate_unresolvable", "defdelegate_as", "eex_function_from"]
@@ -175,7 +178,7 @@ defmodule Matrix do
   @parens_worlds ["x_parens_guarded"]
 
   # The worlds where a call made before the definition is asked, which only a walk of the whole module can resolve.
-  @local_forward_worlds ["w1", "x_if_else" | @wrapper_worlds ++ @use_wrapper_worlds ++ @guarded_worlds]
+  @local_forward_worlds ["w1", "src_stale_beam", "x_if_else" | @wrapper_worlds ++ @use_wrapper_worlds ++ @guarded_worlds]
 
   # What `x_moduledoc_file` reads its doc from, relative to this directory, where the compiler runs.
   @moduledoc_file "spec/moduledoc.md"
@@ -321,11 +324,11 @@ defmodule Matrix do
   @injecting_worlds @use_worlds ++ @use_wrapper_worlds ++ @use_parens_worlds ++ @use_quote_wrapper_worlds ++ @use_quote_shape_worlds
 
   # A definition with defaults is one function at several arities, so a `@spec` of any of them is about it.
-  @spec_worlds ["w1", "x_arity", "x_defaults", "x_defaults_head" | @spec_parens_worlds]
+  @spec_worlds ["w1", "src_stale_beam", "x_arity", "x_defaults", "x_defaults_head" | @spec_parens_worlds]
 
   # EEx declares one clause per name and arity, with no guard and no defaults, so only the worlds made of those.
   # Under a wrapper, only the literal call and only the calls in its own module ask anything `def` does not.
-  @eex_worlds ["w1", "x_arity", "x_other_module", "x_not_a_call", "x_arity_absent", "x_arity_zero", "x_arity_separate" | @wrapper_worlds ++ @spec_parens_worlds]
+  @eex_worlds ["w1", "src_stale_beam", "x_arity", "x_other_module", "x_not_a_call", "x_arity_absent", "x_arity_zero", "x_arity_separate" | @wrapper_worlds ++ @spec_parens_worlds]
 
   # A world is its modules' definitions and the calls made to them. A definition is `{name, clauses}`; a clause is
   # `{parameters, guard}`, where a parameter is a name or `{name, default}` and a guard is `{function, parameter}`.
@@ -395,6 +398,9 @@ defmodule Matrix do
       "w3" => %{modules: [[snoc_2 | lookalikes]], calls: one_calls ++ lookalike_calls},
       "w4" => %{modules: [many ++ lookalikes], calls: many_calls ++ lookalike_calls},
       "x_arity" => %{modules: [[snoc_2, {"snoc", [{["q", "x", "y"], nil}]}]], calls: one_calls ++ [{"arity_3", 0, "snoc", 3, :qualified}, {"unqualified_arity_3", 0, "snoc", 3, :unqualified}]},
+      # The source beside an older `.beam` of the same module, as a project's own `_build` holds it once the source is
+      # edited after `mix compile`: only the source's definitions exist.
+      "src_stale_beam" => %{modules: [[snoc_2]], calls: one_calls},
       "x_other_module" => %{modules: [[snoc_2], [snoc_2]], calls: one_calls ++ [{"other_qualified", 1, "snoc", 2, :qualified}]},
       "x_not_a_call" => %{modules: [[snoc_2]], calls: one_calls ++ [{"variable", 0, "snoc", 0, :variable}, {"atom", 0, "snoc", 0, :atom}, {"keyword", 0, "snoc", 0, :keyword}]},
       "x_defaults" => %{modules: [[{"snoc", [{["q", {"x", "nil"}], nil}]}]], calls: one_calls ++ [{"default_arity", 0, "snoc", 1, :qualified}] ++ lower_arity_uses},
@@ -565,18 +571,18 @@ defmodule Matrix do
   def not_applicable(%{compiled: true}, %{delegate: :imports}, _world),
     do: "a compiled delegator is an ordinary compiled function; what its target imports is the source's question"
 
-  def not_applicable(_backing, %{delegate: :imports}, world) when world != "w1",
+  def not_applicable(_backing, %{delegate: :imports}, world) when world not in @w1_shaped,
     do: "a target that only imports the function asks nothing w1 does not"
 
   def not_applicable(%{compiled: true}, %{doc: _}, _world),
     do: "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question"
 
-  def not_applicable(_backing, %{doc: _}, world) when world != "w1", do: "a delegate's own `@doc` asks nothing w1 does not"
+  def not_applicable(_backing, %{doc: _}, world) when world not in @w1_shaped, do: "a delegate's own `@doc` asks nothing w1 does not"
 
   def not_applicable(%{compiled: true}, form, _world) when is_map_key(form, :options) or is_map_key(form, :as_written),
     do: "how the options were spelled is gone once compiled; that is defdelegate_as's question again"
 
-  def not_applicable(_backing, form, world) when (is_map_key(form, :options) or is_map_key(form, :as_written)) and world != "w1",
+  def not_applicable(_backing, form, world) when (is_map_key(form, :options) or is_map_key(form, :as_written)) and world not in @w1_shaped,
     do: "how the options are spelled asks nothing w1 does not"
 
   def not_applicable(_backing, %{as: _}, world) when world not in @delegate_as_worlds,
@@ -635,6 +641,9 @@ defmodule Matrix do
     do: "a `use` injects what its quote defines; these are the definers a quote is written with"
 
   def not_applicable(_backing, %{guard: true}, "x_use_injected_defaults"), do: "a guard cannot have default arguments"
+
+  def not_applicable(backing, _form, "src_stale_beam") when backing.id != "src",
+    do: "only a source can be stale beside its own compiled module"
 
   def not_applicable(backing, form, "x_interpolated_atom") when backing.id != "src" or form.id != "def",
     do: "an interpolated atom is resolved against every indexed name, whatever the backing and form of the world's function"
@@ -1912,6 +1921,7 @@ defmodule Matrix do
     source = render_source(backing, form, module, definitions, primary, target)
     File.mkdir_p!(Path.dirname(path))
     File.write!(path, source)
+    stale = if(primary != nil and world == "src_stale_beam", do: stale_beam(form, module, definitions))
 
     {beam, events, binary} = compile_source(backing, module, path, source)
 
@@ -1955,6 +1965,7 @@ defmodule Matrix do
       local: local
     }
     |> then(&if(form[:moduledoc], do: Map.put(&1, "moduledoc", moduledoc(binary, source)), else: &1))
+    |> then(&if(stale, do: Map.put(&1, "staleBeam", stale), else: &1))
     |> then(fn record ->
       docs = if form[:delegate], do: function_docs(binary), else: []
       if docs == [], do: record, else: Map.put(record, "docs", docs)
@@ -2685,6 +2696,46 @@ defmodule Matrix do
     path = Path.join(["_build", "dev", "lib", backing.id, "ebin", file])
     File.mkdir_p!(Path.dirname(path))
     File.write!(path, stripped)
+    path
+  end
+
+  # The module as it was before its source changed: the same name at another arity and with other parameters, and a
+  # function the source no longer has. Written where Mix puts the project's own beams, under `stale/`, which the
+  # tests copy into the project rather than attach as a library.
+  defp stale_beam(form, module, [{name, _clauses} | _]) do
+    path = Path.join(["stale", "_build", "dev", "lib", "matrix", "ebin", "Elixir.#{module}.beam"])
+    File.mkdir_p!(Path.dirname(path))
+    # A delegate or an EEx template compiles to a `def`.
+    definer = if(form.definer == "defdelegate" or form[:eex], do: "def", else: form.definer)
+
+    {two, three} =
+      cond do
+        form[:guard] -> {" when old_q == old_x", " when old_q == old_x and old_x == old_y"}
+        form[:macro] -> {", do: quote(do: {:stale, unquote(old_q), unquote(old_x)})", ", do: quote(do: {:stale, unquote(old_q), unquote(old_x), unquote(old_y)})"}
+        true -> {", do: {:stale, old_q, old_x}", ", do: {:stale, old_q, old_x, old_y}"}
+      end
+
+    # A private definition no one calls would not compile cleanly.
+    stale_only =
+      cond do
+        !form[:private] -> "def stale_only(old), do: old"
+        form[:guard] -> "def stale_only(old) when #{name}(old, old) and #{name}(old, old, old), do: old"
+        true -> "def stale_only(old), do: {#{name}(old, old), #{name}(old, old, old)}"
+      end
+
+    source = """
+    defmodule #{module} do
+      #{definer} #{name}(old_q, old_x)#{two}
+      #{definer} #{name}(old_q, old_x, old_y)#{three}
+      #{stale_only}
+    end
+    """
+
+    {[{erlang_module, binary}], _events} = compile_elixir_modules(path, source)
+    File.write!(path, binary)
+    :code.purge(erlang_module)
+    :code.delete(erlang_module)
+    :code.purge(erlang_module)
     path
   end
 

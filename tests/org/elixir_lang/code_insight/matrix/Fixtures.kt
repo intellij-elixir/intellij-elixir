@@ -105,6 +105,11 @@ class DeclaringModule(
      * none there, so null or absent means the delegate has no doc of its own.
      */
     val docs: List<FunctionDoc>? = null,
+    /**
+     * An older compiled version of this source module, with other definitions, that the project holds beside it at its
+     * path under `stale/`, as a Mix project's own `_build` does once the source is edited after `mix compile`.
+     */
+    val staleBeam: String? = null,
 ) {
     val compiled: Boolean get() = beam != null
 
