@@ -162,6 +162,32 @@ class CaptureExpanderTest : ExpanderTestCase() {
         )
     }
 
+    /** A variable in a macro's context, which only macro output has, keeps that context inside a capture. */
+    fun testAVariableInAMacrosContextKeepsItInsideACapture() {
+        val code = "&[&1, x]"
+
+        assertEquals(
+            LEVELS.joinToString("\n") { "$it: expanded {x:0} next " + if (isBefore(it, "1.20.0-rc.5")) 2 else 3 },
+            LEVELS.joinToString("\n") { version ->
+                val level = ElixirLanguageLevel.of(version)
+                val capture = lower(code, level) as ElixirAst.Call
+                val list = capture.arguments!!.single() as ElixirAst.ListNode
+                val (argument, x) = list.elements.map { it as ElixirAst.Call }
+                val inKernel = ElixirAst.Call(x.meta, x.callee, null, ElixirAst.VariableContext.Atom("Kernel"))
+                val ast = ElixirAst.Call(
+                    capture.meta,
+                    capture.callee,
+                    listOf(ElixirAst.ListNode(list.meta, listOf(argument, inKernel))),
+                )
+                val state = ExState.empty(level)
+                    .copy(read = mapOf(Variable("x", Variable.Context.Atom("Kernel")) to 0), version = 1)
+                val env = Env.empty(level, NO_KERNEL)
+
+                "$version: " + render(code, Expander.expand(ast, state, env, level, NO_EXPORTS, NO_STRUCTS))
+            }
+        )
+    }
+
     /** [code] expands to `expanded [before]` before 1.20.0-rc.5, and to `expanded [from]` from it. */
     private fun assertVersioned(code: String, before: String, from: String) =
         assertSplit(code, "1.20.0-rc.5", "expanded $before", "expanded $from")

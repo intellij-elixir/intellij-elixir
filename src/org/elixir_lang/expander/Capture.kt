@@ -1,9 +1,11 @@
 package org.elixir_lang.expander
 
 import org.elixir_lang.language_level.ElixirLanguageFeature.CAPTURE_ARGUMENT_BELOW_ONE_IS_INVALID_ARITY
+import org.elixir_lang.language_level.ElixirLanguageFeature.CAPTURE_ARGUMENT_COUNTER
+import org.elixir_lang.language_level.ElixirLanguageFeature.CAPTURE_ARGUMENT_IN_ELIXIR_FN_CONTEXT
+import org.elixir_lang.language_level.ElixirLanguageFeature.CAPTURE_ARGUMENT_POSITION_META
 import org.elixir_lang.language_level.ElixirLanguageFeature.CAPTURE_REPORTED_AT_CALL
 import org.elixir_lang.language_level.ElixirLanguageFeature.REMOTE_CAPTURE_REPORTED_AT_CALL
-import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
@@ -165,12 +167,12 @@ private fun captureRequire(
     run: Run,
 ): Expansion {
     val module = ((call.callee as ElixirAst.Call).arguments!!)[0]
-    val escape = Escape(run.level).apply { escape(module) }
+    val escape = Escape(run, env.module).apply { escape(module) }
 
     escape.error?.let { return it }
 
     return if (escape.variables.isNotEmpty()) {
-        captureExpr(captureAt(amp, call, run), call, arguments, state, env, run)
+        captureExpr(captureAt(amp, call, run), call, arguments, state, env, run, escape)
     } else {
         Expander.expand(module, state, env, run).thenValue { s, e, value ->
             val at = captureAt(amp, call, run, plainRemote = true)
@@ -252,6 +254,7 @@ private fun captureAt(amp: ElixirAst, call: ElixirAst, run: Run, plainRemote: Bo
  * those variables in order, which must be `&1` to the highest `&N`.
  *
  * @param at where the capture's errors are reported, and the `fn`'s metadata
+ * @param escape holding the variables of [expr]'s module part, when `capture_require/4` escaped it first
  */
 private fun captureExpr(
     at: ElixirAst,
@@ -260,8 +263,8 @@ private fun captureExpr(
     state: ExState,
     env: Env,
     run: Run,
+    escape: Escape = Escape(run, env.module),
 ): Expansion {
-    val escape = Escape(run.level)
     val body = escape.escape(expr)
 
     escape.error?.let { return it }
@@ -287,10 +290,9 @@ private fun captureExpr(
 /**
  * `escape/3`: a node with each `&N` replaced by the variable for `N`, and the first error an `&` in it gives.
  *
- * The variable for `N` is named `&N` in the `nil` context, which no source variable can be: 1.16 names it so, and other
- * releases name it apart from source variables in other ways.
+ * @param module the module whose hygiene counter each variable takes
  */
-private class Escape(private val level: ElixirLanguageLevel) {
+private class Escape(private val run: Run, private val module: String?) {
     /** The variable for each `N`, at its first `&N`, by `N`. */
     val variables = sortedMapOf<BigInteger, ElixirAst>()
     var error: Expansion.Error? = null
@@ -305,7 +307,7 @@ private class Escape(private val level: ElixirLanguageLevel) {
                     if ((node.callee as? ElixirAst.Literal.Atom)?.name == "&") {
                         argument(node)
                     } else {
-                        ElixirAst.Call(node.meta, escape(node.callee), node.arguments?.map(::escape))
+                        ElixirAst.Call(node.meta, escape(node.callee), node.arguments?.map(::escape), node.context)
                     }
                 is ElixirAst.Tuple -> ElixirAst.Tuple(node.meta, node.elements.map(::escape))
                 is ElixirAst.ListNode -> ElixirAst.ListNode(node.meta, node.elements.map(::escape))
@@ -317,24 +319,46 @@ private class Escape(private val level: ElixirLanguageLevel) {
 
     private fun argument(node: ElixirAst.Call): ElixirAst {
         val position = (node.arguments?.singleOrNull() as? ElixirAst.Literal.Integer)?.value
-        val variable = ElixirAst.Call(node.meta, ElixirAst.Literal.Atom(node.meta, "&$position"), null)
 
-        when {
-            position == null -> error = Expansion.Error("nested_capture", node)
+        error = when {
+            position == null -> Expansion.Error("nested_capture", node)
             position.signum() <= 0 ->
-                error = Expansion.Error(
-                    if (CAPTURE_ARGUMENT_BELOW_ONE_IS_INVALID_ARITY.isSufficient(level)) {
+                Expansion.Error(
+                    if (CAPTURE_ARGUMENT_BELOW_ONE_IS_INVALID_ARITY.isSufficient(run.level)) {
                         "invalid_arity_for_capture"
                     } else {
                         "unallowed_capture_arg"
                     },
                     node
                 )
-            else -> variables.putIfAbsent(position, variable)
+            else -> return variables.getOrPut(position) { variable(node, position) }
         }
 
-        return variable
+        return node
     }
+
+    /**
+     * The variable for `N`: `&N` in the `nil` context, which no source variable can be named, until each takes the next
+     * hygiene counter of [module] instead.
+     */
+    private fun variable(node: ElixirAst.Call, position: BigInteger): ElixirAst =
+        if (CAPTURE_ARGUMENT_COUNTER.isSufficient(run.level)) {
+            val counter = Meta.Key.Entry("counter", counterMetaValue(run.counters.next(module)))
+            val capture = Meta.Key.Entry("capture", Meta.Value.Integer(position.toLong()))
+                .takeIf { CAPTURE_ARGUMENT_POSITION_META.isSufficient(run.level) }
+            val keys = listOfNotNull(counter, capture) + node.meta.keys
+            val meta = node.meta.let { Meta(it.origin, it.start, it.end, keys, it.built) }
+
+            if (CAPTURE_ARGUMENT_IN_ELIXIR_FN_CONTEXT.isSufficient(run.level)) {
+                val name = ElixirAst.Literal.Atom(node.meta, "_&")
+
+                ElixirAst.Call(meta, name, null, ElixirAst.VariableContext.Atom("elixir_fn"))
+            } else {
+                ElixirAst.Call(meta, ElixirAst.Literal.Atom(node.meta, "capture"), null)
+            }
+        } else {
+            ElixirAst.Call(node.meta, ElixirAst.Literal.Atom(node.meta, "&$position"), null)
+        }
 }
 
 /** `args_from_arity/3`: `&1` to `&arity`, or `null` where [arity] is outside 0 to 255. */

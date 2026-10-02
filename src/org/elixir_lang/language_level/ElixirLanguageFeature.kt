@@ -867,6 +867,29 @@ enum class ElixirLanguageFeature(
     CAPTURE_REPORTED_AT_CALL(sinceElixir = "1.16.0-rc.0"),
 
     /**
+     * Each distinct `&N` in a capture takes a hygiene counter, which its variable, named `capture`, carries, so the
+     * variable is apart from every other.
+     *
+     * `elixir-lang/elixir@53c93b91d` ("Avoid nesting of capture inside macros"), first released in v1.17.0-rc.1.
+     */
+    CAPTURE_ARGUMENT_COUNTER(sinceElixir = "1.17.0-rc.1"),
+
+    /**
+     * A capture argument's variable records its position, as `capture` metadata after its counter.
+     *
+     * `elixir-lang/elixir@59a1ad913` ("Allow captures to be reconstructed on type system pretty printing"), first
+     * released in v1.19.0-rc.1.
+     */
+    CAPTURE_ARGUMENT_POSITION_META(sinceElixir = "1.19.0-rc.1"),
+
+    /**
+     * The variable for an `&N` is named `_&`, in `elixir_fn`'s context, not `capture`.
+     *
+     * `elixir-lang/elixir@aae39c87d` ("Fix warnings"), first released in v1.20.0-rc.5.
+     */
+    CAPTURE_ARGUMENT_IN_ELIXIR_FN_CONTEXT(sinceElixir = "1.20.0-rc.5"),
+
+    /**
      * `case`, `cond`, `receive`, `try`, `fn`, `with` and `for` each take a version once their clauses are expanded,
      * which advances the next variable's.
      *
