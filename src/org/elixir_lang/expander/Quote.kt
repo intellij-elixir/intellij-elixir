@@ -382,8 +382,6 @@ internal object Quote {
 
     private val DEFINITIONS = setOf("def", "defp", "defmacro", "defmacrop", "@")
 
-    private val DIRECTIVES = setOf("import", "alias", "require")
-
     /** `#elixir_quote{op = quote}`, with `aliases_hygiene` and `imports_hygiene` both [env]. */
     private class Quoting(
         val line: Line,
@@ -445,7 +443,7 @@ internal object Quote {
                 node is ElixirAst.Alias && (node.segments.first() as? ElixirAst.Literal.Atom)?.name.let {
                     it != null && it != "Elixir"
                 } -> {
-                    val annotation = aliasedModule(node) ?: "false"
+                    val annotation = aliasedModule(node)
                     val meta = keystore(keydelete(metaOf(node), "counter"), "alias", s.atom(annotation))
 
                     s.tuple(s.atom("__aliases__"), meta(meta), doQuoteList(node.segments))
@@ -540,7 +538,7 @@ internal object Quote {
                     annotateDefinition(args.first())
                     meta
                 }
-                target is ElixirAst.Literal.Atom && name in DIRECTIVES && args.isNotEmpty() ->
+                target is ElixirAst.Literal.Atom && name in LEXICAL && args.isNotEmpty() ->
                     keystore(keydelete(meta, "counter"), "context", s.atom(context))
                 else -> meta
             }
@@ -667,14 +665,13 @@ internal object Quote {
                 ImportMatch.None -> null
             }
 
-        /** `elixir_aliases:expand/4` of [node]: the module an alias names, or `null` when no alias applies. */
-        private fun aliasedModule(node: ElixirAst.Alias): String? {
-            val head = (node.segments.first() as ElixirAst.Literal.Atom).name
-
-            if (env.aliases.none { it.alias == "Elixir.$head" }) return null
-
-            return aliasesModule(node, env, level) ?: throw Stop(Expansion.Unported(node))
-        }
+        /** The `alias` annotation `elixir_aliases:expand/4` gives [node]: the module it names, or `false`. */
+        private fun aliasedModule(node: ElixirAst.Alias): String =
+            when (val expansion = aliasExpansion(node, env, level)) {
+                is AliasExpansion.Aliased -> expansion.module
+                is AliasExpansion.Unaliased -> "false"
+                null -> throw Stop(Expansion.Unported(node))
+            }
 
         /** `meta/2`. */
         private fun meta(meta: Keywords): ElixirAst {

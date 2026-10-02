@@ -3,7 +3,6 @@ package org.elixir_lang.expander
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILER_VARIABLES_REFUSED_IN_PATTERN
 import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ENV_VERSIONED_VARS
 import org.elixir_lang.lowering.ElixirAst
-import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
 import java.math.BigInteger
 
@@ -35,7 +34,7 @@ internal fun expandEnvField(node: ElixirAst.Call, state: ExState, env: Env, run:
         "module" -> atom(env.module)
         // `Env` holds no file.
         "file" -> Term.Binary(null)
-        "line" -> Term.Integer(BigInteger.valueOf(line(environment.meta).toLong()))
+        "line" -> Term.Integer(BigInteger.valueOf(lineOf(environment.meta).toLong()))
         "function" -> env.function?.let { Term.Pair(Term.Atom(it.name), integer(it.arity)) } ?: NIL
         "context" -> Term.Atom(env.context.name.lowercase().takeUnless { it == "none" } ?: "nil")
         "aliases" -> Term.List(env.aliases.map { Term.Pair(Term.Atom(it.alias), Term.Atom(it.module)) })
@@ -55,9 +54,6 @@ internal fun expandEnvField(node: ElixirAst.Call, state: ExState, env: Env, run:
 
     return Expansion.Expanded(state, env, value)
 }
-
-/** `?line(Meta)`: the `line` in [meta], or 0. */
-private fun line(meta: Meta): Int = meta.keys.firstNotNullOfOrNull { (it as? Meta.Key.Location)?.position?.line } ?: 0
 
 private fun atom(name: String?): Term = name?.let(Term::Atom) ?: NIL
 

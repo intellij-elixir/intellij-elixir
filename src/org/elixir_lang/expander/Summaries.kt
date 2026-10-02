@@ -10,7 +10,11 @@ internal fun interface Summary {
 
 /** The summary registry: each modelled macro, by its receiver, name and arity. */
 internal object Summaries {
-    private val SUMMARIES: Map<Triple<String, String, Int>, Summary> = emptyMap()
+    private val SUMMARIES: Map<Triple<String, String, Int>, Summary> = mapOf(
+        Triple("Elixir.Kernel", "var!", 1) to VAR_BANG,
+        Triple("Elixir.Kernel", "var!", 2) to VAR_BANG,
+        Triple("Elixir.Kernel", "alias!", 1) to ALIAS_BANG,
+    )
 
     fun of(dispatch: Dispatch): Summary? = SUMMARIES[Triple(dispatch.receiver, dispatch.name, dispatch.arity)]
 }

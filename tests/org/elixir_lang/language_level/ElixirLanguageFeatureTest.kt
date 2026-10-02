@@ -103,6 +103,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             CLAUSES_TAKE_VERSION to ("1.20.0-rc.4" to "1.20.0-rc.5"),
             IMPLICIT_ALIAS_NEEDS_ELIXIR_MODULE to ("1.12.3" to "1.13.0-rc.0"),
             PATTERN_SEES_RIGHT_SIDE_ENV to ("1.12.3" to "1.13.0-rc.0"),
+            VAR_BANG_IF_UNDEFINED to ("1.12.3" to "1.13.0-rc.0"),
             ALIAS_AS_NIL_REJECTED to ("1.15.8" to "1.16.0-rc.0"),
             ALIAS_EXPANDS_ONE_STEP to ("1.15.8" to "1.16.0-rc.0"),
             IMPORT_OPTION_MISTAKES_WARN to ("1.14.5" to "1.15.0-rc.0"),

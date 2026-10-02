@@ -239,6 +239,17 @@ class QuoteExpanderTest : ExpanderTestCase() {
                 "[{:__aliases__, [alias: false], [:Foo, :Bar]}]}",
         )
 
+    /** `alias: false` looks only in the macro aliases. */
+    fun testAnAliasMarkedFalseIsNotLookedUpInTheAliases() =
+        withKeys("Foo" to listOf(entry("alias", atom("false")))) {
+            assertValue("alias Bar.Foo\nquote(do: Foo)", "{:__aliases__, [alias: false], [:Foo]}")
+        }
+
+    fun testAnAliasMarkedWithAModuleIsThatModule() =
+        withKeys("Foo" to listOf(entry("alias", atom("Elixir.Bar")))) {
+            assertValue("quote(do: Foo)", "{:__aliases__, [alias: Bar], [:Foo]}")
+        }
+
     fun testAnAliasFromTheElixirRoot() = assertValue("quote(do: Elixir.Foo)", "{:__aliases__, [], [:Elixir, :Foo]}")
 
     fun testAnImportedCall() =

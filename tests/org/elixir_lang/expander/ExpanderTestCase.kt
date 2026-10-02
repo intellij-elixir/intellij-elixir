@@ -5,6 +5,7 @@ import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
+import org.elixir_lang.lowering.Meta
 import org.elixir_lang.parser_definition.ParsingTestCase
 import org.elixir_lang.psi.ElixirFile
 
@@ -37,11 +38,62 @@ abstract class ExpanderTestCase : ParsingTestCase() {
             observer,
         )
 
+    /** Keys added ahead of the meta of the last call or alias, in source order, whose source is each key. */
+    private var keys: Map<String, List<Meta.Key>> = emptyMap()
+
+    /** [code], lowered at [level], with the keys [withKeys] gives. */
     protected fun lower(code: String, level: ElixirLanguageLevel): ElixirAst {
         val file = createPsiFile(getTestName(false), code) as ElixirFile
 
-        return ReadAction.computeBlocking<_, Throwable> { Lowering.lower(file, level) }
+        return withKeys(ReadAction.computeBlocking<_, Throwable> { Lowering.lower(file, level) }, code)
     }
+
+    /** Runs [assertion] with each list in [keys] added to the meta of the node whose source is its key, as macro output. */
+    protected fun withKeys(vararg keys: Pair<String, List<Meta.Key>>, assertion: () -> Unit) {
+        this.keys = keys.toMap()
+        try {
+            assertion()
+        } finally {
+            this.keys = emptyMap()
+        }
+    }
+
+    private fun withKeys(node: ElixirAst, code: String): ElixirAst {
+        if (keys.isEmpty()) return node
+
+        val remaining = keys.toMutableMap()
+
+        // Last child first, and a node after its children, so a source written twice takes its keys where last written.
+        fun rewrite(node: ElixirAst): ElixirAst =
+            when (node) {
+                is ElixirAst.Call -> {
+                    val arguments = node.arguments?.asReversed()?.map(::rewrite)?.asReversed()
+                    val callee = rewrite(node.callee)
+
+                    val meta = withKeys(node.meta, remaining.remove(node.meta.origin.substring(code)))
+
+                    ElixirAst.Call(meta, callee, arguments, node.context)
+                }
+                is ElixirAst.Alias ->
+                    ElixirAst.Alias(withKeys(node.meta, remaining.remove(node.meta.origin.substring(code))), node.segments)
+                is ElixirAst.Block -> ElixirAst.Block(node.meta, node.expressions.asReversed().map(::rewrite).asReversed())
+                is ElixirAst.ListNode -> ElixirAst.ListNode(node.meta, node.elements.asReversed().map(::rewrite).asReversed())
+                is ElixirAst.Tuple -> ElixirAst.Tuple(node.meta, node.elements.asReversed().map(::rewrite).asReversed())
+                else -> node
+            }
+
+        return rewrite(node).also { assertEquals("sources with no call or alias", emptySet<String>(), remaining.keys) }
+    }
+
+    private fun withKeys(meta: Meta, keys: List<Meta.Key>?): Meta =
+        keys?.let { Meta(meta.origin, meta.start, meta.end, it + meta.keys, meta.built) } ?: meta
+
+    protected fun entry(name: String, value: Meta.Value) = Meta.Key.Entry(name, value)
+
+    protected fun atom(name: String) = Meta.Value.Atom(name)
+
+    /** The `counter` entry linify gives macro output in [module]. */
+    protected fun counter(n: Long) = entry("counter", Meta.Value.Tuple(listOf(atom(module!!), Meta.Value.Integer(n))))
 
     /** [node] with each variable named [name] made a placeholder, as source the lowering has no rule for is. */
     protected fun placeholding(node: ElixirAst, name: String): ElixirAst =

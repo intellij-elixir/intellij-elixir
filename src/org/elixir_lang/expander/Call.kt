@@ -75,21 +75,27 @@ internal fun expandImport(
     function: (receiver: String) -> Expansion,
     none: () -> Expansion,
 ): Expansion {
-    if (env.function != null) return Expansion.Unported(call)
-
-    // The quoted import `elixir_quote` marks a call with.
-    if (hasMetaKey(call.meta, "imports") || hasMetaKey(call.meta, "import")) return Expansion.Unported(call)
-
     val name = (call.callee as ElixirAst.Literal.Atom).name
     val arity = call.arguments!!.size
 
-    return when (val match = findImportByNameArity(name, arity, emptyList(), env)) {
+    return when (val match = importOf(call, env) ?: return Expansion.Unported(call)) {
         is ImportMatch.Ambiguous -> ambiguous()
         is ImportMatch.Macro ->
             macro(Dispatch(Dispatch.Kind.IMPORTED_MACRO, match.receiver, name, arity), call, state, env, run)
         is ImportMatch.Function -> function(match.receiver)
         ImportMatch.None -> none()
     }
+}
+
+/**
+ * `elixir_dispatch:find_import_by_name_arity/4` of [call], a local call, in [env]; `null` inside a function, where
+ * `elixir_def:local_for/5` looks for a local first, and for a quoted import, which `elixir_quote` marks a call with.
+ */
+internal fun importOf(call: ElixirAst.Call, env: Env): ImportMatch? {
+    if (env.function != null) return null
+    if (hasMetaKey(call.meta, "imports") || hasMetaKey(call.meta, "import")) return null
+
+    return findImportByNameArity((call.callee as ElixirAst.Literal.Atom).name, call.arguments!!.size, emptyList(), env)
 }
 
 /**

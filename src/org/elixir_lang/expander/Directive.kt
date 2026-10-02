@@ -89,8 +89,8 @@ internal fun expandDirective(
     when {
         env.context == Env.Context.MATCH -> return Expansion.Error("invalid_pattern_in_match", call)
         env.context == Env.Context.GUARD -> return noGuardScope(call, state)
-        // `defmodule`'s and a macro's metadata.
-        hasMetaKey(call.meta, "defined") || hasMetaKey(call.meta, "counter") -> return Expansion.Unported(call)
+        // `defmodule`'s metadata.
+        hasMetaKey(call.meta, "defined") -> return Expansion.Unported(call)
     }
 
     return expandWithoutAliasesReport(ref, state, env, run) { eRef, sr, er ->
@@ -184,40 +184,73 @@ private fun expandAliases(
 }
 
 /**
- * `elixir_aliases:expand_or_concat/4` for [node], whose head is an atom: the module it names through [env]'s aliases.
- * `null` for an alias whose head isn't an atom, or that `quote` or a macro marked.
+ * `elixir_aliases:expand_or_concat/4` of [node]: the module it names, or `null` where [aliasExpansion] gives none.
  */
-internal fun aliasesModule(node: ElixirAst.Alias, env: Env, level: ElixirLanguageLevel): String? {
-    if (hasMetaKey(node.meta, "alias") || hasMetaKey(node.meta, "counter")) return null
+internal fun aliasesModule(node: ElixirAst.Alias, env: Env, level: ElixirLanguageLevel): String? =
+    when (val expansion = aliasExpansion(node, env, level)) {
+        is AliasExpansion.Aliased -> expansion.module
+        is AliasExpansion.Unaliased -> concat(expansion.names)
+        null -> null
+    }
 
+/** What `elixir_aliases:expand/4` gives for an alias. */
+internal sealed class AliasExpansion {
+    /** An atom: the module an alias, or the alias's `alias` meta, names. */
+    class Aliased(val module: String) : AliasExpansion()
+
+    /** The list of [names], which no alias applies to. */
+    class Unaliased(val names: List<String>) : AliasExpansion()
+}
+
+/**
+ * `elixir_aliases:expand/4` of [node] through [env]'s aliases, or through its macro aliases when `quote` marked it
+ * `alias: false`; `null` for an alias whose head isn't an atom, or where Elixir crashes or never returns.
+ */
+internal fun aliasExpansion(node: ElixirAst.Alias, env: Env, level: ElixirLanguageLevel): AliasExpansion? {
     val names = node.segments.map { (it as? ElixirAst.Literal.Atom)?.name ?: return null }
     val head = names.first()
 
-    if (head == "Elixir") return concat(names)
+    if (head == "Elixir") return AliasExpansion.Unaliased(names)
 
+    val entries = when (val marked = metaValue(node.meta, "alias")) {
+        null -> env.aliases.map { AliasEntry(it.alias, null, it.module) }
+        is Meta.Value.Atom ->
+            if (marked.name == "false") {
+                env.macroAliases.map { AliasEntry(it.alias, it.counter, it.module) }
+            } else {
+                return AliasExpansion.Aliased(marked.name)
+            }
+        else -> return null
+    }
     val lookup = "Elixir.$head"
-    val module = lookup(lookup, env.aliases, level) ?: return null
+    val module = lookup(lookup, entries, counterOf(node.meta), level) ?: return null
 
     return when {
-        module == lookup -> concat(names)
-        names.size == 1 -> module
-        else -> concat(listOf(module) + names.drop(1))
+        module == lookup -> AliasExpansion.Unaliased(names)
+        names.size == 1 -> AliasExpansion.Aliased(module)
+        else -> AliasExpansion.Aliased(concat(listOf(module) + names.drop(1)))
     }
 }
 
-/** `elixir_aliases:lookup/3`, without a counter, or null on a cycle of aliases, where Elixir never returns. */
+/** An entry of `E.aliases`, or of `E.macro_aliases`, which only the expansion with [counter] sees. */
+private class AliasEntry(val alias: String, val counter: Env.Counter?, val module: String)
+
+/** `elixir_aliases:lookup/3`, or null on a cycle of aliases, where Elixir never returns. */
 private tailrec fun lookup(
     name: String,
-    aliases: List<Env.Alias>,
+    entries: List<AliasEntry>,
+    counter: Env.Counter?,
     level: ElixirLanguageLevel,
     seen: Set<String> = emptySet(),
 ): String? {
-    val module = aliases.firstOrNull { it.alias == name }?.module ?: return name
+    val entry = entries.firstOrNull { it.alias == name } ?: return name
+
+    if (entry.counter != null && entry.counter != counter) return name
 
     return when {
-        ALIAS_EXPANDS_ONE_STEP.isSufficient(level) -> module
+        ALIAS_EXPANDS_ONE_STEP.isSufficient(level) -> entry.module
         name in seen -> null
-        else -> lookup(module, aliases, level, seen + name)
+        else -> lookup(entry.module, entries, counter, level, seen + name)
     }
 }
 
@@ -329,9 +362,20 @@ private inline fun alias(
             }
         else -> return Expansion.Error("invalid_alias_for_as", call)
     }
-    val aliases = if (new == module) keydelete(env.aliases, module) else keystore(env.aliases, Env.Alias(new, module))
+    val aliases = if (new == module) {
+        keydelete(env.aliases, module) { it.alias }
+    } else {
+        keystore(env.aliases, Env.Alias(new, module)) { it.alias }
+    }
+    // `store_macro_alias/4` and `remove_macro_alias/3`.
+    val counter = counterOf(call.meta)
+    val macroAliases = when {
+        counter == null -> env.macroAliases
+        new == module -> keydelete(env.macroAliases, module) { it.alias }
+        else -> keystore(env.macroAliases, Env.MacroAlias(new, counter, module)) { it.alias }
+    }
 
-    return Expansion.Expanded(state, env.copy(aliases = aliases), value(new != module))
+    return Expansion.Expanded(state, env.copy(aliases = aliases, macroAliases = macroAliases), value(new != module))
 }
 
 /** `elixir_aliases:last/1`: `Elixir.` and the text after [module]'s last dot. */
@@ -349,16 +393,16 @@ private fun isElixirAlias(name: String): Boolean =
 private fun isSimpleAlias(name: String): Boolean =
     isElixirAlias(name) && name.removePrefix("Elixir.").split('.').count { it.isNotEmpty() } == 1
 
-private fun keystore(aliases: List<Env.Alias>, alias: Env.Alias): List<Env.Alias> {
-    val index = aliases.indexOfFirst { it.alias == alias.alias }
+private inline fun <T> keystore(list: List<T>, element: T, key: (T) -> String): List<T> {
+    val index = list.indexOfFirst { key(it) == key(element) }
 
-    return if (index < 0) aliases + alias else aliases.toMutableList().apply { set(index, alias) }
+    return if (index < 0) list + element else list.toMutableList().apply { set(index, element) }
 }
 
-private fun keydelete(aliases: List<Env.Alias>, alias: String): List<Env.Alias> {
-    val index = aliases.indexOfFirst { it.alias == alias }
+private inline fun <T> keydelete(list: List<T>, name: String, key: (T) -> String): List<T> {
+    val index = list.indexOfFirst { key(it) == name }
 
-    return if (index < 0) aliases else aliases.toMutableList().apply { removeAt(index) }
+    return if (index < 0) list else list.toMutableList().apply { removeAt(index) }
 }
 
 /** `expand_require/5`: [module] added to the requires, then aliased only as [opts]' `as:` says. */
@@ -500,6 +544,10 @@ private fun hasTail(term: Term): Boolean =
 private fun List<NameArity>?.hasDuplicate(): Boolean = this != null && toSet().size != size
 
 internal fun hasMetaKey(meta: Meta, name: String): Boolean = meta.keys.any { it is Meta.Key.Entry && it.name == name }
+
+/** `lists:keyfind/3`: the value of [meta]'s first entry named [name]. */
+internal fun metaValue(meta: Meta, name: String): Meta.Value? =
+    meta.keys.firstNotNullOfOrNull { key -> (key as? Meta.Key.Entry)?.takeIf { it.name == name }?.value }
 
 private val MODULE_INFO = setOf(NameArity("module_info", 0), NameArity("module_info", 1))
 private val INTERNALS = MODULE_INFO + NameArity("behaviour_info", 1)

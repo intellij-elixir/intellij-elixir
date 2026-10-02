@@ -12,9 +12,11 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.PIN_IN_BITSTRING_SIZ
 import org.elixir_lang.language_level.ElixirLanguageFeature.REPEATED_PATTERN_VARIABLE_WRITTEN_AT_NEXT_VERSION
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILER_VARIABLES_REFUSED_IN_PATTERN
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNDERSCORE_TAKES_VERSION
+import org.elixir_lang.language_level.ElixirLanguageFeature.VAR_BANG_IF_UNDEFINED
 import org.elixir_lang.language_level.ElixirLanguageFeature.ZERO_FLOAT_MATCH_WARNS
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
 
 /**
@@ -490,22 +492,31 @@ internal enum class Clause(vararg val heads: Head) {
             isVariable(node)
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
+            val call = node as ElixirAst.Call
             val variable = variable(node)
             val prematch = state.prematch
+            val isRead = variable in state.read
+            // A size can't read what its pattern bound before the bitstring.
+            val isBitsize = isRead && prematch is Bitsize && variable !in prematch.match.read && variable in prematch.original
 
-            return if (variable in state.read) {
-                // A size can't read what its pattern bound before the bitstring.
-                if (prematch is Bitsize && variable !in prematch.match.read && variable in prematch.original) {
-                    Expansion.Error("undefined_var", node)
-                } else {
-                    Expansion.Expanded(state, env, VARIABLE_NODE)
+            if (isRead && !isBitsize) return Expansion.Expanded(state, env, VARIABLE_NODE)
+
+            // Only macro output marks a variable.
+            if (VAR_BANG_IF_UNDEFINED.isSufficient(run.level)) {
+                when ((metaValue(call.meta, "if_undefined") as? Meta.Value.Atom)?.name) {
+                    "apply" -> return Expander.expand(zeroArityCall(call), state, env, run)
+                    "raise" -> return Expansion.Error("undefined_var", node)
                 }
-            } else {
-                when ((prematch as? OutsideMatch)?.mode ?: OutsideMatch.Mode.Raise) {
-                    OutsideMatch.Mode.Warn -> Expander.expand(zeroArityCall(node as ElixirAst.Call), state, env, run)
-                    OutsideMatch.Mode.Raise -> Expansion.Error("undefined_var", node)
-                    OutsideMatch.Mode.Pin -> Expansion.Error("undefined_var_pin", node)
-                }
+            } else if (!isRead && (metaValue(call.meta, "var") as? Meta.Value.Atom)?.name == "true") {
+                return Expansion.Error("undefined_var_bang", node)
+            }
+
+            if (isBitsize) return Expansion.Error("undefined_var", node)
+
+            return when ((prematch as? OutsideMatch)?.mode ?: OutsideMatch.Mode.Raise) {
+                OutsideMatch.Mode.Warn -> Expander.expand(zeroArityCall(call), state, env, run)
+                OutsideMatch.Mode.Raise -> Expansion.Error("undefined_var", node)
+                OutsideMatch.Mode.Pin -> Expansion.Error("undefined_var_pin", node)
             }
         }
     },
@@ -646,7 +657,8 @@ private fun isMultiAlias(node: ElixirAst?): Boolean =
 private fun isVariableNamed(node: ElixirAst, name: String): Boolean =
     isVariable(node) && ((node as ElixirAst.Call).callee as ElixirAst.Literal.Atom).name == name
 
-private fun dotArguments(callee: ElixirAst): List<ElixirAst>? =
+/** The arguments of a `{'.', DotMeta, Args}` callee. */
+internal fun dotArguments(callee: ElixirAst): List<ElixirAst>? =
     (callee as? ElixirAst.Call)?.takeIf { (it.callee as? ElixirAst.Literal.Atom)?.name == "." }?.arguments
 
 /** `[Left, Right]` of a call whose callee is `{'.', DotMeta, [Left, Right]}`. */

@@ -100,6 +100,107 @@ class HygieneTest {
         )
     }
 
+    @Test
+    fun `each module counts its own expansions from 1, and with no module the counter is a unique integer`() {
+        val counters = Counters()
+
+        assertEquals(Env.Counter.InModule(CASE, 1), counters.next(CASE))
+        assertEquals(Env.Counter.InModule(CASE, 2), counters.next(CASE))
+        assertEquals(Env.Counter.InModule(KERNEL, 1), counters.next(KERNEL))
+        assertEquals(Env.Counter.Unique(1), counters.next(null))
+        assertEquals(2L, counters.count(CASE))
+        assertEquals(1L, counters.count(null))
+        assertEquals(0L, counters.count("Elixir.Other"))
+    }
+
+    @Test
+    fun `linify gives a quote of the receiver's context the counter, and every node with metadata the line`() {
+        fun quote(context: String, vararg keys: Meta.Key) =
+            call("quote", listOf(ElixirAst.ListNode(meta(), listOf(integer(1)))), *keys, entry("context", atom(context)))
+
+        assertLinified(quote(KERNEL, line(3), entry("counter", COUNTER_VALUE)), quote(KERNEL))
+        assertLinified(quote("Elixir.Other", line(3)), quote("Elixir.Other"))
+    }
+
+    @Test
+    fun `linify gives a variable of the receiver's context the counter, but not _ or another context's`() {
+        assertLinified(
+            linifiable("x", KERNEL_CONTEXT, line(3), entry("counter", COUNTER_VALUE)),
+            linifiable("x", KERNEL_CONTEXT),
+        )
+        assertLinified(linifiable("_", KERNEL_CONTEXT, line(3)), linifiable("_", KERNEL_CONTEXT))
+        assertLinified(linifiable("x", ElixirAst.VariableContext.Nil, line(3)), linifiable("x", ElixirAst.VariableContext.Nil))
+    }
+
+    @Test
+    fun `linify gives aliases and alias, import and require calls the counter, keeping a counter they have`() {
+        assertLinified(alias(line(3), entry("counter", COUNTER_VALUE)), alias())
+        assertLinified(alias(line(3), entry("counter", counterMeta(atom(CASE), 9))), alias(entry("counter", counterMeta(atom(CASE), 9))))
+
+        for (lexical in listOf("alias", "import", "require")) {
+            assertLinified(
+                call(lexical, listOf(alias(line(3), entry("counter", COUNTER_VALUE))), line(3), entry("counter", COUNTER_VALUE)),
+                call(lexical, listOf(alias())),
+            )
+        }
+
+        assertLinified(call("foo", listOf(alias(line(3), entry("counter", COUNTER_VALUE))), line(3)), call("foo", listOf(alias())))
+    }
+
+    @Test
+    fun `linify goes into lists and pairs, which have no metadata of their own`() {
+        val pair = { variable: ElixirAst -> ElixirAst.Tuple(meta(), listOf(variable, integer(1))) }
+
+        assertLinified(
+            ElixirAst.ListNode(meta(), listOf(pair(linifiable("x", KERNEL_CONTEXT, line(3), entry("counter", COUNTER_VALUE))))),
+            ElixirAst.ListNode(meta(), listOf(pair(linifiable("x", KERNEL_CONTEXT)))),
+        )
+    }
+
+    @Test
+    fun `linify keeps a node's own line, and adds none for line 0`() {
+        val located = Meta.Key.Location(Meta.Position(7, 2))
+
+        assertLinified(call("foo", emptyList(), located), call("foo", emptyList(), located))
+        assertLinified(
+            linifiable("x", KERNEL_CONTEXT, entry("counter", COUNTER_VALUE)),
+            linifiable("x", KERNEL_CONTEXT),
+            line = 0,
+        )
+    }
+
+    @Test
+    fun `linify keeps whether the expander built a node`() {
+        val source = call("foo", emptyList())
+        val built = ElixirAst.Call(meta(built = true), ElixirAst.Literal.Atom(meta(), "foo"), emptyList())
+
+        assertEquals(false, linifyWithContextCounter(3, KERNEL, COUNTER, source).meta.built)
+        assertEquals(true, linifyWithContextCounter(3, KERNEL, COUNTER, built).meta.built)
+    }
+
+    private fun assertLinified(expected: ElixirAst, node: ElixirAst, line: Int = 3) =
+        assertEquals(expected.toOtp(), linifyWithContextCounter(line, KERNEL, COUNTER, node).toOtp())
+
+    private fun call(name: String, arguments: List<ElixirAst>, vararg keys: Meta.Key) =
+        ElixirAst.Call(meta(*keys), ElixirAst.Literal.Atom(meta(), name), arguments)
+
+    private fun alias(vararg keys: Meta.Key) = ElixirAst.Alias(meta(*keys), listOf(ElixirAst.Literal.Atom(meta(), "Foo")))
+
+    private fun integer(value: Long) = ElixirAst.Literal.Integer(meta(), value.toBigInteger())
+
+    private fun linifiable(name: String, context: ElixirAst.VariableContext, vararg keys: Meta.Key) =
+        ElixirAst.Call(meta(*keys), ElixirAst.Literal.Atom(meta(), name), null, context)
+
+    private fun meta(vararg keys: Meta.Key, built: Boolean = false): Meta {
+        val position = Meta.Position(1, 1)
+
+        return Meta(TextRange(0, 1), position, position, keys.toList(), built)
+    }
+
+    private fun line(line: Long) = entry("line", Meta.Value.Integer(line))
+
+    private fun entry(name: String, value: Meta.Value) = Meta.Key.Entry(name, value)
+
     private fun counterMeta(module: Meta.Value, n: Long): Meta.Value = Meta.Value.Tuple(listOf(module, Meta.Value.Integer(n)))
 
     private fun atom(name: String) = Meta.Value.Atom(name)
@@ -117,5 +218,9 @@ class HygieneTest {
     private companion object {
         const val CASE = "Elixir.Case"
         const val KERNEL = "Elixir.Kernel"
+
+        val KERNEL_CONTEXT = ElixirAst.VariableContext.Atom(KERNEL)
+        val COUNTER = Env.Counter.InModule(CASE, 1)
+        val COUNTER_VALUE = Meta.Value.Tuple(listOf(Meta.Value.Atom(CASE), Meta.Value.Integer(1)))
     }
 }
