@@ -14,7 +14,7 @@ import com.intellij.psi.PsiManager
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
-import com.intellij.testFramework.EdtTestUtil
+import com.intellij.testFramework.runInEdtAndWait
 import com.intellij.testFramework.LightPlatformTestCase
 import com.intellij.testFramework.fixtures.CodeInsightTestFixture
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory
@@ -82,9 +82,8 @@ import org.elixir_lang.code_insight.matrix.MatrixProjectDescriptor
 import org.elixir_lang.code_insight.matrix.Place
 import org.elixir_lang.code_insight.matrix.Site
 import org.elixir_lang.code_insight.matrix.UNAVAILABLE_PHRASE
-import org.elixir_lang.code_insight.matrix.erlangNonNfcNames
-import org.elixir_lang.code_insight.matrix.nfc
-import org.elixir_lang.code_insight.matrix.qualified
+import org.elixir_lang.code_insight.matrix.written
+import org.elixir_lang.code_insight.matrix.Spelling
 import org.elixir_lang.code_insight.matrix.sees
 import org.elixir_lang.code_insight.matrix.privateUse
 import org.elixir_lang.code_insight.matrix.specName
@@ -119,9 +118,7 @@ abstract class CodeIntelligenceMatrixTest(private val shard: Int) {
             .map { (scenario, cells) ->
                 dynamicContainer(
                     Shards.name(scenario),
-                    cells.map { (place, feature) ->
-                        dynamicTest(Cell(scenario, feature, place).testName) { Group.check(scenario, place, feature) }
-                    }
+                    cells.map { cell -> dynamicTest(cell.testName) { Group.check(cell) } }
                 )
             }
     }
@@ -135,7 +132,7 @@ abstract class CodeIntelligenceMatrixTest(private val shard: Int) {
         @JvmStatic
         fun close() {
             Group.closeOpen()
-            EdtTestUtil.runInEdtAndWait<Throwable> { LightPlatformTestCase.closeAndDeleteProject() }
+            runInEdtAndWait { LightPlatformTestCase.closeAndDeleteProject() }
         }
     }
 }
@@ -179,10 +176,10 @@ private class Group(val scenario: Scenario) {
      * A failure to open the fixture or to bind a place fails that cell and every later one of the scenario, as it
      * would leave them asking an unknown project.
      */
-    fun check(atPlace: Place, feature: Feature) {
+    fun check(atPlace: Place, feature: Feature, name: String?) {
         try {
             broken?.let { throw it }
-            EdtTestUtil.runInEdtAndWait<Throwable> {
+            runInEdtAndWait {
                 if (!this::myFixture.isInitialized) breakOnFailure { timed("setUp") { setUp() } }
                 if (!this::place.isInitialized || place != atPlace) {
                     place = atPlace
@@ -191,9 +188,9 @@ private class Group(val scenario: Scenario) {
                     binding = breakOnFailure { timed("binding", place = atPlace) { binding() } }
                 }
                 timed("check", feature, atPlace) {
-                    val answered = if (feature == Feature.COMPLETION_INSERTED) inserted.also { inserted = null } else null
+                    val answered = if (feature == Feature.COMPLETION_INSERTED && name == null) inserted.also { inserted = null } else null
                     try {
-                        if (answered != null) answered.getOrThrow() else check(feature, binding)
+                        if (answered != null) answered.getOrThrow() else check(feature, binding, name)
                     } catch (e: Throwable) {
                         if (e is ControlFlowException || e is CancellationException) breakOnFailure { throw e }
                         if (e is junit.framework.AssertionFailedError || e.javaClass == AssertionError::class.java) trimToCheck(e)
@@ -288,8 +285,8 @@ private class Group(val scenario: Scenario) {
         opened = false
     }
 
-    private fun check(feature: Feature, binding: Binding?) {
-        if (scenario.attribute) return checkAttribute(feature)
+    private fun check(feature: Feature, binding: Binding?, name: String?) {
+        if (scenario.attribute) return checkAttribute(feature, name)
         if (scenario.variable) return checkVariable(feature)
 
         when (feature) {
@@ -306,8 +303,7 @@ private class Group(val scenario: Scenario) {
             Feature.BREADCRUMBS -> checkBreadcrumbs(binding!!)
             Feature.SHOW_USED -> checkShowUsed(binding!!)
             Feature.COMPLETION_OFFERED -> checkCompletionOffered()
-            Feature.COMPLETION_INSERTED -> checkCompletionInserted()
-            Feature.COMPLETION_INSERTED_QUOTED -> checkCompletionInsertedQuoted()
+            Feature.COMPLETION_INSERTED -> checkCompletionInserted(name)
             Feature.RENAME -> checkRename(binding)
             Feature.INCOMPLETE_RESOLUTION -> checkIncompleteResolution()
             Feature.GO_TO_RELATED -> checkGoToRelated()
@@ -327,12 +323,11 @@ private class Group(val scenario: Scenario) {
         val site = siteOrNull()!!
         val module = binding?.let { definition(it).first } ?: scenario.main
         val expected = module.definitions
-            .filter { nfc(it.name) == nfc(site.name) && site.sees(it) }
+            .filter { it.name == site.name && site.sees(it) }
             .map { definition -> Expected.heads(module, definition.name, definition.maxArity).first().parameters.joinToString(", ") }
-            .map(::nfc)
             .sorted()
 
-        assertEquals("Parameter Info at ${place.id} showed the wrong signatures", expected, parameterInfoSignaturesAtCaret().map(::nfc).sorted())
+        assertEquals("Parameter Info at ${place.id} showed the wrong signatures", expected, parameterInfoSignaturesAtCaret().sorted())
     }
 
     /** Ctrl+Click on a declaration shows its usages, offering only the clause the caret is on. */
@@ -345,8 +340,8 @@ private class Group(val scenario: Scenario) {
         assertTrue("Ctrl+Click on ${place.id} should show its usages, but resolved to $described", navigation is GtduNavigation.ShowUsages)
         assertEquals(
             "Show Usages at ${place.id} offered the wrong targets",
-            listOf(nfc(presentedHead(binding).label)),
-            (navigation as GtduNavigation.ShowUsages).variants.map(::nfc)
+            listOf(presentedHead(binding).label),
+            (navigation as GtduNavigation.ShowUsages).variants
         )
     }
 
@@ -519,11 +514,11 @@ private class Group(val scenario: Scenario) {
         } else if (expected == listOf(Complaint.ARITY_MISMATCH.name)) {
             // Every arity a candidate covers, defaults included, less any an `import only:`/`except:` hides from
             // this site: naming the one arity the developer can call here is the answer, not the definition's widest.
-            val visible = site.visible?.map(::nfc)
+            val visible = site.visible
             val arities = candidates
                 .map { definition(it).second }
                 .flatMap { definition -> (definition.minArity..definition.maxArity).map { "${definition.name}/$it" } }
-                .filter { visible == null || nfc(it) in visible }
+                .filter { visible == null || it in visible }
 
             assertTrue(
                 "The editor complains about ${place.id} without saying which arities there are, so it leaves the developer where it found them: $said does not name any of $arities",
@@ -545,17 +540,17 @@ private class Group(val scenario: Scenario) {
         try {
             val entries = mutableListOf<Pair<String, Int>>()
             fun walk(element: TreeElement) {
-                entries += nfc(element.presentation.presentableText.orEmpty()) to element.children.size
+                entries += element.presentation.presentableText.orEmpty() to element.children.size
                 element.children.forEach(::walk)
             }
             walk(model.root)
 
-            val name = "${nfc(definition.name)}/${definition.maxArity}"
+            val name = "${definition.name}/${definition.maxArity}"
             // Every head the declaration writes, which for a defaults world is one more than `Definition.clauses`:
             // the bodiless head is not a clause, but the structure view still shows it under the definition.
             // A `@spec` of the definition is shown under it too, as the other thing written about it. One of a lower arity a
             // default covers is shown under that arity's own entry, which is how the view lists a definition with defaults.
-            val specs = scenario.sites.count { specName(it.id) && it.file == module.source && nfc(it.name) == nfc(definition.name) && it.arity == definition.maxArity }
+            val specs = scenario.sites.count { specName(it.id) && it.file == module.source && it.name == definition.name && it.arity == definition.maxArity }
             val heads = Expected.heads(module, definition.name, definition.maxArity).size + specs
             assertTrue(
                 "Structure view has no `$name` with $heads head(s) and spec(s); it has ${entries.filter { it.first.contains('/') }}",
@@ -573,7 +568,7 @@ private class Group(val scenario: Scenario) {
         val provider = org.elixir_lang.breadcrumbs.Provider()
         val crumbs = generateSequence(myFixture.file.findElementAt(myFixture.editor.caretModel.offset)) { it.parent }
             .filter { provider.acceptElement(it) }
-            .map { nfc(provider.getElementInfo(it)) }
+            .map { provider.getElementInfo(it) }
             .toList()
             .reversed()
         val arity = if (definition.minArity == definition.maxArity) "${definition.maxArity}" else "${definition.minArity}..${definition.maxArity}"
@@ -581,7 +576,7 @@ private class Group(val scenario: Scenario) {
         val enclosing = declarationOf(place as Place.Head)?.file
             ?.let { file -> listOf(scenario.modules.first { it.source == file }.module, "$USING/1") }
             ?: listOf(scenario.main.module)
-        val expected = enclosing + "${nfc(definition.name)}/$arity"
+        val expected = enclosing + "${definition.name}/$arity"
 
         assertEquals("Breadcrumbs at ${place.id} are wrong", expected, crumbs.takeLast(expected.size))
     }
@@ -607,8 +602,8 @@ private class Group(val scenario: Scenario) {
             // A module's entry presents its last alias segment, so it is told apart by the `defmodule` it stands for.
             val using = modules.firstOrNull { ((it as? com.intellij.ide.structureView.StructureViewTreeElement)?.value as? PsiElement)?.text?.startsWith("defmodule ${module.module} ") == true }
                 ?: throw AssertionError("The structure view of ${file.name} has no module ${module.module}")
-            val used = Used().provideNodes(using).map { nfc(it.presentation.presentableText.orEmpty()) }.sorted()
-            val name = "${nfc(definition.name)}/${definition.maxArity}"
+            val used = Used().provideNodes(using).map { it.presentation.presentableText.orEmpty() }.sorted()
+            val name = "${definition.name}/${definition.maxArity}"
 
             assertTrue("Show Used under ${module.module} does not list `$name`; it lists $used", name in used)
         } finally {
@@ -630,10 +625,10 @@ private class Group(val scenario: Scenario) {
         }
     }
 
-    /** Every definition visible at the call whose name starts with what is typed; a look-alike's prefix is its own. */
+    /** Every definition visible at the call whose name starts with what is typed, under its own name, byte for byte. */
     private fun checkCompletionOffered() {
-        val (name, prefix) = typeCallPrefix()
-        if ((place to Feature.COMPLETION_INSERTED) !in cells) {
+        val (name, prefix) = typeCallPrefix(null)
+        if (cells.none { it.place == place && it.feature == Feature.COMPLETION_INSERTED && it.name == null }) {
             assertOffered(name, prefix, myFixture.completionCandidatesAtCaret())
             return
         }
@@ -641,25 +636,25 @@ private class Group(val scenario: Scenario) {
         val completion = myFixture.completionAtCaret()
         // Decided before inserting, so that neither outcome can decide the other.
         val offered = runCatching { assertOffered(name, prefix, completion.candidates()) }
-        inserted = runCatching { assertInserted(name, prefix, completion.complete(name, '\n') { nfc(it) == name }) }
+        inserted = runCatching { assertInserted(name, prefix, completion.complete(name, '\n') { it == name }) }
         offered.getOrThrow()
     }
 
     private fun assertOffered(name: String, prefix: String, candidates: List<String>) {
-        val site = siteOrNull()!!
-        val declared = erlangNonNfcNames(scenario.module(site.binding?.module ?: scenario.main.module)).values
-        val offered = candidates.map { if (it in declared) it else nfc(it) }
-            .filter { it.startsWith(prefix) }
-            .distinct()
-            .sorted()
+        val offered = candidates.filter { it.startsWith(prefix) }.distinct().sorted()
 
-        assertEquals("Typing `$prefix` at ${place.id} offered the wrong names (typing toward `$name`)", visibleNames(prefix), offered)
+        assertEquals(
+            "Typing `$prefix` at ${place.id} offered the wrong names (typing toward `$name`)",
+            Crossing.offered(scenario, siteOrNull()!!),
+            offered
+        )
     }
 
     /**
-     * Completing a name writes a real signature - `snoc(q, x)`, with the parameters there to be typed over - not
-     * an empty argument list. `snoc()` is what puts the developer at a call no arity covers in the first place,
-     * and it is the IDE that put them there.
+     * Completing a name writes it as Elixir spells it where it stands. At a call it also writes a real signature -
+     * `snoc(q, x)`, with the parameters there to be typed over - not an empty argument list. `snoc()` is what puts
+     * the developer at a call no arity covers in the first place, and it is the IDE that put them there. A capture
+     * or an atom keeps the text after the name: completion writes the name alone.
      *
      * Any of the name's arities is accepted, because the gesture takes the first candidate offered under the name
      * and the popup collapses the arities into one lookup string, so which one was picked is not the caller's to
@@ -668,50 +663,36 @@ private class Group(val scenario: Scenario) {
      * The signature is the one a caller could type - [org.elixir_lang.code_insight.matrix.Head.callSignature], without the `\\` that declares a
      * default - since inserting a default marker at a call site would insert a syntax error.
      */
-    private fun checkCompletionInserted() {
-        val (name, prefix) = typeCallPrefix()
-        assertInserted(name, prefix, myFixture.completeCandidateOrSoleMatchAtCaret(name, '\n') { nfc(it) == name })
+    private fun checkCompletionInserted(name: String?) {
+        val (completing, prefix) = typeCallPrefix(name)
+        assertInserted(completing, prefix, myFixture.completeCandidateOrSoleMatchAtCaret(completing, '\n') { it == completing })
     }
 
     private fun assertInserted(name: String, prefix: String, text: String) {
         val line = typedLine()
-        val inserted = nfc(text.split('\n')[line.index])
+        val inserted = text.split('\n')[line.index]
         val site = siteOrNull()!!
         if (site.attribute != null) {
-            assertEquals("Completing `@$prefix` to `@$name` at ${place.id} inserted the wrong text", nfc(line.before + name), inserted)
+            assertEquals("Completing `@$prefix` to `@$name` at ${place.id} inserted the wrong text", line.before + name, inserted)
+            return
+        }
+        val written = written(site)
+        val spelled = Spelling.of(name, written.position)!!
+        if (!written.call) {
+            assertEquals("Completing `$prefix` to `$name` at ${place.id} inserted the wrong text", line.before + spelled + line.after, inserted)
             return
         }
         val module = scenario.module(site.binding?.module ?: scenario.main.module)
         val signatures = module.definitions
-            .filter { nfc(it.name) == nfc(name) && site.sees(it) }
+            .filter { it.name == name && site.sees(it) }
             .sortedBy { it.maxArity }
-            .map { nfc(line.before + Expected.heads(module, it.name, it.maxArity).first().callSignature) }
+            .map { definition ->
+                val head = Expected.heads(module, definition.name, definition.maxArity).first()
+                line.before + spelled + head.callSignature.removePrefix(head.name)
+            }
 
         assertTrue(
             "Completing `$prefix` to `$name` at ${place.id} inserted `$inserted`, not one of $signatures",
-            inserted in signatures
-        )
-    }
-
-    /**
-     * Completing an Erlang name that is not NFC writes the quoted remote call that alone reaches it, spelled byte for
-     * byte as declared: an NFC spelling is a different atom, which no module defines.
-     */
-    private fun checkCompletionInsertedQuoted() {
-        val (_, prefix) = typeCallPrefix()
-        val site = siteOrNull()!!
-        val module = scenario.module(site.binding?.module ?: scenario.main.module)
-        val (name, declared) = Crossing.quotedOnly(scenario, site)!!
-        val line = typedLine()
-        val inserted = myFixture.completeCandidateOrSoleMatchAtCaret(declared, '\n') { nfc(it.removeSurrounding("\"")) == name }
-            .split('\n')[line.index]
-        val signatures = module.definitions
-            .filter { nfc(it.name) == name && site.sees(it) }
-            .sortedBy { it.maxArity }
-            .map { line.before + "\"$declared\"" + Expected.heads(module, it.name, it.maxArity).first().callSignature.let { call -> call.substring(call.indexOf('(')) } }
-
-        assertTrue(
-            "Completing `$prefix` to `\"$declared\"` at ${place.id} inserted `$inserted`, not one of $signatures",
             inserted in signatures
         )
     }
@@ -745,7 +726,7 @@ private class Group(val scenario: Scenario) {
         val declarationName = EMBED_SUFFIXES.firstOrNull { scenario.form == GENERATOR_EMBED && newName.endsWith(it) }
             ?.let(newName::removeSuffix) ?: newName
         val declarationPositions = module.declarations
-            .filter { nfc(it.name) == nfc(definition.name) && it.arity == definition.maxArity }
+            .filter { it.name == definition.name && it.arity == definition.maxArity }
             .map { (it.file ?: module.source) to (it.line to it.column) }
 
         val targets = myFixture.renameTargetsAtCaret()
@@ -805,7 +786,7 @@ private class Group(val scenario: Scenario) {
                 .mapNotNull { item: GotoRelatedItem -> item.element?.let { describeLine(it) } }
                 .distinct()
                 .sorted()
-            val definition = main.definitions.first { nfc(it.name) == nfc(head.name) && head.arity in it.minArity..it.maxArity }
+            val definition = main.definitions.first { it.name == head.name && head.arity in it.minArity..it.maxArity }
             val mirror = mirror(main)
             val expected = (definition.minArity..definition.maxArity)
                 .flatMap { mirrorHeads(mirror, definition.name, it) }
@@ -823,14 +804,14 @@ private class Group(val scenario: Scenario) {
 
     // -- Module attributes ------------------------------------------------------------------
 
-    private fun checkAttribute(feature: Feature) {
+    private fun checkAttribute(feature: Feature, name: String?) {
         when (feature) {
             Feature.GO_TO_DECLARATION -> checkAttributeGoToDeclaration()
             Feature.FIND_USAGES -> checkAttributeFindUsages()
             Feature.HIGHLIGHTING -> checkAttributeHighlighting()
             Feature.DIAGNOSTIC -> checkAttributeDiagnostic()
             Feature.COMPLETION_OFFERED -> checkCompletionOffered()
-            Feature.COMPLETION_INSERTED -> checkCompletionInserted()
+            Feature.COMPLETION_INSERTED -> checkCompletionInserted(name)
             Feature.RENAME -> checkAttributeRename()
             else -> throw AssertionError("${feature.testName} is not asked of a module attribute")
         }
@@ -838,8 +819,8 @@ private class Group(val scenario: Scenario) {
 
     /** Every read and write of the attribute at the caret, which is every one of its name in the module. */
     private fun attributeSites(): List<Site> {
-        val name = nfc(siteOrNull()!!.name)
-        return scenario.sites.filter { it.attribute != null && nfc(it.name) == name }
+        val name = siteOrNull()!!.name
+        return scenario.sites.filter { it.attribute != null && it.name == name }
     }
 
     /** A read lands on the writes its value came from; a write on itself; an undefined read nowhere. */
@@ -1005,24 +986,22 @@ private class Group(val scenario: Scenario) {
 
     // -- Typing a call ----------------------------------------------------------------------
 
-    private class TypedLine(val index: Int, val before: String)
+    /** The line the call is on, and the text completion leaves alone around its name; nothing [after] a call. */
+    private class TypedLine(val index: Int, val before: String, val after: String)
 
-    /** The line the call at [place] is on, and its text up to the call's name. */
     private fun typedLine(): TypedLine {
         val site = scenario.sites.single { it.id == place.id }
-        val file = fileOf(site)
-        val lines = originals.getValue(file).split('\n')
-        val line = lines[site.line - 1]
-        return TypedLine(site.line - 1, line.substring(0, site.column - 1))
+        val written = written(site)
+        return TypedLine(site.line - 1, written.before, if (site.attribute != null || written.call) "" else written.after)
     }
 
-    /** Cuts the call at [place] back to the first three letters of its name, with the caret after them. */
-    private fun typeCallPrefix(): Pair<String, String> {
+    /**
+     * Cuts the name at [place] back to its [Crossing.prefix], with the caret after it, toward [name] or else the site's
+     * own name: a call at an arity nothing defines still names what it meant.
+     */
+    private fun typeCallPrefix(name: String?): Pair<String, String> {
         val site = scenario.sites.single { it.id == place.id }
-        // The site's own name, not the binding's: a call at an arity nothing defines still names what it meant.
-        val name = nfc(site.name)
-        // Every function name starts with its scenario, so three letters of the name itself are the three after that.
-        val prefix = name.take(if (scenario.attribute) 3 else scope.length + 3)
+        val prefix = Crossing.prefix(scenario, site)
         val file = fileOf(site)
         val line = typedLine()
         // Opening rewrites the file on disk, which conflicts with an unsaved edit, so it comes first.
@@ -1032,35 +1011,13 @@ private class Group(val scenario: Scenario) {
         val lineEnd = document.getLineEndOffset(line.index)
 
         WriteCommandAction.runWriteCommandAction(project) {
-            document.replaceString(lineStart, lineEnd, line.before + prefix)
+            document.replaceString(lineStart, lineEnd, line.before + prefix + line.after)
         }
         PsiDocumentManager.getInstance(project).commitDocument(document)
         myFixture.editor.caretModel.moveToOffset(lineStart + line.before.length + prefix.length)
         opened = false
 
-        return name to prefix
-    }
-
-    /**
-     * The names a call at [place] can reach that start with [prefix]: its module's, and for an import, nothing
-     * else. A call at an arity nothing defines reaches the same module - what the developer is typing toward is
-     * unaffected by their having got the arity wrong.
-     *
-     * The module's own `local_site/2` is not among them at any place, including [LOCAL]: [prefix] always opens with
-     * the scenario's `<backing>_<form>_<world>_` scope, which an unprefixed helper cannot start with.
-     */
-    private fun visibleNames(prefix: String): List<String> {
-        val site = siteOrNull()!!
-        site.attribute?.let { attribute -> return attribute.visible.orEmpty().map(::nfc).filter { it.startsWith(prefix) }.distinct().sorted() }
-        val module = scenario.module(site.binding?.module ?: scenario.main.module)
-
-        return module.definitions
-            .filter(site::sees)
-            .map { erlangNonNfcNames(module)[it.name] ?: nfc(it.name) }
-            .filter { qualified(site) || it == nfc(it) }
-            .filter { it.startsWith(prefix) }
-            .distinct()
-            .sorted()
+        return (name ?: site.name) to prefix
     }
 
     private fun fileOf(site: Site): VirtualFile =
@@ -1230,27 +1187,27 @@ private class Group(val scenario: Scenario) {
 
     private fun checkLabel(binding: Binding?) {
         openAt(place)
-        val labels = myFixture.searchTargetPresentableTextsAtCaret().map(::nfc)
+        val labels = myFixture.searchTargetPresentableTextsAtCaret()
 
         if (atWrongArity(binding)) {
             // The candidates have to name themselves, or a chooser listing them says nothing a developer who is
             // already unsure of the arity can act on.
             assertEquals(
                 "The search targets at ${place.id} do not present the declared arities",
-                candidates(siteOrNull()!!).map { nfc(heads(it).first().label) }.sorted(),
+                candidates(siteOrNull()!!).map { heads(it).first().label }.sorted(),
                 labels.sorted()
             )
         } else if (binding == null) {
-            val functionLabels = heads(primary()).map { nfc(it.label) }
+            val functionLabels = heads(primary()).map { it.label }
             assertEquals("The search target at ${place.id} presents the function", emptyList<String>(), labels.filter { it in functionLabels })
         } else {
-            assertEquals("The search target at ${place.id} presents the wrong text", listOf(nfc(presentedHead(binding).label)), labels)
+            assertEquals("The search target at ${place.id} presents the wrong text", listOf(presentedHead(binding).label), labels)
         }
     }
 
     /** The `@doc` the compiler kept on [documented]'s own definition, if any. */
     private fun ownDoc(documented: Binding): String? =
-        definition(documented).let { (module, definition) -> module.doc(definition.name, definition.maxArity) }?.let(::nfc)
+        definition(documented).let { (module, definition) -> module.doc(definition.name, definition.maxArity) }
 
     /**
      * The module and name whose documentation Quick Documentation of [documented] shows. A `defdelegate` with an `@doc`
@@ -1282,10 +1239,10 @@ private class Group(val scenario: Scenario) {
      */
     private fun checkQuickDocumentation(binding: Binding?) {
         openAt(place)
-        val html = myFixture.quickDocumentationAtCaret(project)?.let { nfc(it.replace('\n', ' ')) }
+        val html = myFixture.quickDocumentationAtCaret(project)?.let { it.replace('\n', ' ') }
 
         if (binding == null && !atWrongArity(binding)) {
-            val signature = nfc(heads(primary()).first().signature)
+            val signature = heads(primary()).first().signature
             assertFalse("Quick Documentation at ${place.id} documents the function: $html", html?.contains(signature) == true)
             return
         }
@@ -1293,9 +1250,9 @@ private class Group(val scenario: Scenario) {
         val documented = binding ?: candidates(siteOrNull()!!).first()
         val (module, name) = documentedDefinition(documented)
         val signatures = module.definitions
-            .filter { nfc(it.name) == nfc(name) }
+            .filter { it.name == name }
             .sortedBy { it.maxArity }
-            .map { nfc(Expected.heads(module, it.name, it.maxArity).first().signature) }
+            .map { Expected.heads(module, it.name, it.maxArity).first().signature }
 
         assertNotNull("Quick Documentation at ${place.id} showed nothing", html)
         assertEquals(
@@ -1336,17 +1293,17 @@ private class Group(val scenario: Scenario) {
      */
     private fun checkModuleDocumentation(binding: Binding) {
         openAt(place)
-        val html = myFixture.quickDocumentationAtCaret(project)?.let { nfc(it.replace('\n', ' ')) }
+        val html = myFixture.quickDocumentationAtCaret(project)?.let { it.replace('\n', ' ') }
         val moduledoc = scenario.module(binding.module).moduledoc
             ?: throw AssertionError("${binding.module} has no moduledoc in the oracle")
-        val kept = moduledoc.doc?.trim()?.let(::nfc)
+        val kept = moduledoc.doc?.trim()
 
         if (kept != null) assertTrue("Quick Documentation at ${place.id} does not show `$kept`: $html", html?.contains(kept) == true)
 
         assertEquals(
             "Quick Documentation at ${place.id} shows moduledoc text the compiler ${if (moduledoc.hidden) "hid" else "did not keep"}: $html",
             emptyList<String>(),
-            moduledoc.written.map(::nfc).filter { it != kept && html?.contains(it) == true }
+            moduledoc.written.filter { it != kept && html?.contains(it) == true }
         )
     }
 
@@ -1382,7 +1339,7 @@ private class Group(val scenario: Scenario) {
 
         assertEquals(
             if (wanted) {
-                "${module!!.beam} was compiled without debug info, so what it cannot say about ${place.id} should be said out loud"
+                "${module.beam} was compiled without debug info, so what it cannot say about ${place.id} should be said out loud"
             } else {
                 "Nothing is missing at ${place.id}, so nothing should claim it is"
             },
@@ -1444,7 +1401,7 @@ private class Group(val scenario: Scenario) {
      */
     private fun candidates(site: Site): List<Binding> =
         scenario.main.definitions
-            .filter { nfc(it.name) == nfc(site.name) && site.sees(it) }
+            .filter { it.name == site.name && site.sees(it) }
             .sortedBy { it.maxArity }
             .map { Binding(scenario.main.module, it.name, it.maxArity, "candidate") }
 
@@ -1507,7 +1464,7 @@ private class Group(val scenario: Scenario) {
     /** Where an injected [definition] of [module] is written, as `file:line`s; empty for one written in its module. */
     private fun writtenAt(module: DeclaringModule, definition: Definition): Set<String> =
         module.declarations
-            .filter { it.file != null && nfc(it.name) == nfc(definition.name) && it.arity == definition.maxArity }
+            .filter { it.file != null && it.name == definition.name && it.arity == definition.maxArity }
             .map { "${it.file}:${it.line}" }
             .toSet()
 
@@ -1525,11 +1482,11 @@ private class Group(val scenario: Scenario) {
      * nothing is reached through the delegation, as Elixir leaves `Target.name/arity` undefined.
      */
     private fun delegatedTarget(module: DeclaringModule, definition: Definition): DeclaringModule? {
-        val name = nfc(module.delegateAs.orEmpty() + definition.name)
+        val name = module.delegateAs.orEmpty() + definition.name
 
         return scenario.modules
             .firstOrNull { it.module == module.delegateTo }
-            ?.takeIf { target -> target.definitions.any { nfc(it.name) == name && definition.maxArity in it.minArity..it.maxArity } }
+            ?.takeIf { target -> target.definitions.any { it.name == name && definition.maxArity in it.minArity..it.maxArity } }
     }
 
     /**
@@ -1643,7 +1600,7 @@ private class Group(val scenario: Scenario) {
             CallDefinitionClause.`is`(call) &&
                 CallDefinitionClause.nameArityInterval(call, ResolveState.initial())?.let { nameArityInterval ->
                     val interval = nameArityInterval.arityInterval
-                    nfc(nameArityInterval.name) == nfc(name) && interval.minimum <= arity && (interval.maximum ?: arity) >= arity
+                    nameArityInterval.name == name && interval.minimum <= arity && (interval.maximum ?: arity) >= arity
                 } == true
         }
 
@@ -1653,7 +1610,7 @@ private class Group(val scenario: Scenario) {
             ?: throw AssertionError("The decompiled ${scenario.main.module} has no single local_site/2")
         val name = scenario.sites.single { it.id == LOCAL }.binding!!.name
         val call = PsiTreeUtil.findChildrenOfType(localSite, Call::class.java)
-            .firstOrNull { it.functionName()?.let(::nfc) == nfc(name) && !CallDefinitionClause.`is`(it) }
+            .firstOrNull { it.functionName() == name && !CallDefinitionClause.`is`(it) }
             ?: throw AssertionError("The decompiled local_site/2 of ${scenario.main.module} does not call $name: ${localSite.text}")
 
         return call.functionNameElement() ?: call
@@ -1674,11 +1631,11 @@ private class Group(val scenario: Scenario) {
         val text = file.text
         val start = text.lastIndexOf('\n', offset - 1) + 1
         val end = text.indexOf('\n', offset).let { if (it < 0) text.length else it }
-        return "${fileOf(file)?.name}:${text.substring(0, start).count { it == '\n' } + 1} `${nfc(text.substring(start, end).trim())}`"
+        return "${fileOf(file)?.name}:${text.substring(0, start).count { it == '\n' } + 1} `${text.substring(start, end).trim()}`"
     }
 
     private fun describeLine(file: VirtualFile, line: Int): String =
-        "${file.name}:$line `${nfc(String(file.contentsToByteArray(), file.charset).split('\n')[line - 1].trim())}`"
+        "${file.name}:$line `${String(file.contentsToByteArray(), file.charset).split('\n')[line - 1].trim()}`"
 
     companion object {
         private val IDENTIFIER = Regex("[\\p{L}\\p{N}_\\p{Mn}\\p{Mc}]+[?!]?")
@@ -1743,25 +1700,37 @@ private class Group(val scenario: Scenario) {
         private var open: Group? = null
 
         /** Every applicable feature at every place, in the order [check] asks them. */
-        fun cellsOf(scenario: Scenario): List<Pair<Place, Feature>> = Crossing.places(scenario).flatMap { place ->
-            Feature.entries
-                .filter { Crossing.applicability(scenario, it, place) is Applicability.Applicable }
-                .filter { feature -> ONLY?.containsMatchIn(Cell(scenario, feature, place).testName) ?: true }
-                .map { place to it }
+        /**
+         * Every applicable feature at every place, in the order [check] asks them. Each name completion offers at a
+         * place other than the site's own gets a completionInserted cell of its own after the site's, so that one
+         * name's red cannot hide another's.
+         */
+        fun cellsOf(scenario: Scenario): List<Cell> = Crossing.places(scenario).flatMap { place ->
+            val features = Feature.entries.filter { Crossing.applicability(scenario, it, place) is Applicability.Applicable }
+            val last = features.lastOrNull { it == Feature.COMPLETION_OFFERED || it == Feature.COMPLETION_INSERTED }
+            features.flatMap { feature ->
+                val others = if (feature == last) {
+                    val site = scenario.sites.single { it.id == place.id }
+                    (Crossing.offered(scenario, site) - site.name).map { Cell(scenario, Feature.COMPLETION_INSERTED, place, it) }
+                } else {
+                    emptyList()
+                }
+                listOf(Cell(scenario, feature, place)) + others
+            }.filter { cell -> ONLY?.containsMatchIn(cell.testName) ?: true }
         }
 
-        fun check(scenario: Scenario, place: Place, feature: Feature) {
-            val group = open?.takeIf { it.scenario === scenario } ?: Group(scenario).also {
+        fun check(cell: Cell) {
+            val group = open?.takeIf { it.scenario === cell.scenario } ?: Group(cell.scenario).also {
                 closeOpen()
                 open = it
             }
-            group.check(place, feature)
+            group.check(cell.place, cell.feature, cell.name)
         }
 
         fun closeOpen() {
             val group = open ?: return
             open = null
-            EdtTestUtil.runInEdtAndWait<Throwable> { group.close() }
+            runInEdtAndWait { group.close() }
         }
     }
 }
