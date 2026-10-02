@@ -579,10 +579,30 @@ object Import {
             ?.let { keepProcessing(importedCall, resolveState) }
             ?: true
 
+    /**
+     * The highest arity of [definition] that the `import` the walk reached it through brings in, or `null` when no
+     * `import` reached it or its arities are open.
+     */
+    @RequiresReadLock
+    fun highestImportedArity(definition: Call, state: ResolveState): Arity? {
+        ThreadingAssertions.assertReadAccess()
+
+        val filter = state.get(FILTER) ?: return null
+
+        return export(definition, state)?.highestAdmittedArity(filter)
+    }
+
     /** A definition an `import` of its module can bring in: a public one, with a delegation as a function. */
     private class Export(val nameArityInterval: NameArityInterval, val macro: Boolean) {
         fun isAdmittedBy(filter: Filter): Boolean =
             filter.admits(nameArityInterval.name, nameArityInterval.arityInterval, macro)
+
+        fun highestAdmittedArity(filter: Filter): Arity? {
+            val (name, arityInterval) = nameArityInterval
+            val maximum = arityInterval.maximum ?: return null
+
+            return (maximum downTo arityInterval.minimum).firstOrNull { filter.admits(name, it, macro) }
+        }
     }
 
     private fun export(child: Call, resolveState: ResolveState): Export? =

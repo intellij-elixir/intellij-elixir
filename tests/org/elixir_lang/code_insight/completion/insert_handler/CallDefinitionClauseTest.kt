@@ -383,6 +383,143 @@ class CallDefinitionClauseTest : PlatformTestCase() {
         )
     }
 
+    /* An `import` that brings in only some arities of a definition with defaults. */
+
+    fun testImportOnlyLowerArityDropsDefault() =
+        assertImportedInsertion(
+            "def snoc(q, x \\\\ nil), do: {q, x}",
+            "only: [snoc: 1]",
+            "sno",
+            "snoc(q)"
+        )
+
+    fun testImportOnlyMiddleArityDropsLastDefault() =
+        assertImportedInsertion(
+            "def fill(a \\\\ 1, b \\\\ 2, c), do: {a, b, c}",
+            "only: [fill: 2]",
+            "fil",
+            "fill(a, c)"
+        )
+
+    fun testImportOnlyZeroArityDropsEveryDefault() =
+        assertImportedInsertion(
+            "def snoc(q \\\\ [], x \\\\ nil), do: {q, x}",
+            "only: [snoc: 0]",
+            "sno",
+            "snoc()"
+        )
+
+    fun testImportExceptFullArityDropsDefault() =
+        assertImportedInsertion(
+            "def snoc(q, x \\\\ nil), do: {q, x}",
+            "except: [snoc: 2]",
+            "sno",
+            "snoc(q)"
+        )
+
+    fun testImportOnlyLowerArityOfBodilessHeadDropsDefault() =
+        assertImportedInsertion(
+            """
+            def snoc(a \\ nil, b \\ nil)
+            def snoc(a, b) when is_nil(a), do: {a, b}
+            def snoc(a, b), do: {a, b}
+            """.trimIndent(),
+            "only: [snoc: 1]",
+            "sno",
+            "snoc(a)"
+        )
+
+    fun testImportOnlyLowerArityOfMacroDropsDefault() =
+        assertImportedInsertion(
+            "defmacro snoc(q, x \\\\ nil), do: quote(do: {unquote(q), unquote(x)})",
+            "only: [snoc: 1]",
+            "sno",
+            "snoc(q)"
+        )
+
+    fun testImportOnlyLowerArityOfDelegateDropsDefault() =
+        assertImportedInsertion(
+            "defdelegate snoc(q, x \\\\ nil), to: Target",
+            "only: [snoc: 1]",
+            "sno",
+            "snoc(q)"
+        )
+
+    fun testImportOnlySeveralLowerAritiesInsertsHighest() =
+        assertImportedInsertion(
+            "def fill(a \\\\ 1, b \\\\ 2, c), do: {a, b, c}",
+            "only: [fill: 1, fill: 2]",
+            "fil",
+            "fill(a, c)"
+        )
+
+    fun testImportWholeOfDelegateInsertsFullHead() =
+        assertImportedInsertion(
+            "defdelegate snoc(q, x \\\\ nil), to: Target",
+            null,
+            "sno",
+            "snoc(q, x)"
+        )
+
+    fun testFunctionImportNarrowsModuleImport() {
+        val text = { use: String ->
+            listOf(
+                "defmodule Imported do",
+                "  def snoc(q, x \\\\ nil), do: {q, x}",
+                "end",
+                "",
+                "defmodule Caller do",
+                "  import Imported",
+                "",
+                "  def run do",
+                "    import Imported, only: [snoc: 1]",
+                "",
+                "    $use",
+                "  end",
+                "end"
+            ).joinToString("\n")
+        }
+
+        myFixture.configureByText("imported_defaults.ex", text("sno<caret>"))
+
+        myFixture.completeSoleCandidateAtCaret()
+
+        assertEquals(text("snoc(q)"), myFixture.file.text)
+    }
+
+    fun testImportWholeInsertsFullHead() =
+        assertImportedInsertion(
+            "def snoc(q, x \\\\ nil), do: {q, x}",
+            null,
+            "sno",
+            "snoc(q, x)"
+        )
+
+    private fun assertImportedInsertion(definition: String, options: String?, prefix: String, inserted: String) {
+        val import = listOfNotNull("import Imported", options).joinToString(", ")
+        val text = { use: String ->
+            listOf(
+                "defmodule Imported do",
+                definition.prependIndent("  "),
+                "end",
+                "",
+                "defmodule Caller do",
+                "  $import",
+                "",
+                "  def run do",
+                "    $use",
+                "  end",
+                "end"
+            ).joinToString("\n")
+        }
+
+        myFixture.configureByText("imported_defaults.ex", text("$prefix<caret>"))
+
+        myFixture.completeSoleCandidateAtCaret()
+
+        assertEquals(text(inserted), myFixture.file.text)
+    }
+
     override fun getTestDataPath(): String =
         "testData/org/elixir_lang/code_insight/completion/contributor/call_definition_clause"
 }

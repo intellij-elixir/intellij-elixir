@@ -122,7 +122,7 @@ fun ArityInterval.arityKnowledge(): ArityKnowledge =
  * @param this@isDefaultArgument an argument to a [Call]
  * @return `true` if in match operation with `\\` operator; otherwise, `false`.
  */
-private fun PsiElement.isDefaultArgument(): Boolean {
+internal fun PsiElement.isDefaultArgument(): Boolean {
     var defaultArgument = false
 
     if (this is InMatch) {
