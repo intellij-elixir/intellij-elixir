@@ -162,6 +162,14 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             DEFAULT_ARGUMENTS_THREAD_STATE to ("1.13.4" to "1.14.0-rc.0"),
             HAS_UNQUOTES_QUOTE_AWARE to ("1.15.8" to "1.16.0-rc.0"),
             HAS_UNQUOTES_NAME_AT_QUOTE_LEVEL to ("1.20.0-rc.4" to "1.20.0-rc.5"),
+            ATTRIBUTES_EXPANDED_LAZILY to ("1.13.4" to "1.14.0-rc.0"),
+            MODULE_BODY_DOC_READ_BINDS_VALUE to ("1.18.3" to "1.18.4"),
+            AFTER_VERIFY_ACCUMULATES to ("1.13.4" to "1.14.0-rc.0"),
+            NIFS_ATTRIBUTE_CHECKED to ("1.15.8" to "1.16.0-rc.0"),
+            NIFS_ACCUMULATES to ("1.18.4" to "1.19.0-rc.0"),
+            BEHAVIOUR_VALUE_CHECKED to ("1.12.3" to "1.13.0-rc.0"),
+            DIALYZER_ATTRIBUTE_CHECKED to ("1.11.4" to "1.12.0-rc.0"),
+            ATTRIBUTE_REFUSED_IN_GUARD to ("1.15.0-rc.2" to "1.15.0"),
         )
 
         assertEquals(entries.filter { it.sinceElixir != null }.toSet(), boundaries.keys)

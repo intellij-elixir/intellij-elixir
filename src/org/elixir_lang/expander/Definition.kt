@@ -224,7 +224,7 @@ private fun substituteAll(nodes: List<ElixirAst>, replacements: Map<ElixirAst, E
 }
 
 /** `elixir_utils:extract_guards/1`: [head] without its guard, and the guard. */
-private fun extractGuards(head: ElixirAst): Pair<ElixirAst, ElixirAst?> =
+internal fun extractGuards(head: ElixirAst): Pair<ElixirAst, ElixirAst?> =
     whenArguments(head)?.takeIf { it.size == 2 }?.let { (call, guard) -> call to guard } ?: (head to null)
 
 /**
@@ -235,6 +235,9 @@ internal fun storeDefinition(definition: Pending.Definition, compiling: Compilin
     val kind = definition.kind
     val node = definition.node
     val unnamedAt = definition.unnamedAt
+
+    // `retrieve_location/2`, before the name is checked. Only `invalid_def` comes before it in Elixir, and it raises.
+    takeFile(definition, compiling)
 
     if (unnamedAt != null) {
         compiling.table.define(null, 0, kind, line(node.meta), 0, 0, definition.ordered)
