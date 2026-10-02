@@ -12,12 +12,13 @@ abstract class ExpanderTestCase : ParsingTestCase() {
     /** The modules the expanded snippets can load. */
     protected open val exports: Exports = NO_EXPORTS
 
+    /** What the empty env imports from `Kernel`. */
+    protected open val kernel: KernelImports = NO_KERNEL
+
     /** [code], lowered and expanded at [version], from the empty env and an empty [ExState]. */
     protected fun expand(code: String, version: String, observer: ExpansionObserver = ExpansionObserver.NONE) =
         ElixirLanguageLevel.of(version).let { level ->
-            Expander.expand(
-                lower(code, level), ExState.empty(level), Env.empty(level, NO_KERNEL), level, exports, observer
-            )
+            Expander.expand(lower(code, level), ExState.empty(level), Env.empty(level, kernel), level, exports, observer)
         }
 
     protected fun lower(code: String, level: ElixirLanguageLevel): ElixirAst {
@@ -25,6 +26,19 @@ abstract class ExpanderTestCase : ParsingTestCase() {
 
         return ReadAction.computeBlocking<_, Throwable> { Lowering.lower(file, level) }
     }
+
+    /** [node] with each variable named [name] made a placeholder, as source the lowering has no rule for is. */
+    protected fun placeholding(node: ElixirAst, name: String): ElixirAst =
+        when {
+            isVariable(node) && ((node as ElixirAst.Call).callee as ElixirAst.Literal.Atom).name == name ->
+                ElixirAst.Placeholder(node.meta, ElixirAst.Placeholder.Reason.Error)
+            node is ElixirAst.Call ->
+                ElixirAst.Call(node.meta, placeholding(node.callee, name), node.arguments?.map { placeholding(it, name) })
+            node is ElixirAst.Block -> ElixirAst.Block(node.meta, node.expressions.map { placeholding(it, name) })
+            node is ElixirAst.ListNode -> ElixirAst.ListNode(node.meta, node.elements.map { placeholding(it, name) })
+            node is ElixirAst.Tuple -> ElixirAst.Tuple(node.meta, node.elements.map { placeholding(it, name) })
+            else -> node
+        }
 
     /**
      * [expansion] as text: the read variables sorted by name with their versions and then the next version, or the
@@ -90,7 +104,6 @@ abstract class ExpanderTestCase : ParsingTestCase() {
         )
 
     companion object {
-        /** The expander doesn't consult imports in the clauses it ports, so the tests need no `Kernel` `.beam`. */
         val NO_KERNEL = KernelImports(emptyList(), emptyList())
 
         /** No module is loaded. */

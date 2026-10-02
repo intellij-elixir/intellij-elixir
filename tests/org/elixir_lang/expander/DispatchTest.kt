@@ -5,7 +5,7 @@ import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** [findImportByNameArity] over a fixed env. */
+/** [findImportByNameArity] and [findImports] over a fixed env. */
 class DispatchTest {
     private val env = Env.empty(ElixirLanguageLevel.of("1.20.4"), KernelImports(emptyList(), emptyList())).copy(
         functions = listOf(imports("Elixir.List", "first/1 last/1"), imports("lists", "last/1 reverse/1")),
@@ -46,6 +46,37 @@ class DispatchTest {
 
     @Test
     fun `no import`() = assertEquals(ImportMatch.None, findImportByNameArity("nope", 0, emptyList(), env))
+
+    @Test
+    fun `the arities a name is imported at`() =
+        assertEquals(NameImports.Found(listOf(1 to "Elixir.List")), findImports("first", env))
+
+    @Test
+    fun `the arities of a function and a macro of one name, by arity`() =
+        assertEquals(
+            NameImports.Found(listOf(1 to "Elixir.N", 2 to "Elixir.M", 3 to "Elixir.M")),
+            findImports(
+                "f",
+                env.copy(functions = listOf(imports("Elixir.M", "f/2 f/3")), macros = listOf(imports("Elixir.N", "f/1"))),
+            ),
+        )
+
+    @Test
+    fun `a name two functions import at one arity`() =
+        assertEquals(NameImports.Ambiguous(1, listOf("lists", "Elixir.List")), findImports("last", env))
+
+    @Test
+    fun `a name a function and a macro import at one arity`() =
+        assertEquals(
+            NameImports.Ambiguous(1, listOf("Elixir.N", "Elixir.M")),
+            findImports(
+                "f",
+                env.copy(functions = listOf(imports("Elixir.M", "f/1")), macros = listOf(imports("Elixir.N", "f/1"))),
+            ),
+        )
+
+    @Test
+    fun `a name no import brings in`() = assertEquals(NameImports.Found(emptyList()), findImports("nope", env))
 
     private fun imports(module: String, nameArities: String) =
         Env.Imports(

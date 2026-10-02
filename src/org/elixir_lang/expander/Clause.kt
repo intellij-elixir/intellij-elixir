@@ -226,6 +226,44 @@ internal enum class Clause(vararg val heads: Head) {
             Expansion.Error("__cursor__", node)
     },
 
+    UNQUOTE_OUTSIDE_QUOTE(expandHead("{V1,_,[_]} when V1 == unquote; V1 == unquote_splicing")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            isCall(node, "unquote", 1) || isCall(node, "unquote_splicing", 1)
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            Expansion.Error("unquote_outside_quote", node)
+    },
+
+    QUOTE_KEYWORDS(expandHead("{quote,_,[V1]} when is_list(V1)")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            isCall(node, "quote", 1) && (node as ElixirAst.Call).arguments!!.single() is ElixirAst.ListNode
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            Quote.expandKeywords(node as ElixirAst.Call, state, env, run)
+    },
+
+    QUOTE_INVALID_ARGUMENT(expandHead("{quote,_,[_]}")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            isCall(node, "quote", 1)
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) = Expansion.Error("invalid_args", node)
+    },
+
+    QUOTE(expandHead("{quote,_,[_,V1]} when is_list(V1)")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            isCall(node, "quote", 2) && (node as ElixirAst.Call).arguments!![1] is ElixirAst.ListNode
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            Quote.expand(node as ElixirAst.Call, state, env, run)
+    },
+
+    QUOTE_INVALID_ARGUMENTS(expandHead("{quote,_,[_,_]}")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            isCall(node, "quote", 2)
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) = Expansion.Error("invalid_args", node)
+    },
+
     FN(expandHead("{fn,_,_}")) {
         override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
             isNamedCall(node, "fn")

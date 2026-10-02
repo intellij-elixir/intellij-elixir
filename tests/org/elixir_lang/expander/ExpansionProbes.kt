@@ -43,10 +43,19 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
      *
      * @property steps the statement probes, and the identity probes the expander entered, in its order, up to [outcome]
      * @property outcome the last statement's expansion, or the first that isn't [Expansion.Expanded]
+     * @property statements the top-level statements, lowered
+     * @property starts the state and env each top-level statement the expander reached was expanded from
      */
-    class CaseExpansion(val case: ProbeHarness.Case, val steps: List<Step>, val outcome: Expansion)
+    class CaseExpansion(
+        val case: ProbeHarness.Case,
+        val steps: List<Step>,
+        val outcome: Expansion,
+        val statements: List<ElixirAst>,
+        val starts: List<Pair<ExState, Env>>,
+    )
 
-    fun expand(body: String): CaseExpansion {
+    /** [body] expanded from the start of an empty module body, which is in [module] when one is given. */
+    fun expand(body: String, module: String? = null): CaseExpansion {
         val level = legLevel()
         val file = parse(body)
         val statements = ReadAction.computeBlocking<List<ElixirAst>, Throwable> {
@@ -68,11 +77,13 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
             }
             .toMap()
         var state = ExState.empty(level)
-        var env = Env.empty(level, legKernel)
+        var env = Env.empty(level, legKernel).copy(module = module)
         val steps = mutableListOf(Step(Tag(0, 0, 0), state.read, env, state.stacktrace))
+        val starts = mutableListOf<Pair<ExState, Env>>()
         var outcome: Expansion = Expansion.Expanded(state, env)
 
         for ((index, statement) in statements.withIndex()) {
+            starts.add(state to env)
             val entered = mutableSetOf<TextRange>()
             val left = mutableSetOf<TextRange>()
             val observer = object : ExpansionObserver {
@@ -109,7 +120,9 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
         return CaseExpansion(
             ProbeHarness.Case(body, sites.map { it.meta.origin }, bodies.map { it.map { node -> node.meta.origin } }),
             steps,
-            outcome
+            outcome,
+            statements,
+            starts,
         )
     }
 
@@ -192,21 +205,42 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
         val compiled = alone.compiled
         val bodyLine = alone.bodyLines.single()
         val line = error.at.meta.keys.filterIsInstance<Meta.Key.Location>().singleOrNull()?.position?.line
+        val location = if (ErrorKinds.hasLine(error.kind)) " at line ${line?.let { it + bodyLine - 1 }}" else ""
+        val raising = Tag(0, 0, expansion.starts.size)
 
-        expected.add(
-            render(name, expansion.steps) + "\nerror ${error.kind} at line ${line?.let { it + bodyLine - 1 }}"
+        expected.add(render(name, expansion.steps) + "\nerror ${error.kind}$location")
+        actual.add(
+            render(name, alone.batch.observations, alone.batch.probeModule) + "\n" +
+                elixirError(error, compiled, alone.batch.observations.any { it.tag == raising })
         )
-        actual.add(render(name, alone.batch.observations, alone.batch.probeModule) + "\n" + elixirError(error, compiled))
     }
 
-    /** The error [compiled] failed with, as `error <kind> at line <n>` when its message is [error]'s kind. */
-    private fun elixirError(error: Expansion.Error, compiled: org.elixir_lang.intellij_elixir.Quoter.Compiled): String {
+    /**
+     * The error [compiled] failed with, as `error <kind> at line <n>` when its message is [error]'s kind, or as `error
+     * <kind>` for a kind with no line. A raise failed at expansion if and only if the probe after the raising statement
+     * wasn't [delivered]: the module body is expanded whole before it runs.
+     */
+    private fun elixirError(
+        error: Expansion.Error,
+        compiled: org.elixir_lang.intellij_elixir.Quoter.Compiled,
+        delivered: Boolean,
+    ): String {
         val status = compiled.status as? OtpErlangTuple
-        val failed = status != null &&
-            status.elementAt(0) == OtpErlangAtom("raise") &&
-            status.elementAt(1) == OtpErlangAtom(COMPILE_ERROR)
+        val raised = status != null && status.elementAt(0) == OtpErlangAtom("raise")
 
-        if (!failed) return "not a compile error: ${inspect(compiled.status)} ${compiled.diagnostics.map(::inspect)}"
+        if (!raised || delivered) {
+            return "not an expansion error: ${inspect(compiled.status)} ${compiled.diagnostics.map(::inspect)}"
+        }
+
+        if (status.elementAt(1) != OtpErlangAtom(COMPILE_ERROR)) {
+            val message = utf8(status.elementAt(2))
+
+            return if (!ErrorKinds.hasLine(error.kind) && ErrorKinds.pattern(error.kind).containsMatchIn(message)) {
+                "error ${error.kind}"
+            } else {
+                "error ${inspect(status.elementAt(1))}: $message"
+            }
+        }
 
         val (line, message) = if (legLevel().elixir >= DIAGNOSTICS_SINCE.elixir) {
             val errors = errors(compiled.diagnostics)
