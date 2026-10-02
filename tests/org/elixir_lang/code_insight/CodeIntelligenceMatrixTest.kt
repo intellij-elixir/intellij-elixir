@@ -643,7 +643,10 @@ private class Group(val scenario: Scenario) {
     }
 
     private fun assertOffered(name: String, prefix: String, candidates: List<String>) {
-        val offered = candidates.map(::nfc).filter { it.startsWith(prefix) }.distinct().sorted()
+        val offered = candidates.map { if (it.startsWith('"')) it else nfc(it) }
+            .filter { it.removePrefix("\"").startsWith(prefix) }
+            .distinct()
+            .sorted()
 
         assertEquals("Typing `$prefix` at ${place.id} offered the wrong names (typing toward `$name`)", visibleNames(prefix), offered)
     }
@@ -1022,9 +1025,35 @@ private class Group(val scenario: Scenario) {
         val site = siteOrNull()!!
         site.attribute?.let { attribute -> return attribute.visible.orEmpty().map(::nfc).filter { it.startsWith(prefix) }.distinct().sorted() }
         val module = scenario.module(site.binding?.module ?: scenario.main.module)
+        val qualified = typedLine().before.endsWith('.')
 
-        return module.definitions.filter(site::sees).map { nfc(it.name) }.filter { it.startsWith(prefix) }.distinct().sorted()
+        return module.definitions
+            .filter(site::sees)
+            .map { callSpelling(module, it) }
+            .filter { qualified || !it.startsWith('"') }
+            .filter { it.removePrefix("\"").startsWith(prefix) }
+            .distinct()
+            .sorted()
     }
+
+    /**
+     * Elixir normalises an identifier it reads to NFC, so an Erlang name that is not NFC is a different atom from
+     * any identifier: only a quoted remote call reaches it. `oracle.json` holds every name in NFC, so the declared
+     * spelling is read from the `.erl` source.
+     */
+    private fun callSpelling(module: DeclaringModule, definition: Definition): String =
+        erlangNonNfcNames(module)[definition.name]?.let { "\"$it\"" } ?: nfc(definition.name)
+
+    private fun erlangNonNfcNames(module: DeclaringModule): Map<String, String> =
+        if (module.source.endsWith(".erl")) {
+            Regex("""^'([^']+)'\(""", RegexOption.MULTILINE)
+                .findAll(Fixtures.file(module.source).readText())
+                .map { it.groupValues[1] }
+                .filter { it != nfc(it) }
+                .associateBy(::nfc)
+        } else {
+            emptyMap()
+        }
 
     private fun fileOf(site: Site): VirtualFile =
         callerFiles[site.file] ?: sourceFiles.getValue(scenario.modules.single { it.source == site.file })
