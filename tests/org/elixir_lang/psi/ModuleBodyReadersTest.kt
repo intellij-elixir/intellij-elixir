@@ -7,6 +7,7 @@ import com.intellij.codeInsight.daemon.RelatedItemLineMarkerInfo
 import com.intellij.codeInsight.navigation.ImplementationSearcher
 import com.intellij.ide.impl.HeadlessDataManager
 import com.intellij.ide.structureView.StructureViewTreeElement
+import com.intellij.openapi.actionSystem.IdeActions
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
 import com.intellij.psi.PsiPolyVariantReference
@@ -14,7 +15,6 @@ import com.intellij.psi.PsiReference
 import com.intellij.psi.search.searches.DefinitionsScopedSearch
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
-import org.elixir_lang.code_insight.GotoSuper
 import org.elixir_lang.code_insight.assertGotoDeclarationLandsIn
 import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
 import org.elixir_lang.mix.DepGatherer
@@ -72,7 +72,7 @@ class ModuleBodyReadersTest : PlatformTestCase() {
             "defprotocol IfSuperP do\n  if true do\n    def run(value)\n  end\nend\n\ndefimpl IfSuperP, for: Atom do\n  def ru<caret>n(value), do: value\nend\n"
         )
 
-        GotoSuper().invoke(project, myFixture.editor, myFixture.file)
+        myFixture.performEditorAction(IdeActions.ACTION_GOTO_SUPER)
 
         assertEquals(myFixture.file.text.indexOf("def run(value)\n") + "def ".length, myFixture.caretOffset)
     }
