@@ -124,11 +124,12 @@ class ExpansionObserverTest : ExpanderTestCase() {
 
         assertEquals(
             LEVELS.joinToString("\n") { version ->
-                val dispatched = when {
+                val unquoted = when {
                     isBefore(version, "1.18.0-rc.0") -> ""
-                    isBefore(version, "1.20.0") -> "remote_function elixir_quote.shallow_validate_ast/1"
-                    else -> "remote_function elixir_quote.unquote/1"
+                    isBefore(version, "1.20.0") -> ", remote_function elixir_quote.shallow_validate_ast/1"
+                    else -> ", remote_function elixir_quote.unquote/1"
                 }
+                val dispatched = "remote_function elixir_quote.validate_runtime/2$unquoted"
 
                 "$version: entered the quote once, left it once; dispatched $dispatched"
             },
@@ -159,8 +160,9 @@ class ExpansionObserverTest : ExpanderTestCase() {
 
     private fun times(count: Int) = if (count == 1) "once" else "$count times"
 
-    fun testAnUnportedNodeQuoteBuildsNamesTheQuote() =
-        assertEvery("c = Foo\nquote(context: c, do: 1)", "unported `quote(context: c, do: 1)`")
+    /** The prelude's call to `elixir_quote` can't be a pattern. */
+    fun testAnErrorAtANodeQuoteBuildsNamesTheQuote() =
+        assertEvery("l = 3\nquote(line: l, do: x) = 1", "error invalid_match `quote(line: l, do: x)`")
 
     private fun assertEntered(code: String, versions: List<String>, expected: (String) -> String) =
         assertEquals(
@@ -175,6 +177,6 @@ class ExpansionObserverTest : ExpanderTestCase() {
         )
 
     private companion object {
-        const val QUOTE = "quote(do: unquote(x))"
+        const val QUOTE = "quote(line: x, do: unquote(x))"
     }
 }

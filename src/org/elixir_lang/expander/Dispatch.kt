@@ -11,6 +11,9 @@ data class Dispatch(val kind: Kind, val receiver: String, val name: String, val 
     enum class Kind { IMPORTED_FUNCTION, IMPORTED_MACRO, REMOTE_FUNCTION, REMOTE_MACRO }
 }
 
+/** The kind of the trace event `quote` emits for an import it quotes. */
+enum class QuotedImportKind { IMPORTED_FUNCTION, IMPORTED_MACRO, IMPORTED_QUOTED }
+
 /** What `elixir_dispatch:find_import_by_name_arity/4` finds for a call's name and arity. */
 sealed class ImportMatch {
     data class Function(val receiver: String) : ImportMatch()

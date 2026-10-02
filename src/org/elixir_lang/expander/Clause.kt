@@ -491,34 +491,12 @@ internal enum class Clause(vararg val heads: Head) {
         override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
             isVariable(node)
 
-        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
-            val call = node as ElixirAst.Call
-            val variable = variable(node)
-            val prematch = state.prematch
-            val isRead = variable in state.read
-            // A size can't read what its pattern bound before the bitstring.
-            val isBitsize = isRead && prematch is Bitsize && variable !in prematch.match.read && variable in prematch.original
-
-            if (isRead && !isBitsize) return Expansion.Expanded(state, env, VARIABLE_NODE)
-
-            // Only macro output marks a variable.
-            if (VAR_BANG_IF_UNDEFINED.isSufficient(run.level)) {
-                when ((metaValue(call.meta, "if_undefined") as? Meta.Value.Atom)?.name) {
-                    "apply" -> return Expander.expand(zeroArityCall(call), state, env, run)
-                    "raise" -> return Expansion.Error("undefined_var", node)
-                }
-            } else if (!isRead && (metaValue(call.meta, "var") as? Meta.Value.Atom)?.name == "true") {
-                return Expansion.Error("undefined_var_bang", node)
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion =
+            when (val outcome = variableOutcome(node as ElixirAst.Call, state, run.level)) {
+                VariableOutcome.Read -> Expansion.Expanded(state, env, VARIABLE_NODE)
+                VariableOutcome.LocalCall -> Expander.expand(zeroArityCall(node), state, env, run)
+                is VariableOutcome.Error -> Expansion.Error(outcome.kind, node)
             }
-
-            if (isBitsize) return Expansion.Error("undefined_var", node)
-
-            return when ((prematch as? OutsideMatch)?.mode ?: OutsideMatch.Mode.Raise) {
-                OutsideMatch.Mode.Warn -> Expander.expand(zeroArityCall(call), state, env, run)
-                OutsideMatch.Mode.Raise -> Expansion.Error("undefined_var", node)
-                OutsideMatch.Mode.Pin -> Expansion.Error("undefined_var_pin", node)
-            }
-        }
     },
 
     LOCAL_CALL(expandHead("{V1,V2,V3} when is_atom(V1), is_list(V2), is_list(V3)")) {
@@ -684,6 +662,45 @@ internal fun variable(node: ElixirAst): Variable {
         }
 
     return Variable((call.callee as ElixirAst.Literal.Atom).name, context)
+}
+
+/** What the variable clause makes of a variable. */
+internal sealed interface VariableOutcome {
+    data object Read : VariableOutcome
+
+    /** The local call `{Name, Meta, []}`. */
+    data object LocalCall : VariableOutcome
+
+    data class Error(val kind: String) : VariableOutcome
+}
+
+/** What the variable clause makes of [call] in [state]. */
+internal fun variableOutcome(call: ElixirAst.Call, state: ExState, level: ElixirLanguageLevel): VariableOutcome {
+    val variable = variable(call)
+    val prematch = state.prematch
+    val isRead = variable in state.read
+    // A size can't read what its pattern bound before the bitstring.
+    val isBitsize = isRead && prematch is Bitsize && variable !in prematch.match.read && variable in prematch.original
+
+    if (isRead && !isBitsize) return VariableOutcome.Read
+
+    // Only macro output marks a variable.
+    if (VAR_BANG_IF_UNDEFINED.isSufficient(level)) {
+        when ((metaValue(call.meta, "if_undefined") as? Meta.Value.Atom)?.name) {
+            "apply" -> return VariableOutcome.LocalCall
+            "raise" -> return VariableOutcome.Error("undefined_var")
+        }
+    } else if (!isRead && (metaValue(call.meta, "var") as? Meta.Value.Atom)?.name == "true") {
+        return VariableOutcome.Error("undefined_var_bang")
+    }
+
+    if (isBitsize) return VariableOutcome.Error("undefined_var")
+
+    return when ((prematch as? OutsideMatch)?.mode ?: OutsideMatch.Mode.Raise) {
+        OutsideMatch.Mode.Warn -> VariableOutcome.LocalCall
+        OutsideMatch.Mode.Raise -> VariableOutcome.Error("undefined_var")
+        OutsideMatch.Mode.Pin -> VariableOutcome.Error("undefined_var_pin")
+    }
 }
 
 private fun Write.plus(variable: Variable, version: Int): Write =

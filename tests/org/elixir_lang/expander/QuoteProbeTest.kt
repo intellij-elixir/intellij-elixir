@@ -14,7 +14,7 @@ class QuoteProbeTest : ProbeTestCase() {
     fun testQuoteSiteVariables() {
         val expansions = SITE_FORMS.associateWith { probes.expand("l = 3\nf = \"x.ex\"\n$it", PLACEHOLDER) }
 
-        assertUnported(expansions, SITE_FORMS.filter(::isUnportedSite))
+        assertUnported(expansions, emptyList())
         probes.assertMatchesElixir(expansions)
     }
 
@@ -94,12 +94,6 @@ class QuoteProbeTest : ProbeTestCase() {
             "quote(bind_quoted: [b: z = 2], do: b)",
             "quote(do: foo(unquote_splicing([l])))",
         )
-
-        fun isUnportedSite(form: String) =
-            when (form) {
-                "quote(line: l, do: x)", "quote(context: c = Foo, do: x)", "quote(file: f, do: x)" -> true
-                else -> false
-            }
 
         const val AMBIGUOUS = "import Map, only: [get: 2]\nimport Keyword, only: [get: 2]"
 

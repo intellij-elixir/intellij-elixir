@@ -997,6 +997,15 @@ enum class ElixirLanguageFeature(
     COMPILER_PARSES_COLUMNS(sinceElixir = "1.16.0-rc.0"),
 
     /**
+     * A quoted `Left.unquote(Expr)` call keeps its metadata as it is. Before it, the metadata is quoted ahead of the
+     * call's other parts, so a variable in it, such as the line a `quote`'s prelude binds, is quoted as a variable.
+     *
+     * `elixir-lang/elixir@f2c4f9f9f` ("Do not escape metadata in unquote with dynamic expression"), first released in
+     * v1.13.0-rc.0.
+     */
+    UNQUOTE_CALL_META_KEPT(sinceElixir = "1.13.0-rc.0"),
+
+    /**
      * A name `quote` finds imported is marked `imports: [{arity, module}]`, for every arity imported under that name,
      * and a name two modules import at one arity raises `ambiguous_call` whatever the quoted arity. Before it, it is
      * marked `import: module` for the quoted arity only.
@@ -1014,6 +1023,16 @@ enum class ElixirLanguageFeature(
      * v1.17.0-rc.0.
      */
     QUOTE_KEEP_READS_LINE_OPTION(sinceElixir = "1.17.0-rc.0"),
+
+    /**
+     * A `quote` expands its prelude, the bindings of a dynamic `line:`, `file:` or `context:`, before it quotes its
+     * body, and gives `bind_quoted:`'s values as the options expanded them. Before it, the body is quoted first, and
+     * the prelude and the values are expanded with it, the values a second time.
+     *
+     * `elixir-lang/elixir@f0e97d0be` ("Solve bootstrap issues on dynamic options to quote"), first released in
+     * v1.17.0-rc.0.
+     */
+    QUOTE_OPTIONS_EXPANDED_FIRST(sinceElixir = "1.17.0-rc.0"),
 
     /**
      * The head of a guarded definition, not its `when`, takes the `context:` a quoted `def`, `defp`, `defmacro`,

@@ -61,9 +61,9 @@ class ExpandedValueTest : ExpanderTestCase() {
         assertValue("receive do _ -> :a end", "node")
     }
 
-    fun testAQuotedLiteralIsItself() {
-        assertValue("quote do: :a", ":a")
-        assertValue("quote do: [1]", "[1]")
+    fun testAQuotedLiteralIsItselfBefore1_20() {
+        assertSplit("quote do: :a", "1.20.0", ":a", "node")
+        assertSplit("quote do: [1]", "1.20.0", "[1]", "node")
     }
 
     fun testAQuotedVariableIsANode() = assertValue("quote do: x", "node")

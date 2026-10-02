@@ -129,26 +129,9 @@ class QuoteExpanderTest : ExpanderTestCase() {
     /** From 1.18 the unquoted expression is an argument of a remote call that validates it at run time. */
     fun testUnquoteBindsInTheCaller() = assertEvery("quote(do: unquote(y = 1))", "expanded {y:0} next 1")
 
+    /** Before 1.17 the values are expanded a second time. */
     fun testBindQuotedBindsWhatItsValuesBindAndNotItsKeys() =
-        assertEvery("quote(bind_quoted: [b: z = 2], do: b)", "expanded {z:0} next 1")
-
-    fun testADynamicLineIsValidatedAtRunTime() =
-        assertEvery("l = 3\nquote(line: l, do: x)", "unported :elixir_quote.validate_runtime/2 :line")
-
-    fun testADynamicContextIsValidatedAtRunTime() =
-        assertEvery("quote(context: c = Foo, do: x)", "unported :elixir_quote.validate_runtime/2 :context")
-
-    fun testADynamicFileIsValidatedAtRunTime() =
-        assertEvery("f = \"x.ex\"\nquote(file: f, do: x)", "unported :elixir_quote.validate_runtime/2 :file")
-
-    fun testTheFileIsValidatedBeforeTheLine() =
-        assertEvery(
-            "l = 3\nf = \"x.ex\"\nquote(line: l, file: f, do: x)",
-            "unported :elixir_quote.validate_runtime/2 :file",
-        )
-
-    fun testAnInvalidLineIsValidatedAtRunTime() =
-        assertEvery("l = :bad\nquote(line: l, do: 1)", "unported :elixir_quote.validate_runtime/2 :line")
+        assertSplit("quote(bind_quoted: [b: z = 2], do: b)", "1.17.0-rc.0", "expanded {z:1} next 2", "expanded {z:0} next 1")
 
     fun testAnOptionIsReadFromItsExpandedValue() {
         assertEvery("quote(line: __ENV__.line, do: x)", "expanded {} next 0")
@@ -249,6 +232,10 @@ class QuoteExpanderTest : ExpanderTestCase() {
         withKeys("Foo" to listOf(entry("alias", atom("Elixir.Bar")))) {
             assertValue("quote(do: Foo)", "{:__aliases__, [alias: Bar], [:Foo]}")
         }
+
+    /** The prelude isn't in the escaped expression, which reads the variables the prelude binds. */
+    fun testAQuoteWithAPreludeHasNoEscapedExpression() =
+        assertValue("l = 3\nquote(line: l, do: x)", "no escaped expression")
 
     fun testAnAliasFromTheElixirRoot() = assertValue("quote(do: Elixir.Foo)", "{:__aliases__, [], [:Elixir, :Foo]}")
 
