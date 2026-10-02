@@ -189,7 +189,7 @@ private fun macroExpandCall(node: ElixirAst.Call, env: Env, run: Run): MacroExpa
         is ElixirAst.Literal.Atom ->
             return when (val match = importOf(node, env)) {
                 is ImportMatch.Function -> {
-                    importedFunction(node, match.receiver, run)
+                    importedFunction(node, match.receiver, env, run)
                     MacroExpanded.Other
                 }
                 ImportMatch.None -> MacroExpanded.Other

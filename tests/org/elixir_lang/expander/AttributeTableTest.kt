@@ -439,6 +439,36 @@ class AttributeTableTest {
         )
     }
 
+    /** `lookup_attribute`, as the checks after the module body read an attribute: each value, oldest first. */
+    @Test
+    fun `the values the checks after the module body read`() {
+        val table = AttributeTable(ElixirLanguageLevel.of("1.20.4"))
+
+        table.apply(Write("x", int(1)))
+        table.apply(Write("x", int(2)))
+        table.apply(Write("compile", atom("a")))
+        table.apply(Write("compile", atom("b")))
+        table.apply(Register("r", accumulate = false))
+        table.apply(Write("y", NODE))
+        table.apply(Write("z", int(3)), statement = false)
+
+        assertEquals(
+            listOf("x: [2]", "compile: [:a, :b]", "r: []", "absent: []", "y: [unknown]", "z: [unknown]"),
+            listOf("x", "compile", "r", "absent", "y", "z").map { name ->
+                "$name: ${table.values(name).joinToString(", ", "[", "]") { render(it) }}"
+            },
+        )
+    }
+
+    @Test
+    fun `after an unknown effect every attribute has an unknown value`() {
+        val table = AttributeTable(ElixirLanguageLevel.of("1.20.4"))
+
+        table.apply(Effect.UnknownEffect)
+
+        assertEquals(listOf(AttributeValue.Unknown), table.values("absent"))
+    }
+
     /** Applies each step in turn: an effect expecting its outcome (`null` when stored), or a read expecting a value. */
     private fun assertTrace(version: String, vararg steps: Pair<Any, String?>) {
         val table = AttributeTable(ElixirLanguageLevel.of(version))

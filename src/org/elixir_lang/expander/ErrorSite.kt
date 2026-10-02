@@ -113,7 +113,19 @@ internal enum class ErrorSite(val kind: String, private val helper: Helper, priv
     UNKNOWN_KEY_FOR_STRUCT("unknown_key_for_struct", Helper.FUNCTION),
 
     /** `elixir_map`'s struct with a key that isn't an atom, once per key, before the struct is read. */
-    INVALID_KEY_FOR_STRUCT("invalid_key_for_struct", Helper.FUNCTION);
+    INVALID_KEY_FOR_STRUCT("invalid_key_for_struct", Helper.FUNCTION),
+
+    /** A definition, once the module's body has run, with heads and no clause. */
+    FUNCTION_HEAD("function_head", Helper.MODULE),
+
+    /** A definition, once the module's body has run, whose name and arity a function body called through an import. */
+    IMPORT_CONFLICT("import_conflict", Helper.MODULE),
+
+    /** A function `@on_load`, `@dialyzer`, `@nifs` or `@compile :inline` names, which the module doesn't define. */
+    UNDEFINED_ATTRIBUTE_FUNCTION("undefined_attribute_function", Helper.MODULE),
+
+    /** A function `@on_load`, `@dialyzer`, `@nifs` or `@compile :inline` names, which the module defines as a macro. */
+    WRONG_KIND_ATTRIBUTE_FUNCTION("wrong_kind_attribute_function", Helper.MODULE);
 
     /** Whether Elixir at [level] carries on after this site's error in [env]. */
     fun outcome(level: ElixirLanguageLevel, env: Env): Outcome =

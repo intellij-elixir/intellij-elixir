@@ -43,8 +43,9 @@ private fun define(kind: Kind, node: ElixirAst.Call, state: ExState, env: Env, r
     // `def(call, expr \\ nil)`: a `nil` body is no body.
     val body = node.arguments.getOrNull(1)?.takeUnless { (it as? ElixirAst.Literal.Atom)?.name == "nil" }
     val fragments = Fragments()
+    val unquotes = hasUnquotes(head, run.level) || body != null && hasUnquotes(body, run.level)
 
-    if (hasUnquotes(head, run.level) || body != null && hasUnquotes(body, run.level)) {
+    if (unquotes) {
         fragments.walk(head)
         body?.let(fragments::walk)
     }
@@ -83,6 +84,8 @@ private fun define(kind: Kind, node: ElixirAst.Call, state: ExState, env: Env, r
             stop,
             env,
             ordered,
+            // `elixir_def:store_definition/5`: a head with unquotes or from a quote isn't checked for clauses.
+            checksClauses = !unquotes && !hasMetaKey(extractGuards(head).first.meta, "context"),
         )
 
         Expansion.Expanded(s, e, NODE)
@@ -240,7 +243,7 @@ internal fun storeDefinition(definition: Pending.Definition, compiling: Compilin
     takeFile(definition, compiling)
 
     if (unnamedAt != null) {
-        compiling.table.define(null, 0, kind, line(node.meta), 0, 0, definition.ordered)
+        compiling.table.define(null, 0, kind, node, 0, 0, definition.ordered, definition.checksClauses)
 
         return Owner.Definition(kind, null, 0) to Expansion.Unported(unnamedAt)
     }
@@ -263,11 +266,8 @@ internal fun storeDefinition(definition: Pending.Definition, compiling: Compilin
     reservedNameError(kind, name, arity)?.let { return owner to Expansion.Error(it, node) }
 
     val defaults = defaultsArgs.mapNotNull { arg -> (arg as? ElixirAst.Call)?.takeIf { isCall(it, "\\\\", 2) } }
-    val line = line(node.meta)
-    val clauseCount = if (definition.body == null) 0 else 1
-
     definition.stop?.let { stop ->
-        compiling.table.define(name, arity, kind, line, clauseCount, defaults.size, definition.ordered)
+        store(definition, name, arity, defaults.size, compiling)
 
         return owner to Expansion.Unported(stop)
     }
@@ -278,12 +278,33 @@ internal fun storeDefinition(definition: Pending.Definition, compiling: Compilin
     val expansion = expandDefaults(defaults, fresh, env, run, compiling, node)
         .then { _, _ -> clause(node, args, guard, definition.body, fresh, env, run) }
 
-    if (expansion !is Expansion.Error) {
-        compiling.table.define(name, arity, kind, line, clauseCount, defaults.size, definition.ordered)
-    }
+    if (expansion is Expansion.Error) return owner to expansion
 
-    return owner to expansion
+    // The store follows the expansion, so from 1.15 the body's errors are reported before the store raises. A body
+    // that isn't expanded may raise before the store does.
+    val raised = store(definition, name, arity, defaults.size, compiling)?.takeIf { expansion is Expansion.Expanded }
+
+    return owner to (raised?.let { Expansion.Error(it, node) } ?: expansion)
 }
+
+/** [definition] stored as [name] and [arity] with [defaults] defaults: the kind of the error the store raises, if any. */
+private fun store(
+    definition: Pending.Definition,
+    name: String,
+    arity: Int,
+    defaults: Int,
+    compiling: Compiling,
+): String? =
+    compiling.table.define(
+        name,
+        arity,
+        definition.kind,
+        definition.node,
+        if (definition.body == null) 0 else 1,
+        defaults,
+        definition.ordered,
+        definition.checksClauses,
+    )
 
 /** `assert_valid_name/5`: the error a definition of [name] and [arity] raises, as one the compiler defines. */
 private fun reservedNameError(kind: Kind, name: String, arity: Int): String? =

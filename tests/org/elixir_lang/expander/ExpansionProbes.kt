@@ -511,7 +511,7 @@ internal class ExpansionProbes(
         }
 
         val logged = collapsed(timeline(result, expansion.takeIf { it.unordered }), level) { error ->
-            error.kind.takeIf { it in POST_MODULE_KINDS }?.let { Triple(it, line(error.at), column(error.at)) }
+            error.kind.takeIf { it in LOCAL_CHECK_KINDS }?.let { Triple(it, line(error.at), column(error.at)) }
         }
             .filter { ErrorKinds.hasLine(it.kind, level) }
             .map { ExpectedError(it.kind, line(it.at)) }
@@ -543,7 +543,9 @@ internal class ExpansionProbes(
 
         fun unit(error: Reported) = definitions.firstOrNull { it.node.meta.origin.contains(error.at.meta.origin) }
 
-        val after = result.errors.filter { it.kind in POST_MODULE_KINDS && unit(it) != null }
+        val after = result.errors.filter {
+            it.kind in POST_MODULE_KINDS && (it.kind !in LOCAL_CHECK_KINDS || unit(it) != null)
+        }
         val during = result.errors.filterNot { error -> after.any { it === error } }
         // A nested module whose name raised has no body, and its error is at its `defmodule`.
         val placed = definitions.map { unit -> start(unit.node) to during.filter { unit(it) === unit } } +
@@ -584,7 +586,7 @@ internal class ExpansionProbes(
         prefix: Boolean,
     ): String {
         val logged = collapsed(errors(compiled.diagnostics), legLevel()) { diagnostic ->
-            POST_MODULE_KINDS.firstOrNull { ErrorKinds.pattern(it).containsMatchIn(diagnostic.message) }
+            LOCAL_CHECK_KINDS.firstOrNull { ErrorKinds.pattern(it).containsMatchIn(diagnostic.message) }
                 ?.let { Triple(it, diagnostic.line, diagnostic.column) }
         }
             .let { if (prefix) it.take(expected.size) else it }
@@ -1083,8 +1085,12 @@ internal class ExpansionProbes(
         /** What a module raises once a module nested in it has logged errors. */
         const val NESTED_RAISED = "compile_error"
 
-        /** The errors of the checks of a module's local calls once its body has run. */
-        val POST_MODULE_KINDS = setOf("undefined_function", "incorrect_dispatch")
+        /** The errors of the checks of a module's local calls once its body has run, which its body can also report. */
+        val LOCAL_CHECK_KINDS = setOf("undefined_function", "incorrect_dispatch")
+
+        /** The errors of the checks a module makes once its body has run. */
+        val POST_MODULE_KINDS = LOCAL_CHECK_KINDS +
+            setOf("function_head", "import_conflict", "undefined_attribute_function", "wrong_kind_attribute_function")
 
         /**
          * `elixir-lang/elixir@41353c6cf` checks a default's calls once for each type inferred for it, so how many times

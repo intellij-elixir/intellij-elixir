@@ -170,6 +170,9 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             BEHAVIOUR_VALUE_CHECKED to ("1.12.3" to "1.13.0-rc.0"),
             DIALYZER_ATTRIBUTE_CHECKED to ("1.11.4" to "1.12.0-rc.0"),
             ATTRIBUTE_REFUSED_IN_GUARD to ("1.15.0-rc.2" to "1.15.0"),
+            ON_LOAD_ALLOWS_PRIVATE to ("1.11.4" to "1.12.0-rc.0"),
+            DIALYZER_REFUSES_MACROS to ("1.15.0-rc.0" to "1.15.0-rc.1"),
+            GENERATED_HEADS_CHECKED to ("1.12.0-rc.0" to "1.12.0-rc.1"),
         )
 
         assertEquals(entries.filter { it.sinceElixir != null }.toSet(), boundaries.keys)

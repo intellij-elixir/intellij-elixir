@@ -136,6 +136,20 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
         return value(name).also { entries.remove(name) }
     }
 
+    /**
+     * `lookup_attribute`, as the checks after the module body read [name]: each value written, oldest first, none where
+     * it isn't set, and one unknown value where it may have been written.
+     */
+    fun values(name: String): List<AttributeValue> {
+        if (everyUnknown || name in unknown) return listOf(AttributeValue.Unknown)
+
+        return when (val entry = entries[name]) {
+            null, Entry.Unset -> emptyList()
+            is Entry.Set -> listOf(entry.value)
+            is Entry.Accumulate -> entry.values
+        }
+    }
+
     /** Makes every later read of [names] unknown, as after a definition that isn't a statement takes them. */
     fun markUnknown(vararg names: String) {
         unknown += names

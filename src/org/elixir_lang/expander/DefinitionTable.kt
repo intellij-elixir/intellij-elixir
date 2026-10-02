@@ -1,6 +1,7 @@
 package org.elixir_lang.expander
 
 import org.elixir_lang.NameArity
+import org.elixir_lang.lowering.ElixirAst
 
 /** What a module defines, as `Module.definitions_in/2` lists it. */
 internal class DefinitionTable {
@@ -18,20 +19,25 @@ internal class DefinitionTable {
     /**
      * One definition.
      *
-     * @property line the line of its first clause
+     * @property at its first head
      * @property clauses the clauses stored, none for a bodiless head
      * @property defaults the most defaults any of its heads gave
      * @property default whether it was first stored for a default arity of another definition
      * @property ordered whether each of its clauses was defined at a statement of the module body
+     * @property checksClauses whether its last head is checked for clauses: one with no `unquote` and no `context`
      */
     data class Entry(
         val kind: Kind,
-        val line: Int,
+        val at: ElixirAst,
         val clauses: Int,
         val defaults: Int,
         val default: Boolean,
         val ordered: Boolean,
-    )
+        val checksClauses: Boolean,
+    ) {
+        /** The line of its first head. */
+        val line: Int get() = line(at.meta)
+    }
 
     /** Each named definition, in the order it was first stored. */
     val entries: Map<NameArity, Entry>
@@ -46,42 +52,88 @@ internal class DefinitionTable {
 
     operator fun get(nameArity: NameArity): Entry? = entries[nameArity]
 
+    /** The `{default, Name}` rows of the bag: each arity stored with defaults, and how many. */
+    private val defaultRows = mutableMapOf<String, MutableList<Pair<Int, Int>>>()
+
     /**
      * `elixir_def:store_definition/10`: a head of [name] and [arity], or of no known name when [name] is `null`, with
-     * [clauses] clauses and [defaults] defaults, then a clause for each default arity.
+     * [clauses] clauses and [defaults] defaults, then a clause for each default arity: the kind of the error the store
+     * raises, if it raises, in which case nothing more is stored.
      */
-    fun define(name: String?, arity: Int, kind: Kind, line: Int, clauses: Int, defaults: Int, ordered: Boolean) {
+    fun define(
+        name: String?,
+        arity: Int,
+        kind: Kind,
+        at: ElixirAst,
+        clauses: Int,
+        defaults: Int,
+        ordered: Boolean,
+        checksClauses: Boolean,
+    ): String? {
         if (name == null) {
             unnamed += kind
 
-            return
+            return null
         }
 
-        store(NameArity(name, arity), kind, line, clauses, defaults, default = false, ordered)
+        if (conflictsWithPreviousDefaults(name, arity, defaults)) return "defs_with_defaults"
+
+        store(NameArity(name, arity), kind, at, clauses, defaults, default = false, ordered, checksClauses)
+            ?.let { return it }
 
         for (defaultArity in arity - defaults until arity) {
-            store(NameArity(name, defaultArity), kind, line, 1, 0, default = true, ordered)
+            store(NameArity(name, defaultArity), kind, at, 1, 0, default = true, ordered, checksClauses = false)
+                ?.let { return it }
         }
+
+        return null
     }
 
-    /** `elixir_def:store_definition/9`: the first clause's line is kept, and the most defaults. */
+    /**
+     * `check_previous_defaults/7`: whether another arity of [name] stored with defaults has [arity] among its default
+     * arities, or has an arity among this definition's.
+     */
+    private fun conflictsWithPreviousDefaults(name: String, arity: Int, defaults: Int): Boolean =
+        defaultRows[name].orEmpty().any { (storedArity, storedDefaults) ->
+            storedArity != arity &&
+                storedDefaults != 0 &&
+                ((arity >= storedArity - storedDefaults && arity < storedArity) ||
+                    (storedArity >= arity - defaults && storedArity < arity))
+        }
+
+    /**
+     * `elixir_def:store_definition/11`: the first head is kept, the most defaults, and the last head's [checksClauses].
+     * A store of another kind raises `changed_kind`, and a second with defaults `duplicate_defaults`.
+     */
     private fun store(
         nameArity: NameArity,
         kind: Kind,
-        line: Int,
+        at: ElixirAst,
         clauses: Int,
         defaults: Int,
         default: Boolean,
         ordered: Boolean,
-    ) {
+        checksClauses: Boolean,
+    ): String? {
+        if (defaults > 0) defaultRows.getOrPut(nameArity.name) { mutableListOf() } += nameArity.arity to defaults
+
+        val stored = entries[nameArity]
+
         entries[nameArity] =
-            entries[nameArity]?.let { stored ->
+            if (stored == null) {
+                Entry(kind, at, clauses, defaults, default, ordered, checksClauses)
+            } else {
+                if (stored.kind != kind) return "changed_kind"
+                if (defaults > 0 && stored.defaults > 0) return "duplicate_defaults"
+
                 stored.copy(
-                    kind = kind,
                     clauses = stored.clauses + clauses,
                     defaults = maxOf(stored.defaults, defaults),
                     ordered = stored.ordered && ordered,
+                    checksClauses = checksClauses,
                 )
-            } ?: Entry(kind, line, clauses, defaults, default, ordered)
+            }
+
+        return null
     }
 }

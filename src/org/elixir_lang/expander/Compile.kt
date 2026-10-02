@@ -25,6 +25,9 @@ internal class Compiling(body: ElixirAst, level: ElixirLanguageLevel) {
     /** The private macros dispatched as local macros, in the order they were first dispatched. */
     val usedPrivate = LinkedHashSet<NameArity>()
 
+    /** Each name and arity a function body dispatched through an import of another module, to that module. */
+    val imports = LinkedHashMap<NameArity, String>()
+
     /** The attributes at the point the module body has run to. */
     val attributes = AttributeTable(level)
 
@@ -90,6 +93,8 @@ internal sealed interface Pending {
      * @property stop the first other fragment whose value isn't a literal
      * @property env the env at [node]
      * @property ordered whether [node] is a statement of the module body, and named
+     * @property checksClauses whether Elixir checks the definition for clauses: it has no unquotes, and its head
+     *   wasn't quoted
      */
     class Definition(
         val kind: DefinitionTable.Kind,
@@ -100,6 +105,7 @@ internal sealed interface Pending {
         val stop: ElixirAst?,
         val env: Env,
         val ordered: Boolean,
+        val checksClauses: Boolean,
     ) : Pending
 
     /**
@@ -231,7 +237,7 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
     if (ended == null) ended = beforeCompile(module, compiling, (body as Expansion.Expanded).env, run)
 
     if (ended == null) {
-        ended = checkLocals(module, compiling, tainted = run.errors.size > errorsFrom || errors.isNotEmpty(), run)
+        ended = postModule(module, compiling, tainted = run.errors.size > errorsFrom || errors.isNotEmpty(), run)
     }
 
     errors += run.errors.subList(errorsFrom, run.errors.size)
@@ -329,22 +335,33 @@ private fun beforeCompile(module: Pending.Module, compiling: Compiling, env: Env
 private val REQUIRED = Meta.Key.Entry("required", Meta.Value.Atom("true"))
 
 /**
- * The checks of [module]'s local calls once its body has run, each reported in the calling definition's env: how the
- * first that raises ends the module, if one does.
+ * The checks once [module]'s body has run, each reported in the module's env, or a local call's in its calling
+ * definition's: how the first that raises or stops ends the module, if one does.
  */
-private fun checkLocals(module: Pending.Module, compiling: Compiling, tainted: Boolean, run: Run): Ended? {
-    val errors = localErrors(
+private fun postModule(module: Pending.Module, compiling: Compiling, tainted: Boolean, run: Run): Ended? {
+    val checks = postModuleChecks(
         run.level,
-        compiling.table.kinds,
+        module.name,
+        module.node,
+        compiling.table.entries.mapValues { (_, entry) ->
+            Defined(entry.kind, entry.at, entry.clauses > 0, entry.checksClauses)
+        },
         compiling.calls,
         compiling.usedPrivate.toList(),
+        compiling.imports,
+        compiling.attributes::values,
         tainted,
     )
 
-    for ((site, call, caller) in errors) {
-        val env = module.env.copy(function = caller)
+    for (check in checks) {
+        when (check) {
+            is PostModuleCheck.Error -> {
+                val env = module.env.copy(function = check.caller)
 
-        reportOrEnd(site, call.at, env, run)?.let { return ended(it, run) }
+                reportOrEnd(check.site, check.at, env, run)?.let { return ended(it, run) }
+            }
+            PostModuleCheck.Stop -> return Ended.Stopped(module.node)
+        }
     }
 
     return null

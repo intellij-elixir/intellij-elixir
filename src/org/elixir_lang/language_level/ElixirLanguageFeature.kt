@@ -776,6 +776,31 @@ enum class ElixirLanguageFeature(
     ATTRIBUTE_REFUSED_IN_GUARD(sinceElixir = "1.15.0"),
 
     /**
+     * `@on_load` may name a private function, and is checked before the module's local calls. Before it, the function
+     * must be a `def`, and is checked after them.
+     *
+     * `elixir-lang/elixir@aa78b3229` ("Allow @on_load to be private, closes #10438"), first released in v1.12.0-rc.0.
+     */
+    ON_LOAD_ALLOWS_PRIVATE(sinceElixir = "1.12.0-rc.0"),
+
+    /**
+     * A macro named by `@dialyzer` is an error. Before it, only a function that isn't defined is.
+     *
+     * `elixir-lang/elixir@d4d7c8bcf` ("Raise when macros are given to dialyzer, closes #12597"), first released in
+     * v1.15.0-rc.1.
+     */
+    DIALYZER_REFUSES_MACROS(sinceElixir = "1.15.0-rc.1"),
+
+    /**
+     * A bodiless head is an error even when its last head was generated: an `unquote` in it, or `context` in its meta,
+     * and in `Module` itself. Before it, such a head is skipped.
+     *
+     * `elixir-lang/elixir@7e2b22402` ("Do not ignore unimplemented function headers from used modules"), first
+     * released in v1.12.0-rc.1.
+     */
+    GENERATED_HEADS_CHECKED(sinceElixir = "1.12.0-rc.1"),
+
+    /**
      * `::` and `|` outside a bitstring or a list have clauses of their own, which raise `unhandled_type_op` and
      * `unhandled_cons_op`. Before it, they reach local dispatch.
      *

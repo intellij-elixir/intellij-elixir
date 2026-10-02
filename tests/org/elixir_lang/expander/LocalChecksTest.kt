@@ -218,29 +218,6 @@ class LocalChecksTest {
         ) { listOf(undefined("x", "a/0")) }
 
     @Test
-    fun `an undefined function in a module that reported an error`() =
-        assertOrders(
-            module {
-                def("f")
-                def("g", call("nope", 3, 14))
-                tainted = true
-            },
-            CONTINUING,
-        ) { version -> if (isBefore(version, "1.18.0-rc.0")) listOf(undefined("nope", "g/0")) else emptyList() }
-
-    @Test
-    fun `a macro called before its definition in a module that reported an error`() =
-        assertOrders(
-            module {
-                def("f", call("m", 2, 14))
-                def("g")
-                def("m", kind = DEFMACRO)
-                tainted = true
-            },
-            CONTINUING,
-        ) { version -> if (isBefore(version, "1.18.0-rc.0")) listOf(dispatch("m", "f/0")) else emptyList() }
-
-    @Test
     fun `a private macro dispatched as a local macro is visited before the other private definitions`() =
         assertOrders(
             module {
@@ -254,7 +231,6 @@ class LocalChecksTest {
         val kinds = linkedMapOf<NameArity, Kind>()
         val calls = linkedMapOf<NameArity, List<LocalCall<String>>>()
         var usedPrivate = emptyList<NameArity>()
-        var tainted = false
 
         fun def(name: String, vararg calls: LocalCall<String>, arity: Int = 0, kind: Kind = DEF) {
             val nameArity = NameArity(name, arity)
@@ -287,7 +263,6 @@ class LocalChecksTest {
                     module.kinds,
                     module.calls,
                     module.usedPrivate,
-                    module.tainted,
                 )
 
                 "$version: " +
@@ -300,8 +275,5 @@ class LocalChecksTest {
 
     private companion object {
         val LEGS = listOf("1.14.5", "1.15.8", "1.16.3", "1.17.3", "1.18.4", "1.19.5", "1.20.4")
-
-        /** The legs where a module can report an error and carry on. */
-        val CONTINUING = LEGS - "1.14.5"
     }
 }

@@ -32,7 +32,7 @@ internal fun expandLocalCall(node: ElixirAst.Call, state: ExState, env: Env, run
         run,
         ambiguous = { Expansion.Error("ambiguous_call", node) },
         function = { receiver ->
-            val (inlinedReceiver, inlined) = importedFunction(node, receiver, run)
+            val (inlinedReceiver, inlined) = importedFunction(node, receiver, env, run)
 
             stacktrace(inlinedReceiver, inlined, args.size, state, env, run) ?: expandRemote(
                 Term.Atom(inlinedReceiver),
@@ -52,11 +52,11 @@ internal fun expandLocalCall(node: ElixirAst.Call, state: ExState, env: Env, run
 }
 
 /**
- * `elixir_dispatch:do_expand_import/7`'s trace of [call] as a function imported from [receiver]: the receiver and name
- * after `inline/3`, which it reports.
+ * `elixir_dispatch:do_expand_import/7`'s trace and record of [call] as a function imported from [receiver]: the
+ * receiver and name after `inline/3`, which it reports.
  */
-internal fun importedFunction(call: ElixirAst.Call, receiver: String, run: Run): Pair<String, String> =
-    importedFunction(call, receiver, (call.callee as ElixirAst.Literal.Atom).name, call.arguments!!.size, run)
+internal fun importedFunction(call: ElixirAst.Call, receiver: String, env: Env, run: Run): Pair<String, String> =
+    importedFunction(call, receiver, (call.callee as ElixirAst.Literal.Atom).name, call.arguments!!.size, env, run)
 
 /** As [importedFunction] of a call, for [node], which calls or captures [name]/[arity]. */
 internal fun importedFunction(
@@ -64,13 +64,23 @@ internal fun importedFunction(
     receiver: String,
     name: String,
     arity: Int,
+    env: Env,
     run: Run,
 ): Pair<String, String> {
     val inlined = inline(receiver, name, arity, run.level) ?: (receiver to name)
 
     run.observer.dispatched(node, Dispatch(Dispatch.Kind.IMPORTED_FUNCTION, inlined.first, inlined.second, arity))
+    recordImport(NameArity(name, arity), receiver, env, run)
 
     return inlined
+}
+
+/**
+ * `elixir_import:record/4`: inside a function, [nameArity] dispatched through an import of [receiver], another module,
+ * is kept for the import-conflict check once the module's body has run.
+ */
+private fun recordImport(nameArity: NameArity, receiver: String, env: Env, run: Run) {
+    if (env.function != null && receiver != env.module) run.compiling[env.module]?.imports?.put(nameArity, receiver)
 }
 
 /**
@@ -119,7 +129,10 @@ internal fun expandImport(
 
     return when (match) {
         is ImportMatch.Ambiguous -> ambiguous()
-        is ImportMatch.Macro -> dispatchMacro(Dispatch(Dispatch.Kind.IMPORTED_MACRO, match.receiver, name, arity))
+        is ImportMatch.Macro -> {
+            recordImport(nameArity, match.receiver, env, run)
+            dispatchMacro(Dispatch(Dispatch.Kind.IMPORTED_MACRO, match.receiver, name, arity))
+        }
         is ImportMatch.Function -> function(match.receiver)
         ImportMatch.None -> none()
     }

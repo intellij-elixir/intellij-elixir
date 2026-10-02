@@ -43,9 +43,22 @@ class ErrorSiteTest {
         INCORRECT_DISPATCH to Outcome.Continues,
         UNKNOWN_KEY_FOR_STRUCT to Outcome.Continues,
         INVALID_KEY_FOR_STRUCT to Outcome.Continues,
+        FUNCTION_HEAD to Outcome.Continues,
+        IMPORT_CONFLICT to Outcome.Continues,
+        UNDEFINED_ATTRIBUTE_FUNCTION to Outcome.Continues,
+        WRONG_KIND_ATTRIBUTE_FUNCTION to Outcome.Continues,
     )
 
-    private val moduleSites = setOf(INVALID_LOCAL_INVOCATION, INVALID_FUNCTION_HEAD, UNDEFINED_FUNCTION, INCORRECT_DISPATCH)
+    private val moduleSites = setOf(
+        INVALID_LOCAL_INVOCATION,
+        INVALID_FUNCTION_HEAD,
+        UNDEFINED_FUNCTION,
+        INCORRECT_DISPATCH,
+        FUNCTION_HEAD,
+        IMPORT_CONFLICT,
+        UNDEFINED_ATTRIBUTE_FUNCTION,
+        WRONG_KIND_ATTRIBUTE_FUNCTION,
+    )
 
     @Test
     fun `every site has an outcome here`() = assertEquals(entries.toSet(), outcomes.keys)
