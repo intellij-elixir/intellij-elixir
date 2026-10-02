@@ -10,8 +10,20 @@ defmodule Callers.ExDbgi.Def.XNotACall do
   def at_unqualified(a, b), do: ex_dbgi_def_x_not_a_call_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> ex_dbgi_def_x_not_a_call_snoc(b) # @pipe
   def at_capture(a, b), do: {&ExDbgi.Def.XNotACall.ex_dbgi_def_x_not_a_call_snoc/2, a, b} # @capture
+  def at_qualified_quoted(a, b), do: ExDbgi.Def.XNotACall."ex_dbgi_def_x_not_a_call_snoc"(a, b) # @qualified_quoted
+  def at_capture_quoted(a, b), do: {&ExDbgi.Def.XNotACall."ex_dbgi_def_x_not_a_call_snoc"/2, a, b} # @capture_quoted
   def at_apply(a, b), do: apply(ExDbgi.Def.XNotACall, :ex_dbgi_def_x_not_a_call_snoc, [a, b]) # @apply
+  def at_apply_quoted(a, b), do: apply(ExDbgi.Def.XNotACall, :"ex_dbgi_def_x_not_a_call_snoc", [a, b]) # @apply_quoted
+  def at_apply_module_quoted(a, b), do: apply(:"Elixir.ExDbgi.Def.XNotACall", :ex_dbgi_def_x_not_a_call_snoc, [a, b]) # @apply_module_quoted
+  def at_apply_interpolated(a, b), do: apply(ExDbgi.Def.XNotACall, :"#{a}ex_dbgi_def_x_not_a_call_snoc", [a, b]) # @apply_interpolated
+  def at_apply_nested(a, b), do: apply(ExDbgi.Def.XNotACall, pick(b, :ex_dbgi_def_x_not_a_call_snoc), [a, b]) # @apply_nested
+  def at_apply_nested_quoted(a, b), do: apply(ExDbgi.Def.XNotACall, pick(b, :"ex_dbgi_def_x_not_a_call_snoc"), [a, b]) # @apply_nested_quoted
+  def at_mfa_quoted(a, b), do: {{ExDbgi.Def.XNotACall, :"ex_dbgi_def_x_not_a_call_snoc", 2}, a, b} # @mfa_quoted
+  def at_mfa_module_quoted(a, b), do: {{:"Elixir.ExDbgi.Def.XNotACall", :ex_dbgi_def_x_not_a_call_snoc, 2}, a, b} # @mfa_module_quoted
+  def at_mfa_interpolated(a, b), do: {{ExDbgi.Def.XNotACall, :"#{a}ex_dbgi_def_x_not_a_call_snoc", 2}, a, b} # @mfa_interpolated
   def at_variable(a, b), do: (fn ex_dbgi_def_x_not_a_call_snoc -> ex_dbgi_def_x_not_a_call_snoc end).({a, b}) # @variable
   def at_atom(a, b), do: {:ex_dbgi_def_x_not_a_call_snoc, a, b} # @atom
   def at_keyword(a, b), do: [ex_dbgi_def_x_not_a_call_snoc: a, b: b] # @keyword
+
+  defp pick(opts, key), do: opts[key]
 end

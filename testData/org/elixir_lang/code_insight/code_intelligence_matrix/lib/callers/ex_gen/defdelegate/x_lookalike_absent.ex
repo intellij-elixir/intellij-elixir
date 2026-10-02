@@ -10,10 +10,22 @@ defmodule Callers.ExGen.Defdelegate.XLookalikeAbsent do
   def at_unqualified(a, b), do: ex_gen_defdelegate_x_lookalike_absent_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> ex_gen_defdelegate_x_lookalike_absent_snoc(b) # @pipe
   def at_capture(a, b), do: {&ExGen.Defdelegate.XLookalikeAbsent.ex_gen_defdelegate_x_lookalike_absent_snoc/2, a, b} # @capture
+  def at_qualified_quoted(a, b), do: ExGen.Defdelegate.XLookalikeAbsent."ex_gen_defdelegate_x_lookalike_absent_snoc"(a, b) # @qualified_quoted
+  def at_capture_quoted(a, b), do: {&ExGen.Defdelegate.XLookalikeAbsent."ex_gen_defdelegate_x_lookalike_absent_snoc"/2, a, b} # @capture_quoted
   def at_apply(a, b), do: apply(ExGen.Defdelegate.XLookalikeAbsent, :ex_gen_defdelegate_x_lookalike_absent_snoc, [a, b]) # @apply
+  def at_apply_quoted(a, b), do: apply(ExGen.Defdelegate.XLookalikeAbsent, :"ex_gen_defdelegate_x_lookalike_absent_snoc", [a, b]) # @apply_quoted
+  def at_apply_module_quoted(a, b), do: apply(:"Elixir.ExGen.Defdelegate.XLookalikeAbsent", :ex_gen_defdelegate_x_lookalike_absent_snoc, [a, b]) # @apply_module_quoted
+  def at_apply_interpolated(a, b), do: apply(ExGen.Defdelegate.XLookalikeAbsent, :"#{a}ex_gen_defdelegate_x_lookalike_absent_snoc", [a, b]) # @apply_interpolated
+  def at_apply_nested(a, b), do: apply(ExGen.Defdelegate.XLookalikeAbsent, pick(b, :ex_gen_defdelegate_x_lookalike_absent_snoc), [a, b]) # @apply_nested
+  def at_apply_nested_quoted(a, b), do: apply(ExGen.Defdelegate.XLookalikeAbsent, pick(b, :"ex_gen_defdelegate_x_lookalike_absent_snoc"), [a, b]) # @apply_nested_quoted
+  def at_mfa_quoted(a, b), do: {{ExGen.Defdelegate.XLookalikeAbsent, :"ex_gen_defdelegate_x_lookalike_absent_snoc", 2}, a, b} # @mfa_quoted
+  def at_mfa_module_quoted(a, b), do: {{:"Elixir.ExGen.Defdelegate.XLookalikeAbsent", :ex_gen_defdelegate_x_lookalike_absent_snoc, 2}, a, b} # @mfa_module_quoted
+  def at_mfa_interpolated(a, b), do: {{ExGen.Defdelegate.XLookalikeAbsent, :"#{a}ex_gen_defdelegate_x_lookalike_absent_snoc", 2}, a, b} # @mfa_interpolated
   def at_lookalike_xsnoc(a, b), do: ExGen.Defdelegate.XLookalikeAbsent.ex_gen_defdelegate_x_lookalike_absent_xsnoc(a, b) # @lookalike_xsnoc
   def at_lookalike_snoc_x(a, b), do: ExGen.Defdelegate.XLookalikeAbsent.ex_gen_defdelegate_x_lookalike_absent_snoc_x(a, b) # @lookalike_snoc_x
   def at_lookalike_snoc_question(a, b), do: ExGen.Defdelegate.XLookalikeAbsent.ex_gen_defdelegate_x_lookalike_absent_snoc?(a, b) # @lookalike_snoc_question
   def at_lookalike_snoc_bang(a, b), do: ExGen.Defdelegate.XLookalikeAbsent.ex_gen_defdelegate_x_lookalike_absent_snoc!(a, b) # @lookalike_snoc_bang
   def at_lookalike_snoc_combining(a, b), do: ExGen.Defdelegate.XLookalikeAbsent.ex_gen_defdelegate_x_lookalike_absent_snoć(a, b) # @lookalike_snoc_combining
+
+  defp pick(opts, key), do: opts[key]
 end

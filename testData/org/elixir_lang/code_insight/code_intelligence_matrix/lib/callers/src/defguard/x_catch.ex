@@ -10,4 +10,5 @@ defmodule Callers.Src.Defguard.XCatch do
   def at_aliased_as(a, b), do: Aliased.src_defguard_x_catch_snoc(a, b) # @aliased_as
   def at_unqualified(a, b), do: src_defguard_x_catch_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> src_defguard_x_catch_snoc(b) # @pipe
+  def at_qualified_quoted(a, b), do: Src.Defguard.XCatch."src_defguard_x_catch_snoc"(a, b) # @qualified_quoted
 end

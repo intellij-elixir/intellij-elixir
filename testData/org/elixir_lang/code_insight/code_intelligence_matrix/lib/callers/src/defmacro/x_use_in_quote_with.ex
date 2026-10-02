@@ -11,6 +11,7 @@ defmodule Callers.Src.Defmacro.XUseInQuoteWith do
   def at_aliased_as(a, b), do: Aliased.src_defmacro_x_use_in_quote_with_snoc(a, b) # @aliased_as
   def at_unqualified(a, b), do: src_defmacro_x_use_in_quote_with_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> src_defmacro_x_use_in_quote_with_snoc(b) # @pipe
+  def at_qualified_quoted(a, b), do: Src.Defmacro.XUseInQuoteWith."src_defmacro_x_use_in_quote_with_snoc"(a, b) # @qualified_quoted
   def at_arity_1(a, _b), do: Src.Defmacro.XUseInQuoteWith.src_defmacro_x_use_in_quote_with_snoc(a) # @arity_1
   def at_other_qualified(a, b), do: Src.Defmacro.XUseInQuoteWith.Other.src_defmacro_x_use_in_quote_with_snoc(a, b) # @other_qualified
 end

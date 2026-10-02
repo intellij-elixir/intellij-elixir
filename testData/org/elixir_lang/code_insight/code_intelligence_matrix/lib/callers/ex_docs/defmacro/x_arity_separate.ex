@@ -10,6 +10,7 @@ defmodule Callers.ExDocs.Defmacro.XAritySeparate do
   def at_aliased_as(a, b), do: Aliased.ex_docs_defmacro_x_arity_separate_snoc(a, b) # @aliased_as
   def at_unqualified(a, b), do: ex_docs_defmacro_x_arity_separate_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> ex_docs_defmacro_x_arity_separate_snoc(b) # @pipe
+  def at_qualified_quoted(a, b), do: ExDocs.Defmacro.XAritySeparate."ex_docs_defmacro_x_arity_separate_snoc"(a, b) # @qualified_quoted
   def at_no_arguments(_a, _b), do: ExDocs.Defmacro.XAritySeparate.ex_docs_defmacro_x_arity_separate_snoc # @no_arguments
   def at_arity_1(a, _b), do: ExDocs.Defmacro.XAritySeparate.ex_docs_defmacro_x_arity_separate_snoc(a) # @arity_1
 end

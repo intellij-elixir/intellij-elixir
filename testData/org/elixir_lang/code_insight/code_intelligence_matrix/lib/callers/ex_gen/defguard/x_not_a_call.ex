@@ -10,6 +10,7 @@ defmodule Callers.ExGen.Defguard.XNotACall do
   def at_aliased_as(a, b), do: Aliased.ex_gen_defguard_x_not_a_call_snoc(a, b) # @aliased_as
   def at_unqualified(a, b), do: ex_gen_defguard_x_not_a_call_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> ex_gen_defguard_x_not_a_call_snoc(b) # @pipe
+  def at_qualified_quoted(a, b), do: ExGen.Defguard.XNotACall."ex_gen_defguard_x_not_a_call_snoc"(a, b) # @qualified_quoted
   def at_variable(a, b), do: (fn ex_gen_defguard_x_not_a_call_snoc -> ex_gen_defguard_x_not_a_call_snoc end).({a, b}) # @variable
   def at_atom(a, b), do: {:ex_gen_defguard_x_not_a_call_snoc, a, b} # @atom
   def at_keyword(a, b), do: [ex_gen_defguard_x_not_a_call_snoc: a, b: b] # @keyword

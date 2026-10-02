@@ -10,4 +10,5 @@ defmodule Callers.ExDocs.Defmacro.W1 do
   def at_aliased_as(a, b), do: Aliased.ex_docs_defmacro_w1_snoc(a, b) # @aliased_as
   def at_unqualified(a, b), do: ex_docs_defmacro_w1_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> ex_docs_defmacro_w1_snoc(b) # @pipe
+  def at_qualified_quoted(a, b), do: ExDocs.Defmacro.W1."ex_docs_defmacro_w1_snoc"(a, b) # @qualified_quoted
 end

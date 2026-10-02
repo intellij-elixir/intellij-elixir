@@ -10,6 +10,7 @@ defmodule Callers.Src.Defmacro.W3 do
   def at_aliased_as(a, b), do: Aliased.src_defmacro_w3_snoc(a, b) # @aliased_as
   def at_unqualified(a, b), do: src_defmacro_w3_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> src_defmacro_w3_snoc(b) # @pipe
+  def at_qualified_quoted(a, b), do: Src.Defmacro.W3."src_defmacro_w3_snoc"(a, b) # @qualified_quoted
   def at_lookalike_xsnoc(a, b), do: Src.Defmacro.W3.src_defmacro_w3_xsnoc(a, b) # @lookalike_xsnoc
   def at_lookalike_snoc_x(a, b), do: Src.Defmacro.W3.src_defmacro_w3_snoc_x(a, b) # @lookalike_snoc_x
   def at_lookalike_snoc_question(a, b), do: Src.Defmacro.W3.src_defmacro_w3_snoc?(a, b) # @lookalike_snoc_question

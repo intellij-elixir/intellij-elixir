@@ -10,10 +10,22 @@ defmodule Callers.ExDbgi.DefdelegateUnresolvable.W3 do
   def at_unqualified(a, b), do: ex_dbgi_defdelegate_unresolvable_w3_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> ex_dbgi_defdelegate_unresolvable_w3_snoc(b) # @pipe
   def at_capture(a, b), do: {&ExDbgi.DefdelegateUnresolvable.W3.ex_dbgi_defdelegate_unresolvable_w3_snoc/2, a, b} # @capture
+  def at_qualified_quoted(a, b), do: ExDbgi.DefdelegateUnresolvable.W3."ex_dbgi_defdelegate_unresolvable_w3_snoc"(a, b) # @qualified_quoted
+  def at_capture_quoted(a, b), do: {&ExDbgi.DefdelegateUnresolvable.W3."ex_dbgi_defdelegate_unresolvable_w3_snoc"/2, a, b} # @capture_quoted
   def at_apply(a, b), do: apply(ExDbgi.DefdelegateUnresolvable.W3, :ex_dbgi_defdelegate_unresolvable_w3_snoc, [a, b]) # @apply
+  def at_apply_quoted(a, b), do: apply(ExDbgi.DefdelegateUnresolvable.W3, :"ex_dbgi_defdelegate_unresolvable_w3_snoc", [a, b]) # @apply_quoted
+  def at_apply_module_quoted(a, b), do: apply(:"Elixir.ExDbgi.DefdelegateUnresolvable.W3", :ex_dbgi_defdelegate_unresolvable_w3_snoc, [a, b]) # @apply_module_quoted
+  def at_apply_interpolated(a, b), do: apply(ExDbgi.DefdelegateUnresolvable.W3, :"#{a}ex_dbgi_defdelegate_unresolvable_w3_snoc", [a, b]) # @apply_interpolated
+  def at_apply_nested(a, b), do: apply(ExDbgi.DefdelegateUnresolvable.W3, pick(b, :ex_dbgi_defdelegate_unresolvable_w3_snoc), [a, b]) # @apply_nested
+  def at_apply_nested_quoted(a, b), do: apply(ExDbgi.DefdelegateUnresolvable.W3, pick(b, :"ex_dbgi_defdelegate_unresolvable_w3_snoc"), [a, b]) # @apply_nested_quoted
+  def at_mfa_quoted(a, b), do: {{ExDbgi.DefdelegateUnresolvable.W3, :"ex_dbgi_defdelegate_unresolvable_w3_snoc", 2}, a, b} # @mfa_quoted
+  def at_mfa_module_quoted(a, b), do: {{:"Elixir.ExDbgi.DefdelegateUnresolvable.W3", :ex_dbgi_defdelegate_unresolvable_w3_snoc, 2}, a, b} # @mfa_module_quoted
+  def at_mfa_interpolated(a, b), do: {{ExDbgi.DefdelegateUnresolvable.W3, :"#{a}ex_dbgi_defdelegate_unresolvable_w3_snoc", 2}, a, b} # @mfa_interpolated
   def at_lookalike_xsnoc(a, b), do: ExDbgi.DefdelegateUnresolvable.W3.ex_dbgi_defdelegate_unresolvable_w3_xsnoc(a, b) # @lookalike_xsnoc
   def at_lookalike_snoc_x(a, b), do: ExDbgi.DefdelegateUnresolvable.W3.ex_dbgi_defdelegate_unresolvable_w3_snoc_x(a, b) # @lookalike_snoc_x
   def at_lookalike_snoc_question(a, b), do: ExDbgi.DefdelegateUnresolvable.W3.ex_dbgi_defdelegate_unresolvable_w3_snoc?(a, b) # @lookalike_snoc_question
   def at_lookalike_snoc_bang(a, b), do: ExDbgi.DefdelegateUnresolvable.W3.ex_dbgi_defdelegate_unresolvable_w3_snoc!(a, b) # @lookalike_snoc_bang
   def at_lookalike_snoc_combining(a, b), do: ExDbgi.DefdelegateUnresolvable.W3.ex_dbgi_defdelegate_unresolvable_w3_snoć(a, b) # @lookalike_snoc_combining
+
+  defp pick(opts, key), do: opts[key]
 end

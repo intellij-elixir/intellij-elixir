@@ -10,7 +10,19 @@ defmodule Callers.Src.EexFunctionFromKind.XAritySeparate do
   def at_unqualified(a, b), do: src_eex_function_from_kind_x_arity_separate_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> src_eex_function_from_kind_x_arity_separate_snoc(b) # @pipe
   def at_capture(a, b), do: {&Src.EexFunctionFromKind.XAritySeparate.src_eex_function_from_kind_x_arity_separate_snoc/2, a, b} # @capture
+  def at_qualified_quoted(a, b), do: Src.EexFunctionFromKind.XAritySeparate."src_eex_function_from_kind_x_arity_separate_snoc"(a, b) # @qualified_quoted
+  def at_capture_quoted(a, b), do: {&Src.EexFunctionFromKind.XAritySeparate."src_eex_function_from_kind_x_arity_separate_snoc"/2, a, b} # @capture_quoted
   def at_apply(a, b), do: apply(Src.EexFunctionFromKind.XAritySeparate, :src_eex_function_from_kind_x_arity_separate_snoc, [a, b]) # @apply
+  def at_apply_quoted(a, b), do: apply(Src.EexFunctionFromKind.XAritySeparate, :"src_eex_function_from_kind_x_arity_separate_snoc", [a, b]) # @apply_quoted
+  def at_apply_module_quoted(a, b), do: apply(:"Elixir.Src.EexFunctionFromKind.XAritySeparate", :src_eex_function_from_kind_x_arity_separate_snoc, [a, b]) # @apply_module_quoted
+  def at_apply_interpolated(a, b), do: apply(Src.EexFunctionFromKind.XAritySeparate, :"#{a}src_eex_function_from_kind_x_arity_separate_snoc", [a, b]) # @apply_interpolated
+  def at_apply_nested(a, b), do: apply(Src.EexFunctionFromKind.XAritySeparate, pick(b, :src_eex_function_from_kind_x_arity_separate_snoc), [a, b]) # @apply_nested
+  def at_apply_nested_quoted(a, b), do: apply(Src.EexFunctionFromKind.XAritySeparate, pick(b, :"src_eex_function_from_kind_x_arity_separate_snoc"), [a, b]) # @apply_nested_quoted
+  def at_mfa_quoted(a, b), do: {{Src.EexFunctionFromKind.XAritySeparate, :"src_eex_function_from_kind_x_arity_separate_snoc", 2}, a, b} # @mfa_quoted
+  def at_mfa_module_quoted(a, b), do: {{:"Elixir.Src.EexFunctionFromKind.XAritySeparate", :src_eex_function_from_kind_x_arity_separate_snoc, 2}, a, b} # @mfa_module_quoted
+  def at_mfa_interpolated(a, b), do: {{Src.EexFunctionFromKind.XAritySeparate, :"#{a}src_eex_function_from_kind_x_arity_separate_snoc", 2}, a, b} # @mfa_interpolated
   def at_no_arguments(_a, _b), do: Src.EexFunctionFromKind.XAritySeparate.src_eex_function_from_kind_x_arity_separate_snoc # @no_arguments
   def at_arity_1(a, _b), do: Src.EexFunctionFromKind.XAritySeparate.src_eex_function_from_kind_x_arity_separate_snoc(a) # @arity_1
+
+  defp pick(opts, key), do: opts[key]
 end

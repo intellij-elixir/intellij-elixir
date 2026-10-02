@@ -10,5 +10,17 @@ defmodule Callers.Src.Def.XElseList do
   def at_unqualified(a, b), do: src_def_x_else_list_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> src_def_x_else_list_snoc(b) # @pipe
   def at_capture(a, b), do: {&Src.Def.XElseList.src_def_x_else_list_snoc/2, a, b} # @capture
+  def at_qualified_quoted(a, b), do: Src.Def.XElseList."src_def_x_else_list_snoc"(a, b) # @qualified_quoted
+  def at_capture_quoted(a, b), do: {&Src.Def.XElseList."src_def_x_else_list_snoc"/2, a, b} # @capture_quoted
   def at_apply(a, b), do: apply(Src.Def.XElseList, :src_def_x_else_list_snoc, [a, b]) # @apply
+  def at_apply_quoted(a, b), do: apply(Src.Def.XElseList, :"src_def_x_else_list_snoc", [a, b]) # @apply_quoted
+  def at_apply_module_quoted(a, b), do: apply(:"Elixir.Src.Def.XElseList", :src_def_x_else_list_snoc, [a, b]) # @apply_module_quoted
+  def at_apply_interpolated(a, b), do: apply(Src.Def.XElseList, :"#{a}src_def_x_else_list_snoc", [a, b]) # @apply_interpolated
+  def at_apply_nested(a, b), do: apply(Src.Def.XElseList, pick(b, :src_def_x_else_list_snoc), [a, b]) # @apply_nested
+  def at_apply_nested_quoted(a, b), do: apply(Src.Def.XElseList, pick(b, :"src_def_x_else_list_snoc"), [a, b]) # @apply_nested_quoted
+  def at_mfa_quoted(a, b), do: {{Src.Def.XElseList, :"src_def_x_else_list_snoc", 2}, a, b} # @mfa_quoted
+  def at_mfa_module_quoted(a, b), do: {{:"Elixir.Src.Def.XElseList", :src_def_x_else_list_snoc, 2}, a, b} # @mfa_module_quoted
+  def at_mfa_interpolated(a, b), do: {{Src.Def.XElseList, :"#{a}src_def_x_else_list_snoc", 2}, a, b} # @mfa_interpolated
+
+  defp pick(opts, key), do: opts[key]
 end

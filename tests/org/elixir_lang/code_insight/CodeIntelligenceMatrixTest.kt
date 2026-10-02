@@ -44,6 +44,10 @@ import com.intellij.refactoring.rename.api.RenameTarget
 import com.intellij.refactoring.rename.api.RenameValidationResult
 import java.lang.management.ManagementFactory
 import com.intellij.codeInsight.lookup.LookupManager
+import com.intellij.codeInsight.CodeInsightSettings
+import com.intellij.codeInsight.lookup.LookupElement
+import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
+import org.elixir_lang.structure_view.element.Delegation
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.ElixirStabBody
 import org.elixir_lang.structure_view.Model
@@ -90,6 +94,7 @@ import org.elixir_lang.code_insight.matrix.Site
 import org.elixir_lang.code_insight.matrix.UNAVAILABLE_PHRASE
 import org.elixir_lang.code_insight.matrix.written
 import org.elixir_lang.code_insight.matrix.Spelling
+import org.elixir_lang.code_insight.matrix.Position
 import org.elixir_lang.code_insight.matrix.sees
 import org.elixir_lang.code_insight.matrix.privateUse
 import org.elixir_lang.code_insight.matrix.specName
@@ -332,14 +337,10 @@ private class Group(val scenario: Scenario) {
         val expected = module.definitions
             .filter { it.name == site.name && site.sees(it) }
             .flatMap { definition ->
-                // A `.beam` with neither debug info nor docs records each exported arity, but not which are defaults.
-                if (scenario.backing == "ex_gen" && definition.minArity < definition.maxArity) {
-                    (definition.minArity..definition.maxArity)
-                        .filter { arity -> site.visible?.let { "${definition.name}/$arity" in it } ?: true }
-                        .map { arity -> (1..arity).map { "arg$it" } }
-                } else {
-                    listOf(Expected.heads(module, definition.name, definition.maxArity).first().parameters)
-                }
+                (definition.minArity..definition.maxArity)
+                    .filter { arity -> site.visible?.let { "${definition.name}/$arity" in it } ?: true }
+                    .map { arity -> Expected.headAt(scenario.backing, module, definition, arity).parameters }
+                    .distinct()
             }
             .map { parameters -> parameters.joinToString(", ").ifEmpty { "<no parameters>" } }
             .sorted()
@@ -368,8 +369,7 @@ private class Group(val scenario: Scenario) {
      */
     private fun checkHighlighting(binding: Binding?) {
         openAt(place)
-        val nameStart = myFixture.editor.caretModel.offset - 1
-        val keys = highlightKeysAt(nameStart)
+        val keys = nameStarts(myFixture.editor.document.charsSequence, myFixture.editor.caretModel.offset - 1).flatMap(::highlightKeysAt)
         val macro = scenario.form in MACRO_FORMS
         // A guard is a macro Elixir allows in a guard, and it has keys of its own; they fall back to the function
         // keys, so an unconfigured scheme shows it as a function, but the key says what it is.
@@ -402,6 +402,13 @@ private class Group(val scenario: Scenario) {
      */
     private fun highlightKeysAt(offset: Int): List<String> =
         highlights().filter { it.startOffset == offset }.mapNotNull { it.key }.sorted()
+
+    /** Where a name written at [offset] starts: a quoted name `"f"` may start at its opening quote. */
+    private fun nameStarts(text: CharSequence, offset: Int): List<Int> =
+        if (offset > 0 && text[offset - 1] == '"') listOf(offset - 1, offset) else listOf(offset)
+
+    private fun startsAt(virtualFile: VirtualFile, site: Site, offset: Int): Boolean =
+        offset in nameStarts(String(virtualFile.contentsToByteArray(), virtualFile.charset), offsetOf(virtualFile, site.line, site.column))
 
     /** One highlight of the open file: where, how severe, what it says, and which of [highlightKeysAt]'s keys it is. */
     private class Highlight(val startOffset: Int, val endOffset: Int, val severity: HighlightSeverity, val description: String?, val key: String?)
@@ -645,6 +652,10 @@ private class Group(val scenario: Scenario) {
     /** Every definition visible at the call whose name starts with what is typed, under its own name, byte for byte. */
     private fun checkCompletionOffered() {
         val (name, prefix) = typeCallPrefix(null)
+        if (Crossing.namesNoFunction(siteOrNull()!!)) {
+            assertOffered(name, prefix, functionCandidatesAtCaret())
+            return
+        }
         if (cells.none { it.place == place && it.feature == Feature.COMPLETION_INSERTED && it.name == null }) {
             assertOffered(name, prefix, myFixture.completionCandidatesAtCaret())
             return
@@ -655,6 +666,31 @@ private class Group(val scenario: Scenario) {
         val offered = runCatching { assertOffered(name, prefix, completion.candidates()) }
         inserted = runCatching { assertInserted(name, prefix, completion.complete(name, '\n') { it == name }) }
         offered.getOrThrow()
+    }
+
+    /**
+     * The completion items at the caret that stand for a function: an atom completed as a plain atom names no function
+     * even when its text is a function's name, so an item is told apart by the element it stands for, not its string.
+     */
+    private fun functionCandidatesAtCaret(): List<String> {
+        val settings = CodeInsightSettings.getInstance()
+        val autocompleteWas = settings.AUTOCOMPLETE_ON_CODE_COMPLETION
+        settings.AUTOCOMPLETE_ON_CODE_COMPLETION = false
+
+        try {
+            val items = myFixture.completeBasic()
+                ?: throw AssertionError("Expected the completion lookup to open, but a candidate was auto-inserted")
+
+            return items.filter { item ->
+                when (val element = item.psiElement ?: item.`object` as? PsiElement) {
+                    is BeamCallDefinition -> true
+                    is Call -> CallDefinitionClause.`is`(element) || Delegation.`is`(element)
+                    else -> false
+                }
+            }.map(LookupElement::getLookupString)
+        } finally {
+            settings.AUTOCOMPLETE_ON_CODE_COMPLETION = autocompleteWas
+        }
     }
 
     private fun assertOffered(name: String, prefix: String, candidates: List<String>) {
@@ -704,10 +740,12 @@ private class Group(val scenario: Scenario) {
             .filter { it.name == name }
             .sortedBy { it.maxArity }
             .flatMap { definition ->
-                val head = Expected.heads(module, definition.name, definition.maxArity).first()
                 (definition.minArity..definition.maxArity)
                     .filter { arity -> site.visible?.contains("${definition.name}/$arity") ?: true }
-                    .map { arity -> line.before + spelled + head.callSignature(arity).removePrefix(head.name) }
+                    .map { arity ->
+                        val head = Expected.headAt(scenario.backing, module, definition, arity)
+                        line.before + spelled + head.callSignature(arity).removePrefix(head.name)
+                    }
             }
 
         assertTrue(
@@ -763,7 +801,7 @@ private class Group(val scenario: Scenario) {
             val expected = replaceNames(declared, positions.filter { it.first == path }.map { it.second }, newName)
             val actual = FileDocumentManager.getInstance().getDocument(file)!!.text
 
-            if (actual == expected) null else "${file.name}: ${firstDifference(expected, actual)}"
+            if (actual == expected) null else "${file.name}: ${differences(expected, actual)}"
         }
 
         assertEquals("Renaming ${definition.name} to $newName from ${place.id} changed the wrong text", emptyList<String>(), wrong)
@@ -922,7 +960,7 @@ private class Group(val scenario: Scenario) {
             val expected = replaceNames(originals.getValue(file), positions.filter { it.first == path }.map { it.second }, newName)
             val actual = FileDocumentManager.getInstance().getDocument(file)!!.text
 
-            if (actual == expected) null else "${file.name}: ${firstDifference(expected, actual)}"
+            if (actual == expected) null else "${file.name}: ${differences(expected, actual)}"
         }
 
         assertEquals("Renaming @${site.name} to @$newName from ${place.id} changed the wrong text", emptyList<String>(), wrong)
@@ -986,7 +1024,7 @@ private class Group(val scenario: Scenario) {
             val expected = replaceNames(originals.getValue(file), positions.filter { it.first == path }.map { it.second }, newName)
             val actual = FileDocumentManager.getInstance().getDocument(file)!!.text
 
-            if (actual == expected) null else "${file.name}: ${firstDifference(expected, actual)}"
+            if (actual == expected) null else "${file.name}: ${differences(expected, actual)}"
         }
 
         assertEquals("Renaming ${site.name} to $newName from ${place.id} changed the wrong text", emptyList<String>(), wrong)
@@ -1128,17 +1166,23 @@ private class Group(val scenario: Scenario) {
             val start = column - 1
             val length = IDENTIFIER.find(current, start)?.takeIf { it.range.first == start }?.value?.length
                 ?: throw AssertionError("No identifier at $line:$column of `$current`")
-            lines[line - 1] = current.substring(0, start) + newName + current.substring(start + length)
+            // `Mod."f"` becomes `Mod.g`, as `mix format` writes it: the quotes stay only where the new name needs them.
+            val quoted = current.startsWith(".\"", start - 2) && current.getOrNull(start + length) == '"'
+            lines[line - 1] =
+                if (quoted) current.substring(0, start - 1) + Spelling.of(newName, Position.REMOTE_CALL) + current.substring(start + length + 1)
+                else current.substring(0, start) + newName + current.substring(start + length)
         }
 
         return lines.joinToString("\n")
     }
 
-    private fun firstDifference(expected: String, actual: String): String {
+    /** Every differing line, not the first: a fix to one line must not unmask another as a new failure. */
+    private fun differences(expected: String, actual: String): String {
         val expectedLines = expected.split('\n')
         val actualLines = actual.split('\n')
-        val index = (0 until maxOf(expectedLines.size, actualLines.size)).first { expectedLines.getOrNull(it) != actualLines.getOrNull(it) }
-        return "line ${index + 1}: expected `${expectedLines.getOrNull(index)?.trim()}`, got `${actualLines.getOrNull(index)?.trim()}`"
+        return (0 until maxOf(expectedLines.size, actualLines.size))
+            .filter { expectedLines.getOrNull(it) != actualLines.getOrNull(it) }
+            .joinToString(", ") { "line ${it + 1}: expected `${expectedLines.getOrNull(it)?.trim()}`, got `${actualLines.getOrNull(it)?.trim()}`" }
     }
 
     private fun text(file: VirtualFile): String = String(file.contentsToByteArray(), file.charset)
@@ -1204,6 +1248,10 @@ private class Group(val scenario: Scenario) {
         }
     }
 
+    /** Parameter names vary by backing, so a negative check identifies the function by its name, not by a whole head. */
+    private fun namesPrimary(text: String): Boolean =
+        Regex("""(?<![\p{L}\p{M}\p{N}_])${Regex.escape(primary().name)}(?![\p{L}\p{M}\p{N}_?!])""").containsMatchIn(text)
+
     private fun checkLabel(binding: Binding?) {
         openAt(place)
         val labels = myFixture.searchTargetPresentableTextsAtCaret()
@@ -1217,8 +1265,12 @@ private class Group(val scenario: Scenario) {
                 labels.sorted()
             )
         } else if (binding == null) {
-            val functionLabels = heads(primary()).map { it.label }
-            assertEquals("The search target at ${place.id} presents the function", emptyList<String>(), labels.filter { it in functionLabels })
+            // A label that is the bare name is the variable, atom or keyword written there; a definition shows its head.
+            assertEquals(
+                "The search target at ${place.id} presents the function",
+                emptyList<String>(),
+                labels.filter { it != primary().name && namesPrimary(it) }
+            )
         } else {
             assertEquals("The search target at ${place.id} presents the wrong text", listOf(presentedHead(binding).label), labels)
         }
@@ -1301,8 +1353,7 @@ private class Group(val scenario: Scenario) {
         val html = myFixture.quickDocumentationAtCaret(project)?.let { it.replace('\n', ' ') }
 
         if (binding == null && !atWrongArity(binding)) {
-            val signature = heads(primary()).first().signature
-            assertFalse("Quick Documentation at ${place.id} documents the function: $html", html?.contains(signature) == true)
+            assertFalse("Quick Documentation at ${place.id} documents the function: $html", html?.let(::namesPrimary) == true)
             return
         }
 
@@ -1641,9 +1692,9 @@ private class Group(val scenario: Scenario) {
         val source = sourceFiles.entries.firstOrNull { it.value == virtualFile }?.key
         val site = when {
             virtualFile in callerFiles.values ->
-                scenario.sites.firstOrNull { callerFiles[it.file] == virtualFile && offsetOf(virtualFile!!, it.line, it.column) == offset }?.id
+                scenario.sites.firstOrNull { callerFiles[it.file] == virtualFile && startsAt(virtualFile!!, it, offset) }?.id
             source != null ->
-                scenario.sites.firstOrNull { it.file == source.source && offsetOf(virtualFile!!, it.line, it.column) == offset }?.id
+                scenario.sites.firstOrNull { it.file == source.source && startsAt(virtualFile!!, it, offset) }?.id
             virtualFile == beamFileOrNull(scenario.main) ->
                 LOCAL.takeIf { runCatching { mirrorLocalCall(mirror(scenario.main)).textOffset }.getOrNull() == offset }
             else -> null

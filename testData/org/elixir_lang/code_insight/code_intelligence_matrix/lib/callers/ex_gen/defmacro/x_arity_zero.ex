@@ -10,5 +10,6 @@ defmodule Callers.ExGen.Defmacro.XArityZero do
   def at_aliased_as(a, b), do: Aliased.ex_gen_defmacro_x_arity_zero_snoc(a, b) # @aliased_as
   def at_unqualified(a, b), do: ex_gen_defmacro_x_arity_zero_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> ex_gen_defmacro_x_arity_zero_snoc(b) # @pipe
+  def at_qualified_quoted(a, b), do: ExGen.Defmacro.XArityZero."ex_gen_defmacro_x_arity_zero_snoc"(a, b) # @qualified_quoted
   def at_no_arguments(_a, _b), do: ExGen.Defmacro.XArityZero.ex_gen_defmacro_x_arity_zero_snoc # @no_arguments
 end
