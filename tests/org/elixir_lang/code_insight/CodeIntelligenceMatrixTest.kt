@@ -684,11 +684,13 @@ private class Group(val scenario: Scenario) {
         }
         val module = scenario.module(site.binding?.module ?: scenario.main.module)
         val signatures = module.definitions
-            .filter { it.name == name && site.sees(it) }
+            .filter { it.name == name }
             .sortedBy { it.maxArity }
-            .map { definition ->
+            .flatMap { definition ->
                 val head = Expected.heads(module, definition.name, definition.maxArity).first()
-                line.before + spelled + head.callSignature.removePrefix(head.name)
+                (definition.minArity..definition.maxArity)
+                    .filter { arity -> site.visible?.contains("${definition.name}/$arity") ?: true }
+                    .map { arity -> line.before + spelled + head.callSignature(arity).removePrefix(head.name) }
             }
 
         assertTrue(
