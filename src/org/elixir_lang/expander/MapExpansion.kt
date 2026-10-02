@@ -29,7 +29,7 @@ internal fun expandMap(node: ElixirAst.Call, state: ExState, env: Env, run: Run)
 }
 
 private fun validated(node: ElixirAst, kv: List<ElixirAst>, state: ExState, env: Env, level: ElixirLanguageLevel) =
-    kvError(kv, env, level)?.let { Expansion.Error(it, node) } ?: Expansion.Expanded(state, env)
+    kvError(kv, env, level)?.let { Expansion.Error(it, node) } ?: Expansion.Expanded(state, env, NODE)
 
 /**
  * The error `elixir_map:validate_kv/4` raises, if any: each argument must be a pair, and in a pattern each key must be

@@ -8,7 +8,7 @@ class GuardTest : ExpanderTestCase() {
 
     fun testANestedWhenSplitsIntoEachGuard() =
         assertGuard("x when y when z") { version ->
-            if (isBefore(version, "1.15.0-rc.0")) "unported `z`" else "error undefined_var `z`"
+            if (isBefore(version, "1.15.0-rc.0")) "error undefined_function `z`" else "error undefined_var `z`"
         }
 
     fun testAGuardIsExpandedInGuardContext() =

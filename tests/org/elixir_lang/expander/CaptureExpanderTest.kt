@@ -40,7 +40,7 @@ class CaptureExpanderTest : ExpanderTestCase() {
         assertEvery("m = :lists\n&m.reverse(&1)", "expanded {m:0} next 1")
 
     fun testACaptureOfARemoteCallOfOtherArgumentsOnAVariable() =
-        assertEvery("m = :lists\n&m.reverse(&1, 1)", "unported `m.reverse(&1, 1)`")
+        assertSplit("m = :lists\n&m.reverse(&1, 1)", "1.20.0-rc.5", "expanded {m:0} next 2", "expanded {m:0} next 3")
 
     fun testACaptureArgumentOutsideACaptureIsAnError() {
         assertEvery("&1", "error capture_arg_outside_of_capture `&1`")
@@ -135,13 +135,14 @@ class CaptureExpanderTest : ExpanderTestCase() {
     fun testACaptureThatNeedsALookupIsUnported() {
         assertEvery("&foo/1", "unported `&foo/1`")
         assertEvery("&:erlang.abs/1", "unported `&:erlang.abs/1`")
+        assertEvery("&__MODULE__.abs/1", "unported `&__MODULE__.abs/1`")
         assertEvery("&foo(&1)", "unported `&foo(&1)`")
         assertEvery("&(&1 + &2)", "unported `&(&1 + &2)`")
         assertEvery("&super(&1)", "unported `&super(&1)`")
         assertEvery("&super/1", "unported `&super/1`")
     }
 
-    fun testACapturesBodyIsExpandedAsAnFnBody() = assertEvery("&(&1 + 1)", "unported `&1 + 1`")
+    fun testACapturesBodyIsExpandedAsAnFnBody() = assertEvery("&(&1 + 1)", "error undefined_function `&1 + 1`")
 
     /** A block of one expression, which source never lowers to, captures that expression. */
     fun testABlockOfOneExpression() {

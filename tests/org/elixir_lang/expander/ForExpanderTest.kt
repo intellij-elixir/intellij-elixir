@@ -20,7 +20,7 @@ class ForExpanderTest : ExpanderTestCase() {
         assertLevels(code, LEVELS + "1.13.0-rc.0" + "1.15.0-rc.0") {
             when {
                 isBefore(it, "1.13.0-rc.0") -> "expanded {} next 2"
-                isBefore(it, "1.15.0-rc.0") -> "unported `y`"
+                isBefore(it, "1.15.0-rc.0") -> "error undefined_function `y`"
                 else -> "error undefined_var `y`"
             }
         }
@@ -43,7 +43,12 @@ class ForExpanderTest : ExpanderTestCase() {
         )
 
     fun testAnOptionCannotReadAGenerator() =
-        assertSplit("for x <- [1], into: x, do: x", "1.15.0-rc.0", "unported `x`", "error undefined_var `x`")
+        assertSplit(
+            "for x <- [1], into: x, do: x",
+            "1.15.0-rc.0",
+            "error undefined_function `x`",
+            "error undefined_var `x`"
+        )
 
     fun testWhatAnOptionBindsIsVisibleToTheDo() =
         assertVersioned("for x <- [1], into: (y = []), do: {x, y}", "{} next 2", "{} next 3")
@@ -149,7 +154,7 @@ class ForExpanderTest : ExpanderTestCase() {
         assertSplit(
             "for x <- [1], reduce: 0 do\n0 -> a = x\nacc -> {acc, a}\nend",
             "1.15.0-rc.0",
-            "unported `a`",
+            "error undefined_function `a`",
             "error undefined_var `a`"
         )
 

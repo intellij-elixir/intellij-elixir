@@ -24,7 +24,7 @@ internal fun expandFn(node: ElixirAst.Call, state: ExState, env: Env, run: Run):
         val arities = clauses.map { arity((it as ElixirAst.Call).arguments!!.first() as ElixirAst.ListNode) }.distinct()
 
         if (arities.size == 1) {
-            Expansion.Expanded(s, e).endConstruct(env, run)
+            Expansion.Expanded(s, e, NODE).endConstruct(env, run)
         } else {
             Expansion.Error("clauses_with_different_arities", node)
         }

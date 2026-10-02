@@ -802,13 +802,15 @@ enum class ElixirLanguageFeature(
     BARE_SEGMENT_PASSES_BITSTRING_META(sinceElixir = "1.20.0-rc.5"),
 
     /**
-     * `__STACKTRACE__` in a pattern raises `invalid_pattern_in_match`. Before it, it is read there as anywhere else: it
-     * raises `stacktrace_not_allowed` outside a `catch` or `rescue` clause, and binds nothing inside one.
+     * `__STACKTRACE__`, `__CALLER__`, `__ENV__` and `__ENV__.field` in a pattern raise `invalid_pattern_in_match`.
+     * Before it, `__STACKTRACE__` is read there as anywhere else: it raises `stacktrace_not_allowed` outside a `catch`
+     * or `rescue` clause, and binds nothing inside one. `__CALLER__` raises `caller_not_allowed` as it does outside a
+     * pattern, `__ENV__` raises `env_not_allowed`, and `__ENV__.field` is the field's value.
      *
      * `elixir-lang/elixir@e4d8b3a31` ("Raise on invalid use of compiler vars in match", #11189), first released in
      * v1.13.0-rc.0.
      */
-    STACKTRACE_REFUSED_IN_PATTERN(sinceElixir = "1.13.0-rc.0"),
+    COMPILER_VARIABLES_REFUSED_IN_PATTERN(sinceElixir = "1.13.0-rc.0"),
 
     /**
      * A `catch` clause of three or more arguments and a guard raises `wrong_number_of_args_for_clause`, and a `for`
@@ -1053,6 +1055,197 @@ enum class ElixirLanguageFeature(
      * first released in v1.20.2.
      */
     QUOTE_IN_PATTERN_WITH_UNQUOTE_RAISES(sinceElixir = "1.20.2"),
+
+    /**
+     * In a module body, an `alias` that defines a name or an `import` that imports something expands to a call that
+     * warns of it at run time, unless `warn: false` or a quote's `context` says not to. Before it, each expands to the
+     * module.
+     *
+     * `elixir-lang/elixir@f44aa8d71` ("Allow aliases and imports to be enabled conditionally in module body", #13975),
+     * first released in v1.18.0-rc.0.
+     */
+    DIRECTIVE_WARNS_AT_RUN_TIME(sinceElixir = "1.18.0-rc.0"),
+
+    /**
+     * In a module body, a `require` expands to a call that warns of it at run time, as [DIRECTIVE_WARNS_AT_RUN_TIME]'s
+     * directives do. Before it, it expands to the module.
+     *
+     * `elixir-lang/elixir@bba554239` ("Do not warn on conditional requires or requires from quote"), first released in
+     * v1.20.0-rc.0.
+     */
+    REQUIRE_WARNS_AT_RUN_TIME(sinceElixir = "1.20.0-rc.0"),
+
+    /**
+     * In a module body, a remote call of a macro whose module isn't required sees the macro only when its module is
+     * already loaded on the node, since the deprecation check, which loads it, now runs after the macro check. Before
+     * it, the check loads the module first, so the call raises `unrequired_module`.
+     *
+     * `elixir-lang/elixir@8fca53ad3` ("Ensure deprecated macros emit warnings"), first released in v1.12.2.
+     */
+    UNREQUIRED_MACRO_SEEN_ONLY_WHEN_LOADED(sinceElixir = "1.12.2"),
+
+    /**
+     * A remote call of a macro whose module isn't required is a call of a function, which fails at run time. Before it,
+     * it raises `unrequired_module` when the macro is seen.
+     *
+     * `elixir-lang/elixir@a3b12428f` ("Let runtime pass check for unrequired macros"), first released in v1.13.0-rc.0.
+     */
+    UNREQUIRED_MACRO_CALLED_AS_FUNCTION(sinceElixir = "1.13.0-rc.0"),
+
+    /**
+     * Inside a `catch` or `rescue` clause, `System.stacktrace()` expands to `__STACKTRACE__`, with no dispatch.
+     *
+     * Removed by `elixir-lang/elixir@011e25fe8` ("Consistently return an empty list for System.stacktrace"), first
+     * released in v1.14.0-rc.0.
+     */
+    SYSTEM_STACKTRACE_REWRITTEN(removedInElixir = "1.14.0-rc.0"),
+
+    /**
+     * An anonymous call whose function expands to an atom, such as `:a.()`, raises `invalid_function_call`.
+     *
+     * Removed by `elixir-lang/elixir@a52133fdf` ("Remove more checks that can now be performed by the type system"),
+     * first released in v1.18.0-rc.0.
+     */
+    ANONYMOUS_CALL_OF_ATOM_REFUSED(removedInElixir = "1.18.0-rc.0"),
+
+    /**
+     * A remote call whose last argument is a keyword list with `->` clauses as a value raises `invalid_clauses` at the
+     * call. After it, the `->` raises `unhandled_arrow_op` when the argument is expanded.
+     *
+     * Removed by `elixir-lang/elixir@150849476` ("Remove assert_no_clauses check as we already handle ->"), first
+     * released in v1.18.0-rc.0.
+     */
+    CLAUSES_REFUSED_IN_CALL(removedInElixir = "1.18.0-rc.0"),
+
+    /**
+     * A map lookup with parentheses in a guard, such as `m.a()`, raises `parens_map_lookup`. Before it, the reason is
+     * `parens_map_lookup_guard`.
+     *
+     * `elixir-lang/elixir@00c35ad4d` ("Allow any expression in bitstring size outside of matches/guards"), first
+     * released in v1.14.0-rc.0.
+     */
+    PARENS_MAP_LOOKUP_ATOM(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * `+` or `-` of a number expands to the signed number in every context. Before it, only a pattern folds it, and
+     * elsewhere it stays a call of `:erlang.+/1` or `:erlang.-/1`.
+     *
+     * `elixir-lang/elixir@55fbc528f` ("Always rewrite signed numbers during expansion", #12955), first released in
+     * v1.16.0-rc.0.
+     */
+    SIGNED_NUMBER_REWRITTEN_EVERYWHERE(sinceElixir = "1.16.0-rc.0"),
+
+    /**
+     * In a pattern or a guard, a remote call's receiver is expanded without `prepare_write`, its arguments are expanded
+     * in turn from the receiver's state, and `+` or `-` folds only an argument written as a number. Before it, the
+     * receiver is expanded after `prepare_write` and each argument from the state before the call, as outside a
+     * pattern, and the fold reads the expanded argument.
+     *
+     * `elixir-lang/elixir@860f485bd` ("Inference of patterns", #13909), first released in v1.18.0-rc.0.
+     */
+    REMOTE_CALL_IN_PATTERN_EXPANDS_ARGUMENTS_IN_TURN(sinceElixir = "1.18.0-rc.0"),
+
+    /**
+     * `Atom.to_string/1` is inlined as `:erlang.atom_to_binary/1`.
+     *
+     * `elixir-lang/elixir@8c09306ee` ("Use :erlang.atom_to_binary/1", #11541), first released in v1.14.0-rc.0.
+     */
+    ATOM_TO_STRING_INLINED(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * `Node.spawn_monitor/2,4` are inlined as `:erlang.spawn_monitor/2,4`.
+     *
+     * `elixir-lang/elixir@5a5e5d244` ("Add Node.spawn_link", #11540), first released in v1.14.0-rc.0.
+     */
+    NODE_SPAWN_MONITOR_INLINED(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * `Map.intersect/2` is inlined as `:maps.intersect/2`.
+     *
+     * `elixir-lang/elixir@2fdec6329` ("Inline Map.intersect/2 and delegate to :maps.merge_with/2"), first released in
+     * v1.15.0-rc.0.
+     */
+    MAP_INTERSECT_INLINED(sinceElixir = "1.15.0-rc.0"),
+
+    /**
+     * `Process.alias/0,1` and `Process.unalias/1` are inlined as `:erlang.alias/0,1` and `:erlang.unalias/1`.
+     *
+     * `elixir-lang/elixir@65829ef4e` ("Add Process.alias/0,1 and Process.unalias/1", #12020), first released in
+     * v1.15.0-rc.0.
+     */
+    PROCESS_ALIAS_INLINED(sinceElixir = "1.15.0-rc.0"),
+
+    /**
+     * `Map.from_keys/2` is inlined as `:maps.from_keys/2`.
+     *
+     * `elixir-lang/elixir@f0fcd64f9` ("Inline more functions", #13692), first released in v1.18.0-rc.0.
+     */
+    MAP_FROM_KEYS_INLINED(sinceElixir = "1.18.0-rc.0"),
+
+    /**
+     * `String.to_atom/1` and `String.to_existing_atom/1` are inlined as `:erlang.binary_to_atom/1` and
+     * `:erlang.binary_to_existing_atom/1`, and `Tuple.append/2` is no longer inlined as `:erlang.append_element/2`.
+     *
+     * `elixir-lang/elixir@8e455b766` ("More type checking"), first released in v1.18.0-rc.0.
+     */
+    STRING_TO_ATOM_INLINED(sinceElixir = "1.18.0-rc.0"),
+
+    /**
+     * In a guard, `Kernel.put_elem/3` is allowed, as `Kernel.elem/2` and `Kernel.is_map_key/2` are. Before it, it is
+     * rewritten to `:erlang.setelement/3`, which isn't a guard function, and raises `invalid_guard`.
+     *
+     * `elixir-lang/elixir@87582af54` ("Preserve evaluation order when rewriting", #15389), first released in
+     * v1.20.0-rc.6.
+     */
+    PUT_ELEM_IN_GUARD(sinceElixir = "1.20.0-rc.6"),
+
+    /**
+     * A bitstring specifier written as a name without parentheses, such as `foo`, is macro-expanded as the call
+     * `foo()`. Before it, it isn't expanded, and raises `undefined_bittype`.
+     *
+     * `elixir-lang/elixir@c64606b76` ("Warn on missing parentheses in bitstring modifiers", #11862), first released in
+     * v1.15.0-rc.0.
+     */
+    BITSTRING_SPEC_NAME_EXPANDED_AS_CALL(sinceElixir = "1.15.0-rc.0"),
+
+    /**
+     * A `rescue` clause whose argument is a call, a block or a tuple other than a pair is macro-expanded once, and is
+     * invalid unless that expands it. Before it, the argument is what `_ in` reads.
+     *
+     * `elixir-lang/elixir@d739957b3` ("Expand left side of -> in rescue, closes #12209"), first released in
+     * v1.15.0-rc.0.
+     */
+    RESCUE_CALL_EXPANDED_AS_MACRO(sinceElixir = "1.15.0-rc.0"),
+
+    /**
+     * `__ENV__` has `versioned_vars` where it had `vars`, `current_vars`, `unused_vars`, `prematch_vars` and
+     * `contextual_vars`.
+     *
+     * `elixir-lang/elixir@739ad53fe` ("Break Macro.Env apart", #11164) and, for `vars`, `elixir-lang/elixir@6ba365df0`
+     * ("Remove Mix.Env.vars from elixir_env.erl as well"), both first released in v1.13.0-rc.0.
+     */
+    MACRO_ENV_VERSIONED_VARS(sinceElixir = "1.13.0-rc.0"),
+
+    /**
+     * `erlang:max/2` and `erlang:min/2` are guard functions.
+     *
+     * `erlang/otp@5da4b90d86` ("Allow max/2 and min/2 to be used in guards"), first released in OTP 26.0-rc1.
+     */
+    MAX_AND_MIN_GUARDS(sinceOtp = "26.0-rc1"),
+
+    /**
+     * `erlang:is_integer/3` is a guard function.
+     *
+     * `erlang/otp@64b2fde4e5` ("erts: Add guard BIF `erlang:is_integer/3`"), first released in OTP 29.0-rc1.
+     */
+    IS_INTEGER_RANGE_GUARD(sinceOtp = "29.0-rc1"),
+
+    /**
+     * `erlang:is_record/1` is a guard function.
+     *
+     * `erlang/otp@5b5f2d7463` ("Implement native records"), first released in OTP 29.0-rc1.
+     */
+    IS_RECORD_GUARD(sinceOtp = "29.0-rc1"),
 
     /**
      * A bitstring segment whose value expands to a list or an atom raises `invalid_literal`.

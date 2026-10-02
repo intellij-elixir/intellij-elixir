@@ -8,7 +8,8 @@ import java.io.File
  * After each statement of a case module body, and at each identity probe in its patterns, the expander's variables
  * fall into the same classes as Elixir's, and its env's other fields equal Elixir's, on the leg's Elixir. A case the
  * expander reports an error for is compared as an error. One that reaches an unported clause at any statement is
- * counted as uncovered.
+ * counted as uncovered, and one that stops at a macro whose expansion isn't modelled is counted apart and compared up
+ * to that macro.
  */
 class VariableClassProbeTest : ProbeTestCase() {
     private val probes = ExpansionProbes(harness) { createPsiFile(getTestName(false), it) as ElixirFile }
@@ -21,12 +22,13 @@ class VariableClassProbeTest : ProbeTestCase() {
             .associate { it.name to it.readLines().drop(HEADER_LINES).joinToString("\n") }
         val expansions = cases.mapValues { (_, body) -> probes.expand(body) }
         val covered = expansions.filterValues { it.outcome is Expansion.Expanded }
-        val uncoveredAt = expansions.filterKeys { it !in covered }.values
+        val opaque = expansions.filterValues { it.outcome is Expansion.Opaque }
+        val uncoveredAt = expansions.filterKeys { it !in covered && it !in opaque }.values
             .map { expansion ->
                 when (val outcome = expansion.outcome) {
                     is Expansion.Unported -> describe(outcome.at)
                     is Expansion.Error -> "error ${outcome.kind}"
-                    is Expansion.Expanded -> error("unreachable")
+                    is Expansion.Expanded, is Expansion.Opaque -> error("unreachable")
                 }
             }
             .groupingBy { it }
@@ -34,11 +36,20 @@ class VariableClassProbeTest : ProbeTestCase() {
             .entries
             .sortedByDescending { it.value }
 
-        println("covered ${covered.size} of ${cases.size}")
+        println("covered ${covered.size} of ${cases.size}; ${opaque.size} stop at a macro")
+        println(
+            "stopped at a macro: " +
+                opaque.entries.joinToString { (name, expansion) ->
+                    "$name ${ExpanderTestCase.render((expansion.outcome as Expansion.Opaque).dispatch)}"
+                }
+        )
         println("uncovered, by the first unported node: " + uncoveredAt.joinToString { "${it.key} ${it.value}" })
         println("covered cases: " + covered.keys.joinToString(" "))
 
-        probes.assertMatchesElixir(expansions.filterValues { it.outcome !is Expansion.Unported })
+        probes.assertMatchesElixir(
+            expansions.filterValues { it.outcome !is Expansion.Unported && it.outcome !is Expansion.Opaque }
+        )
+        probes.assertMatchesElixirUpToMacro(opaque)
         assertTrue("covered ${covered.size} of ${cases.size}, below $FLOOR", covered.size >= FLOOR)
     }
 
@@ -69,7 +80,7 @@ class VariableClassProbeTest : ProbeTestCase() {
         const val HEADER_LINES = 2
 
         /** The covered count measured when these clauses were ported; it may only grow. */
-        const val FLOOR = 260
+        const val FLOOR = 756
 
         val OWN_CASES = listOf(
             "()",

@@ -30,10 +30,10 @@ internal fun expandWith(node: ElixirAst.Call, state: ExState, env: Env, run: Run
             val elseOption = afterDo.firstOrNull { keyOf(it) == "else" }
 
             if (elseOption == null) {
-                unexpectedOption(node, afterDo) ?: Expansion.Expanded(beforeElse, env)
+                unexpectedOption(node, afterDo) ?: Expansion.Expanded(beforeElse, env, NODE)
             } else {
                 expandClauses(node, expandHead(node, run), valueOf(elseOption), beforeElse, env, run).then { s, _ ->
-                    unexpectedOption(node, afterDo - elseOption) ?: Expansion.Expanded(s, env)
+                    unexpectedOption(node, afterDo - elseOption) ?: Expansion.Expanded(s, env, NODE)
                 }
             }
         }
@@ -65,7 +65,7 @@ internal fun generatorPattern(
         if (GENERATOR_RIGHT_SIDE_SCOPED.isSufficient(run.level)) {
             rightState.resetRead(state).let { pattern(it, it, rightEnv) }
         } else {
-            pattern(rightState, state, env).then { s, _ -> Expansion.Expanded(s, rightEnv) }
+            pattern(rightState, state, env).then { s, _ -> Expansion.Expanded(s, rightEnv, NODE) }
         }
     }
 

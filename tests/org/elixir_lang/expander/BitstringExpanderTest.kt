@@ -30,10 +30,8 @@ class BitstringExpanderTest : ExpanderTestCase() {
     fun testALiteralInterpolationInAPattern() =
         assertEvery("<<\"foo#{\"bar\"}\", rest::binary>> = \"foobarbaz\"", "expanded {rest:0} next 1")
 
-    fun testAVariableInterpolationInAPatternIsUnported() =
-        assertEvery("x = \"a\"; \"#{x}\" = \"a\"", "unported `#{x}`")
-
-    fun testAnUnknownSpecIsUnported() = assertEvery("<<x::foo>> = <<1>>", "unported `foo`")
+    /** `foo` is no macro: from 1.15 Elixir expands the name as `foo()`, which isn't one either. */
+    fun testAnUnknownSpecIsAnError() = assertEvery("<<x::foo>> = <<1>>", "error undefined_bittype `x::foo`")
 
     fun testTwoSizesThatAreNotLiteralsAreUnported() =
         assertEvery("n = 8; <<x::size(n)-size(n)>> = <<1>>", "unported `size(n)`")
@@ -44,10 +42,15 @@ class BitstringExpanderTest : ExpanderTestCase() {
         assertSplit("_ = <<(x = 8)>>; x", "1.20.0-rc.5", "expanded {x:0} next 1", "expanded {x:0} next 2")
 
     fun testASegmentOfAConstructionDoesNotSeeItsSiblingsBinding() =
-        assertSplit("<<(x = 1), x>>", "1.15.0-rc.0", "unported `x`", "error undefined_var `x`")
+        assertSplit("<<(x = 1), x>>", "1.15.0-rc.0", "error undefined_function `x`", "error undefined_var `x`")
 
     fun testASizeInAConstructionReadsOnlyWhatTheBitstringCould() =
-        assertSplit("<<(x = 8), 1::size(x)>>", "1.15.0-rc.0", "unported `x`", "error undefined_var `x`")
+        assertSplit(
+            "<<(x = 8), 1::size(x)>>",
+            "1.15.0-rc.0",
+            "error undefined_function `x`",
+            "error undefined_var `x`",
+        )
 
     fun testABindingInAConstructionSizeIsKeptOnlyBefore1_19() =
         assertLevels("_ = <<1::size(y = 8)>>; y", LEVELS) { version ->

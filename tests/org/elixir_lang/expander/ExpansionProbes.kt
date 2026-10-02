@@ -13,6 +13,7 @@ import org.elixir_lang.lowering.Meta
 import org.elixir_lang.lowering.expressionNodes
 import org.elixir_lang.lowering.inspect
 import org.elixir_lang.psi.ElixirFile
+import org.elixir_lang.psi.Import
 import org.junit.Assert.assertEquals
 import kotlin.time.Duration
 import kotlin.time.TimeSource
@@ -21,8 +22,8 @@ import kotlin.time.TimeSource
  * Expands case module bodies statement by statement, as `expand_block` threads them, and compares the expander with
  * Elixir on the leg's Elixir through a [ProbeHarness]:
  *
- * - a case the expander expands is compiled in a batch, and if the batch fails, alone, where it must compile or raise
- *   only when run;
+ * - a case the expander expands is compiled in a batch, and if the batch fails, alone, where it must compile, or fail
+ *   only after expansion: raise when run, or raise with no error diagnostic once every probe has delivered;
  * - a case the expander reports an error for is compiled alone, and must fail at expansion, at the error's line and
  *   for its reason;
  *
@@ -45,6 +46,8 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
      * @property outcome the last statement's expansion, or the first that isn't [Expansion.Expanded]
      * @property statements the top-level statements, lowered
      * @property starts the state and env each top-level statement the expander reached was expanded from
+     * @property dispatches each dispatch the expander reported, as [DispatchEvents] keys it, in its order
+     * @property bodyStatements the 1-based top-level statement each nested body, block 1 onward, is in
      */
     class CaseExpansion(
         val case: ProbeHarness.Case,
@@ -52,10 +55,18 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
         val outcome: Expansion,
         val statements: List<ElixirAst>,
         val starts: List<Pair<ExState, Env>>,
-    )
+        val dispatches: List<String>,
+        val bodyStatements: List<Int>,
+    ) {
+        /** The 1-based top-level statement [tag]'s probe is in, or, for a statement probe, follows. */
+        fun statementOf(tag: Tag): Int = if (tag.block == 0) tag.statement else bodyStatements[tag.block - 1]
+    }
 
-    /** [body] expanded from the start of an empty module body, which is in [module] when one is given. */
-    fun expand(body: String, module: String? = null): CaseExpansion {
+    /**
+     * [body] expanded from the start of an empty module body, which is in [module] when one is given, with [exports]
+     * standing for the modules Elixir loads.
+     */
+    fun expand(body: String, module: String? = null, exports: Exports = legExports): CaseExpansion {
         val level = legLevel()
         val file = parse(body)
         val statements = ReadAction.computeBlocking<List<ElixirAst>, Throwable> {
@@ -80,7 +91,8 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
         var env = Env.empty(level, legKernel).copy(module = module)
         val steps = mutableListOf(Step(Tag(0, 0, 0), state.read, env, state.stacktrace))
         val starts = mutableListOf<Pair<ExState, Env>>()
-        var outcome: Expansion = Expansion.Expanded(state, env)
+        val dispatches = mutableListOf<String>()
+        var outcome: Expansion = Expansion.Expanded(state, env, Import.Term.Atom("nil"))
 
         for ((index, statement) in statements.withIndex()) {
             starts.add(state to env)
@@ -95,6 +107,10 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
                     }
                 }
 
+                override fun dispatched(node: ElixirAst, dispatch: Dispatch) {
+                    dispatches.add(DispatchEvents.key(node, dispatch))
+                }
+
                 // Nodes that share an origin, such as a block of one expression and that expression, leave with one state.
                 override fun left(node: ElixirAst, expansion: Expansion) {
                     val tag = nested[node.meta.origin]
@@ -105,7 +121,7 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
                 }
             }
 
-            outcome = Expander.expand(statement, state, env, level, legExports, observer)
+            outcome = Expander.expand(statement, state, env, level, exports, observer)
 
             when (val expansion = outcome) {
                 is Expansion.Expanded -> {
@@ -113,7 +129,7 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
                     env = expansion.env
                     steps.add(Step(Tag(0, 0, index + 1), state.read, env, state.stacktrace))
                 }
-                is Expansion.Error, is Expansion.Unported -> break
+                is Expansion.Error, is Expansion.Unported, is Expansion.Opaque -> break
             }
         }
 
@@ -123,6 +139,10 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
             outcome,
             statements,
             starts,
+            dispatches,
+            bodies.map { body ->
+                statements.indexOfFirst { it.meta.origin.contains(body.first().meta.origin) } + 1
+            },
         )
     }
 
@@ -151,6 +171,60 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
         return elapsed
     }
 
+    /**
+     * Compares each of [cases], which stop at [Expansion.Opaque], with Elixir up to the macro, compiled after
+     * [preamble] in one batch, or alone if the batch fails: the probes Elixir delivers before the macro's statement, and
+     * inside it those the expander reached, equal the expander's steps, and the dispatches equal the leg's events up to
+     * and including the first macro event on the macro's line. What follows the macro isn't compared.
+     */
+    fun assertMatchesElixirUpToMacro(cases: Map<String, CaseExpansion>, preamble: String = "") {
+        if (cases.isEmpty()) return
+
+        assertDefaultCompilerOptions()
+
+        val names = cases.keys.toList()
+        val batch = harness.attempt(names.map { cases.getValue(it).case }, preamble)
+        // A case that fails to compile stops the modules after it, so then each case is compiled alone.
+        val attempts = if (batch.compiled.status == OtpErlangAtom("ok")) {
+            names.indices.map { batch to it }
+        } else {
+            names.map { harness.attempt(listOf(cases.getValue(it).case), preamble) to 0 }
+        }
+        val expected = mutableListOf<String>()
+        val actual = mutableListOf<String>()
+
+        names.forEachIndexed { position, name ->
+            val (attempt, index) = attempts[position]
+            val expansion = cases.getValue(name)
+            val opaque = expansion.outcome as Expansion.Opaque
+            val tags = expansion.steps.map { it.tag }.toSet()
+            // Every probe before the macro's statement, and inside it those the expander reached before the macro.
+            val macroStatement = expansion.starts.size
+            val observed = attempt.batch.observations.filter { observation ->
+                val tag = observation.tag.copy(case = 0)
+
+                observation.tag.case == index && expansion.statementOf(tag).let { statement ->
+                    statement < macroStatement || statement == macroStatement && tag in tags
+                }
+            }
+            val macro = DispatchEvents.key(opaque.at, opaque.dispatch)
+            val events = DispatchEvents.of(
+                attempt.compiled.events,
+                attempt.batch.caseModule(index),
+                attempt.batch.probeModule,
+                attempt.bodyLines[index],
+            )
+            val line = DispatchEvents.line(macro)
+            val end = events.indexOfFirst { DispatchEvents.isMacro(it) && DispatchEvents.line(it) == line }
+            val prefix = if (end < 0) events + "no macro event on line $line" else events.take(end + 1)
+
+            expected.add(render(name, expansion.steps) + "\n" + (expansion.dispatches + macro).joinToString("\n"))
+            actual.add(render(name, observed, attempt.batch.probeModule) + "\n" + prefix.joinToString("\n"))
+        }
+
+        assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
+    }
+
     private fun compareExpanded(
         cases: Map<String, CaseExpansion>,
         expected: MutableList<String>,
@@ -176,15 +250,16 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
                 val alone = harness.attempt(listOf(expansion.case))
                 val compiled = alone.compiled
                 val status = compiled.status
-                val runTimeRaise = status is OtpErlangTuple &&
+                // A raise once every probe has delivered comes after expansion: when the body runs, or, for a
+                // `CompileError` with no error diagnostic, from a later pass.
+                val afterExpansion = status is OtpErlangTuple &&
                     status.elementAt(0) == OtpErlangAtom("raise") &&
-                    status.elementAt(1) != OtpErlangAtom(COMPILE_ERROR) &&
                     errors(compiled.diagnostics).isEmpty() &&
                     alone.tags.toSet() == alone.batch.observations.map { it.tag }.toSet()
 
                 expected.add(render(name, expansion.steps))
                 actual.add(
-                    if (status == OtpErlangAtom("ok") || runTimeRaise) {
+                    if (status == OtpErlangAtom("ok") || afterExpansion) {
                         render(name, alone.batch.observations, alone.batch.probeModule)
                     } else {
                         "== $name\ncompile failed: ${inspect(compiled.status)} ${compiled.diagnostics.map(::inspect)}"

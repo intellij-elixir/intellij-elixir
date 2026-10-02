@@ -5,6 +5,15 @@ package org.elixir_lang.expander
  * release's wording.
  */
 object ErrorKinds {
+    private const val PARENS_MAP_LOOKUP =
+        """\. If you want to do a map lookup instead, please remove parens from """
+
+    /** Where a remote call isn't allowed, as each release names a guard or a bitstring size. */
+    private const val GUARD = """(guards|a guard|bitstring size specifier|a bitstring size specifier)"""
+
+    /** How a rejected remote call begins, and from 1.19, for a macro, the `require` it lacks; 1.19.5 omits a space. */
+    private const val CANNOT_INVOKE = """(cannot invoke remote function|you must require the module ?\S+ before invoking macro)"""
+
     private val PATTERNS = mapOf(
         // elixir_expand
         "undefined_var" to """^undefined variable "[^"]+"( \(context [^)]+\))?$""",
@@ -23,9 +32,20 @@ object ErrorKinds {
         "unhandled_cons_op" to """^misplaced operator \|/2\n\nThe \| operator is typically used between brackets""",
         "__cursor__" to """^reserved special form __cursor__ cannot be expanded""",
         "invalid_call" to """^invalid call """,
+        // `|` and `::` outside their constructs are local calls up to 1.14, with 1.15's misplaced-operator wording.
+        "undefined_function" to
+            """^(undefined function \S+/\d+( \(there is no such import\))?$|""" +
+            """misplaced operator (\||::)/2\n\nThe (\||::) operator is typically used)""",
+        "op_ambiguity" to """^".+" looks like a function call but there is a variable named ".+"""",
+        "parens_map_lookup_guard" to "^cannot invoke remote function in guard$PARENS_MAP_LOOKUP",
+        "parens_map_lookup" to "^cannot invoke remote function (in|inside) $GUARD$PARENS_MAP_LOOKUP",
+        "invalid_function_call" to """^invalid function call :\S+\.\(\)$""",
+        "invalid_clauses" to """^the function "\S+" cannot handle clauses with the -> operator because it is not a macro""",
+        "caller_not_allowed" to """^__CALLER__ is available only inside defmacro and defmacrop$""",
+        "env_not_allowed" to """^__ENV__ is not allowed inside a match$""",
         "missing_option" to """^missing :\S+ option in "\w+"$""",
         "invalid_args" to """^invalid arguments for "\w+"$""",
-        "invalid_pattern_in_match" to """^invalid pattern in match, \S+ is not allowed in matches$""",
+        "invalid_pattern_in_match" to """^invalid pattern in match, .+ is not allowed in matches$""",
         "stacktrace_not_allowed" to
             """^__STACKTRACE__ is available only inside catch and rescue clauses of try expressions$""",
         "underscore_in_cond" to """^invalid use of _ inside "cond"\. If you want the last clause to always match""",
@@ -54,6 +74,12 @@ object ErrorKinds {
         // elixir_dispatch
         "ambiguous_call" to
             """^(function \S+ imported from both \S+ and \S+, call is ambiguous|conflicting \S+ import from modules \S+ and \S+)""",
+        "unrequired_module" to """^you must require \S+ before invoking the macro \S+$""",
+        // elixir_rewrite
+        "invalid_match" to "^$CANNOT_INVOKE \\S+ inside a match$",
+        "invalid_match_append" to
+            """^invalid argument for \+\+ operator inside a match, expected a literal proper list, got: """,
+        "invalid_guard" to "^$CANNOT_INVOKE \\S+ inside $GUARD$",
         // elixir_aliases
         "invalid_alias_module" to """^alias cannot be inferred automatically for module: .+, please use the :as option""",
         "invalid_alias_for_as" to """^invalid value for option :as, expected (an alias, got: |a simple alias, got nested alias: )""",

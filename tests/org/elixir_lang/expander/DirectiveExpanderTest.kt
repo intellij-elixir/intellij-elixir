@@ -23,7 +23,8 @@ class DirectiveExpanderTest : ExpanderTestCase() {
 
     fun testAnAliasWhoseHeadIsAVariableIsAnError() = assertEvery("x = 1\nx.Foo", "error invalid_alias `x.Foo`")
 
-    fun testAnAliasWhoseHeadIsUnknownIsUnported() = assertEvery("__MODULE__.Foo", "unported `__MODULE__`")
+    /** Outside a module `__MODULE__` is `nil`, which an alias leaves out. */
+    fun testAnAliasUnderTheModule() = assertEvery("__MODULE__.Foo", env())
 
     fun testAnAliasIsAnAtomInABitstring() =
         assertSplit("<<Foo>>", "1.18.0-rc.0", "error invalid_literal `Foo`", env())

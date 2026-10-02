@@ -1,7 +1,6 @@
 package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangAtom
-import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.psi.ElixirFile
 
@@ -13,27 +12,23 @@ class QuoteProbeTest : ProbeTestCase() {
     private val probes = ExpansionProbes(harness) { createPsiFile(getTestName(false), it) as ElixirFile }
 
     fun testQuoteSiteVariables() {
-        val expansions = SITE_FORMS.associateWith { probes.expand("l = 3\nf = \"x.ex\"\n$it") }
+        val expansions = SITE_FORMS.associateWith { probes.expand("l = 3\nf = \"x.ex\"\n$it", PLACEHOLDER) }
 
-        assertUnported(expansions, SITE_FORMS.filter { isUnportedSite(it, legLevel()) })
+        assertUnported(expansions, SITE_FORMS.filter(::isUnportedSite))
         probes.assertMatchesElixir(expansions)
     }
 
     fun testErrors() {
-        val level = legLevel()
         val expansions = ERRORS.associateWith { probes.expand(it) }
-        val pattern = "x = 1\nquote(do: unquote(x)) = 1"
-        val unported = listOf(pattern).filter {
-            !isBefore(level, "1.18.0-rc.0") && isBefore(level, "1.20.2")
-        }
 
-        assertUnported(expansions, unported)
+        assertUnported(expansions, emptyList())
         probes.assertMatchesElixir(expansions)
     }
 
     /**
      * Each form's value, as Elixir sends it back, equals [quotedValue] of the escaped expression the expander builds
-     * from the state and env before it, with the case module read as one placeholder module.
+     * from the state and env before it, with the case module read as one placeholder module. The expander reads the
+     * form from the line Elixir compiles it at, since `__ENV__.line` is a value the quote can hold.
      */
     fun testQuotedValues() {
         val level = legLevel()
@@ -48,10 +43,11 @@ class QuoteProbeTest : ProbeTestCase() {
         assertEquals("compile status", OtpErlangAtom("ok"), attempt.compiled.status)
 
         val run = Run(level, ExpansionObserver.NONE, legExports)
-        val expected = expansions.mapIndexed { index, expansion ->
+        val expected = VALUE_FORMS.mapIndexed { index, form ->
+            val expansion = probes.expand("\n".repeat(attempt.bodyLines[index] - 1) + form, PLACEHOLDER)
             val (state, env) = expansion.starts.last()
             val quote = (expansion.statements.last() as ElixirAst.Call).arguments!![1] as ElixirAst.Call
-            val escaped = Quote.escaped(quote, state, env, run, attempt.bodyLines[index] - 1)
+            val escaped = Quote.escaped(quote, state, env, run)
             val value = escaped?.let(::quotedValue)?.let(QuotedTerms::inspect) ?: "no value from the expander"
 
             "${VALUE_FORMS[index]}\n  $value"
@@ -90,17 +86,18 @@ class QuoteProbeTest : ProbeTestCase() {
             "quote(line: l, do: x)",
             "quote(context: c = Foo, do: x)",
             "quote(file: f, do: x)",
+            "quote(line: __ENV__.line, do: x)",
+            "quote(file: __DIR__, do: x)",
+            "quote(context: __MODULE__, do: x)",
+            "quote(generated: __ENV__.line > 0, do: x)",
             "quote(do: unquote(y = 1))",
             "quote(bind_quoted: [b: z = 2], do: b)",
             "quote(do: foo(unquote_splicing([l])))",
         )
 
-        /** The forms whose expansion reaches a remote call, which isn't ported. */
-        fun isUnportedSite(form: String, level: ElixirLanguageLevel) =
+        fun isUnportedSite(form: String) =
             when (form) {
-                "quote(line: l, do: x)", "quote(context: c = Foo, do: x)", "quote(file: f, do: x)",
-                "quote(do: foo(unquote_splicing([l])))" -> true
-                "quote(do: unquote(y = 1))" -> !isBefore(level, "1.18.0-rc.0")
+                "quote(line: l, do: x)", "quote(context: c = Foo, do: x)", "quote(file: f, do: x)" -> true
                 else -> false
             }
 
@@ -116,6 +113,7 @@ class QuoteProbeTest : ProbeTestCase() {
             "quote(:foo, do: 1)",
             "quote(bind_quoted: 1, do: 1)",
             "x = 1\nquote(do: unquote(x)) = 1",
+            "case 1 do\ny when quote(do: unquote(y)) -> y\nend",
             "quote(do: unquote_splicing([1]))",
             "g = true\nquote(generated: g, do: 1)",
             "u = true\nquote(unquote: u, do: 1)",
@@ -134,6 +132,8 @@ class QuoteProbeTest : ProbeTestCase() {
             "q = quote(do: v)",
             "q = quote(context: Foo, do: v)",
             "q = quote(line: 42, do: foo(v))",
+            "q = quote(line: __ENV__.line, do: foo(v))",
+            "q = quote(context: __MODULE__, do: v)",
             "q = quote(generated: true, do: foo(v))",
             "q = quote(file: \"x.ex\", line: 7, do: foo(v))",
             "q = quote(file: \"x.ex\", do: foo(v))",
@@ -149,8 +149,5 @@ class QuoteProbeTest : ProbeTestCase() {
             "q = quote do\n  a\n  b\nend",
             "q = quote(do: Elixir.Foo)",
         )
-
-        fun isBefore(level: ElixirLanguageLevel, boundary: String) =
-            level.elixir < ElixirLanguageLevel.of(boundary).elixir
     }
 }

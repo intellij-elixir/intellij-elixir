@@ -23,9 +23,21 @@ class QuoteExpanderTest : ExpanderTestCase() {
         macros = listOf(NameArity("def", 1), NameArity("def", 2)),
     )
 
-    /** An unported remote call shows as its receiver, name and arity, and its first argument when that is an atom. */
+    /**
+     * A remote call that isn't ported, or that raises, shows as its receiver, name and arity, and its first argument
+     * when that is an atom: the quote builds it, so it has no source of its own.
+     */
     override fun render(code: String, expansion: Expansion): String {
-        val at = (expansion as? Expansion.Unported)?.at as? ElixirAst.Call
+        val outcome = when (expansion) {
+            is Expansion.Unported -> "unported"
+            is Expansion.Error -> "error ${expansion.kind}"
+            else -> null
+        }
+        val at = when (expansion) {
+            is Expansion.Unported -> expansion.at
+            is Expansion.Error -> expansion.at
+            else -> null
+        } as? ElixirAst.Call
         val dot = at?.callee as? ElixirAst.Call
         val dotArguments = dot?.takeIf { isCall(it, ".", 2) }?.arguments
         val receiver = dotArguments?.get(0)
@@ -34,7 +46,7 @@ class QuoteExpanderTest : ExpanderTestCase() {
         return if (receiver is ElixirAst.Literal.Atom && name is ElixirAst.Literal.Atom) {
             val key = (at!!.arguments!!.firstOrNull() as? ElixirAst.Literal.Atom)?.let { " :${it.name}" }.orEmpty()
 
-            "unported :${receiver.name}.${name.name}/${at.arguments!!.size}$key"
+            "$outcome :${receiver.name}.${name.name}/${at.arguments!!.size}$key"
         } else {
             super.render(code, expansion)
         }
@@ -114,14 +126,8 @@ class QuoteExpanderTest : ExpanderTestCase() {
 
     fun testAStaticQuoteBindsNothing() = assertEvery("quote(do: x)", "expanded {} next 0")
 
-    fun testUnquoteBindsInTheCaller() =
-        assertLevels("quote(do: unquote(y = 1))", LEVELS) { version ->
-            when {
-                isBefore(version, "1.18.0-rc.0") -> "expanded {y:0} next 1"
-                isBefore(version, "1.20.0") -> "unported :elixir_quote.shallow_validate_ast/1"
-                else -> "unported :elixir_quote.unquote/1"
-            }
-        }
+    /** From 1.18 the unquoted expression is an argument of a remote call that validates it at run time. */
+    fun testUnquoteBindsInTheCaller() = assertEvery("quote(do: unquote(y = 1))", "expanded {y:0} next 1")
 
     fun testBindQuotedBindsWhatItsValuesBindAndNotItsKeys() =
         assertEvery("quote(bind_quoted: [b: z = 2], do: b)", "expanded {z:0} next 1")
@@ -144,20 +150,31 @@ class QuoteExpanderTest : ExpanderTestCase() {
     fun testAnInvalidLineIsValidatedAtRunTime() =
         assertEvery("l = :bad\nquote(line: l, do: 1)", "unported :elixir_quote.validate_runtime/2 :line")
 
+    fun testAnOptionIsReadFromItsExpandedValue() {
+        assertEvery("quote(line: __ENV__.line, do: x)", "expanded {} next 0")
+        assertValue("quote(context: __MODULE__, do: v)", "{:v, [], T}")
+    }
+
+    /** `__DIR__` is a binary whose content `Env` doesn't hold: the quote expands, but its escaped expression is unknown. */
+    fun testAFileWhoseContentIsNotKnownHasNoEscapedExpression() {
+        assertEvery("quote(file: __DIR__, do: x)", "expanded {} next 0")
+        assertValue("quote(file: __DIR__, do: foo(v))", "no escaped expression")
+    }
+
     fun testUnquoteSplicingInArgumentsIsARemoteCall() =
-        assertEvery("l = [1]\nquote(do: foo(unquote_splicing(l)))", "unported :elixir_quote.list/2")
+        assertEvery("l = [1]\nquote(do: foo(unquote_splicing(l)))", "expanded {l:0} next 1")
 
     fun testUnquoteSplicingAmongElementsIsAConcatenation() =
-        assertEvery("l = [1]\nquote(do: [1, unquote_splicing(l), 2])", "unported :erlang.++/2")
+        assertEvery("l = [1]\nquote(do: [1, unquote_splicing(l), 2])", "expanded {l:0} next 1")
 
     fun testUnquoteSplicingBeforeATailIsARemoteCall() =
-        assertEvery("l = [1]\nquote(do: [unquote_splicing(l) | 2])", "unported :elixir_quote.tail_list/3")
+        assertEvery("l = [1]\nquote(do: [unquote_splicing(l) | 2])", "expanded {l:0} next 1")
 
     fun testAnUnquotedCallNameIsARemoteCall() =
-        assertEvery("f = :foo\nquote(do: Kernel.unquote(f)(1))", "unported :elixir_quote.dot/5")
+        assertEvery("f = :foo\nquote(do: Kernel.unquote(f)(1))", "expanded {f:0} next 1")
 
     fun testAnUnquotedNameIsARemoteCall() =
-        assertEvery("f = :foo\nquote(do: Kernel.unquote(f))", "unported :elixir_quote.dot/5")
+        assertEvery("f = :foo\nquote(do: Kernel.unquote(f))", "expanded {f:0} next 1")
 
     fun testLocationKeepReadsTheFile() =
         assertEvery("quote(location: :keep, do: 1)", "unported `quote(location: :keep, do: 1)`")
@@ -171,8 +188,8 @@ class QuoteExpanderTest : ExpanderTestCase() {
         assertLevels("x = 1\nquote(do: unquote(x)) = 1", LEVELS + listOf("1.20.1", "1.20.2")) { version ->
             when {
                 isBefore(version, "1.18.0-rc.0") -> "expanded {x:1} next 2"
-                isBefore(version, "1.20.0") -> "unported :elixir_quote.shallow_validate_ast/1"
-                isBefore(version, "1.20.2") -> "unported :elixir_quote.unquote/1"
+                isBefore(version, "1.20.0") -> "error invalid_match :elixir_quote.shallow_validate_ast/1"
+                isBefore(version, "1.20.2") -> "error invalid_match :elixir_quote.unquote/1"
                 else -> "error quote_in_pattern_with_unquote `quote(do: unquote(x))`"
             }
         }

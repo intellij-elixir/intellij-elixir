@@ -39,11 +39,11 @@ internal fun match(
 ): Expansion {
     val callState = after.copy(prematch = InMatch(before.read, after.version, emptyMap(), emptyList()))
 
-    return expand(callState, env.copy(context = Env.Context.MATCH)).then { state, patternEnv ->
+    return expand(callState, env.copy(context = Env.Context.MATCH)).thenValue { state, patternEnv, value ->
         if (isCyclic(state.prematch as InMatch)) {
             Expansion.Error("recursive", at)
         } else {
-            Expansion.Expanded(state.copy(prematch = before.prematch), patternEnv.copy(context = env.context))
+            Expansion.Expanded(state.copy(prematch = before.prematch), patternEnv.copy(context = env.context), value)
         }
     }
 }
@@ -58,7 +58,7 @@ internal fun parallelMatch(node: ElixirAst, state: ExState, env: Env, run: Run):
     return mapfold(unpackMatch(node, emptyList()), state, env) { side, sideState, sideEnv ->
         Expander.expand(side, sideState.copy(write = Write.Writing(emptyMap())), sideEnv, run).then { s, e ->
             writes.add((s.write as Write.Writing).vars)
-            Expansion.Expanded(s, e)
+            Expansion.Expanded(s, e, NODE)
         }
     }.then { matched, matchedEnv ->
         val prematch = matched.prematch as InMatch
@@ -70,7 +70,8 @@ internal fun parallelMatch(node: ElixirAst, state: ExState, env: Env, run: Run):
 
         Expansion.Expanded(
             matched.copy(write = write, prematch = prematch.copy(cycles = stored.cycles, skip = stored.skip)),
-            matchedEnv
+            matchedEnv,
+            NODE,
         )
     }
 }
@@ -87,7 +88,8 @@ internal fun refuteParallelBitstringMatch(
     env: Env,
     level: ElixirLanguageLevel,
 ): Expansion =
-    parallelBitstring(expandedShape(left), expandedShape(right), parallel, env, level) ?: Expansion.Expanded(state, env)
+    parallelBitstring(expandedShape(left), expandedShape(right), parallel, env, level)
+        ?: Expansion.Expanded(state, env, NODE)
 
 /** The error, or the `Unported`, that matching [left] and [right] in parallel gives, if any. */
 private fun parallelBitstring(

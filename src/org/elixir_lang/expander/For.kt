@@ -39,15 +39,15 @@ internal fun expandFor(node: ElixirAst.Call, state: ExState, env: Env, run: Run)
 
         validateOptions(node, options)
             ?: doBlock(node, valueOf(doOption), options.any { keyOf(it) == "reduce" }, generatorsState, generatorsEnv, run)
-    }.then { s, _ -> Expansion.Expanded(s.restoreVars(state), env) }.endConstruct(env, run)
+    }.then { s, _ -> Expansion.Expanded(s.restoreVars(state), env, NODE) }.endConstruct(env, run)
 }
 
 /** [option] as `validate_opts/5` reads it before it is expanded: a pair by its key. */
 private fun optionTerm(option: ElixirAst): Term =
     if (option is ElixirAst.Tuple && option.elements.size == 2) {
-        Term.Pair((option.elements[0] as? ElixirAst.Literal.Atom)?.let { Term.Atom(it.name) } ?: Term.Other, Term.Other)
+        Term.Pair((option.elements[0] as? ElixirAst.Literal.Atom)?.let { Term.Atom(it.name) } ?: NODE, NODE)
     } else {
-        Term.Other
+        NODE
     }
 
 /** `{'<-', _, [_, _]}`, or a bitstring whose last segment is one. */

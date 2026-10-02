@@ -27,7 +27,7 @@ class WithExpanderTest : ExpanderTestCase() {
         assertLevels(code, LEVELS + "1.13.0-rc.0" + "1.15.0-rc.0") {
             when {
                 isBefore(it, "1.13.0-rc.0") -> "expanded {} next 2"
-                isBefore(it, "1.15.0-rc.0") -> "unported `b`"
+                isBefore(it, "1.15.0-rc.0") -> "error undefined_function `b`"
                 else -> "error undefined_var `b`"
             }
         }
@@ -53,7 +53,7 @@ class WithExpanderTest : ExpanderTestCase() {
         assertSplit(
             "with {:ok, a} <- 1 do\na\nelse\n_ -> a\nend",
             "1.15.0-rc.0",
-            "unported `a`",
+            "error undefined_function `a`",
             "error undefined_var `a`"
         )
 

@@ -5,6 +5,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.CAPTURE_REPORTED_AT_
 import org.elixir_lang.language_level.ElixirLanguageFeature.REMOTE_CAPTURE_REPORTED_AT_CALL
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.psi.Import.Term
 import java.math.BigInteger
 
 /** The heads of `elixir_fn:capture/4` and `escape/3`, which aren't clauses of `expand`. */
@@ -127,12 +128,10 @@ private fun captureRequire(
     return if (escape.variables.isNotEmpty()) {
         captureExpr(captureAt(amp, call, run), call, arguments, state, env, run)
     } else {
-        Expander.expand(module, state, env, run).then { s, e ->
-            val shape = expandedShape(module)
-
+        Expander.expand(module, state, env, run).thenValue { s, e, value ->
             when {
-                arguments != Arguments.NON_SEQUENTIAL && isVariable(shape) -> Expansion.Expanded(s, e)
-                arguments != Arguments.NON_SEQUENTIAL && shape is ElixirAst.Literal.Atom -> Expansion.Unported(amp)
+                arguments != Arguments.NON_SEQUENTIAL && value == VARIABLE_NODE -> Expansion.Expanded(s, e, NODE)
+                arguments != Arguments.NON_SEQUENTIAL && value is Term.Atom -> Expansion.Unported(amp)
                 else -> captureExpr(captureAt(amp, call, run, plainRemote = true), call, arguments, s, e, run)
             }
         }

@@ -569,6 +569,8 @@
 
 ### Threading / Platform Hygiene
 
+- [#4335](https://github.com/intellij-elixir/intellij-elixir/pull/4335) [@sh41](https://github.com/sh41)
+  - **The expander resolves calls and `__MODULE__`/`__ENV__` as each Elixir release does, and marks macro calls it doesn't model; nothing uses it yet.** Fixes [#4308](https://github.com/intellij-elixir/intellij-elixir/issues/4308).
 - [#4322](https://github.com/intellij-elixir/intellij-elixir/pull/4322) [@sh41](https://github.com/sh41)
   - **The expander expands `with`, `for` and the `&` captures that need no function lookup, as each Elixir release does; nothing uses it yet.** Fixes [#4303](https://github.com/intellij-elixir/intellij-elixir/issues/4303).
 - [#4320](https://github.com/intellij-elixir/intellij-elixir/pull/4320) [@sh41](https://github.com/sh41)

@@ -93,7 +93,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             BITSTRING_PATTERN_SEGMENT_VALIDATED to ("1.18.4" to "1.19.0-rc.0"),
             BITSTRING_SIZE_HIDES_ITS_OWN_SEGMENT to ("1.19.0-rc.0" to "1.19.0-rc.1"),
             BARE_SEGMENT_PASSES_BITSTRING_META to ("1.20.0-rc.4" to "1.20.0-rc.5"),
-            STACKTRACE_REFUSED_IN_PATTERN to ("1.12.3" to "1.13.0-rc.0"),
+            COMPILER_VARIABLES_REFUSED_IN_PATTERN to ("1.12.3" to "1.13.0-rc.0"),
             CATCH_WHEN_ARITY_CHECKED to ("1.17.3" to "1.18.0-rc.0"),
             GENERATOR_RIGHT_SIDE_SCOPED to ("1.12.3" to "1.13.0-rc.0"),
             WITH_OPTIONS_BEFORE_LAST_ARGUMENT to ("1.14.5" to "1.15.0-rc.0"),
@@ -122,6 +122,23 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             QUOTE_BINDING_META_DROPS_COLUMN to ("1.19.0-rc.2" to "1.19.0"),
             UNQUOTE_VALIDATED_BY_UNQUOTE to ("1.20.0-rc.6" to "1.20.0"),
             QUOTE_IN_PATTERN_WITH_UNQUOTE_RAISES to ("1.20.1" to "1.20.2"),
+            DIRECTIVE_WARNS_AT_RUN_TIME to ("1.17.3" to "1.18.0-rc.0"),
+            REQUIRE_WARNS_AT_RUN_TIME to ("1.19.5" to "1.20.0-rc.0"),
+            UNREQUIRED_MACRO_SEEN_ONLY_WHEN_LOADED to ("1.12.1" to "1.12.2"),
+            UNREQUIRED_MACRO_CALLED_AS_FUNCTION to ("1.12.3" to "1.13.0-rc.0"),
+            PARENS_MAP_LOOKUP_ATOM to ("1.13.4" to "1.14.0-rc.0"),
+            SIGNED_NUMBER_REWRITTEN_EVERYWHERE to ("1.15.8" to "1.16.0-rc.0"),
+            REMOTE_CALL_IN_PATTERN_EXPANDS_ARGUMENTS_IN_TURN to ("1.17.3" to "1.18.0-rc.0"),
+            ATOM_TO_STRING_INLINED to ("1.13.4" to "1.14.0-rc.0"),
+            NODE_SPAWN_MONITOR_INLINED to ("1.13.4" to "1.14.0-rc.0"),
+            MAP_INTERSECT_INLINED to ("1.14.5" to "1.15.0-rc.0"),
+            PROCESS_ALIAS_INLINED to ("1.14.5" to "1.15.0-rc.0"),
+            MAP_FROM_KEYS_INLINED to ("1.17.3" to "1.18.0-rc.0"),
+            STRING_TO_ATOM_INLINED to ("1.17.3" to "1.18.0-rc.0"),
+            PUT_ELEM_IN_GUARD to ("1.20.0-rc.5" to "1.20.0-rc.6"),
+            BITSTRING_SPEC_NAME_EXPANDED_AS_CALL to ("1.14.5" to "1.15.0-rc.0"),
+            MACRO_ENV_VERSIONED_VARS to ("1.12.3" to "1.13.0-rc.0"),
+            RESCUE_CALL_EXPANDED_AS_MACRO to ("1.14.5" to "1.15.0-rc.0"),
         )
 
         assertEquals(entries.filter { it.sinceElixir != null }.toSet(), boundaries.keys)
@@ -144,6 +161,9 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             KERNEL_TYPESPEC_REQUIRED_BY_DEFAULT to ("1.16.3" to "1.17.0-rc.0"),
             REPEATED_PATTERN_VARIABLE_WRITTEN_AT_NEXT_VERSION to ("1.20.0-rc.4" to "1.20.0-rc.5"),
             BITSTRING_LIST_OR_ATOM_SEGMENT_REJECTED to ("1.17.3" to "1.18.0-rc.0"),
+            SYSTEM_STACKTRACE_REWRITTEN to ("1.13.4" to "1.14.0-rc.0"),
+            ANONYMOUS_CALL_OF_ATOM_REFUSED to ("1.17.3" to "1.18.0-rc.0"),
+            CLAUSES_REFUSED_IN_CALL to ("1.17.3" to "1.18.0-rc.0"),
         )
 
         assertEquals(entries.filter { it.removedInElixir != null }.toSet(), removals.keys)
@@ -163,6 +183,9 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             UNICODE_15_GRAPHEME_CLUSTERS to ("26.0-rc1" to "26.0-rc2"),
             INDIC_CONJUNCT_GRAPHEME_CLUSTERS to ("28.0-rc1" to "28.0-rc2"),
             WIDER_INDIC_CONJUNCT_GRAPHEME_CLUSTERS to ("28.5.0.7" to "29.0-rc1"),
+            MAX_AND_MIN_GUARDS to ("25.3.2.21" to "26.0-rc1"),
+            IS_INTEGER_RANGE_GUARD to ("28.5.0.7" to "29.0-rc1"),
+            IS_RECORD_GUARD to ("28.5.0.7" to "29.0-rc1"),
         )
 
         assertEquals(entries.filter { it.sinceOtp != null }.toSet(), boundaries.keys)

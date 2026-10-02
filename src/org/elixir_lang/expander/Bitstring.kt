@@ -11,11 +11,13 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_LIST_OR_AT
 import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_PATTERN_SEGMENT_VALIDATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_EXPANDED_AS_GUARD
 import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_HIDES_ITS_OWN_SEGMENT
+import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SPEC_NAME_EXPANDED_AS_CALL
 import org.elixir_lang.language_level.ElixirLanguageFeature.HALF_FLOAT_SEGMENT
 import org.elixir_lang.language_level.ElixirLanguageFeature.PINNED_BINARY_SEGMENT_INFERS_SIZE
 import org.elixir_lang.language_level.ElixirLanguageFeature.PINNED_SEGMENT_INFERS_SIZE_ONLY_WHEN_SIZED
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.psi.Import.Term
 import java.math.BigInteger
 
 /**
@@ -38,7 +40,7 @@ internal fun expandBitstring(
             if (!BITSTRING_PATTERN_SEGMENT_VALIDATED.isSufficient(run.level) && segments.any(::containsMatch)) {
                 Expansion.Error("nested_match", node)
             } else {
-                Expansion.Expanded(s, e)
+                Expansion.Expanded(s, e, NODE)
             }
         }
     } else {
@@ -107,7 +109,7 @@ private fun expandSegments(
         }
     }
 
-    return Expansion.Expanded(accState, accEnv)
+    return Expansion.Expanded(accState, accEnv, NODE)
 }
 
 /** `is_match_size/2`: whether segment [index] is in a pattern and another follows it. */
@@ -135,9 +137,9 @@ private fun expandValue(value: ElixirAst, state: ExState, original: ExState, env
 
     val inline = interpolated(value, env.context) ?: return expand(value)
 
-    return expand(inline).then { s, e ->
-        // Elixir expands the `to_string` call instead, which no ported clause takes.
-        if (expandedShape(inline) is ElixirAst.Literal.Binary) Expansion.Expanded(s, e) else Expansion.Unported(value)
+    // Anything but a binary expands the whole call instead, from the state before it.
+    return expand(inline).thenValue { s, e, v ->
+        if (v is Term.Binary) Expansion.Expanded(s, e, v) else expand(value)
     }
 }
 
@@ -242,8 +244,13 @@ private fun expandSpecs(spec: ElixirAst, state: ExState, original: ExState, env:
     for (unpacked in unpackSpecs(spec)) {
         val builtin = when (unpacked) {
             is Unpacked.Builtin -> unpacked
-            // `Macro.expand/2` decides whether it is a macro returning specs.
-            is Unpacked.Named -> return Specs.Stopped(Expansion.Unported(unpacked.node))
+            is Unpacked.Named -> {
+                val expansion = expandNamedSpec(unpacked.node as ElixirAst.Call, segment, accState, accEnv, run)
+                val size = ((expansion as? Expansion.Expanded)?.value as? Term.Integer)
+                    ?: return Specs.Stopped(expansion)
+
+                Unpacked.Builtin(unpacked.node, "size", ElixirAst.Literal.Integer(unpacked.node.meta, size.value))
+            }
             is Unpacked.Other ->
                 return Specs.Stopped(
                     if (unpacked.node is ElixirAst.Placeholder) {
@@ -261,7 +268,7 @@ private fun expandSpecs(spec: ElixirAst, state: ExState, original: ExState, env:
                     accState = expansion.state
                     accEnv = expansion.env
                 }
-                is Expansion.Error, is Expansion.Unported -> return Specs.Stopped(expansion)
+                is Expansion.Error, is Expansion.Unported, is Expansion.Opaque -> return Specs.Stopped(expansion)
             }
         }
 
@@ -288,6 +295,80 @@ private fun expandSpecs(spec: ElixirAst, state: ExState, original: ExState, env:
     return Specs.Expanded(args, accState, accEnv)
 }
 
+/**
+ * `Macro.expand/2` of a spec `validate_spec/2` doesn't know: an imported macro's expansion, the integer an imported
+ * `Kernel.+/1` or `-/1` folds to, which is a size, or `undefined_bittype` at [segment] for anything it leaves as it is.
+ * From 1.15 a name is first made a call of no arguments.
+ */
+private fun expandNamedSpec(spec: ElixirAst.Call, segment: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
+    val call = when {
+        spec.arguments != null -> spec
+        BITSTRING_SPEC_NAME_EXPANDED_AS_CALL.isSufficient(run.level) ->
+            ElixirAst.Call(spec.meta, spec.callee, emptyList())
+        else -> return Expansion.Error("undefined_bittype", segment)
+    }
+    val undefined = { Expansion.Error("undefined_bittype", segment) }
+
+    return expandImport(
+        call,
+        state,
+        env,
+        run,
+        ambiguous = { Expansion.Unported(call) },
+        function = { receiver ->
+            importedFunction(call, receiver, run)
+
+            when (val folded = signed(call, receiver, state, env, run)) {
+                null -> undefined()
+                is Expansion.Expanded -> folded.takeIf { it.value is Term.Integer } ?: undefined()
+                else -> folded
+            }
+        },
+        none = undefined,
+    )
+}
+
+/**
+ * `Macro.expand_once/2` of [node] as the fold of `Kernel.+/1` and `-/1` reads it: the value is the integer it folds
+ * to, or a node for anything else.
+ */
+private fun expandOnce(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
+    val unchanged = Expansion.Expanded(state, env, NODE)
+
+    return when {
+        node is ElixirAst.Literal.Integer -> Expansion.Expanded(state, env, Term.Integer(node.value))
+        node !is ElixirAst.Call || node.arguments == null -> unchanged
+        node.callee is ElixirAst.Literal.Atom ->
+            expandImport(
+                node,
+                state,
+                env,
+                run,
+                ambiguous = { Expansion.Unported(node) },
+                function = { receiver ->
+                    importedFunction(node, receiver, run)
+                    signed(node, receiver, state, env, run) ?: unchanged
+                },
+                none = { unchanged },
+            )
+        // A remote call can be a macro.
+        else -> Expansion.Unported(node)
+    }
+}
+
+/** [call], imported from [receiver], folded as `Kernel.+/1` or `-/1` of what its argument expands once to. */
+private fun signed(call: ElixirAst.Call, receiver: String, state: ExState, env: Env, run: Run): Expansion? {
+    val name = (call.callee as ElixirAst.Literal.Atom).name
+    val arg = call.arguments!!.singleOrNull()?.takeIf { receiver == KERNEL && (name == "+" || name == "-") }
+        ?: return null
+
+    return expandOnce(arg, state, env, run).thenValue { _, _, value ->
+        val folded = (value as? Term.Integer)?.let { if (name == "-") Term.Integer(it.value.negate()) else it }
+
+        Expansion.Expanded(state, env, folded ?: NODE)
+    }
+}
+
 /** Whether two expanded spec arguments are the same term, or `null` where that depends on their metadata. */
 private fun sameTerm(left: SpecArg, right: SpecArg): Boolean? =
     when {
@@ -307,7 +388,7 @@ private fun expandSpecArg(arg: ElixirAst, state: ExState, original: ExState, env
         }
 
         Expander.expand(arg, sizeState, env.copy(context = sizeContext), run).then { s, e ->
-            Expansion.Expanded(s.copy(prematch = inMatch), e.copy(context = Env.Context.MATCH))
+            Expansion.Expanded(s.copy(prematch = inMatch), e.copy(context = Env.Context.MATCH), NODE)
         }
     } else {
         Expander.expand(arg, state.resetRead(original), env, run)

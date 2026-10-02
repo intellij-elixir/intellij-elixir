@@ -53,7 +53,7 @@ class ImportFilterTermTest {
         assertInvalid(options("only" to list(Term.Pair(atom("f"), Term.Binary("1".toByteArray())))), INVALID_ONLY)
 
     @Test
-    fun `a variable is invalid`() = assertInvalid(options("except" to Term.Other), INVALID_EXCEPT)
+    fun `a variable is invalid`() = assertInvalid(options("except" to Term.Node(Term.Node.Kind.VARIABLE)), INVALID_EXCEPT)
 
     @Test
     fun `an unsupported option`() = assertInvalid(options("only" to list(), "as" to atom("Elixir.N")), UNSUPPORTED_OPTION)

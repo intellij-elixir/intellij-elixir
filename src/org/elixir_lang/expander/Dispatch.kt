@@ -2,6 +2,15 @@ package org.elixir_lang.expander
 
 import org.elixir_lang.NameArity
 
+/**
+ * A call as `elixir_dispatch` resolves it: [receiver] and [name] are after `elixir_rewrite:inline/3`, and every name is
+ * atom text.
+ */
+data class Dispatch(val kind: Kind, val receiver: String, val name: String, val arity: Int) {
+    /** The kind of the trace event Elixir emits for the call. */
+    enum class Kind { IMPORTED_FUNCTION, IMPORTED_MACRO, REMOTE_FUNCTION, REMOTE_MACRO }
+}
+
 /** What `elixir_dispatch:find_import_by_name_arity/4` finds for a call's name and arity. */
 sealed class ImportMatch {
     data class Function(val receiver: String) : ImportMatch()
