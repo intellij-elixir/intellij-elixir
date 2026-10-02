@@ -709,7 +709,7 @@ enum class ElixirLanguageFeature(
     MISPLACED_TYPE_AND_CONS_OPERATORS(sinceElixir = "1.15.0-rc.0"),
 
     /**
-     * `__cursor__(...)` left in the AST raises `'__cursor__'`. Before it, it is a local call.
+     * `__cursor__(...)` left in the AST raises `'__cursor__'`, and is a special form. Before it, it is a local call.
      *
      * `elixir-lang/elixir@203baf36a` ("Raise on left-over __cursor__"), first released in v1.17.0-rc.0.
      */
@@ -811,8 +811,9 @@ enum class ElixirLanguageFeature(
     STACKTRACE_REFUSED_IN_PATTERN(sinceElixir = "1.13.0-rc.0"),
 
     /**
-     * A `catch` clause of three or more arguments and a guard raises `wrong_number_of_args_for_clause`. Before it, its
-     * head expands as three arguments, and Elixir fails after expansion.
+     * A `catch` clause of three or more arguments and a guard raises `wrong_number_of_args_for_clause`, and a `for`
+     * `reduce:` clause of two or more arguments and a guard raises `for_with_reduce_bad_block`. Before it, each head
+     * expands as those arguments, and Elixir fails after expansion.
      *
      * `elixir-lang/elixir@0e4aaf00c` ("Correctly validate number of args for clauses with when in for and catch",
      * #13785), first released in v1.18.0-rc.0.
@@ -820,8 +821,51 @@ enum class ElixirLanguageFeature(
     CATCH_WHEN_ARITY_CHECKED(sinceElixir = "1.18.0-rc.0"),
 
     /**
-     * `case`, `cond`, `receive`, `try` and `fn` each take a version once their clauses are expanded, which advances the
-     * next variable's.
+     * What the right side of a `<-` in `with` or `for` binds is not visible to its pattern or anything after it, and its
+     * pattern sees the env the right side left. Before it, the variables are visible to both, and the pattern sees the
+     * env from before the right side.
+     *
+     * `elixir-lang/elixir@82a9aa3ef` ("Make right side of <- behaviour consistent across for and with"), first released
+     * in v1.13.0-rc.0.
+     */
+    GENERATOR_RIGHT_SIDE_SCOPED(sinceElixir = "1.13.0-rc.0"),
+
+    /**
+     * `with` takes a list before its last argument as options, as `for` always has, so `with x <- y, [else: e] do`
+     * has an `else`. Before it, that list is a clause.
+     *
+     * `elixir-lang/elixir@bc354c3a6` ("Handle options consistently in with/1 and for/1", #12223), first released in
+     * v1.15.0-rc.0.
+     */
+    WITH_OPTIONS_BEFORE_LAST_ARGUMENT(sinceElixir = "1.15.0-rc.0"),
+
+    /**
+     * `&0`, or any `&N` below 1, inside a capture raises `invalid_arity_for_capture`, not `unallowed_capture_arg`.
+     *
+     * `elixir-lang/elixir@3827a319d` ("Improve error messages from bad capture operator usage", #11656), first released
+     * in v1.14.0-rc.0.
+     */
+    CAPTURE_ARGUMENT_BELOW_ONE_IS_INVALID_ARITY(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * A capture of a remote call whose module part has no `&N` reports its errors at the call, not at the `&`.
+     *
+     * `elixir-lang/elixir@6c068176d` ("Emit consistent position meta on fn capture traces", #12033), first released in
+     * v1.14.0-rc.1.
+     */
+    REMOTE_CAPTURE_REPORTED_AT_CALL(sinceElixir = "1.14.0-rc.1"),
+
+    /**
+     * A capture of a local call, an operator or a special form, or of a remote call whose module part has an `&N`,
+     * reports its errors at the call, not at the `&`.
+     *
+     * `elixir-lang/elixir@a4c700b23` ("Unify caret position in diagnostics"), first released in v1.16.0-rc.0.
+     */
+    CAPTURE_REPORTED_AT_CALL(sinceElixir = "1.16.0-rc.0"),
+
+    /**
+     * `case`, `cond`, `receive`, `try`, `fn`, `with` and `for` each take a version once their clauses are expanded,
+     * which advances the next variable's.
      *
      * `elixir-lang/elixir@603602e67` ("Implement reverse arrows for case", #15260), first released in v1.20.0-rc.5,
      * which adds the `{version, Counter}` metadata to each of them.

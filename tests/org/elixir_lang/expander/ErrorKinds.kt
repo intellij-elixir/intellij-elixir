@@ -33,13 +33,20 @@ object ErrorKinds {
         "expected_compile_time_module" to
             """^invalid argument for (alias|require|import), expected a compile time atom or alias, got: """,
         "as_in_multi_alias_call" to """^:as option is not supported by multi-alias call$""",
-        "unsupported_option" to """^unsupported option :\S+ given to (alias|require|import|quote)$""",
+        "unsupported_option" to """^unsupported option \S+ given to (alias|require|import|quote|for)$""",
         "options_are_not_keyword" to
             """^invalid options for (alias|require|import|quote), expected a keyword list, got: """,
         "unquote_outside_quote" to """^unquote(_splicing)? called outside quote$""",
         "invalid_bind_quoted_for_quote" to
             """^invalid :bind_quoted for quote, expected a keyword list of variable names, got: """,
         "quote_in_pattern_with_unquote" to """^unquote is not allowed when quote is used inside a pattern or guard""",
+        "for_invalid_uniq" to """^:uniq option for comprehensions only accepts a boolean, got: """,
+        "for_conflicting_reduce_into_uniq" to """^cannot use :reduce alongside :into/:uniq in comprehension$""",
+        "for_generator_start" to """^for comprehensions must start with a generator$""",
+        "for_without_reduce_bad_block" to
+            """^the do block was written using acc -> expr clauses but the :reduce option was not given$""",
+        "for_with_reduce_bad_block" to
+            """^when using :reduce with comprehensions, the do block must be written using acc -> expr clauses, where each clause expects the accumulator as a single argument$""",
         // elixir_quote's ArgumentErrors
         "quote_unquote_splicing" to
             """^unquote_splicing only works inside arguments and block contexts, wrap it in parens if you want it to work with one-liners$""",
@@ -75,6 +82,16 @@ object ErrorKinds {
         // elixir_fn
         "defaults_in_args" to """^anonymous functions cannot have optional arguments$""",
         "clauses_with_different_arities" to """^cannot mix clauses with different arities in anonymous functions$""",
+        "capture_arg_outside_of_capture" to
+            """^(unhandled &\d+ outside of a capture|capture argument &\d+ must be used within the capture operator &)$""",
+        "unallowed_capture_arg" to """^capture &-?\d+ is not allowed$""",
+        "invalid_arity_for_capture" to
+            """^(invalid arity for &, expected a number between 0 and 255, got: -?\d+|capture argument &-?\d+ must be numbered between 1 and 255)$""",
+        "capture_arg_without_predecessor" to """^capture (argument )?&\d+ cannot be defined without &\d+""",
+        "invalid_args_for_capture" to """^invalid args for &, expected """,
+        "block_expr_in_capture" to
+            """^(invalid args for &, block expressions are not allowed, got: |block expressions are not allowed inside the capture operator &, got: )""",
+        "nested_capture" to """^nested captures (via & )?are not allowed""",
         // elixir_map
         "repeated_key" to """^key .+ will be overridden in map$""",
         "update_syntax_in_wrong_context" to """^cannot use map/struct update syntax in (match|guard), got: """,

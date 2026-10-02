@@ -69,7 +69,7 @@ class VariableClassProbeTest : ProbeTestCase() {
         const val HEADER_LINES = 2
 
         /** The covered count measured when these clauses were ported; it may only grow. */
-        const val FLOOR = 198
+        const val FLOOR = 260
 
         val OWN_CASES = listOf(
             "()",
@@ -127,6 +127,52 @@ class VariableClassProbeTest : ProbeTestCase() {
             "t = [{x, x} = {1, 1}, receive do after 0 -> 1 end]",
             "t = [{x, x} = {1, 1}, try do 1 after 2 end]",
             "t = [{x, x} = {1, 1}, fn -> 1 end]",
+            "t = [{x, x} = {1, 1}, with(1 <- 1, do: 1)]",
+            "t = [{x, x} = {1, 1}, for(1 <- [1], do: 1)]",
+            "t = [{x, x} = {1, 1}, (_ = for(a <- [1], do: a); 1)]",
+            "t = [{x, x} = {1, 1}, &[1, &1]]",
+            // with: each pattern for the clauses after it and the do, else from before the with
+            "x = 1\nwith {:ok, y} <- {:ok, x} do\nz = y\nend",
+            "with {:ok, a} <- {:ok, 1},\n{:ok, b} <- {:ok, a} do\n{a, b}\nend",
+            "with a = 1,\n{:ok, b} <- {:ok, a} do\n{a, b}\nend",
+            "with a <- 1 do\na\nend",
+            "with {:ok, a} <- {:ok, b = 1} do\na\nend",
+            "with {:ok, a} <- {:ok, 1},\n^a <- 1 do\na\nend",
+            "with x when x <- true do\nx\nend",
+            "with {:ok, a} <- 1 do\na\nelse\n{:error, b} -> b\nc -> c\nend\nd = 1",
+            "with x <- 1, do: x, else: (y -> y)",
+            // for: options from before it, generators and filters for those after them and the do
+            "for x <- [1, 2], do: y = x",
+            "for x <- [1],\ny <- [x], do: {x, y}",
+            "for x <- [1],\ny = x, do: y",
+            "for x <- (y = [1]), do: x",
+            "for x <- [1], into: (y = []), do: {x, y}",
+            "for x <- i, into: (i = []), do: x",
+            "for x <- [1],\ny = x, into: (i = []) do\ny\nend",
+            "y = [1]\nfor ^y <- [[1]], do: y",
+            "for x when x <- [true], do: x",
+            "for <<c <- \"ab\">>, do: c",
+            "for <<a, b <- \"ab\">>, do: {a, b}",
+            "for <<x::binary-size(1) <- \"ab\">>, do: x",
+            "for x <- [1], reduce: 0 do\n^x -> x\nacc -> {acc, x}\nend",
+            "for x <- [1], uniq: true, do: x",
+            "for x <- [1], do: x\ny = 1",
+            "_ = for x <- [1], do: x\ny = 1",
+            "y = 1\n_ = for x <- [1], do: x",
+            // &: the fn a capture that needs no lookup is rewritten to
+            "&[&1]",
+            "&[&2, &1, &2]",
+            "&{&1, 1}",
+            "&{&1, &2}",
+            "&{&1}",
+            "&<<&1>>",
+            "&%{a: &1}",
+            "& &1",
+            "x = 1\n&{&1, x}",
+            "&[y = &1]",
+            "&(fn x -> &1 end)",
+            "m = :lists\n&m.reverse/1",
+            "m = :lists\n&m.reverse(&1)",
         )
     }
 }

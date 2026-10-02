@@ -322,19 +322,24 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
          * The nodes of [node] to wrap in an identity probe: in a pattern, each variable and `_` outside a `^`, a map
          * key and a bitstring spec, each `^` outside a map key, and each non-literal bitstring size; and each variable
          * of a clause's guard. A `rescue` head's only site is the variable left of an `in` other than `in _`: wrapped, a
-         * variable is a call, which neither a bare `rescue` nor `in _` takes.
+         * variable is a call, which neither a bare `rescue` nor `in _` takes. Nothing inside a capture is a site: Elixir
+         * names its parameters apart from source variables, and from 1.17 by the module's counter, which the expander
+         * doesn't keep. The `_` of `_ = for` isn't one: wrapped, a block would expand it, not discard it.
          */
         fun identitySites(node: ElixirAst, pattern: Boolean): List<ElixirAst> =
             when {
+                isCall(node, "&", 1) -> emptyList()
                 isCall(node, "=", 2) -> {
                     val (left, right) = (node as ElixirAst.Call).arguments!!
+                    val leftSites = if (isUnderscore(left) && isNamedCall(right, "for")) emptyList() else identitySites(left, true)
 
-                    identitySites(left, true) + identitySites(right, pattern)
+                    leftSites + identitySites(right, pattern)
                 }
                 !pattern ->
                     parts(node)?.flatMap { (kind, value) ->
                         when (kind) {
                             Part.EXPRESSION, Part.BODY -> identitySites(value, false)
+                            Part.GENERATOR -> generatorSites(value)
                             else -> clauses(value).flatMap { (args, body) ->
                                 headSites(kind, args) + identitySites(body, false)
                             }
@@ -387,10 +392,13 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
                 is ElixirAst.Alias, is ElixirAst.Literal, is ElixirAst.Placeholder -> emptyList()
             }
 
-        /** How a part of a `case`, `cond`, `receive`, `try` or `fn` is expanded. */
+        /** How a part of a `case`, `cond`, `receive`, `try`, `fn`, `with` or `for` is expanded. */
         enum class Part {
             EXPRESSION,
             BODY,
+
+            /** A `<-` clause, or a bitstring whose last segment is one: a pattern, with an optional guard, from an expression. */
+            GENERATOR,
 
             /** `->` clauses whose heads are patterns, with an optional guard. */
             PATTERN_CLAUSES,
@@ -405,10 +413,12 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
             if (node !is ElixirAst.Call || node.arguments == null) return null
 
             val arguments = node.arguments
-            val options = arguments.lastOrNull() as? ElixirAst.ListNode
 
-            fun keyword(each: (String) -> Part): List<Pair<Part, ElixirAst>>? =
-                options?.elements?.map { option ->
+            fun keyword(
+                options: List<ElixirAst>? = (arguments.lastOrNull() as? ElixirAst.ListNode)?.elements,
+                each: (String) -> Part,
+            ): List<Pair<Part, ElixirAst>>? =
+                options?.map { option ->
                     val key = keyOf(option) ?: return null
                     val value = (option as ElixirAst.Tuple).elements[1]
                     val kind = each(key)
@@ -451,6 +461,24 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
                     } else {
                         null
                     }
+                "with", "for" -> {
+                    // `elixir_utils:split_opts/1`, which `with` takes from 1.15: the parts are the same either way.
+                    val lists = arguments.takeLastWhile { it is ElixirAst.ListNode }.takeLast(2)
+                    // Only `for` has bitstring generators.
+                    val generator = if ((node.callee as ElixirAst.Literal.Atom).name == "for") ::isGenerator else { it: ElixirAst -> isCall(it, "<-", 2) }
+                    val clauses = arguments.dropLast(lists.size).map { (if (generator(it)) Part.GENERATOR else Part.EXPRESSION) to it }
+                    val options = lists.flatMap { (it as ElixirAst.ListNode).elements }
+                    val reduce = options.any { ((it as? ElixirAst.Tuple)?.elements?.firstOrNull() as? ElixirAst.Literal.Atom)?.name == "reduce" }
+
+                    keyword(options) {
+                        when {
+                            it == "do" && reduce -> Part.PATTERN_CLAUSES
+                            it == "do" -> Part.BODY
+                            it == "else" -> Part.PATTERN_CLAUSES
+                            else -> Part.EXPRESSION
+                        }
+                    }?.let { clauses + it }
+                }
                 else -> null
             }
         }
@@ -459,7 +487,7 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
             val options = (node as? ElixirAst.Call)?.arguments?.singleOrNull() as? ElixirAst.ListNode
             val isReceive = isNamedCall(node, "receive") &&
                 !options?.elements.isNullOrEmpty() &&
-                options!!.elements.none { keyOf(it) == "after" && isZeroTimeout((it as ElixirAst.Tuple).elements[1]) }
+                options.elements.none { keyOf(it) == "after" && isZeroTimeout((it as ElixirAst.Tuple).elements[1]) }
 
             return isReceive || children(node).any(::hasReceiveWithoutAfterZero)
         }
@@ -500,6 +528,30 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
             }
         }
 
+        /** The expression a generator takes its elements from. */
+        fun generatorRight(generator: ElixirAst): ElixirAst {
+            val arrow = if (isBitstring(generator)) (generator as ElixirAst.Call).arguments!!.last() else generator
+
+            return (arrow as ElixirAst.Call).arguments!![1]
+        }
+
+        /** A generator's pattern sites, and those of its expression. */
+        fun generatorSites(generator: ElixirAst): List<ElixirAst> {
+            val call = generator as ElixirAst.Call
+
+            return if (isBitstring(call)) {
+                val segments = call.arguments!!
+                val left = (segments.last() as ElixirAst.Call).arguments!![0]
+
+                identitySites(ElixirAst.Call(call.meta, call.callee, segments.dropLast(1) + left), true) +
+                    identitySites(generatorRight(call), false)
+            } else {
+                val (left, right) = call.arguments!!
+
+                headSites(Part.PATTERN_CLAUSES, ElixirAst.ListNode(left.meta, listOf(left))) + identitySites(right, false)
+            }
+        }
+
         fun rescueSites(head: ElixirAst): List<ElixirAst> =
             if (isCall(head, "in", 2)) {
                 val (left, right) = (head as ElixirAst.Call).arguments!!
@@ -512,14 +564,20 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
         fun guardSites(guard: ElixirAst): List<ElixirAst> =
             if (isVariable(guard)) listOf(guard) else children(guard).flatMap(::guardSites)
 
-        /** The bodies nested in [node]'s clauses and `try` parts, each as its statements, outermost first. */
+        /**
+         * The bodies nested in [node]'s clauses and `try` parts, each as its statements, outermost first, outside any
+         * capture, as [identitySites] takes them.
+         */
         fun nestedBodies(node: ElixirAst): List<List<ElixirAst>> {
+            if (isCall(node, "&", 1)) return emptyList()
+
             val parts = parts(node) ?: return children(node).flatMap(::nestedBodies)
 
             return parts.flatMap { (kind, value) ->
                 when (kind) {
                     Part.EXPRESSION -> nestedBodies(value)
                     Part.BODY -> bodies(value)
+                    Part.GENERATOR -> nestedBodies(generatorRight(value))
                     else -> clauses(value).flatMap { (args, body) -> nestedBodies(args) + bodies(body) }
                 }
             }

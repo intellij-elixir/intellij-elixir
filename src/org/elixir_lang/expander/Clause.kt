@@ -145,11 +145,9 @@ internal enum class Clause(vararg val heads: Head) {
             val expressions = (node as ElixirAst.Block).expressions
 
             return mapfold(expressions, state, env) { expression, s, e ->
-                if (expression !== expressions.last() && isDiscardedFor(expression)) {
-                    Expansion.Unported(expression)
-                } else {
-                    Expander.expand(expression, s, e, run)
-                }
+                val discarded = if (expression !== expressions.last()) discardedFor(expression) else null
+
+                Expander.expand(discarded ?: expression, s, e, run)
             }
         }
     },
@@ -264,6 +262,36 @@ internal enum class Clause(vararg val heads: Head) {
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) = Expansion.Error("invalid_args", node)
     },
 
+    /** `&super(args)`, which `resolve_super/3` looks up. */
+    CAPTURE_SUPER(expandHead("{'&',_,[{super,_,V1}]} when is_list(V1)")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            isCall(node, "&", 1) && isNamedCall((node as ElixirAst.Call).arguments!!.single(), "super")
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            noMatchOrGuardScope(node, state, env) ?: Expansion.Unported(node)
+    },
+
+    /** `&super/arity`, which `resolve_super/3` looks up. */
+    CAPTURE_SUPER_ARITY(expandHead("{'&',_,[{'/',_,[{super,_,V1},V2]}]} when is_atom(V1), is_integer(V2)")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel): Boolean {
+            val arg = (node as? ElixirAst.Call)?.takeIf { isCall(it, "&", 1) }?.arguments?.single() ?: return false
+            val (name, arity) = (arg as? ElixirAst.Call)?.takeIf { isCall(it, "/", 2) }?.arguments ?: return false
+
+            return isVariable(name) && variable(name).name == "super" && arity is ElixirAst.Literal.Integer
+        }
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            noMatchOrGuardScope(node, state, env) ?: Expansion.Unported(node)
+    },
+
+    CAPTURE(expandHead("{'&',_,[_]}")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            isCall(node, "&", 1)
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            noMatchOrGuardScope(node, state, env) ?: expandCapture(node as ElixirAst.Call, state, env, run)
+    },
+
     FN(expandHead("{fn,_,_}")) {
         override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
             isNamedCall(node, "fn")
@@ -302,6 +330,21 @@ internal enum class Clause(vararg val heads: Head) {
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
             noMatchOrGuardScope(node, state, env) ?: expandTry(node as ElixirAst.Call, state, env, run)
+    },
+
+    FOR(expandHead("{for,_,[_|_]}")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) = isFor(node)
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            noMatchOrGuardScope(node, state, env) ?: expandFor(node as ElixirAst.Call, state, env, run)
+    },
+
+    WITH(expandHead("{with,_,[_|_]}")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            isNamedCall(node, "with") && (node as ElixirAst.Call).arguments!!.isNotEmpty()
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            noMatchOrGuardScope(node, state, env) ?: expandWith(node as ElixirAst.Call, state, env, run)
     },
 
     /** `^` while a pattern is being expanded, which reads the variables from before the pattern. */
@@ -542,17 +585,19 @@ private fun isTupleOrAtom(node: ElixirAst): Boolean =
         is ElixirAst.Literal, is ElixirAst.ListNode -> false
     }
 
-/** `{for, _, [_ | _]}`, or `_ = ` one, which `expand_block/5` sends to `expand_for/4`. */
-private fun isDiscardedFor(node: ElixirAst): Boolean {
-    fun isFor(candidate: ElixirAst) =
-        candidate is ElixirAst.Call &&
-            (candidate.callee as? ElixirAst.Literal.Atom)?.name == "for" &&
-            !candidate.arguments.isNullOrEmpty()
+/** `{for, _, [_ | _]}`. */
+private fun isFor(node: ElixirAst): Boolean =
+    node is ElixirAst.Call && (node.callee as? ElixirAst.Literal.Atom)?.name == "for" && !node.arguments.isNullOrEmpty()
 
-    if (isFor(node)) return true
-    if (!isCall(node, "=", 2)) return false
+/**
+ * The `for` that `expand_block/5` sends to `expand_for/4` without expanding the rest of [node]: [node] itself, or the
+ * right side of `_ = `.
+ */
+private fun discardedFor(node: ElixirAst): ElixirAst? {
+    if (isFor(node)) return node
+    if (!isCall(node, "=", 2)) return null
 
     val (left, right) = (node as ElixirAst.Call).arguments!!
 
-    return isUnderscore(left) && isFor(right)
+    return right.takeIf { isUnderscore(left) && isFor(it) }
 }
