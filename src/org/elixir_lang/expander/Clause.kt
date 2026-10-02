@@ -232,7 +232,7 @@ internal enum class Clause(vararg val heads: Head) {
         override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
             isVariableNamed(node, "__CALLER__")
 
-        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) = expandCaller(node, env, run)
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) = expandCaller(node, state, env, run)
     },
 
     STACKTRACE(expandHead("{'__STACKTRACE__',_,V1} when is_atom(V1)")) {
@@ -244,7 +244,7 @@ internal enum class Clause(vararg val heads: Head) {
                 ?: if (state.stacktrace) {
                     Expansion.Expanded(state, env, VARIABLE_NODE)
                 } else {
-                    Expansion.Error("stacktrace_not_allowed", node)
+                    report(ErrorSite.STACKTRACE_NOT_ALLOWED, node, env, run) { Expansion.Expanded(state, env, NODE) }
                 }
     },
 
@@ -431,7 +431,9 @@ internal enum class Clause(vararg val heads: Head) {
                 if (value == VARIABLE_NODE) {
                     Expansion.Expanded(state, env, Term.Node(Term.Node.Kind.PIN))
                 } else {
-                    Expansion.Error("invalid_arg_for_pin", node)
+                    report(ErrorSite.INVALID_ARG_FOR_PIN, node, env, run) {
+                        Expansion.Expanded(state, env, Term.Node(Term.Node.Kind.PIN))
+                    }
                 }
             }
         }
@@ -442,21 +444,25 @@ internal enum class Clause(vararg val heads: Head) {
             isCall(node, "^", 1)
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            Expansion.Error("pin_outside_of_match", node)
+            report(ErrorSite.PIN_OUTSIDE_OF_MATCH, node, env, run) {
+                Expansion.Expanded(state, env, Term.Node(Term.Node.Kind.PIN))
+            }
     },
 
     UNDERSCORE(expandHead("{'_',_,V1} when is_atom(V1)")) {
         override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
             isUnderscore(node)
 
-        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            if (env.context == Env.Context.MATCH) {
-                val version = if (UNDERSCORE_TAKES_VERSION.isSufficient(run.level)) state.version + 1 else state.version
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
+            val version = if (UNDERSCORE_TAKES_VERSION.isSufficient(run.level)) state.version + 1 else state.version
+            val expanded = Expansion.Expanded(state.copy(version = version), env, VARIABLE_NODE)
 
-                Expansion.Expanded(state.copy(version = version), env, VARIABLE_NODE)
+            return if (env.context == Env.Context.MATCH) {
+                expanded
             } else {
-                Expansion.Error("unbound_underscore", node)
+                report(ErrorSite.UNBOUND_UNDERSCORE, node, env, run) { expanded }
             }
+        }
     },
 
     VARIABLE_IN_PATTERN(expandHead("{V1,_,V2} when is_atom(V1), is_atom(V2)")) {
@@ -497,6 +503,8 @@ internal enum class Clause(vararg val heads: Head) {
             when (val outcome = variableOutcome(node as ElixirAst.Call, state, run.level)) {
                 VariableOutcome.Read -> Expansion.Expanded(state, env, VARIABLE_NODE)
                 VariableOutcome.LocalCall -> Expander.expand(zeroArityCall(node), state, env, run)
+                is VariableOutcome.Reported ->
+                    report(outcome.site, node, env, run) { Expansion.Expanded(state, env, VARIABLE_NODE) }
                 is VariableOutcome.Error -> Expansion.Error(outcome.kind, node)
             }
     },
@@ -673,6 +681,9 @@ internal sealed interface VariableOutcome {
     /** The local call `{Name, Meta, []}`. */
     data object LocalCall : VariableOutcome
 
+    /** An error reported through [site], which Elixir carries on after where the site's helper does. */
+    data class Reported(val site: ErrorSite) : VariableOutcome
+
     data class Error(val kind: String) : VariableOutcome
 }
 
@@ -690,18 +701,18 @@ internal fun variableOutcome(call: ElixirAst.Call, state: ExState, level: Elixir
     if (VAR_BANG_IF_UNDEFINED.isSufficient(level)) {
         when ((metaValue(call.meta, "if_undefined") as? Meta.Value.Atom)?.name) {
             "apply" -> return VariableOutcome.LocalCall
-            "raise" -> return VariableOutcome.Error("undefined_var")
+            "raise" -> return VariableOutcome.Reported(ErrorSite.UNDEFINED_VAR)
         }
     } else if (!isRead && (metaValue(call.meta, "var") as? Meta.Value.Atom)?.name == "true") {
         return VariableOutcome.Error("undefined_var_bang")
     }
 
-    if (isBitsize) return VariableOutcome.Error("undefined_var")
+    if (isBitsize) return VariableOutcome.Reported(ErrorSite.UNDEFINED_VAR)
 
     return when ((prematch as? OutsideMatch)?.mode ?: OutsideMatch.Mode.Raise) {
         OutsideMatch.Mode.Warn -> VariableOutcome.LocalCall
-        OutsideMatch.Mode.Raise -> VariableOutcome.Error("undefined_var")
-        OutsideMatch.Mode.Pin -> VariableOutcome.Error("undefined_var_pin")
+        OutsideMatch.Mode.Raise -> VariableOutcome.Reported(ErrorSite.UNDEFINED_VAR)
+        OutsideMatch.Mode.Pin -> VariableOutcome.Reported(ErrorSite.UNDEFINED_VAR_PIN)
     }
 }
 

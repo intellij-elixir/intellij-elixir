@@ -56,7 +56,13 @@ internal class Run(
     val exports: Exports,
     val structs: Structs,
     val counters: Counters = Counters(),
-)
+) {
+    /** The errors Elixir reported and carried on after, in its order. No state restore takes them back. */
+    val errors = mutableListOf<Reported>()
+
+    /** How Elixir's own code raised after a reported error, if it did. */
+    var crash: Crash? = null
+}
 
 internal inline fun Expansion.then(next: (ExState, Env) -> Expansion): Expansion =
     thenValue { state, env, _ -> next(state, env) }

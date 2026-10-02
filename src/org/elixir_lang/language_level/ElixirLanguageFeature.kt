@@ -701,6 +701,15 @@ enum class ElixirLanguageFeature(
     UNDEFINED_VARIABLE_RAISES(sinceElixir = "1.15.0-rc.0"),
 
     /**
+     * An error reported through `elixir_errors:function_error/4` inside a function, or `module_error/4` inside a module,
+     * is logged and compilation carries on, failing the module once it ends. Before it, every such error raises.
+     *
+     * `elixir-lang/elixir@b24869687` ("Introduce mechanism to collect several errors in a module", #12275), first
+     * released in v1.15.0-rc.0.
+     */
+    FUNCTION_ERRORS_CONTINUE(sinceElixir = "1.15.0-rc.0"),
+
+    /**
      * `::` and `|` outside a bitstring or a list have clauses of their own, which raise `unhandled_type_op` and
      * `unhandled_cons_op`. Before it, they reach local dispatch.
      *

@@ -135,7 +135,7 @@ internal fun expandAnonymousCall(node: ElixirAst.Call, state: ExState, env: Env,
         val callsAnAtom = (values as Term.List).elements.first() is Term.Atom
 
         if (callsAnAtom && ANONYMOUS_CALL_OF_ATOM_REFUSED.isSufficient(run.level)) {
-            Expansion.Error("invalid_function_call", node)
+            report(ErrorSite.INVALID_FUNCTION_CALL, node, env, run) { Expansion.Expanded(s, e, NODE) }
         } else {
             Expansion.Expanded(s, e, NODE)
         }
@@ -252,7 +252,8 @@ private fun expandRemote(
     if (env.context == Env.Context.GUARD && receiver !is Term.Atom) {
         return when {
             isNoParens(node.meta) -> Expansion.Expanded(after, env, NODE)
-            PARENS_MAP_LOOKUP_ATOM.isSufficient(level) -> Expansion.Error("parens_map_lookup", node)
+            PARENS_MAP_LOOKUP_ATOM.isSufficient(level) ->
+                report(ErrorSite.PARENS_MAP_LOOKUP, node, env, run) { Expansion.Expanded(after, env, NODE) }
             else -> Expansion.Error("parens_map_lookup_guard", node)
         }
     }

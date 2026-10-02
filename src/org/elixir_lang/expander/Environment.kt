@@ -7,9 +7,9 @@ import org.elixir_lang.psi.Import.Term
 import java.math.BigInteger
 
 /** `__CALLER__`, which only a macro's body can read. */
-internal fun expandCaller(node: ElixirAst, env: Env, run: Run): Expansion =
+internal fun expandCaller(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion =
     (if (COMPILER_VARIABLES_REFUSED_IN_PATTERN.isSufficient(run.level)) noMatchScope(node, env) else null)
-        ?: Expansion.Error("caller_not_allowed", node)
+        ?: report(ErrorSite.CALLER_NOT_ALLOWED, node, env, run) { Expansion.Expanded(state, env, NODE) }
 
 /** `__ENV__`, the escaped env, which is a map's AST. */
 internal fun expandEnv(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion =

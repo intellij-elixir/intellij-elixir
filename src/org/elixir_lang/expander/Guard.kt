@@ -11,7 +11,7 @@ internal val GUARD_HEADS = listOf(
 
 /**
  * `elixir_clauses:guard/3`: [node] split at each `when`, each part expanded in turn in the context the caller set,
- * which is a guard's.
+ * which is a guard's. An error Elixir reports and carries on after isn't returned.
  */
 internal fun guard(
     node: ElixirAst,
