@@ -88,10 +88,12 @@ class UsingDestructuredBindingTest : PlatformTestCase() {
     fun testTupleSpelledAsAKeywordPairResolves() =
         assertResolves("[imports, mode: _m] = [$QUOTE, {:mode, :strict}]")
 
-    /** An escape sequence in a key is not read here, so the key pairs with nothing and the match cannot be ruled out. */
+    /** An escape sequence in a key spells its atom: `"\x61":` is `a:`. */
     fun testEscapedKeyResolves() = assertResolves("""[imports, a: _x] = [$QUOTE, "\x61": 1]""")
 
-    /** And the other spelling the key cannot be read through. */
+    /** So an escaped key that spells another atom raises, and the list is not spliced. */
+    fun testEscapedKeyOfAnotherAtomDoesNotResolve() = assertDoesNotResolve("""[imports, b: _x] = [$QUOTE, "\x61": 1]""")
+
     fun testInterpolatedKeyResolves() = assertResolves("""[imports, a: _x] = [$QUOTE, "#{:a}": 1]""")
 
     /**

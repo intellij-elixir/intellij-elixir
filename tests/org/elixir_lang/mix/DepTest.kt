@@ -94,6 +94,14 @@ class DepTest : PlatformTestCase() {
         assertEquals("../my_dep", deps.single()?.path)
     }
 
+    /** A quoted key is the atom it spells, so `"path":` is `path:` to Mix. */
+    fun testQuotedPathOptionReplacesDepsPath() {
+        val (deps, errorTitles) = depsFrom("{:my_dep, \"path\": \"../my_dep\"}")
+
+        assertEmpty("`\"path\":` is `path:`, so it must not be reported", errorTitles)
+        assertEquals("../my_dep", deps.single()?.path)
+    }
+
     fun testInUmbrellaOptionUsesUmbrellaApplicationPath() {
         val (deps, errorTitles) = depsFrom("{:my_dep, in_umbrella: true}")
 

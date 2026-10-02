@@ -5,6 +5,7 @@ import com.intellij.psi.PsiElement
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.impl.keywordAtom
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.impl.stripAccessExpressions
 import org.elixir_lang.sdk.wsl.wslCompat
@@ -73,7 +74,7 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
                     val options = if (stripped.size > 1) {
                         keywords(stripped.last())?.keywordPairList?.let { keywordPairList ->
                             keywordPairList.fold(initial) { acc, keywordPair ->
-                                when (val key = keywordPair.keywordKey.text) {
+                                when (keywordPair.keywordAtom()) {
                                     "allow_pre", "app", "branch", "commit", "compile", "env", "hex",
                                     "manager", "organization", "override", "ref", "repo", "runtime",
                                     GUARDIAN_RUNTIME_TYPO, "submodules", "system_env", "tag", "targets",
@@ -94,7 +95,7 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
                                     else -> {
                                         Logger.error(
                                             logger,
-                                            "Don't know if Mix.Dep option `$key` is important for determining location of dependency",
+                                            "Don't know if Mix.Dep option `${keywordPair.keywordKey.text}` is important for determining location of dependency",
                                             depsListElement
                                         )
                                         acc
@@ -224,6 +225,5 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
 }
 
 // https://github.com/ueberauth/guardian/issues/594
-@Suppress("SpellCheckingInspection")
 const val GUARDIAN_RUNTIME_TYPO: String = "runtume"
 const val EDELIVER_DISTILLERY_WARN_MISSING: String = "warn_missing"

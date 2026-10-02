@@ -26,13 +26,11 @@ import org.elixir_lang.psi.qualification.Qualified
 import org.elixir_lang.psi.qualification.Unqualified
 import org.elixir_lang.psi.scope.WhileIn.whileIn
 import org.elixir_lang.psi.scope.ancestorTypeSpec
-import org.elixir_lang.psi.scope.isTypeSpecPseudoFunction
 import org.elixir_lang.psi.stub.call.Stub
 import org.elixir_lang.reference.Callable
 import org.elixir_lang.reference.Callable.Companion.isBitStreamSegmentOption
 import org.elixir_lang.util.AccumulatorContinue
 import org.jetbrains.annotations.Contract
-import java.util.*
 import org.elixir_lang.psi.impl.macroChildCallList as psiElementToMacroChildCallList
 import org.elixir_lang.psi.operation.Normalized as OperationNormalized
 import org.elixir_lang.psi.operation.infix.Normalized as InfixNormalized
@@ -142,14 +140,7 @@ private fun Call.computeCallableReference(): PsiReference? =
         val ancestorTypeSpec = this.ancestorTypeSpec()
 
         if (ancestorTypeSpec != null && !Unquote.`is`(this)) {
-            if (this.isTypeSpecPseudoFunction()) {
-                null
-            } else {
-                // Type-spec references (`@type`/`@spec` usage sites) are owned by Symbol API providers:
-                // - TypeReferenceProvider for type names
-                // - SpecFunctionReferenceProvider for @spec function heads
-                null
-            }
+            null
         } else {
             Callable(this)
         }
@@ -279,28 +270,19 @@ fun <R> Call.foldChildrenWhile(
                 null
             }
         }
-    } else { // one liner version with `do:` keyword argument
-        val finalArguments = finalArguments()!!
-
-        assert(finalArguments.isNotEmpty())
-
-        val potentialKeywords = finalArguments[finalArguments.size - 1]
-
-        if (potentialKeywords is QuotableKeywordList) {
-            val quotableKeywordPairList = potentialKeywords.quotableKeywordPairList()
-            val firstQuotableKeywordPair = quotableKeywordPairList[0]
-            val keywordKey = firstQuotableKeywordPair.keywordKey
-
-            if (keywordKey.text == "do") {
-                firstQuotableKeywordPair.keywordValue.foldChildrenWhile(initial, operation)
-            } else {
-                null
-            }
-        } else {
-            null
-        }
+    } else {
+        oneLinerDoValue()?.foldChildrenWhile(initial, operation)
     } ?: AccumulatorContinue(initial, true)
 }
+
+/** The value of the `do:` key that starts this call's last argument, as `1` in `def f, do: 1`. */
+@RequiresReadLock
+fun Call.oneLinerDoValue(): Quotable? =
+    (finalArguments()?.lastOrNull() as? QuotableKeywordList)
+        ?.quotableKeywordPairList()
+        ?.firstOrNull()
+        ?.takeIf { it.keywordAtom() == "do" }
+        ?.keywordValue
 
 @RequiresReadLock
 fun Call.macroChildCallList(): List<Call> {
@@ -321,27 +303,8 @@ fun Call.macroChildCallList(): List<Call> {
                 }
             }
         }
-    } else { // one liner version with `do:` keyword argument
-        val finalArguments = finalArguments()!!
-
-        assert(finalArguments.isNotEmpty())
-
-        val potentialKeywords = finalArguments[finalArguments.size - 1]
-
-        if (potentialKeywords is QuotableKeywordList) {
-            val quotableKeywordPairList = potentialKeywords.quotableKeywordPairList()
-            val firstQuotableKeywordPair = quotableKeywordPairList[0]
-            val keywordKey = firstQuotableKeywordPair.keywordKey
-
-            if (keywordKey.text == "do") {
-                val keywordValue = firstQuotableKeywordPair.keywordValue
-
-                if (keywordValue is Call) {
-                    val childCall = keywordValue as Call
-                    childCallList = listOf(childCall)
-                }
-            }
-        }
+    } else {
+        (oneLinerDoValue() as? Call)?.let { childCallList = listOf(it) }
     }
 
     if (childCallList == null) {
@@ -618,13 +581,13 @@ object CallImpl {
 
         return if (leftOperand != null) {
             if (rightOperand != null) {
-                arrayOf<PsiElement>(leftOperand, rightOperand)
+                arrayOf(leftOperand, rightOperand)
             } else {
-                arrayOf<PsiElement>(leftOperand)
+                arrayOf(leftOperand)
             }
         } else {
             if (rightOperand != null) {
-                arrayOf<PsiElement>(rightOperand)
+                arrayOf(rightOperand)
             } else {
                 emptyArray()
             }
@@ -647,7 +610,7 @@ object CallImpl {
 
             assert(children[0] is ElixirIdentifier)
 
-            Arrays.copyOfRange(children, 1, children.size)
+            children.copyOfRange(1, children.size)
         }
     }
 
