@@ -11,6 +11,7 @@ import com.intellij.psi.ResolveState
 import com.intellij.psi.impl.source.resolve.ResolveCache
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.code_insight.completion.callDefinitionClauseLookupElements
+import org.elixir_lang.code_insight.completion.insert_handler.QualifiedName
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
@@ -59,8 +60,7 @@ class CaptureNameArity(element: NonNumeric, val nameElement: Call, val arity: Ar
                         incompleteCode = true
                     )
                     .let { modulars ->
-                        callDefinitionClauseLookupElements(modulars, appendParentheses = false).ofRequestedArity()
-                            .toTypedArray()
+                        callDefinitionClauseLookupElements(modulars, QualifiedName.CAPTURE, arity).toTypedArray()
                     }
 
             else -> emptyArray()

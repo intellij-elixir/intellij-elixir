@@ -29,6 +29,6 @@ object PrefixOperator : Default() {
     /**
      * @parma name [org.elixir_lang.beam.MacroNameArity.name]
      */
-    fun isPrefixOperator(name: String): Boolean = PREFIX_OPERATOR_SET.contains(name)
+    private fun isPrefixOperator(name: String): Boolean = PREFIX_OPERATOR_SET.contains(name)
 
 }

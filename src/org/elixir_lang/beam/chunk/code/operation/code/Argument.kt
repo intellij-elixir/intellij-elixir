@@ -8,6 +8,7 @@ import org.elixir_lang.beam.term.*
 import org.elixir_lang.beam.term.Float
 import org.elixir_lang.beam.term.List
 import org.elixir_lang.code.Identifier.inspectAsFunction
+import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.utils.ElixirModulesUtil
 
 data class Argument(val name: String, val supportedOptions: Options = Options()) {
@@ -84,7 +85,7 @@ data class Argument(val name: String, val supportedOptions: Options = Options())
                     supportedOptions.inline.functions && configuredOptions.inline.functions -> {
                         cache.functions?.getOrNull(index)?.let { function ->
                             function.name?.let { name ->
-                                ":${inspectAsFunction(name)}"
+                                InspectAtom.literal(name)
                             } ?: "invalid_function_atom_index(${function.atomIndex})"
                         } ?: "invalid_function_index($index)"
                     }

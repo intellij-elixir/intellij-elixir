@@ -122,6 +122,9 @@
 
 ### Bug Fixes
 
+- [#4324](https://github.com/intellij-elixir/intellij-elixir/pull/4324) [@sh41](https://github.com/sh41)
+  - **Decompiled `.beam` code, debugger values and completion now write atoms and function names as Elixir does.**
+    Fixes [#4300](https://github.com/intellij-elixir/intellij-elixir/issues/4300).
 - [#4311](https://github.com/intellij-elixir/intellij-elixir/pull/4311) [@sh41](https://github.com/sh41)
   - **Broken code, such as an unfinished interpolation (`:"#{`, `import M, only: "#{`) or an atom longer than Elixir allows, no longer raises an error while you type, and checking where a breakpoint can go, an element's description and an alias's usages no longer log a read-lock error.** Fixes [#4296](https://github.com/intellij-elixir/intellij-elixir/issues/4296).
 - [#4321](https://github.com/intellij-elixir/intellij-elixir/pull/4321) [@sh41](https://github.com/sh41)

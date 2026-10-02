@@ -638,7 +638,7 @@ defmodule :fprof do
               {:error, reason} ->
                 exit(reason)
             end
-          {:"DOWN", ^mRef, _, _, _} ->
+          {:DOWN, ^mRef, _, _, _} ->
             :done
         end
     end)
@@ -649,9 +649,9 @@ defmodule :fprof do
       error -> error
     end
     receive do
-    {:"DOWN", ^mRef, _, _, {^ref, :trace_started}} ->
+    {:DOWN, ^mRef, _, _, {^ref, :trace_started}} ->
         :erlang.apply(function, args)
-      {:"DOWN", ^mRef, _, _, reason} ->
+      {:DOWN, ^mRef, _, _, reason} ->
         exit(reason)
     end
   end
@@ -679,13 +679,13 @@ defmodule :fprof do
                       error -> error
                     end
                     :done
-                  {:"DOWN", mRef, _, _, _} ->
+                  {:DOWN, mRef, _, _, _} ->
                     trace([:stop])
                 end
               {:error, reason} ->
                 exit(reason)
             end
-          {:"DOWN", ^mRef, _, _, _} ->
+          {:DOWN, ^mRef, _, _, _} ->
             :done
         end
     end)
@@ -700,7 +700,7 @@ defmodule :fprof do
         try do
           :erlang.apply(function, args)
         end
-      {:"DOWN", ^mRef, _, _, reason} ->
+      {:DOWN, ^mRef, _, _, reason} ->
         exit(reason)
     end
   end
@@ -1007,7 +1007,7 @@ defmodule :fprof do
 
   defp getopts_2([other | tail], option, result, remaining), do: getopts_2(tail, option, result, [other | remaining])
 
-  defp handle_other({:"EXIT", pid, reason} = other, state) when is_pid(pid) or is_port(pid) do
+  defp handle_other({:EXIT, pid, reason} = other, state) when is_pid(pid) or is_port(pid) do
     case {get(:trace_state), get(:trace_pid)} do
       {:running, pid} ->
         trace_off()
@@ -1411,13 +1411,13 @@ defmodule :fprof do
 
   defp insert_call(clocks, func, [], acc), do: [clocks(clocks, id: func) | acc]
 
-  defp just_call(:undefined, _), do: {:"EXIT", :fprof_server, :noproc}
+  defp just_call(:undefined, _), do: {:EXIT, :fprof_server, :noproc}
 
   defp just_call(pid, request) do
     mref = :erlang.monitor(:process, pid)
     receive do
-    {:"DOWN", ^mref, _, _, reason} ->
-        {:"EXIT", pid, reason}
+    {:DOWN, ^mref, _, _, reason} ->
+        {:EXIT, pid, reason}
     after
       0 ->
         tag = {mref, self()}
@@ -1441,14 +1441,14 @@ defmodule :fprof do
                 :ok
             end
             receive do
-            {:"DOWN", ^mref, _, _, _} ->
+            {:DOWN, ^mref, _, _, _} ->
                 :ok
             after
               t ->
                 :ok
             end
             reply
-          {:"DOWN", ^mref, _, _, reason} ->
+          {:DOWN, ^mref, _, _, reason} ->
             receive do
             {:fprof_server, ^mref, _} ->
                 :ok
@@ -1456,7 +1456,7 @@ defmodule :fprof do
               t ->
                 :ok
             end
-            {:"EXIT", pid, reason}
+            {:EXIT, pid, reason}
         after
           :infinity ->
             :timeout
@@ -1574,7 +1574,7 @@ defmodule :fprof do
         {parent, ref, go} ->
             :erlang.demonitor(mRef, [:flush])
             funBody.(go)
-          {:"DOWN", ^mRef, _, _, _} ->
+          {:DOWN, ^mRef, _, _, _} ->
             :ok
         end
     end])
@@ -1602,7 +1602,7 @@ defmodule :fprof do
             end
             result
         end
-      {:"DOWN", ^mRef, _, _, reason} ->
+      {:DOWN, ^mRef, _, _, reason} ->
         receive do
         {^child, ^ref, _Ack} ->
             :ok
@@ -1613,7 +1613,7 @@ defmodule :fprof do
         case spawn do
           :spawn_link ->
             receive do
-            {:"EXIT", reason} ->
+            {:EXIT, reason} ->
                 :ok
             after
               0 ->
@@ -2153,7 +2153,7 @@ defmodule :fprof do
         tracer_loop(parent, handler, handler.(trace, state))
       trace when element(1, trace) === :trace_ts ->
         tracer_loop(parent, handler, handler.(trace, state))
-      {:"EXIT", ^parent, reason} ->
+      {:EXIT, ^parent, reason} ->
         _ = handler(:end_of_trace, state)
         exit(reason)
       _ ->

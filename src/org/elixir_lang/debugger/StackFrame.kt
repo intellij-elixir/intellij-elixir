@@ -29,6 +29,7 @@ import com.intellij.xdebugger.evaluation.XDebuggerEvaluator
 import com.intellij.xdebugger.frame.XCompositeNode
 import com.intellij.xdebugger.frame.XStackFrame
 import com.intellij.xdebugger.frame.XValueChildrenList
+import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.debugger.node.Binding
 import org.elixir_lang.debugger.node.TraceElement
 import org.elixir_lang.debugger.stack_frame.variable.Elixir
@@ -63,7 +64,7 @@ class StackFrame(
         } else {
             ""
         }
-        val title = "$elixirModuleName.${traceElement.function}/${traceElement.arguments.size}$lineSuffix"
+        val title = "$elixirModuleName.${InspectAtom.remoteCall(traceElement.function)}/${traceElement.arguments.size}$lineSuffix"
 
         component.append(title, SimpleTextAttributes.REGULAR_ATTRIBUTES)
         component.setIcon(AllIcons.Debugger.Frame)

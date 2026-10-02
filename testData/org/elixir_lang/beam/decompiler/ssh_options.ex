@@ -23,7 +23,7 @@ defmodule :ssh_options do
 
   @typep callbacks_daemon_options :: ({:failfun, (user :: charlist(), peerAddress :: :inet.ip_address(), reason :: term() -> any())} | {:connectfun, (user :: charlist(), peerAddress :: :inet.ip_address(), method :: charlist() -> any())})
 
-  @typep cipher_alg :: (:"3des-cbc" | :"AEAD_AES_128_GCM" | :"AEAD_AES_256_GCM" | :"aes128-cbc" | :"aes128-ctr" | :"aes128-gcm@openssh.com" | :"aes192-ctr" | :"aes192-cbc" | :"aes256-cbc" | :"aes256-ctr" | :"aes256-gcm@openssh.com" | :"chacha20-poly1305@openssh.com")
+  @typep cipher_alg :: (:"3des-cbc" | :AEAD_AES_128_GCM | :AEAD_AES_256_GCM | :"aes128-cbc" | :"aes128-ctr" | :"aes128-gcm@openssh.com" | :"aes192-ctr" | :"aes192-cbc" | :"aes256-cbc" | :"aes256-ctr" | :"aes256-gcm@openssh.com" | :"chacha20-poly1305@openssh.com")
 
   @typep client_option :: (:ssh_file.pubkey_passphrase_client_options() | host_accepting_client_options() | authentication_client_options() | diffie_hellman_group_exchange_client_option() | connect_timeout_client_option() | recv_ext_info_client_option() | opaque_client_options() | :gen_tcp.connect_option() | common_option())
 
@@ -107,7 +107,7 @@ defmodule :ssh_options do
 
   @typep limit_time :: (pos_integer() | :infinity)
 
-  @typep mac_alg :: (:"AEAD_AES_128_GCM" | :"AEAD_AES_256_GCM" | :"hmac-sha1" | :"hmac-sha1-etm@openssh.com" | :"hmac-sha1-96" | :"hmac-sha2-256" | :"hmac-sha2-512" | :"hmac-sha2-256-etm@openssh.com" | :"hmac-sha2-512-etm@openssh.com")
+  @typep mac_alg :: (:AEAD_AES_128_GCM | :AEAD_AES_256_GCM | :"hmac-sha1" | :"hmac-sha1-etm@openssh.com" | :"hmac-sha1-96" | :"hmac-sha2-256" | :"hmac-sha2-512" | :"hmac-sha2-256-etm@openssh.com" | :"hmac-sha2-512-etm@openssh.com")
 
   @typep max_idle_time_common_option :: {:idle_time, timeout()}
 

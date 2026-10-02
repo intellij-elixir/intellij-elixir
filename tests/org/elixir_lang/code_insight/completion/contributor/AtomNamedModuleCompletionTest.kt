@@ -196,6 +196,25 @@ class AtomNamedModuleCompletionTest : BeamLibraryTestCase() {
         """,
     )
 
+    fun testCapitalisedAtomCompletesUnquoted() = assertCompletes(
+        """
+        defmodule :Foo do
+        end
+
+        defmodule User do
+          def f, do: :Fo<caret>
+        end
+        """,
+        """
+        defmodule :Foo do
+        end
+
+        defmodule User do
+          def f, do: :Foo
+        end
+        """,
+    )
+
     fun testDecompiledModuleCompletesToQuotedAtom() = assertCompletes(
         """
         defmodule User do

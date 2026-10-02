@@ -24,12 +24,12 @@ import org.elixir_lang.beam.decompiler.ReservedTypeName
 import org.elixir_lang.beam.decompiler.appendNotDecompiledBody
 import org.elixir_lang.beam.decompiler.clauseSource
 import org.elixir_lang.beam.term.inspect
+import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.model.psi.type.TypeBuiltins.BUILTIN_ARITY_BY_NAME
 import org.elixir_lang.psi.call.name.Function.DEF
 import org.elixir_lang.psi.call.name.Function.DEFMACRO
 import org.elixir_lang.psi.call.name.Function.DEFMACROP
 import org.elixir_lang.psi.call.name.Function.DEFP
-import org.elixir_lang.psi.call.name.Module
 import org.jetbrains.annotations.TestOnly
 import java.util.*
 
@@ -543,17 +543,7 @@ private fun appendMacroNameArity(
     }
 }
 
-fun defmoduleArgument(moduleName: String): String = if (moduleName.startsWith(Module.ELIXIR_PREFIX)) {
-    moduleName.substring(Module.ELIXIR_PREFIX.length)
-} else {
-    ":" + moduleNameToAtomName(moduleName)
-}
-
-private fun moduleNameToAtomName(moduleName: String): String = if (moduleName.contains("-")) {
-    "\"" + moduleName + "\""
-} else {
-    moduleName
-}
+fun defmoduleArgument(moduleName: String): String = InspectAtom.literal(moduleName)
 
 /**
  * Converts an Erlang type signature like `-type ascii_binary() :: binary().` or

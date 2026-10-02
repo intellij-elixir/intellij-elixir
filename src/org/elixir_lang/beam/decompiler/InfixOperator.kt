@@ -44,7 +44,6 @@ object InfixOperator : Default() {
             "++",
             "-",
             "--",
-            "->",
             "..",
             "/",
             "::",
@@ -60,13 +59,11 @@ object InfixOperator : Default() {
             "=",
             "==",
             "===",
-            "=>",
             "=~",
             ">",
             ">=",
             ">>>",
             "\\\\",
-            "^",
             "^^^",
             "and",
             "in",
@@ -74,7 +71,6 @@ object InfixOperator : Default() {
             "|>",
             "||",
             "|||",
-            "~=",
             "~>",
             "~>>"
     )
@@ -82,5 +78,5 @@ object InfixOperator : Default() {
     /**
      * @param name [org.elixir_lang.beam.MacroNameArity.name]
      */
-    internal fun isInfixOperator(name: String): Boolean = INFIX_OPERATOR_SET.contains(name)
+    private fun isInfixOperator(name: String): Boolean = INFIX_OPERATOR_SET.contains(name)
 }

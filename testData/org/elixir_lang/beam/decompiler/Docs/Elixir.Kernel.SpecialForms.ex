@@ -642,7 +642,7 @@ defmodule Kernel.SpecialForms do
 
 
   """
-  defmacro unquote(:"^")(var) do
+  defmacro unquote(:^)(var) do
     (
       _ = [var]
       message = "Elixir's special forms are expanded by the compiler and must not be invoked directly"
@@ -761,7 +761,7 @@ defmodule Kernel.SpecialForms do
 
 
   """
-  defmacro __aliases__(args) do
+  defmacro unquote(:__aliases__)(args) do
     (
       _ = [args]
       message = "Elixir's special forms are expanded by the compiler and must not be invoked directly"
@@ -785,7 +785,7 @@ defmodule Kernel.SpecialForms do
 
 
   """
-  defmacro __block__(args) do
+  defmacro unquote(:__block__)(args) do
     (
       _ = [args]
       message = "Elixir's special forms are expanded by the compiler and must not be invoked directly"

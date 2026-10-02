@@ -14,7 +14,6 @@ import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Visible
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.code_insight.lookup.element.CallDefinitionClause as CallDefinitionClauseLookupElement
 import org.elixir_lang.code_insight.lookup.element_renderer.CallDefinitionClause as CallDefinitionClauseRenderer
 import com.intellij.psi.ResolveState
 import org.elixir_lang.psi.impl.call.finalArguments
@@ -23,7 +22,9 @@ import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.Delegation
 import org.elixir_lang.psi.CallDefinitionClause as CallDefinitionClausePsi
 import org.elixir_lang.code_insight.lookup.element_renderer.Delegation as DelegationRenderer
-import org.elixir_lang.code_insight.completion.insert_handler.CallDefinitionClause as CallDefinitionClauseInsertHandler
+import org.elixir_lang.code_insight.completion.insert_handler.QualifiedName
+import org.elixir_lang.Arity
+import org.elixir_lang.NameArityInterval
 
 /**
  * The function-name [LookupElement]s a modular ([scope]) offers when completing a **remote**
@@ -34,30 +35,33 @@ import org.elixir_lang.code_insight.completion.insert_handler.CallDefinitionClau
  * source modules ([Call]) and BEAM-decompiled modules ([BeamModule]); any other element type yields
  * nothing.
  *
- * @param appendParentheses when `true` (qualified `Mod.<caret>` call completion) the inserted name is
- *   followed by `()`; when `false` (MFA atom `:<caret>` completion) only the bare name is inserted,
- *   because an atom is a name, not a call.
+ * @param insertHandler how the name is written where it is completed: [QualifiedName.CALL] for a qualified
+ *   `Mod.<caret>` call, [QualifiedName.CAPTURE] for `&Mod.<caret>/arity` and [QualifiedName.ATOM] for an MFA atom.
  *
  * Shared by qualified `Mod.<caret>` completion
- * ([org.elixir_lang.code_insight.completion.provider.CallDefinitionClause]) and MFA atom completion
+ * ([org.elixir_lang.code_insight.completion.provider.CallDefinitionClause]), capture completion
+ * ([org.elixir_lang.reference.CaptureNameArity.getVariants]) and MFA atom completion
  * ([org.elixir_lang.model.psi.atom.AtomReference.getVariants]).
  */
 fun callDefinitionClauseLookupElements(
     scope: PsiElement,
-    appendParentheses: Boolean = true
-): Iterable<LookupElement> = offers(scope).map { it.lookupElement(appendParentheses) }
+    insertHandler: QualifiedName = QualifiedName.CALL
+): Iterable<LookupElement> = offers(scope).map { it.lookupElement(insertHandler) }
 
 /**
  * The remote-completion [LookupElement]s offered by the set of [modulars] a modular name resolved to
  * (via [org.elixir_lang.psi.impl.maybeModularNameToModulars]). Source modules ([Call]) are preferred
  * over BEAM-decompiled stubs ([BeamModule]) so a module available in both forms is not offered twice.
  *
- * @see callDefinitionClauseLookupElements for the per-modular contract and [appendParentheses].
+ * @param arity when not `null`, only names with a definition of that arity are offered, as a capture `&Mod.name/arity`
+ *   needs.
+ * @see callDefinitionClauseLookupElements for the per-modular contract and [insertHandler].
  */
 fun callDefinitionClauseLookupElements(
     modulars: Collection<PsiElement>,
-    appendParentheses: Boolean = true
-): List<LookupElement> = offers(modulars).map { it.lookupElement(appendParentheses) }
+    insertHandler: QualifiedName = QualifiedName.CALL,
+    arity: Arity? = null
+): List<LookupElement> = offers(modulars, arity).map { it.lookupElement(insertHandler) }
 
 /** What [callDefinitionClauseLookupElements] offers for [modulars], each entry with what it declares. */
 @RequiresReadLock
@@ -69,14 +73,14 @@ fun callDefinitionClauseVisible(modulars: Collection<PsiElement>): List<Visible>
 
 /** One function name a modular offers, from the [element] that declares it: [form] is `null` for a `.beam` export. */
 private class Offer(val name: String, val element: PsiElement, val form: Form?) {
-    fun lookupElement(appendParentheses: Boolean): LookupElement =
+    fun lookupElement(insertHandler: QualifiedName): LookupElement =
         if (form == Form.DELEGATION) {
             LookupElementBuilder
                 .createWithSmartPointer(name, element.inOriginalFile())
                 .withRenderer(DelegationRenderer(name))
-                .let { if (appendParentheses) it.withInsertHandler(CallDefinitionClauseInsertHandler) else it }
+                .withInsertHandler(insertHandler)
         } else {
-            lookupElement(name, element, appendParentheses)
+            lookupElement(name, element, insertHandler)
         }
 
     @RequiresReadLock
@@ -92,30 +96,35 @@ private class Offer(val name: String, val element: PsiElement, val form: Form?) 
     }
 }
 
-private fun offers(modulars: Collection<PsiElement>): List<Offer> {
+private fun offers(modulars: Collection<PsiElement>, arity: Arity? = null): List<Offer> {
     val sourceModulars = modulars.filterIsInstance<Call>()
     val effectiveModulars = if (sourceModulars.isNotEmpty()) sourceModulars else modulars
 
-    return effectiveModulars.flatMap(::offers)
+    return effectiveModulars.flatMap { offers(it, arity) }
 }
 
-private fun offers(scope: PsiElement): List<Offer> = when (scope) {
-    is Call -> offers(scope)
-    is BeamModule -> offers(scope)
+private fun offers(scope: PsiElement, arity: Arity? = null): List<Offer> = when (scope) {
+    is Call -> offers(scope, arity)
+    is BeamModule -> offers(scope, arity)
     else -> emptyList()
 }
 
-private fun offers(scope: Call): List<Offer> {
+/** Whether [arity] is unconstrained or within [nameArityInterval]'s arities; an unknown interval is kept. */
+private fun ofArity(nameArityInterval: NameArityInterval?, arity: Arity?): Boolean =
+    arity == null || nameArityInterval == null || arity in nameArityInterval.arityInterval
+
+private fun offers(scope: Call, arity: Arity?): List<Offer> {
     val childCalls = CallDefinitionClausePsi.modularChildCalls(scope)
 
     val publicClauses = childCalls
         .filter { CallDefinitionClausePsi.`is`(it) }
         .filter { CallDefinitionClausePsi.capabilities(it)?.public == true }
+        .filter { ofArity(CallDefinitionClausePsi.nameArityInterval(it, ResolveState.initial()), arity) }
 
     val clauseOffers = preferFunctionHeads(publicClauses).map { (name, bestClause) -> Offer(name, bestClause, Form.CLAUSE) }
     val clauseNames = clauseOffers.map(Offer::name).toSet()
 
-    return clauseOffers + delegationOffers(childCalls, clauseNames)
+    return clauseOffers + delegationOffers(childCalls, clauseNames, arity)
 }
 
 /**
@@ -126,9 +135,9 @@ private fun offers(scope: Call): List<Offer> {
  * presentation; visibility is not filtered because there is no `defdelegatep`.
  *
  * A delegate's insert handler appends parentheses like a `def`'s, so it inserts `Mod.values()` and opens
- * parameter info, and stays a bare name for an MFA atom, where a name is not a call.
+ * parameter info, and stays a bare name for a capture or an MFA atom, where a name is not a call.
  */
-private fun delegationOffers(childCalls: List<Call>, clauseNames: Set<String>): List<Offer> =
+private fun delegationOffers(childCalls: List<Call>, clauseNames: Set<String>, arity: Arity?): List<Offer> =
     childCalls
         .filter { Delegation.`is`(it) }
         .mapNotNull { delegation ->
@@ -136,6 +145,7 @@ private fun delegationOffers(childCalls: List<Call>, clauseNames: Set<String>): 
                 .finalArguments()
                 ?.takeIf { it.size == 2 }
                 ?.let { arguments -> CallDefinitionHead.nameArityInterval(arguments[0], ResolveState.initial()) }
+                ?.takeIf { ofArity(it, arity) }
                 ?.name
                 ?.takeIf { it !in clauseNames }
                 ?.let { name -> name to delegation }
@@ -143,24 +153,19 @@ private fun delegationOffers(childCalls: List<Call>, clauseNames: Set<String>): 
         .distinctBy { (name, _) -> name }
         .map { (name, delegation) -> Offer(name, delegation, Form.DELEGATION) }
 
-private fun offers(moduleImpl: BeamModule): List<Offer> =
+private fun offers(moduleImpl: BeamModule, arity: Arity?): List<Offer> =
     moduleImpl.callDefinitions()
-        .filter { it.isExported }
+        .filter { it.isExported && ofArity(it.nameArityInterval, arity) }
         .mapNotNull { callDefinition ->
             // MaybeExported documents exportedName() as null only when isExported() is false.
             callDefinition.exportedName()?.let { Offer(it, callDefinition, null) }
         }
 
-private fun lookupElement(name: String, element: PsiElement, appendParentheses: Boolean): LookupElement =
-    element.inOriginalFile().let { originalElement ->
-        if (appendParentheses) {
-            CallDefinitionClauseLookupElement.createWithSmartPointer(name, originalElement)
-        } else {
-            LookupElementBuilder
-                .createWithSmartPointer(name, originalElement)
-                .withRenderer(CallDefinitionClauseRenderer(name))
-        }
-    }
+private fun lookupElement(name: String, element: PsiElement, insertHandler: QualifiedName): LookupElement =
+    LookupElementBuilder
+        .createWithSmartPointer(name, element.inOriginalFile())
+        .withRenderer(CallDefinitionClauseRenderer(name))
+        .withInsertHandler(insertHandler)
 
 /**
  * [CompletionUtil.getOriginalOrSelf] hands back the copy rather than null when it cannot map, so a lookup

@@ -1976,7 +1976,7 @@ defmodule Ecto.Query do
      [] ->
         [order_by_pk(query, :desc)]
       order_bys ->
-        Enum.map(order_bys, &:reverse_order_by/1)
+        Enum.map(order_bys, &reverse_order_by/1)
     end)
   end
 
@@ -2217,15 +2217,15 @@ defmodule Ecto.Query do
   end
 
   defp field(ix, field) when is_integer(ix) and is_atom(field) do
-    {{:".", [], [{:&, [], [ix]}, field]}, [], []}
+    {{:., [], [{:&, [], [ix]}, field]}, [], []}
   end
 
   defp from([{type, expr} | t], env, count_bind, quoted, binds) when type === :lock or type === :where or type === :or_where or type === :select or type === :distinct or type === :order_by or type === :group_by or type === :windows or type === :having or type === :or_having or type === :limit or type === :offset or type === :preload or type === :update or type === :select_merge or type === :with_ctes do
     (
       quoted = if(Enum.all?(binds, fn {_, value} -> is_integer(value) end)) do
-        {:__block__, [], [{:=, [], [{:query, [], Ecto.Query}, quoted]}, :elixir_quote.dot([], {:__aliases__, [alias: false], [:"Ecto", :"Query"]}, type, [{:query, [], Ecto.Query}, binds, expr], Ecto.Query)]}
+        {:__block__, [], [{:=, [], [{:query, [], Ecto.Query}, quoted]}, :elixir_quote.dot([], {:__aliases__, [alias: false], [:Ecto, :Query]}, type, [{:query, [], Ecto.Query}, binds, expr], Ecto.Query)]}
       else
-        :elixir_quote.dot([], {:__aliases__, [alias: false], [:"Ecto", :"Query"]}, type, [quoted, binds, expr], Ecto.Query)
+        :elixir_quote.dot([], {:__aliases__, [alias: false], [:Ecto, :Query]}, type, [quoted, binds, expr], Ecto.Query)
       end
       from(t, env, count_bind, quoted, binds)
     )
@@ -2233,7 +2233,7 @@ defmodule Ecto.Query do
 
   defp from([{type, expr} | t], env, count_bind, quoted, binds) when type === :union or type === :union_all or type === :except or type === :except_all or type === :intersect or type === :intersect_all do
     (
-      quoted = :elixir_quote.dot([], {:__aliases__, [alias: false], [:"Ecto", :"Query"]}, type, [quoted, expr], Ecto.Query)
+      quoted = :elixir_quote.dot([], {:__aliases__, [alias: false], [:Ecto, :Query]}, type, [quoted, expr], Ecto.Query)
       from(t, env, count_bind, quoted, binds)
     )
   end

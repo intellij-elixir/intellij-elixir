@@ -31,7 +31,7 @@ defmodule :diameter_gen_acct_rfc6733 do
 
   def unquote(:"#get-")(_, _), do: :erlang.error(:badarg)
 
-  def unquote(:"#get-diameter_base_accounting_ACA")(rec), do: :lists.zip([:"Session-Id", :"Result-Code", :"Origin-Host", :"Origin-Realm", :"Accounting-Record-Type", :"Accounting-Record-Number", :"Acct-Application-Id", :"Vendor-Specific-Application-Id", :"User-Name", :"Accounting-Sub-Session-Id", :"Acct-Session-Id", :"Acct-Multi-Session-Id", :"Error-Message", :"Error-Reporting-Host", :"Failed-AVP", :"Acct-Interim-Interval", :"Accounting-Realtime-Required", :"Origin-State-Id", :"Event-Timestamp", :"Proxy-Info", :"AVP"], tl(tuple_to_list(rec)))
+  def unquote(:"#get-diameter_base_accounting_ACA")(rec), do: :lists.zip([:"Session-Id", :"Result-Code", :"Origin-Host", :"Origin-Realm", :"Accounting-Record-Type", :"Accounting-Record-Number", :"Acct-Application-Id", :"Vendor-Specific-Application-Id", :"User-Name", :"Accounting-Sub-Session-Id", :"Acct-Session-Id", :"Acct-Multi-Session-Id", :"Error-Message", :"Error-Reporting-Host", :"Failed-AVP", :"Acct-Interim-Interval", :"Accounting-Realtime-Required", :"Origin-State-Id", :"Event-Timestamp", :"Proxy-Info", :AVP], tl(tuple_to_list(rec)))
 
   def unquote(:"#get-diameter_base_accounting_ACA")(attrs, rec) when is_list(attrs) do
     for a <- attrs do
@@ -79,9 +79,9 @@ defmodule :diameter_gen_acct_rfc6733 do
 
   def unquote(:"#get-diameter_base_accounting_ACA")(:"Proxy-Info", rec), do: diameter_base_accounting_ACA(rec, :"Proxy-Info")
 
-  def unquote(:"#get-diameter_base_accounting_ACA")(:"AVP", rec), do: diameter_base_accounting_ACA(rec, :"AVP")
+  def unquote(:"#get-diameter_base_accounting_ACA")(:AVP, rec), do: diameter_base_accounting_ACA(rec, :AVP)
 
-  def unquote(:"#get-diameter_base_accounting_ACR")(rec), do: :lists.zip([:"Session-Id", :"Origin-Host", :"Origin-Realm", :"Destination-Realm", :"Accounting-Record-Type", :"Accounting-Record-Number", :"Acct-Application-Id", :"Vendor-Specific-Application-Id", :"User-Name", :"Destination-Host", :"Accounting-Sub-Session-Id", :"Acct-Session-Id", :"Acct-Multi-Session-Id", :"Acct-Interim-Interval", :"Accounting-Realtime-Required", :"Origin-State-Id", :"Event-Timestamp", :"Proxy-Info", :"Route-Record", :"AVP"], tl(tuple_to_list(rec)))
+  def unquote(:"#get-diameter_base_accounting_ACR")(rec), do: :lists.zip([:"Session-Id", :"Origin-Host", :"Origin-Realm", :"Destination-Realm", :"Accounting-Record-Type", :"Accounting-Record-Number", :"Acct-Application-Id", :"Vendor-Specific-Application-Id", :"User-Name", :"Destination-Host", :"Accounting-Sub-Session-Id", :"Acct-Session-Id", :"Acct-Multi-Session-Id", :"Acct-Interim-Interval", :"Accounting-Realtime-Required", :"Origin-State-Id", :"Event-Timestamp", :"Proxy-Info", :"Route-Record", :AVP], tl(tuple_to_list(rec)))
 
   def unquote(:"#get-diameter_base_accounting_ACR")(attrs, rec) when is_list(attrs) do
     for a <- attrs do
@@ -127,7 +127,7 @@ defmodule :diameter_gen_acct_rfc6733 do
 
   def unquote(:"#get-diameter_base_accounting_ACR")(:"Route-Record", rec), do: diameter_base_accounting_ACR(rec, :"Route-Record")
 
-  def unquote(:"#get-diameter_base_accounting_ACR")(:"AVP", rec), do: diameter_base_accounting_ACR(rec, :"AVP")
+  def unquote(:"#get-diameter_base_accounting_ACR")(:AVP, rec), do: diameter_base_accounting_ACR(rec, :AVP)
 
   def unquote(:"#get-diameter_base_accounting_Experimental-Result")(rec), do: :lists.zip([:"Vendor-Id", :"Experimental-Result-Code"], tl(tuple_to_list(rec)))
 
@@ -141,7 +141,7 @@ defmodule :diameter_gen_acct_rfc6733 do
 
   def unquote(:"#get-diameter_base_accounting_Experimental-Result")(:"Experimental-Result-Code", rec), do: unquote(:"diameter_base_accounting_Experimental-Result")(rec, :"Experimental-Result-Code")
 
-  def unquote(:"#get-diameter_base_accounting_Failed-AVP")(rec), do: :lists.zip([:"AVP"], tl(tuple_to_list(rec)))
+  def unquote(:"#get-diameter_base_accounting_Failed-AVP")(rec), do: :lists.zip([:AVP], tl(tuple_to_list(rec)))
 
   def unquote(:"#get-diameter_base_accounting_Failed-AVP")(attrs, rec) when is_list(attrs) do
     for a <- attrs do
@@ -149,9 +149,9 @@ defmodule :diameter_gen_acct_rfc6733 do
     end
   end
 
-  def unquote(:"#get-diameter_base_accounting_Failed-AVP")(:"AVP", rec), do: unquote(:"diameter_base_accounting_Failed-AVP")(rec, :"AVP")
+  def unquote(:"#get-diameter_base_accounting_Failed-AVP")(:AVP, rec), do: unquote(:"diameter_base_accounting_Failed-AVP")(rec, :AVP)
 
-  def unquote(:"#get-diameter_base_accounting_Proxy-Info")(rec), do: :lists.zip([:"Proxy-Host", :"Proxy-State", :"AVP"], tl(tuple_to_list(rec)))
+  def unquote(:"#get-diameter_base_accounting_Proxy-Info")(rec), do: :lists.zip([:"Proxy-Host", :"Proxy-State", :AVP], tl(tuple_to_list(rec)))
 
   def unquote(:"#get-diameter_base_accounting_Proxy-Info")(attrs, rec) when is_list(attrs) do
     for a <- attrs do
@@ -163,7 +163,7 @@ defmodule :diameter_gen_acct_rfc6733 do
 
   def unquote(:"#get-diameter_base_accounting_Proxy-Info")(:"Proxy-State", rec), do: unquote(:"diameter_base_accounting_Proxy-Info")(rec, :"Proxy-State")
 
-  def unquote(:"#get-diameter_base_accounting_Proxy-Info")(:"AVP", rec), do: unquote(:"diameter_base_accounting_Proxy-Info")(rec, :"AVP")
+  def unquote(:"#get-diameter_base_accounting_Proxy-Info")(:AVP, rec), do: unquote(:"diameter_base_accounting_Proxy-Info")(rec, :AVP)
 
   def unquote(:"#get-diameter_base_accounting_Vendor-Specific-Application-Id")(rec), do: :lists.zip([:"Vendor-Id", :"Auth-Application-Id", :"Acct-Application-Id"], tl(tuple_to_list(rec)))
 
@@ -239,7 +239,7 @@ defmodule :diameter_gen_acct_rfc6733 do
 
   def unquote(:"#info-diameter_base_accounting_ACA")({:index, :"Proxy-Info"}), do: diameter_base_accounting_ACA(:"Proxy-Info")
 
-  def unquote(:"#info-diameter_base_accounting_ACA")({:index, :"AVP"}), do: diameter_base_accounting_ACA(:"AVP")
+  def unquote(:"#info-diameter_base_accounting_ACA")({:index, :AVP}), do: diameter_base_accounting_ACA(:AVP)
 
   def unquote(:"#info-diameter_base_accounting_ACR")(:fields), do: record_info(:fields, :diameter_base_accounting_ACR)
 
@@ -283,7 +283,7 @@ defmodule :diameter_gen_acct_rfc6733 do
 
   def unquote(:"#info-diameter_base_accounting_ACR")({:index, :"Route-Record"}), do: diameter_base_accounting_ACR(:"Route-Record")
 
-  def unquote(:"#info-diameter_base_accounting_ACR")({:index, :"AVP"}), do: diameter_base_accounting_ACR(:"AVP")
+  def unquote(:"#info-diameter_base_accounting_ACR")({:index, :AVP}), do: diameter_base_accounting_ACR(:AVP)
 
   def unquote(:"#info-diameter_base_accounting_Experimental-Result")(:fields), do: record_info(:fields, :"diameter_base_accounting_Experimental-Result")
 
@@ -297,7 +297,7 @@ defmodule :diameter_gen_acct_rfc6733 do
 
   def unquote(:"#info-diameter_base_accounting_Failed-AVP")(:size), do: record_info(:size, :"diameter_base_accounting_Failed-AVP")
 
-  def unquote(:"#info-diameter_base_accounting_Failed-AVP")({:index, :"AVP"}), do: unquote(:"diameter_base_accounting_Failed-AVP")(:"AVP")
+  def unquote(:"#info-diameter_base_accounting_Failed-AVP")({:index, :AVP}), do: unquote(:"diameter_base_accounting_Failed-AVP")(:AVP)
 
   def unquote(:"#info-diameter_base_accounting_Proxy-Info")(:fields), do: record_info(:fields, :"diameter_base_accounting_Proxy-Info")
 
@@ -307,7 +307,7 @@ defmodule :diameter_gen_acct_rfc6733 do
 
   def unquote(:"#info-diameter_base_accounting_Proxy-Info")({:index, :"Proxy-State"}), do: unquote(:"diameter_base_accounting_Proxy-Info")(:"Proxy-State")
 
-  def unquote(:"#info-diameter_base_accounting_Proxy-Info")({:index, :"AVP"}), do: unquote(:"diameter_base_accounting_Proxy-Info")(:"AVP")
+  def unquote(:"#info-diameter_base_accounting_Proxy-Info")({:index, :AVP}), do: unquote(:"diameter_base_accounting_Proxy-Info")(:AVP)
 
   def unquote(:"#info-diameter_base_accounting_Vendor-Specific-Application-Id")(:fields), do: record_info(:fields, :"diameter_base_accounting_Vendor-Specific-Application-Id")
 
@@ -439,7 +439,7 @@ defmodule :diameter_gen_acct_rfc6733 do
 
   def unquote(:"#set-diameter_base_accounting_ACA")({:"Proxy-Info", v}, rec), do: diameter_base_accounting_ACA(rec, "Proxy-Info": v)
 
-  def unquote(:"#set-diameter_base_accounting_ACA")({:"AVP", v}, rec), do: diameter_base_accounting_ACA(rec, AVP: v)
+  def unquote(:"#set-diameter_base_accounting_ACA")({:AVP, v}, rec), do: diameter_base_accounting_ACA(rec, AVP: v)
 
   def unquote(:"#set-diameter_base_accounting_ACR")(vals, rec) when is_list(vals), do: :lists.foldl(&unquote(:"#set-diameter_base_accounting_ACR")/2, rec, vals)
 
@@ -481,7 +481,7 @@ defmodule :diameter_gen_acct_rfc6733 do
 
   def unquote(:"#set-diameter_base_accounting_ACR")({:"Route-Record", v}, rec), do: diameter_base_accounting_ACR(rec, "Route-Record": v)
 
-  def unquote(:"#set-diameter_base_accounting_ACR")({:"AVP", v}, rec), do: diameter_base_accounting_ACR(rec, AVP: v)
+  def unquote(:"#set-diameter_base_accounting_ACR")({:AVP, v}, rec), do: diameter_base_accounting_ACR(rec, AVP: v)
 
   def unquote(:"#set-diameter_base_accounting_Experimental-Result")(vals, rec) when is_list(vals), do: :lists.foldl(&unquote(:"#set-diameter_base_accounting_Experimental-Result")/2, rec, vals)
 
@@ -491,7 +491,7 @@ defmodule :diameter_gen_acct_rfc6733 do
 
   def unquote(:"#set-diameter_base_accounting_Failed-AVP")(vals, rec) when is_list(vals), do: :lists.foldl(&unquote(:"#set-diameter_base_accounting_Failed-AVP")/2, rec, vals)
 
-  def unquote(:"#set-diameter_base_accounting_Failed-AVP")({:"AVP", v}, rec), do: unquote(:"diameter_base_accounting_Failed-AVP")(rec, AVP: v)
+  def unquote(:"#set-diameter_base_accounting_Failed-AVP")({:AVP, v}, rec), do: unquote(:"diameter_base_accounting_Failed-AVP")(rec, AVP: v)
 
   def unquote(:"#set-diameter_base_accounting_Proxy-Info")(vals, rec) when is_list(vals), do: :lists.foldl(&unquote(:"#set-diameter_base_accounting_Proxy-Info")/2, rec, vals)
 
@@ -499,7 +499,7 @@ defmodule :diameter_gen_acct_rfc6733 do
 
   def unquote(:"#set-diameter_base_accounting_Proxy-Info")({:"Proxy-State", v}, rec), do: unquote(:"diameter_base_accounting_Proxy-Info")(rec, "Proxy-State": v)
 
-  def unquote(:"#set-diameter_base_accounting_Proxy-Info")({:"AVP", v}, rec), do: unquote(:"diameter_base_accounting_Proxy-Info")(rec, AVP: v)
+  def unquote(:"#set-diameter_base_accounting_Proxy-Info")({:AVP, v}, rec), do: unquote(:"diameter_base_accounting_Proxy-Info")(rec, AVP: v)
 
   def unquote(:"#set-diameter_base_accounting_Vendor-Specific-Application-Id")(vals, rec) when is_list(vals), do: :lists.foldl(&unquote(:"#set-diameter_base_accounting_Vendor-Specific-Application-Id")/2, rec, vals)
 
@@ -535,7 +535,7 @@ defmodule :diameter_gen_acct_rfc6733 do
 
   def avp(t, data, :"Authorization-Lifetime", opts), do: avp(t, data, :"Authorization-Lifetime", opts, :diameter_gen_base_rfc6733)
 
-  def avp(t, data, :"Class", opts), do: avp(t, data, :"Class", opts, :diameter_gen_base_rfc6733)
+  def avp(t, data, :Class, opts), do: avp(t, data, :Class, opts, :diameter_gen_base_rfc6733)
 
   def avp(t, data, :"Destination-Host", opts), do: avp(t, data, :"Destination-Host", opts, :diameter_gen_base_rfc6733)
 
@@ -609,13 +609,13 @@ defmodule :diameter_gen_acct_rfc6733 do
 
   def avp(_, _, _, _), do: :erlang.error(:badarg)
 
-  def avp_arity(:"ACR"), do: [{:"Session-Id", 1}, {:"Origin-Host", 1}, {:"Origin-Realm", 1}, {:"Destination-Realm", 1}, {:"Accounting-Record-Type", 1}, {:"Accounting-Record-Number", 1}, {:"Acct-Application-Id", {0, 1}}, {:"Vendor-Specific-Application-Id", {0, 1}}, {:"User-Name", {0, 1}}, {:"Destination-Host", {0, 1}}, {:"Accounting-Sub-Session-Id", {0, 1}}, {:"Acct-Session-Id", {0, 1}}, {:"Acct-Multi-Session-Id", {0, 1}}, {:"Acct-Interim-Interval", {0, 1}}, {:"Accounting-Realtime-Required", {0, 1}}, {:"Origin-State-Id", {0, 1}}, {:"Event-Timestamp", {0, 1}}, {:"Proxy-Info", {0, :*}}, {:"Route-Record", {0, :*}}, {:"AVP", {0, :*}}]
+  def avp_arity(:ACR), do: [{:"Session-Id", 1}, {:"Origin-Host", 1}, {:"Origin-Realm", 1}, {:"Destination-Realm", 1}, {:"Accounting-Record-Type", 1}, {:"Accounting-Record-Number", 1}, {:"Acct-Application-Id", {0, 1}}, {:"Vendor-Specific-Application-Id", {0, 1}}, {:"User-Name", {0, 1}}, {:"Destination-Host", {0, 1}}, {:"Accounting-Sub-Session-Id", {0, 1}}, {:"Acct-Session-Id", {0, 1}}, {:"Acct-Multi-Session-Id", {0, 1}}, {:"Acct-Interim-Interval", {0, 1}}, {:"Accounting-Realtime-Required", {0, 1}}, {:"Origin-State-Id", {0, 1}}, {:"Event-Timestamp", {0, 1}}, {:"Proxy-Info", {0, :*}}, {:"Route-Record", {0, :*}}, {:AVP, {0, :*}}]
 
-  def avp_arity(:"ACA"), do: [{:"Session-Id", 1}, {:"Result-Code", 1}, {:"Origin-Host", 1}, {:"Origin-Realm", 1}, {:"Accounting-Record-Type", 1}, {:"Accounting-Record-Number", 1}, {:"Acct-Application-Id", {0, 1}}, {:"Vendor-Specific-Application-Id", {0, 1}}, {:"User-Name", {0, 1}}, {:"Accounting-Sub-Session-Id", {0, 1}}, {:"Acct-Session-Id", {0, 1}}, {:"Acct-Multi-Session-Id", {0, 1}}, {:"Error-Message", {0, 1}}, {:"Error-Reporting-Host", {0, 1}}, {:"Failed-AVP", {0, 1}}, {:"Acct-Interim-Interval", {0, 1}}, {:"Accounting-Realtime-Required", {0, 1}}, {:"Origin-State-Id", {0, 1}}, {:"Event-Timestamp", {0, 1}}, {:"Proxy-Info", {0, :*}}, {:"AVP", {0, :*}}]
+  def avp_arity(:ACA), do: [{:"Session-Id", 1}, {:"Result-Code", 1}, {:"Origin-Host", 1}, {:"Origin-Realm", 1}, {:"Accounting-Record-Type", 1}, {:"Accounting-Record-Number", 1}, {:"Acct-Application-Id", {0, 1}}, {:"Vendor-Specific-Application-Id", {0, 1}}, {:"User-Name", {0, 1}}, {:"Accounting-Sub-Session-Id", {0, 1}}, {:"Acct-Session-Id", {0, 1}}, {:"Acct-Multi-Session-Id", {0, 1}}, {:"Error-Message", {0, 1}}, {:"Error-Reporting-Host", {0, 1}}, {:"Failed-AVP", {0, 1}}, {:"Acct-Interim-Interval", {0, 1}}, {:"Accounting-Realtime-Required", {0, 1}}, {:"Origin-State-Id", {0, 1}}, {:"Event-Timestamp", {0, 1}}, {:"Proxy-Info", {0, :*}}, {:AVP, {0, :*}}]
 
-  def avp_arity(:"Proxy-Info"), do: [{:"Proxy-Host", 1}, {:"Proxy-State", 1}, {:"AVP", {0, :*}}]
+  def avp_arity(:"Proxy-Info"), do: [{:"Proxy-Host", 1}, {:"Proxy-State", 1}, {:AVP, {0, :*}}]
 
-  def avp_arity(:"Failed-AVP"), do: [{:"AVP", {1, :*}}]
+  def avp_arity(:"Failed-AVP"), do: [{:AVP, {1, :*}}]
 
   def avp_arity(:"Experimental-Result"), do: [{:"Vendor-Id", 1}, {:"Experimental-Result-Code", 1}]
 
@@ -623,95 +623,95 @@ defmodule :diameter_gen_acct_rfc6733 do
 
   def avp_arity(_), do: :erlang.error(:badarg)
 
-  def avp_arity(:"ACR", :"Session-Id"), do: 1
+  def avp_arity(:ACR, :"Session-Id"), do: 1
 
-  def avp_arity(:"ACR", :"Origin-Host"), do: 1
+  def avp_arity(:ACR, :"Origin-Host"), do: 1
 
-  def avp_arity(:"ACR", :"Origin-Realm"), do: 1
+  def avp_arity(:ACR, :"Origin-Realm"), do: 1
 
-  def avp_arity(:"ACR", :"Destination-Realm"), do: 1
+  def avp_arity(:ACR, :"Destination-Realm"), do: 1
 
-  def avp_arity(:"ACR", :"Accounting-Record-Type"), do: 1
+  def avp_arity(:ACR, :"Accounting-Record-Type"), do: 1
 
-  def avp_arity(:"ACR", :"Accounting-Record-Number"), do: 1
+  def avp_arity(:ACR, :"Accounting-Record-Number"), do: 1
 
-  def avp_arity(:"ACR", :"Acct-Application-Id"), do: {0, 1}
+  def avp_arity(:ACR, :"Acct-Application-Id"), do: {0, 1}
 
-  def avp_arity(:"ACR", :"Vendor-Specific-Application-Id"), do: {0, 1}
+  def avp_arity(:ACR, :"Vendor-Specific-Application-Id"), do: {0, 1}
 
-  def avp_arity(:"ACR", :"User-Name"), do: {0, 1}
+  def avp_arity(:ACR, :"User-Name"), do: {0, 1}
 
-  def avp_arity(:"ACR", :"Destination-Host"), do: {0, 1}
+  def avp_arity(:ACR, :"Destination-Host"), do: {0, 1}
 
-  def avp_arity(:"ACR", :"Accounting-Sub-Session-Id"), do: {0, 1}
+  def avp_arity(:ACR, :"Accounting-Sub-Session-Id"), do: {0, 1}
 
-  def avp_arity(:"ACR", :"Acct-Session-Id"), do: {0, 1}
+  def avp_arity(:ACR, :"Acct-Session-Id"), do: {0, 1}
 
-  def avp_arity(:"ACR", :"Acct-Multi-Session-Id"), do: {0, 1}
+  def avp_arity(:ACR, :"Acct-Multi-Session-Id"), do: {0, 1}
 
-  def avp_arity(:"ACR", :"Acct-Interim-Interval"), do: {0, 1}
+  def avp_arity(:ACR, :"Acct-Interim-Interval"), do: {0, 1}
 
-  def avp_arity(:"ACR", :"Accounting-Realtime-Required"), do: {0, 1}
+  def avp_arity(:ACR, :"Accounting-Realtime-Required"), do: {0, 1}
 
-  def avp_arity(:"ACR", :"Origin-State-Id"), do: {0, 1}
+  def avp_arity(:ACR, :"Origin-State-Id"), do: {0, 1}
 
-  def avp_arity(:"ACR", :"Event-Timestamp"), do: {0, 1}
+  def avp_arity(:ACR, :"Event-Timestamp"), do: {0, 1}
 
-  def avp_arity(:"ACR", :"Proxy-Info"), do: {0, :*}
+  def avp_arity(:ACR, :"Proxy-Info"), do: {0, :*}
 
-  def avp_arity(:"ACR", :"Route-Record"), do: {0, :*}
+  def avp_arity(:ACR, :"Route-Record"), do: {0, :*}
 
-  def avp_arity(:"ACR", :"AVP"), do: {0, :*}
+  def avp_arity(:ACR, :AVP), do: {0, :*}
 
-  def avp_arity(:"ACA", :"Session-Id"), do: 1
+  def avp_arity(:ACA, :"Session-Id"), do: 1
 
-  def avp_arity(:"ACA", :"Result-Code"), do: 1
+  def avp_arity(:ACA, :"Result-Code"), do: 1
 
-  def avp_arity(:"ACA", :"Origin-Host"), do: 1
+  def avp_arity(:ACA, :"Origin-Host"), do: 1
 
-  def avp_arity(:"ACA", :"Origin-Realm"), do: 1
+  def avp_arity(:ACA, :"Origin-Realm"), do: 1
 
-  def avp_arity(:"ACA", :"Accounting-Record-Type"), do: 1
+  def avp_arity(:ACA, :"Accounting-Record-Type"), do: 1
 
-  def avp_arity(:"ACA", :"Accounting-Record-Number"), do: 1
+  def avp_arity(:ACA, :"Accounting-Record-Number"), do: 1
 
-  def avp_arity(:"ACA", :"Acct-Application-Id"), do: {0, 1}
+  def avp_arity(:ACA, :"Acct-Application-Id"), do: {0, 1}
 
-  def avp_arity(:"ACA", :"Vendor-Specific-Application-Id"), do: {0, 1}
+  def avp_arity(:ACA, :"Vendor-Specific-Application-Id"), do: {0, 1}
 
-  def avp_arity(:"ACA", :"User-Name"), do: {0, 1}
+  def avp_arity(:ACA, :"User-Name"), do: {0, 1}
 
-  def avp_arity(:"ACA", :"Accounting-Sub-Session-Id"), do: {0, 1}
+  def avp_arity(:ACA, :"Accounting-Sub-Session-Id"), do: {0, 1}
 
-  def avp_arity(:"ACA", :"Acct-Session-Id"), do: {0, 1}
+  def avp_arity(:ACA, :"Acct-Session-Id"), do: {0, 1}
 
-  def avp_arity(:"ACA", :"Acct-Multi-Session-Id"), do: {0, 1}
+  def avp_arity(:ACA, :"Acct-Multi-Session-Id"), do: {0, 1}
 
-  def avp_arity(:"ACA", :"Error-Message"), do: {0, 1}
+  def avp_arity(:ACA, :"Error-Message"), do: {0, 1}
 
-  def avp_arity(:"ACA", :"Error-Reporting-Host"), do: {0, 1}
+  def avp_arity(:ACA, :"Error-Reporting-Host"), do: {0, 1}
 
-  def avp_arity(:"ACA", :"Failed-AVP"), do: {0, 1}
+  def avp_arity(:ACA, :"Failed-AVP"), do: {0, 1}
 
-  def avp_arity(:"ACA", :"Acct-Interim-Interval"), do: {0, 1}
+  def avp_arity(:ACA, :"Acct-Interim-Interval"), do: {0, 1}
 
-  def avp_arity(:"ACA", :"Accounting-Realtime-Required"), do: {0, 1}
+  def avp_arity(:ACA, :"Accounting-Realtime-Required"), do: {0, 1}
 
-  def avp_arity(:"ACA", :"Origin-State-Id"), do: {0, 1}
+  def avp_arity(:ACA, :"Origin-State-Id"), do: {0, 1}
 
-  def avp_arity(:"ACA", :"Event-Timestamp"), do: {0, 1}
+  def avp_arity(:ACA, :"Event-Timestamp"), do: {0, 1}
 
-  def avp_arity(:"ACA", :"Proxy-Info"), do: {0, :*}
+  def avp_arity(:ACA, :"Proxy-Info"), do: {0, :*}
 
-  def avp_arity(:"ACA", :"AVP"), do: {0, :*}
+  def avp_arity(:ACA, :AVP), do: {0, :*}
 
   def avp_arity(:"Proxy-Info", :"Proxy-Host"), do: 1
 
   def avp_arity(:"Proxy-Info", :"Proxy-State"), do: 1
 
-  def avp_arity(:"Proxy-Info", :"AVP"), do: {0, :*}
+  def avp_arity(:"Proxy-Info", :AVP), do: {0, :*}
 
-  def avp_arity(:"Failed-AVP", :"AVP"), do: {1, :*}
+  def avp_arity(:"Failed-AVP", :AVP), do: {1, :*}
 
   def avp_arity(:"Experimental-Result", :"Vendor-Id"), do: 1
 
@@ -751,7 +751,7 @@ defmodule :diameter_gen_acct_rfc6733 do
 
   def avp_header(:"Authorization-Lifetime"), do: :diameter_gen_base_rfc6733.avp_header(:"Authorization-Lifetime")
 
-  def avp_header(:"Class"), do: :diameter_gen_base_rfc6733.avp_header(:"Class")
+  def avp_header(:Class), do: :diameter_gen_base_rfc6733.avp_header(:Class)
 
   def avp_header(:"Destination-Host"), do: :diameter_gen_base_rfc6733.avp_header(:"Destination-Host")
 
@@ -825,109 +825,109 @@ defmodule :diameter_gen_acct_rfc6733 do
 
   def avp_header(_), do: :erlang.error(:badarg)
 
-  def avp_name(483, :undefined), do: {:"Accounting-Realtime-Required", :"Enumerated"}
+  def avp_name(483, :undefined), do: {:"Accounting-Realtime-Required", :Enumerated}
 
-  def avp_name(485, :undefined), do: {:"Accounting-Record-Number", :"Unsigned32"}
+  def avp_name(485, :undefined), do: {:"Accounting-Record-Number", :Unsigned32}
 
-  def avp_name(480, :undefined), do: {:"Accounting-Record-Type", :"Enumerated"}
+  def avp_name(480, :undefined), do: {:"Accounting-Record-Type", :Enumerated}
 
-  def avp_name(287, :undefined), do: {:"Accounting-Sub-Session-Id", :"Unsigned64"}
+  def avp_name(287, :undefined), do: {:"Accounting-Sub-Session-Id", :Unsigned64}
 
-  def avp_name(259, :undefined), do: {:"Acct-Application-Id", :"Unsigned32"}
+  def avp_name(259, :undefined), do: {:"Acct-Application-Id", :Unsigned32}
 
-  def avp_name(85, :undefined), do: {:"Acct-Interim-Interval", :"Unsigned32"}
+  def avp_name(85, :undefined), do: {:"Acct-Interim-Interval", :Unsigned32}
 
-  def avp_name(50, :undefined), do: {:"Acct-Multi-Session-Id", :"UTF8String"}
+  def avp_name(50, :undefined), do: {:"Acct-Multi-Session-Id", :UTF8String}
 
-  def avp_name(44, :undefined), do: {:"Acct-Session-Id", :"OctetString"}
+  def avp_name(44, :undefined), do: {:"Acct-Session-Id", :OctetString}
 
-  def avp_name(258, :undefined), do: {:"Auth-Application-Id", :"Unsigned32"}
+  def avp_name(258, :undefined), do: {:"Auth-Application-Id", :Unsigned32}
 
-  def avp_name(276, :undefined), do: {:"Auth-Grace-Period", :"Unsigned32"}
+  def avp_name(276, :undefined), do: {:"Auth-Grace-Period", :Unsigned32}
 
-  def avp_name(274, :undefined), do: {:"Auth-Request-Type", :"Enumerated"}
+  def avp_name(274, :undefined), do: {:"Auth-Request-Type", :Enumerated}
 
-  def avp_name(277, :undefined), do: {:"Auth-Session-State", :"Enumerated"}
+  def avp_name(277, :undefined), do: {:"Auth-Session-State", :Enumerated}
 
-  def avp_name(291, :undefined), do: {:"Authorization-Lifetime", :"Unsigned32"}
+  def avp_name(291, :undefined), do: {:"Authorization-Lifetime", :Unsigned32}
 
-  def avp_name(25, :undefined), do: {:"Class", :"OctetString"}
+  def avp_name(25, :undefined), do: {:Class, :OctetString}
 
-  def avp_name(293, :undefined), do: {:"Destination-Host", :"DiameterIdentity"}
+  def avp_name(293, :undefined), do: {:"Destination-Host", :DiameterIdentity}
 
-  def avp_name(283, :undefined), do: {:"Destination-Realm", :"DiameterIdentity"}
+  def avp_name(283, :undefined), do: {:"Destination-Realm", :DiameterIdentity}
 
-  def avp_name(273, :undefined), do: {:"Disconnect-Cause", :"Enumerated"}
+  def avp_name(273, :undefined), do: {:"Disconnect-Cause", :Enumerated}
 
-  def avp_name(281, :undefined), do: {:"Error-Message", :"UTF8String"}
+  def avp_name(281, :undefined), do: {:"Error-Message", :UTF8String}
 
-  def avp_name(294, :undefined), do: {:"Error-Reporting-Host", :"DiameterIdentity"}
+  def avp_name(294, :undefined), do: {:"Error-Reporting-Host", :DiameterIdentity}
 
-  def avp_name(55, :undefined), do: {:"Event-Timestamp", :"Time"}
+  def avp_name(55, :undefined), do: {:"Event-Timestamp", :Time}
 
-  def avp_name(297, :undefined), do: {:"Experimental-Result", :"Grouped"}
+  def avp_name(297, :undefined), do: {:"Experimental-Result", :Grouped}
 
-  def avp_name(298, :undefined), do: {:"Experimental-Result-Code", :"Unsigned32"}
+  def avp_name(298, :undefined), do: {:"Experimental-Result-Code", :Unsigned32}
 
-  def avp_name(279, :undefined), do: {:"Failed-AVP", :"Grouped"}
+  def avp_name(279, :undefined), do: {:"Failed-AVP", :Grouped}
 
-  def avp_name(267, :undefined), do: {:"Firmware-Revision", :"Unsigned32"}
+  def avp_name(267, :undefined), do: {:"Firmware-Revision", :Unsigned32}
 
-  def avp_name(257, :undefined), do: {:"Host-IP-Address", :"Address"}
+  def avp_name(257, :undefined), do: {:"Host-IP-Address", :Address}
 
-  def avp_name(299, :undefined), do: {:"Inband-Security-Id", :"Unsigned32"}
+  def avp_name(299, :undefined), do: {:"Inband-Security-Id", :Unsigned32}
 
-  def avp_name(272, :undefined), do: {:"Multi-Round-Time-Out", :"Unsigned32"}
+  def avp_name(272, :undefined), do: {:"Multi-Round-Time-Out", :Unsigned32}
 
-  def avp_name(264, :undefined), do: {:"Origin-Host", :"DiameterIdentity"}
+  def avp_name(264, :undefined), do: {:"Origin-Host", :DiameterIdentity}
 
-  def avp_name(296, :undefined), do: {:"Origin-Realm", :"DiameterIdentity"}
+  def avp_name(296, :undefined), do: {:"Origin-Realm", :DiameterIdentity}
 
-  def avp_name(278, :undefined), do: {:"Origin-State-Id", :"Unsigned32"}
+  def avp_name(278, :undefined), do: {:"Origin-State-Id", :Unsigned32}
 
-  def avp_name(269, :undefined), do: {:"Product-Name", :"UTF8String"}
+  def avp_name(269, :undefined), do: {:"Product-Name", :UTF8String}
 
-  def avp_name(280, :undefined), do: {:"Proxy-Host", :"DiameterIdentity"}
+  def avp_name(280, :undefined), do: {:"Proxy-Host", :DiameterIdentity}
 
-  def avp_name(284, :undefined), do: {:"Proxy-Info", :"Grouped"}
+  def avp_name(284, :undefined), do: {:"Proxy-Info", :Grouped}
 
-  def avp_name(33, :undefined), do: {:"Proxy-State", :"OctetString"}
+  def avp_name(33, :undefined), do: {:"Proxy-State", :OctetString}
 
-  def avp_name(285, :undefined), do: {:"Re-Auth-Request-Type", :"Enumerated"}
+  def avp_name(285, :undefined), do: {:"Re-Auth-Request-Type", :Enumerated}
 
-  def avp_name(292, :undefined), do: {:"Redirect-Host", :"DiameterURI"}
+  def avp_name(292, :undefined), do: {:"Redirect-Host", :DiameterURI}
 
-  def avp_name(261, :undefined), do: {:"Redirect-Host-Usage", :"Enumerated"}
+  def avp_name(261, :undefined), do: {:"Redirect-Host-Usage", :Enumerated}
 
-  def avp_name(262, :undefined), do: {:"Redirect-Max-Cache-Time", :"Unsigned32"}
+  def avp_name(262, :undefined), do: {:"Redirect-Max-Cache-Time", :Unsigned32}
 
-  def avp_name(268, :undefined), do: {:"Result-Code", :"Unsigned32"}
+  def avp_name(268, :undefined), do: {:"Result-Code", :Unsigned32}
 
-  def avp_name(282, :undefined), do: {:"Route-Record", :"DiameterIdentity"}
+  def avp_name(282, :undefined), do: {:"Route-Record", :DiameterIdentity}
 
-  def avp_name(270, :undefined), do: {:"Session-Binding", :"Unsigned32"}
+  def avp_name(270, :undefined), do: {:"Session-Binding", :Unsigned32}
 
-  def avp_name(263, :undefined), do: {:"Session-Id", :"UTF8String"}
+  def avp_name(263, :undefined), do: {:"Session-Id", :UTF8String}
 
-  def avp_name(271, :undefined), do: {:"Session-Server-Failover", :"Enumerated"}
+  def avp_name(271, :undefined), do: {:"Session-Server-Failover", :Enumerated}
 
-  def avp_name(27, :undefined), do: {:"Session-Timeout", :"Unsigned32"}
+  def avp_name(27, :undefined), do: {:"Session-Timeout", :Unsigned32}
 
-  def avp_name(265, :undefined), do: {:"Supported-Vendor-Id", :"Unsigned32"}
+  def avp_name(265, :undefined), do: {:"Supported-Vendor-Id", :Unsigned32}
 
-  def avp_name(295, :undefined), do: {:"Termination-Cause", :"Enumerated"}
+  def avp_name(295, :undefined), do: {:"Termination-Cause", :Enumerated}
 
-  def avp_name(1, :undefined), do: {:"User-Name", :"UTF8String"}
+  def avp_name(1, :undefined), do: {:"User-Name", :UTF8String}
 
-  def avp_name(266, :undefined), do: {:"Vendor-Id", :"Unsigned32"}
+  def avp_name(266, :undefined), do: {:"Vendor-Id", :Unsigned32}
 
-  def avp_name(260, :undefined), do: {:"Vendor-Specific-Application-Id", :"Grouped"}
+  def avp_name(260, :undefined), do: {:"Vendor-Specific-Application-Id", :Grouped}
 
-  def avp_name(_, _), do: :"AVP"
+  def avp_name(_, _), do: :AVP
 
   def decode_avps(name, avps, opts), do: :diameter_gen.decode_avps(name, avps, %{opts | :module => :diameter_gen_acct_rfc6733})
 
-  def dict(), do: [1, {:avp_types, []}, {:avp_vendor_id, []}, {:codecs, []}, {:command_codes, [{271, 'ACR', 'ACA'}]}, {:custom_types, []}, {:define, []}, {:enum, []}, {:grouped, []}, {:id, 3}, {:import_avps, [{:diameter_gen_base_rfc6733, [{'Accounting-Realtime-Required', 483, 'Enumerated', 'M'}, {'Accounting-Record-Number', 485, 'Unsigned32', 'M'}, {'Accounting-Record-Type', 480, 'Enumerated', 'M'}, {'Accounting-Sub-Session-Id', 287, 'Unsigned64', 'M'}, {'Acct-Application-Id', 259, 'Unsigned32', 'M'}, {'Acct-Interim-Interval', 85, 'Unsigned32', 'M'}, {'Acct-Multi-Session-Id', 50, 'UTF8String', 'M'}, {'Acct-Session-Id', 44, 'OctetString', 'M'}, {'Auth-Application-Id', 258, 'Unsigned32', 'M'}, {'Auth-Grace-Period', 276, 'Unsigned32', 'M'}, {'Auth-Request-Type', 274, 'Enumerated', 'M'}, {'Auth-Session-State', 277, 'Enumerated', 'M'}, {'Authorization-Lifetime', 291, 'Unsigned32', 'M'}, {'Class', 25, 'OctetString', 'M'}, {'Destination-Host', 293, 'DiameterIdentity', 'M'}, {'Destination-Realm', 283, 'DiameterIdentity', 'M'}, {'Disconnect-Cause', 273, 'Enumerated', 'M'}, {'Error-Message', 281, 'UTF8String', []}, {'Error-Reporting-Host', 294, 'DiameterIdentity', []}, {'Event-Timestamp', 55, 'Time', 'M'}, {'Experimental-Result', 297, 'Grouped', 'M'}, {'Experimental-Result-Code', 298, 'Unsigned32', 'M'}, {'Failed-AVP', 279, 'Grouped', 'M'}, {'Firmware-Revision', 267, 'Unsigned32', []}, {'Host-IP-Address', 257, 'Address', 'M'}, {'Inband-Security-Id', 299, 'Unsigned32', 'M'}, {'Multi-Round-Time-Out', 272, 'Unsigned32', 'M'}, {'Origin-Host', 264, 'DiameterIdentity', 'M'}, {'Origin-Realm', 296, 'DiameterIdentity', 'M'}, {'Origin-State-Id', 278, 'Unsigned32', 'M'}, {'Product-Name', 269, 'UTF8String', []}, {'Proxy-Host', 280, 'DiameterIdentity', 'M'}, {'Proxy-Info', 284, 'Grouped', 'M'}, {'Proxy-State', 33, 'OctetString', 'M'}, {'Re-Auth-Request-Type', 285, 'Enumerated', 'M'}, {'Redirect-Host', 292, 'DiameterURI', 'M'}, {'Redirect-Host-Usage', 261, 'Enumerated', 'M'}, {'Redirect-Max-Cache-Time', 262, 'Unsigned32', 'M'}, {'Result-Code', 268, 'Unsigned32', 'M'}, {'Route-Record', 282, 'DiameterIdentity', 'M'}, {'Session-Binding', 270, 'Unsigned32', 'M'}, {'Session-Id', 263, 'UTF8String', 'M'}, {'Session-Server-Failover', 271, 'Enumerated', 'M'}, {'Session-Timeout', 27, 'Unsigned32', 'M'}, {'Supported-Vendor-Id', 265, 'Unsigned32', 'M'}, {'Termination-Cause', 295, 'Enumerated', 'M'}, {'User-Name', 1, 'UTF8String', 'M'}, {'Vendor-Id', 266, 'Unsigned32', 'M'}, {'Vendor-Specific-Application-Id', 260, 'Grouped', 'M'}]}]}, {:import_enums, [{:diameter_gen_base_rfc6733, [{'Disconnect-Cause', [{'REBOOTING', 0}, {'BUSY', 1}, {'DO_NOT_WANT_TO_TALK_TO_YOU', 2}]}, {'Redirect-Host-Usage', [{'DONT_CACHE', 0}, {'ALL_SESSION', 1}, {'ALL_REALM', 2}, {'REALM_AND_APPLICATION', 3}, {'ALL_APPLICATION', 4}, {'ALL_HOST', 5}, {'ALL_USER', 6}]}, {'Auth-Request-Type', [{'AUTHENTICATE_ONLY', 1}, {'AUTHORIZE_ONLY', 2}, {'AUTHORIZE_AUTHENTICATE', 3}]}, {'Auth-Session-State', [{'STATE_MAINTAINED', 0}, {'NO_STATE_MAINTAINED', 1}]}, {'Re-Auth-Request-Type', [{'AUTHORIZE_ONLY', 0}, {'AUTHORIZE_AUTHENTICATE', 1}]}, {'Termination-Cause', [{'LOGOUT', 1}, {'SERVICE_NOT_PROVIDED', 2}, {'BAD_ANSWER', 3}, {'ADMINISTRATIVE', 4}, {'LINK_BROKEN', 5}, {'AUTH_EXPIRED', 6}, {'USER_MOVED', 7}, {'SESSION_TIMEOUT', 8}]}, {'Session-Server-Failover', [{'REFUSE_SERVICE', 0}, {'TRY_AGAIN', 1}, {'ALLOW_SERVICE', 2}, {'TRY_AGAIN_ALLOW_SERVICE', 3}]}, {'Accounting-Record-Type', [{'EVENT_RECORD', 1}, {'START_RECORD', 2}, {'INTERIM_RECORD', 3}, {'STOP_RECORD', 4}]}, {'Accounting-Realtime-Required', [{'DELIVER_AND_GRANT', 1}, {'GRANT_AND_STORE', 2}, {'GRANT_AND_LOSE', 3}]}]}]}, {:import_groups, [{:diameter_gen_base_rfc6733, [{'Proxy-Info', 284, [], [{'Proxy-Host'}, {'Proxy-State'}, {:*, ['AVP']}]}, {'Failed-AVP', 279, [], [{:*, {'AVP'}}]}, {'Experimental-Result', 297, [], [{'Vendor-Id'}, {'Experimental-Result-Code'}]}, {'Vendor-Specific-Application-Id', 260, [], [{'Vendor-Id'}, ['Auth-Application-Id'], ['Acct-Application-Id']]}]}]}, {:inherits, [{'diameter_gen_base_rfc6733', []}]}, {:messages, [{'ACR', 271, [:"REQ", :"PXY"], [], [{{'Session-Id'}}, {'Origin-Host'}, {'Origin-Realm'}, {'Destination-Realm'}, {'Accounting-Record-Type'}, {'Accounting-Record-Number'}, ['Acct-Application-Id'], ['Vendor-Specific-Application-Id'], ['User-Name'], ['Destination-Host'], ['Accounting-Sub-Session-Id'], ['Acct-Session-Id'], ['Acct-Multi-Session-Id'], ['Acct-Interim-Interval'], ['Accounting-Realtime-Required'], ['Origin-State-Id'], ['Event-Timestamp'], {:*, ['Proxy-Info']}, {:*, ['Route-Record']}, {:*, ['AVP']}]}, {'ACA', 271, [:"PXY"], [], [{{'Session-Id'}}, {'Result-Code'}, {'Origin-Host'}, {'Origin-Realm'}, {'Accounting-Record-Type'}, {'Accounting-Record-Number'}, ['Acct-Application-Id'], ['Vendor-Specific-Application-Id'], ['User-Name'], ['Accounting-Sub-Session-Id'], ['Acct-Session-Id'], ['Acct-Multi-Session-Id'], ['Error-Message'], ['Error-Reporting-Host'], ['Failed-AVP'], ['Acct-Interim-Interval'], ['Accounting-Realtime-Required'], ['Origin-State-Id'], ['Event-Timestamp'], {:*, ['Proxy-Info']}, {:*, ['AVP']}]}]}, {:name, 'diameter_gen_acct_rfc6733'}, {:prefix, 'diameter_base_accounting'}, {:vendor, {0, 'IETF'}}]
+  def dict(), do: [1, {:avp_types, []}, {:avp_vendor_id, []}, {:codecs, []}, {:command_codes, [{271, 'ACR', 'ACA'}]}, {:custom_types, []}, {:define, []}, {:enum, []}, {:grouped, []}, {:id, 3}, {:import_avps, [{:diameter_gen_base_rfc6733, [{'Accounting-Realtime-Required', 483, 'Enumerated', 'M'}, {'Accounting-Record-Number', 485, 'Unsigned32', 'M'}, {'Accounting-Record-Type', 480, 'Enumerated', 'M'}, {'Accounting-Sub-Session-Id', 287, 'Unsigned64', 'M'}, {'Acct-Application-Id', 259, 'Unsigned32', 'M'}, {'Acct-Interim-Interval', 85, 'Unsigned32', 'M'}, {'Acct-Multi-Session-Id', 50, 'UTF8String', 'M'}, {'Acct-Session-Id', 44, 'OctetString', 'M'}, {'Auth-Application-Id', 258, 'Unsigned32', 'M'}, {'Auth-Grace-Period', 276, 'Unsigned32', 'M'}, {'Auth-Request-Type', 274, 'Enumerated', 'M'}, {'Auth-Session-State', 277, 'Enumerated', 'M'}, {'Authorization-Lifetime', 291, 'Unsigned32', 'M'}, {'Class', 25, 'OctetString', 'M'}, {'Destination-Host', 293, 'DiameterIdentity', 'M'}, {'Destination-Realm', 283, 'DiameterIdentity', 'M'}, {'Disconnect-Cause', 273, 'Enumerated', 'M'}, {'Error-Message', 281, 'UTF8String', []}, {'Error-Reporting-Host', 294, 'DiameterIdentity', []}, {'Event-Timestamp', 55, 'Time', 'M'}, {'Experimental-Result', 297, 'Grouped', 'M'}, {'Experimental-Result-Code', 298, 'Unsigned32', 'M'}, {'Failed-AVP', 279, 'Grouped', 'M'}, {'Firmware-Revision', 267, 'Unsigned32', []}, {'Host-IP-Address', 257, 'Address', 'M'}, {'Inband-Security-Id', 299, 'Unsigned32', 'M'}, {'Multi-Round-Time-Out', 272, 'Unsigned32', 'M'}, {'Origin-Host', 264, 'DiameterIdentity', 'M'}, {'Origin-Realm', 296, 'DiameterIdentity', 'M'}, {'Origin-State-Id', 278, 'Unsigned32', 'M'}, {'Product-Name', 269, 'UTF8String', []}, {'Proxy-Host', 280, 'DiameterIdentity', 'M'}, {'Proxy-Info', 284, 'Grouped', 'M'}, {'Proxy-State', 33, 'OctetString', 'M'}, {'Re-Auth-Request-Type', 285, 'Enumerated', 'M'}, {'Redirect-Host', 292, 'DiameterURI', 'M'}, {'Redirect-Host-Usage', 261, 'Enumerated', 'M'}, {'Redirect-Max-Cache-Time', 262, 'Unsigned32', 'M'}, {'Result-Code', 268, 'Unsigned32', 'M'}, {'Route-Record', 282, 'DiameterIdentity', 'M'}, {'Session-Binding', 270, 'Unsigned32', 'M'}, {'Session-Id', 263, 'UTF8String', 'M'}, {'Session-Server-Failover', 271, 'Enumerated', 'M'}, {'Session-Timeout', 27, 'Unsigned32', 'M'}, {'Supported-Vendor-Id', 265, 'Unsigned32', 'M'}, {'Termination-Cause', 295, 'Enumerated', 'M'}, {'User-Name', 1, 'UTF8String', 'M'}, {'Vendor-Id', 266, 'Unsigned32', 'M'}, {'Vendor-Specific-Application-Id', 260, 'Grouped', 'M'}]}]}, {:import_enums, [{:diameter_gen_base_rfc6733, [{'Disconnect-Cause', [{'REBOOTING', 0}, {'BUSY', 1}, {'DO_NOT_WANT_TO_TALK_TO_YOU', 2}]}, {'Redirect-Host-Usage', [{'DONT_CACHE', 0}, {'ALL_SESSION', 1}, {'ALL_REALM', 2}, {'REALM_AND_APPLICATION', 3}, {'ALL_APPLICATION', 4}, {'ALL_HOST', 5}, {'ALL_USER', 6}]}, {'Auth-Request-Type', [{'AUTHENTICATE_ONLY', 1}, {'AUTHORIZE_ONLY', 2}, {'AUTHORIZE_AUTHENTICATE', 3}]}, {'Auth-Session-State', [{'STATE_MAINTAINED', 0}, {'NO_STATE_MAINTAINED', 1}]}, {'Re-Auth-Request-Type', [{'AUTHORIZE_ONLY', 0}, {'AUTHORIZE_AUTHENTICATE', 1}]}, {'Termination-Cause', [{'LOGOUT', 1}, {'SERVICE_NOT_PROVIDED', 2}, {'BAD_ANSWER', 3}, {'ADMINISTRATIVE', 4}, {'LINK_BROKEN', 5}, {'AUTH_EXPIRED', 6}, {'USER_MOVED', 7}, {'SESSION_TIMEOUT', 8}]}, {'Session-Server-Failover', [{'REFUSE_SERVICE', 0}, {'TRY_AGAIN', 1}, {'ALLOW_SERVICE', 2}, {'TRY_AGAIN_ALLOW_SERVICE', 3}]}, {'Accounting-Record-Type', [{'EVENT_RECORD', 1}, {'START_RECORD', 2}, {'INTERIM_RECORD', 3}, {'STOP_RECORD', 4}]}, {'Accounting-Realtime-Required', [{'DELIVER_AND_GRANT', 1}, {'GRANT_AND_STORE', 2}, {'GRANT_AND_LOSE', 3}]}]}]}, {:import_groups, [{:diameter_gen_base_rfc6733, [{'Proxy-Info', 284, [], [{'Proxy-Host'}, {'Proxy-State'}, {:*, ['AVP']}]}, {'Failed-AVP', 279, [], [{:*, {'AVP'}}]}, {'Experimental-Result', 297, [], [{'Vendor-Id'}, {'Experimental-Result-Code'}]}, {'Vendor-Specific-Application-Id', 260, [], [{'Vendor-Id'}, ['Auth-Application-Id'], ['Acct-Application-Id']]}]}]}, {:inherits, [{'diameter_gen_base_rfc6733', []}]}, {:messages, [{'ACR', 271, [:REQ, :PXY], [], [{{'Session-Id'}}, {'Origin-Host'}, {'Origin-Realm'}, {'Destination-Realm'}, {'Accounting-Record-Type'}, {'Accounting-Record-Number'}, ['Acct-Application-Id'], ['Vendor-Specific-Application-Id'], ['User-Name'], ['Destination-Host'], ['Accounting-Sub-Session-Id'], ['Acct-Session-Id'], ['Acct-Multi-Session-Id'], ['Acct-Interim-Interval'], ['Accounting-Realtime-Required'], ['Origin-State-Id'], ['Event-Timestamp'], {:*, ['Proxy-Info']}, {:*, ['Route-Record']}, {:*, ['AVP']}]}, {'ACA', 271, [:PXY], [], [{{'Session-Id'}}, {'Result-Code'}, {'Origin-Host'}, {'Origin-Realm'}, {'Accounting-Record-Type'}, {'Accounting-Record-Number'}, ['Acct-Application-Id'], ['Vendor-Specific-Application-Id'], ['User-Name'], ['Accounting-Sub-Session-Id'], ['Acct-Session-Id'], ['Acct-Multi-Session-Id'], ['Error-Message'], ['Error-Reporting-Host'], ['Failed-AVP'], ['Acct-Interim-Interval'], ['Accounting-Realtime-Required'], ['Origin-State-Id'], ['Event-Timestamp'], {:*, ['Proxy-Info']}, {:*, ['AVP']}]}]}, {:name, 'diameter_gen_acct_rfc6733'}, {:prefix, 'diameter_base_accounting'}, {:vendor, {0, 'IETF'}}]
 
   def empty_value(:"Proxy-Info", opts), do: empty_group(:"Proxy-Info", opts)
 
@@ -973,21 +973,21 @@ defmodule :diameter_gen_acct_rfc6733 do
     # body not decompiled
   end
 
-  def msg2rec(:"ACR"), do: :diameter_base_accounting_ACR
+  def msg2rec(:ACR), do: :diameter_base_accounting_ACR
 
-  def msg2rec(:"ACA"), do: :diameter_base_accounting_ACA
+  def msg2rec(:ACA), do: :diameter_base_accounting_ACA
 
   def msg2rec(_), do: :erlang.error(:badarg)
 
-  def msg_header(:"ACR"), do: {271, 192, 3}
+  def msg_header(:ACR), do: {271, 192, 3}
 
-  def msg_header(:"ACA"), do: {271, 64, 3}
+  def msg_header(:ACA), do: {271, 64, 3}
 
   def msg_header(_), do: :erlang.error(:badarg)
 
-  def msg_name(271, true), do: :"ACR"
+  def msg_name(271, true), do: :ACR
 
-  def msg_name(271, false), do: :"ACA"
+  def msg_name(271, false), do: :ACA
 
   def msg_name(_, _), do: :""
 
@@ -1003,15 +1003,15 @@ defmodule :diameter_gen_acct_rfc6733 do
 
   def name2rec(t), do: msg2rec(t)
 
-  def rec2msg(:diameter_base_accounting_ACR), do: :"ACR"
+  def rec2msg(:diameter_base_accounting_ACR), do: :ACR
 
-  def rec2msg(:diameter_base_accounting_ACA), do: :"ACA"
+  def rec2msg(:diameter_base_accounting_ACA), do: :ACA
 
   def rec2msg(_), do: :erlang.error(:badarg)
 
   def vendor_id(), do: 0
 
-  def vendor_name(), do: :"IETF"
+  def vendor_name(), do: :IETF
 
   # Private Functions
 

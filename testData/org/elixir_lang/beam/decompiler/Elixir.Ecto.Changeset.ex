@@ -1280,7 +1280,7 @@ defmodule Ecto.Changeset do
   end
 
   def optimistic_lock(data_or_changeset, field) do
-    super(data_or_changeset, field, &:increment_with_rollover/1)
+    super(data_or_changeset, field, &increment_with_rollover/1)
   end
 
   @doc ~S"""
@@ -1671,7 +1671,7 @@ defmodule Ecto.Changeset do
 
   """
   def traverse_errors(%Ecto.Changeset{errors: errors, changes: changes, types: types} = changeset, msg_func) when :erlang.is_function(msg_func, 1) or :erlang.is_function(msg_func, 3) do
-    merge_related_keys(merge_keyword_keys(Enum.reverse(errors), msg_func, changeset), changes, types, msg_func, &:traverse_errors/2)
+    merge_related_keys(merge_keyword_keys(Enum.reverse(errors), msg_func, changeset), changes, types, msg_func, &traverse_errors/2)
   end
 
   @doc ~S"""
@@ -1694,7 +1694,7 @@ defmodule Ecto.Changeset do
 
   """
   def traverse_validations(%Ecto.Changeset{validations: validations, changes: changes, types: types} = changeset, msg_func) when :erlang.is_function(msg_func, 1) or :erlang.is_function(msg_func, 3) do
-    merge_related_keys(merge_keyword_keys(Enum.reverse(validations), msg_func, changeset), changes, types, msg_func, &:traverse_validations/2)
+    merge_related_keys(merge_keyword_keys(Enum.reverse(validations), msg_func, changeset), changes, types, msg_func, &traverse_validations/2)
   end
 
   def unique_constraint(changeset, field) do
@@ -2705,7 +2705,7 @@ defmodule Ecto.Changeset do
 
   defp cast(%{} = data, %{} = types, %{} = changes, :invalid, permitted, _opts) when is_list(permitted) do
     (
-      _ = Enum.each(permitted, &:cast_key/1)
+      _ = Enum.each(permitted, &cast_key/1)
       %Ecto.Changeset{action: nil, constraints: [], empty_values: [""], filters: %{}, prepare: [], repo: nil, repo_opts: [], required: [], validations: [], params: nil, data: data, valid?: false, errors: [], changes: changes, types: types}
     )
   end
@@ -2977,7 +2977,7 @@ defmodule Ecto.Changeset do
       [{pk_field, value} | remaining_pks] ->
         first_expr = %Ecto.Query.DynamicExpr{fun: fn query ->
           _ = query
-          {{:==, [], [{{:".", [], [{:&, [], [0]}, Ecto.Query.Builder.atom!(pk_field, "field/2")]}, [], []}, {:^, [], [0]}]}, [{Ecto.Query.Builder.not_nil!(value), {0, pk_field}}], []}
+          {{:==, [], [{{:., [], [{:&, [], [0]}, Ecto.Query.Builder.atom!(pk_field, "field/2")]}, [], []}, {:^, [], [0]}]}, [{Ecto.Query.Builder.not_nil!(value), {0, pk_field}}], []}
         end, binding: [{:q, [line: 1923], nil}], file: "/Users/cliftonmcintosh/code/gringotts/deps/ecto/lib/ecto/changeset.ex", line: 1923}
         case(Enum.reduce_while(remaining_pks, first_expr, fn
          {_pk_field, nil}, _expr ->
@@ -2985,7 +2985,7 @@ defmodule Ecto.Changeset do
           {pk_field, value}, expr ->
             {:cont, %Ecto.Query.DynamicExpr{fun: fn query ->
               _ = query
-              {{:and, [], [{:^, [], [0]}, {:==, [], [{{:".", [], [{:&, [], [0]}, Ecto.Query.Builder.atom!(pk_field, "field/2")]}, [], []}, {:^, [], [1]}]}]}, [{expr, :boolean}, {Ecto.Query.Builder.not_nil!(value), {0, pk_field}}], []}
+              {{:and, [], [{:^, [], [0]}, {:==, [], [{{:., [], [{:&, [], [0]}, Ecto.Query.Builder.atom!(pk_field, "field/2")]}, [], []}, {:^, [], [1]}]}]}, [{expr, :boolean}, {Ecto.Query.Builder.not_nil!(value), {0, pk_field}}], []}
             end, binding: [{:q, [line: 1930], nil}], file: "/Users/cliftonmcintosh/code/gringotts/deps/ecto/lib/ecto/changeset.ex", line: 1930}}
         end)) do
           nil ->

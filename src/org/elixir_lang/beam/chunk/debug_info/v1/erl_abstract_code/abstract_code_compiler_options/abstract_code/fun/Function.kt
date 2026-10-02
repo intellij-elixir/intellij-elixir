@@ -40,24 +40,24 @@ object Function {
             scope: Scope
     ): String {
         val moduleString = AbstractCode.toString(module, scope)
-        val nameString = nameToString(name, scope)
+        val nameString = nameToString(name, scope, local = false)
         val arityString = arityToString(arity)
 
         return "&$moduleString.$nameString/$arityString"
     }
 
     private fun nameArityToString(name: OtpErlangObject, arity: OtpErlangObject, scope: Scope): String {
-        val nameString = nameToString(name, scope)
+        val nameString = nameToString(name, scope, local = true)
         val arityString = arityToString(arity)
 
         return "&$nameString/$arityString"
     }
 
-    private fun nameToString(term: OtpErlangObject, scope: Scope): String =
+    private fun nameToString(term: OtpErlangObject, scope: Scope, local: Boolean): String =
             when (term) {
-                is OtpErlangAtom -> inspectAsFunction(term, true)
+                is OtpErlangAtom -> inspectAsFunction(term, local)
                 else -> Atom.toElixirAtom(term)
-                        ?.let { nameToString(it, scope) }
+                        ?.let { nameToString(it, scope, local) }
                         ?: AbstractCode.toString(term, scope)
             }
 }

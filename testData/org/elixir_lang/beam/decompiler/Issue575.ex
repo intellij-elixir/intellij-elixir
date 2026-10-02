@@ -52,11 +52,11 @@ defmodule Bitwise do
         Keyword.get(options, :only_operators) ->
           [bnot: 1, band: 2, bor: 2, bxor: 2, bsl: 2, bsr: 2]
         Keyword.get(options, :skip_operators) ->
-          [~~~: 1, &&&: 2, |||: 2, ^^^: 2, <<<: 2, >>>: 2]
+          ["~~~": 1, &&&: 2, |||: 2, "^^^": 2, <<<: 2, >>>: 2]
         true ->
           []
       end
-      {:import, [context: Bitwise], [{:__aliases__, [alias: false], [:"Bitwise"]}, [except: except]]}
+      {:import, [context: Bitwise], [{:__aliases__, [alias: false], [:Bitwise]}, [except: except]]}
     )
   end
 
@@ -303,7 +303,7 @@ defmodule Bitwise do
 
 
   """
-  def ~~~(expr) do
+  def unquote(:"~~~")(expr) do
     :erlang.bnot(expr)
   end
 end

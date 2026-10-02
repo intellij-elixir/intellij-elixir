@@ -1,6 +1,6 @@
 package org.elixir_lang.utils
 
-import org.elixir_lang.code.Identifier
+import org.elixir_lang.code.InspectAtom
 
 object ElixirModulesUtil {
     // Matches a valid Elixir alias after stripping the "Elixir." prefix,
@@ -8,18 +8,6 @@ object ElixirModulesUtil {
     // and contains only [a-zA-Z0-9_].
     internal val elixirAliasSegmentsRegex = Regex("([A-Z][a-zA-Z0-9_]*)(\\.[A-Z][a-zA-Z0-9_]*)*")
 
-    fun erlangModuleNameToElixir(moduleName: String): String =
-            when {
-                moduleName == "true" || moduleName == "false" || moduleName == "nil" -> moduleName
-                moduleName.startsWith("Elixir.") -> {
-                    val stripped = moduleName.removePrefix("Elixir.")
-                    if (elixirAliasSegmentsRegex.matches(stripped)) {
-                        stripped
-                    } else {
-                        // Not a valid alias (e.g. "Benchfella:tests") - render as a quoted atom
-                        ":\"${stripped.replace("\\", "\\\\").replace("\"", "\\\"")}\""
-                    }
-                }
-                else -> ":" + Identifier.inspectAsFunction(moduleName)
-            }
+    /** The module atom [moduleName] as Elixir's `inspect/1` writes it. */
+    fun erlangModuleNameToElixir(moduleName: String): String = InspectAtom.literal(moduleName)
 }

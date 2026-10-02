@@ -893,7 +893,7 @@ defmodule :dbg_wx_trace_win do
     sub(name: :"Button Area", win: sz)
   end
 
-  defp buttons(), do: [{:"Step", 401}, {:"Next", 402}, {:"Continue", 403}, {:"Finish", 404}, {:"Where", 405}, {:"Up", 406}, {:"Down", 407}]
+  defp buttons(), do: [{:Step, 401}, {:Next, 402}, {:Continue, 403}, {:Finish, 404}, {:Where, 405}, {:Up, 406}, {:Down, 407}]
 
   defp code_area(win) do
     codeWin = :wxSashWindow.new(win, [{:id, 425}, {:size, {700, 400}}, {:style, 64 ||| 128}])

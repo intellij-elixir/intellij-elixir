@@ -7,7 +7,6 @@ import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_
 import org.elixir_lang.beam.decompiler.Default
 import org.elixir_lang.beam.decompiler.MacroNameArity
 import org.elixir_lang.beam.decompiler.decompiler
-import org.elixir_lang.code.Identifier.inspectAsFunction
 import org.elixir_lang.psi.call.name.Function.DEF
 import java.math.BigInteger
 
@@ -43,7 +42,7 @@ object Value {
 
     internal fun toNameArity(value: OtpErlangTuple): OtpErlangObject? = value.elementAt(0)
 
-    private fun nameToString(name: OtpErlangAtom) = inspectAsFunction(name)
+    private fun nameToString(name: OtpErlangAtom) = name.atomValue()
 
     private fun toDefinitions(value: OtpErlangTuple): OtpErlangObject? = value.elementAt(1)
 

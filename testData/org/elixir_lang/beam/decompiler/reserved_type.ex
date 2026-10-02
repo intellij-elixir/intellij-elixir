@@ -4,17 +4,17 @@ defmodule :reserved_type do
   # Types
 
   # `fn` is a reserved Elixir word and cannot name an Elixir type (`@type` takes no `unquote` fragment); the Erlang type is preserved as a comment:
-  #   @type unquote(:"fn") :: function()
+  #   @type unquote(:fn) :: function()
 
   # `in` is a reserved Elixir word and cannot name an Elixir type (`@type` takes no `unquote` fragment); the Erlang type is preserved as a comment:
-  #   @type unquote(:"in")(t) :: [t]
+  #   @type unquote(:in)(t) :: [t]
 
   # `nil` is a reserved Elixir word and cannot name an Elixir type (`@type` takes no `unquote` fragment); the Erlang type is preserved as a comment:
-  #   @type nil :: []
+  #   @type unquote(:nil) :: []
 
   # Functions
 
-  @spec make() :: {[], unquote(:"fn")(), unquote(:"in")(integer())}
+  @spec make() :: {[], unquote(:fn)(), unquote(:in)(integer())}
   def make() do
     {[], fn () ->
         :ok

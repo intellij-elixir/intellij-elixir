@@ -10,6 +10,7 @@ import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.annotator.Parameter
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
+import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.code_insight.completion.insert_handler.CallDefinitionClause as CallDefinitionClauseInsertHandler
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Visible
@@ -92,7 +93,7 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
     private fun addCallDefinitionToLookupElementByPsiElement(element: BeamCallDefinition) {
         // MaybeExported documents exportedName() as null only when isExported() is false, which the
         // sole caller checks.
-        val name = element.exportedName() ?: return
+        val name = element.exportedName()?.takeIf(::callableUnqualified) ?: return
 
         lookupElementByPsiElementName.computeIfAbsent(element to name) { (el, n) ->
             LookupElementBuilder.createWithSmartPointer(n, el)
@@ -102,7 +103,7 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
     }
 
     private fun addCallDefinitionClauseToLookupElementByPsiElement(named: Named) {
-        named.name?.let { name ->
+        named.name?.takeIf(::callableUnqualified)?.let { name ->
             lookupElementByPsiElementName.computeIfAbsent(named to name) { (element, name) ->
                 LookupElementBuilder.createWithSmartPointer(
                         name,
@@ -126,7 +127,7 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
     }
 
     private fun addCallbackToLookupElementByPsiElement(element: AtUnqualifiedNoParenthesesCall<*>, head: Named) =
-            head.name?.let { name ->
+            head.name?.takeIf(::callableUnqualified)?.let { name ->
                 lookupElementByPsiElementName.computeIfAbsent(head to name) { (_, name) ->
                     LookupElementBuilder.createWithSmartPointer(
                             name,
@@ -145,7 +146,7 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
                 val headName = headNameArityInterval.name
                 recordVisible(Form.DELEGATION, element, state) { head }
 
-                lookupElementByPsiElementName.computeIfAbsent(head to headName) { (_, headName) ->
+                if (callableUnqualified(headName)) lookupElementByPsiElementName.computeIfAbsent(head to headName) { (_, headName) ->
                     LookupElementBuilder.createWithSmartPointer(
                             headName,
                             element
@@ -162,16 +163,21 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
     override fun executeOnEExFunctionFrom(element: Call, state: ResolveState): Boolean {
         recordVisible(Form.EEX_FUNCTION_FROM, element, state) { element }
         element.finalArguments()?.let { arguments ->
-            arguments[1].stripAccessExpression().let { it as? ElixirAtom }?.let { quotedAtomValue(it) ?: it.node.lastChildNode.text }?.let { name ->
-                lookupElementByPsiElementName.computeIfAbsent(element to name) { (_, name) ->
-                    LookupElementBuilder.createWithSmartPointer(
-                            name,
-                            element
-                    ).withRenderer(
-                            org.elixir_lang.code_insight.lookup.element_renderer.EExFunctionFrom(name)
-                    ).withInsertHandlerIfAppendingParentheses()
+            arguments[1]
+                .stripAccessExpression()
+                .let { it as? ElixirAtom }
+                ?.let(::quotedAtomValue)
+                ?.takeIf(::callableUnqualified)
+                ?.let { name ->
+                    lookupElementByPsiElementName.computeIfAbsent(element to name) { (_, name) ->
+                        LookupElementBuilder.createWithSmartPointer(
+                                name,
+                                element
+                        ).withRenderer(
+                                org.elixir_lang.code_insight.lookup.element_renderer.EExFunctionFrom(name)
+                        ).withInsertHandlerIfAppendingParentheses()
+                    }
                 }
-            }
        }
 
         return true
@@ -197,9 +203,9 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
 
     override fun executeOnMixGeneratorEmbed(element: Call, state: ResolveState): Boolean {
         recordVisible(Form.GENERATOR_EMBED, element, state) { element }
-        element.finalArguments()?.first()?.stripAccessExpression()?.let { it as? ElixirAtom }?.let { quotedAtomValue(it) ?: it.node.lastChildNode.text }?.let { prefix ->
+        element.finalArguments()?.first()?.stripAccessExpression()?.let { it as? ElixirAtom }?.let(::quotedAtomValue)?.let { prefix ->
             val suffix = element.functionName()!!.removePrefix("embed_")
-            val name = "${prefix}_${suffix}"
+            val name = "${prefix}_${suffix}".takeIf(::callableUnqualified) ?: return true
             // `Generator.isEmbed` admits only these two names.
             val renderer = when (suffix) {
                 "template" -> org.elixir_lang.code_insight.lookup.element_renderer.mix.generator.EmbedTemplate(name)
@@ -227,6 +233,9 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
 
     private fun LookupElementBuilder.withInsertHandlerIfAppendingParentheses(): LookupElementBuilder =
         if (appendParentheses) withInsertHandler(CallDefinitionClauseInsertHandler) else this
+
+    /** A name Elixir can write only quoted is not offered here. */
+    private fun callableUnqualified(name: String): Boolean = InspectAtom.classify(name) != InspectAtom.Class.OTHER
 
 
     companion object {

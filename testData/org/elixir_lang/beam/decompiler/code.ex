@@ -499,7 +499,7 @@ defmodule :code do
   defp do_par(fun, l) do
     {_, ref} = spawn_monitor(do_par_fun(fun, l))
     receive do
-    {:"DOWN", ^ref, :process, _, res} ->
+    {:DOWN, ^ref, :process, _, res} ->
         res
     end
   end
@@ -536,9 +536,9 @@ defmodule :code do
 
   defp do_par_recv(n, good, bad) do
     receive do
-    {:"DOWN", _, :process, _, {:good, res}} ->
+    {:DOWN, _, :process, _, {:good, res}} ->
         do_par_recv(n - 1, [res | good], bad)
-      {:"DOWN", _, :process, _, {:bad, res}} ->
+      {:DOWN, _, :process, _, {:bad, res}} ->
         do_par_recv(n - 1, good, [res | bad])
     end
   end

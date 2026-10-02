@@ -127,6 +127,48 @@ class MacroToStringTest {
         assertEquals("'ab\u00E9'", Macro.toString(charlist("ab\u00E9")))
     }
 
+    // Names
+
+    @Test
+    fun localCaptureWritesTheNameAsALocalCall() =
+        assertEquals("&reverse_order_by/1", Macro.toString(capture(variable("reverse_order_by"), 1)))
+
+    @Test
+    fun remoteCaptureQuotesTheNameAsARemoteCall() =
+        assertEquals("&Mod.\"foo bar\"/1", Macro.toString(capture(remote("Elixir.Mod", "foo bar"), 1)))
+
+    @Test
+    fun erlangRemoteCaptureQuotesTheNameAsARemoteCall() =
+        assertEquals("&:erlang.\"foo bar\"/1", Macro.toString(capture(remote("erlang", "foo bar"), 1)))
+
+    @Test
+    fun kernelOperatorCaptureIsWrittenBare() =
+        assertEquals("&+/2", Macro.toString(capture(remote("erlang", "+"), 2)))
+
+    @Test
+    fun kernelComparisonCaptureIsWrittenBare() =
+        assertEquals("&>=/2", Macro.toString(capture(remote("erlang", ">="), 2)))
+
+    @Test
+    fun kernelReservedWordCaptureIsWrittenBare() =
+        assertEquals("&not/1", Macro.toString(capture(remote("erlang", "not"), 1)))
+
+    @Test
+    fun moduleAttributeNameIsNotQuotedAsAnErlangAtom() =
+        assertEquals("@_private 1", Macro.toString(call("@", call("_private", OtpErlangLong(1)))))
+
+    private fun capture(nameOrCall: OtpErlangObject, arity: Long): OtpErlangTuple =
+        call("&", call("/", nameOrCall, OtpErlangLong(arity)))
+
+    private fun remote(module: String, function: String): OtpErlangTuple =
+        OtpErlangTuple(
+            arrayOf(
+                call(".", OtpErlangAtom(module), OtpErlangAtom(function)),
+                OtpErlangList(),
+                OtpErlangList(),
+            )
+        )
+
     private fun assertClauseHead(macro: OtpErlangObject, expected: String) {
         val rendered = Macro.toString(macro)
 
