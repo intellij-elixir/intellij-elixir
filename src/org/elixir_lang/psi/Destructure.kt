@@ -5,6 +5,8 @@ import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.impl.childExpressions
+import org.elixir_lang.psi.impl.keywordAtom
+import org.elixir_lang.psi.impl.quotedAtomValue
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.operation.Match
 import org.elixir_lang.psi.operation.Pipe
@@ -92,7 +94,7 @@ object Destructure {
         val patternPair = pattern as? ElixirKeywordPair ?: return true
         val valuePair = value as? ElixirKeywordPair ?: return true
 
-        return keysCanAgree(key(patternPair.keywordKey), key(valuePair.keywordKey)) &&
+        return keysCanAgree(key(patternPair), key(valuePair)) &&
                 matches(patternPair.keywordValue, valuePair.keywordValue)
     }
 
@@ -283,9 +285,9 @@ object Destructure {
         val patternPair = pattern as? ElixirKeywordPair ?: return emptyList()
         val valuePair = value as? ElixirKeywordPair ?: return emptyList()
 
-        val patternKey = key(patternPair.keywordKey) ?: return emptyList()
+        val patternKey = key(patternPair) ?: return emptyList()
 
-        if (patternKey != key(valuePair.keywordKey)) {
+        if (patternKey != key(valuePair)) {
             return emptyList()
         }
 
@@ -329,40 +331,22 @@ object Destructure {
             .orEmpty()
         val keywordEntries = (constructionArguments?.keywords ?: updateArguments?.keywords)
             ?.keywordPairList
-            ?.map { keywordPair -> key(keywordPair.keywordKey) to keywordPair.keywordValue as PsiElement }
+            ?.map { keywordPair -> key(keywordPair) to keywordPair.keywordValue as PsiElement }
             .orEmpty()
 
         return associationEntries + keywordEntries
     }
 
+    /** A keyword key's identity for pairing, or `null` when it quotes to no atom, as `"#{x}":` does. */
+    private fun key(keywordPair: QuotableKeywordPair): String? = keywordPair.keywordAtom()?.let { "atom $it" }
+
     /**
-     * A key's identity for pairing, or `null` when the key cannot be read. `a:`, `:a`, `:"a"` and `"a":` are one atom;
-     * `"a" =>` is a binary and distinct.
+     * An association key's identity for pairing, or `null` when it cannot be read. `:a` and `:"a"` are the atom `a:`
+     * is; `"a" =>` is a binary and distinct.
      */
     private fun key(element: PsiElement): String? =
         when (val stripped = element.stripAccessExpression()) {
-            is ElixirAtom -> name(stripped.line, stripped.text.removePrefix(":"))
-            is ElixirKeywordKey -> name(stripped.line, stripped.text)
+            is ElixirAtom, is ElixirAtomKeyword -> quotedAtomValue(stripped)?.let { "atom $it" }
             else -> "term ${stripped.text}"
-        }
-
-    /**
-     * The atom a key spells, read from [line] when it is quoted and taken as [unquoted] when it is not. `null` when an
-     * interpolation or an escape sequence hides what the quotes spell, since `"\x61":` is `a:` to Elixir.
-     */
-    private fun name(line: ElixirLine?, unquoted: String): String? =
-        if (line == null) {
-            "atom $unquoted"
-        } else {
-            line
-                .lineBody
-                ?.takeIf {
-                    PsiTreeUtil.findChildOfAnyType(
-                        it,
-                        ElixirInterpolation::class.java,
-                        EscapeSequence::class.java
-                    ) == null
-                }
-                ?.let { "atom ${it.text}" }
         }
 }

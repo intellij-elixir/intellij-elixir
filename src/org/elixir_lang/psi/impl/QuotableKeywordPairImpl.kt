@@ -29,7 +29,11 @@ fun QuotableKeywordPair.blockKeyword(): String? =
                 (parent as? QuotableKeywordList)?.quotableKeywordPairList().orEmpty().any { it.keywordAtom() == "do" })
     }
 
-private fun QuotableKeywordPair.keywordAtom(): String? {
+/** The atom this pair's key quotes to, or `null` when it quotes to none, as `"#{x}":` does. */
+@RequiresReadLock
+fun QuotableKeywordPair.keywordAtom(): String? {
+    ThreadingAssertions.assertReadAccess()
+
     val text = keywordKey.text
 
     return if (text in KEYWORD_BLOCK_KEYWORDS) text else ElementLowering.atomName(keywordKey)

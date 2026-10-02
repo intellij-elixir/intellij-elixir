@@ -36,6 +36,7 @@ class ExpressionDocInjectorTest : PlatformTestCase() {
     fun testModuledoc() = assertMarkdown("@moduledoc \"text\"")
     fun testTypedoc() = assertMarkdown("@typedoc \"text\"")
     fun testDeprecated() = assertMarkdown("@doc deprecated: \"text\"")
+    fun testQuotedDeprecated() = assertMarkdown("@doc \"deprecated\": \"text\"")
 
     private fun assertEveryOperandShape() {
         val failures = OPERANDS.flatMap { operand ->

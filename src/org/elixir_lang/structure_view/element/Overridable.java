@@ -69,7 +69,7 @@ public class Overridable extends Element<Call> {
             List<TreeElement> treeElementList = new ArrayList<>(quotableKeywordPairList.size());
 
             for (QuotableKeywordPair quotableKeywordPair : quotableKeywordPairList) {
-                String name = FunctionArityKeywordPair.INSTANCE.nameFromKey(quotableKeywordPair.getKeywordKey());
+                String name = FunctionArityKeywordPair.INSTANCE.nameFromKey(quotableKeywordPair);
                 Integer arity = FunctionArityKeywordPair.INSTANCE.arityFromValue(quotableKeywordPair.getKeywordValue());
 
                 boolean overridable = true;

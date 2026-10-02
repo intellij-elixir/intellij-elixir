@@ -270,28 +270,19 @@ fun <R> Call.foldChildrenWhile(
                 null
             }
         }
-    } else { // one liner version with `do:` keyword argument
-        val finalArguments = finalArguments()!!
-
-        assert(finalArguments.isNotEmpty())
-
-        val potentialKeywords = finalArguments[finalArguments.size - 1]
-
-        if (potentialKeywords is QuotableKeywordList) {
-            val quotableKeywordPairList = potentialKeywords.quotableKeywordPairList()
-            val firstQuotableKeywordPair = quotableKeywordPairList[0]
-            val keywordKey = firstQuotableKeywordPair.keywordKey
-
-            if (keywordKey.text == "do") {
-                firstQuotableKeywordPair.keywordValue.foldChildrenWhile(initial, operation)
-            } else {
-                null
-            }
-        } else {
-            null
-        }
+    } else {
+        oneLinerDoValue()?.foldChildrenWhile(initial, operation)
     } ?: AccumulatorContinue(initial, true)
 }
+
+/** The value of the `do:` key that starts this call's last argument, as `1` in `def f, do: 1`. */
+@RequiresReadLock
+fun Call.oneLinerDoValue(): Quotable? =
+    (finalArguments()?.lastOrNull() as? QuotableKeywordList)
+        ?.quotableKeywordPairList()
+        ?.firstOrNull()
+        ?.takeIf { it.keywordAtom() == "do" }
+        ?.keywordValue
 
 @RequiresReadLock
 fun Call.macroChildCallList(): List<Call> {
@@ -312,27 +303,8 @@ fun Call.macroChildCallList(): List<Call> {
                 }
             }
         }
-    } else { // one liner version with `do:` keyword argument
-        val finalArguments = finalArguments()!!
-
-        assert(finalArguments.isNotEmpty())
-
-        val potentialKeywords = finalArguments[finalArguments.size - 1]
-
-        if (potentialKeywords is QuotableKeywordList) {
-            val quotableKeywordPairList = potentialKeywords.quotableKeywordPairList()
-            val firstQuotableKeywordPair = quotableKeywordPairList[0]
-            val keywordKey = firstQuotableKeywordPair.keywordKey
-
-            if (keywordKey.text == "do") {
-                val keywordValue = firstQuotableKeywordPair.keywordValue
-
-                if (keywordValue is Call) {
-                    val childCall = keywordValue as Call
-                    childCallList = listOf(childCall)
-                }
-            }
-        }
+    } else {
+        (oneLinerDoValue() as? Call)?.let { childCallList = listOf(it) }
     }
 
     if (childCallList == null) {

@@ -16,6 +16,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.ALIAS
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.hasKeywordKey
+import org.elixir_lang.psi.impl.keywordAtom
 import org.elixir_lang.reference.Callable
 import org.elixir_lang.structure_view.element.*
 import org.elixir_lang.structure_view.element.modular.Module
@@ -88,8 +89,8 @@ internal class ElementDescriptionProvider : com.intellij.psi.ElementDescriptionP
             ?.parent?.let { it as? ElixirList }
             ?.parent?.let { it as ElixirAccessExpression }
             ?.parent?.let { it as? QuotableKeywordPair }
-            ?.keywordKey?.let { outerKeywordKey ->
-                if (outerKeywordKey.text == "bind_quoted" && location === UsageViewTypeLocation.INSTANCE) {
+            ?.let { outerKeywordPair ->
+                if (location === UsageViewTypeLocation.INSTANCE && outerKeywordPair.keywordAtom() == "bind_quoted") {
                     "quote bound variable"
                 } else {
                     null

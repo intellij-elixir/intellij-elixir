@@ -16,7 +16,9 @@ import com.intellij.psi.tree.TokenSet;
 import org.elixir_lang.ElixirLanguage;
 import org.elixir_lang.code_style.CodeStyleSettings;
 import org.elixir_lang.psi.ElixirTypes;
+import org.elixir_lang.psi.QuotableKeywordPair;
 import org.elixir_lang.psi.call.Call;
+import org.elixir_lang.psi.impl.QuotableKeywordPairImplKt;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -2675,20 +2677,15 @@ public class Block extends AbstractBlock implements BlockEx {
     }
 
     private boolean oneLinerKeywordPair(ASTNode keywordPair) {
-        ASTNode keywordKey = keywordPair.findChildByType(KEYWORD_KEY);
         boolean oneLiner = false;
 
-        if (keywordKey != null && keywordKey.getText().equals("do")) {
-            ASTNode keywords = keywordPair.getTreeParent();
-            ASTNode keywordsParent = keywords.getTreeParent();
+        ASTNode keywords = keywordPair.getTreeParent();
+        ASTNode keywordsParent = keywords.getTreeParent();
 
-            if (keywordsParent.getElementType() == NO_PARENTHESES_ONE_ARGUMENT) {
-                ASTNode argumentsParent = keywordsParent.getTreeParent();
-
-                if (UNMATCHED_CALL_TOKEN_SET.contains(argumentsParent.getElementType())) {
-                    oneLiner = true;
-                }
-            }
+        if (keywordsParent.getElementType() == NO_PARENTHESES_ONE_ARGUMENT &&
+                UNMATCHED_CALL_TOKEN_SET.contains(keywordsParent.getTreeParent().getElementType()) &&
+                keywordPair.getPsi() instanceof QuotableKeywordPair quotableKeywordPair) {
+            oneLiner = "do".equals(QuotableKeywordPairImplKt.keywordAtom(quotableKeywordPair));
         }
 
         return oneLiner;

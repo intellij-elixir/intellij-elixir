@@ -49,6 +49,32 @@ class QueryTest : PlatformTestCase() {
         )
     }
 
+    /** A quoted key is the atom it spells, so `"select":` is a listed key. */
+    fun testQuotedListedKeywordKeyIsNotReported() {
+        val results = resolveSilently("from(p in Post, \"select\": <caret>p)")
+
+        assertTrue(results.any { it.isValidResult && it.element?.text == "p" })
+    }
+
+    /** And `"join":` declares the binding of its `in`, as `join:` does. */
+    fun testBindingDeclaredByQuotedJoinResolvesFromSelect() {
+        val results = resolveSilently("from(p in Post, \"join\": c in Comment, select: <caret>c)")
+
+        assertTrue(
+            "`c` in `select:` should resolve to the `c` bound by `\"join\":`",
+            results.any { it.isValidResult && it.element?.text == "c" }
+        )
+    }
+
+    fun testBindingDeclaredByJoinResolvesFromSelect() {
+        val results = resolveSilently("from(p in Post, join: c in Comment, select: <caret>c)")
+
+        assertTrue(
+            "`c` in `select:` should resolve to the `c` bound by `join:`",
+            results.any { it.isValidResult && it.element?.text == "c" }
+        )
+    }
+
     fun testPinnedOptionsDeclareNothing() {
         resolveSilently("from(p in Post, ^<caret>q)")
     }

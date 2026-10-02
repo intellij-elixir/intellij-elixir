@@ -115,17 +115,41 @@ class UnquoteDestructuredBindingTest : PlatformTestCase() {
 
     /**
      * An interpolated key names an atom only known once the code runs, so it pairs with nothing. Elixir does bind
-     * here - `"#{:a}":` is the atom `a:` - so this records a deliberate under-approximation, not the language. The two
-     * keys differ as plain text too, so [UsingDestructuredBindingTest.testEscapedKeyResolves] is what
-     * discriminates the branch.
+     * here - `"#{:a}":` is the atom `a:` - so this records a deliberate under-approximation, not the language.
      */
     fun testInterpolatedKeyDoesNotResolve() = assertDoesNotResolve("%{a: x} = %{\"#{:a}\": $QUOTE}")
 
     /** Two keys neither side can read stay unequal, rather than pairing with each other for being equally unknown. */
-    fun testUnreadableMapKeysDoNotResolve() = assertDoesNotResolve("""%{"\x61": x} = %{"\x62": $QUOTE}""")
+    fun testUnreadableMapKeysDoNotResolve() = assertDoesNotResolve("""%{"#{:a}": x} = %{"#{:b}": $QUOTE}""")
 
     /** The same on the keyword list path, which pairs its keys by position rather than by lookup. */
-    fun testUnreadableKeywordKeysDoNotResolve() = assertDoesNotResolve("""["\x61": x] = ["\x62": $QUOTE]""")
+    fun testUnreadableKeywordKeysDoNotResolve() = assertDoesNotResolve("""["#{:a}": x] = ["#{:b}": $QUOTE]""")
+
+    /** `true =>` is the atom `true:` is. */
+    fun testAtomKeywordAssociationKeyIsTheBareKey() = assertResolves("%{true: x} = %{true => $QUOTE}")
+
+    /** An escape sequence in a key spells its atom: `"\x61":` is `a:`. */
+    fun testEscapedKeywordKeyResolves() = assertResolves("""["\x61": x] = [a: $QUOTE]""")
+
+    /** The same through a map's keys. */
+    fun testEscapedMapKeyResolves() = assertResolves("""%{"\x61": x} = %{a: $QUOTE}""")
+
+    /** And through an association's atom: `:"\x61"` is `:a`. */
+    fun testEscapedAtomKeyResolves() = assertResolves("""%{:"\x61" => x} = %{a: $QUOTE}""")
+
+    /** Two escaped keys that spell different atoms stay apart. */
+    fun testEscapedKeysOfDifferentAtomsDoNotResolve() = assertDoesNotResolve("""["\x61": x] = ["\x62": $QUOTE]""")
+
+    /**
+     * From Elixir 1.14 a bare key is normalized as an identifier and a quoted one is not, so a decomposed `café:` is
+     * the atom a precomposed `"café":` spells.
+     */
+    fun testDecomposedBareKeyIsThePrecomposedQuotedKey() =
+        assertResolves("[$DECOMPOSED_CAFE: x] = [\"$PRECOMPOSED_CAFE\": $QUOTE]")
+
+    /** The reverse spelling stays two atoms: the quoted key keeps its decomposed form. */
+    fun testPrecomposedBareKeyIsNotTheDecomposedQuotedKey() =
+        assertDoesNotResolve("[$PRECOMPOSED_CAFE: x] = [\"$DECOMPOSED_CAFE\": $QUOTE]")
 
     /** A map update names its own keys, so one it names pairs exactly as a construction's does. */
     fun testQuoteBoundThroughAMapUpdateResolves() =
@@ -194,6 +218,9 @@ class UnquoteDestructuredBindingTest : PlatformTestCase() {
 
     companion object {
         private const val QUOTE = "quote do\n      def injected(), do: :ok\n    end"
+
+        private const val DECOMPOSED_CAFE = "cafe\u0301"
+        private const val PRECOMPOSED_CAFE = "caf\u00e9"
 
         /** A helper returning the fragments to splice, so a binding's value can be a call rather than a container. */
         private const val FRAGMENTS = "  defp fragments do\n    [$QUOTE]\n  end"

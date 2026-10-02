@@ -122,6 +122,8 @@
 
 ### Bug Fixes
 
+- [#4348](https://github.com/intellij-elixir/intellij-elixir/pull/4348) [@sh41](https://github.com/sh41)
+  - **Quoted keyword keys, such as `"do":` and `"path":`, are read as their atoms.** Refs [#4344](https://github.com/intellij-elixir/intellij-elixir/issues/4344).
 - [#4341](https://github.com/intellij-elixir/intellij-elixir/pull/4341) [@sh41](https://github.com/sh41)
   - **Completing a function with defaults that an `import` brings in only at a lower arity inserts that arity's parameters, not every parameter.**
     Fixes [#4330](https://github.com/intellij-elixir/intellij-elixir/issues/4330).

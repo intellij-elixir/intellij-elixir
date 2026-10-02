@@ -672,11 +672,7 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
                     ?.let { stabBody -> isTraversed(candidate.parent, stabBody) }
                     ?: false
             } else {
-                (modular.finalArguments()?.lastOrNull() as? QuotableKeywordList)
-                    ?.quotableKeywordPairList()
-                    ?.firstOrNull()
-                    ?.takeIf { it.keywordKey.text == "do" }
-                    ?.keywordValue == candidate
+                modular.oneLinerDoValue() == candidate
             }
         }
 

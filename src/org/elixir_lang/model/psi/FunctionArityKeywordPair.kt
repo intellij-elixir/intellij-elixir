@@ -18,6 +18,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.DEFOVERRIDABLE
 import org.elixir_lang.psi.call.name.Function.IMPORT
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.moduleAttributeName
+import org.elixir_lang.psi.impl.keywordAtom
 
 /**
  * The shared `name: arity` keyword-pair construct: a [QuotableKeywordPair] whose key names a
@@ -69,7 +70,7 @@ object FunctionArityKeywordPair {
      */
     @RequiresReadLock
     fun classify(pair: QuotableKeywordPair): Occurrence? {
-        val name = nameOf(pair.keywordKey) ?: return null
+        val name = pair.keywordAtom() ?: return null
         val arity = arityOf(pair.keywordValue) ?: return null
 
         val hostCall = generateSequence(pair.parent) { it.parent }
@@ -140,7 +141,7 @@ object FunctionArityKeywordPair {
             .toList()
         val underInlineKeyword = ancestors
             .filterIsInstance<QuotableKeywordPair>()
-            .any { nameOf(it.keywordKey) == "inline" }
+            .any { it.keywordAtom() == "inline" }
         if (underInlineKeyword) return true
         return ancestors
             .filterIsInstance<ElixirTuple>()
@@ -156,17 +157,17 @@ object FunctionArityKeywordPair {
             .takeWhile { it !== hostCall }
             .filterIsInstance<QuotableKeywordPair>()
             .firstNotNullOfOrNull {
-                when (nameOf(it.keywordKey)) {
+                when (it.keywordAtom()) {
                     "only" -> Host.IMPORT_ONLY
                     "except" -> Host.IMPORT_EXCEPT
                     else -> null
                 }
             }
 
-    /** The function/macro name named by [keywordKey], or `null` if it has no textual name. */
+    /** The name [pair]'s key shows: its atom, or its text when it quotes to none. */
     @RequiresReadLock
-    fun nameFromKey(keywordKey: Quotable): String? =
-        (ElementLowering.quote(keywordKey) as? OtpErlangAtom)?.atomValue() ?: keywordKey.text.takeIf { it.isNotEmpty() }
+    fun nameFromKey(pair: QuotableKeywordPair): String? =
+        pair.keywordAtom() ?: pair.keywordKey.text.takeIf { it.isNotEmpty() }
 
     /** The arity named by [keywordValue], or `null` if the value is not an integer literal. */
     @RequiresReadLock
@@ -178,8 +179,6 @@ object FunctionArityKeywordPair {
                 null
             }
         }
-
-    private fun nameOf(keywordKey: Quotable): String? = nameFromKey(keywordKey)
 
     private fun arityOf(keywordValue: Quotable): Int? = arityFromValue(keywordValue)
 }

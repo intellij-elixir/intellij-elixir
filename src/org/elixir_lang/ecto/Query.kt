@@ -9,6 +9,7 @@ import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
 import org.elixir_lang.psi.impl.childExpressions
+import org.elixir_lang.psi.impl.keywordAtom
 import org.elixir_lang.psi.impl.prevSiblingSequence
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.impl.whileInChildExpressions
@@ -93,7 +94,7 @@ private object From : NameArityRangeWalker("from", 1..2) {
                 ((arguments.size < 2) ||
                         executeOnFromKeywords(arguments[1], state.put(Query.CALL, call), keepProcessing))
 
-    fun executeOnFromKeywords(
+    private fun executeOnFromKeywords(
         fromKeywords: PsiElement,
         state: ResolveState,
         keepProcessing: (element: PsiElement, state: ResolveState) -> Boolean
@@ -118,7 +119,7 @@ private object From : NameArityRangeWalker("from", 1..2) {
             }
 
             is QuotableKeywordPair -> {
-                when (val keywordKeyText = fromKeywords.keywordKey.text) {
+                when (fromKeywords.keywordAtom()) {
                     "cross_join", "full_join", "inner_join", "inner_lateral_join", "join", "left_join",
                     "left_lateral_join", "right_join" -> Query.executeOnIn(
                         fromKeywords.keywordValue,
@@ -142,11 +143,11 @@ private object From : NameArityRangeWalker("from", 1..2) {
                         // https://github.com/intellij-elixir/intellij-elixir/issues/3171
                         // Missing list around preload arguments
                         if (!fromKeywords.prevSiblingSequence().filterIsInstance<QuotableKeywordPair>().drop(1).any {
-                                it.keywordKey.text in arrayOf("preload")
+                                it.keywordAtom() == "preload"
                             }) {
                             Logger.error(
                                 logger,
-                                "Don't know how to find reference variables for keyword key $keywordKeyText",
+                                "Don't know how to find reference variables for keyword key ${fromKeywords.keywordKey.text}",
                                 fromKeywords
                             )
                         }
@@ -211,7 +212,7 @@ private object Join : NameArityRangeWalker("join", 3..5) {
         keepProcessing: (element: PsiElement, state: ResolveState) -> Boolean
     ): Boolean =
         when (option) {
-            is QuotableKeywordPair -> when (option.keywordKey.text) {
+            is QuotableKeywordPair -> when (option.keywordAtom()) {
                 "on" -> Query.executeOnHavingOrOnOrWhere(option.keywordValue, state, keepProcessing)
                 else -> true
             }
@@ -254,7 +255,7 @@ private object WithCTE : NameArityRangeWalker("with_cte", 3..3) {
                 executeOnWithCTEList(it, state, keepProcessing)
             }
 
-            is QuotableKeywordPair -> when (list.keywordKey.text) {
+            is QuotableKeywordPair -> when (list.keywordAtom()) {
                 "as" -> keepProcessing(list.keywordValue, state)
                 else -> true
             }
@@ -468,7 +469,7 @@ object Query : ModuleWalker(
     private tailrec fun isJoin(ancestor: PsiElement, state: ResolveState): Boolean =
         when (ancestor) {
             is QuotableKeywordPair -> {
-                when (ancestor.keywordKey.text) {
+                when (ancestor.keywordAtom()) {
                     "cross_join", "full_join", "inner_join", "inner_lateral_join", "join", "left_join",
                     "left_lateral_join", "right_join" -> true
 
