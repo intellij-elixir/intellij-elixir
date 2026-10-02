@@ -8,6 +8,7 @@ import com.intellij.psi.PsiErrorElement
 import com.intellij.psi.PsiManager
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.golden.CommittedGolden
 import java.io.File
 import java.nio.charset.StandardCharsets
 
@@ -171,7 +172,9 @@ class DecompilerExternalChunkTest : PlatformTestCase() {
 
         val expected = Files.asCharSource(goldenFile, StandardCharsets.UTF_8).read()
 
-        if (expected != actual) {
+        if (OVERWRITE_TESTDATA) {
+            CommittedGolden.assertMatches(goldenPath, actual, REGENERATE)
+        } else if (expected != actual) {
             fail(buildCompactDiffMessage(moduleName, expected, actual))
         }
     }
@@ -284,5 +287,10 @@ class DecompilerExternalChunkTest : PlatformTestCase() {
         ' ' -> "SPACE"
         '�' -> "EOF"
         else -> c.toString()
+    }
+
+    private companion object {
+        const val REGENERATE =
+            "./gradlew test --tests org.elixir_lang.beam.DecompilerExternalChunkTest -PoverwriteTestData=true"
     }
 }
