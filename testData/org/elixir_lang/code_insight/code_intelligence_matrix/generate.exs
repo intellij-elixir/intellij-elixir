@@ -2128,9 +2128,8 @@ defmodule Matrix do
   # delegate - but not the guard expression and not the other clauses; and a private function has no entry there at
   # all, so it falls through to the tables below. With neither chunk only the export and local tables survive: a
   # name, an arity, and a `MACRO-` prefix for a macro. Nothing in them records what a parameter was called, so the
-  # expected parameter is `_`, which is how Elixir itself writes an argument that has no name. Rendering anything
-  # else - `p0` included - would be the IDE inventing a name the author never chose, which is the one answer a
-  # developer cannot act on.
+  # expected parameters are the ones Elixir itself generates for arguments with no name, `arg1`..`argN`
+  # (`Macro.generate_arguments/2`, as `Protocol` does), and completion inserts the same names it shows.
   # Whether what the reader has is everything the author wrote: the source itself, or a beam that still carries its
   # debug info. False means something is gone for good - the guard, the other clauses, sometimes the parameter
   # names - and the reader owes the developer a word about it rather than quietly showing less.
@@ -2206,7 +2205,7 @@ defmodule Matrix do
     %{
       "definer" => definer,
       "name" => nfc(name),
-      "parameters" => List.duplicate("_", arity),
+      "parameters" => arity |> Macro.generate_arguments(nil) |> Enum.map(&Macro.to_string/1),
       "defaults" => 0,
       "guard" => nil
     }
