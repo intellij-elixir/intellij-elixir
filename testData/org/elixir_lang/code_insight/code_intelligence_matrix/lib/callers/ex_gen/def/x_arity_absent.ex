@@ -10,5 +10,17 @@ defmodule Callers.ExGen.Def.XArityAbsent do
   def at_unqualified(a, b), do: ex_gen_def_x_arity_absent_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> ex_gen_def_x_arity_absent_snoc(b) # @pipe
   def at_capture(a, b), do: {&ExGen.Def.XArityAbsent.ex_gen_def_x_arity_absent_snoc/2, a, b} # @capture
+  def at_qualified_quoted(a, b), do: ExGen.Def.XArityAbsent."ex_gen_def_x_arity_absent_snoc"(a, b) # @qualified_quoted
+  def at_capture_quoted(a, b), do: {&ExGen.Def.XArityAbsent."ex_gen_def_x_arity_absent_snoc"/2, a, b} # @capture_quoted
   def at_apply(a, b), do: apply(ExGen.Def.XArityAbsent, :ex_gen_def_x_arity_absent_snoc, [a, b]) # @apply
+  def at_apply_quoted(a, b), do: apply(ExGen.Def.XArityAbsent, :"ex_gen_def_x_arity_absent_snoc", [a, b]) # @apply_quoted
+  def at_apply_module_quoted(a, b), do: apply(:"Elixir.ExGen.Def.XArityAbsent", :ex_gen_def_x_arity_absent_snoc, [a, b]) # @apply_module_quoted
+  def at_apply_interpolated(a, b), do: apply(ExGen.Def.XArityAbsent, :"#{a}ex_gen_def_x_arity_absent_snoc", [a, b]) # @apply_interpolated
+  def at_apply_nested(a, b), do: apply(ExGen.Def.XArityAbsent, pick(b, :ex_gen_def_x_arity_absent_snoc), [a, b]) # @apply_nested
+  def at_apply_nested_quoted(a, b), do: apply(ExGen.Def.XArityAbsent, pick(b, :"ex_gen_def_x_arity_absent_snoc"), [a, b]) # @apply_nested_quoted
+  def at_mfa_quoted(a, b), do: {{ExGen.Def.XArityAbsent, :"ex_gen_def_x_arity_absent_snoc", 2}, a, b} # @mfa_quoted
+  def at_mfa_module_quoted(a, b), do: {{:"Elixir.ExGen.Def.XArityAbsent", :ex_gen_def_x_arity_absent_snoc, 2}, a, b} # @mfa_module_quoted
+  def at_mfa_interpolated(a, b), do: {{ExGen.Def.XArityAbsent, :"#{a}ex_gen_def_x_arity_absent_snoc", 2}, a, b} # @mfa_interpolated
+
+  defp pick(opts, key), do: opts[key]
 end

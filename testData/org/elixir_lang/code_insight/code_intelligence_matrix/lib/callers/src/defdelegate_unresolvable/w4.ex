@@ -10,7 +10,17 @@ defmodule Callers.Src.DefdelegateUnresolvable.W4 do
   def at_unqualified(a, b), do: src_defdelegate_unresolvable_w4_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> src_defdelegate_unresolvable_w4_snoc(b) # @pipe
   def at_capture(a, b), do: {&Src.DefdelegateUnresolvable.W4.src_defdelegate_unresolvable_w4_snoc/2, a, b} # @capture
+  def at_qualified_quoted(a, b), do: Src.DefdelegateUnresolvable.W4."src_defdelegate_unresolvable_w4_snoc"(a, b) # @qualified_quoted
+  def at_capture_quoted(a, b), do: {&Src.DefdelegateUnresolvable.W4."src_defdelegate_unresolvable_w4_snoc"/2, a, b} # @capture_quoted
   def at_apply(a, b), do: apply(Src.DefdelegateUnresolvable.W4, :src_defdelegate_unresolvable_w4_snoc, [a, b]) # @apply
+  def at_apply_quoted(a, b), do: apply(Src.DefdelegateUnresolvable.W4, :"src_defdelegate_unresolvable_w4_snoc", [a, b]) # @apply_quoted
+  def at_apply_module_quoted(a, b), do: apply(:"Elixir.Src.DefdelegateUnresolvable.W4", :src_defdelegate_unresolvable_w4_snoc, [a, b]) # @apply_module_quoted
+  def at_apply_interpolated(a, b), do: apply(Src.DefdelegateUnresolvable.W4, :"#{a}src_defdelegate_unresolvable_w4_snoc", [a, b]) # @apply_interpolated
+  def at_apply_nested(a, b), do: apply(Src.DefdelegateUnresolvable.W4, pick(b, :src_defdelegate_unresolvable_w4_snoc), [a, b]) # @apply_nested
+  def at_apply_nested_quoted(a, b), do: apply(Src.DefdelegateUnresolvable.W4, pick(b, :"src_defdelegate_unresolvable_w4_snoc"), [a, b]) # @apply_nested_quoted
+  def at_mfa_quoted(a, b), do: {{Src.DefdelegateUnresolvable.W4, :"src_defdelegate_unresolvable_w4_snoc", 2}, a, b} # @mfa_quoted
+  def at_mfa_module_quoted(a, b), do: {{:"Elixir.Src.DefdelegateUnresolvable.W4", :src_defdelegate_unresolvable_w4_snoc, 2}, a, b} # @mfa_module_quoted
+  def at_mfa_interpolated(a, b), do: {{Src.DefdelegateUnresolvable.W4, :"#{a}src_defdelegate_unresolvable_w4_snoc", 2}, a, b} # @mfa_interpolated
   def at_second_qualified(a, b), do: Src.DefdelegateUnresolvable.W4.src_defdelegate_unresolvable_w4_snoc(a, b) # @second_qualified
   def at_arity_1(a, _b), do: Src.DefdelegateUnresolvable.W4.src_defdelegate_unresolvable_w4_snoc(a) # @arity_1
   def at_arity_3(a, b), do: Src.DefdelegateUnresolvable.W4.src_defdelegate_unresolvable_w4_snoc(a, b, a) # @arity_3
@@ -19,4 +29,6 @@ defmodule Callers.Src.DefdelegateUnresolvable.W4 do
   def at_lookalike_snoc_question(a, b), do: Src.DefdelegateUnresolvable.W4.src_defdelegate_unresolvable_w4_snoc?(a, b) # @lookalike_snoc_question
   def at_lookalike_snoc_bang(a, b), do: Src.DefdelegateUnresolvable.W4.src_defdelegate_unresolvable_w4_snoc!(a, b) # @lookalike_snoc_bang
   def at_lookalike_snoc_combining(a, b), do: Src.DefdelegateUnresolvable.W4.src_defdelegate_unresolvable_w4_snoć(a, b) # @lookalike_snoc_combining
+
+  defp pick(opts, key), do: opts[key]
 end

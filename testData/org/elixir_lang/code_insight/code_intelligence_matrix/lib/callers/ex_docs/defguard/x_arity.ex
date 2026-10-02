@@ -10,6 +10,7 @@ defmodule Callers.ExDocs.Defguard.XArity do
   def at_aliased_as(a, b), do: Aliased.ex_docs_defguard_x_arity_snoc(a, b) # @aliased_as
   def at_unqualified(a, b), do: ex_docs_defguard_x_arity_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> ex_docs_defguard_x_arity_snoc(b) # @pipe
+  def at_qualified_quoted(a, b), do: ExDocs.Defguard.XArity."ex_docs_defguard_x_arity_snoc"(a, b) # @qualified_quoted
   def at_arity_3(a, b), do: ExDocs.Defguard.XArity.ex_docs_defguard_x_arity_snoc(a, b, a) # @arity_3
   def at_unqualified_arity_3(a, b), do: ex_docs_defguard_x_arity_snoc(a, b, a) # @unqualified_arity_3
 end

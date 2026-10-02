@@ -10,6 +10,7 @@ defmodule Callers.Src.Defmacro.XNotACall do
   def at_aliased_as(a, b), do: Aliased.src_defmacro_x_not_a_call_snoc(a, b) # @aliased_as
   def at_unqualified(a, b), do: src_defmacro_x_not_a_call_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> src_defmacro_x_not_a_call_snoc(b) # @pipe
+  def at_qualified_quoted(a, b), do: Src.Defmacro.XNotACall."src_defmacro_x_not_a_call_snoc"(a, b) # @qualified_quoted
   def at_variable(a, b), do: (fn src_defmacro_x_not_a_call_snoc -> src_defmacro_x_not_a_call_snoc end).({a, b}) # @variable
   def at_atom(a, b), do: {:src_defmacro_x_not_a_call_snoc, a, b} # @atom
   def at_keyword(a, b), do: [src_defmacro_x_not_a_call_snoc: a, b: b] # @keyword

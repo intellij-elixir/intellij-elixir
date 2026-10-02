@@ -10,5 +10,17 @@ defmodule Callers.Src.Defdelegate.XTryAfter do
   def at_unqualified(a, b), do: src_defdelegate_x_try_after_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> src_defdelegate_x_try_after_snoc(b) # @pipe
   def at_capture(a, b), do: {&Src.Defdelegate.XTryAfter.src_defdelegate_x_try_after_snoc/2, a, b} # @capture
+  def at_qualified_quoted(a, b), do: Src.Defdelegate.XTryAfter."src_defdelegate_x_try_after_snoc"(a, b) # @qualified_quoted
+  def at_capture_quoted(a, b), do: {&Src.Defdelegate.XTryAfter."src_defdelegate_x_try_after_snoc"/2, a, b} # @capture_quoted
   def at_apply(a, b), do: apply(Src.Defdelegate.XTryAfter, :src_defdelegate_x_try_after_snoc, [a, b]) # @apply
+  def at_apply_quoted(a, b), do: apply(Src.Defdelegate.XTryAfter, :"src_defdelegate_x_try_after_snoc", [a, b]) # @apply_quoted
+  def at_apply_module_quoted(a, b), do: apply(:"Elixir.Src.Defdelegate.XTryAfter", :src_defdelegate_x_try_after_snoc, [a, b]) # @apply_module_quoted
+  def at_apply_interpolated(a, b), do: apply(Src.Defdelegate.XTryAfter, :"#{a}src_defdelegate_x_try_after_snoc", [a, b]) # @apply_interpolated
+  def at_apply_nested(a, b), do: apply(Src.Defdelegate.XTryAfter, pick(b, :src_defdelegate_x_try_after_snoc), [a, b]) # @apply_nested
+  def at_apply_nested_quoted(a, b), do: apply(Src.Defdelegate.XTryAfter, pick(b, :"src_defdelegate_x_try_after_snoc"), [a, b]) # @apply_nested_quoted
+  def at_mfa_quoted(a, b), do: {{Src.Defdelegate.XTryAfter, :"src_defdelegate_x_try_after_snoc", 2}, a, b} # @mfa_quoted
+  def at_mfa_module_quoted(a, b), do: {{:"Elixir.Src.Defdelegate.XTryAfter", :src_defdelegate_x_try_after_snoc, 2}, a, b} # @mfa_module_quoted
+  def at_mfa_interpolated(a, b), do: {{Src.Defdelegate.XTryAfter, :"#{a}src_defdelegate_x_try_after_snoc", 2}, a, b} # @mfa_interpolated
+
+  defp pick(opts, key), do: opts[key]
 end

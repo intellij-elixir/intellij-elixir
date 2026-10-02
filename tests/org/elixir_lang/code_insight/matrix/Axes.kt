@@ -110,11 +110,18 @@ fun suggestionsOf(message: String): List<String> =
 fun namedArities(description: String): List<String> =
     NAME_ARITY.findAll(description).map { it.value }.distinct().sorted().toList()
 
-/** The sites with no argument list of their own: a capture, `apply`'s atom and a non-call. */
-private val NO_ARGUMENT_LIST = setOf("capture", "apply", "apply_quoted", "variable", "atom", "keyword", "capture_1", "apply_1", "mfa_1")
+/**
+ * The atoms beside a function's module that do not name it: one built at run time, and the key of another call
+ * nested in `apply`'s argument.
+ */
+private val NOT_FUNCTION_ATOMS = setOf("apply_interpolated", "mfa_interpolated", "apply_nested", "apply_nested_quoted")
 
 /** The sites that name the function with an atom: `apply`'s argument and an MFA tuple's middle element. */
-private val ATOM_NAMED = setOf("apply", "apply_quoted", "apply_1", "mfa_1")
+private val ATOM_NAMED =
+    setOf("apply", "apply_quoted", "apply_module_quoted", "mfa_quoted", "mfa_module_quoted", "apply_1", "mfa_1") + NOT_FUNCTION_ATOMS
+
+/** The sites with no argument list of their own: a capture, `apply`'s atom and a non-call. */
+private val NO_ARGUMENT_LIST = setOf("capture", "capture_quoted", "variable", "atom", "keyword", "capture_1") + ATOM_NAMED
 
 /** The site written without an argument list, which is a different shape in the parser. */
 const val NO_ARGUMENTS = "no_arguments"
@@ -238,6 +245,8 @@ object Crossing {
             place is Place.Marked && specName(place.id) &&
                 feature in setOf(Feature.HIGHLIGHTING, Feature.PARAMETER_INFO, Feature.COMPLETION_OFFERED, Feature.COMPLETION_INSERTED) ->
                 Applicability.NotApplicable("a `@spec` names a function in a type; it is not a call")
+            feature == Feature.COMPLETION_INSERTED && place.id in NOT_FUNCTION_ATOMS ->
+                Applicability.NotApplicable("${place.id} names no function, so no function's name is inserted there; that none is offered is asked by completionOffered")
             feature == Feature.COMPLETION_INSERTED && place is Place.Marked && undeclared(scenario, place) ->
                 Applicability.NotApplicable("no module declares that name, so there is nothing completion could insert; that it offers nothing is asked by completionOffered")
             feature == Feature.COMPLETION_INSERTED && place is Place.Marked && importsNothing(scenario, place) ->
@@ -348,6 +357,9 @@ object Crossing {
             .none { it.name == site.name && site.sees(it) }
     }
 
+    /** An atom at [site] that no call takes as a function name, so completing it offers no function. */
+    fun namesNoFunction(site: Site): Boolean = site.id in NOT_FUNCTION_ATOMS
+
     /** What a user types at [site] to complete toward its name: three letters past the scenario's own prefix. */
     fun prefix(scenario: Scenario, site: Site): String =
         site.name.take(if (scenario.attribute) 3 else "${scenario.backing}_${scenario.form}_${scenario.world}_".length + 3)
@@ -359,6 +371,7 @@ object Crossing {
     fun offered(scenario: Scenario, site: Site): List<String> {
         val prefix = prefix(scenario, site)
         site.attribute?.let { attribute -> return attribute.visible.orEmpty().filter { it.startsWith(prefix) }.distinct().sorted() }
+        if (namesNoFunction(site)) return emptyList()
         val position = written(site).position
 
         return scenario.module(site.binding?.module ?: scenario.main.module).definitions

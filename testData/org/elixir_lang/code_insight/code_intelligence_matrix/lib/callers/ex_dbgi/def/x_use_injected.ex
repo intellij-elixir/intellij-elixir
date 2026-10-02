@@ -10,7 +10,19 @@ defmodule Callers.ExDbgi.Def.XUseInjected do
   def at_unqualified(a, b), do: ex_dbgi_def_x_use_injected_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> ex_dbgi_def_x_use_injected_snoc(b) # @pipe
   def at_capture(a, b), do: {&ExDbgi.Def.XUseInjected.ex_dbgi_def_x_use_injected_snoc/2, a, b} # @capture
+  def at_qualified_quoted(a, b), do: ExDbgi.Def.XUseInjected."ex_dbgi_def_x_use_injected_snoc"(a, b) # @qualified_quoted
+  def at_capture_quoted(a, b), do: {&ExDbgi.Def.XUseInjected."ex_dbgi_def_x_use_injected_snoc"/2, a, b} # @capture_quoted
   def at_apply(a, b), do: apply(ExDbgi.Def.XUseInjected, :ex_dbgi_def_x_use_injected_snoc, [a, b]) # @apply
+  def at_apply_quoted(a, b), do: apply(ExDbgi.Def.XUseInjected, :"ex_dbgi_def_x_use_injected_snoc", [a, b]) # @apply_quoted
+  def at_apply_module_quoted(a, b), do: apply(:"Elixir.ExDbgi.Def.XUseInjected", :ex_dbgi_def_x_use_injected_snoc, [a, b]) # @apply_module_quoted
+  def at_apply_interpolated(a, b), do: apply(ExDbgi.Def.XUseInjected, :"#{a}ex_dbgi_def_x_use_injected_snoc", [a, b]) # @apply_interpolated
+  def at_apply_nested(a, b), do: apply(ExDbgi.Def.XUseInjected, pick(b, :ex_dbgi_def_x_use_injected_snoc), [a, b]) # @apply_nested
+  def at_apply_nested_quoted(a, b), do: apply(ExDbgi.Def.XUseInjected, pick(b, :"ex_dbgi_def_x_use_injected_snoc"), [a, b]) # @apply_nested_quoted
+  def at_mfa_quoted(a, b), do: {{ExDbgi.Def.XUseInjected, :"ex_dbgi_def_x_use_injected_snoc", 2}, a, b} # @mfa_quoted
+  def at_mfa_module_quoted(a, b), do: {{:"Elixir.ExDbgi.Def.XUseInjected", :ex_dbgi_def_x_use_injected_snoc, 2}, a, b} # @mfa_module_quoted
+  def at_mfa_interpolated(a, b), do: {{ExDbgi.Def.XUseInjected, :"#{a}ex_dbgi_def_x_use_injected_snoc", 2}, a, b} # @mfa_interpolated
   def at_arity_1(a, _b), do: ExDbgi.Def.XUseInjected.ex_dbgi_def_x_use_injected_snoc(a) # @arity_1
   def at_other_qualified(a, b), do: ExDbgi.Def.XUseInjected.Other.ex_dbgi_def_x_use_injected_snoc(a, b) # @other_qualified
+
+  defp pick(opts, key), do: opts[key]
 end

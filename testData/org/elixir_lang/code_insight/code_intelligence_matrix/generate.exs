@@ -213,6 +213,19 @@ defmodule Matrix do
   @module_references [{"module_qualified", :module}, {"module_aliased", :module_aliased}]
   @module_shapes [:module, :module_aliased]
 
+  # The places that name a function by an atom beside its module, in `apply/3` or an MFA tuple, at the call's arity.
+  @atom_named [
+    :apply,
+    :apply_quoted,
+    :apply_module_quoted,
+    :apply_interpolated,
+    :apply_nested,
+    :apply_nested_quoted,
+    :mfa_quoted,
+    :mfa_module_quoted,
+    :mfa_interpolated
+  ]
+
   # An `import` is lexical: under an `if` or `unless`, at module level or in a function body, it reaches the code
   # inside the block and nothing after it. Each world imports the declaring module in one such block and asks a call
   # inside it and one after it; which of them compiles is the compiler's answer.
@@ -428,10 +441,8 @@ defmodule Matrix do
       # so no gesture may depend on which of the two equal spellings it was handed.
       "x_nfc" => %{
         modules: [[{@decomposed, [{["q", "x"], nil}]}]],
-        # `apply_quoted` names it with a quoted atom, which Elixir asks for only where a name is not plain ASCII.
         calls:
-          calls_to(0, @precomposed, 2) ++
-            [{"apply_quoted", 0, @precomposed, 2, :apply_quoted}, {"atom", 0, @precomposed, 0, :atom}, {"arity_1", 0, @precomposed, 1, :qualified}]
+          calls_to(0, @precomposed, 2) ++ [{"atom", 0, @precomposed, 0, :atom}, {"arity_1", 0, @precomposed, 1, :qualified}]
       },
       # The definition written under a module-level `if`, which is how code that is only sometimes compiled is
       # declared; and written with its name `unquote`d, which is how a macro that defines functions names them.
@@ -519,7 +530,7 @@ defmodule Matrix do
   end
 
   defp calls_to(module, name, arity) do
-    for shape <- [:qualified, :aliased, :aliased_as, :unqualified, :pipe, :capture, :apply],
+    for shape <- [:qualified, :aliased, :aliased_as, :unqualified, :pipe, :capture, :qualified_quoted, :capture_quoted | @atom_named],
         do: {to_string(shape), module, name, arity, shape}
   end
 
@@ -764,7 +775,7 @@ defmodule Matrix do
 
         true ->
           Enum.reject(spec.calls, fn {_, _, _, _, shape} ->
-            (form[:macro] && shape in [:capture, :apply, :apply_quoted, :mfa]) ||
+            (form[:macro] && shape in [:capture, :capture_quoted, :mfa | @atom_named]) ||
               (backing.language == :erlang && shape in [:aliased, :aliased_as])
           end)
       end
@@ -1419,6 +1430,9 @@ defmodule Matrix do
       }
     end
   end
+
+  # The atoms beside a function name that are not it: one built at run time, and another call's argument.
+  @not_atom_named [:apply_interpolated, :mfa_interpolated, :apply_nested, :apply_nested_quoted]
 
   # The shapes that are not calls of the definition at all, so no arity can be wrong for them.
   @not_calls [:variable, :atom, :keyword, :interpolated_atom, :module_atom]
@@ -2592,9 +2606,15 @@ defmodule Matrix do
     # #{@header}
     defmodule Callers.#{Macro.camelize(backing.prefix)}.#{Macro.camelize(form.id)}.#{Macro.camelize(world)} do
     #{uses}
-    #{body}
+    #{body}#{pick(calls)}
     end
     """
+  end
+
+  defp pick(calls) do
+    if Enum.any?(calls, &(elem(&1, 4) in [:apply_nested, :apply_nested_quoted])),
+      do: "\n\n  defp pick(opts, key), do: opts[key]",
+      else: ""
   end
 
   # No argument list at all. A different shape in the parser, and the only one the unresolved inspection looks at.
@@ -2605,9 +2625,21 @@ defmodule Matrix do
   defp call(:unqualified, _backing, _module, name, arity), do: "#{name}(#{arguments(arity)})"
   defp call(:pipe, _backing, _module, name, arity), do: "a |> #{name}(#{arguments(arity - 1) |> String.replace_prefix("a", "b")})"
   defp call(:capture, backing, module, name, arity), do: "{&#{module}.#{call_name(backing, name)}/#{arity}, a, b}"
+  defp call(:qualified_quoted, _backing, module, name, arity), do: ~s[#{module}."#{name}"(#{arguments(arity)})]
+  defp call(:capture_quoted, _backing, module, name, arity), do: ~s({&#{module}."#{name}"/#{arity}, a, b})
   defp call(:apply, _backing, module, name, arity), do: "apply(#{module}, :#{name}, [#{arguments(arity)}])"
   defp call(:apply_quoted, _backing, module, name, arity), do: "apply(#{module}, :\"#{name}\", [#{arguments(arity)}])"
+  defp call(:apply_module_quoted, _backing, module, name, arity), do: "apply(#{quoted_module(module)}, :#{name}, [#{arguments(arity)}])"
+  # The atom is built at run time, so it names no function the IDE can know.
+  defp call(:apply_interpolated, _backing, module, name, arity), do: "apply(#{module}, :\"\#{a}#{name}\", [#{arguments(arity)}])"
+  # The atom is `pick/2`'s key, not `apply`'s function name. A caller-local `pick/2` resolves in a project with no
+  # stdlib, so the only diagnostic at the caret could be the atom's own.
+  defp call(:apply_nested, _backing, module, name, arity), do: "apply(#{module}, pick(b, :#{name}), [#{arguments(arity)}])"
+  defp call(:apply_nested_quoted, _backing, module, name, arity), do: "apply(#{module}, pick(b, :\"#{name}\"), [#{arguments(arity)}])"
   defp call(:mfa, _backing, module, name, arity), do: "{{#{module}, :#{name}, #{arity}}, a, b}"
+  defp call(:mfa_quoted, _backing, module, name, arity), do: "{{#{module}, :\"#{name}\", #{arity}}, a, b}"
+  defp call(:mfa_module_quoted, _backing, module, name, arity), do: "{{#{quoted_module(module)}, :#{name}, #{arity}}, a, b}"
+  defp call(:mfa_interpolated, _backing, module, name, arity), do: "{{#{module}, :\"\#{a}#{name}\", #{arity}}, a, b}"
   defp call(:variable, _backing, _module, name, _arity), do: "(fn #{name} -> #{name} end).({a, b})"
   defp call(:atom, _backing, _module, name, _arity), do: "{:#{name}, a, b}"
   defp call(:keyword, _backing, _module, name, _arity), do: "[#{name}: a, b: b]"
@@ -2615,6 +2647,9 @@ defmodule Matrix do
   defp call(:module_atom, _backing, _module, name, _arity), do: "{:#{name}, a, b}"
   defp call(:module, _backing, module, _name, _arity), do: module
   defp call(:module_aliased, _backing, module, _name, _arity), do: last_segment(module)
+
+  defp quoted_module(":" <> module), do: ~s(:"#{module}")
+  defp quoted_module(module), do: ~s(:"Elixir.#{module}")
 
   # Erlang keeps a decomposed name as written, so Elixir must quote it to call it; unquoted, it would normalise it.
   defp call_name(%{language: :erlang}, name), do: if(name == nfc(name), do: name, else: ~s("#{name}"))
@@ -2669,8 +2704,9 @@ defmodule Matrix do
     # `defmacrop __using__` no `use` can call, and the private function `x_use_apply`'s `__using__` reaches only
     # through `apply`. `@compile :nowarn_unused_function` does not silence these on 1.20.
     diagnostics = Enum.reject(diagnostics, &(&1.message =~ ~r/^(function|macro) (\S+_x_use_\S+|__using__\/1|secret\/0) is unused/))
-    # A module declared, and named, with quotes it does not need, on purpose.
+    # A module declared, and named, with quotes it does not need, on purpose, and a caller's quoted function or module atom or quoted remote call.
     diagnostics = Enum.reject(diagnostics, &(&1.message =~ ~r/^found quoted atom "\S+_x_interpolated_atom_quoted" but the quotes are not required/))
+    diagnostics = Enum.reject(diagnostics, &(&1.message =~ ~r/^found quoted (atom|call) "[^"]+" but the quotes are not required/ and path =~ ~r{^lib/callers/}))
     # The quoted keyword a wrapper writes on purpose.
     diagnostics = Enum.reject(diagnostics, &(&1.message =~ ~r/^found quoted keyword "else" but the quotes are not required/ and path =~ ~r/else_quoted/))
     diagnostics = Enum.reject(diagnostics, &(&1.message =~ ~r/^found quoted keyword "do" but the quotes are not required/ and path =~ ~r/quoted_do/))
@@ -2733,8 +2769,10 @@ defmodule Matrix do
   # The compiler binds nothing at the atom in `apply(M, :name, [...])`, but the plugin treats that atom as a
   # reference to M.name/length([...]), and so does this oracle. A variable, a bare atom and a keyword key bind to no
   # definition.
-  defp binding(_events, _path, _line, name, shape, backing, module, arity) when shape in [:apply, :apply_quoted, :mfa],
+  defp binding(_events, _path, _line, name, shape, backing, module, arity) when shape in [:mfa | @atom_named] and shape not in @not_atom_named,
     do: %{"module" => reference(backing, module), "name" => name, "arity" => arity, "kind" => to_string(shape)}
+
+  defp binding(_events, _path, _line, _name, shape, _backing, _module, _arity) when shape in @not_atom_named, do: nil
 
   defp binding(_events, _path, _line, _name, shape, _backing, _module, _arity) when shape in @not_calls, do: nil
 

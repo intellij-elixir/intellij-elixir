@@ -11,5 +11,6 @@ defmodule Callers.ExGen.Defmacro.XOtherModule do
   def at_aliased_as(a, b), do: Aliased.ex_gen_defmacro_x_other_module_snoc(a, b) # @aliased_as
   def at_unqualified(a, b), do: ex_gen_defmacro_x_other_module_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> ex_gen_defmacro_x_other_module_snoc(b) # @pipe
+  def at_qualified_quoted(a, b), do: ExGen.Defmacro.XOtherModule."ex_gen_defmacro_x_other_module_snoc"(a, b) # @qualified_quoted
   def at_other_qualified(a, b), do: ExGen.Defmacro.XOtherModule.Other.ex_gen_defmacro_x_other_module_snoc(a, b) # @other_qualified
 end

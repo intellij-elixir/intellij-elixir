@@ -11,6 +11,7 @@ defmodule Callers.Src.Defguard.XUseQuoteDoBlock do
   def at_aliased_as(a, b), do: Aliased.src_defguard_x_use_quote_do_block_snoc(a, b) # @aliased_as
   def at_unqualified(a, b), do: src_defguard_x_use_quote_do_block_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> src_defguard_x_use_quote_do_block_snoc(b) # @pipe
+  def at_qualified_quoted(a, b), do: Src.Defguard.XUseQuoteDoBlock."src_defguard_x_use_quote_do_block_snoc"(a, b) # @qualified_quoted
   def at_arity_1(a, _b), do: Src.Defguard.XUseQuoteDoBlock.src_defguard_x_use_quote_do_block_snoc(a) # @arity_1
   def at_other_qualified(a, b), do: Src.Defguard.XUseQuoteDoBlock.Other.src_defguard_x_use_quote_do_block_snoc(a, b) # @other_qualified
 end

@@ -10,4 +10,5 @@ defmodule Callers.ExDbgi.Defmacro.XArityAbsent do
   def at_aliased_as(a, b), do: Aliased.ex_dbgi_defmacro_x_arity_absent_snoc(a, b) # @aliased_as
   def at_unqualified(a, b), do: ex_dbgi_defmacro_x_arity_absent_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> ex_dbgi_defmacro_x_arity_absent_snoc(b) # @pipe
+  def at_qualified_quoted(a, b), do: ExDbgi.Defmacro.XArityAbsent."ex_dbgi_defmacro_x_arity_absent_snoc"(a, b) # @qualified_quoted
 end

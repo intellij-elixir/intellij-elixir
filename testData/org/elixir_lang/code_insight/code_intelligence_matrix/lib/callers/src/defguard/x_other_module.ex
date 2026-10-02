@@ -11,5 +11,6 @@ defmodule Callers.Src.Defguard.XOtherModule do
   def at_aliased_as(a, b), do: Aliased.src_defguard_x_other_module_snoc(a, b) # @aliased_as
   def at_unqualified(a, b), do: src_defguard_x_other_module_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> src_defguard_x_other_module_snoc(b) # @pipe
+  def at_qualified_quoted(a, b), do: Src.Defguard.XOtherModule."src_defguard_x_other_module_snoc"(a, b) # @qualified_quoted
   def at_other_qualified(a, b), do: Src.Defguard.XOtherModule.Other.src_defguard_x_other_module_snoc(a, b) # @other_qualified
 end

@@ -10,6 +10,7 @@ defmodule Callers.ExDbgi.Defguard.XLookalikeAbsent do
   def at_aliased_as(a, b), do: Aliased.ex_dbgi_defguard_x_lookalike_absent_snoc(a, b) # @aliased_as
   def at_unqualified(a, b), do: ex_dbgi_defguard_x_lookalike_absent_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> ex_dbgi_defguard_x_lookalike_absent_snoc(b) # @pipe
+  def at_qualified_quoted(a, b), do: ExDbgi.Defguard.XLookalikeAbsent."ex_dbgi_defguard_x_lookalike_absent_snoc"(a, b) # @qualified_quoted
   def at_lookalike_xsnoc(a, b), do: ExDbgi.Defguard.XLookalikeAbsent.ex_dbgi_defguard_x_lookalike_absent_xsnoc(a, b) # @lookalike_xsnoc
   def at_lookalike_snoc_x(a, b), do: ExDbgi.Defguard.XLookalikeAbsent.ex_dbgi_defguard_x_lookalike_absent_snoc_x(a, b) # @lookalike_snoc_x
   def at_lookalike_snoc_question(a, b), do: ExDbgi.Defguard.XLookalikeAbsent.ex_dbgi_defguard_x_lookalike_absent_snoc?(a, b) # @lookalike_snoc_question

@@ -56,4 +56,18 @@ object Expected {
         module.heads
             .map { Head(it.definer, it.name, it.parameters, it.defaults, it.guard) }
             .filter { it.name == name && it.covers(arity) }
+
+    /**
+     * The head a call at [arity] reaches: the first that declares [definition]. A `.beam` with neither debug info nor
+     * docs records each exported arity, but not which are defaults, so there each arity is its own `arg1...argN` head.
+     */
+    fun headAt(backing: String, module: DeclaringModule, definition: Definition, arity: Int): Head {
+        val head = heads(module, definition.name, definition.maxArity).first()
+
+        return if (backing == "ex_gen" && definition.minArity < definition.maxArity) {
+            Head(head.definer, head.name, (1..arity).map { "arg$it" }, 0, head.guard)
+        } else {
+            head
+        }
+    }
 }

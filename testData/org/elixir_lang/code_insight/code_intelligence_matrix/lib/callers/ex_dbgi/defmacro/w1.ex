@@ -10,4 +10,5 @@ defmodule Callers.ExDbgi.Defmacro.W1 do
   def at_aliased_as(a, b), do: Aliased.ex_dbgi_defmacro_w1_snoc(a, b) # @aliased_as
   def at_unqualified(a, b), do: ex_dbgi_defmacro_w1_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> ex_dbgi_defmacro_w1_snoc(b) # @pipe
+  def at_qualified_quoted(a, b), do: ExDbgi.Defmacro.W1."ex_dbgi_defmacro_w1_snoc"(a, b) # @qualified_quoted
 end

@@ -10,4 +10,5 @@ defmodule Callers.Src.Defguard.XUnless do
   def at_aliased_as(a, b), do: Aliased.src_defguard_x_unless_snoc(a, b) # @aliased_as
   def at_unqualified(a, b), do: src_defguard_x_unless_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> src_defguard_x_unless_snoc(b) # @pipe
+  def at_qualified_quoted(a, b), do: Src.Defguard.XUnless."src_defguard_x_unless_snoc"(a, b) # @qualified_quoted
 end
