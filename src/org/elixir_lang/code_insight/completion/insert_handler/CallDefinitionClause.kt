@@ -10,6 +10,7 @@ import com.intellij.codeInsight.template.impl.TextExpression
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
+import org.elixir_lang.Arity
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.code_insight.Signature
 import org.elixir_lang.declaration.Form
@@ -17,6 +18,7 @@ import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause as CallDefinitionClausePsi
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirList
+import org.elixir_lang.psi.isDefaultArgument
 import org.elixir_lang.psi.Exception as ElixirException
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
@@ -38,7 +40,7 @@ import org.elixir_lang.structure_view.element.CallDefinitionHead
  * target PSI shape differs, so [parameters] dispatches on it independently of whatever produced the
  * [LookupElement].
  */
-object CallDefinitionClause : InsertHandler<LookupElement> {
+class CallDefinitionClause private constructor(private val arity: Arity?) : InsertHandler<LookupElement> {
     override fun handleInsert(context: InsertionContext, item: LookupElement) {
         val tailOffset = context.tailOffset
         val document = context.document
@@ -126,6 +128,7 @@ object CallDefinitionClause : InsertHandler<LookupElement> {
             ?.let { CallDefinitionHead.strip(it) }
             ?.let { it as? Call }
             ?.finalArguments()
+            ?.let(::atArity)
             ?.map(::stripDefaultValue)
 
     /**
@@ -150,8 +153,17 @@ object CallDefinitionClause : InsertHandler<LookupElement> {
             ?.get(0)
             ?.let { it as? Call }
             ?.finalArguments()
+            ?.let(::atArity)
             ?.map(::stripDefaultValue)
             ?: emptyList()
+
+    /** Elixir defines each lower arity of a head by dropping its last default-valued parameters first. */
+    private fun atArity(arguments: Array<PsiElement>): List<PsiElement> {
+        val excess = arity?.let { arguments.size - it }?.coerceAtLeast(0) ?: 0
+        val dropped = arguments.indices.filter { arguments[it].isDefaultArgument() }.takeLast(excess).toSet()
+
+        return arguments.filterIndexed { index, _ -> index !in dropped }
+    }
 
     /** `name \\ default` (an [InMatch] operation) down to `name`; any other argument, its own text. */
     private fun stripDefaultValue(argument: PsiElement): String =
@@ -196,4 +208,10 @@ object CallDefinitionClause : InsertHandler<LookupElement> {
             "template" -> listOf("assigns")
             else -> emptyList()
         }
+
+    companion object {
+        val WHOLE_HEAD = CallDefinitionClause(null)
+
+        fun at(arity: Arity?): CallDefinitionClause = arity?.let(::CallDefinitionClause) ?: WHOLE_HEAD
+    }
 }

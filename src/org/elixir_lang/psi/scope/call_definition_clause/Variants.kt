@@ -8,6 +8,7 @@ import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.Arity
 import org.elixir_lang.annotator.Parameter
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.code.InspectAtom
@@ -47,7 +48,7 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
         val entranceCallDefinitionClause = state.get(ENTRANCE_CALL_DEFINITION_CLAUSE)
 
         if ((entranceCallDefinitionClause == null || !element.isEquivalentTo(entranceCallDefinitionClause)) && element is Named) {
-            addCallDefinitionClauseToLookupElementByPsiElement(element)
+            addCallDefinitionClauseToLookupElementByPsiElement(element, state)
             element.name?.let { name -> recordVisible(Form.CLAUSE, element, state) { if (it == name) element else null } }
         }
 
@@ -102,7 +103,7 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
         }
     }
 
-    private fun addCallDefinitionClauseToLookupElementByPsiElement(named: Named) {
+    private fun addCallDefinitionClauseToLookupElementByPsiElement(named: Named, state: ResolveState) {
         named.name?.takeIf(::callableUnqualified)?.let { name ->
             lookupElementByPsiElementName.computeIfAbsent(named to name) { (element, name) ->
                 LookupElementBuilder.createWithSmartPointer(
@@ -110,7 +111,7 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
                         element
                 ).withRenderer(
                         org.elixir_lang.code_insight.lookup.element_renderer.CallDefinitionClause(name)
-                ).withInsertHandlerIfAppendingParentheses()
+                ).withInsertHandlerIfAppendingParentheses { Import.highestImportedArity(named, state) }
             }
         }
     }
@@ -152,7 +153,7 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
                             element
                     ).withRenderer(
                             org.elixir_lang.code_insight.lookup.element_renderer.Delegation(headName)
-                    ).withInsertHandlerIfAppendingParentheses()
+                    ).withInsertHandlerIfAppendingParentheses { Import.highestImportedArity(element, state) }
                 }
             }
         }
@@ -231,8 +232,8 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
      */
     override fun keepProcessing(): Boolean = true
 
-    private fun LookupElementBuilder.withInsertHandlerIfAppendingParentheses(): LookupElementBuilder =
-        if (appendParentheses) withInsertHandler(CallDefinitionClauseInsertHandler) else this
+    private fun LookupElementBuilder.withInsertHandlerIfAppendingParentheses(arity: () -> Arity? = { null }): LookupElementBuilder =
+        if (appendParentheses) withInsertHandler(CallDefinitionClauseInsertHandler.at(arity())) else this
 
     /** A name Elixir can write only quoted is not offered here. */
     private fun callableUnqualified(name: String): Boolean = InspectAtom.classify(name) != InspectAtom.Class.OTHER

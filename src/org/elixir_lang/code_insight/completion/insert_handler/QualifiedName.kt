@@ -23,7 +23,7 @@ class QualifiedName private constructor(
             context.tailOffset = start + spelling.length
         }
 
-        if (call) CallDefinitionClause.handleInsert(context, item)
+        if (call) CallDefinitionClause.WHOLE_HEAD.handleInsert(context, item)
     }
 
     companion object {
