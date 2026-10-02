@@ -198,10 +198,42 @@ class MfaTupleReferenceTest : PlatformTestCase() {
         assertNull(atomReferenceAtCaretOrNull())
     }
 
-    fun testQuotedAtomHasNoMfaReference() {
-        myFixture.configureByFile("quoted_atom.ex")
+    fun testQuotedAtomResolves() {
+        assertResolvesValidlyTo("quoted_atom.ex", "map")
+    }
+
+    fun testInterpolatedAtomResolvesToNothing() {
+        val reference = atomReferenceAtCaret("interpolated_atom.ex")
+
+        assertEmpty(reference.multiResolve(false))
+    }
+
+    fun testApplyThreeResolvesQuotedFunctionAtom() {
+        assertResolvesValidlyTo("apply_quoted_atom.ex", "reverse")
+    }
+
+    fun testApplyThreeResolvesEscapedFunctionAtomByItsValue() {
+        assertResolvesValidlyTo("apply_escaped_atom.ex", "reverse")
+    }
+
+    fun testInterpolatedModuleAtomHasNoMfaReference() {
+        myFixture.configureByFile("interpolated_module_atom.ex")
 
         assertNull(atomReferenceAtCaretOrNull())
+    }
+
+    fun testApplyThreeWithInterpolatedModuleAtomHasNoMfaReference() {
+        myFixture.configureByFile("apply_interpolated_module_atom.ex")
+
+        assertNull(atomReferenceAtCaretOrNull())
+    }
+
+    fun testQuotedModuleAtomResolves() {
+        assertResolvesValidlyTo("quoted_module_atom.ex", "map")
+    }
+
+    fun testApplyThreeWithQuotedModuleAtomResolves() {
+        assertResolvesValidlyTo("apply_quoted_module_atom.ex", "reverse")
     }
 
     fun testVariableModuleHasNoMfaReference() {
@@ -266,7 +298,7 @@ class MfaTupleReferenceTest : PlatformTestCase() {
 
     /**
      * `{:ok, :error, \[reason]}` is a common Elixir tagged-value tuple, not an MFA tuple.
-     * However, with Erlang-style support (unquoted atom at element[0]), the provider accepts
+     * However, with Erlang-style support, the provider accepts
      * `:ok` as a potential Erlang module name.  Since `:ok` resolves to no module, the
      * reference is soft and returns empty results - no false error highlighting.
      *
@@ -335,6 +367,14 @@ class MfaTupleReferenceTest : PlatformTestCase() {
         myFixture.configureByFile(fileName)
 
         return atomReferenceAtCaretOrNull() ?: error("Expected AtomReference at caret")
+    }
+
+    private fun assertResolvesValidlyTo(fileName: String, name: String) {
+        val resolveResults = atomReferenceAtCaret(fileName).multiResolve(false)
+
+        assertEquals(1, resolveResults.size)
+        assertTrue(resolveResults.single().isValidResult)
+        assertEquals(name, (resolveResults.single().element as? PsiNamedElement)?.name)
     }
 
     private fun atomReferenceAtCaretOrNull(): AtomReference? {

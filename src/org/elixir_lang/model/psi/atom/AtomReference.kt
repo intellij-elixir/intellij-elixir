@@ -24,14 +24,14 @@ class AtomReference(
     /**
      * The module element from the MFA tuple or apply/3 - either:
      * - a [org.elixir_lang.psi.QualifiableAlias] for Elixir-style modules (`Enum`, `MyApp.Worker`)
-     * - an [ElixirAtom] (unquoted) for Erlang-style modules (`:math`, `:lists`)
+     * - an [ElixirAtom] (`:lists`, `:"Elixir.Enum"`)
      */
     private val moduleElement: PsiElement,
     private val rangeInElement: TextRange = contentTextRange(atom),
     private val arity: Int
 ) : PsiReferenceBase<ElixirAtom>(atom, contentTextRange(atom)), PsiPolyVariantReference, PsiSymbolReference {
     private val functionName: String?
-        get() = quotedAtomValue(myElement) ?: myElement.node.lastChildNode?.text
+        get() = quotedAtomValue(myElement)
 
     override fun getVariants(): Array<Any> {
         val modulars = moduleElement.maybeModularNameToModulars(

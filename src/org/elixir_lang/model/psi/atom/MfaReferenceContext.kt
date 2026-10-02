@@ -14,6 +14,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.call.finalArguments
+import org.elixir_lang.psi.impl.quotedAtomValue
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.impl.toBigInteger
 
@@ -24,7 +25,6 @@ internal data class MfaReferenceContext(
 
 @RequiresReadLock
 internal fun ElixirAtom.mfaReferenceContext(): MfaReferenceContext? {
-    if (line != null) return null
     return tupleContext() ?: applyContext()
 }
 
@@ -48,12 +48,7 @@ private fun tupleContext(tuple: ElixirTuple, atomWrapper: PsiElement): MfaRefere
 
     if (tupleChildren.size != 3 || tupleChildren[1] !== atomWrapper) return null
 
-    val rawModuleElement = tupleChildren[0].stripAccessExpression()
-    val moduleElement: PsiElement = when {
-        rawModuleElement is QualifiableAlias -> rawModuleElement
-        rawModuleElement is ElixirAtom && rawModuleElement.line == null -> rawModuleElement
-        else -> return null
-    }
+    val moduleElement = moduleElement(tupleChildren[0].stripAccessExpression()) ?: return null
 
     return MfaReferenceContext(moduleElement, extractArity(tupleChildren[2].stripAccessExpression()))
 }
@@ -68,15 +63,19 @@ private fun ElixirAtom.applyContext(): MfaReferenceContext? {
     if (finalArguments.size != 3) return null
     if (!PsiTreeUtil.isAncestor(finalArguments[1], this, false)) return null
 
-    val rawModuleElement = finalArguments[0].stripAccessExpression()
-    val moduleElement: PsiElement = when {
-        rawModuleElement is QualifiableAlias -> rawModuleElement
-        rawModuleElement is ElixirAtom && rawModuleElement.line == null -> rawModuleElement
-        else -> return null
-    }
+    val moduleElement = moduleElement(finalArguments[0].stripAccessExpression()) ?: return null
 
     return MfaReferenceContext(moduleElement, extractArity(finalArguments[2].stripAccessExpression()))
 }
+
+/** An atom with no value would resolve as a pattern over module names. */
+@RequiresReadLock
+private fun moduleElement(element: PsiElement): PsiElement? =
+    when (element) {
+        is QualifiableAlias -> element
+        is ElixirAtom -> element.takeIf { quotedAtomValue(it) != null }
+        else -> null
+    }
 
 private fun extractArity(element: PsiElement): Int = when (element) {
     is WholeNumber -> element.toBigInteger()?.toInt() ?: -1
