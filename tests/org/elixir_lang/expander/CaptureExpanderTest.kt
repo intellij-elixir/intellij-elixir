@@ -156,7 +156,7 @@ class CaptureExpanderTest : ExpanderTestCase() {
                 val list = capture.arguments!!.single()
                 val ast = ElixirAst.Call(capture.meta, capture.callee, listOf(ElixirAst.Block(list.meta, listOf(list))))
 
-                "$version: " + render(code, Expander.expand(ast, ExState.empty(level), Env.empty(level, NO_KERNEL), level, NO_EXPORTS))
+                "$version: " + render(code, Expander.expand(ast, ExState.empty(level), Env.empty(level, NO_KERNEL), level, NO_EXPORTS, NO_STRUCTS))
             }
         )
     }

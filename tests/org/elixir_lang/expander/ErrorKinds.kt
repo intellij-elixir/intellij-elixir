@@ -132,6 +132,18 @@ object ErrorKinds {
             """^cannot use variable \S+ as map key inside a pattern\. Map keys in patterns can only be literals""",
         "invalid_pin_in_map_key_match" to
             """^cannot use pin operator \^\S+ inside a data structure as a map key in a pattern\.""",
+        // `__struct__/0` in an update or a match up to 1.17.
+        "undefined_struct" to """^\S+\.__struct__/[01] is undefined, cannot expand struct \S+\.""",
+        "inaccessible_struct" to
+            """^cannot access struct \S+, the struct was not yet defined or the struct is being accessed in the same context that defines it$""",
+        "invalid_struct_name" to """^expected struct name to be a compile time atom or alias, got: """,
+        "invalid_struct_name_in_match" to
+            """^expected struct name in a match to be a compile time atom, alias or a variable, got: """,
+        "invalid_key_for_struct" to """^invalid key .+ for struct, struct keys must be atoms, got: """,
+        "unknown_key_for_struct" to """^unknown key \S+ for struct \S+$""",
+        // The `KeyError` and `ArgumentError` the struct's `__struct__/1` raises.
+        "struct_unknown_key" to """^key \S+ not found""",
+        "struct_missing_enforced_keys" to """^the following keys must also be given when building struct \S+: \[""",
         // elixir_bitstring
         "unsized_binary" to
             """^a binary field without size is only allowed at the end of a binary pattern, at the right side of binary concatenation and (and )?never allowed in binary generators""",
@@ -159,6 +171,8 @@ object ErrorKinds {
         "var_bang_not_a_variable",
         "var_bang_context_not_atom",
         "alias_bang_function_clause",
+        "struct_unknown_key",
+        "struct_missing_enforced_keys",
     )
 
     fun pattern(kind: String): Regex = PATTERNS[kind] ?: throw AssertionError("no message pattern for error $kind")

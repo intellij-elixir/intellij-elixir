@@ -164,7 +164,7 @@ class DirectiveExpanderTest : ExpanderTestCase() {
                 val level = ElixirLanguageLevel.of(version)
                 val env = Env.empty(level, NO_KERNEL).copy(context = Env.Context.GUARD)
 
-                "$version: " + render(code, Expander.expand(lower(code, level), ExState.empty(level), env, level, exports))
+                "$version: " + render(code, Expander.expand(lower(code, level), ExState.empty(level), env, level, exports, structs))
             }
         )
     }
@@ -629,7 +629,7 @@ class DirectiveExpanderTest : ExpanderTestCase() {
                 val level = ElixirLanguageLevel.of(version)
                 val env = Env.empty(level, NO_KERNEL).copy(module = module, contextModules = contextModules)
 
-                "$version: " + render(code, Expander.expand(lower(code, level), ExState.empty(level), env, level, exports))
+                "$version: " + render(code, Expander.expand(lower(code, level), ExState.empty(level), env, level, exports, structs))
             }
         )
     }

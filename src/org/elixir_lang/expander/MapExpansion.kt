@@ -5,21 +5,27 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_IN_MA
 import org.elixir_lang.language_level.ElixirLanguageFeature.PIN_IN_MAP_KEY_PATTERN
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.psi.Import.Term
 
 /** `elixir_map:expand_map/4`. */
-internal fun expandMap(node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion {
+internal fun expandMap(node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion =
+    expandMapPairs(node, state, env, run).withValue(NODE)
+
+/** `elixir_map:expand_map/4`, whose value is the list of the expanded pairs, those after the `|` in an update. */
+internal fun expandMapPairs(node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion {
     val args = node.arguments!!
-    val update = args.singleOrNull()?.takeIf { isCall(it, "|", 2) } as ElixirAst.Call?
+    val update = mapUpdate(node)
 
     return when {
-        update == null -> expandArgs(args, state, env, run).then { s, e -> validated(node, args, s, e, run.level) }
+        update == null ->
+            expandArgs(args, state, env, run).thenValue { s, e, pairs -> validated(node, args, s, e, pairs, run.level) }
         env.context != Env.Context.NONE -> Expansion.Error("update_syntax_in_wrong_context", node)
         else -> {
             val (map, pairs) = update.arguments!!
 
             if (pairs is ElixirAst.ListNode) {
-                expandArgs(listOf(map) + pairs.elements, state, env, run).then { s, e ->
-                    validated(node, pairs.elements, s, e, run.level)
+                expandArgs(listOf(map) + pairs.elements, state, env, run).thenValue { s, e, values ->
+                    validated(node, pairs.elements, s, e, Term.List((values as Term.List).elements.drop(1)), run.level)
                 }
             } else {
                 Expansion.Unported(node)
@@ -28,8 +34,18 @@ internal fun expandMap(node: ElixirAst.Call, state: ExState, env: Env, run: Run)
     }
 }
 
-private fun validated(node: ElixirAst, kv: List<ElixirAst>, state: ExState, env: Env, level: ElixirLanguageLevel) =
-    kvError(kv, env, level)?.let { Expansion.Error(it, node) } ?: Expansion.Expanded(state, env, NODE)
+/** The `|` of [map], `%{map | pairs}`, or `null` for a map that isn't an update. */
+internal fun mapUpdate(map: ElixirAst.Call): ElixirAst.Call? =
+    map.arguments!!.singleOrNull()?.takeIf { isCall(it, "|", 2) } as ElixirAst.Call?
+
+private fun validated(
+    node: ElixirAst,
+    kv: List<ElixirAst>,
+    state: ExState,
+    env: Env,
+    pairs: Term,
+    level: ElixirLanguageLevel,
+) = kvError(kv, env, level)?.let { Expansion.Error(it, node) } ?: Expansion.Expanded(state, env, pairs)
 
 /**
  * The error `elixir_map:validate_kv/4` raises, if any: each argument must be a pair, and in a pattern each key must be

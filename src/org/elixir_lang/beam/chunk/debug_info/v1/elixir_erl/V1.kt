@@ -59,6 +59,7 @@ class V1(val elixirErl: ElixirErl, val metadata: OtpErlangTuple): DebugInfo {
     val file by lazy { (get("file") as? OtpErlangBinary)?.let(::toUtf8String) }
     val line by lazy { (get("line") as? OtpErlangLong)?.intValue() }
     val module by lazy { get("module") as? OtpErlangAtom }
+    val struct by lazy { get("struct") }
     val inspectedModule by lazy { module?.let { inspect(it) }  }
     val unreachable by lazy { get("unreachable") as OtpErlangList? }
     val typeSpecifications by lazy { TypeSpecifications.from(metadata.elementAt(2)) }

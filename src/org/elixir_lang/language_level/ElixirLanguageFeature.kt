@@ -1121,6 +1121,34 @@ enum class ElixirLanguageFeature(
     UNREQUIRED_MACRO_CALLED_AS_FUNCTION(sinceElixir = "1.13.0-rc.0"),
 
     /**
+     * A struct key that doesn't expand to an atom raises `invalid_key_for_struct` before the struct is read. Before it,
+     * a build raises the struct function's `KeyError`, and an update or a match raises `unknown_key_for_struct`.
+     *
+     * `elixir-lang/elixir@514355f3d` ("Type inference for structs and type checking for dot/remote", #13518), first
+     * released in v1.17.0-rc.0.
+     */
+    STRUCT_KEYS_MUST_BE_ATOMS(sinceElixir = "1.17.0-rc.0"),
+
+    /**
+     * Inside a function, a struct update or match reads no struct, so an undefined struct or an unknown key is left to
+     * the type checker.
+     *
+     * `elixir-lang/elixir@a0ef7f0c3` ("Move struct validation in patterns and updates to type checker"), first released
+     * in v1.20.0-rc.2.
+     */
+    STRUCT_KEYS_IN_FUNCTIONS_LEFT_TO_TYPES(sinceElixir = "1.20.0-rc.2"),
+
+    /**
+     * In its own body, the module being defined has no struct until it defines `__struct__`, so `%__MODULE__{}` is
+     * `inaccessible_struct`. Before it, Elixir calls the `__struct__` of a loaded module of the same name, if there is
+     * one, so the answer depends on what the compiling node has loaded.
+     *
+     * `elixir-lang/elixir@b78b48058`, a backport of `elixir-lang/elixir@904072081` ("Raise on missing struct for module
+     * conflict", #12113), first released in v1.14.1.
+     */
+    STRUCT_OF_MODULE_BEING_DEFINED_NEVER_LOADED(sinceElixir = "1.14.1"),
+
+    /**
      * Inside a `catch` or `rescue` clause, `System.stacktrace()` expands to `__STACKTRACE__`, with no dispatch.
      *
      * Removed by `elixir-lang/elixir@011e25fe8` ("Consistently return an empty list for System.stacktrace"), first

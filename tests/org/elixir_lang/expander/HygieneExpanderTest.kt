@@ -67,7 +67,7 @@ class HygieneExpanderTest : ExpanderTestCase() {
                 val node = placeholding(lower(code, level), "c")
                 val env = Env.empty(level, kernel).copy(module = module)
 
-                "$version: " + render(code, Expander.expand(node, ExState.empty(level), env, level, exports))
+                "$version: " + render(code, Expander.expand(node, ExState.empty(level), env, level, exports, structs))
             },
         )
     }
@@ -200,6 +200,7 @@ class HygieneExpanderTest : ExpanderTestCase() {
             Env.empty(level, kernel),
             level,
             exports,
+            structs,
             counters = counters,
         ) as Expansion.Expanded
 
@@ -356,6 +357,7 @@ class HygieneExpanderTest : ExpanderTestCase() {
             Env.empty(level, kernel).copy(module = module),
             level,
             exports,
+            structs,
             object : ExpansionObserver {
                 override fun entering(node: ElixirAst, state: ExState, env: Env) {}
 

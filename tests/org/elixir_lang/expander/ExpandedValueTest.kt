@@ -153,7 +153,7 @@ class ExpandedValueTest : ExpanderTestCase() {
             }
         }
         val env = Env.empty(level, kernel).copy(module = module)
-        val expansion = Expander.expand(root, ExState.empty(level), env, level, exports, observer)
+        val expansion = Expander.expand(root, ExState.empty(level), env, level, exports, structs, observer)
 
         return when (val reached = lastExpansion ?: expansion) {
             is Expansion.Expanded -> valueOf(reached.value)

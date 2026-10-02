@@ -91,7 +91,7 @@ class GuardCallTest : ExpanderTestCase() {
         val state = ExState.empty(level).copy(read = mapOf(X to 0, Y to 1), version = 2)
         val env = Env.empty(level, kernel).copy(context = Env.Context.GUARD)
 
-        return render(code, guard(lower(code, level), state, env, level, exports))
+        return render(code, guard(lower(code, level), state, env, level, exports, structs))
     }
 
     private companion object {

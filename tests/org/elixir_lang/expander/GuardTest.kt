@@ -22,7 +22,7 @@ class GuardTest : ExpanderTestCase() {
                 val state = ExState.empty(level).copy(read = mapOf(X to 0, Y to 1), version = 2)
                 val env = Env.empty(level, NO_KERNEL).copy(context = Env.Context.GUARD)
 
-                "$version: " + render(code, guard(lower(code, level), state, env, level, NO_EXPORTS))
+                "$version: " + render(code, guard(lower(code, level), state, env, level, NO_EXPORTS, NO_STRUCTS))
             }
         )
 

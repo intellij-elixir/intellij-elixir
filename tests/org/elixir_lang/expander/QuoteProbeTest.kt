@@ -70,7 +70,7 @@ class QuoteProbeTest : ProbeTestCase() {
 
         assertEquals("compile status", OtpErlangAtom("ok"), attempt.compiled.status)
 
-        val run = Run(level, ExpansionObserver.NONE, legExports)
+        val run = Run(level, ExpansionObserver.NONE, legExports, legStructs)
         val expected = VALUE_FORMS.mapIndexed { index, form ->
             val expansion = probes.expand("\n".repeat(attempt.bodyLines[index] - 1) + form, PLACEHOLDER)
             val (state, env) = expansion.starts.last()

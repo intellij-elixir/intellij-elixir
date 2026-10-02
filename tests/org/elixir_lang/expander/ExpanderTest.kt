@@ -249,8 +249,6 @@ class ExpanderTest : ExpanderTestCase() {
         )
     }
 
-    fun testAStructIsUnported() = assertEvery("%Struct{}", "unported `%Struct{}`")
-
     fun testALocalCallWithNoImportIsUndefined() = assertEvery("foo(1)", "error undefined_function `foo(1)`")
 
     fun testUnderscoreInAConsPattern() =

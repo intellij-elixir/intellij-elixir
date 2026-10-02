@@ -1,8 +1,10 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangAtom
 import org.elixir_lang.NameArity
 import org.elixir_lang.beam.BeamReader
 import org.elixir_lang.beam.ReadResult
+import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.V1
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.psi.call.name.Function.DEF
@@ -23,20 +25,49 @@ internal val legKernel: KernelImports by lazy {
 
 /** The leg's Elixir modules, and the OTP modules under `ERLANG_SDK_HOME`'s `lib/<app>/ebin`. */
 internal val legExports: Exports by lazy {
+    val cache = ConcurrentHashMap<String, ModuleExports>()
+
+    Exports { module ->
+        cache.computeIfAbsent(module) { legBeam(module)?.let(::moduleExports) ?: ModuleExports.Absent }
+    }
+}
+
+/** The structs of [legExports]' modules, from each beam's `Dbgi` chunk. */
+internal val legStructs: Structs by lazy {
+    val cache = ConcurrentHashMap<String, ModuleStruct>()
+
+    Structs { module -> cache.computeIfAbsent(module, ::moduleStruct) }
+}
+
+private val legEbins: List<File> by lazy {
     val otp = File(LegManifest.environment("ERLANG_SDK_HOME"), "lib")
         .listFiles { app -> app.isDirectory }
         .orEmpty()
         .map { File(it, "ebin") }
-    val ebins = listOf(LegManifest.ebin()) + otp
-    val cache = ConcurrentHashMap<String, ModuleExports>()
 
-    Exports { module ->
-        cache.computeIfAbsent(module) {
-            ebins.map { File(it, "$module.beam") }.firstOrNull(File::isFile)?.let(::moduleExports)
-                ?: ModuleExports.Absent
-        }
-    }
+    listOf(LegManifest.ebin()) + otp
 }
+
+private fun legBeam(module: String): File? = legEbins.map { File(it, "$module.beam") }.firstOrNull(File::isFile)
+
+private fun moduleStruct(module: String): ModuleStruct =
+    when (val exports = legExports.of(module)) {
+        ModuleExports.Absent -> ModuleStruct.Absent
+        ModuleExports.Unreadable -> ModuleStruct.Unreadable
+        is ModuleExports.Present ->
+            if (STRUCT in exports.functions) {
+                val beam = legBeam(module)!!
+                val struct = BeamReader.readResult(beam.readBytes(), beam.path) { reader ->
+                    ((reader.debugInfoResult as? ReadResult.Present)?.value as? V1)?.struct
+                        ?.takeUnless { it == NIL }
+                        ?.let(ModuleStruct::from)
+                }
+
+                (struct as? ReadResult.Present)?.value ?: ModuleStruct.Unreadable
+            } else {
+                ModuleStruct.Absent
+            }
+    }
 
 /** What `__info__` gives for a module that has it, and `module_info(exports)` for one that doesn't. */
 private fun moduleExports(beam: File): ModuleExports =
@@ -59,3 +90,5 @@ private fun moduleExports(beam: File): ModuleExports =
         .let { (it as? ReadResult.Present)?.value ?: ModuleExports.Unreadable }
 
 private val INFO = NameArity("__info__", 1)
+private val STRUCT = NameArity("__struct__", 1)
+private val NIL = OtpErlangAtom("nil")

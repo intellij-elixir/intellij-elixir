@@ -45,8 +45,8 @@ class CallExpanderTest : ExpanderTestCase() {
     fun testANameBeforeASignedArgumentIsACall() = assertEvery("foo -1", "error undefined_function `foo -1`")
 
     /** `%`, `super` and the captures that look a function up have clauses of their own ahead of the local call's. */
-    fun testTheSpecialFormsAheadOfTheLocalCallAreUnported() {
-        assertEvery("%URI{}", "unported `%URI{}`")
+    fun testTheSpecialFormsAheadOfTheLocalCall() {
+        assertEvery("%URI{}", "error undefined_struct `%URI{}`")
         assertEvery("super()", "unported `super()`")
         assertEvery("super(1)", "unported `super(1)`")
         assertEvery("&super/1", "unported `&super/1`")

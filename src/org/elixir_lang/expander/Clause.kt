@@ -97,7 +97,8 @@ internal enum class Clause(vararg val heads: Head) {
         override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
             isCall(node, "%", 2)
 
-        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) = Expansion.Unported(node)
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            expandStruct(node as ElixirAst.Call, state, env, run)
     },
 
     BITSTRING(expandHead("{'<<>>',_,_}")) {

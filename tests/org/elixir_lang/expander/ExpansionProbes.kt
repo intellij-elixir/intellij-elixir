@@ -75,9 +75,14 @@ internal class ExpansionProbes(
 
     /**
      * [body] expanded from the start of an empty module body, which is in [module] when one is given, with [exports]
-     * standing for the modules Elixir loads.
+     * and [structs] standing for the modules Elixir loads.
      */
-    fun expand(body: String, module: String? = null, exports: Exports = legExports): CaseExpansion {
+    fun expand(
+        body: String,
+        module: String? = null,
+        exports: Exports = legExports,
+        structs: Structs = legStructs,
+    ): CaseExpansion {
         val level = legLevel()
         val file = parse(body)
         val statements = ReadAction.computeBlocking<List<ElixirAst>, Throwable> {
@@ -145,7 +150,7 @@ internal class ExpansionProbes(
                 }
             }
 
-            outcome = Expander.expand(statement, state, env, level, exports, observer, counters)
+            outcome = Expander.expand(statement, state, env, level, exports, structs, observer, counters)
 
             when (val expansion = outcome) {
                 is Expansion.Expanded -> {

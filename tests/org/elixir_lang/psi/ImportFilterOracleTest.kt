@@ -11,6 +11,8 @@ import org.elixir_lang.expander.Expansion
 import org.elixir_lang.expander.Exports
 import org.elixir_lang.expander.KernelImports
 import org.elixir_lang.expander.ModuleExports
+import org.elixir_lang.expander.ModuleStruct
+import org.elixir_lang.expander.Structs
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
@@ -98,7 +100,14 @@ class ImportFilterOracleTest : PlatformTestCase() {
     }
 
     private fun expand(node: ElixirAst, state: ExState, env: Env, languageLevel: ElixirLanguageLevel) =
-        Expander.expand(node, state, env, languageLevel, Exports { ModuleExports.Absent }) as? Expansion.Expanded
+        Expander.expand(
+            node,
+            state,
+            env,
+            languageLevel,
+            Exports { ModuleExports.Absent },
+            Structs { ModuleStruct.Absent },
+        ) as? Expansion.Expanded
 
     private fun imported(case: File, exports: Import.Imports, languageLevel: ElixirLanguageLevel): List<String> {
         val file = myFixture.configureByText("case.ex", case.readText())
