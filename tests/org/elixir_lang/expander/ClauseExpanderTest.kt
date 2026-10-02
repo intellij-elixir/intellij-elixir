@@ -178,7 +178,7 @@ class ClauseExpanderTest : ExpanderTestCase() {
         assertSplit(
             "try do\na = 1\nrescue\n_ -> 1\nelse\nb -> {b, a}\nend",
             "1.15.0-rc.0",
-            "unported `a`",
+            "error undefined_function `a`",
             "error undefined_var `a`"
         )
 
@@ -209,7 +209,17 @@ class ClauseExpanderTest : ExpanderTestCase() {
     fun testARescueOfAVariableInAnAlias() =
         assertVersioned("try do\n1\nrescue\ne in ArgumentError -> e\nend", "{} next 1", "{} next 2")
 
-    fun testARescueOfACallIsUnported() = assertEvery("try do\n1\nrescue\nfoo() -> 1\nend", "unported `foo()`")
+    /** Before 1.15 the call is what `_ in` reads; from 1.15 it is expanded once as a macro, and isn't one. */
+    fun testARescueOfACall() =
+        assertSplit(
+            "try do\n1\nrescue\nfoo() -> 1\nend",
+            "1.15.0-rc.0",
+            "error undefined_function `foo()`",
+            "error invalid_rescue_clause `foo() -> 1`",
+        )
+
+    fun testARescueOfAVariableInTheModule() =
+        assertVersioned("try do\n1\nrescue\ne in __MODULE__ -> e\nend", "{} next 1", "{} next 2")
 
     fun testARescueOfALiteralIsAnError() =
         assertEvery("try do\n1\nrescue\n1 -> 1\nend", "error invalid_rescue_clause `1 -> 1`")

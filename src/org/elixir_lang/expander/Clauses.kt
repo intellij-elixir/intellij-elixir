@@ -3,7 +3,9 @@ package org.elixir_lang.expander
 import org.elixir_lang.language_level.ElixirLanguageFeature.CATCH_WHEN_ARITY_CHECKED
 import org.elixir_lang.language_level.ElixirLanguageFeature.CLAUSES_TAKE_VERSION
 import org.elixir_lang.language_level.ElixirLanguageFeature.PARALLEL_MATCH
+import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_CALL_EXPANDED_AS_MACRO
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.psi.Import.Term
 
 /** The heads of `elixir_clauses`' functions that expand `->` clauses, which aren't clauses of `expand`. */
 internal val CLAUSES_HEADS = listOf(
@@ -261,12 +263,36 @@ private fun rescue(arrow: ElixirAst, arg: ElixirAst, state: ExState, env: Env, r
                 rescueIn(arrow, arg, left, right, state, env, run)
             }
         }
-        // Elixir's `{_, _, _}` shape (a call, a block, a tuple not of two) is macro-expanded once from 1.15, and before
-        // is expanded as `_ in` it; neither is ported.
-        arg is ElixirAst.Call || arg is ElixirAst.Block || arg is ElixirAst.Placeholder ||
-            arg is ElixirAst.Tuple && arg.elements.size != 2 -> Expansion.Unported(arg)
+        arg is ElixirAst.Placeholder -> Expansion.Unported(arg)
+        // Elixir's `{_, _, _}` shape: a call, a block, or a tuple not of two.
+        (arg is ElixirAst.Call || arg is ElixirAst.Block || arg is ElixirAst.Tuple && arg.elements.size != 2) &&
+            RESCUE_CALL_EXPANDED_AS_MACRO.isSufficient(run.level) -> rescueExpandedOnce(arrow, arg, state, env, run)
         else -> rescueIn(arrow, arg, underscore(arg), arg, state, env, run)
     }
+
+/**
+ * `Macro.expand_once/2` of a `rescue` argument: an imported macro's expansion, or `invalid_rescue_clause` at [arrow]
+ * for anything it leaves as it is.
+ */
+private fun rescueExpandedOnce(arrow: ElixirAst, arg: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
+    val call = arg as? ElixirAst.Call
+    val invalid = { Expansion.Error("invalid_rescue_clause", arrow) }
+
+    return when {
+        // A remote call's expansion needs its receiver's.
+        call != null && (call.callee as? ElixirAst.Call)?.let { isCall(it, ".", 2) } == true -> Expansion.Unported(arg)
+        call?.callee !is ElixirAst.Literal.Atom || call.arguments == null -> invalid()
+        else -> expandImport(
+            call,
+            state,
+            env,
+            run,
+            ambiguous = { Expansion.Unported(arg) },
+            function = { invalid() },
+            none = invalid,
+        )
+    }
+}
 
 /** `rescue left in right`, where [right] must expand to an atom or a list of atoms, and [left] be a variable. */
 private fun rescueIn(
@@ -278,11 +304,11 @@ private fun rescueIn(
     env: Env,
     run: Run,
 ): Expansion =
-    match(left, state, state, env, run, at).then { leftState, leftEnv ->
-        Expander.expand(right, leftState, leftEnv, run).then { s, e ->
-            val rights = expandedShape(right).let { if (it is ElixirAst.ListNode) it.elements else listOf(it) }
+    match(left, state, state, env, run, at).thenValue { leftState, leftEnv, leftValue ->
+        Expander.expand(right, leftState, leftEnv, run).thenValue { s, e, value ->
+            val rights = if (value is Term.List && value.tail == null) value.elements else listOf(value)
 
-            if (isVariable(expandedShape(left)) && rights.all { expandedShape(it) is ElixirAst.Literal.Atom }) {
+            if (leftValue == VARIABLE_NODE && rights.all { it is Term.Atom }) {
                 Expansion.Expanded(s, e, NODE)
             } else {
                 Expansion.Error("invalid_rescue_clause", arrow)

@@ -21,4 +21,7 @@ sealed class Expansion {
 
     /** [at] reaches a clause, or a branch of one, that isn't ported. */
     data class Unported(val at: ElixirAst) : Expansion()
+
+    /** [at] calls a macro, as [dispatch] finds it, whose expansion isn't modelled. */
+    data class Opaque(val at: ElixirAst, val dispatch: Dispatch) : Expansion()
 }

@@ -499,13 +499,7 @@ private fun hasTail(term: Term): Boolean =
 
 private fun List<NameArity>?.hasDuplicate(): Boolean = this != null && toSet().size != size
 
-private fun hasMetaKey(meta: Meta, name: String): Boolean = meta.keys.any { it is Meta.Key.Entry && it.name == name }
-
-private const val KERNEL = "Elixir.Kernel"
-
-private val NIL = Term.Atom("nil")
-private val TRUE = Term.Atom("true")
-private val FALSE = Term.Atom("false")
+internal fun hasMetaKey(meta: Meta, name: String): Boolean = meta.keys.any { it is Meta.Key.Entry && it.name == name }
 
 private val MODULE_INFO = setOf(NameArity("module_info", 0), NameArity("module_info", 1))
 private val INTERNALS = MODULE_INFO + NameArity("behaviour_info", 1)

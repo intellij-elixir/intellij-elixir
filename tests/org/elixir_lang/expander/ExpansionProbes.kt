@@ -22,8 +22,8 @@ import kotlin.time.TimeSource
  * Expands case module bodies statement by statement, as `expand_block` threads them, and compares the expander with
  * Elixir on the leg's Elixir through a [ProbeHarness]:
  *
- * - a case the expander expands is compiled in a batch, and if the batch fails, alone, where it must compile or raise
- *   only when run;
+ * - a case the expander expands is compiled in a batch, and if the batch fails, alone, where it must compile, or fail
+ *   only after expansion: raise when run, or raise with no error diagnostic once every probe has delivered;
  * - a case the expander reports an error for is compiled alone, and must fail at expansion, at the error's line and
  *   for its reason;
  *
@@ -114,7 +114,7 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
                     env = expansion.env
                     steps.add(Step(Tag(0, 0, index + 1), state.read, env, state.stacktrace))
                 }
-                is Expansion.Error, is Expansion.Unported -> break
+                is Expansion.Error, is Expansion.Unported, is Expansion.Opaque -> break
             }
         }
 
@@ -177,15 +177,16 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
                 val alone = harness.attempt(listOf(expansion.case))
                 val compiled = alone.compiled
                 val status = compiled.status
-                val runTimeRaise = status is OtpErlangTuple &&
+                // A raise once every probe has delivered comes after expansion: when the body runs, or, for a
+                // `CompileError` with no error diagnostic, from a later pass.
+                val afterExpansion = status is OtpErlangTuple &&
                     status.elementAt(0) == OtpErlangAtom("raise") &&
-                    status.elementAt(1) != OtpErlangAtom(COMPILE_ERROR) &&
                     errors(compiled.diagnostics).isEmpty() &&
                     alone.tags.toSet() == alone.batch.observations.map { it.tag }.toSet()
 
                 expected.add(render(name, expansion.steps))
                 actual.add(
-                    if (status == OtpErlangAtom("ok") || runTimeRaise) {
+                    if (status == OtpErlangAtom("ok") || afterExpansion) {
                         render(name, alone.batch.observations, alone.batch.probeModule)
                     } else {
                         "== $name\ncompile failed: ${inspect(compiled.status)} ${compiled.diagnostics.map(::inspect)}"

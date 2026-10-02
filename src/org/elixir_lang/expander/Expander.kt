@@ -47,7 +47,7 @@ internal inline fun Expansion.then(next: (ExState, Env) -> Expansion): Expansion
 internal inline fun Expansion.thenValue(next: (ExState, Env, Term) -> Expansion): Expansion =
     when (this) {
         is Expansion.Expanded -> next(state, env, value)
-        is Expansion.Error, is Expansion.Unported -> this
+        is Expansion.Error, is Expansion.Unported, is Expansion.Opaque -> this
     }
 
 /** This expansion with [value] in place of its own, if it expanded. */
@@ -55,6 +55,15 @@ internal fun Expansion.withValue(value: Term): Expansion = if (this is Expansion
 
 /** The value of a node that expands to an AST node other than a variable or a pin. */
 internal val NODE: Term = Term.Node(Term.Node.Kind.OTHER)
+
+/** The value of a node that expands to a variable, which `^` and `rescue ... in` accept. */
+internal val VARIABLE_NODE: Term = Term.Node(Term.Node.Kind.VARIABLE)
+
+internal val NIL = Term.Atom("nil")
+
+internal val TRUE = Term.Atom("true")
+
+internal val FALSE = Term.Atom("false")
 
 /** `mapfold/4`: [nodes] in order, each from the state and env the one before it left; the value is their values. */
 internal inline fun mapfold(
@@ -74,7 +83,7 @@ internal inline fun mapfold(
                 accEnv = expansion.env
                 values.add(expansion.value)
             }
-            is Expansion.Error, is Expansion.Unported -> return expansion
+            is Expansion.Error, is Expansion.Unported, is Expansion.Opaque -> return expansion
         }
     }
 

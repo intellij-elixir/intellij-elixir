@@ -39,11 +39,11 @@ internal fun match(
 ): Expansion {
     val callState = after.copy(prematch = InMatch(before.read, after.version, emptyMap(), emptyList()))
 
-    return expand(callState, env.copy(context = Env.Context.MATCH)).then { state, patternEnv ->
+    return expand(callState, env.copy(context = Env.Context.MATCH)).thenValue { state, patternEnv, value ->
         if (isCyclic(state.prematch as InMatch)) {
             Expansion.Error("recursive", at)
         } else {
-            Expansion.Expanded(state.copy(prematch = before.prematch), patternEnv.copy(context = env.context), NODE)
+            Expansion.Expanded(state.copy(prematch = before.prematch), patternEnv.copy(context = env.context), value)
         }
     }
 }

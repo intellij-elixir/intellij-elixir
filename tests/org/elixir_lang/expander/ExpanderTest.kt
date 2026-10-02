@@ -79,7 +79,7 @@ class ExpanderTest : ExpanderTestCase() {
         assertEvery("{x = 1, y = 2}", "expanded {x:0 y:1} next 2")
 
     fun testABindingIsNotVisibleToItsSiblingElement() =
-        assertSplit("{x = 1, x}", "1.15.0-rc.0", "unported `x`", "error undefined_var `x`")
+        assertSplit("{x = 1, x}", "1.15.0-rc.0", "error undefined_function `x`", "error undefined_var `x`")
 
     fun testABindingInAMapValueShowsAfterTheMap() = assertEvery("%{k: x = 1}", "expanded {x:0} next 1")
 
@@ -153,15 +153,25 @@ class ExpanderTest : ExpanderTestCase() {
         )
 
     fun testAnUndefinedVariableIsALocalCallBefore1_15AndAnErrorFrom() =
-        assertSplit("x", "1.15.0-rc.0", "unported `x`", "error undefined_var `x`")
+        assertSplit("x", "1.15.0-rc.0", "error undefined_function `x`", "error undefined_var `x`")
 
     fun testAStrayArrowIsAnError() = assertEvery("(x -> y)", "error unhandled_arrow_op `x -> y`")
 
     fun testAStrayTypeOperatorIsAnErrorFrom1_15() =
-        assertSplit("(1 :: 2)", "1.15.0-rc.0", "unported `1 :: 2`", "error unhandled_type_op `1 :: 2`")
+        assertSplit(
+            "(1 :: 2)",
+            "1.15.0-rc.0",
+            "error undefined_function `1 :: 2`",
+            "error unhandled_type_op `1 :: 2`",
+        )
 
     fun testAStrayConsOperatorIsAnErrorFrom1_15() =
-        assertSplit("(1 | 2)", "1.15.0-rc.0", "unported `1 | 2`", "error unhandled_cons_op `1 | 2`")
+        assertSplit(
+            "(1 | 2)",
+            "1.15.0-rc.0",
+            "error undefined_function `1 | 2`",
+            "error unhandled_cons_op `1 | 2`",
+        )
 
     fun testACallOfACallIsInvalid() = assertEvery("unquote(1)(2)", "error invalid_call `unquote(1)(2)`")
 
@@ -171,7 +181,12 @@ class ExpanderTest : ExpanderTestCase() {
     }
 
     fun testACursorIsAnErrorFrom1_17() =
-        assertSplit("__cursor__()", "1.17.0-rc.0", "unported `__cursor__()`", "error __cursor__ `__cursor__()`")
+        assertSplit(
+            "__cursor__()",
+            "1.17.0-rc.0",
+            "error undefined_function `__cursor__()`",
+            "error __cursor__ `__cursor__()`",
+        )
 
     fun testParallelBitstringPatternsAreAnErrorBefore1_18() =
         assertSplit(
@@ -214,16 +229,29 @@ class ExpanderTest : ExpanderTestCase() {
     }
 
     fun testTheEnvironmentNamesAreNotVariables() {
-        for (name in listOf("__MODULE__", "__DIR__", "__CALLER__", "__ENV__")) {
-            assertEvery("$name = :a", "unported `$name`")
-            assertEvery("l = [1]; [$name | t] = l", "unported `$name`")
-            assertEvery(name, "unported `$name`")
+        for (name in listOf("__MODULE__", "__DIR__")) {
+            assertEvery("l = [1]; [$name | t] = l", "expanded {l:0 t:1} next 2")
+            assertEvery(name, "expanded {} next 0")
         }
+        assertEvery("__ENV__", "expanded {} next 0")
+        assertEvery("__CALLER__", "error caller_not_allowed `__CALLER__`")
+        assertSplit(
+            "l = [1]; [__CALLER__ | t] = l",
+            "1.13.0-rc.0",
+            "error caller_not_allowed `__CALLER__`",
+            "error invalid_pattern_in_match `__CALLER__`",
+        )
+        assertSplit(
+            "l = [1]; [__ENV__ | t] = l",
+            "1.13.0-rc.0",
+            "error env_not_allowed `__ENV__`",
+            "error invalid_pattern_in_match `__ENV__`",
+        )
     }
 
     fun testAStructIsUnported() = assertEvery("%Struct{}", "unported `%Struct{}`")
 
-    fun testALocalCallIsUnported() = assertEvery("foo(1)", "unported `foo(1)`")
+    fun testALocalCallWithNoImportIsUndefined() = assertEvery("foo(1)", "error undefined_function `foo(1)`")
 
     fun testUnderscoreInAConsPattern() =
         assertSplit("[_ | t] = [1, 2]", "1.20.0-rc.5", "expanded {t:0} next 1", "expanded {t:1} next 2")

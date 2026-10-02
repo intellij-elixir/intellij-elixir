@@ -10,7 +10,9 @@ import org.elixir_lang.psi.call.name.Function.DEFMACRO
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
-internal fun legLevel(): ElixirLanguageLevel = ElixirLanguageLevel.of(LegManifest.environment("ELIXIR_VERSION"))
+/** The leg's Elixir, and its Erlang/OTP when the test JVM is told it: an empty or missing version leaves it unknown. */
+internal fun legLevel(): ElixirLanguageLevel =
+    ElixirLanguageLevel.of(LegManifest.environment("ELIXIR_VERSION"), System.getenv("ERLANG_VERSION"))
 
 internal val legKernel: KernelImports by lazy {
     val beam = File(LegManifest.ebin(), "Elixir.Kernel.beam")

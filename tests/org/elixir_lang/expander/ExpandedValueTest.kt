@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.psi.Import.Term
@@ -10,6 +11,7 @@ import org.elixir_lang.psi.Import.Term
  */
 class ExpandedValueTest : ExpanderTestCase() {
     override val exports: Exports = DirectiveFixtures.EXPORTS
+    override val kernel = KernelImports(listOf(NameArity("+", 1), NameArity("-", 1)), emptyList())
 
     fun testLiterals() {
         assertValue("1", "1")
@@ -89,6 +91,52 @@ class ExpandedValueTest : ExpanderTestCase() {
     fun testAMultiAliasIsAListOfItsAliases() =
         assertSplit("alias M.{A, B}", "1.18.0-rc.0", "[:Elixir.M.A, :Elixir.M.B]", "[node, node]")
 
+    fun testTheModuleIsItsName() = assertValue("__MODULE__", ":nil")
+
+    fun testTheDirectoryIsABinary() = assertValue("__DIR__", "binary")
+
+    fun testTheEnvIsAMap() = assertValue("__ENV__", "node")
+
+    fun testAFieldOfTheEnvIsItsValue() {
+        assertValue("__ENV__.line", "1")
+        assertValue("\n\n__ENV__.line", "3")
+        assertValue("__ENV__.module", ":nil")
+        assertValue("__ENV__.function", ":nil")
+        assertValue("__ENV__.context", ":nil")
+        assertValue("__ENV__.aliases", "[]")
+        assertValue("alias M.A\n__ENV__.aliases", "[{:Elixir.A, :Elixir.M.A}]")
+        assertValue("__ENV__.functions", "[{:Elixir.Kernel, [{:+, 1}, {:-, 1}]}]")
+        assertValue("__ENV__.macro_aliases", "[]")
+        assertValue("__ENV__.context_modules", "[]")
+        assertValue("__ENV__.file", "binary")
+        assertValue("__ENV__.__struct__", ":Elixir.Macro.Env")
+        assertSplit(
+            "__ENV__.requires",
+            "1.17.0-rc.0",
+            "[:Elixir.Application, :Elixir.Kernel, :Elixir.Kernel.Typespec]",
+            "[:Elixir.Application, :Elixir.Kernel]",
+        )
+    }
+
+    fun testAFieldTheEnvLacksIsARunTimeCall() = assertValue("__ENV__.nope", "node")
+
+    fun testTheVersionedVariablesAreAMap() = assertValue("__ENV__.versioned_vars", "node")
+
+    fun testARemoteCallIsANode() = assertValue("M.f(1)", "node")
+
+    fun testAnAnonymousCallIsANode() = assertValue("f = fn -> 1 end\nf.()", "node")
+
+    fun testASignedNumberIsANumberFrom1_16() {
+        assertSplit("-1", "1.16.0-rc.0", "node", "-1")
+        assertSplit("+1.5", "1.16.0-rc.0", "node", "non-tuple")
+        assertSplit("-(-1)", "1.16.0-rc.0", "node", "1")
+    }
+
+    fun testToStringOfABinaryIsTheBinary() {
+        assertValue("String.Chars.to_string(\"a\")", "\"a\"")
+        assertValue("String.Chars.to_string(:a)", "node")
+    }
+
     private fun assertValue(code: String, expected: String) = assertEvery(code, expected)
 
     /** The value of [code]'s last statement, or how the expansion ended before it. */
@@ -104,7 +152,8 @@ class ExpandedValueTest : ExpanderTestCase() {
                 if (node === last) lastExpansion = expansion
             }
         }
-        val expansion = Expander.expand(root, ExState.empty(level), Env.empty(level, kernel), level, exports, observer)
+        val env = Env.empty(level, kernel).copy(module = module)
+        val expansion = Expander.expand(root, ExState.empty(level), env, level, exports, observer)
 
         return when (val reached = lastExpansion ?: expansion) {
             is Expansion.Expanded -> valueOf(reached.value)

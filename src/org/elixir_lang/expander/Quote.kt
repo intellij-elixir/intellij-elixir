@@ -49,7 +49,7 @@ internal object Quote {
             else -> return null
         }
 
-        return (build(body, state, env, run, lineOffset) as? Built.Escaped)?.block
+        return (build(body, state, env, run, lineOffset) as? Built.Escaped)?.takeIf { it.known }?.block
     }
 
     /** `lists:keytake(do, 1, Opts)`, as the keyword clause expands `{quote, Meta, [DoOpts, [{do, Do}]]}`. */
@@ -71,8 +71,16 @@ internal object Quote {
         /**
          * @property quoted what `elixir_quote:quote/2` gives, which is expanded
          * @property block [quoted] after the `bind_quoted` bindings
+         * @property known whether [block] is the tree Elixir builds: not where a `file:` path's bytes aren't known,
+         *   though [quoted] still expands as Elixir's does, since a binary expands alike whatever it holds
          */
-        class Escaped(val quoted: ElixirAst, val block: ElixirAst, val state: ExState, val env: Env) : Built
+        class Escaped(
+            val quoted: ElixirAst,
+            val block: ElixirAst,
+            val state: ExState,
+            val env: Env,
+            val known: Boolean,
+        ) : Built
     }
 
     /** Thrown where building stops: an error Elixir raises, or a node that isn't ported. */
@@ -96,9 +104,11 @@ internal object Quote {
         if (expandedOpts !is Expansion.Expanded) throw Stop(expandedOpts)
 
         val options = options(call, opts)
+        val values = expandedOpts.value
         val bindQuoted = options["bind_quoted"]?.let { bindings(call, it, env, level) }
-        val unquote = options["unquote"]?.let(::boolean) ?: Option.Static(bindQuoted == null)
-        val generated = options["generated"]?.let(::boolean) ?: Option.Static(false)
+        val unquote = options["unquote"]?.let { boolean(it, values.keyfind("unquote")) }
+            ?: Option.Static(bindQuoted == null)
+        val generated = options["generated"]?.let { boolean(it, values.keyfind("generated")) } ?: Option.Static(false)
 
         if (env.context != Env.Context.NONE && QUOTE_IN_PATTERN_WITH_UNQUOTE_RAISES.isSufficient(level)) {
             when (unquote) {
@@ -112,24 +122,24 @@ internal object Quote {
         }
 
         val line = options["line"]?.let { value ->
-            when (val shape = expandedShape(value)) {
-                is ElixirAst.Literal.Integer -> Option.Static(Line.At(shape.value))
-                is ElixirAst.Literal.Atom if shape.name == "true" -> Option.Static(Line.Keep)
-                is ElixirAst.Literal.Atom if shape.name == "false" -> Option.Static(Line.Drop)
+            when (val term = values.keyfind("line")) {
+                is Term.Integer -> Option.Static(Line.At(term.value))
+                TRUE -> Option.Static(Line.Keep)
+                FALSE -> Option.Static(Line.Drop)
                 else -> Option.Dynamic(value)
             }
         } ?: Option.Static(Line.Drop)
         val file = options["file"]?.let { value ->
-            when (val shape = expandedShape(value)) {
-                is ElixirAst.Literal.Binary -> Option.Static(shape.bytes)
-                is ElixirAst.Literal.Atom if shape.name == "nil" -> Option.Static(null)
+            when (val term = values.keyfind("file")) {
+                is Term.Binary -> Option.Static(term)
+                NIL -> Option.Static(null)
                 else -> Option.Dynamic(value)
             }
         } ?: Option.Static(null)
         val context = options["context"]?.let { value ->
-            when (val atom = atomValue(value, env, level)) {
-                null, "nil" -> Option.Dynamic(value)
-                else -> Option.Static(atom)
+            when (val term = values.keyfind("context")) {
+                is Term.Atom if term != NIL -> Option.Static(term.name)
+                else -> Option.Dynamic(value)
             }
         } ?: Option.Static(env.module ?: "Elixir")
 
@@ -154,9 +164,11 @@ internal object Quote {
             )
         }
 
+        val path = (file as Option.Static).value
         val q = Quoting(
             line = (line as Option.Static).value,
-            file = (file as Option.Static).value,
+            // A path whose bytes aren't known is built empty, and `known` keeps that tree from `escaped`.
+            file = path?.let { it.bytes ?: ByteArray(0) },
             context = (context as Option.Static).value,
             unquote = (unquote as Option.Static).value,
             generated = (generated as Option.Static).value,
@@ -187,7 +199,9 @@ internal object Quote {
             s.tuple(s.atom("__block__"), s.list(), s.list(bindings + quoted))
         }
 
-        return Built.Escaped(quoted, block, expandedOpts.state, expandedOpts.env)
+        val known = path == null || path.bytes != null
+
+        return Built.Escaped(quoted, block, expandedOpts.state, expandedOpts.env, known)
     }
 
     /** An option's value: known while expanding, or only at run time. */
@@ -207,10 +221,11 @@ internal object Quote {
         data class At(val line: BigInteger) : Line
     }
 
-    private fun boolean(value: ElixirAst): Option<Boolean> =
-        when ((expandedShape(value) as? ElixirAst.Literal.Atom)?.name) {
-            "true" -> Option.Static(true)
-            "false" -> Option.Static(false)
+    /** An option's [term] as a boolean, or else the option's expression, [value]. */
+    private fun boolean(value: ElixirAst, term: Term?): Option<Boolean> =
+        when (term) {
+            TRUE -> Option.Static(true)
+            FALSE -> Option.Static(false)
             else -> Option.Dynamic(value)
         }
 

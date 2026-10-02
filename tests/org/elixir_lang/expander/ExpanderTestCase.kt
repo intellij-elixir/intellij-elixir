@@ -1,6 +1,7 @@
 package org.elixir_lang.expander
 
 import com.intellij.openapi.application.ReadAction
+import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
@@ -15,11 +16,26 @@ abstract class ExpanderTestCase : ParsingTestCase() {
     /** What the empty env imports from `Kernel`. */
     protected open val kernel: KernelImports = NO_KERNEL
 
+    /** The module whose body the snippets are in, or `null` for none. */
+    protected open val module: String? = null
+
+    /** The function whose body the snippets are in, or `null` for the module body. */
+    protected open val function: NameArity? = null
+
     /** [code], lowered and expanded at [version], from the empty env and an empty [ExState]. */
     protected fun expand(code: String, version: String, observer: ExpansionObserver = ExpansionObserver.NONE) =
-        ElixirLanguageLevel.of(version).let { level ->
-            Expander.expand(lower(code, level), ExState.empty(level), Env.empty(level, kernel), level, exports, observer)
-        }
+        expand(code, ElixirLanguageLevel.of(version), observer)
+
+    /** [code], lowered and expanded at [level], from the empty env and an empty [ExState]. */
+    protected fun expand(code: String, level: ElixirLanguageLevel, observer: ExpansionObserver = ExpansionObserver.NONE) =
+        Expander.expand(
+            lower(code, level),
+            ExState.empty(level),
+            Env.empty(level, kernel).copy(module = module, function = function),
+            level,
+            exports,
+            observer,
+        )
 
     protected fun lower(code: String, level: ElixirLanguageLevel): ElixirAst {
         val file = createPsiFile(getTestName(false), code) as ElixirFile
@@ -42,7 +58,8 @@ abstract class ExpanderTestCase : ParsingTestCase() {
 
     /**
      * [expansion] as text: the read variables sorted by name with their versions and then the next version, or the
-     * error's kind and the source of its node, or the source of the node that isn't ported.
+     * error's kind and the source of its node, or the source of the node that isn't ported, or the macro's dispatch and
+     * the source of its call.
      */
     protected open fun render(code: String, expansion: Expansion): String =
         when (expansion) {
@@ -56,6 +73,7 @@ abstract class ExpanderTestCase : ParsingTestCase() {
             }
             is Expansion.Error -> "error ${expansion.kind} `${expansion.at.meta.origin.substring(code)}`"
             is Expansion.Unported -> "unported `${expansion.at.meta.origin.substring(code)}`"
+            is Expansion.Opaque -> "opaque ${render(expansion.dispatch)} `${expansion.at.meta.origin.substring(code)}`"
         }
 
     /** [code] expands to [expected] at every level in [LEVELS]. */
@@ -107,6 +125,10 @@ abstract class ExpanderTestCase : ParsingTestCase() {
     protected open fun expandAndRender(code: String, version: String): String = render(code, expand(code, version))
 
     companion object {
+        /** [dispatch] as `kind receiver.name/arity`, the kind as Elixir's trace event names it. */
+        fun render(dispatch: Dispatch): String =
+            "${dispatch.kind.name.lowercase()} ${dispatch.receiver}.${dispatch.name}/${dispatch.arity}"
+
         val NO_KERNEL = KernelImports(emptyList(), emptyList())
 
         /** No module is loaded. */

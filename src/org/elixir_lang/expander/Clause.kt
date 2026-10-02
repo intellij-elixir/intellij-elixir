@@ -10,7 +10,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.PARALLEL_MATCH
 import org.elixir_lang.language_level.ElixirLanguageFeature.PATTERN_SEES_RIGHT_SIDE_ENV
 import org.elixir_lang.language_level.ElixirLanguageFeature.PIN_IN_BITSTRING_SIZE
 import org.elixir_lang.language_level.ElixirLanguageFeature.REPEATED_PATTERN_VARIABLE_WRITTEN_AT_NEXT_VERSION
-import org.elixir_lang.language_level.ElixirLanguageFeature.STACKTRACE_REFUSED_IN_PATTERN
+import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILER_VARIABLES_REFUSED_IN_PATTERN
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNDERSCORE_TAKES_VERSION
 import org.elixir_lang.language_level.ElixirLanguageFeature.ZERO_FLOAT_MATCH_WARNS
 import org.elixir_lang.language_level.ElixirLanguageLevel
@@ -90,6 +90,14 @@ internal enum class Clause(vararg val heads: Head) {
             expandMap(node as ElixirAst.Call, state, env, run)
     },
 
+    /** `%`, a struct, which has a clause of its own ahead of the local call's. */
+    STRUCT(expandHead("{'%',_,[_,_]}")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            isCall(node, "%", 2)
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) = Expansion.Unported(node)
+    },
+
     BITSTRING(expandHead("{'<<>>',_,_}")) {
         override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) = isBitstring(node)
 
@@ -129,7 +137,7 @@ internal enum class Clause(vararg val heads: Head) {
             node is ElixirAst.Block && node.expressions.isEmpty()
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            Expansion.Expanded(state, env, Term.Atom("nil"))
+            Expansion.Expanded(state, env, NIL)
     },
 
     SINGLE_BLOCK(expandHead("{'__block__',_,[_]}")) {
@@ -200,28 +208,61 @@ internal enum class Clause(vararg val heads: Head) {
             expandDirective(Directive.IMPORT, node, state, env, run)
     },
 
+    MODULE(expandHead("{'__MODULE__',_,V1} when is_atom(V1)")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            isVariableNamed(node, "__MODULE__")
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            Expansion.Expanded(state, env, Term.Atom(env.module ?: "nil"))
+    },
+
+    /** `__DIR__`, whose binary isn't known: `Env` holds no file. */
+    DIR(expandHead("{'__DIR__',_,V1} when is_atom(V1)")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            isVariableNamed(node, "__DIR__")
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            Expansion.Expanded(state, env, Term.Binary(null))
+    },
+
+    CALLER(expandHead("{'__CALLER__',_,V1} when is_atom(V1)")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            isVariableNamed(node, "__CALLER__")
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) = expandCaller(node, env, run)
+    },
+
     STACKTRACE(expandHead("{'__STACKTRACE__',_,V1} when is_atom(V1)")) {
         override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
             isVariable(node) && variable(node).name == "__STACKTRACE__"
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            (if (STACKTRACE_REFUSED_IN_PATTERN.isSufficient(run.level)) noMatchScope(node, env) else null)
+            (if (COMPILER_VARIABLES_REFUSED_IN_PATTERN.isSufficient(run.level)) noMatchScope(node, env) else null)
                 ?: if (state.stacktrace) {
-                    Expansion.Expanded(state, env, NODE)
+                    Expansion.Expanded(state, env, VARIABLE_NODE)
                 } else {
                     Expansion.Error("stacktrace_not_allowed", node)
                 }
     },
 
-    /**
-     * `__MODULE__`, `__DIR__`, `__CALLER__` and `__ENV__`, which have a variable's shape and clauses of their own ahead
-     * of the variables'.
-     */
-    ENVIRONMENT_NAME(*ENVIRONMENT_NAMES.map { expandHead("{'$it',_,V1} when is_atom(V1)") }.toTypedArray()) {
+    /** `__ENV__`; before 1.13 a head of its own refuses it in a pattern. */
+    ENV(expandHead("{'__ENV__',_,V1} when is_atom(V1)")) {
         override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
-            isEnvironmentName(node)
+            isVariableNamed(node, "__ENV__")
 
-        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) = Expansion.Unported(node)
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) = expandEnv(node, state, env, run)
+    },
+
+    ENV_FIELD(expandHead("{{'.',_,[{'__ENV__',_,V1},V2]},_,[]} when is_atom(V1), is_atom(V2)")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            node is ElixirAst.Call &&
+                node.arguments?.isEmpty() == true &&
+                remoteArguments(node)?.let { (left, right) ->
+                    isVariableNamed(left, "__ENV__") && right is ElixirAst.Literal.Atom
+                } == true
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            expandEnvField(node as ElixirAst.Call, state, env, run)
     },
 
     CURSOR(expandHead("{'__cursor__',_,V1} when is_list(V1)")) {
@@ -355,6 +396,14 @@ internal enum class Clause(vararg val heads: Head) {
             noMatchOrGuardScope(node, state, env) ?: expandWith(node as ElixirAst.Call, state, env, run)
     },
 
+    /** `super`, which has a clause of its own ahead of the local call's. */
+    SUPER(expandHead("{super,_,V1} when is_list(V1)")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            isNamedCall(node, "super")
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) = Expansion.Unported(node)
+    },
+
     /** `^` while a pattern is being expanded, which reads the variables from before the pattern. */
     PIN(expandHead("{'^',_,[_]}")) {
         override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
@@ -374,8 +423,8 @@ internal enum class Clause(vararg val heads: Head) {
             }
             val pinState = state.copy(read = before, prematch = OutsideMatch(OutsideMatch.Mode.Pin))
 
-            return Expander.expand(arg, pinState, env.copy(context = Env.Context.NONE), run).then { _, _ ->
-                if (isVariable(expandedShape(arg))) {
+            return Expander.expand(arg, pinState, env.copy(context = Env.Context.NONE), run).thenValue { _, _, value ->
+                if (value == VARIABLE_NODE) {
                     Expansion.Expanded(state, env, Term.Node(Term.Node.Kind.PIN))
                 } else {
                     Expansion.Error("invalid_arg_for_pin", node)
@@ -453,8 +502,7 @@ internal enum class Clause(vararg val heads: Head) {
                 }
             } else {
                 when ((prematch as? OutsideMatch)?.mode ?: OutsideMatch.Mode.Raise) {
-                    // A local call of no arguments.
-                    OutsideMatch.Mode.Warn -> Expansion.Unported(node)
+                    OutsideMatch.Mode.Warn -> Expander.expand(zeroArityCall(node as ElixirAst.Call), state, env, run)
                     OutsideMatch.Mode.Raise -> Expansion.Error("undefined_var", node)
                     OutsideMatch.Mode.Pin -> Expansion.Error("undefined_var_pin", node)
                 }
@@ -462,23 +510,45 @@ internal enum class Clause(vararg val heads: Head) {
         }
     },
 
+    LOCAL_CALL(expandHead("{V1,V2,V3} when is_atom(V1), is_list(V2), is_list(V3)")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            node is ElixirAst.Call && node.callee is ElixirAst.Literal.Atom && node.arguments != null
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            expandLocalCall(node as ElixirAst.Call, state, env, run)
+    },
+
+    REMOTE_CALL(
+        expandHead(
+            "{{'.',_,[V1,V2]},V3,V4} when is_tuple(V1) orelse is_atom(V1), is_atom(V2), is_list(V3), is_list(V4)"
+        ),
+    ) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            node is ElixirAst.Call &&
+                node.arguments != null &&
+                remoteArguments(node)?.let { (left, right) ->
+                    isTupleOrAtom(left) && right is ElixirAst.Literal.Atom
+                } == true
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            expandRemoteCall(node as ElixirAst.Call, state, env, run)
+    },
+
+    ANONYMOUS_CALL(expandHead("{{'.',_,[_]},_,V1} when is_list(V1)")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            node is ElixirAst.Call && node.arguments != null && dotArguments(node.callee)?.size == 1
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            expandAnonymousCall(node as ElixirAst.Call, state, env, run)
+    },
+
     /**
      * A call whose callee is neither a name nor a `.` call: `unquote(1)(2)`, or a remote call on a literal such as
      * `1.foo()`.
      */
     INVALID_CALL(expandHead("{_,V1,V2} when is_list(V1) and is_list(V2)")) {
-        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel): Boolean {
-            if (node !is ElixirAst.Call || node.arguments == null || node.callee is ElixirAst.Literal.Atom) return false
-
-            val dot = node.callee as? ElixirAst.Call
-            val dotArguments = dot?.arguments?.takeIf { (dot.callee as? ElixirAst.Literal.Atom)?.name == "." }
-            val isRemote = dotArguments?.size == 2 &&
-                isTupleOrAtom(dotArguments[0]) &&
-                dotArguments[1] is ElixirAst.Literal.Atom
-            val isAnonymous = dotArguments?.size == 1
-
-            return !isRemote && !isAnonymous
-        }
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            node is ElixirAst.Call && node.arguments != null
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
             Expansion.Error("invalid_call", node)
@@ -557,10 +627,6 @@ internal fun noGuardScope(node: ElixirAst, state: ExState): Expansion.Error =
 
 private fun expandHead(pattern: String) = Clause.Head("elixir_expand", "expand", 1, pattern)
 
-private val VARIABLE_NODE = Term.Node(Term.Node.Kind.VARIABLE)
-
-private val ENVIRONMENT_NAMES = listOf("__MODULE__", "__DIR__", "__CALLER__", "__ENV__")
-
 private fun isDirective(node: ElixirAst, directive: Directive) =
     isCall(node, directive.atom, 1) || isCall(node, directive.atom, 2)
 
@@ -576,8 +642,19 @@ private fun isMultiAlias(node: ElixirAst?): Boolean =
         isCall(dot, ".", 2) && (dot.arguments!![1] as? ElixirAst.Literal.Atom)?.name == "{}"
     } == true
 
-internal fun isEnvironmentName(node: ElixirAst): Boolean =
-    isVariable(node) && ((node as ElixirAst.Call).callee as ElixirAst.Literal.Atom).name in ENVIRONMENT_NAMES
+/** `{name, meta, context}` with an atom context. */
+private fun isVariableNamed(node: ElixirAst, name: String): Boolean =
+    isVariable(node) && ((node as ElixirAst.Call).callee as ElixirAst.Literal.Atom).name == name
+
+private fun dotArguments(callee: ElixirAst): List<ElixirAst>? =
+    (callee as? ElixirAst.Call)?.takeIf { (it.callee as? ElixirAst.Literal.Atom)?.name == "." }?.arguments
+
+/** `[Left, Right]` of a call whose callee is `{'.', DotMeta, [Left, Right]}`. */
+private fun remoteArguments(node: ElixirAst.Call): List<ElixirAst>? = dotArguments(node.callee)?.takeIf { it.size == 2 }
+
+/** `{Name, Meta, []}`, the local call a variable is when it isn't defined and the mode only warns. */
+private fun zeroArityCall(variable: ElixirAst.Call): ElixirAst.Call =
+    ElixirAst.Call(variable.meta, variable.callee, emptyList())
 
 private val EXPAND_LIST = arrayOf(
     Clause.Head("elixir_expand", "expand_list", 1, "[]"),
