@@ -16,8 +16,15 @@ data class Head(val definer: String, val name: String, val parameters: List<Stri
      * completion inserting `snoc(q, x \\ nil)` would be inserting a syntax error. Documentation and parameter hints
      * describe the declaration and do show it, which is why only this one is stripped.
      */
-    val callSignature: String
-        get() = "$name(${parameters.joinToString(", ") { it.substringBefore(" \\\\ ") }})"
+    val callSignature: String get() = callSignature(arity)
+
+    /** At a lower arity a default covers, Elixir fills the last defaults, so their parameters are not written. */
+    fun callSignature(arity: Int): String {
+        var omitted = parameters.size - arity
+        val written = parameters.asReversed().filterNot { omitted > 0 && " \\\\ " in it && omitted-- > 0 }.asReversed()
+
+        return "$name(${written.joinToString(", ") { it.substringBefore(" \\\\ ") }})"
+    }
 
     fun covers(arity: Int): Boolean = arity in (parameters.size - defaults)..parameters.size
 }
