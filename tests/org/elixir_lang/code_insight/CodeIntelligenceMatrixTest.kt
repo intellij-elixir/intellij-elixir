@@ -277,6 +277,7 @@ private class Group(val scenario: Scenario) {
 
         scenario.callers.forEach { callerFiles[it] = myFixture.copyFileToProject(it) }
         scenario.modules.filterNot { it.compiled || it.source in callerFiles }.forEach { sourceFiles[it] = myFixture.copyFileToProject(it.source) }
+        scenario.modules.mapNotNull { it.staleBeam }.forEach { myFixture.copyFileToProject(it, it.removePrefix("stale/")) }
         (callerFiles.values + sourceFiles.values).forEach { originals[it] = text(it) }
     }
 
