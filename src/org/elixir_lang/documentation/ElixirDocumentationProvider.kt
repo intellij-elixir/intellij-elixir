@@ -326,8 +326,17 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
 
         contextElement is QualifiableAlias -> getCustomDocumentationElement(contextElement.parent)
 
-        else -> null
+        else -> {
+            val quotedAtom = enclosingQuotedAtom(contextElement)
+
+            if (quotedAtom != null) getCustomDocumentationElement(quotedAtom) else null
+        }
     }
+
+    /** The atom whose quoted name holds [element], unless [element] is inside an interpolation in that name. */
+    private fun enclosingQuotedAtom(element: PsiElement): ElixirAtom? =
+        PsiTreeUtil.getParentOfType(element, ElixirLine::class.java, false, ElixirInterpolation::class.java)
+            ?.parent as? ElixirAtom
 
     private fun formatDocs(project: Project, fetchedDocs: FetchedDocs): String {
         val documentationHtml = StringBuilder()
