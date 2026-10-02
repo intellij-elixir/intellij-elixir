@@ -38,6 +38,8 @@ object ErrorKinds {
         "undefined_function" to
             """^(undefined function \S+/\d+( \(there is no such import\))?$|""" +
             """misplaced operator (\||::)/2\n\nThe (\||::) operator is typically used)""",
+        "undefined_local_capture" to """^undefined function \S+/\d+( \(there is no such import\))?$""",
+        "invalid_expr_in_scope" to """^cannot invoke \S+ outside \S+$""",
         "op_ambiguity" to """^".+" looks like a function call but there is a variable named ".+"""",
         "parens_map_lookup_guard" to "^cannot invoke remote function in guard$PARENS_MAP_LOOKUP",
         "parens_map_lookup" to "^cannot invoke remote function (in|inside) $GUARD$PARENS_MAP_LOOKUP",

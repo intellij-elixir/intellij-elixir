@@ -132,14 +132,15 @@ class CaptureExpanderTest : ExpanderTestCase() {
     fun testACaptureInAGuardIsAnError() =
         assertEvery("x = 1\ncase x do\ny when &[&1] -> y\nend", "error invalid_expr_in_guard `&[&1]`")
 
-    fun testACaptureThatNeedsALookupIsUnported() {
-        assertEvery("&foo/1", "unported `&foo/1`")
-        assertEvery("&:erlang.abs/1", "unported `&:erlang.abs/1`")
-        assertEvery("&__MODULE__.abs/1", "unported `&__MODULE__.abs/1`")
-        assertEvery("&foo(&1)", "unported `&foo(&1)`")
-        assertEvery("&(&1 + &2)", "unported `&(&1 + &2)`")
-        assertEvery("&super(&1)", "unported `&super(&1)`")
-        assertEvery("&super/1", "unported `&super/1`")
+    /** With nothing imported, a capture by name in a module body is of a local function, which it can't have. */
+    fun testACaptureThatNeedsALookup() {
+        assertEvery("&foo/1", "error undefined_local_capture `&foo/1`")
+        assertEvery("&:erlang.abs/1", "expanded {} next 0")
+        assertEvery("&__MODULE__.abs/1", "expanded {} next 0")
+        assertEvery("&foo(&1)", "error undefined_local_capture `&foo(&1)`")
+        assertEvery("&(&1 + &2)", "error undefined_local_capture `&(&1 + &2)`")
+        assertEvery("&super(&1)", "error invalid_expr_in_scope `&super(&1)`")
+        assertEvery("&super/1", "error invalid_expr_in_scope `&super/1`")
     }
 
     fun testACapturesBodyIsExpandedAsAnFnBody() = assertEvery("&(&1 + 1)", "error undefined_function `&1 + 1`")

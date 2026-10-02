@@ -5,6 +5,7 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.util.TextRange
 import org.elixir_lang.expander.ProbeHarness.Tag
+import org.elixir_lang.language_level.ElixirLanguageFeature.REMOTE_CAPTURE_REPORTED_AT_CALL
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNDEFINED_VARIABLE_RAISES
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
@@ -117,8 +118,11 @@ internal class ExpansionProbes(
             starts.add(state to env)
             val entered = mutableSetOf<TextRange>()
             val left = mutableSetOf<TextRange>()
+            val open = ArrayDeque<ElixirAst>()
             val observer = object : ExpansionObserver {
                 override fun entering(node: ElixirAst, state: ExState, env: Env) {
+                    open.addLast(node)
+
                     identities[node.meta.origin]?.let { identity ->
                         if (entered.add(node.meta.origin)) {
                             steps.add(step(Tag(0, 0, index + 1, identity), state, env))
@@ -128,6 +132,9 @@ internal class ExpansionProbes(
 
                 override fun dispatched(node: ElixirAst, dispatch: Dispatch) {
                     dispatches.add(DispatchEvents.key(node, dispatch))
+                    retraced(open.lastOrNull(), node, dispatch, level)?.let {
+                        dispatches.add(DispatchEvents.key(it, dispatch))
+                    }
                 }
 
                 override fun quotedImport(
@@ -142,6 +149,8 @@ internal class ExpansionProbes(
 
                 // Nodes that share an origin, such as a block of one expression and that expression, leave with one state.
                 override fun left(node: ElixirAst, expansion: Expansion) {
+                    open.removeLast()
+
                     val tag = nested[node.meta.origin]
 
                     if (tag != null && expansion is Expansion.Expanded && left.add(node.meta.origin)) {
@@ -424,6 +433,22 @@ internal class ExpansionProbes(
         val DIAGNOSTICS_SINCE: ElixirLanguageLevel = ElixirLanguageLevel.of("1.15.0-rc.0")
 
         val PREFIXED_MESSAGE = Regex("""^[^:\n]*:(\d+): (.*)""", RegexOption.DOT_MATCHES_ALL)
+
+        /**
+         * `elixir-lang/elixir@73d776256`: before it, `expand_fn_capture` traced a remote capture again after `inline/3`.
+         */
+        val REMOTE_CAPTURE_TRACED_ONCE_SINCE: ElixirLanguageLevel = ElixirLanguageLevel.of("1.17.0-rc.1")
+
+        /**
+         * The node the compiler's second trace of a remote capture is at, if [dispatch] of [node] has one: the `&`,
+         * [open], before 1.14.0-rc.1, and the call from it.
+         */
+        fun retraced(open: ElixirAst?, node: ElixirAst, dispatch: Dispatch, level: ElixirLanguageLevel): ElixirAst? =
+            open?.takeIf {
+                dispatch.kind == Dispatch.Kind.REMOTE_FUNCTION &&
+                    isCall(it, "&", 1) &&
+                    level.elixir < REMOTE_CAPTURE_TRACED_ONCE_SINCE.elixir
+            }?.let { amp -> if (REMOTE_CAPTURE_REPORTED_AT_CALL.isSufficient(level)) node else amp }
 
         @Volatile
         var optionsAsserted = false

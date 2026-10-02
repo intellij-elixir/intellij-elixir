@@ -850,7 +850,8 @@ enum class ElixirLanguageFeature(
     CAPTURE_ARGUMENT_BELOW_ONE_IS_INVALID_ARITY(sinceElixir = "1.14.0-rc.0"),
 
     /**
-     * A capture of a remote call whose module part has no `&N` reports its errors at the call, not at the `&`.
+     * A capture of a remote call whose module part has no `&N` reports its errors at the call, not at the `&`, and
+     * `&f/a` and `&M.f/a` trace their lookup at `f` or `M.f`.
      *
      * `elixir-lang/elixir@6c068176d` ("Emit consistent position meta on fn capture traces", #12033), first released in
      * v1.14.0-rc.1.

@@ -189,6 +189,20 @@ class HygieneExpanderTest : ExpanderTestCase() {
     fun testAliasBangIsDispatchedAndItsOutputDispatchesNothing() =
         assertDispatches("_ = alias!(Foo)", "imported_macro Elixir.Kernel.alias!/1")
 
+    /** A remote capture's function body takes the value of its module part, so `alias!` there expands once. */
+    fun testTheModulePartOfARemoteCaptureExpandsOnce() {
+        assertLevels("h = &alias!(Integer).to_string(&1, 2)", LEVELS) {
+            // The `fn`'s parameter takes a version, and from 1.20.0-rc.5 the `fn` takes one too.
+            val h = if (isBefore(it, "1.20.0-rc.5")) "{h/nil:1} next 2" else "{h/nil:2} next 3"
+
+            "expanded $h; counted 1"
+        }
+        assertEvery(
+            "require Integer\nh = &alias!(Integer).is_odd(&1)",
+            "opaque remote_macro Elixir.Integer.is_odd/1 `alias!(Integer).is_odd(&1)`; counted 1",
+        )
+    }
+
     // A counter outside a module
 
     fun testOutsideAModuleTheCounterIsAUniqueInteger() {

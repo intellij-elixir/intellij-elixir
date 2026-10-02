@@ -5,6 +5,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.CAPTURE_REPORTED_AT_
 import org.elixir_lang.language_level.ElixirLanguageFeature.REMOTE_CAPTURE_REPORTED_AT_CALL
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
 import java.math.BigInteger
 
@@ -31,9 +32,8 @@ internal val CAPTURE_HEADS = listOf(
 )
 
 /**
- * `elixir_expand:expand_fn_capture/4` through `elixir_fn:capture/4`, for [node], `&` of one argument. A capture that
- * looks a function up isn't ported; any other expands as the `fn` Elixir rewrites it to, or is a remote capture on a
- * variable, which reads only that variable.
+ * `elixir_expand:expand_fn_capture/4` through `elixir_fn:capture/4`, for [node], `&` of one argument: a capture of a
+ * named function, or else the `fn` Elixir rewrites it to.
  */
 internal fun expandCapture(node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion =
     capture(node, node.arguments!!.single(), state, env, run)
@@ -55,16 +55,24 @@ private fun capture(amp: ElixirAst.Call, arg: ElixirAst, state: ExState, env: En
             val remote = function as ElixirAst.Call
 
             argumentsFromArity(amp, arity)?.let { args ->
-                captureRequire(amp, ElixirAst.Call(remote.meta, remote.callee, args), Arguments.ARITY, state, env, run)
+                val call = ElixirAst.Call(arityCallMeta(amp, remote, run), remote.callee, args)
+
+                captureRequire(amp, call, Arguments.ARITY, state, env, run)
             } ?: Expansion.Error("invalid_arity_for_capture", amp)
         }
-        // `import_function/4` decides between an import, a macro and a local.
-        isCall(arg, "/", 2) && isVariable((arg as ElixirAst.Call).arguments!![0]) && isInteger(arg.arguments!![1]) ->
-            if (argumentsFromArity(amp, arg.arguments[1]) == null) {
-                Expansion.Error("invalid_arity_for_capture", amp)
-            } else {
-                Expansion.Unported(amp)
-            }
+        isCall(arg, "/", 2) && isVariable((arg as ElixirAst.Call).arguments!![0]) && isInteger(arg.arguments!![1]) -> {
+            val (function, arity) = arg.arguments
+            val variable = function as ElixirAst.Call
+            val functionName = (variable.callee as ElixirAst.Literal.Atom).name
+
+            argumentsFromArity(amp, arity)?.let { args ->
+                val call = ElixirAst.Call(arityCallMeta(amp, variable, run), variable.callee, args)
+
+                val at = captureAt(amp, call, run)
+
+                captureImport(amp, at, call, functionName, args, state, env, run, Arguments.ARITY)
+            } ?: Expansion.Error("invalid_arity_for_capture", amp)
+        }
         dot?.size == 2 && dot[1] is ElixirAst.Literal.Atom && call.arguments != null ->
             captureRequire(amp, call, arguments(call.arguments), state, env, run)
         dot?.size == 1 && call.arguments != null -> captureExpr(amp, call, Arguments.NON_SEQUENTIAL, state, env, run)
@@ -83,8 +91,7 @@ private fun capture(amp: ElixirAst.Call, arg: ElixirAst, state: ExState, env: En
 }
 
 /**
- * `capture_import/4`: `import_function/4` looks up a call of sequential arguments, and answers `false` for a special
- * form, which no import can name.
+ * `capture_import/4`: `import_function/4` looks up a call of sequential arguments.
  *
  * @param at where the capture's errors are reported
  */
@@ -97,16 +104,53 @@ private fun captureImport(
     state: ExState,
     env: Env,
     run: Run,
+    arguments: Arguments = arguments(args),
 ): Expansion =
-    when (arguments(args)) {
-        Arguments.NON_SEQUENTIAL -> captureExpr(at, expr, Arguments.NON_SEQUENTIAL, state, env, run)
-        else ->
-            if (specialForm(name, args.size, run.level)) {
-                captureExpr(at, expr, Arguments.SEQUENTIAL, state, env, run)
-            } else {
-                Expansion.Unported(amp)
+    if (arguments == Arguments.NON_SEQUENTIAL) {
+        captureExpr(at, expr, arguments, state, env, run)
+    } else {
+        importFunction(amp, expr, name, args.size, state, env, run)
+            ?: captureExpr(at, expr, arguments, state, env, run)
+    }
+
+/**
+ * `elixir_dispatch:import_function/4` for a capture of [call], and then `expand_fn_capture/4`'s answer, or `null` for
+ * Elixir's `false`: a macro or a special form, whose capture is an `fn` that calls it.
+ */
+private fun importFunction(
+    amp: ElixirAst,
+    call: ElixirAst,
+    name: String,
+    arity: Int,
+    state: ExState,
+    env: Env,
+    run: Run,
+): Expansion? {
+    if (hasQuotedImport(call.meta)) return Expansion.Unported(amp)
+
+    return when (val match = findImportByNameArity(name, arity, emptyList(), env)) {
+        is ImportMatch.Function -> {
+            importedFunction(call, match.receiver, name, arity, run)
+
+            Expansion.Expanded(state, env, NODE)
+        }
+        is ImportMatch.Macro -> null
+        is ImportMatch.Ambiguous -> Expansion.Error("ambiguous_call", call)
+        ImportMatch.None ->
+            when {
+                specialForm(name, arity, run.level) -> null
+                // `elixir_def:local_for/5` reads the module's definitions, which aren't modelled.
+                env.function != null -> Expansion.Unported(amp)
+                else -> {
+                    val module = env.module ?: "nil"
+
+                    run.observer.dispatched(call, Dispatch(Dispatch.Kind.LOCAL_FUNCTION, module, name, arity))
+
+                    Expansion.Error("undefined_local_capture", amp)
+                }
             }
     }
+}
 
 /**
  * `capture_require/4` for [call], a remote call: the module part, unless it has an `&N`, is expanded first. A module
@@ -129,14 +173,69 @@ private fun captureRequire(
         captureExpr(captureAt(amp, call, run), call, arguments, state, env, run)
     } else {
         Expander.expand(module, state, env, run).thenValue { s, e, value ->
+            val at = captureAt(amp, call, run, plainRemote = true)
+            // The `fn` calls the expanded module part. Only an atom's is known without the expanded tree, so any other
+            // module part is expanded again in the `fn`.
+            val expanded = (value as? Term.Atom)
+                ?.let { withModule(call, ElixirAst.Literal.Atom(module.meta, it.name)) }
+                ?: call
+
             when {
-                arguments != Arguments.NON_SEQUENTIAL && value == VARIABLE_NODE -> Expansion.Expanded(s, e, NODE)
-                arguments != Arguments.NON_SEQUENTIAL && value is Term.Atom -> Expansion.Unported(amp)
-                else -> captureExpr(captureAt(amp, call, run, plainRemote = true), call, arguments, s, e, run)
+                arguments == Arguments.NON_SEQUENTIAL -> captureExpr(at, expanded, arguments, s, e, run)
+                value == VARIABLE_NODE -> Expansion.Expanded(s, e, NODE)
+                value is Term.Atom ->
+                    requireFunction(amp, call, value.name, s, e, run) ?: captureExpr(at, expanded, arguments, s, e, run)
+                else -> captureExpr(at, call, arguments, s, e, run)
             }
         }
     }
 }
+
+/**
+ * `elixir_dispatch:require_function/5` for a capture of [call] on [receiver], and then `expand_fn_capture/4`'s answer,
+ * or `null` for Elixir's `false`: a macro, whose capture is an `fn` that calls it.
+ */
+private fun requireFunction(
+    amp: ElixirAst,
+    call: ElixirAst.Call,
+    receiver: String,
+    state: ExState,
+    env: Env,
+    run: Run,
+): Expansion? {
+    val name = ((call.callee as ElixirAst.Call).arguments!![1] as ElixirAst.Literal.Atom).name
+    val arity = call.arguments!!.size
+    val required = receiver in env.requires
+
+    when (isMacro(receiver, name, arity, required, run)) {
+        null -> return Expansion.Unported(amp)
+        // Unrequired, Elixir reads the macros only of a module already loaded on its node.
+        true -> return if (required) null else Expansion.Unported(amp)
+        false -> Unit
+    }
+
+    val (inlinedReceiver, inlinedName) = inline(receiver, name, arity, run.level) ?: (receiver to name)
+
+    run.observer.dispatched(call, Dispatch(Dispatch.Kind.REMOTE_FUNCTION, inlinedReceiver, inlinedName, arity))
+
+    return Expansion.Expanded(state, env, NODE)
+}
+
+/** [call], a remote call, with [module] as its module part. */
+private fun withModule(call: ElixirAst.Call, module: ElixirAst): ElixirAst.Call {
+    val dot = call.callee as ElixirAst.Call
+
+    return ElixirAst.Call(
+        call.meta,
+        ElixirAst.Call(dot.meta, dot.callee, listOf(module, dot.arguments!![1]), dot.context),
+        call.arguments,
+        call.context,
+    )
+}
+
+/** The metadata of the call `&f/a` or `&M.f/a` captures, built from [name], `f` or `M.f`. */
+private fun arityCallMeta(amp: ElixirAst, name: ElixirAst, run: Run): Meta =
+    if (REMOTE_CAPTURE_REPORTED_AT_CALL.isSufficient(run.level)) name.meta else amp.meta
 
 /**
  * Where a capture of [call] reports its errors: [call] from 1.16, or from 1.14.0-rc.1 for a [plainRemote] call, one

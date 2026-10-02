@@ -52,12 +52,20 @@ internal fun expandLocalCall(node: ElixirAst.Call, state: ExState, env: Env, run
  * `elixir_dispatch:do_expand_import/7`'s trace of [call] as a function imported from [receiver]: the receiver and name
  * after `inline/3`, which it reports.
  */
-internal fun importedFunction(call: ElixirAst.Call, receiver: String, run: Run): Pair<String, String> {
-    val name = (call.callee as ElixirAst.Literal.Atom).name
-    val arity = call.arguments!!.size
+internal fun importedFunction(call: ElixirAst.Call, receiver: String, run: Run): Pair<String, String> =
+    importedFunction(call, receiver, (call.callee as ElixirAst.Literal.Atom).name, call.arguments!!.size, run)
+
+/** As [importedFunction] of a call, for [node], which calls or captures [name]/[arity]. */
+internal fun importedFunction(
+    node: ElixirAst,
+    receiver: String,
+    name: String,
+    arity: Int,
+    run: Run,
+): Pair<String, String> {
     val inlined = inline(receiver, name, arity, run.level) ?: (receiver to name)
 
-    run.observer.dispatched(call, Dispatch(Dispatch.Kind.IMPORTED_FUNCTION, inlined.first, inlined.second, arity))
+    run.observer.dispatched(node, Dispatch(Dispatch.Kind.IMPORTED_FUNCTION, inlined.first, inlined.second, arity))
 
     return inlined
 }
@@ -93,7 +101,7 @@ internal fun expandImport(
  */
 internal fun importOf(call: ElixirAst.Call, env: Env): ImportMatch? {
     if (env.function != null) return null
-    if (hasMetaKey(call.meta, "imports") || hasMetaKey(call.meta, "import")) return null
+    if (hasQuotedImport(call.meta)) return null
 
     return findImportByNameArity((call.callee as ElixirAst.Literal.Atom).name, call.arguments!!.size, emptyList(), env)
 }
@@ -174,24 +182,32 @@ private fun dispatchRequire(
 
     val required = receiver == env.module || isRequiredByMeta(node.meta) || receiver in env.requires
 
-    if (required || !UNREQUIRED_MACRO_CALLED_AS_FUNCTION.isSufficient(run.level)) {
-        val isMacro = when (val exports = run.exports.of(receiver)) {
-            ModuleExports.Absent -> false
-            ModuleExports.Unreadable -> return Expansion.Unported(node)
-            is ModuleExports.Present -> NameArity(name, arity) in exports.macros
-        }
-
-        if (isMacro) {
-            return when {
+    return when (isMacro(receiver, name, arity, required, run)) {
+        null -> Expansion.Unported(node)
+        true ->
+            when {
                 required -> macro(Dispatch(Dispatch.Kind.REMOTE_MACRO, receiver, name, arity), node, state, env, run)
                 UNREQUIRED_MACRO_SEEN_ONLY_WHEN_LOADED.isSufficient(run.level) -> Expansion.Unported(node)
                 else -> Expansion.Error("unrequired_module", node)
             }
-        }
+        false -> remoteFunction(receiver, name, node, state, after, env, run)
     }
-
-    return remoteFunction(receiver, name, node, state, after, env, run)
 }
+
+/**
+ * `elixir_dispatch:is_macro/4`, or before 1.13 `get_macros/2`: whether [name]/[arity] is a macro of [receiver], or
+ * `null` where its exports can't be read. From 1.13 an unrequired [receiver]'s macros aren't read.
+ */
+internal fun isMacro(receiver: String, name: String, arity: Int, required: Boolean, run: Run): Boolean? =
+    if (required || !UNREQUIRED_MACRO_CALLED_AS_FUNCTION.isSufficient(run.level)) {
+        when (val exports = run.exports.of(receiver)) {
+            ModuleExports.Absent -> false
+            ModuleExports.Unreadable -> null
+            is ModuleExports.Present -> NameArity(name, arity) in exports.macros
+        }
+    } else {
+        false
+    }
 
 private fun remoteFunction(
     receiver: String,

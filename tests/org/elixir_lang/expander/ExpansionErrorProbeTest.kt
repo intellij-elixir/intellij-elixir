@@ -233,6 +233,18 @@ class ExpansionErrorProbeTest : ProbeTestCase() {
             Case("(&1) = 1"),
             Case("(&super/1) = 1"),
             Case("x = 1\ncase x do\ny when &[&1] -> y\nend"),
+            Case("&foo/1"),
+            Case("&foo(&1)"),
+            Case("import Map, only: [get: 2]\nimport Keyword, only: [get: 2]\n&get/2"),
+            // super
+            Case("super()"),
+            Case("super(1)"),
+            Case("_ = fn -> super() end"),
+            Case("&super/1"),
+            Case("&super(&1)"),
+            Case("super(1) = 1"),
+            Case("x = 1\ncase x do\ny when super(y) -> y\nend"),
+            Case("x = 1\ncase x do\ny when &super/1 -> y\nend"),
             // Local calls in the module body
             Case("foo()"),
             Case("foo(1, 2)"),

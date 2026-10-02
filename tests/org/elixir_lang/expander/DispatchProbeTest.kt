@@ -87,6 +87,10 @@ class DispatchProbeTest : ProbeTestCase() {
             "var!(x, Kernel) = 1",
             "Kernel.var!(z) = 3",
             "_ = alias!(Foo)",
+            "_ = &abs/1",
+            "_ = &abs(&1)",
+            "_ = &Integer.to_string/1",
+            "_ = &Integer.to_string(&1)",
         )
     }
 }

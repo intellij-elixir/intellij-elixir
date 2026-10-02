@@ -47,11 +47,11 @@ class CallExpanderTest : ExpanderTestCase() {
     /** `%`, `super` and the captures that look a function up have clauses of their own ahead of the local call's. */
     fun testTheSpecialFormsAheadOfTheLocalCall() {
         assertEvery("%URI{}", "error undefined_struct `%URI{}`")
-        assertEvery("super()", "unported `super()`")
-        assertEvery("super(1)", "unported `super(1)`")
-        assertEvery("&super/1", "unported `&super/1`")
-        assertEvery("&super(&1)", "unported `&super(&1)`")
-        assertEvery("&abs/1", "unported `&abs/1`")
+        assertEvery("super()", "error invalid_expr_in_scope `super()`")
+        assertEvery("super(1)", "error invalid_expr_in_scope `super(1)`")
+        assertEvery("&super/1", "error invalid_expr_in_scope `&super/1`")
+        assertEvery("&super(&1)", "error invalid_expr_in_scope `&super(&1)`")
+        assertEvery("&abs/1", "expanded {} next 0")
     }
 
     /** An interpolation in a pattern expands `Kernel.to_string/1`, a macro, unless its value is a binary. */
