@@ -16,6 +16,7 @@ import org.elixir_lang.lowering.inspect
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.Import
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import kotlin.time.Duration
 import kotlin.time.TimeSource
 
@@ -57,8 +58,8 @@ internal class ExpansionProbes(
      * @property outcome the last statement's expansion, or the first that isn't [Expansion.Expanded]
      * @property statements the top-level statements, lowered
      * @property starts the state and env each top-level statement the expander reached was expanded from
-     * @property dispatches each dispatch and quoted import the expander reported, as [DispatchEvents] keys them, in
-     *   its order
+     * @property traces each dispatch, quoted import and struct expansion the expander reported, as [DispatchEvents]
+     *   keys it, in order
      * @property bodyStatements the 1-based top-level statement each nested body, block 1 onward, is in
      */
     class CaseExpansion(
@@ -67,7 +68,7 @@ internal class ExpansionProbes(
         val outcome: Expansion,
         val statements: List<ElixirAst>,
         val starts: List<Pair<ExState, Env>>,
-        val dispatches: List<String>,
+        val traces: List<String>,
         val bodyStatements: List<Int>,
     ) {
         /** The 1-based top-level statement [tag]'s probe is in, or, for a statement probe, follows. */
@@ -111,7 +112,7 @@ internal class ExpansionProbes(
         fun step(tag: Tag, state: ExState, env: Env) = Step(tag, state.read, env, state.stacktrace, counters.count(env.module))
         val steps = mutableListOf(step(Tag(0, 0, 0), state, env))
         val starts = mutableListOf<Pair<ExState, Env>>()
-        val dispatches = mutableListOf<String>()
+        val traces = mutableListOf<String>()
         var outcome: Expansion = Expansion.Expanded(state, env, Import.Term.Atom("nil"))
 
         for ((index, statement) in statements.withIndex()) {
@@ -131,9 +132,9 @@ internal class ExpansionProbes(
                 }
 
                 override fun dispatched(node: ElixirAst, dispatch: Dispatch) {
-                    dispatches.add(DispatchEvents.key(node, dispatch))
+                    traces.add(DispatchEvents.key(node, dispatch))
                     retraced(open.lastOrNull(), node, dispatch, level)?.let {
-                        dispatches.add(DispatchEvents.key(it, dispatch))
+                        traces.add(DispatchEvents.key(it, dispatch))
                     }
                 }
 
@@ -144,7 +145,11 @@ internal class ExpansionProbes(
                     name: String,
                     arities: List<Int>,
                 ) {
-                    dispatches.add(DispatchEvents.key(node, kind, module, name, arities))
+                    traces.add(DispatchEvents.key(node, kind, module, name, arities))
+                }
+
+                override fun structExpanded(node: ElixirAst, module: String, keys: List<String>) {
+                    traces.add(DispatchEvents.structKey(node, module, keys))
                 }
 
                 // Nodes that share an origin, such as a block of one expression and that expression, leave with one state.
@@ -177,7 +182,7 @@ internal class ExpansionProbes(
             outcome,
             statements,
             starts,
-            dispatches,
+            traces,
             bodies.map { body ->
                 statements.indexOfFirst { it.meta.origin.contains(body.first().meta.origin) } + 1
             },
@@ -212,7 +217,7 @@ internal class ExpansionProbes(
     /**
      * Compares each of [cases], which stop at [Expansion.Opaque], with Elixir up to the macro, compiled after
      * [preamble] in one batch, or alone if the batch fails: the probes Elixir delivers before the macro's statement, and
-     * inside it those the expander reached, equal the expander's steps, and the dispatches equal the leg's events up to
+     * inside it those the expander reached, equal the expander's steps, and the traces equal the leg's events up to
      * and including the first macro event on the macro's line. What follows the macro isn't compared.
      */
     fun assertMatchesElixirUpToMacro(cases: Map<String, CaseExpansion>, preamble: String = "") {
@@ -257,12 +262,45 @@ internal class ExpansionProbes(
             val end = events.indexOfFirst { DispatchEvents.isMacro(it) && DispatchEvents.line(it) == line }
             val prefix = if (end < 0) events + "no macro event on line $line" else events.take(end + 1)
 
-            expected.add(render(name, expansion.steps) + "\n" + (expansion.dispatches + macro).joinToString("\n"))
+            expected.add(render(name, expansion.steps) + "\n" + (expansion.traces + macro).joinToString("\n"))
             actual.add(render(name, observed, attempt.batch.probeModule, delivered) + "\n" + prefix.joinToString("\n"))
         }
 
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
     }
+
+    /**
+     * Compares the traces of [expansions], which all expand and were expanded in [module], with the events the leg's
+     * compiler traces for the same case module bodies, as [DispatchEvents] normalises them.
+     */
+    fun assertTracesMatchElixir(expansions: List<CaseExpansion>, module: String) {
+        expansions.forEach { assertTrue("${it.case.body}: ${it.outcome}", it.outcome is Expansion.Expanded) }
+
+        val attempt = harness.attempt(expansions.map { it.case })
+
+        assertEquals(
+            "compile status ${attempt.compiled.diagnostics.map(::inspect)}",
+            OtpErlangAtom("ok"),
+            attempt.compiled.status,
+        )
+        assertEquals(
+            expansions.joinToString("\n") { renderTraces(it.case.body, it.traces) },
+            expansions.indices.joinToString("\n") { case ->
+                val caseModule = attempt.batch.caseModule(case)
+                val events = DispatchEvents.of(
+                    attempt.compiled.events,
+                    caseModule,
+                    attempt.batch.probeModule,
+                    attempt.bodyLines[case],
+                )
+
+                renderTraces(expansions[case].case.body, events.map { it.replace(caseModule, module) })
+            },
+        )
+    }
+
+    private fun renderTraces(body: String, traces: List<String>) =
+        "== ${body.replace("\n", "; ")}\n" + traces.joinToString("") { "  $it\n" }
 
     private fun compareExpanded(
         cases: Map<String, CaseExpansion>,

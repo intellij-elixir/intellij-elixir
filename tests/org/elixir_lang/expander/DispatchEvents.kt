@@ -13,12 +13,13 @@ import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
 
 /**
- * The dispatches the compiler's tracer saw, as `Quoter.Compiled.events` holds them, normalised so each supported
- * release gives one event per dispatch, as [ExpansionObserver.dispatched] reports it, and one per import a `quote`
- * traces, as [ExpansionObserver.quotedImport] reports it:
+ * The dispatches and struct expansions the compiler's tracer saw, as `Quoter.Compiled.events` holds them, normalised
+ * so each supported release gives one event per dispatch, as [ExpansionObserver.dispatched] reports it, one per import
+ * a `quote` traces, as [ExpansionObserver.quotedImport] reports it, and one per struct, as
+ * [ExpansionObserver.structExpanded] does:
  *
- * - only dispatch and `imported_quoted` events of the case module, less the probes' own, `:elixir_utils.noop/0` and
- *   `Module.compile_definition_attributes/6`;
+ * - only dispatch, `imported_quoted` and `struct_expansion` events of the case module, less the probes' own,
+ *   `:elixir_utils.noop/0` and `Module.compile_definition_attributes/6`;
  * - each dispatch's receiver and name mapped through the leg's committed `inline/3` table, since Elixir reports the
  *   name as called up to 1.15.5 in some places and after `inline/3` in others; an `imported_quoted` event's module is
  *   the import's, and isn't mapped;
@@ -86,6 +87,10 @@ internal object DispatchEvents {
             Event(kind.name.lowercase(), line(node.meta), module, name, arities.single(), null, "nil").key(1)
         }
 
+    /** The expansion of [node], a struct of [module] given [keys], keyed as [of] keys a `struct_expansion` event. */
+    fun structKey(node: ElixirAst, module: String, keys: List<String>): String =
+        Event(STRUCT_EXPANSION, line(node.meta), module, "", 0, null, "nil", keys = keys).key(1)
+
     /** Whether [key] is a macro's dispatch. */
     fun isMacro(key: String): Boolean = key.split(" ")[1].endsWith("_macro")
 
@@ -102,11 +107,17 @@ internal object DispatchEvents {
         val function: String,
         /** An `imported_quoted` event's arities, in place of [arity]. */
         val arities: List<Int>? = null,
+        /** A `struct_expansion`'s keys, as written. */
+        val keys: List<String>? = null,
     ) {
-        fun key(bodyLine: Int): String =
-            "${line?.let { it - bodyLine + 1 }} $kind ${if (receiver.isEmpty()) "" else "$receiver."}$name" +
-                (arities?.let { " $it" } ?: "/$arity") +
-                if (function == "nil") "" else " in $function"
+        fun key(bodyLine: Int): String {
+            val target = when {
+                keys != null -> "$receiver ${keys.joinToString(", ", "[", "]")}"
+                else -> "${if (receiver.isEmpty()) "" else "$receiver."}$name" + (arities?.let { " $it" } ?: "/$arity")
+            }
+
+            return "${line?.let { it - bodyLine + 1 }} $kind $target" + if (function == "nil") "" else " in $function"
+        }
     }
 
     private fun event(pair: OtpErlangObject): Event? {
@@ -147,6 +158,16 @@ internal object DispatchEvents {
                 module,
                 function,
             )
+            STRUCT_EXPANSION -> Event(
+                kind,
+                line,
+                (tuple.elementAt(2) as OtpErlangAtom).atomValue(),
+                "",
+                0,
+                module,
+                function,
+                keys = (tuple.elementAt(3) as OtpErlangList).elements().map { (it as OtpErlangAtom).atomValue() },
+            )
             else -> null
         }
     }
@@ -182,6 +203,7 @@ internal object DispatchEvents {
     private const val IMPORTED_FUNCTION = "imported_function"
     private const val REMOTE_FUNCTION = "remote_function"
     private const val IMPORTED_QUOTED = "imported_quoted"
+    private const val STRUCT_EXPANSION = "struct_expansion"
     private val REMOTE_KINDS = setOf(IMPORTED_FUNCTION, "imported_macro", REMOTE_FUNCTION, "remote_macro")
     private val LOCAL_KINDS = setOf("local_function", "local_macro")
 }
