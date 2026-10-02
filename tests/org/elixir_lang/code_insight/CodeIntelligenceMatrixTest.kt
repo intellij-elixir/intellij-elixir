@@ -82,7 +82,9 @@ import org.elixir_lang.code_insight.matrix.MatrixProjectDescriptor
 import org.elixir_lang.code_insight.matrix.Place
 import org.elixir_lang.code_insight.matrix.Site
 import org.elixir_lang.code_insight.matrix.UNAVAILABLE_PHRASE
+import org.elixir_lang.code_insight.matrix.erlangNonNfcNames
 import org.elixir_lang.code_insight.matrix.nfc
+import org.elixir_lang.code_insight.matrix.qualified
 import org.elixir_lang.code_insight.matrix.sees
 import org.elixir_lang.code_insight.matrix.privateUse
 import org.elixir_lang.code_insight.matrix.specName
@@ -305,6 +307,7 @@ private class Group(val scenario: Scenario) {
             Feature.SHOW_USED -> checkShowUsed(binding!!)
             Feature.COMPLETION_OFFERED -> checkCompletionOffered()
             Feature.COMPLETION_INSERTED -> checkCompletionInserted()
+            Feature.COMPLETION_INSERTED_QUOTED -> checkCompletionInsertedQuoted()
             Feature.RENAME -> checkRename(binding)
             Feature.INCOMPLETE_RESOLUTION -> checkIncompleteResolution()
             Feature.GO_TO_RELATED -> checkGoToRelated()
@@ -643,8 +646,10 @@ private class Group(val scenario: Scenario) {
     }
 
     private fun assertOffered(name: String, prefix: String, candidates: List<String>) {
-        val offered = candidates.map { if (it.startsWith('"')) it else nfc(it) }
-            .filter { it.removePrefix("\"").startsWith(prefix) }
+        val site = siteOrNull()!!
+        val declared = erlangNonNfcNames(scenario.module(site.binding?.module ?: scenario.main.module)).values
+        val offered = candidates.map { if (it in declared) it else nfc(it) }
+            .filter { it.startsWith(prefix) }
             .distinct()
             .sorted()
 
@@ -684,6 +689,29 @@ private class Group(val scenario: Scenario) {
 
         assertTrue(
             "Completing `$prefix` to `$name` at ${place.id} inserted `$inserted`, not one of $signatures",
+            inserted in signatures
+        )
+    }
+
+    /**
+     * Completing an Erlang name that is not NFC writes the quoted remote call that alone reaches it, spelled byte for
+     * byte as declared: an NFC spelling is a different atom, which no module defines.
+     */
+    private fun checkCompletionInsertedQuoted() {
+        val (_, prefix) = typeCallPrefix()
+        val site = siteOrNull()!!
+        val module = scenario.module(site.binding?.module ?: scenario.main.module)
+        val (name, declared) = Crossing.quotedOnly(scenario, site)!!
+        val line = typedLine()
+        val inserted = myFixture.completeCandidateOrSoleMatchAtCaret(declared, '\n') { nfc(it.removeSurrounding("\"")) == name }
+            .split('\n')[line.index]
+        val signatures = module.definitions
+            .filter { nfc(it.name) == name && site.sees(it) }
+            .sortedBy { it.maxArity }
+            .map { line.before + "\"$declared\"" + Expected.heads(module, it.name, it.maxArity).first().callSignature.let { call -> call.substring(call.indexOf('(')) } }
+
+        assertTrue(
+            "Completing `$prefix` to `\"$declared\"` at ${place.id} inserted `$inserted`, not one of $signatures",
             inserted in signatures
         )
     }
@@ -1025,35 +1053,15 @@ private class Group(val scenario: Scenario) {
         val site = siteOrNull()!!
         site.attribute?.let { attribute -> return attribute.visible.orEmpty().map(::nfc).filter { it.startsWith(prefix) }.distinct().sorted() }
         val module = scenario.module(site.binding?.module ?: scenario.main.module)
-        val qualified = typedLine().before.endsWith('.')
 
         return module.definitions
             .filter(site::sees)
-            .map { callSpelling(module, it) }
-            .filter { qualified || !it.startsWith('"') }
-            .filter { it.removePrefix("\"").startsWith(prefix) }
+            .map { erlangNonNfcNames(module)[it.name] ?: nfc(it.name) }
+            .filter { qualified(site) || it == nfc(it) }
+            .filter { it.startsWith(prefix) }
             .distinct()
             .sorted()
     }
-
-    /**
-     * Elixir normalises an identifier it reads to NFC, so an Erlang name that is not NFC is a different atom from
-     * any identifier: only a quoted remote call reaches it. `oracle.json` holds every name in NFC, so the declared
-     * spelling is read from the `.erl` source.
-     */
-    private fun callSpelling(module: DeclaringModule, definition: Definition): String =
-        erlangNonNfcNames(module)[definition.name]?.let { "\"$it\"" } ?: nfc(definition.name)
-
-    private fun erlangNonNfcNames(module: DeclaringModule): Map<String, String> =
-        if (module.source.endsWith(".erl")) {
-            Regex("""^'([^']+)'\(""", RegexOption.MULTILINE)
-                .findAll(Fixtures.file(module.source).readText())
-                .map { it.groupValues[1] }
-                .filter { it != nfc(it) }
-                .associateBy(::nfc)
-        } else {
-            emptyMap()
-        }
 
     private fun fileOf(site: Site): VirtualFile =
         callerFiles[site.file] ?: sourceFiles.getValue(scenario.modules.single { it.source == site.file })

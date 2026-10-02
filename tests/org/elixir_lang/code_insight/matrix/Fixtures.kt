@@ -211,3 +211,27 @@ class Binding(val module: String, val name: String, val arity: Int, val kind: St
 }
 
 private val MODULE_KINDS = setOf("alias_reference", "defmodule")
+
+/**
+ * Elixir normalises an identifier it reads to NFC, so an Erlang name that is not NFC is a different atom from any
+ * identifier: only a quoted remote call reaches it. `oracle.json` holds every name in NFC, so the declared spelling
+ * is read from the `.erl` source. Keyed by the NFC name.
+ */
+fun erlangNonNfcNames(module: DeclaringModule): Map<String, String> =
+    if (module.source.endsWith(".erl")) {
+        Regex("""^'([^']+)'\(""", RegexOption.MULTILINE)
+            .findAll(Fixtures.file(module.source).readText())
+            .map { it.groupValues[1] }
+            .filter { it != nfc(it) }
+            .associateBy(::nfc)
+    } else {
+        emptyMap()
+    }
+
+private val fixtureLines = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
+
+/** Whether the call at [site] is written after a module and `.`. */
+fun qualified(site: Site): Boolean =
+    fixtureLines.computeIfAbsent(site.file) { Fixtures.file(it).readLines() }[site.line - 1]
+        .substring(0, site.column - 1)
+        .endsWith('.')
