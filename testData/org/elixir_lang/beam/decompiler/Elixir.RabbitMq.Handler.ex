@@ -3,7 +3,7 @@ defmodule RabbitMq.Handler do
 
   # Functions
 
-  def __info__(p0) do
+  def __info__(arg1) do
     # body not decompiled
   end
 
@@ -32,7 +32,7 @@ defmodule RabbitMq.Handler do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 

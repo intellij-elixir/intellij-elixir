@@ -10,12 +10,16 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
 import com.intellij.psi.util.PsiTreeUtil;
 import org.elixir_lang.PlatformTestCase;
+import org.elixir_lang.golden.CommittedGolden;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 public class DecompilerTest extends PlatformTestCase {
+    private static final String REGENERATE =
+            "./gradlew test --tests org.elixir_lang.beam.DecompilerTest -PoverwriteTestData=true";
+
     /*
      * Tests
      */
@@ -254,7 +258,9 @@ public class DecompilerTest extends PlatformTestCase {
 
         assertParseable(name, virtualFile, actual);
 
-        if (!expected.equals(actual)) {
+        if (OVERWRITE_TESTDATA) {
+            CommittedGolden.INSTANCE.assertMatches(expectedFile.getPath(), actual, REGENERATE);
+        } else if (!expected.equals(actual)) {
             fail(buildCompactDiffMessage(name, expected, actual));
         }
     }

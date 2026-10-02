@@ -18,8 +18,15 @@ open class Default : MacroNameArity() {
      * @param decompiled the decompiled source so far
      */
     override fun append(decompiled: StringBuilder, macroNameArity: org.elixir_lang.beam.MacroNameArity) {
+        append(decompiled, macroNameArity, parameters(macroNameArity))
+    }
+
+    fun append(
+        decompiled: StringBuilder,
+        macroNameArity: org.elixir_lang.beam.MacroNameArity,
+        parameters: Array<String>
+    ) {
         appendMacro(decompiled, macroNameArity)
-        val parameters = parameters(macroNameArity)
         appendSignature(decompiled, macroNameArity, macroNameArity.name, parameters)
         appendBody(decompiled)
     }
@@ -32,11 +39,7 @@ open class Default : MacroNameArity() {
     }
 
     override fun parameters(macroNameArity: org.elixir_lang.beam.MacroNameArity): Array<String> =
-            (0 until  macroNameArity.arity)
-                    .map { i ->
-                        "p${i}"
-                    }
-                    .toTypedArray()
+            generatedArguments(macroNameArity.arity).toTypedArray()
 
     override fun appendSignature(decompiled: StringBuilder,
                                  macroNameArity: org.elixir_lang.beam.MacroNameArity,

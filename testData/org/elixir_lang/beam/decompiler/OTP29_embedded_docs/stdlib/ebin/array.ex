@@ -691,7 +691,7 @@ defmodule :array do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -1391,51 +1391,51 @@ defmodule :array do
 
   # Private Functions
 
-  defp unquote(:"-concat/1-fun-0-")(p0, p1) do
+  defp unquote(:"-concat/1-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-concat/2-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-concat/2-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-concat/2-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-concat/2-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-map/2-fun-0-")(p0, p1, p2, p3) do
+  defp unquote(:"-map/2-fun-0-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-sparse_foldl/5-fun-0-")(p0, p1, p2, p3, p4) do
+  defp unquote(:"-sparse_foldl/5-fun-0-")(arg1, arg2, arg3, arg4, arg5) do
     # body not decompiled
   end
 
-  defp unquote(:"-sparse_foldr/5-fun-0-")(p0, p1, p2, p3, p4) do
+  defp unquote(:"-sparse_foldr/5-fun-0-")(arg1, arg2, arg3, arg4, arg5) do
     # body not decompiled
   end
 
-  defp unquote(:"-sparse_map/2-fun-0-")(p0, p1, p2, p3) do
+  defp unquote(:"-sparse_map/2-fun-0-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-sparse_size/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-sparse_size/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-sparse_to_list/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-sparse_to_list/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-sparse_to_orddict/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-sparse_to_orddict/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-to_list/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-to_list/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-to_orddict/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-to_orddict/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 

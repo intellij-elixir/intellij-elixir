@@ -30,13 +30,13 @@ defmodule :docgen_xmerl_xml_cb do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
   # Private Functions
 
-  defp unquote(:"-#root#/4-lc$^0/1-0-")(p0) do
+  defp unquote(:"-#root#/4-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 

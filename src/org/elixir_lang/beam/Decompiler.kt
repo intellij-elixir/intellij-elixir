@@ -19,6 +19,7 @@ import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.AbstractCodeCo
 import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_compiler_options.abstract_code.attribute.Spec
 import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_compiler_options.abstract_code.attribute.Type
 import org.elixir_lang.beam.decompiler.ClauseSource
+import org.elixir_lang.beam.decompiler.Default
 import org.elixir_lang.beam.decompiler.Options
 import org.elixir_lang.beam.decompiler.ReservedTypeName
 import org.elixir_lang.beam.decompiler.appendNotDecompiledBody
@@ -538,6 +539,8 @@ private fun appendMacroNameArity(
                 decompiled.append(signature.replace("\r", ""))
                 appendNotDecompiledBody(decompiled)
             }
+        is ClauseSource.CoveringDocsSignature ->
+            Default.INSTANCE.append(decompiled, macroNameArity, source.parameters.toTypedArray())
         is ClauseSource.Generated -> source.decompiler.append(decompiled, macroNameArity)
         null -> Unit
     }

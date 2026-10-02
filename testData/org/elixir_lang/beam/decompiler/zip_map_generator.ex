@@ -7,7 +7,7 @@ defmodule :zip_map_generator do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -25,11 +25,11 @@ defmodule :zip_map_generator do
 
   # Private Functions
 
-  defp unquote(:"-zip_map/2-zlc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-zip_map/2-zlc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-zip_map_strict/2-zlc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-zip_map_strict/2-zlc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 end

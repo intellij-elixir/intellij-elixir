@@ -695,7 +695,7 @@ defmodule :maps do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -1009,19 +1009,19 @@ defmodule :maps do
 
   # Private Functions
 
-  defp unquote(:"-intersect_with/3-fun-0-")(p0, p1, p2, p3) do
+  defp unquote(:"-intersect_with/3-fun-0-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-iterator/2-fun-0-")(p0, p1) do
+  defp unquote(:"-iterator/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-iterator/2-fun-1-")(p0, p1) do
+  defp unquote(:"-iterator/2-fun-1-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-merge_with/3-fun-0-")(p0, p1, p2, p3) do
+  defp unquote(:"-merge_with/3-fun-0-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 

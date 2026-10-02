@@ -239,7 +239,7 @@ defmodule :asn1ct do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -426,259 +426,259 @@ defmodule :asn1ct do
 
   # Private Functions
 
-  defp unquote(:"-add_once_tobe_refed_func/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-add_once_tobe_refed_func/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-add_tobe_refed_func/1-fun-0-")(p0) do
+  defp unquote(:"-add_tobe_refed_func/1-fun-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-add_tobe_refed_func/1-fun-1-")(p0) do
+  defp unquote(:"-add_tobe_refed_func/1-fun-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-add_tobe_refed_func/1-fun-2-")(p0) do
+  defp unquote(:"-add_tobe_refed_func/1-fun-2-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-clean_errors/1-fun-0-")(p0) do
+  defp unquote(:"-clean_errors/1-fun-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-common_exports/1-fun-0-")(p0) do
+  defp unquote(:"-common_exports/1-fun-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-common_exports/1-fun-1-")(p0) do
+  defp unquote(:"-common_exports/1-fun-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-compile/2-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-compile/2-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-compile_set/3-lc$^0/1-0-")(p0) do
+  defp unquote(:"-compile_set/3-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-create_partial_decode_gen_info/2-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-create_partial_decode_gen_info/2-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-create_pdec_command/4-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-create_pdec_command/4-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-delete_double_of_symbol1/2-fun-0-")(p0, p1) do
+  defp unquote(:"-delete_double_of_symbol1/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-delete_double_of_symbol1/2-fun-1-")(p0, p1) do
+  defp unquote(:"-delete_double_of_symbol1/2-fun-1-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-delete_double_of_symbol1/2-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-delete_double_of_symbol1/2-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-discover_dupl_in_mods/5-fun-0-")(p0, p1, p2, p3, p4) do
+  defp unquote(:"-discover_dupl_in_mods/5-fun-0-")(arg1, arg2, arg3, arg4, arg5) do
     # body not decompiled
   end
 
-  defp unquote(:"-exit_if_nameduplicate2/2-fun-0-")(p0, p1) do
+  defp unquote(:"-exit_if_nameduplicate2/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-export_all/1-fun-0-")(p0, p1) do
+  defp unquote(:"-export_all/1-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-export_all/1-fun-1-")(p0) do
+  defp unquote(:"-export_all/1-fun-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.abs_listing/1-")(p0) do
+  defp unquote(:"-fun.abs_listing/1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.check_pass/1-")(p0) do
+  defp unquote(:"-fun.check_pass/1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.compile_pass/1-")(p0) do
+  defp unquote(:"-fun.compile_pass/1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.exit_if_nameduplicate/1-")(p0) do
+  defp unquote(:"-fun.exit_if_nameduplicate/1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.generate_pass/1-")(p0) do
+  defp unquote(:"-fun.generate_pass/1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.merge_pass/1-")(p0) do
+  defp unquote(:"-fun.merge_pass/1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.parse_listing/1-")(p0) do
+  defp unquote(:"-fun.parse_listing/1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.parse_pass/1-")(p0) do
+  defp unquote(:"-fun.parse_pass/1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.run_tc/3-")(p0, p1, p2) do
+  defp unquote(:"-fun.run_tc/3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.save_pass/1-")(p0) do
+  defp unquote(:"-fun.save_pass/1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.scan_pass/1-")(p0) do
+  defp unquote(:"-fun.scan_pass/1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.set_scan_parse_pass/1-")(p0) do
+  defp unquote(:"-fun.set_scan_parse_pass/1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-generated_functions_filter/3-fun-0-")(p0, p1) do
+  defp unquote(:"-generated_functions_filter/3-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-generated_functions_filter/3-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-generated_functions_filter/3-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-get_rule/1-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-get_rule/1-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-get_rule/1-lc$^1/1-1-")(p0, p1, p2, p3) do
+  defp unquote(:"-get_rule/1-lc$^1/1-1-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-in_process/1-fun-0-")(p0, p1) do
+  defp unquote(:"-in_process/1-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-include_append/2-fun-0-")(p0, p1) do
+  defp unquote(:"-include_append/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-include_prepend/2-fun-0-")(p0, p1) do
+  defp unquote(:"-include_prepend/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-make_erl_options/1-fun-0-")(p0) do
+  defp unquote(:"-make_erl_options/1-fun-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-make_erl_options/1-fun-1-")(p0) do
+  defp unquote(:"-make_erl_options/1-fun-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-merge_modules/2-fun-0-")(p0) do
+  defp unquote(:"-merge_modules/2-fun-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-merge_modules/2-fun-1-")(p0) do
+  defp unquote(:"-merge_modules/2-fun-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-merge_modules/2-fun-2-")(p0) do
+  defp unquote(:"-merge_modules/2-fun-2-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-merge_symbols_from_module/2-fun-0-")(p0, p1) do
+  defp unquote(:"-merge_symbols_from_module/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-merge_symbols_from_module/2-fun-1-")(p0) do
+  defp unquote(:"-merge_symbols_from_module/2-fun-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-parse_and_save/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-parse_and_save/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-pretty2/2-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-pretty2/2-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-pretty2/2-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-pretty2/2-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-pretty2/2-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-pretty2/2-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-pretty2/2-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-pretty2/2-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-pretty2/2-fun-4-")(p0, p1, p2) do
+  defp unquote(:"-pretty2/2-fun-4-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-pretty2/2-fun-5-")(p0, p1, p2) do
+  defp unquote(:"-pretty2/2-fun-5-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-print_structured_errors/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-print_structured_errors/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-read_config_file/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-read_config_file/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-remove_asn_flags/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-remove_asn_flags/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-run_passes/2-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-run_passes/2-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-save_automatic_tagged_types/1-fun-0-")(p0) do
+  defp unquote(:"-save_automatic_tagged_types/1-fun-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-save_imports/1-fun-0-")(p0) do
+  defp unquote(:"-save_imports/1-fun-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-save_imports/1-fun-1-")(p0) do
+  defp unquote(:"-save_imports/1-fun-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-strip_includes/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-strip_includes/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-test_module/2-fun-0-")(p0, p1) do
+  defp unquote(:"-test_module/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-test_type/3-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-test_type/3-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-test_value/3-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-test_value/3-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-type_check/1-fun-0-")(p0) do
+  defp unquote(:"-type_check/1-fun-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-value/3-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-value/3-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 

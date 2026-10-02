@@ -3967,7 +3967,7 @@ Much like there are no macros in BEAM, there are no anonymous functions either. 
 As an example, `Kernel` has
 
 ```elixir
-defp unquote(:"-MACRO-binding/2-fun-0-")(p0, p1, p2, p3) do
+defp unquote(:"-MACRO-binding/2-fun-0-")(arg1, arg2, arg3, arg4) do
   # body not decompiled
 end
 ```
@@ -4183,61 +4183,61 @@ Functions and macros can have names that aren't valid identifier names, so the d
   <tr>
     <td rowspan="12">Unquoted</td>
     <td><code>%/2</code></td>
-    <td><code>unquote(:%)(p0, p1)</code></td>
+    <td><code>unquote(:%)(arg1, arg2)</code></td>
     <td rowspan="5">Special forms need to defined as atom passed to unquote, as special forms are
       handled before macros defining the calls are applied
     </td>
   </tr>
   <tr>
     <td><code>%{}/1</code></td>
-    <td><code>unquote(:%{})(p0)</code></td>
+    <td><code>unquote(:%{})(arg1)</code></td>
   </tr>
   <tr>
     <td><code>&amp;/1</code></td>
-    <td><code>unquote(:&amp;)(p0)</code></td>
+    <td><code>unquote(:&amp;)(arg1)</code></td>
   </tr>
   <tr>
     <td><code>./2</code></td>
-    <td><code>unquote(:.)(p0, p1)</code></td>
+    <td><code>unquote(:.)(arg1, arg2)</code></td>
   </tr>
   <tr>
     <td><code>&lt;&lt;&gt;&gt;/1</code></td>
-    <td><code>unquote(:&lt;&lt;&gt;&gt;)(p0)</code></td>
+    <td><code>unquote(:&lt;&lt;&gt;&gt;)(arg1)</code></td>
   </tr>
   <tr>
     <td><code>do/n</code></td>
-    <td><code>unquote(:do)(p0, ...)</code></td>
+    <td><code>unquote(:do)(arg1, ...)</code></td>
     <td>Keywords need to be escaped</td>
   </tr>
   <tr>
     <td><code>fn/1</code></td>
-    <td><code>unquote(:fn)(p0)</code></td>
+    <td><code>unquote(:fn)(arg1)</code></td>
     <td rowspan="4">Special forms need to defined as atom passed to unquote, as special forms are
       handled before macros defining the calls are applied
     </td>
   </tr>
   <tr>
     <td><code>unquote/1</code></td>
-    <td><code>unquote(:unquote)(p0)</code></td>
+    <td><code>unquote(:unquote)(arg1)</code></td>
   </tr>
   <tr>
     <td><code>unquote_splicing/1</code></td>
-    <td><code>unquote(:unquote_splicing)(p0)</code></td>
+    <td><code>unquote(:unquote_splicing)(arg1)</code></td>
   </tr>
   <tr>
     <td><code>{}/n</code></td>
-    <td><code>unquote(:{})(p0, ...)</code></td>
+    <td><code>unquote(:{})(arg1, ...)</code></td>
   </tr>
   <tr>
     <td><code>Capitalized/n</code></td>
-    <td><code>unquote(:Capitalized)(p0, ...)</code></td>
+    <td><code>unquote(:Capitalized)(arg1, ...)</code></td>
     <td>Part of the Corba libraries in OTP have functions starting with a capital letter, which
       would be parsed as an Alias in Elixir if not unquoted.
     </td>
   </tr>
   <tr>
     <td><code>#text#/1</code></td>
-    <td><code>unquote(:"#text#")(p0)</code></td>
+    <td><code>unquote(:"#text#")(arg1)</code></td>
     <td>
       <div>Part of the XML libraries in OTP have functions
         that start with or contain `#`, which would parse as a comment in Elixir if not unquoted in a double quoted
@@ -4248,9 +4248,9 @@ Functions and macros can have names that aren't valid identifier names, so the d
   <tr>
     <td>Default</td>
     <td><code>name/n</code></td>
-    <td><code>name(p0, ...)</code></td>
-    <td>If no specialized handler is required, functions and macros are defined normally with pN
-      for each parameter in the Nth position
+    <td><code>name(arg1, ...)</code></td>
+    <td>If no specialized handler is required, functions and macros are defined normally with argN
+      for the Nth parameter, as <code>Macro.generate_arguments/2</code> names them
     </td>
   </tr>
   </tbody>

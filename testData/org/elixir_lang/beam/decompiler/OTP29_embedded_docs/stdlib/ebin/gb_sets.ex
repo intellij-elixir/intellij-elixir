@@ -610,7 +610,7 @@ defmodule :gb_sets do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -837,7 +837,7 @@ defmodule :gb_sets do
 
   # Private Functions
 
-  defp unquote(:"-filter/2-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-filter/2-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 

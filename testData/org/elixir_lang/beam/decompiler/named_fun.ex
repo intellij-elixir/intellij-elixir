@@ -21,7 +21,7 @@ defmodule :named_fun do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -40,11 +40,11 @@ defmodule :named_fun do
 
   # Private Functions
 
-  defp unquote(:"-countdown/1-Loop/1-0-")(p0) do
+  defp unquote(:"-countdown/1-Loop/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-sum_to/1-Loop/2-0-")(p0, p1) do
+  defp unquote(:"-sum_to/1-Loop/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 end

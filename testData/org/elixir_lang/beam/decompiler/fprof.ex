@@ -171,7 +171,7 @@ defmodule :fprof do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -510,71 +510,71 @@ defmodule :fprof do
 
   # Private Functions
 
-  defp unquote(:"-apply_continue/4-fun-0-")(p0, p1, p2, p3) do
+  defp unquote(:"-apply_continue/4-fun-0-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-apply_start_stop/4-after$^1/0-0-")(p0, p1, p2) do
+  defp unquote(:"-apply_start_stop/4-after$^1/0-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-apply_start_stop/4-fun-0-")(p0, p1, p2, p3) do
+  defp unquote(:"-apply_start_stop/4-fun-0-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_analyse_1/2-fun-0-")(p0, p1, p2, p3, p4) do
+  defp unquote(:"-do_analyse_1/2-fun-0-")(arg1, arg2, arg3, arg4, arg5) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_analyse_1/2-fun-1-")(p0) do
+  defp unquote(:"-do_analyse_1/2-fun-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_analyse_1/2-fun-2-")(p0, p1) do
+  defp unquote(:"-do_analyse_1/2-fun-2-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_analyse_1/2-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-do_analyse_1/2-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_analyse_1/2-fun-4-")(p0, p1, p2, p3) do
+  defp unquote(:"-do_analyse_1/2-fun-4-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-end_of_trace/2-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-end_of_trace/2-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-handle_req/3-fun-0-")(p0) do
+  defp unquote(:"-handle_req/3-fun-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-handle_req/3-fun-1-")(p0) do
+  defp unquote(:"-handle_req/3-fun-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-handle_req/3-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-handle_req/3-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-spawn_3step/4-fun-0-")(p0, p1, p2, p3) do
+  defp unquote(:"-spawn_3step/4-fun-0-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-spawn_link_dbg_trace_client/4-fun-0-")(p0, p1) do
+  defp unquote(:"-spawn_link_dbg_trace_client/4-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-spawn_link_trace_client/3-fun-0-")(p0, p1) do
+  defp unquote(:"-spawn_link_trace_client/3-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-spawn_link_trace_client/3-fun-1-")(p0, p1, p2, p3, p4) do
+  defp unquote(:"-spawn_link_trace_client/3-fun-1-")(arg1, arg2, arg3, arg4, arg5) do
     # body not decompiled
   end
 
-  defp unquote(:"-spawn_link_trace_client/3-fun-2-")(p0) do
+  defp unquote(:"-spawn_link_trace_client/3-fun-2-")(arg1) do
     # body not decompiled
   end
 
@@ -582,11 +582,11 @@ defmodule :fprof do
     # body not decompiled
   end
 
-  defp unquote(:"-start/0-fun-0-")(p0) do
+  defp unquote(:"-start/0-fun-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-start/0-fun-1-")(p0) do
+  defp unquote(:"-start/0-fun-1-")(arg1) do
     # body not decompiled
   end
 
@@ -594,11 +594,11 @@ defmodule :fprof do
     # body not decompiled
   end
 
-  defp unquote(:"-trace_on/3-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-trace_on/3-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-try_pending_stop/1-fun-0-")(p0, p1) do
+  defp unquote(:"-try_pending_stop/1-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 

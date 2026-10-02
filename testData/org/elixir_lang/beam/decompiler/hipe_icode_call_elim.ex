@@ -76,21 +76,21 @@ defmodule :hipe_icode_call_elim do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
   # Private Functions
 
-  defp unquote(:"-cfg/1-fun-1-")(p0, p1) do
+  defp unquote(:"-cfg/1-fun-1-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-elim_insn/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-elim_insn/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.elim_insn/1-")(p0) do
+  defp unquote(:"-fun.elim_insn/1-")(arg1) do
     # body not decompiled
   end
 

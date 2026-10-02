@@ -694,7 +694,7 @@ defmodule :dbg_wx_trace_win do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -792,67 +792,67 @@ defmodule :dbg_wx_trace_win do
 
   # Private Functions
 
-  defp unquote(:"-button_area/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-button_area/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-clear_breaks/2-fun-0-")(p0, p1) do
+  defp unquote(:"-clear_breaks/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-clear_breaks/2-fun-1-")(p0, p1) do
+  defp unquote(:"-clear_breaks/2-fun-1-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-configure/1-fun-0-")(p0, p1, p2, p3) do
+  defp unquote(:"-configure/1-fun-0-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-configure/2-fun-0-")(p0, p1, p2, p3, p4) do
+  defp unquote(:"-configure/2-fun-0-")(arg1, arg2, arg3, arg4, arg5) do
     # body not decompiled
   end
 
-  defp unquote(:"-create_win/4-fun-0-")(p0, p1, p2, p3) do
+  defp unquote(:"-create_win/4-fun-0-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-enable/2-fun-0-")(p0, p1) do
+  defp unquote(:"-enable/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-enable_windows/2-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-enable_windows/2-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-handle_event/2-fun-0-")(p0, p1) do
+  defp unquote(:"-handle_event/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-handle_event/2-fun-2-")(p0, p1) do
+  defp unquote(:"-handle_event/2-fun-2-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-handle_event/2-fun-4-")(p0, p1) do
+  defp unquote(:"-handle_event/2-fun-4-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-handle_event/2-lc$^1/1-0-")(p0, p1) do
+  defp unquote(:"-handle_event/2-lc$^1/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-handle_event/2-lc$^3/1-1-")(p0, p1, p2) do
+  defp unquote(:"-handle_event/2-lc$^3/1-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-handle_event/2-lc$^5/1-2-")(p0, p1) do
+  defp unquote(:"-handle_event/2-lc$^5/1-2-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-show_code/3-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-show_code/3-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-update_bindings/2-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-update_bindings/2-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 

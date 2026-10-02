@@ -276,7 +276,7 @@ defmodule :ex_cursor do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -293,15 +293,15 @@ defmodule :ex_cursor do
 
   # Private Functions
 
-  defp unquote(:"-do_init/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-do_init/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_init/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-do_init/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-init/1-fun-0-")(p0) do
+  defp unquote(:"-init/1-fun-0-")(arg1) do
     # body not decompiled
   end
 

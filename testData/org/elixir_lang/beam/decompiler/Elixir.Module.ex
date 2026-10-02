@@ -535,7 +535,7 @@ defmodule Module do
     )
   end
 
-  def __info__(p0) do
+  def __info__(arg1) do
     # body not decompiled
   end
 
@@ -578,7 +578,7 @@ defmodule Module do
     )
   end
 
-  def behaviour_info(p0) do
+  def behaviour_info(arg1) do
     # body not decompiled
   end
 
@@ -1075,7 +1075,7 @@ defmodule Module do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -1245,55 +1245,55 @@ defmodule Module do
 
   # Private Functions
 
-  defp unquote(:"-check_behaviours/2-fun-0-")(p0, p1, p2, p3, p4) do
+  defp unquote(:"-check_behaviours/2-fun-0-")(arg1, arg2, arg3, arg4, arg5) do
     # body not decompiled
   end
 
-  defp unquote(:"-check_behaviours/2-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-check_behaviours/2-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-check_callbacks/3-fun-0-")(p0, p1, p2, p3) do
+  defp unquote(:"-check_callbacks/3-fun-0-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-check_impls/4-fun-0-")(p0, p1) do
+  defp unquote(:"-check_impls/4-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-check_impls/4-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-check_impls/4-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-check_impls/4-fun-2-")(p0, p1, p2, p3, p4) do
+  defp unquote(:"-check_impls/4-fun-2-")(arg1, arg2, arg3, arg4, arg5) do
     # body not decompiled
   end
 
-  defp unquote(:"-impl_behaviours/6-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-impl_behaviours/6-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-known_callbacks/1-fun-0-")(p0, p1) do
+  defp unquote(:"-known_callbacks/1-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-make_overridable/2-fun-0-")(p0, p1) do
+  defp unquote(:"-make_overridable/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-make_overridable/2-fun-1-")(p0, p1) do
+  defp unquote(:"-make_overridable/2-fun-1-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-make_overridable/2-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-make_overridable/2-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-simplify_arg/3-fun-0-")(p0, p1) do
+  defp unquote(:"-simplify_arg/3-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-warn_missing_impls/4-fun-0-")(p0, p1, p2, p3, p4) do
+  defp unquote(:"-warn_missing_impls/4-fun-0-")(arg1, arg2, arg3, arg4, arg5) do
     # body not decompiled
   end
 

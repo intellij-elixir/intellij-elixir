@@ -191,7 +191,7 @@ defmodule :code do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -320,95 +320,95 @@ defmodule :code do
 
   # Private Functions
 
-  defp unquote(:"-all_available/2-F/2-1-")(p0, p1) do
+  defp unquote(:"-all_available/2-F/2-1-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-all_available/2-anonymous-3-")(p0, p1) do
+  defp unquote(:"-all_available/2-anonymous-3-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-all_available/2-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-all_available/2-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-all_available/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-all_available/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_par_fun/2-fun-1-")(p0, p1) do
+  defp unquote(:"-do_par_fun/2-fun-1-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_par_fun/2-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-do_par_fun/2-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_par_fun_2/2-fun-0-")(p0, p1) do
+  defp unquote(:"-do_par_fun_2/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-finish_loading/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-finish_loading/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-finish_loading/2-lc$^1/1-1-")(p0) do
+  defp unquote(:"-finish_loading/2-lc$^1/1-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-get_function_docs_from_ast/1-fun-0-")(p0, p1) do
+  defp unquote(:"-get_function_docs_from_ast/1-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-get_function_docs_from_ast/2-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-get_function_docs_from_ast/2-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-get_native_fun/0-fun-0-")(p0, p1) do
+  defp unquote(:"-get_native_fun/0-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-get_native_fun/0-fun-1-")(p0) do
+  defp unquote(:"-get_native_fun/0-fun-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-load_code_server_prerequisites/0-lc$^0/1-0-")(p0) do
+  defp unquote(:"-load_code_server_prerequisites/0-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-load_mods/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-load_mods/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-load_native_code_for_all_loaded/1-fun-0-")(p0, p1) do
+  defp unquote(:"-load_native_code_for_all_loaded/1-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-modified_modules/0-lc$^0/1-0-")(p0) do
+  defp unquote(:"-modified_modules/0-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-module_status/0-lc$^0/1-0-")(p0) do
+  defp unquote(:"-module_status/0-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-module_status/1-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-module_status/1-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-partition_on_load/1-fun-0-")(p0) do
+  defp unquote(:"-partition_on_load/1-fun-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-prepare_loading_3/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-prepare_loading_3/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-prepare_loading_fun/0-fun-0-")(p0, p1, p2, p3) do
+  defp unquote(:"-prepare_loading_fun/0-fun-0-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-set_primary_archive/4-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-set_primary_archive/4-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 

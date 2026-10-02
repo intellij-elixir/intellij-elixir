@@ -3,7 +3,7 @@ defmodule Kernel do
 
   # Macros
 
-  defmacro unquote(:!)(p0) do
+  defmacro unquote(:!)(arg1) do
     # body not decompiled
   end
 
@@ -19,11 +19,11 @@ defmodule Kernel do
     # body not decompiled
   end
 
-  defmacro unquote(:@)(p0) do
+  defmacro unquote(:@)(arg1) do
     # body not decompiled
   end
 
-  defmacro alias!(p0) do
+  defmacro alias!(arg1) do
     # body not decompiled
   end
 
@@ -35,83 +35,83 @@ defmodule Kernel do
     # body not decompiled
   end
 
-  defmacro binding(p0) do
+  defmacro binding(arg1) do
     # body not decompiled
   end
 
-  defmacro def(p0) do
+  defmacro def(arg1) do
     # body not decompiled
   end
 
-  defmacro def(p0, p1) do
+  defmacro def(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro defdelegate(p0, p1) do
+  defmacro defdelegate(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro defexception(p0) do
+  defmacro defexception(arg1) do
     # body not decompiled
   end
 
-  defmacro defimpl(p0, p1) do
+  defmacro defimpl(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro defimpl(p0, p1, p2) do
+  defmacro defimpl(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defmacro defmacro(p0) do
+  defmacro defmacro(arg1) do
     # body not decompiled
   end
 
-  defmacro defmacro(p0, p1) do
+  defmacro defmacro(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro defmacrop(p0) do
+  defmacro defmacrop(arg1) do
     # body not decompiled
   end
 
-  defmacro defmacrop(p0, p1) do
+  defmacro defmacrop(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro defmodule(p0, p1) do
+  defmacro defmodule(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro defoverridable(p0) do
+  defmacro defoverridable(arg1) do
     # body not decompiled
   end
 
-  defmacro defp(p0) do
+  defmacro defp(arg1) do
     # body not decompiled
   end
 
-  defmacro defp(p0, p1) do
+  defmacro defp(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro defprotocol(p0, p1) do
+  defmacro defprotocol(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro defstruct(p0) do
+  defmacro defstruct(arg1) do
     # body not decompiled
   end
 
-  defmacro destructure(p0, p1) do
+  defmacro destructure(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro get_and_update_in(p0, p1) do
+  defmacro get_and_update_in(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro if(p0, p1) do
+  defmacro if(arg1, arg2) do
     # body not decompiled
   end
 
@@ -119,11 +119,11 @@ defmodule Kernel do
     # body not decompiled
   end
 
-  defmacro is_nil(p0) do
+  defmacro is_nil(arg1) do
     # body not decompiled
   end
 
-  defmacro match?(p0, p1) do
+  defmacro match?(arg1, arg2) do
     # body not decompiled
   end
 
@@ -131,107 +131,107 @@ defmodule Kernel do
     # body not decompiled
   end
 
-  defmacro pop_in(p0) do
+  defmacro pop_in(arg1) do
     # body not decompiled
   end
 
-  defmacro put_in(p0, p1) do
+  defmacro put_in(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro raise(p0) do
+  defmacro raise(arg1) do
     # body not decompiled
   end
 
-  defmacro raise(p0, p1) do
+  defmacro raise(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro reraise(p0, p1) do
+  defmacro reraise(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro reraise(p0, p1, p2) do
+  defmacro reraise(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defmacro sigil_C(p0, p1) do
+  defmacro sigil_C(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro sigil_D(p0, p1) do
+  defmacro sigil_D(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro sigil_N(p0, p1) do
+  defmacro sigil_N(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro sigil_R(p0, p1) do
+  defmacro sigil_R(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro sigil_S(p0, p1) do
+  defmacro sigil_S(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro sigil_T(p0, p1) do
+  defmacro sigil_T(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro sigil_W(p0, p1) do
+  defmacro sigil_W(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro sigil_c(p0, p1) do
+  defmacro sigil_c(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro sigil_r(p0, p1) do
+  defmacro sigil_r(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro sigil_s(p0, p1) do
+  defmacro sigil_s(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro sigil_w(p0, p1) do
+  defmacro sigil_w(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro to_char_list(p0) do
+  defmacro to_char_list(arg1) do
     # body not decompiled
   end
 
-  defmacro to_charlist(p0) do
+  defmacro to_charlist(arg1) do
     # body not decompiled
   end
 
-  defmacro to_string(p0) do
+  defmacro to_string(arg1) do
     # body not decompiled
   end
 
-  defmacro unless(p0, p1) do
+  defmacro unless(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro update_in(p0, p1) do
+  defmacro update_in(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro use(p0) do
+  defmacro use(arg1) do
     # body not decompiled
   end
 
-  defmacro use(p0, p1) do
+  defmacro use(arg1, arg2) do
     # body not decompiled
   end
 
-  defmacro var!(p0) do
+  defmacro var!(arg1) do
     # body not decompiled
   end
 
-  defmacro var!(p0, p1) do
+  defmacro var!(arg1, arg2) do
     # body not decompiled
   end
 
@@ -495,7 +495,7 @@ defmodule Kernel do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -612,83 +612,83 @@ defmodule Kernel do
 
   # Private Functions
 
-  defp unquote(:"-MACRO-binding/2-fun-0-")(p0, p1, p2, p3) do
+  defp unquote(:"-MACRO-binding/2-fun-0-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-MACRO-in/3-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-MACRO-in/3-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-MACRO-in/3-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-MACRO-in/3-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-MACRO-sigil_r/3-fun-0-")(p0) do
+  defp unquote(:"-MACRO-sigil_r/3-fun-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-MACRO-sigil_r/3-fun-1-")(p0) do
+  defp unquote(:"-MACRO-sigil_r/3-fun-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-MACRO-use/3-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-MACRO-use/3-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-MACRO-|>/3-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-MACRO-|>/3-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_pop_in/2-fun-0-")(p0) do
+  defp unquote(:"-do_pop_in/2-fun-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_pop_in/2-fun-1-")(p0, p1) do
+  defp unquote(:"-do_pop_in/2-fun-1-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_pop_in/2-fun-2-")(p0, p1) do
+  defp unquote(:"-do_pop_in/2-fun-2-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-expand_aliases/2-fun-0-")(p0, p1) do
+  defp unquote(:"-expand_aliases/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-get_and_update_in/3-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-get_and_update_in/3-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-get_and_update_in/3-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-get_and_update_in/3-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-get_in/2-fun-0-")(p0) do
+  defp unquote(:"-get_in/2-fun-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-get_in/2-fun-1-")(p0, p1) do
+  defp unquote(:"-get_in/2-fun-1-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-in_list/3-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-in_list/3-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-put_in/3-fun-0-")(p0, p1) do
+  defp unquote(:"-put_in/3-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-struct!/2-fun-0-")(p0, p1) do
+  defp unquote(:"-struct!/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-struct/2-fun-0-")(p0, p1) do
+  defp unquote(:"-struct/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-update_in/3-fun-0-")(p0, p1) do
+  defp unquote(:"-update_in/3-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 

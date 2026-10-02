@@ -7,11 +7,11 @@ defmodule LDAPEx.ELDAPv3 do
     # body not decompiled
   end
 
-  defmacro unquote(:AddRequest)(p0) do
+  defmacro unquote(:AddRequest)(arg1) do
     # body not decompiled
   end
 
-  defmacro unquote(:AddRequest)(p0, p1) do
+  defmacro unquote(:AddRequest)(arg1, arg2) do
     # body not decompiled
   end
 
@@ -19,11 +19,11 @@ defmodule LDAPEx.ELDAPv3 do
     # body not decompiled
   end
 
-  defmacro unquote(:AttributeValueAssertion)(p0) do
+  defmacro unquote(:AttributeValueAssertion)(arg1) do
     # body not decompiled
   end
 
-  defmacro unquote(:AttributeValueAssertion)(p0, p1) do
+  defmacro unquote(:AttributeValueAssertion)(arg1, arg2) do
     # body not decompiled
   end
 
@@ -31,11 +31,11 @@ defmodule LDAPEx.ELDAPv3 do
     # body not decompiled
   end
 
-  defmacro unquote(:BindRequest)(p0) do
+  defmacro unquote(:BindRequest)(arg1) do
     # body not decompiled
   end
 
-  defmacro unquote(:BindRequest)(p0, p1) do
+  defmacro unquote(:BindRequest)(arg1, arg2) do
     # body not decompiled
   end
 
@@ -43,11 +43,11 @@ defmodule LDAPEx.ELDAPv3 do
     # body not decompiled
   end
 
-  defmacro unquote(:BindResponse)(p0) do
+  defmacro unquote(:BindResponse)(arg1) do
     # body not decompiled
   end
 
-  defmacro unquote(:BindResponse)(p0, p1) do
+  defmacro unquote(:BindResponse)(arg1, arg2) do
     # body not decompiled
   end
 
@@ -55,11 +55,11 @@ defmodule LDAPEx.ELDAPv3 do
     # body not decompiled
   end
 
-  defmacro unquote(:CompareRequest)(p0) do
+  defmacro unquote(:CompareRequest)(arg1) do
     # body not decompiled
   end
 
-  defmacro unquote(:CompareRequest)(p0, p1) do
+  defmacro unquote(:CompareRequest)(arg1, arg2) do
     # body not decompiled
   end
 
@@ -67,11 +67,11 @@ defmodule LDAPEx.ELDAPv3 do
     # body not decompiled
   end
 
-  defmacro unquote(:Control)(p0) do
+  defmacro unquote(:Control)(arg1) do
     # body not decompiled
   end
 
-  defmacro unquote(:Control)(p0, p1) do
+  defmacro unquote(:Control)(arg1, arg2) do
     # body not decompiled
   end
 
@@ -79,11 +79,11 @@ defmodule LDAPEx.ELDAPv3 do
     # body not decompiled
   end
 
-  defmacro unquote(:ExtendedRequest)(p0) do
+  defmacro unquote(:ExtendedRequest)(arg1) do
     # body not decompiled
   end
 
-  defmacro unquote(:ExtendedRequest)(p0, p1) do
+  defmacro unquote(:ExtendedRequest)(arg1, arg2) do
     # body not decompiled
   end
 
@@ -91,11 +91,11 @@ defmodule LDAPEx.ELDAPv3 do
     # body not decompiled
   end
 
-  defmacro unquote(:ExtendedResponse)(p0) do
+  defmacro unquote(:ExtendedResponse)(arg1) do
     # body not decompiled
   end
 
-  defmacro unquote(:ExtendedResponse)(p0, p1) do
+  defmacro unquote(:ExtendedResponse)(arg1, arg2) do
     # body not decompiled
   end
 
@@ -103,11 +103,11 @@ defmodule LDAPEx.ELDAPv3 do
     # body not decompiled
   end
 
-  defmacro unquote(:IntermediateResponse)(p0) do
+  defmacro unquote(:IntermediateResponse)(arg1) do
     # body not decompiled
   end
 
-  defmacro unquote(:IntermediateResponse)(p0, p1) do
+  defmacro unquote(:IntermediateResponse)(arg1, arg2) do
     # body not decompiled
   end
 
@@ -115,11 +115,11 @@ defmodule LDAPEx.ELDAPv3 do
     # body not decompiled
   end
 
-  defmacro unquote(:LDAPMessage)(p0) do
+  defmacro unquote(:LDAPMessage)(arg1) do
     # body not decompiled
   end
 
-  defmacro unquote(:LDAPMessage)(p0, p1) do
+  defmacro unquote(:LDAPMessage)(arg1, arg2) do
     # body not decompiled
   end
 
@@ -127,11 +127,11 @@ defmodule LDAPEx.ELDAPv3 do
     # body not decompiled
   end
 
-  defmacro unquote(:LDAPResult)(p0) do
+  defmacro unquote(:LDAPResult)(arg1) do
     # body not decompiled
   end
 
-  defmacro unquote(:LDAPResult)(p0, p1) do
+  defmacro unquote(:LDAPResult)(arg1, arg2) do
     # body not decompiled
   end
 
@@ -139,11 +139,11 @@ defmodule LDAPEx.ELDAPv3 do
     # body not decompiled
   end
 
-  defmacro unquote(:MatchingRuleAssertion)(p0) do
+  defmacro unquote(:MatchingRuleAssertion)(arg1) do
     # body not decompiled
   end
 
-  defmacro unquote(:MatchingRuleAssertion)(p0, p1) do
+  defmacro unquote(:MatchingRuleAssertion)(arg1, arg2) do
     # body not decompiled
   end
 
@@ -151,11 +151,11 @@ defmodule LDAPEx.ELDAPv3 do
     # body not decompiled
   end
 
-  defmacro unquote(:ModifyDNRequest)(p0) do
+  defmacro unquote(:ModifyDNRequest)(arg1) do
     # body not decompiled
   end
 
-  defmacro unquote(:ModifyDNRequest)(p0, p1) do
+  defmacro unquote(:ModifyDNRequest)(arg1, arg2) do
     # body not decompiled
   end
 
@@ -163,11 +163,11 @@ defmodule LDAPEx.ELDAPv3 do
     # body not decompiled
   end
 
-  defmacro unquote(:ModifyRequest)(p0) do
+  defmacro unquote(:ModifyRequest)(arg1) do
     # body not decompiled
   end
 
-  defmacro unquote(:ModifyRequest)(p0, p1) do
+  defmacro unquote(:ModifyRequest)(arg1, arg2) do
     # body not decompiled
   end
 
@@ -175,11 +175,11 @@ defmodule LDAPEx.ELDAPv3 do
     # body not decompiled
   end
 
-  defmacro unquote(:ModifyRequest_changes_SEQOF)(p0) do
+  defmacro unquote(:ModifyRequest_changes_SEQOF)(arg1) do
     # body not decompiled
   end
 
-  defmacro unquote(:ModifyRequest_changes_SEQOF)(p0, p1) do
+  defmacro unquote(:ModifyRequest_changes_SEQOF)(arg1, arg2) do
     # body not decompiled
   end
 
@@ -187,11 +187,11 @@ defmodule LDAPEx.ELDAPv3 do
     # body not decompiled
   end
 
-  defmacro unquote(:PartialAttribute)(p0) do
+  defmacro unquote(:PartialAttribute)(arg1) do
     # body not decompiled
   end
 
-  defmacro unquote(:PartialAttribute)(p0, p1) do
+  defmacro unquote(:PartialAttribute)(arg1, arg2) do
     # body not decompiled
   end
 
@@ -199,11 +199,11 @@ defmodule LDAPEx.ELDAPv3 do
     # body not decompiled
   end
 
-  defmacro unquote(:SaslCredentials)(p0) do
+  defmacro unquote(:SaslCredentials)(arg1) do
     # body not decompiled
   end
 
-  defmacro unquote(:SaslCredentials)(p0, p1) do
+  defmacro unquote(:SaslCredentials)(arg1, arg2) do
     # body not decompiled
   end
 
@@ -211,11 +211,11 @@ defmodule LDAPEx.ELDAPv3 do
     # body not decompiled
   end
 
-  defmacro unquote(:SearchRequest)(p0) do
+  defmacro unquote(:SearchRequest)(arg1) do
     # body not decompiled
   end
 
-  defmacro unquote(:SearchRequest)(p0, p1) do
+  defmacro unquote(:SearchRequest)(arg1, arg2) do
     # body not decompiled
   end
 
@@ -223,11 +223,11 @@ defmodule LDAPEx.ELDAPv3 do
     # body not decompiled
   end
 
-  defmacro unquote(:SearchResultEntry)(p0) do
+  defmacro unquote(:SearchResultEntry)(arg1) do
     # body not decompiled
   end
 
-  defmacro unquote(:SearchResultEntry)(p0, p1) do
+  defmacro unquote(:SearchResultEntry)(arg1, arg2) do
     # body not decompiled
   end
 
@@ -235,25 +235,25 @@ defmodule LDAPEx.ELDAPv3 do
     # body not decompiled
   end
 
-  defmacro unquote(:SubstringFilter)(p0) do
+  defmacro unquote(:SubstringFilter)(arg1) do
     # body not decompiled
   end
 
-  defmacro unquote(:SubstringFilter)(p0, p1) do
+  defmacro unquote(:SubstringFilter)(arg1, arg2) do
     # body not decompiled
   end
 
   # Functions
 
-  def __info__(p0) do
+  def __info__(arg1) do
     # body not decompiled
   end
 
-  def decode(p0, p1) do
+  def decode(arg1, arg2) do
     # body not decompiled
   end
 
-  def encode(p0, p1) do
+  def encode(arg1, arg2) do
     # body not decompiled
   end
 
@@ -261,7 +261,7 @@ defmodule LDAPEx.ELDAPv3 do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 end

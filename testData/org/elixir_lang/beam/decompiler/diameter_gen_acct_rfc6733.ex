@@ -969,7 +969,7 @@ defmodule :diameter_gen_acct_rfc6733 do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -1015,51 +1015,51 @@ defmodule :diameter_gen_acct_rfc6733 do
 
   # Private Functions
 
-  defp unquote(:"-#get-diameter_base_accounting_ACA/2-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-#get-diameter_base_accounting_ACA/2-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-#get-diameter_base_accounting_ACR/2-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-#get-diameter_base_accounting_ACR/2-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-#get-diameter_base_accounting_Experimental-Result/2-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-#get-diameter_base_accounting_Experimental-Result/2-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-#get-diameter_base_accounting_Failed-AVP/2-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-#get-diameter_base_accounting_Failed-AVP/2-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-#get-diameter_base_accounting_Proxy-Info/2-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-#get-diameter_base_accounting_Proxy-Info/2-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-#get-diameter_base_accounting_Vendor-Specific-Application-Id/2-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-#get-diameter_base_accounting_Vendor-Specific-Application-Id/2-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.#set-diameter_base_accounting_ACA/2-")(p0, p1) do
+  defp unquote(:"-fun.#set-diameter_base_accounting_ACA/2-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.#set-diameter_base_accounting_ACR/2-")(p0, p1) do
+  defp unquote(:"-fun.#set-diameter_base_accounting_ACR/2-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.#set-diameter_base_accounting_Experimental-Result/2-")(p0, p1) do
+  defp unquote(:"-fun.#set-diameter_base_accounting_Experimental-Result/2-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.#set-diameter_base_accounting_Failed-AVP/2-")(p0, p1) do
+  defp unquote(:"-fun.#set-diameter_base_accounting_Failed-AVP/2-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.#set-diameter_base_accounting_Proxy-Info/2-")(p0, p1) do
+  defp unquote(:"-fun.#set-diameter_base_accounting_Proxy-Info/2-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.#set-diameter_base_accounting_Vendor-Specific-Application-Id/2-")(p0, p1) do
+  defp unquote(:"-fun.#set-diameter_base_accounting_Vendor-Specific-Application-Id/2-")(arg1, arg2) do
     # body not decompiled
   end
 

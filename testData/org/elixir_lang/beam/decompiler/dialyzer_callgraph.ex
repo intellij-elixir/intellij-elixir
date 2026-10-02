@@ -187,7 +187,7 @@ defmodule :dialyzer_callgraph do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -378,147 +378,147 @@ defmodule :dialyzer_callgraph do
 
   # Private Functions
 
-  defp unquote(:"-build_maps/5-fun-0-")(p0, p1, p2, p3, p4, p5) do
+  defp unquote(:"-build_maps/5-fun-0-")(arg1, arg2, arg3, arg4, arg5, arg6) do
     # body not decompiled
   end
 
-  defp unquote(:"-condensation/1-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-condensation/1-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_condensation/2-fun-3-")(p0, p1) do
+  defp unquote(:"-do_condensation/2-fun-3-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_condensation/2-fun-5-")(p0, p1) do
+  defp unquote(:"-do_condensation/2-fun-5-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_condensation/2-fun-6-")(p0, p1) do
+  defp unquote(:"-do_condensation/2-fun-6-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_condensation/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-do_condensation/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_condensation/2-lc$^1/1-1-")(p0) do
+  defp unquote(:"-do_condensation/2-lc$^1/1-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_condensation/2-lc$^2/1-2-")(p0, p1, p2) do
+  defp unquote(:"-do_condensation/2-lc$^2/1-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_condensation/2-lc$^4/1-3-")(p0) do
+  defp unquote(:"-do_condensation/2-lc$^4/1-3-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.edge_fold/2-")(p0, p1) do
+  defp unquote(:"-fun.edge_fold/2-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-get_edges_from_deps/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-get_edges_from_deps/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-get_edges_from_deps/1-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-get_edges_from_deps/1-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-lookup_scc/3-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-lookup_scc/3-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-module_deps/1-fun-2-")(p0, p1) do
+  defp unquote(:"-module_deps/1-fun-2-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-module_deps/1-lc$^1/1-0-")(p0) do
+  defp unquote(:"-module_deps/1-lc$^1/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-module_deps/1-lc$^3/1-1-")(p0, p1) do
+  defp unquote(:"-module_deps/1-lc$^3/1-1-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-module_postorder/1-fun-2-")(p0, p1) do
+  defp unquote(:"-module_postorder/1-fun-2-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-module_postorder/1-lc$^1/1-0-")(p0) do
+  defp unquote(:"-module_postorder/1-lc$^1/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-modules/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-modules/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-name_edges/2-fun-0-")(p0, p1) do
+  defp unquote(:"-name_edges/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-new/0-lc$^0/1-0-")(p0) do
+  defp unquote(:"-new/0-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-remove_unconfirmed/3-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-remove_unconfirmed/3-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-scan_core_funs/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-scan_core_funs/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-scan_core_tree/2-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-scan_core_tree/2-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-scan_core_tree/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-scan_core_tree/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-scan_core_tree/2-lc$^2/1-1-")(p0) do
+  defp unquote(:"-scan_core_tree/2-lc$^2/1-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-scan_core_tree/2-lc$^3/1-2-")(p0) do
+  defp unquote(:"-scan_core_tree/2-lc$^3/1-2-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-scan_core_tree/2-lc$^4/1-3-")(p0) do
+  defp unquote(:"-scan_core_tree/2-lc$^4/1-3-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-scan_core_tree/2-lc$^5/1-4-")(p0) do
+  defp unquote(:"-scan_core_tree/2-lc$^5/1-4-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-scan_one_core_fun/2-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-scan_one_core_fun/2-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-strip_module_deps/2-fun-0-")(p0, p1) do
+  defp unquote(:"-strip_module_deps/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-strip_module_deps/2-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-strip_module_deps/2-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-strip_module_deps/2-fun-2-")(p0, p1) do
+  defp unquote(:"-strip_module_deps/2-fun-2-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-to_dot/2-fun-0-")(p0, p1) do
+  defp unquote(:"-to_dot/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-to_dot/2-lc$^1/1-1-")(p0) do
+  defp unquote(:"-to_dot/2-lc$^1/1-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-to_dot/2-lc$^2/1-0-")(p0, p1) do
+  defp unquote(:"-to_dot/2-lc$^2/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 

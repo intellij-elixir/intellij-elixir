@@ -14,7 +14,7 @@ class SignatureTest : PlatformTestCase() {
 
     /** A stub stores no parameters when rendering the definition failed or no decompiler accepts its name. */
     fun testBeamDefinitionWithoutStoredParametersGetsGeneratedNames() {
-        assertEquals(listOf("p0", "p1", "p2"), beamSignature(3, emptyList(), true).parameters)
+        assertEquals(listOf("arg1", "arg2", "arg3"), beamSignature(3, emptyList(), true).parameters)
     }
 
     fun testBeamZeroArityHasNoParameters() {

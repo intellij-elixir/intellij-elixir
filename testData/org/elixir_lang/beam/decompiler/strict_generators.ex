@@ -25,21 +25,21 @@ defmodule :strict_generators do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
   # Private Functions
 
-  defp unquote(:"-bitstring_strict/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-bitstring_strict/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-list_strict/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-list_strict/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-map_strict/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-map_strict/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 end

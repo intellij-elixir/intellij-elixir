@@ -577,7 +577,7 @@ defmodule :sets do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -753,67 +753,67 @@ defmodule :sets do
 
   # Private Functions
 
-  defp unquote(:"-filter/2-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-filter/2-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-filtermap/2-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-filtermap/2-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-from_list/2-fun-0-")(p0, p1) do
+  defp unquote(:"-from_list/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-intersection/2-fun-0-")(p0, p1) do
+  defp unquote(:"-intersection/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-intersection/2-fun-1-")(p0, p1) do
+  defp unquote(:"-intersection/2-fun-1-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-is_disjoint/2-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-is_disjoint/2-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-is_disjoint/2-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-is_disjoint/2-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-is_disjoint/2-inlined-0-")(p0, p1) do
+  defp unquote(:"-is_disjoint/2-inlined-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-is_disjoint/2-inlined-1-")(p0, p1) do
+  defp unquote(:"-is_disjoint/2-inlined-1-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-is_subset/2-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-is_subset/2-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-map/2-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-map/2-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-map/2-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-map/2-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-subtract/2-fun-0-")(p0, p1) do
+  defp unquote(:"-subtract/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-to_list/1-fun-0-")(p0, p1) do
+  defp unquote(:"-to_list/1-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-union/2-fun-0-")(p0, p1) do
+  defp unquote(:"-union/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-union/2-fun-1-")(p0, p1) do
+  defp unquote(:"-union/2-fun-1-")(arg1, arg2) do
     # body not decompiled
   end
 

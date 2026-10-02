@@ -3,7 +3,7 @@ defmodule EExTestWeb.PageController do
 
   # Functions
 
-  def __info__(p0) do
+  def __info__(arg1) do
     # body not decompiled
   end
 
@@ -57,13 +57,13 @@ defmodule EExTestWeb.PageController do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
   # Private Functions
 
-  defp unquote(:"-call/2-fun-0-")(p0, p1) do
+  defp unquote(:"-call/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
