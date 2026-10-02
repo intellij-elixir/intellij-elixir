@@ -19,6 +19,7 @@ import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.ProcessDeclarationsImpl
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.childExpressions
+import org.elixir_lang.psi.impl.moduleName
 
 class ElixirFile(viewProvider: FileViewProvider) : PsiFileBase(viewProvider, ElixirLanguage) {
     override fun getFileType(): FileType = ElixirFileType.INSTANCE
@@ -118,7 +119,7 @@ class ElixirFile(viewProvider: FileViewProvider) : PsiFileBase(viewProvider, Eli
     private fun moduleUsesEExFile(module: Call): Boolean =
             CallDefinitionClause.modularChildCalls(module).filterIsInstance<Qualified>().any { call ->
                 // `function_from_file(kind, name, file, args \\ [], options \\ [])`
-                if (call.qualifier().let { it as? ElixirAlias }?.name == "EEx" && call.functionName() == "function_from_file" &&
+                if (moduleName(call.qualifier())?.name == "EEx" && call.functionName() == "function_from_file" &&
                         call.resolvedFinalArity() in 3..5) {
                     eexFunctionFromFileUsesEExFile(call)
                 } else {
@@ -134,7 +135,7 @@ class ElixirFile(viewProvider: FileViewProvider) : PsiFileBase(viewProvider, Eli
     private fun eexFunctionFromFileArgumentUsesEExFile(argument: PsiElement): Boolean =
        when (argument) {
            is Qualified -> {
-               argument.qualifier().let { it as? ElixirAlias }?.name == "Path" &&
+               moduleName(argument.qualifier())?.name == "Path" &&
                        argument.functionName() == "expand" &&
                        argument.resolvedFinalArity() == 2 &&
                        pathExpandUsesEExFile(argument)

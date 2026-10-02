@@ -5,9 +5,11 @@ import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.stubs.StubIndex
+import org.elixir_lang.Module
 import org.elixir_lang.psi.ElementFactory
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.NamedElement
+import org.elixir_lang.psi.call.name.Module.ELIXIR_PREFIX
 import org.elixir_lang.psi.impl.indexName
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.stub.index.ModularName
@@ -174,16 +176,17 @@ class MarkdownFlavourDescriptor(private val project: Project) : GFMFlavourDescri
 
         /**
          * A module named with an atom is indexed by the atom's value, however the link quotes it; `null` when the atom
-         * has no value.
+         * has no value. An `Elixir.` link names the atom it spells, as `Elixir.Foo` does in source.
          */
         private fun indexName(project: Project, name: String): String? =
-            if (name.startsWith(":")) {
-                when (val atom = ElementFactory.createFile(project, name).firstChild?.stripAccessExpression()) {
-                    is ElixirAtom -> atom.indexName()
-                    else -> name
-                }
-            } else {
-                name
+            when {
+                name.startsWith(":") ->
+                    when (val atom = ElementFactory.createFile(project, name).firstChild?.stripAccessExpression()) {
+                        is ElixirAtom -> atom.indexName()
+                        else -> name
+                    }
+                name.startsWith(ELIXIR_PREFIX) -> Module.indexName(name)
+                else -> name
             }
     }
 }

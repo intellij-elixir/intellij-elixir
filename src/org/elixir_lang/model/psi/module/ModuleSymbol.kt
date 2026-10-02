@@ -18,6 +18,8 @@ import org.elixir_lang.psi.Module
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.call.SyntacticCall
+import org.elixir_lang.psi.impl.call.CanonicallyNamedImpl
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.stripAccessExpression
 import java.util.*
@@ -29,13 +31,15 @@ import java.util.*
 class ModuleSymbol(
     override val file: PsiFile,
     override val range: TextRange,
-    val moduleName: String
+    val moduleName: String,
+    /** The name as the declaration writes it, which a rename replaces: `Inner` for `A.Inner`. */
+    override val targetName: String = moduleName
 ) : ElixirRenameTarget, NavigationTarget, SearchTarget {
     override val searchText: String get() = moduleName.substringAfterLast('.')
-    override val targetName: String get() = moduleName
 
     override fun createPointer(): Pointer<out ModuleSymbol> {
         val moduleName = this.moduleName
+        val targetName = this.targetName
         // Anchor to the enclosing declaring call (a stable ancestor) rather than to the
         // name-identifier element or a bare file range: an in-place (Shift+F6) rename fully replaces
         // the identifier's text, which swaps out the identifier leaf (collapsing a pointer anchored to
@@ -52,11 +56,11 @@ class ModuleSymbol(
                 val restoredModular = modularPointer.dereference() ?: return@Pointer null
                 val restoredRange = moduleNameElement(restoredModular)?.textRange
                     ?: return@Pointer null
-                ModuleSymbol(restoredModular.containingFile, restoredRange, moduleName)
+                ModuleSymbol(restoredModular.containingFile, restoredRange, moduleName, targetName)
             }
         }
         return Pointer.fileRangePointer(file, range) { restoredFile, restoredRange ->
-            ModuleSymbol(restoredFile, restoredRange, moduleName)
+            ModuleSymbol(restoredFile, restoredRange, moduleName, targetName)
         }
     }
 
@@ -94,7 +98,10 @@ class ModuleSymbol(
         fun fromModular(call: Call): ModuleSymbol? {
             if (!isDeclaration(call)) return null
             val nameElement = moduleNameElement(call) ?: return null
-            val moduleName = moduleNameText(call)?.removeElixirPrefix() ?: return null
+            val targetName = moduleNameText(call)?.removeElixirPrefix() ?: return null
+            val moduleName = CanonicallyNamedImpl.canonicalName(SyntacticCall.of(call))
+                ?.takeUnless { org.elixir_lang.Module.atom(it) == null }
+                ?: targetName
 
             // For a `defmodule` in a decompiled `.beam` mirror, containingFile is the in-memory mirror;
             // originalFile is the navigable compiled `.beam` whose editor shows the decompiled text at
@@ -102,7 +109,7 @@ class ModuleSymbol(
             // originalFile is the file itself.
             val declarationFile = call.containingFile.originalFile
 
-            return ModuleSymbol(declarationFile, nameElement.textRange, moduleName)
+            return ModuleSymbol(declarationFile, nameElement.textRange, moduleName, targetName)
         }
 
         @RequiresReadLock

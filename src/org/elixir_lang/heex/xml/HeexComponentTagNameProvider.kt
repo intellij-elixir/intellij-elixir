@@ -8,6 +8,7 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import com.intellij.xml.XmlTagNameProvider
 import org.elixir_lang.heex.isInHeex
 import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.impl.headAtomValue
 
 /**
  * Offers the containing view module's arity-1 call definitions as `<.name>` completions. The
@@ -24,7 +25,7 @@ class HeexComponentTagNameProvider : XmlTagNameProvider {
 
         for (definition in HeexComponentResolver.localComponentDefinitions(tag)) {
             ProgressManager.checkCanceled()
-            val name = CallDefinitionClause.nameIdentifier(definition)?.text ?: continue
+            val name = CallDefinitionClause.head(definition)?.let(::headAtomValue) ?: continue
             elements.add(LookupElementBuilder.create(definition, ".$name"))
         }
     }

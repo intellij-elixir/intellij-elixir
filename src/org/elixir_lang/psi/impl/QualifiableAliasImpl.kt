@@ -38,13 +38,14 @@ fun QualifiableAlias.computeReference(): PsiPolyVariantReference? =
 
         else ->
 
-            if (this.fullyQualifiedName() !in arrayOf(
+            if (moduleName(this) !in arrayOf(
                     // `BitString` is used for `defimpl ..., for: BitString` to define protocols on bitstrings
                     // (`<<...>>`)
-                    "BitString",
+                    ModuleName("BitString", absolute = false),
+                    ModuleName("BitString", absolute = true),
                     // There is no one module that defines the `Elixir` module.  It is only defined implicitly as the common
                     // namespace to all Aliases.
-                    "Elixir"
+                    ModuleName("Elixir", absolute = false)
                 )
             ) {
                 Module(this)
@@ -54,20 +55,20 @@ fun QualifiableAlias.computeReference(): PsiPolyVariantReference? =
     }
 
 /**
- * The enclosing module declaration ([ModuleSymbol.isDeclaration]) whose declared name [alias] is (part of).
- * Declaration names are anchored by `ModuleSymbolDeclarationProvider` and must not carry references -
+ * The enclosing module declaration ([ModuleSymbol.isDeclaration]) whose declared name [name], an alias or an atom,
+ * is (part of). Declaration names are anchored by `ModuleSymbolDeclarationProvider` and must not carry references -
  * an (even unresolving) reference over a declaration anchor shadows the declaration in the platform's
  * declaration-or-reference arbitration.
  */
 @RequiresReadLock
-internal fun declaringModuleCall(alias: QualifiableAlias): Call? {
-    val moduleCall = generateSequence(alias as PsiElement) { it.parent }
+internal fun declaringModuleCall(name: PsiElement): Call? {
+    val moduleCall = generateSequence(name) { it.parent }
         .filterIsInstance<Call>()
         .firstOrNull { ModuleSymbol.isDeclaration(it) }
         ?: return null
     val firstPrimaryArgument = moduleCall.primaryArguments()?.firstOrNull() ?: return null
 
-    return moduleCall.takeIf { PsiTreeUtil.isAncestor(firstPrimaryArgument, alias, false) }
+    return moduleCall.takeIf { PsiTreeUtil.isAncestor(firstPrimaryArgument, name, false) }
 }
 
 fun QualifiableAlias.cachedReference(): PsiPolyVariantReference? =
@@ -148,8 +149,8 @@ object QualifiableAliasImpl {
      * The name of [qualifiableAlias] with each call qualifier, such as `__MODULE__` in `__MODULE__.Endpoint`, named by
      * [callQualifierName].
      *
-     * [com.intellij.psi.PsiNamedElement.getName] for a [QualifiedAlias] is the raw source text, which matches nothing
-     * in the module name index when a qualifier is a call.
+     * [com.intellij.psi.PsiNamedElement.getName] of a [QualifiedAlias] whose qualifier is a call is its text, which
+     * matches nothing in the module name index.
      */
     fun selfQualifiedName(
         qualifiableAlias: QualifiableAlias,

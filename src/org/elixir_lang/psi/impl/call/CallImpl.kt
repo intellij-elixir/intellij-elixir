@@ -17,8 +17,8 @@ import org.elixir_lang.psi.call.arguments.star.NoParenthesesOneArgument
 import org.elixir_lang.psi.call.arguments.star.Parentheses
 import org.elixir_lang.psi.call.name.Function.__MODULE__
 import org.elixir_lang.psi.call.name.Module.KERNEL
-import org.elixir_lang.psi.call.name.Module.stripElixirPrefix
 import org.elixir_lang.psi.impl.*
+import org.elixir_lang.psi.impl.moduleName as quotedModuleName
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ARROW_OPERATOR_TOKEN_SET
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.moduleAttributeName
 import org.elixir_lang.psi.operation.*
@@ -492,11 +492,11 @@ object CallImpl {
         resolvedModuleName: String,
         functionName: String
     ): Boolean {
-        val callResolvedModuleName = call.resolvedModuleName()
         val callFunctionName = call.functionName()
 
-        return callResolvedModuleName != null && callResolvedModuleName == resolvedModuleName &&
-                callFunctionName != null && callFunctionName == functionName
+        // The function name first: reading a qualified call's module quotes its qualifier.
+        return callFunctionName != null && callFunctionName == functionName &&
+                call.resolvedModuleName().let { it != null && it == resolvedModuleName }
     }
 
     /**
@@ -790,7 +790,10 @@ object CallImpl {
     @Suppress("UNCHECKED_CAST")
     @JvmStatic
     fun resolvedModuleName(qualified: org.elixir_lang.psi.call.qualification.Qualified): String =
-        (qualified as? StubBased<Stub<*>>)?.stub?.resolvedModuleName() ?: stripElixirPrefix(qualified.moduleName())
+        (qualified as? StubBased<Stub<*>>)?.stub?.resolvedModuleName()
+            // A qualifier with no value, such as `x.Inner`, keeps its text, which names no module.
+            ?: quotedModuleName(qualified.firstChild)?.name?.takeUnless { org.elixir_lang.Module.atom(it) == null }
+            ?: qualified.moduleName().let { org.elixir_lang.Module.inspectedAlias(it) ?: it }
 
     @Suppress("UNCHECKED_CAST")
     @JvmStatic

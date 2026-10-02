@@ -18,6 +18,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.name.Function.ALIAS
 import org.elixir_lang.psi.call.name.Function.CREATE
+import org.elixir_lang.Module.nest
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.call.maybeModularNameToModulars
 import org.elixir_lang.psi.operation.Infix
@@ -149,7 +150,7 @@ fun PsiElement.getModuleName(): String? {
             } else {
                 val relative = name?.name ?: nameElement.text
 
-                moduleDefinition.parent.getModuleName()?.let { parentModuleName -> "$parentModuleName.$relative" }
+                moduleDefinition.parent.getModuleName()?.let { parentModuleName -> nest(parentModuleName, relative) }
                     ?: relative
             }
         }

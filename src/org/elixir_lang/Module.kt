@@ -38,12 +38,45 @@ object Module {
      */
     @Contract(pure = true)
     @JvmStatic
-    fun indexName(atom: String): String =
+    fun indexName(atom: String): String = inspectedAlias(atom) ?: ":$atom"
+
+    /** The alias `inspect` writes for [atom] when it is an `Elixir.` atom shaped as an alias; otherwise `null`. */
+    @Contract(pure = true)
+    @JvmStatic
+    fun inspectedAlias(atom: String): String? =
         atom
             .takeIf { it.startsWith(ELIXIR_PREFIX) }
             ?.substring(ELIXIR_PREFIX.length)
             ?.takeIf { ElixirModulesUtil.elixirAliasSegmentsRegex.matches(it) }
-            ?: ":$atom"
+
+    /**
+     * The alias [relative] nested in the module [parentIndexName], composed as `elixir_aliases:concat/1` does: `Inner`
+     * in `:foo` is `:"Elixir.foo.Inner"`. When either has no value, so is the result, which [atom] reads as `null`.
+     *
+     * Any other parent is joined, which for an alias is `concat/1`'s answer, and keeps a placeholder such as `P.[X, Y]`
+     * from being read as an atom.
+     */
+    @Contract(pure = true)
+    @JvmStatic
+    fun nest(parentIndexName: String, relative: String): String {
+        val parentAtom = nonElixirAtom(parentIndexName)
+
+        return when {
+            parentAtom == null -> "$parentIndexName$SEPARATOR$relative"
+            NO_VALUE in split(relative) -> "$parentAtom$SEPARATOR$relative"
+            else -> {
+                val head = if (parentAtom == ELIXIR || parentAtom.startsWith(ELIXIR_PREFIX)) {
+                    parentAtom
+                } else {
+                    "$ELIXIR_PREFIX${parentAtom.removePrefix(SEPARATOR)}"
+                }
+
+                indexName("$head$SEPARATOR$relative")
+            }
+        }
+    }
+
+    private const val ELIXIR = "Elixir"
 
     /** Stands in an index name for a name, or an alias in it, that has no value. */
     const val NO_VALUE = "?"

@@ -71,7 +71,6 @@ import org.elixir_lang.run.Configuration
 import org.elixir_lang.run.ensureWorkingDirectory
 import org.elixir_lang.util.ElixirCoroutineService
 import org.elixir_lang.util.supervisedChildScope
-import org.elixir_lang.utils.ElixirModulesUtil.elixirModuleNameToErlang
 import java.util.*
 import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
@@ -163,14 +162,13 @@ class Process(session: XDebugSession, private val executionEnvironment: Executio
 
     fun addBreakpoint(breakpoint: XLineBreakpoint<Properties>) {
         sourcePosition(breakpoint)?.let { sourcePosition ->
-            val moduleNameSet = moduleNameSet(sourcePosition)
+            val moduleAtoms = moduleAtoms(moduleNameSet(sourcePosition))
 
-            if (!moduleNameSet.isEmpty()) {
+            if (moduleAtoms.isNotEmpty()) {
                 sourcePositionToBreakpoint[sourcePosition] = breakpoint
 
-                for (moduleName in moduleNameSet) {
-                    moduleName
-                        .let(::elixirModuleNameToErlang)
+                for (moduleAtom in moduleAtoms) {
+                    moduleAtom
                         .let(::OtpErlangAtom)
                         .run {
                             afterInitialized { addBreakpoint(breakpoint, sourcePosition, this) }
@@ -363,9 +361,7 @@ class Process(session: XDebugSession, private val executionEnvironment: Executio
                                     filename,
                                     GlobalSearchScope.allScope(project)
                                 )
-                                .map { fileNameVirtualFile ->
-                                    fileNameVirtualFile.name.removePrefix("Elixir.").removeSuffix(".beam")
-                                }
+                                .map { fileNameVirtualFile -> beamFileModuleName(fileNameVirtualFile.name) }
                                 .toSet()
                         } ?: emptySet()
                     }
@@ -378,14 +374,13 @@ class Process(session: XDebugSession, private val executionEnvironment: Executio
         sourcePosition(breakpoint)?.let { breakpointPosition ->
             sourcePositionToBreakpoint.remove(breakpointPosition)
 
-            val moduleNames = moduleNameSet(breakpointPosition)
+            val moduleAtoms = moduleAtoms(moduleNameSet(breakpointPosition))
             val line = breakpointPosition.line
 
             scope.launch(nodeDispatcher) {
                 try {
-                    moduleNames.forEach { moduleName ->
-                        moduleName
-                            .let(::elixirModuleNameToErlang)
+                    moduleAtoms.forEach { moduleAtom ->
+                        moduleAtom
                             .let(::OtpErlangAtom)
                             .let { node.removeBreakpoint(it, line) }
                     }
