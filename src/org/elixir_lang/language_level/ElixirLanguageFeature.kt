@@ -1337,6 +1337,118 @@ enum class ElixirLanguageFeature(
     IS_RECORD_GUARD(sinceOtp = "29.0-rc1"),
 
     /**
+     * Once a module's body has run, its functions' local calls are checked by the type checker, which walks the
+     * definitions and reports each bad call where it reaches it, and only if no error was reported before. Before it,
+     * every bad call is reported, sorted by the calling definition and the call's position.
+     *
+     * `elixir-lang/elixir@cb2e03688` ("Perform return type inference and application across local calls", #13984),
+     * first released in v1.18.0-rc.0.
+     */
+    POST_MODULE_LOCAL_CHECKS_TYPED(sinceElixir = "1.18.0-rc.0"),
+
+    /**
+     * The type checker checks a local call, visiting the function it calls, before the call's arguments. Before it,
+     * the arguments come first.
+     *
+     * `elixir-lang/elixir@e4f7ee448` ("Perform type inference using reverse arrows on all non-branching constructs",
+     * #14145), first released in v1.19.0-rc.0.
+     */
+    LOCAL_CALL_CHECKED_BEFORE_ARGUMENTS(sinceElixir = "1.19.0-rc.0"),
+
+    /**
+     * The type checker visits a module's public definitions in ascending name and arity. Before it, they are visited
+     * descending, as the definition table lists them.
+     *
+     * `elixir-lang/elixir@f1bbb2cd3` ("Infer types from guards and do post-inference on stdlib", #15032), first
+     * released in v1.20.0-rc.0.
+     */
+    TYPE_CHECK_SORTS_DEFINITIONS(sinceElixir = "1.20.0-rc.0"),
+
+    /**
+     * A file whose top-level forms are all `defmodule Name, do: block` compiles each module directly, with no
+     * `Kernel.defmodule/2` dispatch, no alias or `require` of the module where it is defined, and no module variables.
+     *
+     * `elixir-lang/elixir@11d5c33bb` ("Bypass evaluator on fast compile"), first released in v1.13.0-rc.0.
+     */
+    DEFMODULE_FAST_PATH(sinceElixir = "1.13.0-rc.0"),
+
+    /**
+     * A module compiled directly in a file of only modules is put first in its own `context_modules`. Before it, they
+     * are the file's.
+     *
+     * `elixir-lang/elixir@6549b00eb` ("Ensure context modules are handled in optimized defmodule"), first released in
+     * v1.13.2.
+     */
+    FAST_PATH_ADDS_CONTEXT_MODULE(sinceElixir = "1.13.2"),
+
+    /**
+     * `defmodule` records the module it defines with a `require` of it, which aliases only a nested name. Before it,
+     * it uses an `alias` with `as: nil` for a root name, which removes any alias of that name.
+     *
+     * `elixir-lang/elixir@69255ecbc` ("Do not leak alias from Elixir root and simplify defmodule implementation"),
+     * first released in v1.16.0-rc.0.
+     */
+    DEFMODULE_ALIASES_THROUGH_REQUIRE(sinceElixir = "1.16.0-rc.0"),
+
+    /**
+     * `defmodule` and the `def*` macros raise inside a pattern or a guard. Before it, a `def*` there raises as one
+     * inside a function, and `defmodule` isn't checked.
+     *
+     * `elixir-lang/elixir@9d32d1535` ("Raise for def* inside pattern/guard"), first released in v1.15.0-rc.0.
+     */
+    DEFINER_REFUSED_IN_MATCH_OR_GUARD(sinceElixir = "1.15.0-rc.0"),
+
+    /**
+     * The modules `True`, `False` and `Nil` are reserved, as `Any` and `Elixir` are, so defining one raises.
+     *
+     * `elixir-lang/elixir@873b7c2e2` ("Warn if any of True, False, and Nil aliases are used", #11731), first released
+     * in v1.14.0-rc.0.
+     */
+    BOOLEAN_AND_NIL_MODULES_RESERVED(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * A bodiless function head with a guard reports `invalid_function_head` and compilation carries on. Before it, it
+     * raises `missing_option`.
+     *
+     * `elixir-lang/elixir@5abcc3326` ("Improve error message and docs for headless clauses, closes #15104"), first
+     * released in v1.20.0-rc.2.
+     */
+    FUNCTION_HEAD_GUARDS_CONTINUE(sinceElixir = "1.20.0-rc.2"),
+
+    /**
+     * A module name holding `/` or `\` is invalid.
+     *
+     * `elixir-lang/elixir@9fb7c9f9e` ("Do not allow slashes in module names"), first released in v1.13.0-rc.0.
+     */
+    MODULE_NAME_REJECTS_SLASHES(sinceElixir = "1.13.0-rc.0"),
+
+    /**
+     * A function's default arguments are expanded in turn, each seeing the variables the ones before it bound. Before
+     * it, each is expanded from the state before the defaults.
+     *
+     * `elixir-lang/elixir@4cc92a75b` ("Fix variable declaration in default argument block", #11758), first released
+     * in v1.14.0-rc.0.
+     */
+    DEFAULT_ARGUMENTS_THREAD_STATE(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * Whether a definition has unquote fragments counts quote levels: an `unquote` inside a `quote` in the body isn't
+     * one, and neither is anything in a `quote`'s options. Before it, any `unquote` anywhere in the definition is.
+     *
+     * `elixir-lang/elixir@146fb4e3f` ("Make has_unquote/1 quote-aware", #12836), first released in v1.16.0-rc.0.
+     */
+    HAS_UNQUOTES_QUOTE_AWARE(sinceElixir = "1.16.0-rc.0"),
+
+    /**
+     * Whether a definition has unquote fragments reads a call's name at the call's quote level. Before it, the name
+     * is read outside any `quote`.
+     *
+     * `elixir-lang/elixir@4d56bdd89` ("Do not reset quote level on calls in `has_unquotes/2`"), first released in
+     * v1.20.0-rc.5.
+     */
+    HAS_UNQUOTES_NAME_AT_QUOTE_LEVEL(sinceElixir = "1.20.0-rc.5"),
+
+    /**
      * A bitstring segment whose value expands to a list or an atom raises `invalid_literal`.
      *
      * Removed by `elixir-lang/elixir@860f485bd` ("Inference of patterns", #13909), first released in v1.18.0-rc.0.

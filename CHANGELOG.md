@@ -576,6 +576,8 @@
 
 ### Threading / Platform Hygiene
 
+- [#4350](https://github.com/intellij-elixir/intellij-elixir/pull/4350) [@sh41](https://github.com/sh41)
+  - **The expander expands `defmodule` and `def`, builds each module's definitions, and keeps going after an error inside a function where Elixir does; nothing uses it yet.** Fixes [#4316](https://github.com/intellij-elixir/intellij-elixir/issues/4316).
 - [#4347](https://github.com/intellij-elixir/intellij-elixir/pull/4347) [@sh41](https://github.com/sh41)
   - **The expander expands structs, `super` outside functions, and captures of named functions, as each Elixir release does, with the hygiene counter that capture arguments take from 1.17; nothing uses it yet.** Fixes [#4326](https://github.com/intellij-elixir/intellij-elixir/issues/4326).
 - [#4339](https://github.com/intellij-elixir/intellij-elixir/pull/4339) [@sh41](https://github.com/sh41)

@@ -9,7 +9,11 @@ import java.math.BigInteger
 /** `__CALLER__`, which only a macro's body can read. */
 internal fun expandCaller(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion =
     (if (COMPILER_VARIABLES_REFUSED_IN_PATTERN.isSufficient(run.level)) noMatchScope(node, env) else null)
-        ?: report(ErrorSite.CALLER_NOT_ALLOWED, node, env, run) { Expansion.Expanded(state, env, NODE) }
+        ?: if (state.caller) {
+            Expansion.Expanded(state, env, NODE)
+        } else {
+            report(ErrorSite.CALLER_NOT_ALLOWED, node, env, run) { Expansion.Expanded(state, env, NODE) }
+        }
 
 /** `__ENV__`, the escaped env, which is a map's AST. */
 internal fun expandEnv(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion =

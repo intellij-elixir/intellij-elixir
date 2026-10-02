@@ -4,6 +4,7 @@ import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.ALIAS_AS_NIL_REJECTED
 import org.elixir_lang.language_level.ElixirLanguageFeature.ALIAS_EXPANDS_ONE_STEP
 import org.elixir_lang.language_level.ElixirLanguageFeature.CIRCULAR_MODULE_CHECKED_FIRST
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_ALIASES_THROUGH_REQUIRE
 import org.elixir_lang.language_level.ElixirLanguageFeature.DIGITS_IN_SIGIL_NAMES
 import org.elixir_lang.language_level.ElixirLanguageFeature.DIRECTIVE_WARNS_AT_RUN_TIME
 import org.elixir_lang.language_level.ElixirLanguageFeature.ERLANG_IMPORT_DROPS_BEHAVIOUR_INFO
@@ -86,11 +87,17 @@ internal fun expandDirective(
     env: Env,
     run: Run,
 ): Expansion {
-    when {
-        env.context == Env.Context.MATCH -> return Expansion.Error("invalid_pattern_in_match", call)
-        env.context == Env.Context.GUARD -> return noGuardScope(call, state)
-        // `defmodule`'s metadata.
-        hasMetaKey(call.meta, "defined") -> return Expansion.Unported(call)
+    when (env.context) {
+        Env.Context.MATCH -> return Expansion.Error("invalid_pattern_in_match", call)
+        Env.Context.GUARD -> return noGuardScope(call, state)
+        Env.Context.NONE -> {}
+    }
+
+    val defined = when (val value = metaValue(call.meta, "defined")) {
+        null -> null
+        is Meta.Value.Atom -> value.name
+        // `lists:keyfind/3` finds it, and no clause takes it.
+        else -> return Expansion.Unported(call)
     }
 
     return expandWithoutAliasesReport(ref, state, env, run) { eRef, sr, er ->
@@ -109,17 +116,22 @@ internal fun expandDirective(
 
                     when (directive) {
                         Directive.ALIAS ->
-                            alias(call, module, true, eOpts, st, et, level) { defined ->
-                                directiveValue(module, defined && directiveWarns)
+                            alias(call, module, true, eOpts, st, et, defined, level) { aliased ->
+                                directiveValue(module, aliased && directiveWarns)
+                            }
+                        // `defmodule` records the module it defines; nothing is required or loaded.
+                        Directive.REQUIRE if defined != null && DEFMODULE_ALIASES_THROUGH_REQUIRE.isSufficient(level) ->
+                            alias(call, module, false, eOpts, st, defining(et, defined), null, level) {
+                                Term.Atom(module)
                             }
                         Directive.REQUIRE ->
                             ensureLoaded(call, module, et, run)
-                                ?: expandRequire(call, module, eOpts, st, et, level) {
+                                ?: expandRequire(call, module, eOpts, st, et, defined, level) {
                                     directiveValue(module, requireWarns)
                                 }
                         Directive.IMPORT ->
                             ensureLoaded(call, module, et, run)
-                                ?: import(call, module, eOpts, st, et, run) { imported ->
+                                ?: import(call, module, eOpts, st, et, defined, run) { imported ->
                                     directiveValue(module, imported && directiveWarns)
                                 }
                     }
@@ -332,8 +344,9 @@ private fun ensureLoaded(call: ElixirAst.Call, module: String, env: Env, run: Ru
 
 /**
  * `elixir_aliases:alias/6` from 1.16, and `expand_alias/5` before it: the alias [opts]' `as:` names, or with
- * [includeByDefault] the last segment of [module]. An alias of [module] to itself removes the alias. [value] is given
- * whether a name was defined.
+ * [includeByDefault] the last segment of [module]. An alias of [module] to itself removes the alias. Before 1.16 the
+ * module the call's meta says is [defined] is put first in `context_modules`. [value] is given whether a name was
+ * aliased.
  */
 private inline fun alias(
     call: ElixirAst.Call,
@@ -342,15 +355,18 @@ private inline fun alias(
     opts: Term,
     state: ExState,
     env: Env,
+    defined: String?,
     level: ElixirLanguageLevel,
-    value: (defined: Boolean) -> Term,
+    value: (aliased: Boolean) -> Term,
 ): Expansion {
+    val stored =
+        if (defined != null && !DEFMODULE_ALIASES_THROUGH_REQUIRE.isSufficient(level)) defining(env, defined) else env
     val asNilRejected = ALIAS_AS_NIL_REJECTED.isSufficient(level)
     val new = when (val option = opts.keyfind("as")) {
         null ->
             when {
                 includeByDefault -> last(module, level) ?: return Expansion.Error("invalid_alias_module", call)
-                asNilRejected -> return Expansion.Expanded(state, env, value(false))
+                asNilRejected -> return Expansion.Expanded(state, stored, value(false))
                 else -> module
             }
         TRUE, FALSE -> return Expansion.Error("invalid_alias_for_as", call)
@@ -375,8 +391,11 @@ private inline fun alias(
         else -> keystore(env.macroAliases, Env.MacroAlias(new, counter, module)) { it.alias }
     }
 
-    return Expansion.Expanded(state, env.copy(aliases = aliases, macroAliases = macroAliases), value(new != module))
+    return Expansion.Expanded(state, stored.copy(aliases = aliases, macroAliases = macroAliases), value(new != module))
 }
+
+/** [env] with [module], which `defmodule` is defining, first in its `context_modules`. */
+private fun defining(env: Env, module: String): Env = env.copy(contextModules = listOf(module) + env.contextModules)
 
 /** `elixir_aliases:last/1`: `Elixir.` and the text after [module]'s last dot. */
 private fun last(module: String, level: ElixirLanguageLevel): String? =
@@ -412,9 +431,11 @@ private inline fun expandRequire(
     opts: Term,
     state: ExState,
     env: Env,
+    defined: String?,
     level: ElixirLanguageLevel,
     value: () -> Term,
-): Expansion = alias(call, module, false, opts, state, env.copy(requires = require(module, env)), level) { value() }
+): Expansion =
+    alias(call, module, false, opts, state, env.copy(requires = require(module, env)), defined, level) { value() }
 
 /** `ordsets:add_element/2`. */
 private fun require(module: String, env: Env): List<String> =
@@ -430,6 +451,7 @@ private inline fun import(
     opts: Term,
     state: ExState,
     env: Env,
+    defined: String?,
     run: Run,
     value: (imported: Boolean) -> Term,
 ): Expansion {
@@ -487,9 +509,9 @@ private inline fun import(
     }
     val added = (newFunctions + newMacros).any { it.module == module }
 
-    return expandRequire(call, module, opts, state, env.copy(functions = newFunctions, macros = newMacros), level) {
-        value(added)
-    }
+    val importing = env.copy(functions = newFunctions, macros = newMacros)
+
+    return expandRequire(call, module, opts, state, importing, defined, level) { value(added) }
 }
 
 /** An arity-2 `sigil_` name `is_sigil/1` has no clause for from 1.17 until 1.20.0-rc.5. */

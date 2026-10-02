@@ -48,10 +48,11 @@ class CaptureDispatchExpanderTest : ExpanderTestCase() {
         assertCaptured("&foo(&1)", "error undefined_local_capture `&foo(&1)` | local_function Elixir.Capturing.foo/1")
     }
 
-    fun testACaptureOfALocalFunctionInAFunctionIsUnported() {
+    /** Inside a function the capture is kept for the checks once the module's body has run, as a call is. */
+    fun testACaptureOfALocalFunctionInAFunction() {
         function = NameArity("f", 0)
 
-        assertCaptured("&foo/1", "unported `&foo/1` | ")
+        assertCaptured("&foo/1", "expanded {} next 0 | local_function Elixir.Capturing.foo/1")
     }
 
     /** The lookup reads the `&`'s metadata until 1.14.0-rc.1 and the name's from it, so both carry the import. */

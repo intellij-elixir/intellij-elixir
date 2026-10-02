@@ -9,7 +9,7 @@ import org.elixir_lang.lowering.Meta
  */
 data class Dispatch(val kind: Kind, val receiver: String, val name: String, val arity: Int) {
     /** The kind of the trace event Elixir emits for the call. */
-    enum class Kind { IMPORTED_FUNCTION, IMPORTED_MACRO, REMOTE_FUNCTION, REMOTE_MACRO, LOCAL_FUNCTION }
+    enum class Kind { IMPORTED_FUNCTION, IMPORTED_MACRO, REMOTE_FUNCTION, REMOTE_MACRO, LOCAL_FUNCTION, LOCAL_MACRO }
 }
 
 /** The kind of the trace event `quote` emits for an import it quotes. */

@@ -6,7 +6,7 @@ import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** Each [ErrorSite]'s outcome either side of 1.15, inside a function and in a module body. */
+/** Each [ErrorSite]'s outcome either side of 1.15, inside a function, in a module body and outside any module. */
 class ErrorSiteTest {
     private val inFunction =
         Env.empty(ElixirLanguageLevel.of("1.15.0-rc.0"), ExpanderTestCase.NO_KERNEL)
@@ -37,7 +37,15 @@ class ErrorSiteTest {
         BITTYPE_UNIT to Outcome.Crashes("Elixir.MatchError"),
         UNSIZED_BINARY_NESTED to Outcome.Continues,
         UNALIGNED_BINARY to Outcome.Continues,
+        INVALID_LOCAL_INVOCATION to Outcome.Continues,
+        INVALID_FUNCTION_HEAD to Outcome.Continues,
+        UNDEFINED_FUNCTION to Outcome.Continues,
+        INCORRECT_DISPATCH to Outcome.Continues,
+        UNKNOWN_KEY_FOR_STRUCT to Outcome.Continues,
+        INVALID_KEY_FOR_STRUCT to Outcome.Continues,
     )
+
+    private val moduleSites = setOf(INVALID_LOCAL_INVOCATION, INVALID_FUNCTION_HEAD, UNDEFINED_FUNCTION, INCORRECT_DISPATCH)
 
     @Test
     fun `every site has an outcome here`() = assertEquals(entries.toSet(), outcomes.keys)
@@ -49,8 +57,14 @@ class ErrorSiteTest {
     fun `every site raises inside a function before 1_15`() = assertEach("1.14.5", inFunction) { Outcome.Raises }
 
     @Test
-    fun `every site raises in a module body`() =
-        assertEach("1.15.0-rc.0", inFunction.copy(function = null)) { Outcome.Raises }
+    fun `only module sites continue in a module body`() =
+        assertEach("1.15.0-rc.0", inFunction.copy(function = null)) {
+            if (it in moduleSites) outcomes.getValue(it) else Outcome.Raises
+        }
+
+    @Test
+    fun `every site raises outside any module`() =
+        assertEach("1.15.0-rc.0", inFunction.copy(module = null, function = null)) { Outcome.Raises }
 
     private fun assertEach(version: String, env: Env, expected: (ErrorSite) -> Outcome) {
         val level = ElixirLanguageLevel.of(version)

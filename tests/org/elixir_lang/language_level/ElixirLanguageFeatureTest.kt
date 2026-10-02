@@ -149,6 +149,19 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             BITSTRING_SPEC_NAME_EXPANDED_AS_CALL to ("1.14.5" to "1.15.0-rc.0"),
             MACRO_ENV_VERSIONED_VARS to ("1.12.3" to "1.13.0-rc.0"),
             RESCUE_CALL_EXPANDED_AS_MACRO to ("1.14.5" to "1.15.0-rc.0"),
+            POST_MODULE_LOCAL_CHECKS_TYPED to ("1.17.3" to "1.18.0-rc.0"),
+            LOCAL_CALL_CHECKED_BEFORE_ARGUMENTS to ("1.18.4" to "1.19.0-rc.0"),
+            TYPE_CHECK_SORTS_DEFINITIONS to ("1.19.5" to "1.20.0-rc.0"),
+            DEFMODULE_FAST_PATH to ("1.12.3" to "1.13.0-rc.0"),
+            FAST_PATH_ADDS_CONTEXT_MODULE to ("1.13.1" to "1.13.2"),
+            DEFMODULE_ALIASES_THROUGH_REQUIRE to ("1.15.8" to "1.16.0-rc.0"),
+            DEFINER_REFUSED_IN_MATCH_OR_GUARD to ("1.14.5" to "1.15.0-rc.0"),
+            BOOLEAN_AND_NIL_MODULES_RESERVED to ("1.13.4" to "1.14.0-rc.0"),
+            FUNCTION_HEAD_GUARDS_CONTINUE to ("1.20.0-rc.1" to "1.20.0-rc.2"),
+            MODULE_NAME_REJECTS_SLASHES to ("1.12.3" to "1.13.0-rc.0"),
+            DEFAULT_ARGUMENTS_THREAD_STATE to ("1.13.4" to "1.14.0-rc.0"),
+            HAS_UNQUOTES_QUOTE_AWARE to ("1.15.8" to "1.16.0-rc.0"),
+            HAS_UNQUOTES_NAME_AT_QUOTE_LEVEL to ("1.20.0-rc.4" to "1.20.0-rc.5"),
         )
 
         assertEquals(entries.filter { it.sinceElixir != null }.toSet(), boundaries.keys)

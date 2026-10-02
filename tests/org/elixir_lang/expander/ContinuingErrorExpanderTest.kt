@@ -40,7 +40,7 @@ class ContinuingErrorExpanderTest : ExpanderTestCase() {
         }
 
     fun testAnUndefinedVariable() =
-        assertContinues("x", "unported `x`", "expanded {} next 0; reported undefined_var `x`")
+        assertContinues("x", "expanded {} next 0", "expanded {} next 0; reported undefined_var `x`")
 
     fun testAnUndefinedPinnedVariable() =
         assertContinues(
@@ -252,7 +252,7 @@ class ContinuingErrorExpanderTest : ExpanderTestCase() {
 
     override fun expandAndRender(code: String, version: String): String {
         val level = ElixirLanguageLevel.of(version)
-        val run = Run(level, ExpansionObserver.NONE, exports)
+        val run = Run(level, ExpansionObserver.NONE, exports, structs)
         val env = Env.empty(level, kernel).copy(module = "Elixir.M", function = NameArity("f", 1))
         val expansion = Expander.expand(lower(code, level), ExState.empty(level), env, run)
 

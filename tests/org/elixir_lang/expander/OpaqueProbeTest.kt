@@ -50,8 +50,6 @@ class OpaqueProbeTest : ProbeTestCase() {
             "a = 1\n_ = a |> abs()\nb = 2" to "2 imported_macro Elixir.Kernel.|>/2 `a |> abs()`",
             "a = 1\nrequire Integer\n_ = Integer.is_odd(abs(a))\nb = 2" to
                 "3 remote_macro Elixir.Integer.is_odd/1 `Integer.is_odd(abs(a))`",
-            "a = 1\ndef f do\n  raise \"x\"\nend\nb = 2" to
-                "2 imported_macro Elixir.Kernel.def/2 `def f do\n  raise \"x\"\nend`",
             "a = 1\n_ = fn -> raise \"x\" end\nb = 2" to "2 imported_macro Elixir.Kernel.raise/1 `raise \"x\"`",
             "a = 1\nx = \"a\"\n\"#{x}\" = \"a\"" to "3 remote_macro Elixir.Kernel.to_string/1 `#{x}`",
         )
