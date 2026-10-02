@@ -38,7 +38,7 @@ internal fun expandBitstring(
             if (!BITSTRING_PATTERN_SEGMENT_VALIDATED.isSufficient(run.level) && segments.any(::containsMatch)) {
                 Expansion.Error("nested_match", node)
             } else {
-                Expansion.Expanded(s, e)
+                Expansion.Expanded(s, e, NODE)
             }
         }
     } else {
@@ -107,7 +107,7 @@ private fun expandSegments(
         }
     }
 
-    return Expansion.Expanded(accState, accEnv)
+    return Expansion.Expanded(accState, accEnv, NODE)
 }
 
 /** `is_match_size/2`: whether segment [index] is in a pattern and another follows it. */
@@ -137,7 +137,11 @@ private fun expandValue(value: ElixirAst, state: ExState, original: ExState, env
 
     return expand(inline).then { s, e ->
         // Elixir expands the `to_string` call instead, which no ported clause takes.
-        if (expandedShape(inline) is ElixirAst.Literal.Binary) Expansion.Expanded(s, e) else Expansion.Unported(value)
+        if (expandedShape(inline) is ElixirAst.Literal.Binary) {
+            Expansion.Expanded(s, e, NODE)
+        } else {
+            Expansion.Unported(value)
+        }
     }
 }
 
@@ -307,7 +311,7 @@ private fun expandSpecArg(arg: ElixirAst, state: ExState, original: ExState, env
         }
 
         Expander.expand(arg, sizeState, env.copy(context = sizeContext), run).then { s, e ->
-            Expansion.Expanded(s.copy(prematch = inMatch), e.copy(context = Env.Context.MATCH))
+            Expansion.Expanded(s.copy(prematch = inMatch), e.copy(context = Env.Context.MATCH), NODE)
         }
     } else {
         Expander.expand(arg, state.resetRead(original), env, run)

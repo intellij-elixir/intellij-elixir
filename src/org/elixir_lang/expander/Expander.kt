@@ -3,6 +3,7 @@ package org.elixir_lang.expander
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.psi.Import.Term
 
 /**
  * Elixir's expander (`elixir_expand`), ported clause for clause, over [ElixirAst]. It holds no PSI and takes no lock.
@@ -41,12 +42,21 @@ object Expander {
 internal class Run(val level: ElixirLanguageLevel, val observer: ExpansionObserver, val exports: Exports)
 
 internal inline fun Expansion.then(next: (ExState, Env) -> Expansion): Expansion =
+    thenValue { state, env, _ -> next(state, env) }
+
+internal inline fun Expansion.thenValue(next: (ExState, Env, Term) -> Expansion): Expansion =
     when (this) {
-        is Expansion.Expanded -> next(state, env)
+        is Expansion.Expanded -> next(state, env, value)
         is Expansion.Error, is Expansion.Unported -> this
     }
 
-/** `mapfold/4`: [nodes] in order, each from the state and env the one before it left. */
+/** This expansion with [value] in place of its own, if it expanded. */
+internal fun Expansion.withValue(value: Term): Expansion = if (this is Expansion.Expanded) copy(value = value) else this
+
+/** The value of a node that expands to an AST node other than a variable or a pin. */
+internal val NODE: Term = Term.Node(Term.Node.Kind.OTHER)
+
+/** `mapfold/4`: [nodes] in order, each from the state and env the one before it left; the value is their values. */
 internal inline fun mapfold(
     nodes: List<ElixirAst>,
     state: ExState,
@@ -55,24 +65,31 @@ internal inline fun mapfold(
 ): Expansion {
     var accState = state
     var accEnv = env
+    val values = ArrayList<Term>(nodes.size)
 
     for (node in nodes) {
         when (val expansion = expand(node, accState, accEnv)) {
             is Expansion.Expanded -> {
                 accState = expansion.state
                 accEnv = expansion.env
+                values.add(expansion.value)
             }
             is Expansion.Error, is Expansion.Unported -> return expansion
         }
     }
 
-    return Expansion.Expanded(accState, accEnv)
+    return Expansion.Expanded(accState, accEnv, Term.List(values))
 }
 
-/** `elixir_expand:expand_args/3`: outside a pattern, what an argument binds is readable only after the last one. */
+/**
+ * `elixir_expand:expand_args/3`: outside a pattern, what an argument binds is readable only after the last one. The
+ * value is the list of the arguments' values.
+ */
 internal fun expandArgs(args: List<ElixirAst>, state: ExState, env: Env, run: Run): Expansion =
     when {
-        args.size == 1 -> Expander.expand(args.single(), state, env, run)
+        args.size == 1 -> Expander.expand(args.single(), state, env, run).thenValue { s, e, v ->
+            Expansion.Expanded(s, e, Term.List(listOf(v)))
+        }
         env.context == Env.Context.MATCH -> mapfold(args, state, env) { arg, s, e -> Expander.expand(arg, s, e, run) }
         else ->
             argumentScope(state, env) { scope ->
@@ -81,7 +98,8 @@ internal fun expandArgs(args: List<ElixirAst>, state: ExState, env: Env, run: Ru
     }
 
 /**
- * `elixir_expand:expand_list/5`, which takes a `|` as the last element apart.
+ * `elixir_expand:expand_list/5`, which takes a `|` as the last element apart. The value is the list, with the `|`'s
+ * right side as its tail.
  *
  * @param expand `expand/3` in a pattern, `expand_arg/3` otherwise
  */
@@ -91,14 +109,20 @@ internal inline fun expandList(
     env: Env,
     crossinline expand: (ElixirAst, ExState, Env) -> Expansion,
 ): Expansion =
-    mapfold(elements.dropLast(1), state, env) { element, s, e -> expand(element, s, e) }.then { s, e ->
+    mapfold(elements.dropLast(1), state, env) { element, s, e -> expand(element, s, e) }.thenValue { s, e, init ->
+        val values = (init as Term.List).elements
         val last = elements.lastOrNull()
 
         when {
-            last == null -> Expansion.Expanded(s, e)
+            last == null -> Expansion.Expanded(s, e, init)
             isCall(last, "|", 2) ->
                 mapfold((last as ElixirAst.Call).arguments!!, s, e) { arg, ss, ee -> expand(arg, ss, ee) }
-            else -> expand(last, s, e)
+                    .thenValue { ss, ee, pair ->
+                        val (head, tail) = (pair as Term.List).elements
+
+                        Expansion.Expanded(ss, ee, Term.List(values + head, tail))
+                    }
+            else -> expand(last, s, e).thenValue { ss, ee, v -> Expansion.Expanded(ss, ee, Term.List(values + v)) }
         }
     }
 
@@ -107,14 +131,22 @@ internal inline fun expandList(
  * it.
  */
 internal inline fun argumentScope(state: ExState, env: Env, body: (ExState) -> Expansion): Expansion =
-    body(state.prepareWrite()).then { s, e -> Expansion.Expanded(s.closeWrite(state), e) }
+    body(state.prepareWrite()).thenValue { s, e, v -> Expansion.Expanded(s.closeWrite(state), e, v) }
 
 /** `elixir_expand:expand_arg/3`: an argument reads only what [start], the scope's start, could. */
 internal fun expandArg(arg: ElixirAst, acc: ExState, start: ExState, env: Env, run: Run): Expansion =
     if (arg is ElixirAst.Literal) {
-        Expansion.Expanded(acc, env)
+        Expansion.Expanded(acc, env, literalValue(arg))
     } else {
         Expander.expand(arg, acc.resetRead(start), env, run)
+    }
+
+internal fun literalValue(literal: ElixirAst.Literal): Term =
+    when (literal) {
+        is ElixirAst.Literal.Atom -> Term.Atom(literal.name)
+        is ElixirAst.Literal.Integer -> Term.Integer(literal.value)
+        is ElixirAst.Literal.Binary -> Term.Binary(literal.bytes)
+        is ElixirAst.Literal.Float -> Term.NonTuple
     }
 
 /** `{name, meta, args}` with [arity] arguments. */

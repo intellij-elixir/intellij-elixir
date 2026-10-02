@@ -224,9 +224,9 @@ internal object Quote {
         val shapes = list?.elements?.map(::expandedShape).orEmpty()
         val pairs = shapes.filterIsInstance<ElixirAst.Tuple>().filter { it.elements.size == 2 }
         val keys = pairs.map { (expandedShape(it.elements[0]) as? ElixirAst.Literal.Atom)?.name }
-        val keyed = list?.let { Term.List(keys.map { key -> Term.Pair(key?.let(Term::Atom) ?: Term.Other, Term.Other) }) }
+        val keyed = list?.let { Term.List(keys.map { key -> Term.Pair(key?.let(Term::Atom) ?: NODE, NODE) }) }
 
-        Import.optionsError(keyed ?: Term.Other, QUOTE_OPTIONS)?.let { throw Stop(Expansion.Error(it, call)) }
+        Import.optionsError(keyed ?: NODE, QUOTE_OPTIONS)?.let { throw Stop(Expansion.Error(it, call)) }
 
         val options = mutableMapOf<String, ElixirAst>()
 

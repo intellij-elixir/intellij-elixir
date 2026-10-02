@@ -2,6 +2,7 @@ package org.elixir_lang.psi
 
 import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangBinary
+import com.ericsson.otp.erlang.OtpErlangDouble
 import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangObject
@@ -73,15 +74,22 @@ object Import {
 
         data class Integer(val value: BigInteger) : Term()
 
-        class Binary(val bytes: ByteArray) : Term()
+        /** @property bytes `null` where the content isn't known, as `__DIR__`'s isn't */
+        class Binary(val bytes: ByteArray?) : Term()
 
-        data class List(val elements: kotlin.collections.List<Term>) : Term()
+        /** @property tail what follows a `|` in the last element, as in `[h | t]` */
+        data class List(val elements: kotlin.collections.List<Term>, val tail: Term? = null) : Term()
 
         /** A two-element tuple, as each keyword pair is. */
         data class Pair(val first: Term, val second: Term) : Term()
 
-        /** A variable, or any other value that isn't a call. */
-        data object Other : Term()
+        /** An expression as AST: a variable, a pinned variable, or any other node. */
+        data class Node(val kind: Kind) : Term() {
+            enum class Kind { VARIABLE, PIN, OTHER }
+        }
+
+        /** A value that is neither an atom, a tuple nor a list, such as a float. */
+        data object NonTuple : Term()
 
         /** A call that isn't expanded where the term is read, such as `unquote(x)`, `@attr` or a macro. */
         data object Unexpanded : Term()
@@ -340,20 +348,24 @@ object Import {
                         Term.List(
                             quoted.stringValue().codePoints().toArray().map { Term.Integer(BigInteger.valueOf(it.toLong())) }
                         )
-                    is OtpErlangList -> if (quoted.lastTail == null) Term.List(quoted.elements().map(::term)) else Term.Other
+                    is OtpErlangList ->
+                        if (quoted.lastTail == null) Term.List(quoted.elements().map(::term)) else NODE
                     is OtpErlangTuple ->
                         when (quoted.arity()) {
                             2 -> Term.Pair(term(quoted.elementAt(0)), term(quoted.elementAt(1)))
                             3 ->
-                                if (quoted.elementAt(2) is OtpErlangAtom || quoted.elementAt(0) in LITERALS) {
-                                    Term.Other
-                                } else {
-                                    Term.Unexpanded
+                                when {
+                                    quoted.elementAt(2) is OtpErlangAtom -> Term.Node(Term.Node.Kind.VARIABLE)
+                                    quoted.elementAt(0) in LITERALS -> NODE
+                                    else -> Term.Unexpanded
                                 }
-                            else -> Term.Other
+                            else -> NODE
                         }
-                    else -> Term.Other
+                    is OtpErlangDouble -> Term.NonTuple
+                    else -> NODE
                 }
+
+            private val NODE = Term.Node(Term.Node.Kind.OTHER)
 
             private val OPTIONS = listOf("only", "except", "warn")
 

@@ -122,6 +122,8 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             QUOTE_BINDING_META_DROPS_COLUMN to ("1.19.0-rc.2" to "1.19.0"),
             UNQUOTE_VALIDATED_BY_UNQUOTE to ("1.20.0-rc.6" to "1.20.0"),
             QUOTE_IN_PATTERN_WITH_UNQUOTE_RAISES to ("1.20.1" to "1.20.2"),
+            DIRECTIVE_WARNS_AT_RUN_TIME to ("1.17.3" to "1.18.0-rc.0"),
+            REQUIRE_WARNS_AT_RUN_TIME to ("1.19.5" to "1.20.0-rc.0"),
         )
 
         assertEquals(entries.filter { it.sinceElixir != null }.toSet(), boundaries.keys)

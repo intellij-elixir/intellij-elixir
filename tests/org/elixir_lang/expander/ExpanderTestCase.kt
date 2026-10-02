@@ -100,8 +100,11 @@ abstract class ExpanderTestCase : ParsingTestCase() {
     private fun assertLevels(code: String, expected: List<Pair<String, String>>) =
         assertEquals(
             expected.joinToString("\n") { (version, text) -> "$version: $text" },
-            expected.joinToString("\n") { (version, _) -> "$version: " + render(code, expand(code, version)) }
+            expected.joinToString("\n") { (version, _) -> "$version: " + expandAndRender(code, version) }
         )
+
+    /** [code] expanded at [version], as the assertions compare it. */
+    protected open fun expandAndRender(code: String, version: String): String = render(code, expand(code, version))
 
     companion object {
         val NO_KERNEL = KernelImports(emptyList(), emptyList())

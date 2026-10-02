@@ -131,7 +131,7 @@ private fun captureRequire(
             val shape = expandedShape(module)
 
             when {
-                arguments != Arguments.NON_SEQUENTIAL && isVariable(shape) -> Expansion.Expanded(s, e)
+                arguments != Arguments.NON_SEQUENTIAL && isVariable(shape) -> Expansion.Expanded(s, e, NODE)
                 arguments != Arguments.NON_SEQUENTIAL && shape is ElixirAst.Literal.Atom -> Expansion.Unported(amp)
                 else -> captureExpr(captureAt(amp, call, run, plainRemote = true), call, arguments, s, e, run)
             }

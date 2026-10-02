@@ -15,6 +15,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.UNDERSCORE_TAKES_VER
 import org.elixir_lang.language_level.ElixirLanguageFeature.ZERO_FLOAT_MATCH_WARNS
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.psi.Import.Term
 
 /**
  * The ported clauses of Elixir's expander, in the order Elixir tries them: [Expander] takes the first entry that
@@ -55,15 +56,17 @@ internal enum class Clause(vararg val heads: Head) {
                         if (seesRightSide) {
                             match(left, after, state, rightEnv, run, node)
                         } else {
-                            match(left, after, state, env, run, node).then { s, _ -> Expansion.Expanded(s, rightEnv) }
+                            match(left, after, state, env, run, node).then { s, _ ->
+                                Expansion.Expanded(s, rightEnv, NODE)
+                            }
                         }
                     }.then { s, e ->
                         when {
-                            PARALLEL_MATCH.isSufficient(run.level) -> Expansion.Expanded(s, e)
+                            PARALLEL_MATCH.isSufficient(run.level) -> Expansion.Expanded(s, e, NODE)
                             seesRightSide -> refuteParallelBitstringMatch(left, right, false, s, e, run.level)
                             else ->
                                 refuteParallelBitstringMatch(left, right, false, s, env, run.level).then { rs, _ ->
-                                    Expansion.Expanded(rs, e)
+                                    Expansion.Expanded(rs, e, NODE)
                                 }
                         }
                     }
@@ -77,7 +80,7 @@ internal enum class Clause(vararg val heads: Head) {
             node is ElixirAst.Tuple && node.elements.size != 2
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            expandArgs((node as ElixirAst.Tuple).elements, state, env, run)
+            expandArgs((node as ElixirAst.Tuple).elements, state, env, run).withValue(NODE)
     },
 
     MAP(expandHead("{'%{}',_,_}")) {
@@ -125,7 +128,8 @@ internal enum class Clause(vararg val heads: Head) {
         override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
             node is ElixirAst.Block && node.expressions.isEmpty()
 
-        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) = Expansion.Expanded(state, env)
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            Expansion.Expanded(state, env, Term.Atom("nil"))
     },
 
     SINGLE_BLOCK(expandHead("{'__block__',_,[_]}")) {
@@ -148,7 +152,7 @@ internal enum class Clause(vararg val heads: Head) {
                 val discarded = if (expression !== expressions.last()) discardedFor(expression) else null
 
                 Expander.expand(discarded ?: expression, s, e, run)
-            }
+            }.withValue(NODE)
         }
     },
 
@@ -202,7 +206,11 @@ internal enum class Clause(vararg val heads: Head) {
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
             (if (STACKTRACE_REFUSED_IN_PATTERN.isSufficient(run.level)) noMatchScope(node, env) else null)
-                ?: if (state.stacktrace) Expansion.Expanded(state, env) else Expansion.Error("stacktrace_not_allowed", node)
+                ?: if (state.stacktrace) {
+                    Expansion.Expanded(state, env, NODE)
+                } else {
+                    Expansion.Error("stacktrace_not_allowed", node)
+                }
     },
 
     /**
@@ -368,7 +376,7 @@ internal enum class Clause(vararg val heads: Head) {
 
             return Expander.expand(arg, pinState, env.copy(context = Env.Context.NONE), run).then { _, _ ->
                 if (isVariable(expandedShape(arg))) {
-                    Expansion.Expanded(state, env)
+                    Expansion.Expanded(state, env, Term.Node(Term.Node.Kind.PIN))
                 } else {
                     Expansion.Error("invalid_arg_for_pin", node)
                 }
@@ -392,7 +400,7 @@ internal enum class Clause(vararg val heads: Head) {
             if (env.context == Env.Context.MATCH) {
                 val version = if (UNDERSCORE_TAKES_VERSION.isSufficient(run.level)) state.version + 1 else state.version
 
-                Expansion.Expanded(state.copy(version = version), env)
+                Expansion.Expanded(state.copy(version = version), env, VARIABLE_NODE)
             } else {
                 Expansion.Error("unbound_underscore", node)
             }
@@ -413,7 +421,7 @@ internal enum class Clause(vararg val heads: Head) {
                     bound
                 }
 
-                Expansion.Expanded(state.copy(write = state.write.plus(variable, written)), env)
+                Expansion.Expanded(state.copy(write = state.write.plus(variable, written)), env, VARIABLE_NODE)
             } else {
                 Expansion.Expanded(
                     state.copy(
@@ -421,7 +429,8 @@ internal enum class Clause(vararg val heads: Head) {
                         write = state.write.plus(variable, state.version),
                         version = state.version + 1,
                     ),
-                    env
+                    env,
+                    VARIABLE_NODE,
                 )
             }
         }
@@ -440,7 +449,7 @@ internal enum class Clause(vararg val heads: Head) {
                 if (prematch is Bitsize && variable !in prematch.match.read && variable in prematch.original) {
                     Expansion.Error("undefined_var", node)
                 } else {
-                    Expansion.Expanded(state, env)
+                    Expansion.Expanded(state, env, VARIABLE_NODE)
                 }
             } else {
                 when ((prematch as? OutsideMatch)?.mode ?: OutsideMatch.Mode.Raise) {
@@ -480,7 +489,11 @@ internal enum class Clause(vararg val heads: Head) {
             node is ElixirAst.Tuple && node.elements.size == 2
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            expandArgs((node as ElixirAst.Tuple).elements, state, env, run)
+            expandArgs((node as ElixirAst.Tuple).elements, state, env, run).thenValue { s, e, values ->
+                val (first, second) = (values as Term.List).elements
+
+                Expansion.Expanded(s, e, Term.Pair(first, second))
+            }
     },
 
     LIST_IN_PATTERN(expandHead("V1 when is_list(V1)"), *EXPAND_LIST) {
@@ -513,14 +526,16 @@ internal enum class Clause(vararg val heads: Head) {
                 env.context == Env.Context.MATCH &&
                 ZERO_FLOAT_MATCH_WARNS.isSufficient(level)
 
-        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) = Expansion.Expanded(state, env)
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            Expansion.Expanded(state, env, Term.NonTuple)
     },
 
     LITERAL(expandHead("V1 when is_number(V1); is_atom(V1); is_binary(V1)")) {
         override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
             node is ElixirAst.Literal
 
-        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) = Expansion.Expanded(state, env)
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            Expansion.Expanded(state, env, literalValue(node as ElixirAst.Literal))
     };
 
     abstract fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel): Boolean
@@ -541,6 +556,8 @@ internal fun noGuardScope(node: ElixirAst, state: ExState): Expansion.Error =
     Expansion.Error(if (state.prematch is Bitsize) "invalid_expr_in_bitsize" else "invalid_expr_in_guard", node)
 
 private fun expandHead(pattern: String) = Clause.Head("elixir_expand", "expand", 1, pattern)
+
+private val VARIABLE_NODE = Term.Node(Term.Node.Kind.VARIABLE)
 
 private val ENVIRONMENT_NAMES = listOf("__MODULE__", "__DIR__", "__CALLER__", "__ENV__")
 

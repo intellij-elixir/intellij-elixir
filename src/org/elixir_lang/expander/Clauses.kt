@@ -86,7 +86,7 @@ internal fun expandReceive(node: ElixirAst.Call, state: ExState, env: Env, run: 
         when (key) {
             "do" ->
                 if (value is ElixirAst.Block && value.expressions.isEmpty()) {
-                    Expansion.Expanded(s, env)
+                    Expansion.Expanded(s, env, NODE)
                 } else {
                     expandClauses(node, expandHead(node, run), value, s, env, run)
                 }
@@ -110,7 +110,10 @@ internal fun expandTry(node: ElixirAst.Call, state: ExState, env: Env, run: Run)
 
     return options(node, opts, listOf("do", "rescue", "catch", "else", "after"), state, env) { key, value, s ->
         when (key) {
-            "do", "after" -> Expander.expand(value, s, env, run).then { body, _ -> Expansion.Expanded(body.restoreVars(s), env) }
+            "do", "after" ->
+                Expander.expand(value, s, env, run).then { body, _ ->
+                    Expansion.Expanded(body.restoreVars(s), env, NODE)
+                }
             "else" -> expandClauses(node, expandHead(node, run), value, s, env, run)
             "catch" -> withStacktrace(s) { expandClauses(node, expandCatch(run), value, it, env, run) }
             "rescue" -> withStacktrace(s) { expandClauses(node, expandRescue(run), value, it, env, run) }
@@ -190,7 +193,7 @@ private fun guardedHead(
 ): Expansion =
     match(state, before, env, arrow) { s, e -> expandArgs(args, s, e, run) }.then { s, e ->
         guard(guardNode, s, e.copy(context = Env.Context.GUARD), run)
-    }.then { s, e -> Expansion.Expanded(s, e.copy(context = Env.Context.NONE)) }
+    }.then { s, e -> Expansion.Expanded(s, e.copy(context = Env.Context.NONE), NODE) }
 
 /**
  * `elixir_clauses:expand_head/2`: one argument, as a pattern. A clause of another arity raises at the construct before
@@ -280,7 +283,7 @@ private fun rescueIn(
             val rights = expandedShape(right).let { if (it is ElixirAst.ListNode) it.elements else listOf(it) }
 
             if (isVariable(expandedShape(left)) && rights.all { expandedShape(it) is ElixirAst.Literal.Atom }) {
-                Expansion.Expanded(s, e)
+                Expansion.Expanded(s, e, NODE)
             } else {
                 Expansion.Error("invalid_rescue_clause", arrow)
             }
@@ -293,7 +296,9 @@ private fun underscore(at: ElixirAst): ElixirAst =
 
 /** `elixir_clauses:expand_clauses_with_stacktrace/5`: `__STACKTRACE__` is readable in the clauses [expand] expands. */
 private inline fun withStacktrace(state: ExState, expand: (ExState) -> Expansion): Expansion =
-    expand(state.copy(stacktrace = true)).then { s, e -> Expansion.Expanded(s.copy(stacktrace = state.stacktrace), e) }
+    expand(state.copy(stacktrace = true)).thenValue { s, e, v ->
+        Expansion.Expanded(s.copy(stacktrace = state.stacktrace), e, v)
+    }
 
 /**
  * `elixir_clauses:expand_clauses/6`: each clause of [clauses] from the variables before it, keeping the version it
@@ -323,7 +328,7 @@ internal fun clauseFrom(
     run: Run,
 ): Expansion =
     clause(construct, head, each, state, env, run).then { clauseState, _ ->
-        Expansion.Expanded(clauseState.restoreVars(state), env)
+        Expansion.Expanded(clauseState.restoreVars(state), env, NODE)
     }
 
 /** `elixir_env:merge_and_check_unused_vars/3`: [before]'s variables, with everything else this state reached. */
@@ -369,7 +374,7 @@ internal fun Expansion.endConstruct(env: Env, run: Run): Expansion =
     then { state, _ ->
         val version = if (CLAUSES_TAKE_VERSION.isSufficient(run.level)) state.version + 1 else state.version
 
-        Expansion.Expanded(state.copy(version = version), env)
+        Expansion.Expanded(state.copy(version = version), env, NODE)
     }
 
 /** `elixir_expand:assert_no_underscore_clause_in_cond/2`, which reads only a lone `do`. */

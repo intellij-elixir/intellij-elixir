@@ -5,12 +5,14 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.ALIAS_AS_NIL_REJECTE
 import org.elixir_lang.language_level.ElixirLanguageFeature.ALIAS_EXPANDS_ONE_STEP
 import org.elixir_lang.language_level.ElixirLanguageFeature.CIRCULAR_MODULE_CHECKED_FIRST
 import org.elixir_lang.language_level.ElixirLanguageFeature.DIGITS_IN_SIGIL_NAMES
+import org.elixir_lang.language_level.ElixirLanguageFeature.DIRECTIVE_WARNS_AT_RUN_TIME
 import org.elixir_lang.language_level.ElixirLanguageFeature.ERLANG_IMPORT_DROPS_BEHAVIOUR_INFO
 import org.elixir_lang.language_level.ElixirLanguageFeature.IMPLICIT_ALIAS_NEEDS_ELIXIR_MODULE
 import org.elixir_lang.language_level.ElixirLanguageFeature.IMPORT_DISCARDS_SPECIAL_FORMS
 import org.elixir_lang.language_level.ElixirLanguageFeature.IMPORT_ONLY_MACROS_WITHOUT_INFO
 import org.elixir_lang.language_level.ElixirLanguageFeature.IMPORT_OPTION_MISTAKES_WARN
 import org.elixir_lang.language_level.ElixirLanguageFeature.INVALID_MULTI_ALIAS_BASE_RAISES
+import org.elixir_lang.language_level.ElixirLanguageFeature.REQUIRE_WARNS_AT_RUN_TIME
 import org.elixir_lang.language_level.ElixirLanguageFeature.SIGIL_FILTER_TOLERATES_ANY_NAME
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
@@ -33,7 +35,7 @@ internal enum class Directive(val allowed: List<String>) {
 
 /** `expand_aliases/4` for the `__aliases__` clause. */
 internal fun expandAliasesClause(node: ElixirAst.Alias, state: ExState, env: Env, run: Run): Expansion =
-    expandAliases(node, state, env, run) { _, s, e -> Expansion.Expanded(s, e) }
+    expandAliases(node, state, env, run) { module, s, e -> Expansion.Expanded(s, e, Term.Atom(module)) }
 
 /** `expand_multi_alias_call/7`. */
 internal fun expandMultiAlias(call: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion {
@@ -68,7 +70,6 @@ internal fun expandMultiAlias(call: ElixirAst.Call, state: ExState, env: Env, ru
 
                     expandDirective(directive, call, ElixirAst.Literal.Atom(ref.meta, module), opts, s, e, run)
                 }
-            baseRef == null -> Expansion.Unported(base)
             INVALID_MULTI_ALIAS_BASE_RAISES.isSufficient(run.level) -> Expansion.Error("invalid_alias", call)
             else -> Expansion.Unported(call)
         }
@@ -95,7 +96,6 @@ internal fun expandDirective(
     return expandWithoutAliasesReport(ref, state, env, run) { eRef, sr, er ->
         expandOpts(directive, call, opts, sr, er, run) { eOpts, st, et ->
             when {
-                eRef == null -> Expansion.Unported(ref)
                 eRef !is Term.Atom -> Expansion.Error("expected_compile_time_module", call)
                 // `should_warn/3` crashes on any other `warn:`.
                 eOpts.keyfind("warn").let { it != null && it != TRUE && it != FALSE } -> Expansion.Unported(call)
@@ -103,12 +103,25 @@ internal fun expandDirective(
                     val module = eRef.name
                     val level = run.level
 
+                    val warns = warnsAtRunTime(call, eOpts, et)
+                    val directiveWarns = warns && DIRECTIVE_WARNS_AT_RUN_TIME.isSufficient(level)
+                    val requireWarns = warns && REQUIRE_WARNS_AT_RUN_TIME.isSufficient(level)
+
                     when (directive) {
-                        Directive.ALIAS -> alias(call, module, true, eOpts, st, et, level)
+                        Directive.ALIAS ->
+                            alias(call, module, true, eOpts, st, et, level) { defined ->
+                                directiveValue(module, defined && directiveWarns)
+                            }
                         Directive.REQUIRE ->
-                            ensureLoaded(call, module, et, run) ?: expandRequire(call, module, eOpts, st, et, level)
+                            ensureLoaded(call, module, et, run)
+                                ?: expandRequire(call, module, eOpts, st, et, level) {
+                                    directiveValue(module, requireWarns)
+                                }
                         Directive.IMPORT ->
-                            ensureLoaded(call, module, et, run) ?: import(call, module, eOpts, st, et, run)
+                            ensureLoaded(call, module, et, run)
+                                ?: import(call, module, eOpts, st, et, run) { imported ->
+                                    directiveValue(module, imported && directiveWarns)
+                                }
                     }
                 }
             }
@@ -117,20 +130,33 @@ internal fun expandDirective(
 }
 
 /**
- * `expand_without_aliases_report/3`: [next] gets the term [ref] expands to, or `null` when that isn't known here,
- * with the state and env after it.
+ * `should_warn/3` where the lexical tracker is present, and only in a module body, where a directive that warns
+ * expands to the tracker's call: unless [opts] say `warn: false`, or say nothing and [call] came from a quote with a
+ * `context`.
  */
+private fun warnsAtRunTime(call: ElixirAst.Call, opts: Term, env: Env): Boolean =
+    env.function == null &&
+        when (opts.keyfind("warn")) {
+            TRUE -> true
+            FALSE -> false
+            else -> !hasMetaKey(call.meta, "context")
+        }
+
+/** What a directive of [module] expands to: the module, or with [warns] the lexical tracker's call. */
+private fun directiveValue(module: String, warns: Boolean): Term = if (warns) NODE else Term.Atom(module)
+
+/** `expand_without_aliases_report/3`: [next] gets the term [ref] expands to, with the state and env after it. */
 private fun expandWithoutAliasesReport(
     ref: ElixirAst,
     state: ExState,
     env: Env,
     run: Run,
-    next: (Term?, ExState, Env) -> Expansion,
+    next: (Term, ExState, Env) -> Expansion,
 ): Expansion =
     if (ref is ElixirAst.Alias) {
         expandAliases(ref, state, env, run) { module, s, e -> next(Term.Atom(module), s, e) }
     } else {
-        Expander.expand(ref, state, env, run).then { s, e -> next(directiveValue(ref, env, run.level), s, e) }
+        Expander.expand(ref, state, env, run).thenValue { s, e, v -> next(v, s, e) }
     }
 
 /** `expand_aliases/4`: [next] gets the module [node] names. */
@@ -148,11 +174,11 @@ private fun expandAliases(
         return aliasesModule(node, env, run.level)?.let { next(it, state, env) } ?: Expansion.Unported(node)
     }
 
-    return Expander.expand(head, state, env, run).then { s, e ->
-        when (val value = directiveValue(head, env, run.level)) {
-            is Term.Atom -> next(concat(listOf(value.name) + tail), s, e)
-            null -> Expansion.Unported(head)
-            else -> Expansion.Error("invalid_alias", node)
+    return Expander.expand(head, state, env, run).thenValue { s, e, value ->
+        if (value is Term.Atom) {
+            next(concat(listOf(value.name) + tail), s, e)
+        } else {
+            Expansion.Error("invalid_alias", node)
         }
     }
 }
@@ -212,8 +238,8 @@ internal fun concat(names: List<String>): String {
 }
 
 /**
- * `expand_opts/6`: expands [opts], then `validate_opts/5`; [next] gets the options' term, or `null` when it isn't
- * known here. `alias` and `require` read `as:` as written (`no_alias_opts/1`).
+ * `expand_opts/6`: expands [opts], then `validate_opts/5`; [next] gets the options' term. `alias` and `require` read
+ * `as:` as written (`no_alias_opts/1`).
  */
 private fun expandOpts(
     directive: Directive,
@@ -226,8 +252,9 @@ private fun expandOpts(
 ): Expansion {
     if (opts == null) return next(Term.List(emptyList()), state, env)
 
-    return Expander.expand(opts, state, env, run).then { s, e ->
-        val value = directiveValue(opts, env, run.level) ?: return@then Expansion.Unported(opts)
+    return Expander.expand(opts, state, env, run).thenValue { s, e, value ->
+        if (hasTail(value)) return@thenValue Expansion.Unported(opts)
+
         val eOpts = if (directive == Directive.IMPORT) value else noAliasOpts(opts, value)
 
         Import.optionsError(eOpts, directive.allowed)?.let { Expansion.Error(it, call) } ?: next(eOpts, s, e)
@@ -272,9 +299,10 @@ private fun ensureLoaded(call: ElixirAst.Call, module: String, env: Env, run: Ru
 
 /**
  * `elixir_aliases:alias/6` from 1.16, and `expand_alias/5` before it: the alias [opts]' `as:` names, or with
- * [includeByDefault] the last segment of [module]. An alias of [module] to itself removes the alias.
+ * [includeByDefault] the last segment of [module]. An alias of [module] to itself removes the alias. [value] is given
+ * whether a name was defined.
  */
-private fun alias(
+private inline fun alias(
     call: ElixirAst.Call,
     module: String,
     includeByDefault: Boolean,
@@ -282,27 +310,28 @@ private fun alias(
     state: ExState,
     env: Env,
     level: ElixirLanguageLevel,
+    value: (defined: Boolean) -> Term,
 ): Expansion {
     val asNilRejected = ALIAS_AS_NIL_REJECTED.isSufficient(level)
-    val new = when (val value = opts.keyfind("as")) {
+    val new = when (val option = opts.keyfind("as")) {
         null ->
             when {
                 includeByDefault -> last(module, level) ?: return Expansion.Error("invalid_alias_module", call)
-                asNilRejected -> return Expansion.Expanded(state, env)
+                asNilRejected -> return Expansion.Expanded(state, env, value(false))
                 else -> module
             }
         TRUE, FALSE -> return Expansion.Error("invalid_alias_for_as", call)
         is Term.Atom ->
             when {
-                value == NIL && !asNilRejected -> module
-                isSimpleAlias(value.name) -> value.name
+                option == NIL && !asNilRejected -> module
+                isSimpleAlias(option.name) -> option.name
                 else -> return Expansion.Error("invalid_alias_for_as", call)
             }
         else -> return Expansion.Error("invalid_alias_for_as", call)
     }
     val aliases = if (new == module) keydelete(env.aliases, module) else keystore(env.aliases, Env.Alias(new, module))
 
-    return Expansion.Expanded(state, env.copy(aliases = aliases))
+    return Expansion.Expanded(state, env.copy(aliases = aliases), value(new != module))
 }
 
 /** `elixir_aliases:last/1`: `Elixir.` and the text after [module]'s last dot. */
@@ -333,14 +362,15 @@ private fun keydelete(aliases: List<Env.Alias>, alias: String): List<Env.Alias> 
 }
 
 /** `expand_require/5`: [module] added to the requires, then aliased only as [opts]' `as:` says. */
-private fun expandRequire(
+private inline fun expandRequire(
     call: ElixirAst.Call,
     module: String,
     opts: Term,
     state: ExState,
     env: Env,
     level: ElixirLanguageLevel,
-): Expansion = alias(call, module, false, opts, state, env.copy(requires = require(module, env)), level)
+    value: () -> Term,
+): Expansion = alias(call, module, false, opts, state, env.copy(requires = require(module, env)), level) { value() }
 
 /** `ordsets:add_element/2`. */
 private fun require(module: String, env: Env): List<String> =
@@ -348,9 +378,17 @@ private fun require(module: String, env: Env): List<String> =
 
 /**
  * `elixir_import:import` and the `require` it implies: [module]'s entries in `E.functions` and `E.macros` as the
- * level's `elixir_import` computes them.
+ * level's `elixir_import` computes them. [value] is given whether anything was imported.
  */
-private fun import(call: ElixirAst.Call, module: String, opts: Term, state: ExState, env: Env, run: Run): Expansion {
+private inline fun import(
+    call: ElixirAst.Call,
+    module: String,
+    opts: Term,
+    state: ExState,
+    env: Env,
+    run: Run,
+    value: (imported: Boolean) -> Term,
+): Expansion {
     val level = run.level
     val exports = run.exports.of(module) as? ModuleExports.Present ?: return Expansion.Unported(call)
     val legacy = !IMPORT_OPTION_MISTAKES_WARN.isSufficient(level)
@@ -403,7 +441,11 @@ private fun import(call: ElixirAst.Call, module: String, opts: Term, state: ExSt
                 return Expansion.Error("special_form_conflict", call)
             }
     }
-    return expandRequire(call, module, opts, state, env.copy(functions = newFunctions, macros = newMacros), level)
+    val added = (newFunctions + newMacros).any { it.module == module }
+
+    return expandRequire(call, module, opts, state, env.copy(functions = newFunctions, macros = newMacros), level) {
+        value(added)
+    }
 }
 
 /** An arity-2 `sigil_` name `is_sigil/1` has no clause for from 1.17 until 1.20.0-rc.5. */
@@ -446,6 +488,14 @@ private inline fun calculateKey(
 
     return listOf(Env.Imports(module, set)) + others
 }
+
+/** Whether [term] is, or holds, a list with a `|` tail. */
+private fun hasTail(term: Term): Boolean =
+    when (term) {
+        is Term.List -> term.tail != null || term.elements.any(::hasTail)
+        is Term.Pair -> hasTail(term.first) || hasTail(term.second)
+        else -> false
+    }
 
 private fun List<NameArity>?.hasDuplicate(): Boolean = this != null && toSet().size != size
 

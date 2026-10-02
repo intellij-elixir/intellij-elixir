@@ -1055,6 +1055,25 @@ enum class ElixirLanguageFeature(
     QUOTE_IN_PATTERN_WITH_UNQUOTE_RAISES(sinceElixir = "1.20.2"),
 
     /**
+     * In a module body, an `alias` that defines a name or an `import` that imports something expands to a call that
+     * warns of it at run time, unless `warn: false` or a quote's `context` says not to. Before it, each expands to the
+     * module.
+     *
+     * `elixir-lang/elixir@f44aa8d71` ("Allow aliases and imports to be enabled conditionally in module body", #13975),
+     * first released in v1.18.0-rc.0.
+     */
+    DIRECTIVE_WARNS_AT_RUN_TIME(sinceElixir = "1.18.0-rc.0"),
+
+    /**
+     * In a module body, a `require` expands to a call that warns of it at run time, as [DIRECTIVE_WARNS_AT_RUN_TIME]'s
+     * directives do. Before it, it expands to the module.
+     *
+     * `elixir-lang/elixir@bba554239` ("Do not warn on conditional requires or requires from quote"), first released in
+     * v1.20.0-rc.0.
+     */
+    REQUIRE_WARNS_AT_RUN_TIME(sinceElixir = "1.20.0-rc.0"),
+
+    /**
      * A bitstring segment whose value expands to a list or an atom raises `invalid_literal`.
      *
      * Removed by `elixir-lang/elixir@860f485bd` ("Inference of patterns", #13909), first released in v1.18.0-rc.0.

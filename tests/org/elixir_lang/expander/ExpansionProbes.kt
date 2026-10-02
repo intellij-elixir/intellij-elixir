@@ -13,6 +13,7 @@ import org.elixir_lang.lowering.Meta
 import org.elixir_lang.lowering.expressionNodes
 import org.elixir_lang.lowering.inspect
 import org.elixir_lang.psi.ElixirFile
+import org.elixir_lang.psi.Import
 import org.junit.Assert.assertEquals
 import kotlin.time.Duration
 import kotlin.time.TimeSource
@@ -80,7 +81,7 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
         var env = Env.empty(level, legKernel).copy(module = module)
         val steps = mutableListOf(Step(Tag(0, 0, 0), state.read, env, state.stacktrace))
         val starts = mutableListOf<Pair<ExState, Env>>()
-        var outcome: Expansion = Expansion.Expanded(state, env)
+        var outcome: Expansion = Expansion.Expanded(state, env, Import.Term.Atom("nil"))
 
         for ((index, statement) in statements.withIndex()) {
             starts.add(state to env)
