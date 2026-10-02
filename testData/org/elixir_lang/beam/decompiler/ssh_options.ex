@@ -497,7 +497,7 @@ defmodule :ssh_options do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -540,355 +540,355 @@ defmodule :ssh_options do
 
   # Private Functions
 
-  defp unquote(:"-check_dh_gex_groups/1-after$^0/0-0-")(p0) do
+  defp unquote(:"-check_dh_gex_groups/1-after$^0/0-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-check_dh_gex_groups/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-check_dh_gex_groups/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-check_dh_gex_groups/1-fun-2-")(p0, p1) do
+  defp unquote(:"-check_dh_gex_groups/1-fun-2-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-check_fun/2-fun-0-")(p0, p1) do
+  defp unquote(:"-check_fun/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-check_input_ok/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-check_input_ok/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-check_modify_algorithms/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-check_modify_algorithms/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-check_modify_algorithms/1-lc$^1/1-1-")(p0) do
+  defp unquote(:"-check_modify_algorithms/1-lc$^1/1-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-check_pref_public_key_algs/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-check_pref_public_key_algs/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-check_pref_public_key_algs/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-check_pref_public_key_algs/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-collect_per_size/1-fun-0-")(p0, p1) do
+  defp unquote(:"-collect_per_size/1-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-0-")(p0) do
+  defp unquote(:"-default/1-fun-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-1-")(p0) do
+  defp unquote(:"-default/1-fun-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-10-")(p0) do
+  defp unquote(:"-default/1-fun-10-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-11-")(p0) do
+  defp unquote(:"-default/1-fun-11-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-12-")(p0) do
+  defp unquote(:"-default/1-fun-12-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-13-")(p0) do
+  defp unquote(:"-default/1-fun-13-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-14-")(p0) do
+  defp unquote(:"-default/1-fun-14-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-15-")(p0) do
+  defp unquote(:"-default/1-fun-15-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-16-")(p0) do
+  defp unquote(:"-default/1-fun-16-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-18-")(p0) do
+  defp unquote(:"-default/1-fun-18-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-19-")(p0) do
+  defp unquote(:"-default/1-fun-19-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-2-")(p0) do
+  defp unquote(:"-default/1-fun-2-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-20-")(p0) do
+  defp unquote(:"-default/1-fun-20-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-21-")(p0) do
+  defp unquote(:"-default/1-fun-21-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-22-")(p0, p1, p2) do
+  defp unquote(:"-default/1-fun-22-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-23-")(p0) do
+  defp unquote(:"-default/1-fun-23-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-24-")(p0, p1, p2) do
+  defp unquote(:"-default/1-fun-24-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-25-")(p0) do
+  defp unquote(:"-default/1-fun-25-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-26-")(p0, p1, p2) do
+  defp unquote(:"-default/1-fun-26-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-27-")(p0) do
+  defp unquote(:"-default/1-fun-27-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-28-")(p0) do
+  defp unquote(:"-default/1-fun-28-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-29-")(p0) do
+  defp unquote(:"-default/1-fun-29-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-3-")(p0) do
+  defp unquote(:"-default/1-fun-3-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-30-")(p0) do
+  defp unquote(:"-default/1-fun-30-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-31-")(p0) do
+  defp unquote(:"-default/1-fun-31-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-32-")(p0) do
+  defp unquote(:"-default/1-fun-32-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-33-")(p0) do
+  defp unquote(:"-default/1-fun-33-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-35-")(p0) do
+  defp unquote(:"-default/1-fun-35-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-36-")(p0) do
+  defp unquote(:"-default/1-fun-36-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-37-")(p0) do
+  defp unquote(:"-default/1-fun-37-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-38-")(p0) do
+  defp unquote(:"-default/1-fun-38-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-39-")(p0) do
+  defp unquote(:"-default/1-fun-39-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-4-")(p0) do
+  defp unquote(:"-default/1-fun-4-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-40-")(p0) do
+  defp unquote(:"-default/1-fun-40-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-41-")(p0) do
+  defp unquote(:"-default/1-fun-41-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-42-")(p0) do
+  defp unquote(:"-default/1-fun-42-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-43-")(p0) do
+  defp unquote(:"-default/1-fun-43-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-44-")(p0) do
+  defp unquote(:"-default/1-fun-44-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-45-")(p0) do
+  defp unquote(:"-default/1-fun-45-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-46-")(p0) do
+  defp unquote(:"-default/1-fun-46-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-47-")(p0) do
+  defp unquote(:"-default/1-fun-47-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-48-")(p0) do
+  defp unquote(:"-default/1-fun-48-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-49-")(p0) do
+  defp unquote(:"-default/1-fun-49-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-5-")(p0) do
+  defp unquote(:"-default/1-fun-5-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-50-")(p0) do
+  defp unquote(:"-default/1-fun-50-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-51-")(p0, p1) do
+  defp unquote(:"-default/1-fun-51-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-52-")(p0) do
+  defp unquote(:"-default/1-fun-52-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-53-")(p0, p1, p2, p3) do
+  defp unquote(:"-default/1-fun-53-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-54-")(p0) do
+  defp unquote(:"-default/1-fun-54-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-55-")(p0) do
+  defp unquote(:"-default/1-fun-55-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-57-")(p0) do
+  defp unquote(:"-default/1-fun-57-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-58-")(p0) do
+  defp unquote(:"-default/1-fun-58-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-59-")(p0) do
+  defp unquote(:"-default/1-fun-59-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-6-")(p0) do
+  defp unquote(:"-default/1-fun-6-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-60-")(p0) do
+  defp unquote(:"-default/1-fun-60-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-61-")(p0) do
+  defp unquote(:"-default/1-fun-61-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-62-")(p0) do
+  defp unquote(:"-default/1-fun-62-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-7-")(p0) do
+  defp unquote(:"-default/1-fun-7-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-8-")(p0) do
+  defp unquote(:"-default/1-fun-8-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-fun-9-")(p0) do
+  defp unquote(:"-default/1-fun-9-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-default/1-lc$^56/1-0-")(p0, p1) do
+  defp unquote(:"-default/1-lc$^56/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.check_pos_integer/1-")(p0) do
+  defp unquote(:"-fun.check_pos_integer/1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.check_timeout/1-")(p0) do
+  defp unquote(:"-fun.check_timeout/1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.eval_op/2-")(p0, p1) do
+  defp unquote(:"-fun.eval_op/2-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.put_internal_value/2-")(p0, p1) do
+  defp unquote(:"-fun.put_internal_value/2-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-fun.put_user_value/2-")(p0, p1) do
+  defp unquote(:"-fun.put_user_value/2-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-handle_options/3-fun-0-")(p0, p1) do
+  defp unquote(:"-handle_options/3-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-handle_options/3-fun-2-")(p0, p1, p2, p3, p4) do
+  defp unquote(:"-handle_options/3-fun-2-")(arg1, arg2, arg3, arg4, arg5) do
     # body not decompiled
   end
 
-  defp unquote(:"-handle_options/3-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-handle_options/3-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-handle_options/3-lc$^1/1-0-")(p0, p1) do
+  defp unquote(:"-handle_options/3-lc$^1/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-keep_set_options/2-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-keep_set_options/2-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-keep_user_options/2-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-keep_user_options/2-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-nml/2-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-nml/2-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-no_sensitive/2-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-no_sensitive/2-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-no_sensitive/2-lc$^1/1-0-")(p0, p1) do
+  defp unquote(:"-no_sensitive/2-lc$^1/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-rm_non_supported/2-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-rm_non_supported/2-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-rmns/3-lc$^0/1-0-")(p0, p1, p2) do
+  defp unquote(:"-rmns/3-lc$^0/1-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-valid_hash/2-fun-0-")(p0, p1) do
+  defp unquote(:"-valid_hash/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 

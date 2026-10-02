@@ -528,45 +528,45 @@ defmodule :json do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
   # Private Functions
 
-  defp unquote(:"-do_encode_map/2-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-do_encode_map/2-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_format_checked/3-fun-0-")(p0, p1, p2, p3) do
+  defp unquote(:"-do_format_checked/3-fun-0-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_format_checked/3-fun-1-")(p0, p1, p2, p3, p4, p5, p6) do
+  defp unquote(:"-do_format_checked/3-fun-1-")(arg1, arg2, arg3, arg4, arg5, arg6, arg7) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_format_checked/3-inlined-0-")(p0, p1) do
+  defp unquote(:"-do_format_checked/3-inlined-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-encode_key_value_list/2-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-encode_key_value_list/2-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-format_key_value_list/3-fun-0-")(p0, p1, p2, p3) do
+  defp unquote(:"-format_key_value_list/3-fun-0-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-format_key_value_list/3-fun-1-")(p0, p1, p2, p3, p4, p5) do
+  defp unquote(:"-format_key_value_list/3-fun-1-")(arg1, arg2, arg3, arg4, arg5, arg6) do
     # body not decompiled
   end
 
-  defp unquote(:"-format_key_value_list/3-inlined-0-")(p0) do
+  defp unquote(:"-format_key_value_list/3-inlined-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-format_value/3-fun-0-")(p0, p1, p2, p3) do
+  defp unquote(:"-format_value/3-fun-0-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 

@@ -614,7 +614,7 @@ defmodule :queue do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 

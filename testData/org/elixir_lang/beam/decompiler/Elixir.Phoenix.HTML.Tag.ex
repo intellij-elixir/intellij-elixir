@@ -10,7 +10,7 @@ defmodule Phoenix.HTML.Tag do
 
   # Functions
 
-  def __info__(p0) do
+  def __info__(arg1) do
     # body not decompiled
   end
 
@@ -200,7 +200,7 @@ defmodule Phoenix.HTML.Tag do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -249,15 +249,15 @@ defmodule Phoenix.HTML.Tag do
 
   # Private Functions
 
-  defp unquote(:"-nested_attrs/3-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-nested_attrs/3-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-stringify_srcset/1-fun-0-")(p0) do
+  defp unquote(:"-stringify_srcset/1-fun-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-tag_attrs/1-fun-0-")(p0, p1) do
+  defp unquote(:"-tag_attrs/1-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 

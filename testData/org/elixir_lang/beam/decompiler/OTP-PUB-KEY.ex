@@ -9062,7 +9062,7 @@ defmodule :"OTP-PUB-KEY" do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -9336,1551 +9336,1551 @@ defmodule :"OTP-PUB-KEY" do
 
   # Private Functions
 
-  defp unquote(:"-dec_ACClearAttrs_attrs/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_ACClearAttrs_attrs/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_AttrSpec/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_AttrSpec/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_AttributeCertificateInfo_attributes/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_AttributeCertificateInfo_attributes/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_Attribute_values/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_Attribute_values/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_AuthorityInfoAccessSyntax/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_AuthorityInfoAccessSyntax/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_BuiltInDomainDefinedAttributes/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_BuiltInDomainDefinedAttributes/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_CRLDistributionPoints/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_CRLDistributionPoints/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_CRLSequence/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_CRLSequence/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_CertificatePolicies/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_CertificatePolicies/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_CertificateRevocationLists/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_CertificateRevocationLists/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_Certificates/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_Certificates/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_CertificationRequestInfo_attributes/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_CertificationRequestInfo_attributes/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_CertificationRequestInfo_attributes_AttributePKCS-10_values/3-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-dec_CertificationRequestInfo_attributes_AttributePKCS-10_values/3-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_Clearance_securityCategories/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_Clearance_securityCategories/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_DigestAlgorithmIdentifiers_daSequence/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_DigestAlgorithmIdentifiers_daSequence/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_DigestAlgorithmIdentifiers_daSet/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_DigestAlgorithmIdentifiers_daSet/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_ExtKeyUsageSyntax/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_ExtKeyUsageSyntax/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_ExtendedCertificatesAndCertificates/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_ExtendedCertificatesAndCertificates/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_ExtensionAttributes/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_ExtensionAttributes/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_Extensions/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_Extensions/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_GeneralNames/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_GeneralNames/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_GeneralSubtrees/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_GeneralSubtrees/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_IetfAttrSyntax_values/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_IetfAttrSyntax_values/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_NoticeReference_noticeNumbers/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_NoticeReference_noticeNumbers/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_OTPExtensionAttributes/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_OTPExtensionAttributes/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_OTPExtensions/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_OTPExtensions/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_OrganizationalUnitNames/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_OrganizationalUnitNames/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_OtherPrimeInfos/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_OtherPrimeInfos/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_PDSParameter/2-fun-0-")(p0) do
+  defp unquote(:"-dec_PDSParameter/2-fun-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_PDSParameter/2-lc$^1/1-0-")(p0, p1) do
+  defp unquote(:"-dec_PDSParameter/2-lc$^1/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_PDSParameter/2-lc$^2/1-1-")(p0) do
+  defp unquote(:"-dec_PDSParameter/2-lc$^2/1-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_PersonalName/2-fun-0-")(p0) do
+  defp unquote(:"-dec_PersonalName/2-fun-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_PersonalName/2-lc$^1/1-0-")(p0, p1) do
+  defp unquote(:"-dec_PersonalName/2-lc$^1/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_PersonalName/2-lc$^2/1-1-")(p0) do
+  defp unquote(:"-dec_PersonalName/2-lc$^2/1-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_PolicyInformation_policyQualifiers/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_PolicyInformation_policyQualifiers/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_PolicyMappings/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_PolicyMappings/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_PresentationAddress_nAddresses/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_PresentationAddress_nAddresses/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_ProxyInfo/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_ProxyInfo/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_RDNSequence/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_RDNSequence/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_RecipientInfos_riSequence/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_RecipientInfos_riSequence/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_RecipientInfos_riSet/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_RecipientInfos_riSet/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_RelativeDistinguishedName/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_RelativeDistinguishedName/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_SignerInfoAuthenticatedAttributes_aaSequence/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_SignerInfoAuthenticatedAttributes_aaSequence/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_SignerInfoAuthenticatedAttributes_aaSequence_AttributePKCS-7_values/3-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-dec_SignerInfoAuthenticatedAttributes_aaSequence_AttributePKCS-7_values/3-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_SignerInfoAuthenticatedAttributes_aaSet/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_SignerInfoAuthenticatedAttributes_aaSet/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_SignerInfoAuthenticatedAttributes_aaSet_AttributePKCS-7_values/3-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-dec_SignerInfoAuthenticatedAttributes_aaSet_AttributePKCS-7_values/3-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_SignerInfo_unauthenticatedAttributes_uaSequence/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_SignerInfo_unauthenticatedAttributes_uaSequence/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_SignerInfo_unauthenticatedAttributes_uaSequence_AttributePKCS-7_values/3-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-dec_SignerInfo_unauthenticatedAttributes_uaSequence_AttributePKCS-7_values/3-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_SignerInfo_unauthenticatedAttributes_uaSet/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_SignerInfo_unauthenticatedAttributes_uaSet/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_SignerInfo_unauthenticatedAttributes_uaSet_AttributePKCS-7_values/3-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-dec_SignerInfo_unauthenticatedAttributes_uaSet_AttributePKCS-7_values/3-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_SignerInfos_siSequence/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_SignerInfos_siSequence/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_SignerInfos_siSet/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_SignerInfos_siSet/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_SubjectDirectoryAttributes/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_SubjectDirectoryAttributes/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_SubjectInfoAccessSyntax/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_SubjectInfoAccessSyntax/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_TBSCertList_revokedCertificates/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_TBSCertList_revokedCertificates/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_Targets/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_Targets/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_TeletexDomainDefinedAttributes/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_TeletexDomainDefinedAttributes/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_TeletexOrganizationalUnitNames/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_TeletexOrganizationalUnitNames/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_TeletexPersonalName/2-fun-0-")(p0) do
+  defp unquote(:"-dec_TeletexPersonalName/2-fun-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_TeletexPersonalName/2-lc$^1/1-0-")(p0, p1) do
+  defp unquote(:"-dec_TeletexPersonalName/2-lc$^1/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_TeletexPersonalName/2-lc$^2/1-1-")(p0) do
+  defp unquote(:"-dec_TeletexPersonalName/2-lc$^2/1-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_UnformattedPostalAddress/2-fun-0-")(p0) do
+  defp unquote(:"-dec_UnformattedPostalAddress/2-fun-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_UnformattedPostalAddress/2-lc$^1/1-0-")(p0, p1) do
+  defp unquote(:"-dec_UnformattedPostalAddress/2-lc$^1/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_UnformattedPostalAddress/2-lc$^2/1-1-")(p0) do
+  defp unquote(:"-dec_UnformattedPostalAddress/2-lc$^2/1-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dec_UnformattedPostalAddress_printable-address/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-dec_UnformattedPostalAddress_printable-address/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-dynamicsort_SETOF/1-fun-0-")(p0) do
+  defp unquote(:"-dynamicsort_SETOF/1-fun-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-e_object_identifier/1-fun-0-")(p0, p1) do
+  defp unquote(:"-e_object_identifier/1-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_Authenticated/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_Authenticated/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_Authenticated/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getdec_Authenticated/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_Authenticated/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getdec_Authenticated/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_Authenticated/1-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-getdec_Authenticated/1-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_Authenticated/1-fun-4-")(p0, p1, p2) do
+  defp unquote(:"-getdec_Authenticated/1-fun-4-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_Authenticated/1-fun-5-")(p0, p1, p2) do
+  defp unquote(:"-getdec_Authenticated/1-fun-5-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_Authenticated/1-fun-6-")(p0, p1, p2) do
+  defp unquote(:"-getdec_Authenticated/1-fun-6-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_Authenticated/1-fun-7-")(p0, p1, p2) do
+  defp unquote(:"-getdec_Authenticated/1-fun-7-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_Authenticated/1-fun-8-")(p0, p1, p2) do
+  defp unquote(:"-getdec_Authenticated/1-fun-8-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_Authenticated/1-fun-9-")(p0, p1, p2) do
+  defp unquote(:"-getdec_Authenticated/1-fun-9-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_CRIAttributes/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_CRIAttributes/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_ContentEncryptionAlgorithms/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_ContentEncryptionAlgorithms/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_Contents/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_Contents/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_Contents/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getdec_Contents/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_Contents/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getdec_Contents/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_Contents/1-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-getdec_Contents/1-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_Contents/1-fun-4-")(p0, p1, p2) do
+  defp unquote(:"-getdec_Contents/1-fun-4-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_Contents/1-fun-5-")(p0, p1, p2) do
+  defp unquote(:"-getdec_Contents/1-fun-5-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_Contents/1-fun-6-")(p0, p1, p2) do
+  defp unquote(:"-getdec_Contents/1-fun-6-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_DigestAlgorithms/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_DigestAlgorithms/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_DigestEncryptionAlgorithms/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_DigestEncryptionAlgorithms/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_KeyEncryptionAlgorithms/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_KeyEncryptionAlgorithms/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_PKInfoAlgorithms/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_PKInfoAlgorithms/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SignatureAlgorithms/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SignatureAlgorithms/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-10-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-10-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-11-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-11-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-12-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-12-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-13-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-13-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-14-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-14-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-15-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-15-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-16-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-16-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-17-")(p0, p1, p2, p3) do
+  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-17-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-4-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-4-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-5-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-5-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-6-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-6-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-7-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-7-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-8-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-8-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-9-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedAttributeTypeAndValues/1-fun-9-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedCharacteristicTwos/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedCharacteristicTwos/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedCharacteristicTwos/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedCharacteristicTwos/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedCharacteristicTwos/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedCharacteristicTwos/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedCharacteristicTwos/1-fun-3-")(p0, p1, p2, p3) do
+  defp unquote(:"-getdec_SupportedCharacteristicTwos/1-fun-3-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-10-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-10-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-11-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-11-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-12-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-12-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-13-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-13-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-14-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-14-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-15-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-15-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-16-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-16-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-17-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-17-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-18-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-18-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-19-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-19-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-20-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-20-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-21-")(p0, p1, p2, p3) do
+  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-21-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-4-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-4-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-5-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-5-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-6-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-6-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-7-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-7-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-8-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-8-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-9-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensionAttributes/1-fun-9-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-10-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-10-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-11-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-11-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-12-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-12-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-13-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-13-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-14-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-14-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-15-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-15-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-16-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-16-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-17-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-17-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-18-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-18-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-19-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-19-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-20-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-20-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-21-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-21-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-22-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-22-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-23-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-23-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-24-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-24-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-25-")(p0, p1, p2, p3) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-25-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-4-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-4-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-5-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-5-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-6-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-6-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-7-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-7-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-8-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-8-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedExtensions/1-fun-9-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedExtensions/1-fun-9-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedFieldIds/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedFieldIds/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedFieldIds/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedFieldIds/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedFieldIds/1-fun-2-")(p0, p1, p2, p3) do
+  defp unquote(:"-getdec_SupportedFieldIds/1-fun-2-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedPublicKeyAlgorithms/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedPublicKeyAlgorithms/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedPublicKeyAlgorithms/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedPublicKeyAlgorithms/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedPublicKeyAlgorithms/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedPublicKeyAlgorithms/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedPublicKeyAlgorithms/1-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedPublicKeyAlgorithms/1-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedPublicKeyAlgorithms/1-fun-4-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedPublicKeyAlgorithms/1-fun-4-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedPublicKeyAlgorithms/1-fun-5-")(p0, p1, p2, p3) do
+  defp unquote(:"-getdec_SupportedPublicKeyAlgorithms/1-fun-5-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-10-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-10-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-11-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-11-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-12-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-12-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-13-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-13-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-14-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-14-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-15-")(p0, p1, p2, p3) do
+  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-15-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-4-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-4-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-5-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-5-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-6-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-6-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-7-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-7-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-8-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-8-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-9-")(p0, p1, p2) do
+  defp unquote(:"-getdec_SupportedSignatureAlgorithms/1-fun-9-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_Unauthenticated/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_Unauthenticated/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_Unauthenticated/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getdec_Unauthenticated/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_Unauthenticated/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getdec_Unauthenticated/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_Unauthenticated/1-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-getdec_Unauthenticated/1-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_1/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_1/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_10/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_10/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_11/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_11/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_12/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_12/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_13/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_13/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_2/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_2/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_3/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_3/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_4/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_4/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_4/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_4/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_4/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_4/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_4/1-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_4/1-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_4/1-fun-4-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_4/1-fun-4-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_4/1-fun-5-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_4/1-fun-5-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_4/1-fun-6-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_4/1-fun-6-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_4/1-fun-7-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_4/1-fun-7-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_4/1-fun-8-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_4/1-fun-8-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_4/1-fun-9-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_4/1-fun-9-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_5/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_5/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_5/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_5/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_5/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_5/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_5/1-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_5/1-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_5/1-fun-4-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_5/1-fun-4-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_5/1-fun-5-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_5/1-fun-5-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_5/1-fun-6-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_5/1-fun-6-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_5/1-fun-7-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_5/1-fun-7-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_5/1-fun-8-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_5/1-fun-8-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_5/1-fun-9-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_5/1-fun-9-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_6/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_6/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_7/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_7/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_7/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_7/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_7/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_7/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_7/1-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_7/1-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_8/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_8/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_8/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_8/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_8/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_8/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_8/1-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_8/1-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getdec_internal_object_set_argument_9/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getdec_internal_object_set_argument_9/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_Authenticated/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_Authenticated/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_Authenticated/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getenc_Authenticated/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_Authenticated/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getenc_Authenticated/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_Authenticated/1-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-getenc_Authenticated/1-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_Authenticated/1-fun-4-")(p0, p1, p2) do
+  defp unquote(:"-getenc_Authenticated/1-fun-4-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_Authenticated/1-fun-5-")(p0, p1, p2) do
+  defp unquote(:"-getenc_Authenticated/1-fun-5-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_Authenticated/1-fun-6-")(p0, p1, p2) do
+  defp unquote(:"-getenc_Authenticated/1-fun-6-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_Authenticated/1-fun-7-")(p0, p1, p2) do
+  defp unquote(:"-getenc_Authenticated/1-fun-7-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_Authenticated/1-fun-8-")(p0, p1, p2) do
+  defp unquote(:"-getenc_Authenticated/1-fun-8-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_Authenticated/1-fun-9-")(p0, p1, p2) do
+  defp unquote(:"-getenc_Authenticated/1-fun-9-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_CRIAttributes/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_CRIAttributes/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_ContentEncryptionAlgorithms/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_ContentEncryptionAlgorithms/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_Contents/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_Contents/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_Contents/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getenc_Contents/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_Contents/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getenc_Contents/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_Contents/1-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-getenc_Contents/1-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_Contents/1-fun-4-")(p0, p1, p2) do
+  defp unquote(:"-getenc_Contents/1-fun-4-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_Contents/1-fun-5-")(p0, p1, p2) do
+  defp unquote(:"-getenc_Contents/1-fun-5-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_Contents/1-fun-6-")(p0, p1, p2) do
+  defp unquote(:"-getenc_Contents/1-fun-6-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_DigestAlgorithms/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_DigestAlgorithms/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_DigestEncryptionAlgorithms/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_DigestEncryptionAlgorithms/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_KeyEncryptionAlgorithms/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_KeyEncryptionAlgorithms/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_PKInfoAlgorithms/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_PKInfoAlgorithms/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SignatureAlgorithms/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SignatureAlgorithms/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-10-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-10-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-11-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-11-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-12-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-12-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-13-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-13-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-14-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-14-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-15-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-15-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-16-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-16-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-17-")(p0, p1, p2, p3) do
+  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-17-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-4-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-4-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-5-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-5-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-6-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-6-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-7-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-7-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-8-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-8-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-9-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedAttributeTypeAndValues/1-fun-9-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedCharacteristicTwos/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedCharacteristicTwos/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedCharacteristicTwos/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedCharacteristicTwos/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedCharacteristicTwos/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedCharacteristicTwos/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedCharacteristicTwos/1-fun-3-")(p0, p1, p2, p3) do
+  defp unquote(:"-getenc_SupportedCharacteristicTwos/1-fun-3-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-10-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-10-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-11-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-11-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-12-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-12-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-13-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-13-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-14-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-14-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-15-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-15-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-16-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-16-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-17-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-17-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-18-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-18-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-19-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-19-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-20-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-20-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-21-")(p0, p1, p2, p3) do
+  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-21-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-4-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-4-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-5-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-5-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-6-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-6-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-7-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-7-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-8-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-8-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-9-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensionAttributes/1-fun-9-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-10-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-10-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-11-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-11-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-12-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-12-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-13-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-13-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-14-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-14-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-15-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-15-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-16-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-16-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-17-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-17-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-18-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-18-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-19-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-19-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-20-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-20-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-21-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-21-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-22-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-22-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-23-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-23-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-24-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-24-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-25-")(p0, p1, p2, p3) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-25-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-4-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-4-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-5-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-5-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-6-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-6-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-7-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-7-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-8-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-8-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedExtensions/1-fun-9-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedExtensions/1-fun-9-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedFieldIds/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedFieldIds/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedFieldIds/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedFieldIds/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedFieldIds/1-fun-2-")(p0, p1, p2, p3) do
+  defp unquote(:"-getenc_SupportedFieldIds/1-fun-2-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedPublicKeyAlgorithms/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedPublicKeyAlgorithms/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedPublicKeyAlgorithms/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedPublicKeyAlgorithms/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedPublicKeyAlgorithms/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedPublicKeyAlgorithms/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedPublicKeyAlgorithms/1-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedPublicKeyAlgorithms/1-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedPublicKeyAlgorithms/1-fun-4-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedPublicKeyAlgorithms/1-fun-4-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedPublicKeyAlgorithms/1-fun-5-")(p0, p1, p2, p3) do
+  defp unquote(:"-getenc_SupportedPublicKeyAlgorithms/1-fun-5-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-10-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-10-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-11-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-11-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-12-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-12-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-13-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-13-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-14-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-14-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-15-")(p0, p1, p2, p3) do
+  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-15-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-4-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-4-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-5-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-5-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-6-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-6-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-7-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-7-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-8-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-8-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-9-")(p0, p1, p2) do
+  defp unquote(:"-getenc_SupportedSignatureAlgorithms/1-fun-9-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_Unauthenticated/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_Unauthenticated/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_Unauthenticated/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getenc_Unauthenticated/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_Unauthenticated/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getenc_Unauthenticated/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_Unauthenticated/1-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-getenc_Unauthenticated/1-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_1/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_1/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_10/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_10/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_11/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_11/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_12/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_12/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_13/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_13/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_2/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_2/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_3/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_3/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_4/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_4/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_4/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_4/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_4/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_4/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_4/1-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_4/1-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_4/1-fun-4-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_4/1-fun-4-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_4/1-fun-5-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_4/1-fun-5-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_4/1-fun-6-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_4/1-fun-6-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_4/1-fun-7-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_4/1-fun-7-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_4/1-fun-8-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_4/1-fun-8-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_4/1-fun-9-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_4/1-fun-9-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_5/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_5/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_5/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_5/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_5/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_5/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_5/1-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_5/1-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_5/1-fun-4-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_5/1-fun-4-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_5/1-fun-5-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_5/1-fun-5-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_5/1-fun-6-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_5/1-fun-6-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_5/1-fun-7-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_5/1-fun-7-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_5/1-fun-8-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_5/1-fun-8-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_5/1-fun-9-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_5/1-fun-9-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_6/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_6/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_7/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_7/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_7/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_7/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_7/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_7/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_7/1-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_7/1-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_8/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_8/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_8/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_8/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_8/1-fun-2-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_8/1-fun-2-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_8/1-fun-3-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_8/1-fun-3-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-getenc_internal_object_set_argument_9/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-getenc_internal_object_set_argument_9/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 

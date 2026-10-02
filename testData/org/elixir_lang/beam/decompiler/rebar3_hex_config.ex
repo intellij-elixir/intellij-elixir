@@ -15,11 +15,11 @@ defmodule :rebar3_hex_config do
     # body not decompiled
   end
 
-  def unquote(:do)(p0) do
+  def unquote(:do)(arg1) do
     # body not decompiled
   end
 
-  def format_error(p0) do
+  def format_error(arg1) do
     # body not decompiled
   end
 
@@ -31,7 +31,7 @@ defmodule :rebar3_hex_config do
     # body not decompiled
   end
 
-  def init(p0) do
+  def init(arg1) do
     # body not decompiled
   end
 
@@ -39,7 +39,7 @@ defmodule :rebar3_hex_config do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -51,7 +51,7 @@ defmodule :rebar3_hex_config do
     # body not decompiled
   end
 
-  def update(p0) do
+  def update(arg1) do
     # body not decompiled
   end
 
@@ -59,21 +59,21 @@ defmodule :rebar3_hex_config do
     # body not decompiled
   end
 
-  def write(p0) do
+  def write(arg1) do
     # body not decompiled
   end
 
   # Private Functions
 
-  defp unquote(:"-encode_config/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-encode_config/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp encode_config(p0) do
+  defp encode_config(arg1) do
     # body not decompiled
   end
 
-  defp maybe_update(p0, p1) do
+  defp maybe_update(arg1, arg2) do
     # body not decompiled
   end
 end

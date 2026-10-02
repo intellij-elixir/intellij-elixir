@@ -863,7 +863,7 @@ defmodule :erlang do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -1787,7 +1787,7 @@ defmodule :erlang do
 
   # Private Functions
 
-  defp unquote(:"-old_remote_spawn_opt/5-fun-0-")(p0, p1) do
+  defp unquote(:"-old_remote_spawn_opt/5-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 

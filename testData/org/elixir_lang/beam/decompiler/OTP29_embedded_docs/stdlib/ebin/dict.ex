@@ -317,7 +317,7 @@ defmodule :dict do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -514,63 +514,63 @@ defmodule :dict do
 
   # Private Functions
 
-  defp unquote(:"-append/3-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-append/3-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-append_list/3-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-append_list/3-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-erase/2-fun-0-")(p0, p1) do
+  defp unquote(:"-erase/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-fetch_keys/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-fetch_keys/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-from_list/1-fun-0-")(p0, p1) do
+  defp unquote(:"-from_list/1-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-merge/3-fun-0-")(p0, p1, p2, p3) do
+  defp unquote(:"-merge/3-fun-0-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-merge/3-fun-1-")(p0, p1, p2, p3) do
+  defp unquote(:"-merge/3-fun-1-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-merge/3-fun-2-")(p0, p1, p2, p3) do
+  defp unquote(:"-merge/3-fun-2-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-merge/3-fun-3-")(p0, p1, p2, p3) do
+  defp unquote(:"-merge/3-fun-3-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-store/3-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-store/3-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-take/2-fun-0-")(p0, p1) do
+  defp unquote(:"-take/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-to_list/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-to_list/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-update/3-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-update/3-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-update/4-fun-0-")(p0, p1, p2, p3) do
+  defp unquote(:"-update/4-fun-0-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-update_counter/3-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-update_counter/3-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 

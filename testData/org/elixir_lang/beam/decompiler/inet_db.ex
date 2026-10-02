@@ -420,7 +420,7 @@ defmodule :inet_db do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -660,103 +660,103 @@ defmodule :inet_db do
 
   # Private Functions
 
-  defp unquote(:"-add_hosts/1-fun-0-")(p0) do
+  defp unquote(:"-add_hosts/1-fun-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-add_ip_bynms/5-fun-0-")(p0, p1, p2, p3, p4) do
+  defp unquote(:"-add_ip_bynms/5-fun-0-")(arg1, arg2, arg3, arg4, arg5) do
     # body not decompiled
   end
 
-  defp unquote(:"-del_ip_bynms/4-fun-0-")(p0, p1, p2, p3) do
+  defp unquote(:"-del_ip_bynms/4-fun-0-")(arg1, arg2, arg3, arg4) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_add_host/5-fun-1-")(p0, p1) do
+  defp unquote(:"-do_add_host/5-fun-1-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_add_host/5-lc$^0/1-0-")(p0) do
+  defp unquote(:"-do_add_host/5-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_add_host/5-lc$^2/1-2-")(p0) do
+  defp unquote(:"-do_add_host/5-lc$^2/1-2-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_add_host/5-lc$^3/1-1-")(p0, p1) do
+  defp unquote(:"-do_add_host/5-lc$^3/1-1-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_add_rrs/4-lc$^0/1-0-")(p0, p1, p2) do
+  defp unquote(:"-do_add_rrs/4-lc$^0/1-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_add_rrs/4-lc$^1/1-1-")(p0, p1) do
+  defp unquote(:"-do_add_rrs/4-lc$^1/1-1-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-do_del_host/3-lc$^0/1-0-")(p0) do
+  defp unquote(:"-do_del_host/3-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-handle_call/3-fun-0-")(p0, p1) do
+  defp unquote(:"-handle_call/3-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-handle_call/3-fun-1-")(p0, p1) do
+  defp unquote(:"-handle_call/3-fun-1-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-handle_call/3-fun-3-")(p0, p1) do
+  defp unquote(:"-handle_call/3-fun-3-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-handle_call/3-lc$^2/1-0-")(p0) do
+  defp unquote(:"-handle_call/3-lc$^2/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-lists_subtract/2-fun-0-")(p0, p1) do
+  defp unquote(:"-lists_subtract/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-load_hosts_list/3-lc$^0/1-0-")(p0) do
+  defp unquote(:"-load_hosts_list/3-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-load_hosts_list/3-lc$^1/1-1-")(p0) do
+  defp unquote(:"-load_hosts_list/3-lc$^1/1-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-lookup_cache_data/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-lookup_cache_data/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-match_rr/6-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-match_rr/6-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-match_rr/6-lc$^1/1-1-")(p0, p1) do
+  defp unquote(:"-match_rr/6-lc$^1/1-1-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-rc_opt_req/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-rc_opt_req/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-res_cache_answer/1-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-res_cache_answer/1-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-res_filter_rrs/2-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-res_filter_rrs/2-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-res_lookup_fun/1-fun-1-")(p0, p1, p2) do
+  defp unquote(:"-res_lookup_fun/1-fun-1-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-res_lookup_fun/1-lc$^0/1-0-")(p0, p1, p2) do
+  defp unquote(:"-res_lookup_fun/1-lc$^0/1-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 

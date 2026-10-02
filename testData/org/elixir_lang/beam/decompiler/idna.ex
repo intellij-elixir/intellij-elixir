@@ -134,7 +134,7 @@ defmodule :idna do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -168,11 +168,11 @@ defmodule :idna do
 
   # Private Functions
 
-  defp unquote(:"-alabel/1-fun-0-")(p0) do
+  defp unquote(:"-alabel/1-fun-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-ulabel/1-fun-0-")(p0) do
+  defp unquote(:"-ulabel/1-fun-0-")(arg1) do
     # body not decompiled
   end
 

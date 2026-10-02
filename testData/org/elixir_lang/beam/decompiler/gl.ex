@@ -1809,7 +1809,7 @@ defmodule :gl do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -3895,555 +3895,555 @@ defmodule :gl do
 
   # Private Functions
 
-  defp unquote(:"-areTexturesResident/1-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-areTexturesResident/1-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-callLists/1-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-callLists/1-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-clearBufferfv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-clearBufferfv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-clearBufferiv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-clearBufferiv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-clearBufferuiv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-clearBufferuiv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-compileShaderIncludeARB/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-compileShaderIncludeARB/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-convolutionParameterf/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-convolutionParameterf/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-convolutionParameteri/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-convolutionParameteri/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-createShaderProgramv/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-createShaderProgramv/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-debugMessageControlARB/5-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-debugMessageControlARB/5-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-deleteBuffers/1-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-deleteBuffers/1-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-deleteFramebuffers/1-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-deleteFramebuffers/1-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-deleteProgramPipelines/1-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-deleteProgramPipelines/1-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-deleteProgramsARB/1-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-deleteProgramsARB/1-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-deleteQueries/1-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-deleteQueries/1-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-deleteRenderbuffers/1-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-deleteRenderbuffers/1-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-deleteSamplers/1-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-deleteSamplers/1-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-deleteTextures/1-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-deleteTextures/1-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-deleteTransformFeedbacks/1-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-deleteTransformFeedbacks/1-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-deleteVertexArrays/1-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-deleteVertexArrays/1-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-depthRangeArrayv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-depthRangeArrayv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-drawBuffers/1-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-drawBuffers/1-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-fogfv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-fogfv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-fogiv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-fogiv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-getActiveUniformsiv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-getActiveUniformsiv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-getUniformIndices/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-getUniformIndices/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-lightModelfv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-lightModelfv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-lightModeliv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-lightModeliv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-lightfv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-lightfv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-lightiv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-lightiv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-materialfv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-materialfv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-materialiv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-materialiv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-matrixIndexubvARB/1-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-matrixIndexubvARB/1-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-matrixIndexuivARB/1-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-matrixIndexuivARB/1-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-matrixIndexusvARB/1-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-matrixIndexusvARB/1-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-multiDrawArrays/3-lbc$^0/2-1-")(p0, p1) do
+  defp unquote(:"-multiDrawArrays/3-lbc$^0/2-1-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-multiDrawArrays/3-lbc$^1/2-0-")(p0, p1) do
+  defp unquote(:"-multiDrawArrays/3-lbc$^1/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-patchParameterfv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-patchParameterfv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-pointParameterfv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-pointParameterfv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-pointParameteriv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-pointParameteriv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-prioritizeTextures/2-lbc$^0/2-1-")(p0, p1) do
+  defp unquote(:"-prioritizeTextures/2-lbc$^0/2-1-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-prioritizeTextures/2-lbc$^1/2-0-")(p0, p1) do
+  defp unquote(:"-prioritizeTextures/2-lbc$^1/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniform1dv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniform1dv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniform1fv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniform1fv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniform1iv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniform1iv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniform1uiv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniform1uiv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniform2dv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniform2dv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniform2fv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniform2fv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniform2iv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniform2iv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniform2uiv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniform2uiv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniform3dv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniform3dv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniform3fv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniform3fv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniform3iv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniform3iv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniform3uiv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniform3uiv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniform4dv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniform4dv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniform4fv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniform4fv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniform4iv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniform4iv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniform4uiv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniform4uiv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniformMatrix2dv/4-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniformMatrix2dv/4-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniformMatrix2fv/4-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniformMatrix2fv/4-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniformMatrix2x3dv/4-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniformMatrix2x3dv/4-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniformMatrix2x3fv/4-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniformMatrix2x3fv/4-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniformMatrix2x4dv/4-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniformMatrix2x4dv/4-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniformMatrix2x4fv/4-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniformMatrix2x4fv/4-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniformMatrix3dv/4-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniformMatrix3dv/4-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniformMatrix3fv/4-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniformMatrix3fv/4-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniformMatrix3x2dv/4-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniformMatrix3x2dv/4-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniformMatrix3x2fv/4-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniformMatrix3x2fv/4-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniformMatrix3x4dv/4-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniformMatrix3x4dv/4-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniformMatrix3x4fv/4-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniformMatrix3x4fv/4-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniformMatrix4dv/4-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniformMatrix4dv/4-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniformMatrix4fv/4-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniformMatrix4fv/4-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniformMatrix4x2dv/4-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniformMatrix4x2dv/4-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniformMatrix4x2fv/4-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniformMatrix4x2fv/4-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniformMatrix4x3dv/4-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniformMatrix4x3dv/4-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-programUniformMatrix4x3fv/4-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-programUniformMatrix4x3fv/4-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-samplerParameterIiv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-samplerParameterIiv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-samplerParameterIuiv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-samplerParameterIuiv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-samplerParameterfv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-samplerParameterfv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-samplerParameteriv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-samplerParameteriv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-scissorArrayv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-scissorArrayv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-shaderBinary/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-shaderBinary/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-shaderSource/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-shaderSource/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-shaderSourceARB/2-lc$^0/1-0-")(p0) do
+  defp unquote(:"-shaderSourceARB/2-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-texEnvfv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-texEnvfv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-texEnviv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-texEnviv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-texGendv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-texGendv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-texGenfv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-texGenfv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-texGeniv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-texGeniv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-texParameterIiv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-texParameterIiv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-texParameterIuiv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-texParameterIuiv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-texParameterfv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-texParameterfv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-texParameteriv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-texParameteriv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-transformFeedbackVaryings/3-lc$^0/1-0-")(p0) do
+  defp unquote(:"-transformFeedbackVaryings/3-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniform1dv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniform1dv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniform1fv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniform1fv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniform1iv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniform1iv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniform1uiv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniform1uiv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniform2dv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniform2dv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniform2fv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniform2fv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniform2iv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniform2iv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniform2uiv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniform2uiv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniform3dv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniform3dv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniform3fv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniform3fv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniform3iv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniform3iv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniform3uiv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniform3uiv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniform4dv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniform4dv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniform4fv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniform4fv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniform4iv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniform4iv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniform4uiv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniform4uiv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniformMatrix2dv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniformMatrix2dv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniformMatrix2fv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniformMatrix2fv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniformMatrix2x3dv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniformMatrix2x3dv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniformMatrix2x3fv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniformMatrix2x3fv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniformMatrix2x4dv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniformMatrix2x4dv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniformMatrix2x4fv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniformMatrix2x4fv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniformMatrix3dv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniformMatrix3dv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniformMatrix3fv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniformMatrix3fv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniformMatrix3x2dv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniformMatrix3x2dv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniformMatrix3x2fv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniformMatrix3x2fv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniformMatrix3x4dv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniformMatrix3x4dv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniformMatrix3x4fv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniformMatrix3x4fv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniformMatrix4dv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniformMatrix4dv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniformMatrix4fv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniformMatrix4fv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniformMatrix4x2dv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniformMatrix4x2dv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniformMatrix4x2fv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniformMatrix4x2fv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniformMatrix4x3dv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniformMatrix4x3dv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniformMatrix4x3fv/3-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniformMatrix4x3fv/3-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-uniformSubroutinesuiv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-uniformSubroutinesuiv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-viewportArrayv/2-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-viewportArrayv/2-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-weightbvARB/1-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-weightbvARB/1-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-weightdvARB/1-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-weightdvARB/1-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-weightfvARB/1-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-weightfvARB/1-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-weightivARB/1-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-weightivARB/1-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-weightsvARB/1-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-weightsvARB/1-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-weightubvARB/1-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-weightubvARB/1-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-weightuivARB/1-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-weightuivARB/1-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-weightusvARB/1-lbc$^0/2-0-")(p0, p1) do
+  defp unquote(:"-weightusvARB/1-lbc$^0/2-0-")(arg1, arg2) do
     # body not decompiled
   end
 

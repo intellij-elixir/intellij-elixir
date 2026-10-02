@@ -7,7 +7,7 @@ defmodule :map_comprehension do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -19,7 +19,7 @@ defmodule :map_comprehension do
 
   # Private Functions
 
-  defp unquote(:"-to_map/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-to_map/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 end

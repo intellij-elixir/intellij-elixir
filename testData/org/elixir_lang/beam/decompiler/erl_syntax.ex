@@ -1635,7 +1635,7 @@ defmodule :erl_syntax do
     # body not decompiled
   end
 
-  def module_info(p0) do
+  def module_info(arg1) do
     # body not decompiled
   end
 
@@ -2647,143 +2647,143 @@ defmodule :erl_syntax do
 
   # Private Functions
 
-  defp unquote(:"-abstract/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-abstract/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-abstract/1-lc$^1/1-1-")(p0) do
+  defp unquote(:"-abstract/1-lc$^1/1-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-concrete/1-fun-2-")(p0, p1) do
+  defp unquote(:"-concrete/1-fun-2-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-concrete/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-concrete/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-concrete/1-lc$^1/1-1-")(p0) do
+  defp unquote(:"-concrete/1-lc$^1/1-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-fold_binary_field_types/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-fold_binary_field_types/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-fold_function_names/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-fold_function_names/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-fold_record_fields/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-fold_record_fields/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-fold_variable_names/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-fold_variable_names/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-is_literal/1-fun-0-")(p0) do
+  defp unquote(:"-is_literal/1-fun-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-is_literal/1-fun-1-")(p0) do
+  defp unquote(:"-is_literal/1-fun-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-is_literal/1-fun-2-")(p0) do
+  defp unquote(:"-is_literal/1-fun-2-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-meta_1/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-meta_1/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-meta_subtrees/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-meta_subtrees/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-meta_subtrees/1-lc$^1/1-1-")(p0) do
+  defp unquote(:"-meta_subtrees/1-lc$^1/1-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-normalize_list_1/2-fun-0-")(p0, p1) do
+  defp unquote(:"-normalize_list_1/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-revert/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-revert/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-revert/1-lc$^1/1-1-")(p0) do
+  defp unquote(:"-revert/1-lc$^1/1-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-revert_case_expr/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-revert_case_expr/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-revert_clause_disjunction/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-revert_clause_disjunction/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-revert_cond_expr/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-revert_cond_expr/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-revert_fun_expr/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-revert_fun_expr/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-revert_function/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-revert_function/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-revert_if_expr/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-revert_if_expr/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-revert_list/1-fun-0-")(p0, p1, p2) do
+  defp unquote(:"-revert_list/1-fun-0-")(arg1, arg2, arg3) do
     # body not decompiled
   end
 
-  defp unquote(:"-revert_named_fun_expr/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-revert_named_fun_expr/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-revert_receive_expr/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-revert_receive_expr/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-revert_try_expr/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-revert_try_expr/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-revert_try_expr/1-lc$^1/1-1-")(p0) do
+  defp unquote(:"-revert_try_expr/1-lc$^1/1-1-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-unfold_binary_field_types/2-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-unfold_binary_field_types/2-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-unfold_function_names/2-fun-0-")(p0, p1) do
+  defp unquote(:"-unfold_function_names/2-fun-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-unfold_function_names/2-lc$^1/1-0-")(p0, p1) do
+  defp unquote(:"-unfold_function_names/2-lc$^1/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
-  defp unquote(:"-unfold_record_fields/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-unfold_record_fields/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-unfold_try_clauses/1-lc$^0/1-0-")(p0) do
+  defp unquote(:"-unfold_try_clauses/1-lc$^0/1-0-")(arg1) do
     # body not decompiled
   end
 
-  defp unquote(:"-unfold_variable_names/2-lc$^0/1-0-")(p0, p1) do
+  defp unquote(:"-unfold_variable_names/2-lc$^0/1-0-")(arg1, arg2) do
     # body not decompiled
   end
 
