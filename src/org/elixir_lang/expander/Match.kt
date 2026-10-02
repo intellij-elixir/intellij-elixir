@@ -308,5 +308,33 @@ private fun recurCycles(
     return accSeen
 }
 
-/** Erlang's term order on `{name, context}` atoms, which a small map folds in. */
-private val TERM_ORDER = compareBy<Variable>({ it.name }, { it.context })
+private val CONTEXT_TERM_ORDER: Comparator<Variable.Context> = compareBy(
+    {
+        when (it) {
+            is Variable.Context.Atom -> 1
+            is Variable.Context.Counter -> if (it.counter is Env.Counter.Unique) 0 else 2
+        }
+    },
+    {
+        when (it) {
+            is Variable.Context.Atom -> it.text
+            is Variable.Context.Counter -> (it.counter as? Env.Counter.InModule)?.module
+        }
+    },
+    {
+        when (it) {
+            is Variable.Context.Atom -> null
+            is Variable.Context.Counter -> when (val counter = it.counter) {
+                is Env.Counter.InModule -> counter.n
+                is Env.Counter.Unique -> counter.n
+            }
+        }
+    },
+)
+
+/**
+ * Erlang's term order on `{name, context}`, which a small map folds in. A context is an atom, a `{Module, n}` counter, or
+ * outside a module an integer counter, and a number sorts before an atom, which sorts before a tuple.
+ */
+internal val TERM_ORDER: Comparator<Variable> =
+    compareBy<Variable> { it.name }.thenComparing({ it.context }, CONTEXT_TERM_ORDER)

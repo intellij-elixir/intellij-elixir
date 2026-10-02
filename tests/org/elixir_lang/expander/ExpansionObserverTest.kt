@@ -95,6 +95,73 @@ class ExpansionObserverTest : ExpanderTestCase() {
         )
     }
 
+    fun testAQuoteInAClauseBodyIsLeftWithTheStateAfterIt() {
+        val code = "case 1 do\n_ -> quote(do: foo(unquote(y = 1)))\nend"
+
+        assertEquals(
+            LEVELS.joinToString("\n") { "$it: y" },
+            LEVELS.joinToString("\n") { version ->
+                val read = mutableListOf<String>()
+                val observer = object : ExpansionObserver {
+                    override fun entering(node: org.elixir_lang.lowering.ElixirAst, state: ExState, env: Env) {}
+
+                    override fun left(node: org.elixir_lang.lowering.ElixirAst, expansion: Expansion) {
+                        if (node.meta.origin.substring(code) == "quote(do: foo(unquote(y = 1)))") {
+                            read.add((expansion as Expansion.Expanded).state.read.keys.map { it.name }.sorted().joinToString(" "))
+                        }
+                    }
+                }
+
+                expand(code, version, observer)
+
+                "$version: " + read.first()
+            }
+        )
+    }
+
+    fun testANodeQuoteBuildsIsNeitherEnteredNorLeftButIsStillDispatched() {
+        val code = "x = 1\n$QUOTE"
+
+        assertEquals(
+            LEVELS.joinToString("\n") { version ->
+                val dispatched = when {
+                    isBefore(version, "1.18.0-rc.0") -> ""
+                    isBefore(version, "1.20.0") -> "remote_function elixir_quote.shallow_validate_ast/1"
+                    else -> "remote_function elixir_quote.unquote/1"
+                }
+
+                "$version: entered the quote once, left it once; dispatched $dispatched"
+            },
+            LEVELS.joinToString("\n") { version ->
+                var entered = 0
+                var left = 0
+                val dispatched = mutableListOf<String>()
+                val observer = object : ExpansionObserver {
+                    override fun entering(node: org.elixir_lang.lowering.ElixirAst, state: ExState, env: Env) {
+                        if (node.meta.origin.substring(code) == QUOTE) entered++
+                    }
+
+                    override fun left(node: org.elixir_lang.lowering.ElixirAst, expansion: Expansion) {
+                        if (node.meta.origin.substring(code) == QUOTE) left++
+                    }
+
+                    override fun dispatched(node: org.elixir_lang.lowering.ElixirAst, dispatch: Dispatch) {
+                        dispatched.add(render(dispatch))
+                    }
+                }
+
+                expand(code, version, observer)
+
+                "$version: entered the quote ${times(entered)}, left it ${times(left)}; dispatched ${dispatched.joinToString()}"
+            }
+        )
+    }
+
+    private fun times(count: Int) = if (count == 1) "once" else "$count times"
+
+    fun testAnUnportedNodeQuoteBuildsNamesTheQuote() =
+        assertEvery("c = Foo\nquote(context: c, do: 1)", "unported `quote(context: c, do: 1)`")
+
     private fun assertEntered(code: String, versions: List<String>, expected: (String) -> String) =
         assertEquals(
             versions.joinToString("\n") { "$it: ${expected(it)}" },
@@ -106,4 +173,8 @@ class ExpansionObserverTest : ExpanderTestCase() {
                 "$version: " + entered.joinToString(" | ")
             }
         )
+
+    private companion object {
+        const val QUOTE = "quote(do: unquote(x))"
+    }
 }

@@ -25,14 +25,16 @@ object Expander {
 
     internal fun expand(ast: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
         ProgressManager.checkCanceled()
-        run.observer.entering(ast, state, env)
+        // A built node shares its source node's origin, so an observer would take it for that node.
+        val observed = !ast.meta.built
+        if (observed) run.observer.entering(ast, state, env)
 
         val expansion = Clause.entries
             .firstOrNull { it.matches(ast, state, env, run.level) }
             ?.expand(ast, state, env, run)
             ?: Expansion.Unported(ast)
 
-        run.observer.left(ast, expansion)
+        if (observed) run.observer.left(ast, expansion)
 
         return expansion
     }

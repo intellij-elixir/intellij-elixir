@@ -21,7 +21,7 @@ internal fun expandLocalCall(node: ElixirAst.Call, state: ExState, env: Env, run
     val name = (node.callee as ElixirAst.Literal.Atom).name
     val args = node.arguments!!
 
-    if (args.size == 1 && hasMetaKey(node.meta, "ambiguous_op") && Variable(name, "nil") in state.read) {
+    if (args.size == 1 && hasMetaKey(node.meta, "ambiguous_op") && Variable(name, Variable.NIL) in state.read) {
         return Expansion.Error("op_ambiguity", node)
     }
 

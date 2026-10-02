@@ -96,7 +96,7 @@ class GuardCallTest : ExpanderTestCase() {
 
     private companion object {
         const val BOUND = "expanded {x:0 y:1} next 2"
-        val X = Variable("x", "nil")
-        val Y = Variable("y", "nil")
+        val X = Variable("x", Variable.NIL)
+        val Y = Variable("y", Variable.NIL)
     }
 }

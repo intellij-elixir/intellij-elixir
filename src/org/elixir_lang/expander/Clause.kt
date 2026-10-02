@@ -662,8 +662,17 @@ private val EXPAND_LIST = arrayOf(
     Clause.Head("elixir_expand", "expand_list", 1, "[{'|',_,[_,_]}]"),
 )
 
-internal fun variable(node: ElixirAst) =
-    Variable(((node as ElixirAst.Call).callee as ElixirAst.Literal.Atom).name, "nil")
+/** `{Name, var_context(Meta, Kind)}`. */
+internal fun variable(node: ElixirAst): Variable {
+    val call = node as ElixirAst.Call
+    val context = counterOf(call.meta)?.let { Variable.Context.Counter(it) }
+        ?: when (val written = call.context) {
+            ElixirAst.VariableContext.Nil -> Variable.NIL
+            is ElixirAst.VariableContext.Atom -> Variable.Context.Atom(written.name)
+        }
+
+    return Variable((call.callee as ElixirAst.Literal.Atom).name, context)
+}
 
 private fun Write.plus(variable: Variable, version: Int): Write =
     when (this) {

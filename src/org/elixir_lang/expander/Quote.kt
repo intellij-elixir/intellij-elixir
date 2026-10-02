@@ -58,8 +58,10 @@ internal object Quote {
         val index = opts.elements.indexOfFirst { keyOf(it) == "do" }.takeIf { it >= 0 } ?: return null
         val rest = opts.elements.filterIndexed { i, _ -> i != index }
 
+        val meta = call.meta
+
         return ElixirAst.Call(
-            call.meta,
+            Meta(meta.origin, meta.start, meta.end, meta.keys, built = true),
             call.callee,
             listOf(ElixirAst.ListNode(opts.meta, rest), ElixirAst.ListNode(opts.meta, listOf(opts.elements[index]))),
         )
@@ -344,7 +346,7 @@ internal object Quote {
 
     /** The nodes Elixir builds, all at the `quote`'s position. */
     private class Synthetic(private val at: Meta) {
-        fun meta(keys: List<Meta.Key> = emptyList()) = Meta(at.origin, at.start, at.end, keys)
+        fun meta(keys: List<Meta.Key> = emptyList()) = Meta(at.origin, at.start, at.end, keys, built = true)
 
         fun atom(name: String) = ElixirAst.Literal.Atom(meta(), name)
 
@@ -422,6 +424,7 @@ internal object Quote {
                 is Meta.Value.Integer -> s.integer(value.value.toBigInteger())
                 is Meta.Value.Binary -> ElixirAst.Literal.Binary(s.meta(), value.text.toByteArray(Charsets.UTF_8))
                 is Meta.Value.Keywords -> s.keywords(keywords(value.keys, columns))
+                is Meta.Value.Tuple -> s.tuple(*value.elements.map { value(it, columns) }.toTypedArray())
             }
 
         private fun metaOf(node: ElixirAst): Keywords = annotated.remove(node) ?: sourceMeta(node.meta)
@@ -449,6 +452,10 @@ internal object Quote {
                 }
                 node is ElixirAst.Call && node.callee is ElixirAst.Literal.Atom && node.arguments == null -> {
                     val name = node.callee.name
+                    val context = when (val context = node.context) {
+                        ElixirAst.VariableContext.Nil -> this.context
+                        is ElixirAst.VariableContext.Atom -> context.name
+                    }
 
                     s.tuple(s.atom(name), meta(importMeta(node, metaOf(node), name, 0)), s.atom(context))
                 }
