@@ -1,0 +1,10 @@
+1	call	`f(do: :a, else: {:b, 1})`	{f,[{line,1}],[[{do,a},{else,{b,1}}]]}
+1	functionName	`f`	f
+1	keywordKey	`do`	do
+1	keywordValue	`:a`	a
+1	atom	`:a`	a
+1	keywordKey	`else`	else
+1	keywordValue	`{:b, 1}`	{b,1}
+1	tuple	`{:b, 1}`	{b,1}
+1	atom	`:b`	b
+2	atom	`:a`	a

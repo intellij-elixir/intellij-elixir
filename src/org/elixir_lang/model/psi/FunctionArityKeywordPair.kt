@@ -9,6 +9,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.lowering.ElementLowering
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.ElixirTuple
 import org.elixir_lang.psi.Quotable
@@ -34,7 +35,7 @@ import org.elixir_lang.psi.impl.ElixirPsiImplUtil.moduleAttributeName
  * [ElixirSymbolUsageSearcher].
  *
  * Host detection is deliberately **syntactic** (`Call.functionName()` / module-attribute name) rather
- * than going through `Import.is`/`Overridable.is`, whose `Call.isCalling(KERNEL, …)` resolution
+ * than going through `Import.is`/`Overridable.is`, whose `Call.isCalling(KERNEL, ...)` resolution
  * requires `Kernel` to be resolvable - many test fixtures (and real edited buffers) don't include a
  * `kernel.ex`, yet the construct must still be recognized.
  */
@@ -131,7 +132,7 @@ object FunctionArityKeywordPair {
     /**
      * Whether [pair] is a `@compile` inline entry, in either documented form:
      *  - keyword form `@compile inline: [fun: arity]` - inside an ancestor `inline:` keyword pair, or
-     *  - tuple form `@compile {:inline, fun: arity}` - inside an ancestor `{:inline, …}` tuple.
+     *  - tuple form `@compile {:inline, fun: arity}` - inside an ancestor `{:inline, ...}` tuple.
      */
     private fun isCompileInline(pair: QuotableKeywordPair, hostCall: Call): Boolean {
         val ancestors = generateSequence(pair.parent) { it.parent }
@@ -146,9 +147,9 @@ object FunctionArityKeywordPair {
             .any { tupleLeadingAtom(it) == "inline" }
     }
 
-    /** The atom value of a tuple's first element (e.g. `:inline` in `{:inline, …}`), or `null`. */
+    /** The atom value of a tuple's first element (e.g. `:inline` in `{:inline, ...}`), or `null`. */
     private fun tupleLeadingAtom(tuple: ElixirTuple): String? =
-        ((tuple.quote() as? OtpErlangTuple)?.elementAt(0) as? OtpErlangAtom)?.atomValue()
+        ((ElementLowering.quote(tuple) as? OtpErlangTuple)?.elementAt(0) as? OtpErlangAtom)?.atomValue()
 
     private fun importHostOf(pair: QuotableKeywordPair, hostCall: Call): Host? =
         generateSequence(pair.parent) { it.parent }
@@ -166,12 +167,12 @@ object FunctionArityKeywordPair {
     /** The function/macro name named by [keywordKey], or `null` if it has no textual name. */
     @RequiresReadLock
     fun nameFromKey(keywordKey: Quotable): String? =
-        (keywordKey.quote() as? OtpErlangAtom)?.atomValue() ?: keywordKey.text.takeIf { it.isNotEmpty() }
+        (ElementLowering.quote(keywordKey) as? OtpErlangAtom)?.atomValue() ?: keywordKey.text.takeIf { it.isNotEmpty() }
 
     /** The arity named by [keywordValue], or `null` if the value is not an integer literal. */
     @RequiresReadLock
     fun arityFromValue(keywordValue: Quotable): Int? =
-        (keywordValue.quote() as? OtpErlangLong)?.let {
+        (ElementLowering.quote(keywordValue) as? OtpErlangLong)?.let {
             try {
                 it.intValue()
             } catch (_: OtpErlangRangeException) {

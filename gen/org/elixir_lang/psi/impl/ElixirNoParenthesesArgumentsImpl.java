@@ -10,8 +10,6 @@ import com.intellij.psi.util.PsiTreeUtil;
 import static org.elixir_lang.psi.ElixirTypes.*;
 import com.intellij.extapi.psi.ASTWrapperPsiElement;
 import org.elixir_lang.psi.*;
-import com.ericsson.otp.erlang.OtpErlangObject;
-import com.intellij.util.concurrency.annotations.RequiresReadLock;
 
 public class ElixirNoParenthesesArgumentsImpl extends ASTWrapperPsiElement implements ElixirNoParenthesesArguments {
 
@@ -57,12 +55,6 @@ public class ElixirNoParenthesesArgumentsImpl extends ASTWrapperPsiElement imple
   @Nullable
   public ElixirNoParenthesesOneArgument getNoParenthesesOneArgument() {
     return PsiTreeUtil.getChildOfType(this, ElixirNoParenthesesOneArgument.class);
-  }
-
-  @Override
-  @RequiresReadLock
-  public @NotNull OtpErlangObject[] quoteArguments() {
-    return ElixirPsiImplUtil.quoteArguments(this);
   }
 
 }

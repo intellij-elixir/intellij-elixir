@@ -15,7 +15,6 @@ import java.util.LinkedList;
 import java.util.List;
 
 import static org.elixir_lang.psi.impl.ParentImpl.addChildTextCodePoints;
-import static org.elixir_lang.psi.impl.QuotableImpl.childNodes;
 
 /**
  * How to resolve an {@link ElixirAtom}.
@@ -54,7 +53,7 @@ public abstract class Resolvable {
     private static <I extends Bodied & Parent> Resolvable resolvable(@NotNull I parentBodied) {
         Body body = parentBodied.getBody();
 
-        return resolvable(parentBodied, childNodes(body));
+        return resolvable(parentBodied, body.getNode().getChildren(null));
     }
 
     @NotNull

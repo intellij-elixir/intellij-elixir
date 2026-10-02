@@ -19,6 +19,7 @@ import org.elixir_lang.reference.Callable
 import org.elixir_lang.structure_view.element.*
 import org.elixir_lang.structure_view.element.modular.Module
 import org.elixir_lang.structure_view.element.structure.Structure
+import org.elixir_lang.util.ReadActions
 
 /**
  * Provides usage-view descriptions (type, short/long name, node text) for Elixir elements in a single
@@ -27,18 +28,20 @@ import org.elixir_lang.structure_view.element.structure.Structure
  */
 internal class ElementDescriptionProvider : com.intellij.psi.ElementDescriptionProvider {
     override fun getElementDescription(element: PsiElement, location: ElementDescriptionLocation): String? =
-        when (element) {
-            is AtOperation -> getElementDescription(element, location)
-            is Call -> getElementDescription(element, location)
-            is ElixirAtom -> getElementDescription(element, location)
-            is ElixirIdentifier -> getElementDescription(element, location)
-            is ElixirKeywordKey -> getElementDescription(element, location)
-            is ElixirVariable -> getElementDescription(element, location)
-            is MaybeModuleName -> getElementDescription(element, location)
-            is BeamModule -> getElementDescription(element, location)
-            is BeamTypeDefinition -> getElementDescription(element, location)
-            is BeamCallDefinition -> getElementDescription(element, location)
-            else -> null
+        ReadActions.compute {
+            when (element) {
+                is AtOperation -> getElementDescription(element, location)
+                is Call -> getElementDescription(element, location)
+                is ElixirAtom -> getElementDescription(element, location)
+                is ElixirIdentifier -> getElementDescription(element, location)
+                is ElixirKeywordKey -> getElementDescription(element, location)
+                is ElixirVariable -> getElementDescription(element, location)
+                is MaybeModuleName -> getElementDescription(element, location)
+                is BeamModule -> getElementDescription(element, location)
+                is BeamTypeDefinition -> getElementDescription(element, location)
+                is BeamCallDefinition -> getElementDescription(element, location)
+                else -> null
+            }
         }
 
     /*

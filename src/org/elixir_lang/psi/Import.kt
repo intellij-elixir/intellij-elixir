@@ -37,6 +37,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.IMPORT_ONLY_SIGILS_R
 import org.elixir_lang.language_level.ElixirLanguageFeature.IMPORT_VALIDATES_EXCEPT_FIRST
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
+import org.elixir_lang.lowering.ElementLowering
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.IMPORT
 import org.elixir_lang.psi.call.name.Module.KERNEL
@@ -320,12 +321,15 @@ object Import {
                     ?.keywordArguments()
                     ?.quotableKeywordPairList()
                     .orEmpty()
-                    .map { term(it.quote()) }
+                    .map { term(ElementLowering.quote(it)) }
 
                 return of(Term.List(options), languageLevel, prior).filter
             }
 
-            /** [quoted] as an option term, where a call, which quotes to `{name, meta, arguments}`, isn't expanded. */
+            /**
+             * [quoted] as an option term, where a call, which quotes to `{name, meta, arguments}`, isn't expanded, nor
+             * is broken code, which quotes to `{:__cursor__, meta, []}`.
+             */
             private fun term(quoted: OtpErlangObject): Term =
                 when (quoted) {
                     is OtpErlangAtom -> Term.Atom(quoted.atomValue())

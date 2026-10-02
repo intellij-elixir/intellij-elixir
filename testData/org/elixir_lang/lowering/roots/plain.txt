@@ -1,0 +1,54 @@
+1	call	`defmodule A do\n  import B, only: [c: 1], except: []\n  @compile {:inline, f: 1}\n  @callback c(integer) :: :ok\n  def f(x), do: {:a, x}\n\n  def g(x) do\n    if x, do: :b, else: :"c d"\n  end\n\n  def unquote(:u)(), do: 1\n  defdelegate h(y), to: B, as: :c\nend`	{defmodule,[{line,1}],[{'__aliases__',[{line,1}],['A']},[{do,{'__block__',[{line,1}],[{import,[{line,2}],[{'__aliases__',[{line,2}],['B']},[{only,[{c,1}]},{except,[]}]]},{'@',[{line,3}],[{compile,[{line,3}],[{inline,[{f,1}]}]}]},{'@',[{line,4}],[{callback,[{line,4}],[{'::',[{line,4}],[{c,[{line,4}],[{integer,[{line,4}],nil}]},ok]}]}]},{def,[{line,5}],[{f,[{line,5}],[{x,[{line,5}],nil}]},[{do,{a,{x,[{line,5}],nil}}}]]},{def,[{line,7}],[{g,[{line,7}],[{x,[{line,7}],nil}]},[{do,{if,[{line,8}],[{x,[{line,8}],nil},[{do,b},{else,'c d'}]]}}]]},{def,[{line,11}],[{{unquote,[{line,11}],[u]},[{line,11}],[]},[{do,1}]]},{defdelegate,[{line,12}],[{h,[{line,12}],[{y,[{line,12}],nil}]},[{to,{'__aliases__',[{line,12}],['B']}},{as,c}]]}]}}]]}
+1	functionName	`defmodule`	defmodule
+2	functionName	`import`	import
+2	keywordKey	`only`	only
+2	keywordValue	`[c: 1]`	[{c,1}]
+2	keywordKey	`c`	c
+2	keywordValue	`1`	1
+2	keywordKey	`except`	except
+2	keywordValue	`[]`	[]
+3	tuple	`{:inline, f: 1}`	{inline,[{f,1}]}
+3	atom	`:inline`	inline
+3	keywordKey	`f`	f
+3	keywordValue	`1`	1
+4	head	`c`	c
+4	functionName	`::`	'::'
+4	functionName	`c`	c
+4	functionName	`integer`	integer
+4	atom	`:ok`	ok
+5	functionName	`def`	def
+5	head	`f`	f
+5	functionName	`f`	f
+5	functionName	`x`	x
+5	keywordKey	`do`	do
+5	keywordValue	`{:a, x}`	{a,{x,[{line,5}],nil}}
+5	tuple	`{:a, x}`	{a,{x,[{line,5}],nil}}
+5	atom	`:a`	a
+5	functionName	`x`	x
+7	functionName	`def`	def
+7	head	`g`	g
+7	functionName	`g`	g
+7	functionName	`x`	x
+8	functionName	`if`	if
+8	functionName	`x`	x
+8	keywordKey	`do`	do
+8	keywordValue	`:b`	b
+8	atom	`:b`	b
+8	keywordKey	`else`	else
+8	keywordValue	`:"c d"`	'c d'
+8	atom	`:"c d"`	'c d'
+11	functionName	`def`	def
+11	head	`:u`	u
+11	functionName	`unquote`	unquote
+11	atom	`:u`	u
+11	keywordKey	`do`	do
+11	keywordValue	`1`	1
+12	functionName	`defdelegate`	defdelegate
+12	head	`h`	h
+12	functionName	`h`	h
+12	functionName	`y`	y
+12	keywordKey	`to`	to
+12	keywordValue	`B`	{'__aliases__',[{line,12}],['B']}
+12	keywordKey	`as`	as
+12	keywordValue	`:c`	c
+12	atom	`:c`	c

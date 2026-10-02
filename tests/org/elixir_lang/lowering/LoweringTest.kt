@@ -1,6 +1,7 @@
 package org.elixir_lang.lowering
 
 import com.intellij.openapi.application.ReadAction
+import com.intellij.psi.DummyBlockType
 import com.intellij.psi.PsiElement
 import com.intellij.psi.impl.source.tree.LeafPsiElement
 import com.intellij.psi.impl.source.tree.PsiErrorElementImpl
@@ -22,6 +23,9 @@ class LoweringTest : LoweringTestCase() {
     fun testAnErrorElementIsAnError() =
         assertEquals(Lowering.Bucket.ERROR, Lowering.classifier.classify(PsiErrorElementImpl::class.java))
 
+    fun testADummyBlockIsAnError() =
+        assertEquals(Lowering.Bucket.ERROR, Lowering.classifier.classify(DummyBlockType.DummyBlock::class.java))
+
     fun testAShapeNoRowNamesIsUnknownNotNoNode() =
         assertEquals(Lowering.Bucket.UNKNOWN, Lowering.classifier.classify(LeafPsiElement::class.java))
 
@@ -41,11 +45,15 @@ class LoweringTest : LoweringTestCase() {
         val file = createPsiFile(getTestName(false), "1") as ElixirFile
         val leaf = PsiTreeUtil.getDeepestFirst(file)
 
-        val lowered = ReadAction.computeBlocking<ElixirAst, Throwable> {
-            Lowering.of(file, ElixirLanguageLevel.FALLBACK).lower(leaf)
+        val errors = expectErrors(Lowering::class.java, Regex("has no lowering")) {
+            val lowered = ReadAction.computeBlocking<ElixirAst, Throwable> {
+                Lowering.of(file, ElixirLanguageLevel.FALLBACK).lower(leaf)
+            }
+
+            assertEquals(leaf.javaClass, ((lowered as ElixirAst.Placeholder).reason as ElixirAst.Placeholder.Reason.Unlowered).shape)
         }
 
-        assertEquals(leaf.javaClass, ((lowered as ElixirAst.Placeholder).reason as ElixirAst.Placeholder.Reason.Unlowered).shape)
+        assertEquals(1, errors.size)
     }
 
     fun testALiteralLowers() = assertLowers("1", "1")

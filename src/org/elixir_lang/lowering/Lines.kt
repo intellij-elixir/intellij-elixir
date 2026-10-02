@@ -6,18 +6,43 @@ import org.elixir_lang.unicode_util.Graphemes
 /**
  * Offsets into a file's text as [Meta.Position]s, counted as one Elixir release's tokenizer counts them.
  *
- * @param uncountedNewlines offsets of newlines the tokenizer consumed without starting a line, which advance the
- *   column like any other character
+ * @param starts the offset each line starts at
  * @param quotedTexts quoted text whose columns count [graphemes]' clusters rather than code points
  * @param zeroWidthRanges ranges the tokenizer did not advance the column over
  */
 internal class Lines(
     private val text: CharSequence,
     private val graphemes: Graphemes,
-    uncountedNewlines: Collection<Int> = emptyList(),
+    private val starts: IntArray,
     quotedTexts: List<QuotedText> = emptyList(),
     zeroWidthRanges: List<TextRange> = emptyList(),
 ) {
+    /**
+     * @param uncountedNewlines offsets of newlines the tokenizer consumed without starting a line, which advance the
+     *   column like any other character
+     */
+    constructor(
+        text: CharSequence,
+        graphemes: Graphemes,
+        uncountedNewlines: Collection<Int> = emptyList(),
+        quotedTexts: List<QuotedText> = emptyList(),
+        zeroWidthRanges: List<TextRange> = emptyList(),
+    ) : this(text, graphemes, starts(text, uncountedNewlines), quotedTexts, zeroWidthRanges)
+
+    companion object {
+        /** The offset each line starts at, skipping [uncountedNewlines]. */
+        fun starts(text: CharSequence, uncountedNewlines: Collection<Int>): IntArray {
+            val uncounted = uncountedNewlines.toSet()
+            val starts = mutableListOf(0)
+
+            for (offset in text.indices) {
+                if (text[offset] == '\n' && offset !in uncounted) starts.add(offset + 1)
+            }
+
+            return starts.toIntArray()
+        }
+    }
+
     /**
      * [range] of a quoted literal's text, whose escaped [terminator] (`null` when it has none) and, if it
      * [interpolates], escaped `#{` are one column per character.
@@ -26,17 +51,6 @@ internal class Lines(
 
     private val quotedTexts = quotedTexts.sortedBy { it.range.startOffset }
     private val zeroWidthRanges = zeroWidthRanges.sortedBy { it.startOffset }
-
-    private val starts: IntArray = run {
-        val uncounted = uncountedNewlines.toSet()
-        val starts = mutableListOf(0)
-
-        for (offset in text.indices) {
-            if (text[offset] == '\n' && offset !in uncounted) starts.add(offset + 1)
-        }
-
-        starts.toIntArray()
-    }
 
     /** Each line's [widths], counted the first time a position on it is asked for. */
     private val lineWidths = arrayOfNulls<IntArray>(starts.size)

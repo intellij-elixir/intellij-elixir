@@ -108,7 +108,7 @@ internal fun Lowering.call(element: PsiElement): ElixirAst =
             ElixirAst.Tuple(meta(element), listOf(lower(element.keywordKey), lower(element.keywordValue)))
         is ElixirNoParenthesesManyStrictNoParenthesesExpression ->
             element.children.singleOrNull()?.let { lower(it) } ?: broken(element)
-        is ElixirIdentifier -> ElixirAst.Literal.Atom(meta(element), identifier(element.text))
+        is ElixirIdentifier -> writtenAtom(element, identifier(element.text))
         is ElixirRelativeIdentifier -> relativeIdentifier(element) ?: broken(element)
         is ElixirVariable -> nameAlone(element, element)
         is ElixirBlockItem -> blockItem(element)
@@ -262,7 +262,7 @@ internal fun Lowering.variable(identifier: PsiElement): ElixirAst =
     ElixirAst.Call(meta(identifier, location(identifier)), localCallee(identifier), null)
 
 private fun Lowering.localCallee(identifier: PsiElement): ElixirAst =
-    ElixirAst.Literal.Atom(meta(identifier), identifier(identifier.text))
+    writtenAtom(identifier, identifier(identifier.text))
 
 private val LINE_CONTINUATION = Regex("\\\\\r?\n")
 
@@ -344,15 +344,15 @@ private fun Lowering.remote(call: PsiElement): Remote? {
 private fun Lowering.relativeIdentifier(relativeIdentifier: ElixirRelativeIdentifier): ElixirAst? =
     when (val child = relativeIdentifier.children.singleOrNull()) {
         null ->
-            ElixirAst.Literal.Atom(meta(relativeIdentifier), identifier(relativeIdentifier.node.firstChildNode.text))
+            writtenAtom(relativeIdentifier, identifier(relativeIdentifier.node.firstChildNode.text))
         is ElixirLine ->
             if (child.lineBody?.interpolationList.orEmpty().isNotEmpty()) {
                 null
             } else if (isAvailable(UNESCAPED_QUOTED_REMOTE_CALL_NAME)) {
                 quotedAtom(relativeIdentifier, child, emptyList()) as? ElixirAst.Literal.Atom
             } else {
-                ElixirAst.Literal.Atom(
-                    meta(relativeIdentifier),
+                writtenAtom(
+                    relativeIdentifier,
                     literalQuotedRemoteCallName(child, isAvailable(ESCAPED_NEWLINE_KEPT_IN_EXTRACTED_BUFFER))
                 )
             }

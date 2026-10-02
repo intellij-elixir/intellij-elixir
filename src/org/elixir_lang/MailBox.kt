@@ -9,13 +9,14 @@ import kotlinx.coroutines.launch
 import org.elixir_lang.mail_box.BADRPC
 import org.elixir_lang.mail_box.BadRPC
 import org.elixir_lang.mail_box.WaitingMatcher
-import org.elixir_lang.psi.impl.QuotableImpl.NIL
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
-fun otpErlangTuple(elementList: kotlin.collections.List<OtpErlangObject>) = OtpErlangTuple(elementList.toTypedArray())
+private val NIL = OtpErlangAtom("nil")
+
+fun otpErlangTuple(elementList: List<OtpErlangObject>) = OtpErlangTuple(elementList.toTypedArray())
 fun otpErlangTuple(vararg elements: OtpErlangObject) = OtpErlangTuple(elements)
 
 /**

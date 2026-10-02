@@ -52,6 +52,49 @@ class ErrorsTest : LoweringTestCase() {
         }
     }
 
+    fun testAStringEscapingPastTheLastCodePointIsBroken() = assertBroken("\"\\u{110000}\"")
+
+    fun testACharListEscapingPastTheLastCodePointIsBroken() = assertBroken("'\\u{110000}'")
+
+    fun testAnAtomEscapingPastTheLastCodePointIsBroken() = assertBroken(":\"\\u{110000}\"")
+
+    fun testARemoteNameEscapingPastTheLastCodePointIsBroken() = assertBroken("a.'\\u{110000}'")
+
+    fun testAStringEscapingASurrogateIsBroken() = assertBroken("\"\\u{D800}\"")
+
+    fun testAnAtomEscapingASurrogateIsBroken() = assertBroken(":\"\\u{D800}\"")
+
+    fun testARemoteNameEscapingASurrogateIsBroken() = assertBroken("a.\"\\u{DFFF}\"")
+
+    fun testAnAtomTooLongForAnAtomIsBroken() = assertBroken(":$TOO_LONG")
+
+    fun testAQuotedAtomTooLongForAnAtomIsBroken() = assertBroken(":\"$TOO_LONG\"")
+
+    fun testAKeywordKeyTooLongForAnAtomIsBroken() = assertBroken("f($TOO_LONG: 1)")
+
+    fun testAQuotedKeywordKeyTooLongForAnAtomIsBroken() = assertBroken("f(\"$TOO_LONG\": 1)")
+
+    fun testACallNameTooLongForAnAtomIsBroken() = assertBroken("$TOO_LONG(1)")
+
+    fun testAVariableTooLongForAnAtomIsBroken() = assertBroken("{$TOO_LONG, 1}")
+
+    fun testADefinitionNameTooLongForAnAtomIsBroken() = assertBroken("def $TOO_LONG, do: 1")
+
+    fun testARemoteNameTooLongForAnAtomIsBroken() = assertBroken("x.$TOO_LONG()")
+
+    fun testAQuotedRemoteNameTooLongForAnAtomIsBroken() {
+        for (version in listOf(OLDEST, NEWEST)) {
+            assertBroken("x.\"$TOO_LONG\"()", version)
+        }
+    }
+
+    fun testAnAliasTooLongForAnAtomIsBroken() = assertBroken("A${TOO_LONG.drop(1)}")
+
+    fun testAnAliasSegmentTooLongForAnAtomIsBroken() = assertBroken("Foo.A${TOO_LONG.drop(1)}")
+
+    // `sigil_` and 250 letters
+    fun testASigilNameTooLongForAnAtomIsBroken() = assertBroken("~${"A".repeat(250)}\"x\"")
+
     private fun assertBroken(code: String, elixirVersion: String = NEWEST) {
         val reasons = placeholderReasons(lower(code, elixirVersion))
 
@@ -62,3 +105,6 @@ class ErrorsTest : LoweringTestCase() {
 }
 
 private val ERROR = listOf(ElixirAst.Placeholder.Reason.Error)
+
+/** One code point more than an atom may have. */
+private val TOO_LONG = "a".repeat(256)

@@ -1,0 +1,1688 @@
+2	call	`defmodule :queue do\n\n  # Types\n\n  @type queue :: queue(any())\n\n  @opaque queue(item) :: {[item], [item]}\n\n  # Functions\n\n  @spec cons(item, q1 :: queue(item)) :: q2 :: queue(item)\n  def cons(x, q), do: in_r(x, q)\n\n  @spec daeh(q :: queue(item)) :: item\n  def daeh(q), do: get_r(q)\n\n  @spec drop(q1 :: queue(item)) :: q2 :: queue(item)\n  def drop({[], []} = q), do: :erlang.error(:empty, [q])\n\n  def drop({[_], []}), do: {[], []}\n\n  def drop({[y | r], []}) do\n    [_ | f] = :lists.reverse(r, [])\n    {[y], f}\n  end\n\n  def drop({r, [_]}) when is_list(r), do: r2f(r)\n\n  def drop({r, [_ | f]}) when is_list(r), do: {r, f}\n\n  def drop(q), do: :erlang.error(:badarg, [q])\n\n  @spec drop_r(q1 :: queue(item)) :: q2 :: queue(item)\n  def drop_r({[], []} = q), do: :erlang.error(:empty, [q])\n\n  def drop_r({[], [_]}), do: {[], []}\n\n  def drop_r({[], [y | f]}) do\n    [_ | r] = :lists.reverse(f, [])\n    {r, [y]}\n  end\n\n  def drop_r({[_], f}) when is_list(f), do: f2r(f)\n\n  def drop_r({[_ | r], f}) when is_list(f), do: {r, f}\n\n  def drop_r(q), do: :erlang.error(:badarg, [q])\n\n  @spec filter(fun, q1 :: queue(item)) :: q2 :: queue(item) when fun: (item -> (boolean() | [item]))\n  def filter(fun, {r0, f0}) when is_function(fun, 1) and is_list(r0) and is_list(f0) do\n    f = filter_f(fun, f0)\n    r = filter_r(fun, r0)\n    cond do\n      r === [] ->\n        f2r(f)\n      f === [] ->\n        r2f(r)\n      true ->\n        {r, f}\n    end\n  end\n\n  def filter(fun, q), do: :erlang.error(:badarg, [fun, q])\n\n  @spec from_list(l :: [item]) :: queue(item)\n  def from_list(l) when is_list(l), do: f2r(l)\n\n  def from_list(l), do: :erlang.error(:badarg, [l])\n\n  @spec get(q :: queue(item)) :: item\n  def get({[], []} = q), do: :erlang.error(:empty, [q])\n\n  def get({r, f}) when is_list(r) and is_list(f), do: get(r, f)\n\n  def get(q), do: :erlang.error(:badarg, [q])\n\n  @spec get_r(q :: queue(item)) :: item\n  def get_r({[], []} = q), do: :erlang.error(:empty, [q])\n\n  def get_r({[h | _], f}) when is_list(f), do: h\n\n  def get_r({[], [h]}), do: h\n\n  def get_r({[], [_ | f]}), do: :lists.last(f)\n\n  def get_r(q), do: :erlang.error(:badarg, [q])\n\n  @spec head(q :: queue(item)) :: item\n  def head({[], []} = q), do: :erlang.error(:empty, [q])\n\n  def head({r, f}) when is_list(r) and is_list(f), do: get(r, f)\n\n  def head(q), do: :erlang.error(:badarg, [q])\n\n  @spec unquote(:in)(item, q1 :: queue(item)) :: q2 :: queue(item)\n  def unquote(:in)(x, {[_] = erlangVariableIn, []}), do: {[x], erlangVariableIn}\n\n  def unquote(:in)(x, {erlangVariableIn, out}) when is_list(erlangVariableIn) and is_list(out), do: {[x | erlangVariableIn], out}\n\n  def unquote(:in)(x, q), do: :erlang.error(:badarg, [x, q])\n\n  @spec in_r(item, q1 :: queue(item)) :: q2 :: queue(item)\n  def in_r(x, {[], [_] = f}), do: {f, [x]}\n\n  def in_r(x, {r, f}) when is_list(r) and is_list(f), do: {r, [x | f]}\n\n  def in_r(x, q), do: :erlang.error(:badarg, [x, q])\n\n  @spec init(q1 :: queue(item)) :: q2 :: queue(item)\n  def init(q), do: drop_r(q)\n\n  @spec is_empty(q :: queue()) :: boolean()\n  def is_empty({[], []}), do: true\n\n  def is_empty({erlangVariableIn, out}) when is_list(erlangVariableIn) and is_list(out), do: false\n\n  def is_empty(q), do: :erlang.error(:badarg, [q])\n\n  @spec is_queue(term :: term()) :: boolean()\n  def is_queue({r, f}) when is_list(r) and is_list(f), do: true\n\n  def is_queue(_), do: false\n\n  @spec join(q1 :: queue(item), q2 :: queue(item)) :: q3 :: queue(item)\n  def join({r, f} = q, {[], []}) when is_list(r) and is_list(f), do: q\n\n  def join({[], []}, {r, f} = q) when is_list(r) and is_list(f), do: q\n\n  def join({r1, f1}, {r2, f2}) when is_list(r1) and is_list(f1) and is_list(r2) and is_list(f2), do: {r2, f1 ++ :lists.reverse(r1, f2)}\n\n  def join(q1, q2), do: :erlang.error(:badarg, [q1, q2])\n\n  @spec lait(q1 :: queue(item)) :: q2 :: queue(item)\n  def lait(q), do: drop_r(q)\n\n  @spec last(q :: queue(item)) :: item\n  def last(q), do: get_r(q)\n\n  @spec len(q :: queue()) :: non_neg_integer()\n  def len({r, f}) when is_list(r) and is_list(f), do: length(r) + length(f)\n\n  def len(q), do: :erlang.error(:badarg, [q])\n\n  @spec liat(q1 :: queue(item)) :: q2 :: queue(item)\n  def liat(q), do: drop_r(q)\n\n  @spec member(item, q :: queue(item)) :: boolean()\n  def member(x, {r, f}) when is_list(r) and is_list(f), do: :lists.member(x, r) or :lists.member(x, f)\n\n  def member(x, q), do: :erlang.error(:badarg, [x, q])\n\n  def module_info() do\n    # body not decompiled\n  end\n\n  def module_info(p0) do\n    # body not decompiled\n  end\n\n  @spec new() :: queue()\n  def new(), do: {[], []}\n\n  @spec out(q1 :: queue(item)) :: ({{:value, item}, q2 :: queue(item)} | {:empty, q1 :: queue(item)})\n  def out({[], []} = q), do: {:empty, q}\n\n  def out({[v], []}), do: {{:value, v}, {[], []}}\n\n  def out({[y | erlangVariableIn], []}) do\n    [v | out] = :lists.reverse(erlangVariableIn, [])\n    {{:value, v}, {[y], out}}\n  end\n\n  def out({erlangVariableIn, [v]}) when is_list(erlangVariableIn), do: {{:value, v}, r2f(erlangVariableIn)}\n\n  def out({erlangVariableIn, [v | out]}) when is_list(erlangVariableIn), do: {{:value, v}, {erlangVariableIn, out}}\n\n  def out(q), do: :erlang.error(:badarg, [q])\n\n  @spec out_r(q1 :: queue(item)) :: ({{:value, item}, q2 :: queue(item)} | {:empty, q1 :: queue(item)})\n  def out_r({[], []} = q), do: {:empty, q}\n\n  def out_r({[], [v]}), do: {{:value, v}, {[], []}}\n\n  def out_r({[], [y | out]}) do\n    [v | erlangVariableIn] = :lists.reverse(out, [])\n    {{:value, v}, {erlangVariableIn, [y]}}\n  end\n\n  def out_r({[v], out}) when is_list(out), do: {{:value, v}, f2r(out)}\n\n  def out_r({[v | erlangVariableIn], out}) when is_list(out), do: {{:value, v}, {erlangVariableIn, out}}\n\n  def out_r(q), do: :erlang.error(:badarg, [q])\n\n  @spec peek(q :: queue(item)) :: (:empty | {:value, item})\n  def peek({[], []}), do: :empty\n\n  def peek({r, [h | _]}) when is_list(r), do: {:value, h}\n\n  def peek({[h], []}), do: {:value, h}\n\n  def peek({[_ | r], []}), do: {:value, :lists.last(r)}\n\n  def peek(q), do: :erlang.error(:badarg, [q])\n\n  @spec peek_r(q :: queue(item)) :: (:empty | {:value, item})\n  def peek_r({[], []}), do: :empty\n\n  def peek_r({[h | _], f}) when is_list(f), do: {:value, h}\n\n  def peek_r({[], [h]}), do: {:value, h}\n\n  def peek_r({[], [_ | r]}), do: {:value, :lists.last(r)}\n\n  def peek_r(q), do: :erlang.error(:badarg, [q])\n\n  @spec reverse(q1 :: queue(item)) :: q2 :: queue(item)\n  def reverse({r, f}) when is_list(r) and is_list(f), do: {f, r}\n\n  def reverse(q), do: :erlang.error(:badarg, [q])\n\n  @spec snoc(q1 :: queue(item), item) :: q2 :: queue(item)\n  def snoc(q, x), do: apply(__MODULE__, :in, [x, q])\n\n  @spec split(n :: non_neg_integer(), q1 :: queue(item)) :: {q2 :: queue(item), q3 :: queue(item)}\n  def split(0, {r, f} = q) when is_list(r) and is_list(f), do: {{[], []}, q}\n\n  def split(n, {r, f} = q) when is_integer(n) and n >= 1 and is_list(r) and is_list(f) do\n    lf = :erlang.length(f)\n    cond do\n      n < lf ->\n        [x | f1] = f\n        split_f1_to_r2(n - 1, r, f1, [], [x])\n      n > lf ->\n        lr = length(r)\n        m = lr - n - lf\n        cond do\n          m < 0 ->\n            :erlang.error(:badarg, [n, q])\n          m > 0 ->\n            [x | r1] = r\n            split_r1_to_f2(m - 1, r1, f, [x], [])\n          true ->\n            {q, {[], []}}\n        end\n      true ->\n        {f2r(f), r2f(r)}\n    end\n  end\n\n  def split(n, q), do: :erlang.error(:badarg, [n, q])\n\n  @spec tail(q1 :: queue(item)) :: q2 :: queue(item)\n  def tail(q), do: drop(q)\n\n  @spec to_list(q :: queue(item)) :: [item]\n  def to_list({erlangVariableIn, out}) when is_list(erlangVariableIn) and is_list(out), do: out ++ :lists.reverse(erlangVariableIn, [])\n\n  def to_list(q), do: :erlang.error(:badarg, [q])\n\n  # Private Functions\n\n  defp filter_f(_, []), do: []\n\n  defp filter_f(fun, [x | f]) do\n    case fun.(x) do\n      true ->\n        [x | filter_f(fun, f)]\n      false ->\n        filter_f(fun, f)\n      l when is_list(l) ->\n        l ++ filter_f(fun, f)\n    end\n  end\n\n  defp filter_r(_, []), do: []\n\n  defp filter_r(fun, [x | r0]) do\n    r = filter_r(fun, r0)\n    case fun.(x) do\n      true ->\n        [x | r]\n      false ->\n        r\n      l when is_list(l) ->\n        :lists.reverse(l, r)\n    end\n  end\n\n  @spec get([], []) :: term()\n  defp get(r, [h | _]) when is_list(r), do: h\n\n  defp get([h], []), do: h\n\n  defp get([_ | r], []), do: :lists.last(r)\n\n  defp split_f1_to_r2(0, r1, f1, r2, f2), do: {{r2, f2}, {r1, f1}}\n\n  defp split_f1_to_r2(n, r1, [x | f1], r2, f2), do: split_f1_to_r2(n - 1, r1, f1, [x | r2], f2)\n\n  defp split_r1_to_f2(0, r1, f1, r2, f2), do: {{r1, f1}, {r2, f2}}\n\n  defp split_r1_to_f2(n, [x | r1], f1, r2, f2), do: split_r1_to_f2(n - 1, r1, f1, r2, [x | f2])\nend`	{defmodule,[{line,2}],[queue,[{do,{'__block__',[{line,2}],[{'@',[{line,6}],[{type,[{line,6}],[{'::',[{line,6}],[{queue,[{line,6}],nil},{queue,[{line,6}],[{any,[{line,6}],[]}]}]}]}]},{'@',[{line,8}],[{opaque,[{line,8}],[{'::',[{line,8}],[{queue,[{line,8}],[{item,[{line,8}],nil}]},{[{item,[{line,8}],nil}],[{item,[{line,8}],nil}]}]}]}]},{'@',[{line,12}],[{spec,[{line,12}],[{'::',[{line,12}],[{cons,[{line,12}],[{item,[{line,12}],nil},{'::',[{line,12}],[{q1,[{line,12}],nil},{queue,[{line,12}],[{item,[{line,12}],nil}]}]}]},{'::',[{line,12}],[{q2,[{line,12}],nil},{queue,[{line,12}],[{item,[{line,12}],nil}]}]}]}]}]},{def,[{line,13}],[{cons,[{line,13}],[{x,[{line,13}],nil},{q,[{line,13}],nil}]},[{do,{in_r,[{line,13}],[{x,[{line,13}],nil},{q,[{line,13}],nil}]}}]]},{'@',[{line,15}],[{spec,[{line,15}],[{'::',[{line,15}],[{daeh,[{line,15}],[{'::',[{line,15}],[{q,[{line,15}],nil},{queue,[{line,15}],[{item,[{line,15}],nil}]}]}]},{item,[{line,15}],nil}]}]}]},{def,[{line,16}],[{daeh,[{line,16}],[{q,[{line,16}],nil}]},[{do,{get_r,[{line,16}],[{q,[{line,16}],nil}]}}]]},{'@',[{line,18}],[{spec,[{line,18}],[{'::',[{line,18}],[{drop,[{line,18}],[{'::',[{line,18}],[{q1,[{line,18}],nil},{queue,[{line,18}],[{item,[{line,18}],nil}]}]}]},{'::',[{line,18}],[{q2,[{line,18}],nil},{queue,[{line,18}],[{item,[{line,18}],nil}]}]}]}]}]},{def,[{line,19}],[{drop,[{line,19}],[{'=',[{line,19}],[{[],[]},{q,[{line,19}],nil}]}]},[{do,{{'.',[{line,19}],[erlang,error]},[{line,19}],[empty,[{q,[{line,19}],nil}]]}}]]},{def,[{line,21}],[{drop,[{line,21}],[{[{'_',[{line,21}],nil}],[]}]},[{do,{[],[]}}]]},{def,[{line,23}],[{drop,[{line,23}],[{[{'|',[{line,23}],[{y,[{line,23}],nil},{r,[{line,23}],nil}]}],[]}]},[{do,{'__block__',[{line,23}],[{'=',[{line,24}],[[{'|',[{line,24}],[{'_',[{line,24}],nil},{f,[{line,24}],nil}]}],{{'.',[{line,24}],[lists,reverse]},[{line,24}],[{r,[{line,24}],nil},[]]}]},{[{y,[{line,25}],nil}],{f,[{line,25}],nil}}]}}]]},{def,[{line,28}],[{when,[{line,28}],[{drop,[{line,28}],[{{r,[{line,28}],nil},[{'_',[{line,28}],nil}]}]},{is_list,[{line,28}],[{r,[{line,28}],nil}]}]},[{do,{r2f,[{line,28}],[{r,[{line,28}],nil}]}}]]},{def,[{line,30}],[{when,[{line,30}],[{drop,[{line,30}],[{{r,[{line,30}],nil},[{'|',[{line,30}],[{'_',[{line,30}],nil},{f,[{line,30}],nil}]}]}]},{is_list,[{line,30}],[{r,[{line,30}],nil}]}]},[{do,{{r,[{line,30}],nil},{f,[{line,30}],nil}}}]]},{def,[{line,32}],[{drop,[{line,32}],[{q,[{line,32}],nil}]},[{do,{{'.',[{line,32}],[erlang,error]},[{line,32}],[badarg,[{q,[{line,32}],nil}]]}}]]},{'@',[{line,34}],[{spec,[{line,34}],[{'::',[{line,34}],[{drop_r,[{line,34}],[{'::',[{line,34}],[{q1,[{line,34}],nil},{queue,[{line,34}],[{item,[{line,34}],nil}]}]}]},{'::',[{line,34}],[{q2,[{line,34}],nil},{queue,[{line,34}],[{item,[{line,34}],nil}]}]}]}]}]},{def,[{line,35}],[{drop_r,[{line,35}],[{'=',[{line,35}],[{[],[]},{q,[{line,35}],nil}]}]},[{do,{{'.',[{line,35}],[erlang,error]},[{line,35}],[empty,[{q,[{line,35}],nil}]]}}]]},{def,[{line,37}],[{drop_r,[{line,37}],[{[],[{'_',[{line,37}],nil}]}]},[{do,{[],[]}}]]},{def,[{line,39}],[{drop_r,[{line,39}],[{[],[{'|',[{line,39}],[{y,[{line,39}],nil},{f,[{line,39}],nil}]}]}]},[{do,{'__block__',[{line,39}],[{'=',[{line,40}],[[{'|',[{line,40}],[{'_',[{line,40}],nil},{r,[{line,40}],nil}]}],{{'.',[{line,40}],[lists,reverse]},[{line,40}],[{f,[{line,40}],nil},[]]}]},{{r,[{line,41}],nil},[{y,[{line,41}],nil}]}]}}]]},{def,[{line,44}],[{when,[{line,44}],[{drop_r,[{line,44}],[{[{'_',[{line,44}],nil}],{f,[{line,44}],nil}}]},{is_list,[{line,44}],[{f,[{line,44}],nil}]}]},[{do,{f2r,[{line,44}],[{f,[{line,44}],nil}]}}]]},{def,[{line,46}],[{when,[{line,46}],[{drop_r,[{line,46}],[{[{'|',[{line,46}],[{'_',[{line,46}],nil},{r,[{line,46}],nil}]}],{f,[{line,46}],nil}}]},{is_list,[{line,46}],[{f,[{line,46}],nil}]}]},[{do,{{r,[{line,46}],nil},{f,[{line,46}],nil}}}]]},{def,[{line,48}],[{drop_r,[{line,48}],[{q,[{line,48}],nil}]},[{do,{{'.',[{line,48}],[erlang,error]},[{line,48}],[badarg,[{q,[{line,48}],nil}]]}}]]},{'@',[{line,50}],[{spec,[{line,50}],[{when,[{line,50}],[{'::',[{line,50}],[{filter,[{line,50}],[{fun,[{line,50}],nil},{'::',[{line,50}],[{q1,[{line,50}],nil},{queue,[{line,50}],[{item,[{line,50}],nil}]}]}]},{'::',[{line,50}],[{q2,[{line,50}],nil},{queue,[{line,50}],[{item,[{line,50}],nil}]}]}]},[{fun,[{'->',[{line,50}],[[{item,[{line,50}],nil}],{'|',[{line,50}],[{boolean,[{line,50}],[]},[{item,[{line,50}],nil}]]}]}]}]]}]}]},{def,[{line,51}],[{when,[{line,51}],[{filter,[{line,51}],[{fun,[{line,51}],nil},{{r0,[{line,51}],nil},{f0,[{line,51}],nil}}]},{and,[{line,51}],[{and,[{line,51}],[{is_function,[{line,51}],[{fun,[{line,51}],nil},1]},{is_list,[{line,51}],[{r0,[{line,51}],nil}]}]},{is_list,[{line,51}],[{f0,[{line,51}],nil}]}]}]},[{do,{'__block__',[{line,51}],[{'=',[{line,52}],[{f,[{line,52}],nil},{filter_f,[{line,52}],[{fun,[{line,52}],nil},{f0,[{line,52}],nil}]}]},{'=',[{line,53}],[{r,[{line,53}],nil},{filter_r,[{line,53}],[{fun,[{line,53}],nil},{r0,[{line,53}],nil}]}]},{cond,[{line,54}],[[{do,[{'->',[{line,55}],[[{'===',[{line,55}],[{r,[{line,55}],nil},[]]}],{f2r,[{line,56}],[{f,[{line,56}],nil}]}]},{'->',[{line,57}],[[{'===',[{line,57}],[{f,[{line,57}],nil},[]]}],{r2f,[{line,58}],[{r,[{line,58}],nil}]}]},{'->',[{line,59}],[[true],{{r,[{line,60}],nil},{f,[{line,60}],nil}}]}]}]]}]}}]]},{def,[{line,64}],[{filter,[{line,64}],[{fun,[{line,64}],nil},{q,[{line,64}],nil}]},[{do,{{'.',[{line,64}],[erlang,error]},[{line,64}],[badarg,[{fun,[{line,64}],nil},{q,[{line,64}],nil}]]}}]]},{'@',[{line,66}],[{spec,[{line,66}],[{'::',[{line,66}],[{from_list,[{line,66}],[{'::',[{line,66}],[{l,[{line,66}],nil},[{item,[{line,66}],nil}]]}]},{queue,[{line,66}],[{item,[{line,66}],nil}]}]}]}]},{def,[{line,67}],[{when,[{line,67}],[{from_list,[{line,67}],[{l,[{line,67}],nil}]},{is_list,[{line,67}],[{l,[{line,67}],nil}]}]},[{do,{f2r,[{line,67}],[{l,[{line,67}],nil}]}}]]},{def,[{line,69}],[{from_list,[{line,69}],[{l,[{line,69}],nil}]},[{do,{{'.',[{line,69}],[erlang,error]},[{line,69}],[badarg,[{l,[{line,69}],nil}]]}}]]},{'@',[{line,71}],[{spec,[{line,71}],[{'::',[{line,71}],[{get,[{line,71}],[{'::',[{line,71}],[{q,[{line,71}],nil},{queue,[{line,71}],[{item,[{line,71}],nil}]}]}]},{item,[{line,71}],nil}]}]}]},{def,[{line,72}],[{get,[{line,72}],[{'=',[{line,72}],[{[],[]},{q,[{line,72}],nil}]}]},[{do,{{'.',[{line,72}],[erlang,error]},[{line,72}],[empty,[{q,[{line,72}],nil}]]}}]]},{def,[{line,74}],[{when,[{line,74}],[{get,[{line,74}],[{{r,[{line,74}],nil},{f,[{line,74}],nil}}]},{and,[{line,74}],[{is_list,[{line,74}],[{r,[{line,74}],nil}]},{is_list,[{line,74}],[{f,[{line,74}],nil}]}]}]},[{do,{get,[{line,74}],[{r,[{line,74}],nil},{f,[{line,74}],nil}]}}]]},{def,[{line,76}],[{get,[{line,76}],[{q,[{line,76}],nil}]},[{do,{{'.',[{line,76}],[erlang,error]},[{line,76}],[badarg,[{q,[{line,76}],nil}]]}}]]},{'@',[{line,78}],[{spec,[{line,78}],[{'::',[{line,78}],[{get_r,[{line,78}],[{'::',[{line,78}],[{q,[{line,78}],nil},{queue,[{line,78}],[{item,[{line,78}],nil}]}]}]},{item,[{line,78}],nil}]}]}]},{def,[{line,79}],[{get_r,[{line,79}],[{'=',[{line,79}],[{[],[]},{q,[{line,79}],nil}]}]},[{do,{{'.',[{line,79}],[erlang,error]},[{line,79}],[empty,[{q,[{line,79}],nil}]]}}]]},{def,[{line,81}],[{when,[{line,81}],[{get_r,[{line,81}],[{[{'|',[{line,81}],[{h,[{line,81}],nil},{'_',[{line,81}],nil}]}],{f,[{line,81}],nil}}]},{is_list,[{line,81}],[{f,[{line,81}],nil}]}]},[{do,{h,[{line,81}],nil}}]]},{def,[{line,83}],[{get_r,[{line,83}],[{[],[{h,[{line,83}],nil}]}]},[{do,{h,[{line,83}],nil}}]]},{def,[{line,85}],[{get_r,[{line,85}],[{[],[{'|',[{line,85}],[{'_',[{line,85}],nil},{f,[{line,85}],nil}]}]}]},[{do,{{'.',[{line,85}],[lists,last]},[{line,85}],[{f,[{line,85}],nil}]}}]]},{def,[{line,87}],[{get_r,[{line,87}],[{q,[{line,87}],nil}]},[{do,{{'.',[{line,87}],[erlang,error]},[{line,87}],[badarg,[{q,[{line,87}],nil}]]}}]]},{'@',[{line,89}],[{spec,[{line,89}],[{'::',[{line,89}],[{head,[{line,89}],[{'::',[{line,89}],[{q,[{line,89}],nil},{queue,[{line,89}],[{item,[{line,89}],nil}]}]}]},{item,[{line,89}],nil}]}]}]},{def,[{line,90}],[{head,[{line,90}],[{'=',[{line,90}],[{[],[]},{q,[{line,90}],nil}]}]},[{do,{{'.',[{line,90}],[erlang,error]},[{line,90}],[empty,[{q,[{line,90}],nil}]]}}]]},{def,[{line,92}],[{when,[{line,92}],[{head,[{line,92}],[{{r,[{line,92}],nil},{f,[{line,92}],nil}}]},{and,[{line,92}],[{is_list,[{line,92}],[{r,[{line,92}],nil}]},{is_list,[{line,92}],[{f,[{line,92}],nil}]}]}]},[{do,{get,[{line,92}],[{r,[{line,92}],nil},{f,[{line,92}],nil}]}}]]},{def,[{line,94}],[{head,[{line,94}],[{q,[{line,94}],nil}]},[{do,{{'.',[{line,94}],[erlang,error]},[{line,94}],[badarg,[{q,[{line,94}],nil}]]}}]]},{'@',[{line,96}],[{spec,[{line,96}],[{'::',[{line,96}],[{{unquote,[{line,96}],[in]},[{line,96}],[{item,[{line,96}],nil},{'::',[{line,96}],[{q1,[{line,96}],nil},{queue,[{line,96}],[{item,[{line,96}],nil}]}]}]},{'::',[{line,96}],[{q2,[{line,96}],nil},{queue,[{line,96}],[{item,[{line,96}],nil}]}]}]}]}]},{def,[{line,97}],[{{unquote,[{line,97}],[in]},[{line,97}],[{x,[{line,97}],nil},{{'=',[{line,97}],[[{'_',[{line,97}],nil}],{erlangVariableIn,[{line,97}],nil}]},[]}]},[{do,{[{x,[{line,97}],nil}],{erlangVariableIn,[{line,97}],nil}}}]]},{def,[{line,99}],[{when,[{line,99}],[{{unquote,[{line,99}],[in]},[{line,99}],[{x,[{line,99}],nil},{{erlangVariableIn,[{line,99}],nil},{out,[{line,99}],nil}}]},{and,[{line,99}],[{is_list,[{line,99}],[{erlangVariableIn,[{line,99}],nil}]},{is_list,[{line,99}],[{out,[{line,99}],nil}]}]}]},[{do,{[{'|',[{line,99}],[{x,[{line,99}],nil},{erlangVariableIn,[{line,99}],nil}]}],{out,[{line,99}],nil}}}]]},{def,[{line,101}],[{{unquote,[{line,101}],[in]},[{line,101}],[{x,[{line,101}],nil},{q,[{line,101}],nil}]},[{do,{{'.',[{line,101}],[erlang,error]},[{line,101}],[badarg,[{x,[{line,101}],nil},{q,[{line,101}],nil}]]}}]]},{'@',[{line,103}],[{spec,[{line,103}],[{'::',[{line,103}],[{in_r,[{line,103}],[{item,[{line,103}],nil},{'::',[{line,103}],[{q1,[{line,103}],nil},{queue,[{line,103}],[{item,[{line,103}],nil}]}]}]},{'::',[{line,103}],[{q2,[{line,103}],nil},{queue,[{line,103}],[{item,[{line,103}],nil}]}]}]}]}]},{def,[{line,104}],[{in_r,[{line,104}],[{x,[{line,104}],nil},{[],{'=',[{line,104}],[[{'_',[{line,104}],nil}],{f,[{line,104}],nil}]}}]},[{do,{{f,[{line,104}],nil},[{x,[{line,104}],nil}]}}]]},{def,[{line,106}],[{when,[{line,106}],[{in_r,[{line,106}],[{x,[{line,106}],nil},{{r,[{line,106}],nil},{f,[{line,106}],nil}}]},{and,[{line,106}],[{is_list,[{line,106}],[{r,[{line,106}],nil}]},{is_list,[{line,106}],[{f,[{line,106}],nil}]}]}]},[{do,{{r,[{line,106}],nil},[{'|',[{line,106}],[{x,[{line,106}],nil},{f,[{line,106}],nil}]}]}}]]},{def,[{line,108}],[{in_r,[{line,108}],[{x,[{line,108}],nil},{q,[{line,108}],nil}]},[{do,{{'.',[{line,108}],[erlang,error]},[{line,108}],[badarg,[{x,[{line,108}],nil},{q,[{line,108}],nil}]]}}]]},{'@',[{line,110}],[{spec,[{line,110}],[{'::',[{line,110}],[{init,[{line,110}],[{'::',[{line,110}],[{q1,[{line,110}],nil},{queue,[{line,110}],[{item,[{line,110}],nil}]}]}]},{'::',[{line,110}],[{q2,[{line,110}],nil},{queue,[{line,110}],[{item,[{line,110}],nil}]}]}]}]}]},{def,[{line,111}],[{init,[{line,111}],[{q,[{line,111}],nil}]},[{do,{drop_r,[{line,111}],[{q,[{line,111}],nil}]}}]]},{'@',[{line,113}],[{spec,[{line,113}],[{'::',[{line,113}],[{is_empty,[{line,113}],[{'::',[{line,113}],[{q,[{line,113}],nil},{queue,[{line,113}],[]}]}]},{boolean,[{line,113}],[]}]}]}]},{def,[{line,114}],[{is_empty,[{line,114}],[{[],[]}]},[{do,true}]]},{def,[{line,116}],[{when,[{line,116}],[{is_empty,[{line,116}],[{{erlangVariableIn,[{line,116}],nil},{out,[{line,116}],nil}}]},{and,[{line,116}],[{is_list,[{line,116}],[{erlangVariableIn,[{line,116}],nil}]},{is_list,[{line,116}],[{out,[{line,116}],nil}]}]}]},[{do,false}]]},{def,[{line,118}],[{is_empty,[{line,118}],[{q,[{line,118}],nil}]},[{do,{{'.',[{line,118}],[erlang,error]},[{line,118}],[badarg,[{q,[{line,118}],nil}]]}}]]},{'@',[{line,120}],[{spec,[{line,120}],[{'::',[{line,120}],[{is_queue,[{line,120}],[{'::',[{line,120}],[{term,[{line,120}],nil},{term,[{line,120}],[]}]}]},{boolean,[{line,120}],[]}]}]}]},{def,[{line,121}],[{when,[{line,121}],[{is_queue,[{line,121}],[{{r,[{line,121}],nil},{f,[{line,121}],nil}}]},{and,[{line,121}],[{is_list,[{line,121}],[{r,[{line,121}],nil}]},{is_list,[{line,121}],[{f,[{line,121}],nil}]}]}]},[{do,true}]]},{def,[{line,123}],[{is_queue,[{line,123}],[{'_',[{line,123}],nil}]},[{do,false}]]},{'@',[{line,125}],[{spec,[{line,125}],[{'::',[{line,125}],[{join,[{line,125}],[{'::',[{line,125}],[{q1,[{line,125}],nil},{queue,[{line,125}],[{item,[{line,125}],nil}]}]},{'::',[{line,125}],[{q2,[{line,125}],nil},{queue,[{line,125}],[{item,[{line,125}],nil}]}]}]},{'::',[{line,125}],[{q3,[{line,125}],nil},{queue,[{line,125}],[{item,[{line,125}],nil}]}]}]}]}]},{def,[{line,126}],[{when,[{line,126}],[{join,[{line,126}],[{'=',[{line,126}],[{{r,[{line,126}],nil},{f,[{line,126}],nil}},{q,[{line,126}],nil}]},{[],[]}]},{and,[{line,126}],[{is_list,[{line,126}],[{r,[{line,126}],nil}]},{is_list,[{line,126}],[{f,[{line,126}],nil}]}]}]},[{do,{q,[{line,126}],nil}}]]},{def,[{line,128}],[{when,[{line,128}],[{join,[{line,128}],[{[],[]},{'=',[{line,128}],[{{r,[{line,128}],nil},{f,[{line,128}],nil}},{q,[{line,128}],nil}]}]},{and,[{line,128}],[{is_list,[{line,128}],[{r,[{line,128}],nil}]},{is_list,[{line,128}],[{f,[{line,128}],nil}]}]}]},[{do,{q,[{line,128}],nil}}]]},{def,[{line,130}],[{when,[{line,130}],[{join,[{line,130}],[{{r1,[{line,130}],nil},{f1,[{line,130}],nil}},{{r2,[{line,130}],nil},{f2,[{line,130}],nil}}]},{and,[{line,130}],[{and,[{line,130}],[{and,[{line,130}],[{is_list,[{line,130}],[{r1,[{line,130}],nil}]},{is_list,[{line,130}],[{f1,[{line,130}],nil}]}]},{is_list,[{line,130}],[{r2,[{line,130}],nil}]}]},{is_list,[{line,130}],[{f2,[{line,130}],nil}]}]}]},[{do,{{r2,[{line,130}],nil},{'++',[{line,130}],[{f1,[{line,130}],nil},{{'.',[{line,130}],[lists,reverse]},[{line,130}],[{r1,[{line,130}],nil},{f2,[{line,130}],nil}]}]}}}]]},{def,[{line,132}],[{join,[{line,132}],[{q1,[{line,132}],nil},{q2,[{line,132}],nil}]},[{do,{{'.',[{line,132}],[erlang,error]},[{line,132}],[badarg,[{q1,[{line,132}],nil},{q2,[{line,132}],nil}]]}}]]},{'@',[{line,134}],[{spec,[{line,134}],[{'::',[{line,134}],[{lait,[{line,134}],[{'::',[{line,134}],[{q1,[{line,134}],nil},{queue,[{line,134}],[{item,[{line,134}],nil}]}]}]},{'::',[{line,134}],[{q2,[{line,134}],nil},{queue,[{line,134}],[{item,[{line,134}],nil}]}]}]}]}]},{def,[{line,135}],[{lait,[{line,135}],[{q,[{line,135}],nil}]},[{do,{drop_r,[{line,135}],[{q,[{line,135}],nil}]}}]]},{'@',[{line,137}],[{spec,[{line,137}],[{'::',[{line,137}],[{last,[{line,137}],[{'::',[{line,137}],[{q,[{line,137}],nil},{queue,[{line,137}],[{item,[{line,137}],nil}]}]}]},{item,[{line,137}],nil}]}]}]},{def,[{line,138}],[{last,[{line,138}],[{q,[{line,138}],nil}]},[{do,{get_r,[{line,138}],[{q,[{line,138}],nil}]}}]]},{'@',[{line,140}],[{spec,[{line,140}],[{'::',[{line,140}],[{len,[{line,140}],[{'::',[{line,140}],[{q,[{line,140}],nil},{queue,[{line,140}],[]}]}]},{non_neg_integer,[{line,140}],[]}]}]}]},{def,[{line,141}],[{when,[{line,141}],[{len,[{line,141}],[{{r,[{line,141}],nil},{f,[{line,141}],nil}}]},{and,[{line,141}],[{is_list,[{line,141}],[{r,[{line,141}],nil}]},{is_list,[{line,141}],[{f,[{line,141}],nil}]}]}]},[{do,{'+',[{line,141}],[{length,[{line,141}],[{r,[{line,141}],nil}]},{length,[{line,141}],[{f,[{line,141}],nil}]}]}}]]},{def,[{line,143}],[{len,[{line,143}],[{q,[{line,143}],nil}]},[{do,{{'.',[{line,143}],[erlang,error]},[{line,143}],[badarg,[{q,[{line,143}],nil}]]}}]]},{'@',[{line,145}],[{spec,[{line,145}],[{'::',[{line,145}],[{liat,[{line,145}],[{'::',[{line,145}],[{q1,[{line,145}],nil},{queue,[{line,145}],[{item,[{line,145}],nil}]}]}]},{'::',[{line,145}],[{q2,[{line,145}],nil},{queue,[{line,145}],[{item,[{line,145}],nil}]}]}]}]}]},{def,[{line,146}],[{liat,[{line,146}],[{q,[{line,146}],nil}]},[{do,{drop_r,[{line,146}],[{q,[{line,146}],nil}]}}]]},{'@',[{line,148}],[{spec,[{line,148}],[{'::',[{line,148}],[{member,[{line,148}],[{item,[{line,148}],nil},{'::',[{line,148}],[{q,[{line,148}],nil},{queue,[{line,148}],[{item,[{line,148}],nil}]}]}]},{boolean,[{line,148}],[]}]}]}]},{def,[{line,149}],[{when,[{line,149}],[{member,[{line,149}],[{x,[{line,149}],nil},{{r,[{line,149}],nil},{f,[{line,149}],nil}}]},{and,[{line,149}],[{is_list,[{line,149}],[{r,[{line,149}],nil}]},{is_list,[{line,149}],[{f,[{line,149}],nil}]}]}]},[{do,{or,[{line,149}],[{{'.',[{line,149}],[lists,member]},[{line,149}],[{x,[{line,149}],nil},{r,[{line,149}],nil}]},{{'.',[{line,149}],[lists,member]},[{line,149}],[{x,[{line,149}],nil},{f,[{line,149}],nil}]}]}}]]},{def,[{line,151}],[{member,[{line,151}],[{x,[{line,151}],nil},{q,[{line,151}],nil}]},[{do,{{'.',[{line,151}],[erlang,error]},[{line,151}],[badarg,[{x,[{line,151}],nil},{q,[{line,151}],nil}]]}}]]},{def,[{line,153}],[{module_info,[{line,153}],[]},[{do,{'__block__',[{line,153}],[]}}]]},{def,[{line,157}],[{module_info,[{line,157}],[{p0,[{line,157}],nil}]},[{do,{'__block__',[{line,157}],[]}}]]},{'@',[{line,161}],[{spec,[{line,161}],[{'::',[{line,161}],[{new,[{line,161}],[]},{queue,[{line,161}],[]}]}]}]},{def,[{line,162}],[{new,[{line,162}],[]},[{do,{[],[]}}]]},{'@',[{line,164}],[{spec,[{line,164}],[{'::',[{line,164}],[{out,[{line,164}],[{'::',[{line,164}],[{q1,[{line,164}],nil},{queue,[{line,164}],[{item,[{line,164}],nil}]}]}]},{'|',[{line,164}],[{{value,{item,[{line,164}],nil}},{'::',[{line,164}],[{q2,[{line,164}],nil},{queue,[{line,164}],[{item,[{line,164}],nil}]}]}},{empty,{'::',[{line,164}],[{q1,[{line,164}],nil},{queue,[{line,164}],[{item,[{line,164}],nil}]}]}}]}]}]}]},{def,[{line,165}],[{out,[{line,165}],[{'=',[{line,165}],[{[],[]},{q,[{line,165}],nil}]}]},[{do,{empty,{q,[{line,165}],nil}}}]]},{def,[{line,167}],[{out,[{line,167}],[{[{v,[{line,167}],nil}],[]}]},[{do,{{value,{v,[{line,167}],nil}},{[],[]}}}]]},{def,[{line,169}],[{out,[{line,169}],[{[{'|',[{line,169}],[{y,[{line,169}],nil},{erlangVariableIn,[{line,169}],nil}]}],[]}]},[{do,{'__block__',[{line,169}],[{'=',[{line,170}],[[{'|',[{line,170}],[{v,[{line,170}],nil},{out,[{line,170}],nil}]}],{{'.',[{line,170}],[lists,reverse]},[{line,170}],[{erlangVariableIn,[{line,170}],nil},[]]}]},{{value,{v,[{line,171}],nil}},{[{y,[{line,171}],nil}],{out,[{line,171}],nil}}}]}}]]},{def,[{line,174}],[{when,[{line,174}],[{out,[{line,174}],[{{erlangVariableIn,[{line,174}],nil},[{v,[{line,174}],nil}]}]},{is_list,[{line,174}],[{erlangVariableIn,[{line,174}],nil}]}]},[{do,{{value,{v,[{line,174}],nil}},{r2f,[{line,174}],[{erlangVariableIn,[{line,174}],nil}]}}}]]},{def,[{line,176}],[{when,[{line,176}],[{out,[{line,176}],[{{erlangVariableIn,[{line,176}],nil},[{'|',[{line,176}],[{v,[{line,176}],nil},{out,[{line,176}],nil}]}]}]},{is_list,[{line,176}],[{erlangVariableIn,[{line,176}],nil}]}]},[{do,{{value,{v,[{line,176}],nil}},{{erlangVariableIn,[{line,176}],nil},{out,[{line,176}],nil}}}}]]},{def,[{line,178}],[{out,[{line,178}],[{q,[{line,178}],nil}]},[{do,{{'.',[{line,178}],[erlang,error]},[{line,178}],[badarg,[{q,[{line,178}],nil}]]}}]]},{'@',[{line,180}],[{spec,[{line,180}],[{'::',[{line,180}],[{out_r,[{line,180}],[{'::',[{line,180}],[{q1,[{line,180}],nil},{queue,[{line,180}],[{item,[{line,180}],nil}]}]}]},{'|',[{line,180}],[{{value,{item,[{line,180}],nil}},{'::',[{line,180}],[{q2,[{line,180}],nil},{queue,[{line,180}],[{item,[{line,180}],nil}]}]}},{empty,{'::',[{line,180}],[{q1,[{line,180}],nil},{queue,[{line,180}],[{item,[{line,180}],nil}]}]}}]}]}]}]},{def,[{line,181}],[{out_r,[{line,181}],[{'=',[{line,181}],[{[],[]},{q,[{line,181}],nil}]}]},[{do,{empty,{q,[{line,181}],nil}}}]]},{def,[{line,183}],[{out_r,[{line,183}],[{[],[{v,[{line,183}],nil}]}]},[{do,{{value,{v,[{line,183}],nil}},{[],[]}}}]]},{def,[{line,185}],[{out_r,[{line,185}],[{[],[{'|',[{line,185}],[{y,[{line,185}],nil},{out,[{line,185}],nil}]}]}]},[{do,{'__block__',[{line,185}],[{'=',[{line,186}],[[{'|',[{line,186}],[{v,[{line,186}],nil},{erlangVariableIn,[{line,186}],nil}]}],{{'.',[{line,186}],[lists,reverse]},[{line,186}],[{out,[{line,186}],nil},[]]}]},{{value,{v,[{line,187}],nil}},{{erlangVariableIn,[{line,187}],nil},[{y,[{line,187}],nil}]}}]}}]]},{def,[{line,190}],[{when,[{line,190}],[{out_r,[{line,190}],[{[{v,[{line,190}],nil}],{out,[{line,190}],nil}}]},{is_list,[{line,190}],[{out,[{line,190}],nil}]}]},[{do,{{value,{v,[{line,190}],nil}},{f2r,[{line,190}],[{out,[{line,190}],nil}]}}}]]},{def,[{line,192}],[{when,[{line,192}],[{out_r,[{line,192}],[{[{'|',[{line,192}],[{v,[{line,192}],nil},{erlangVariableIn,[{line,192}],nil}]}],{out,[{line,192}],nil}}]},{is_list,[{line,192}],[{out,[{line,192}],nil}]}]},[{do,{{value,{v,[{line,192}],nil}},{{erlangVariableIn,[{line,192}],nil},{out,[{line,192}],nil}}}}]]},{def,[{line,194}],[{out_r,[{line,194}],[{q,[{line,194}],nil}]},[{do,{{'.',[{line,194}],[erlang,error]},[{line,194}],[badarg,[{q,[{line,194}],nil}]]}}]]},{'@',[{line,196}],[{spec,[{line,196}],[{'::',[{line,196}],[{peek,[{line,196}],[{'::',[{line,196}],[{q,[{line,196}],nil},{queue,[{line,196}],[{item,[{line,196}],nil}]}]}]},{'|',[{line,196}],[empty,{value,{item,[{line,196}],nil}}]}]}]}]},{def,[{line,197}],[{peek,[{line,197}],[{[],[]}]},[{do,empty}]]},{def,[{line,199}],[{when,[{line,199}],[{peek,[{line,199}],[{{r,[{line,199}],nil},[{'|',[{line,199}],[{h,[{line,199}],nil},{'_',[{line,199}],nil}]}]}]},{is_list,[{line,199}],[{r,[{line,199}],nil}]}]},[{do,{value,{h,[{line,199}],nil}}}]]},{def,[{line,201}],[{peek,[{line,201}],[{[{h,[{line,201}],nil}],[]}]},[{do,{value,{h,[{line,201}],nil}}}]]},{def,[{line,203}],[{peek,[{line,203}],[{[{'|',[{line,203}],[{'_',[{line,203}],nil},{r,[{line,203}],nil}]}],[]}]},[{do,{value,{{'.',[{line,203}],[lists,last]},[{line,203}],[{r,[{line,203}],nil}]}}}]]},{def,[{line,205}],[{peek,[{line,205}],[{q,[{line,205}],nil}]},[{do,{{'.',[{line,205}],[erlang,error]},[{line,205}],[badarg,[{q,[{line,205}],nil}]]}}]]},{'@',[{line,207}],[{spec,[{line,207}],[{'::',[{line,207}],[{peek_r,[{line,207}],[{'::',[{line,207}],[{q,[{line,207}],nil},{queue,[{line,207}],[{item,[{line,207}],nil}]}]}]},{'|',[{line,207}],[empty,{value,{item,[{line,207}],nil}}]}]}]}]},{def,[{line,208}],[{peek_r,[{line,208}],[{[],[]}]},[{do,empty}]]},{def,[{line,210}],[{when,[{line,210}],[{peek_r,[{line,210}],[{[{'|',[{line,210}],[{h,[{line,210}],nil},{'_',[{line,210}],nil}]}],{f,[{line,210}],nil}}]},{is_list,[{line,210}],[{f,[{line,210}],nil}]}]},[{do,{value,{h,[{line,210}],nil}}}]]},{def,[{line,212}],[{peek_r,[{line,212}],[{[],[{h,[{line,212}],nil}]}]},[{do,{value,{h,[{line,212}],nil}}}]]},{def,[{line,214}],[{peek_r,[{line,214}],[{[],[{'|',[{line,214}],[{'_',[{line,214}],nil},{r,[{line,214}],nil}]}]}]},[{do,{value,{{'.',[{line,214}],[lists,last]},[{line,214}],[{r,[{line,214}],nil}]}}}]]},{def,[{line,216}],[{peek_r,[{line,216}],[{q,[{line,216}],nil}]},[{do,{{'.',[{line,216}],[erlang,error]},[{line,216}],[badarg,[{q,[{line,216}],nil}]]}}]]},{'@',[{line,218}],[{spec,[{line,218}],[{'::',[{line,218}],[{reverse,[{line,218}],[{'::',[{line,218}],[{q1,[{line,218}],nil},{queue,[{line,218}],[{item,[{line,218}],nil}]}]}]},{'::',[{line,218}],[{q2,[{line,218}],nil},{queue,[{line,218}],[{item,[{line,218}],nil}]}]}]}]}]},{def,[{line,219}],[{when,[{line,219}],[{reverse,[{line,219}],[{{r,[{line,219}],nil},{f,[{line,219}],nil}}]},{and,[{line,219}],[{is_list,[{line,219}],[{r,[{line,219}],nil}]},{is_list,[{line,219}],[{f,[{line,219}],nil}]}]}]},[{do,{{f,[{line,219}],nil},{r,[{line,219}],nil}}}]]},{def,[{line,221}],[{reverse,[{line,221}],[{q,[{line,221}],nil}]},[{do,{{'.',[{line,221}],[erlang,error]},[{line,221}],[badarg,[{q,[{line,221}],nil}]]}}]]},{'@',[{line,223}],[{spec,[{line,223}],[{'::',[{line,223}],[{snoc,[{line,223}],[{'::',[{line,223}],[{q1,[{line,223}],nil},{queue,[{line,223}],[{item,[{line,223}],nil}]}]},{item,[{line,223}],nil}]},{'::',[{line,223}],[{q2,[{line,223}],nil},{queue,[{line,223}],[{item,[{line,223}],nil}]}]}]}]}]},{def,[{line,224}],[{snoc,[{line,224}],[{q,[{line,224}],nil},{x,[{line,224}],nil}]},[{do,{apply,[{line,224}],[{'__MODULE__',[{line,224}],nil},in,[{x,[{line,224}],nil},{q,[{line,224}],nil}]]}}]]},{'@',[{line,226}],[{spec,[{line,226}],[{'::',[{line,226}],[{split,[{line,226}],[{'::',[{line,226}],[{n,[{line,226}],nil},{non_neg_integer,[{line,226}],[]}]},{'::',[{line,226}],[{q1,[{line,226}],nil},{queue,[{line,226}],[{item,[{line,226}],nil}]}]}]},{{'::',[{line,226}],[{q2,[{line,226}],nil},{queue,[{line,226}],[{item,[{line,226}],nil}]}]},{'::',[{line,226}],[{q3,[{line,226}],nil},{queue,[{line,226}],[{item,[{line,226}],nil}]}]}}]}]}]},{def,[{line,227}],[{when,[{line,227}],[{split,[{line,227}],[0,{'=',[{line,227}],[{{r,[{line,227}],nil},{f,[{line,227}],nil}},{q,[{line,227}],nil}]}]},{and,[{line,227}],[{is_list,[{line,227}],[{r,[{line,227}],nil}]},{is_list,[{line,227}],[{f,[{line,227}],nil}]}]}]},[{do,{{[],[]},{q,[{line,227}],nil}}}]]},{def,[{line,229}],[{when,[{line,229}],[{split,[{line,229}],[{n,[{line,229}],nil},{'=',[{line,229}],[{{r,[{line,229}],nil},{f,[{line,229}],nil}},{q,[{line,229}],nil}]}]},{and,[{line,229}],[{and,[{line,229}],[{and,[{line,229}],[{is_integer,[{line,229}],[{n,[{line,229}],nil}]},{'>=',[{line,229}],[{n,[{line,229}],nil},1]}]},{is_list,[{line,229}],[{r,[{line,229}],nil}]}]},{is_list,[{line,229}],[{f,[{line,229}],nil}]}]}]},[{do,{'__block__',[{line,229}],[{'=',[{line,230}],[{lf,[{line,230}],nil},{{'.',[{line,230}],[erlang,length]},[{line,230}],[{f,[{line,230}],nil}]}]},{cond,[{line,231}],[[{do,[{'->',[{line,232}],[[{'<',[{line,232}],[{n,[{line,232}],nil},{lf,[{line,232}],nil}]}],{'__block__',[],[{'=',[{line,233}],[[{'|',[{line,233}],[{x,[{line,233}],nil},{f1,[{line,233}],nil}]}],{f,[{line,233}],nil}]},{split_f1_to_r2,[{line,234}],[{'-',[{line,234}],[{n,[{line,234}],nil},1]},{r,[{line,234}],nil},{f1,[{line,234}],nil},[],[{x,[{line,234}],nil}]]}]}]},{'->',[{line,235}],[[{'>',[{line,235}],[{n,[{line,235}],nil},{lf,[{line,235}],nil}]}],{'__block__',[],[{'=',[{line,236}],[{lr,[{line,236}],nil},{length,[{line,236}],[{r,[{line,236}],nil}]}]},{'=',[{line,237}],[{m,[{line,237}],nil},{'-',[{line,237}],[{'-',[{line,237}],[{lr,[{line,237}],nil},{n,[{line,237}],nil}]},{lf,[{line,237}],nil}]}]},{cond,[{line,238}],[[{do,[{'->',[{line,239}],[[{'<',[{line,239}],[{m,[{line,239}],nil},0]}],{{'.',[{line,240}],[erlang,error]},[{line,240}],[badarg,[{n,[{line,240}],nil},{q,[{line,240}],nil}]]}]},{'->',[{line,241}],[[{'>',[{line,241}],[{m,[{line,241}],nil},0]}],{'__block__',[],[{'=',[{line,242}],[[{'|',[{line,242}],[{x,[{line,242}],nil},{r1,[{line,242}],nil}]}],{r,[{line,242}],nil}]},{split_r1_to_f2,[{line,243}],[{'-',[{line,243}],[{m,[{line,243}],nil},1]},{r1,[{line,243}],nil},{f,[{line,243}],nil},[{x,[{line,243}],nil}],[]]}]}]},{'->',[{line,244}],[[true],{{q,[{line,245}],nil},{[],[]}}]}]}]]}]}]},{'->',[{line,247}],[[true],{{f2r,[{line,248}],[{f,[{line,248}],nil}]},{r2f,[{line,248}],[{r,[{line,248}],nil}]}}]}]}]]}]}}]]},{def,[{line,252}],[{split,[{line,252}],[{n,[{line,252}],nil},{q,[{line,252}],nil}]},[{do,{{'.',[{line,252}],[erlang,error]},[{line,252}],[badarg,[{n,[{line,252}],nil},{q,[{line,252}],nil}]]}}]]},{'@',[{line,254}],[{spec,[{line,254}],[{'::',[{line,254}],[{tail,[{line,254}],[{'::',[{line,254}],[{q1,[{line,254}],nil},{queue,[{line,254}],[{item,[{line,254}],nil}]}]}]},{'::',[{line,254}],[{q2,[{line,254}],nil},{queue,[{line,254}],[{item,[{line,254}],nil}]}]}]}]}]},{def,[{line,255}],[{tail,[{line,255}],[{q,[{line,255}],nil}]},[{do,{drop,[{line,255}],[{q,[{line,255}],nil}]}}]]},{'@',[{line,257}],[{spec,[{line,257}],[{'::',[{line,257}],[{to_list,[{line,257}],[{'::',[{line,257}],[{q,[{line,257}],nil},{queue,[{line,257}],[{item,[{line,257}],nil}]}]}]},[{item,[{line,257}],nil}]]}]}]},{def,[{line,258}],[{when,[{line,258}],[{to_list,[{line,258}],[{{erlangVariableIn,[{line,258}],nil},{out,[{line,258}],nil}}]},{and,[{line,258}],[{is_list,[{line,258}],[{erlangVariableIn,[{line,258}],nil}]},{is_list,[{line,258}],[{out,[{line,258}],nil}]}]}]},[{do,{'++',[{line,258}],[{out,[{line,258}],nil},{{'.',[{line,258}],[lists,reverse]},[{line,258}],[{erlangVariableIn,[{line,258}],nil},[]]}]}}]]},{def,[{line,260}],[{to_list,[{line,260}],[{q,[{line,260}],nil}]},[{do,{{'.',[{line,260}],[erlang,error]},[{line,260}],[badarg,[{q,[{line,260}],nil}]]}}]]},{defp,[{line,264}],[{filter_f,[{line,264}],[{'_',[{line,264}],nil},[]]},[{do,[]}]]},{defp,[{line,266}],[{filter_f,[{line,266}],[{fun,[{line,266}],nil},[{'|',[{line,266}],[{x,[{line,266}],nil},{f,[{line,266}],nil}]}]]},[{do,{case,[{line,267}],[{{'.',[{line,267}],[{fun,[{line,267}],nil}]},[{line,267}],[{x,[{line,267}],nil}]},[{do,[{'->',[{line,268}],[[true],[{'|',[{line,269}],[{x,[{line,269}],nil},{filter_f,[{line,269}],[{fun,[{line,269}],nil},{f,[{line,269}],nil}]}]}]]},{'->',[{line,270}],[[false],{filter_f,[{line,271}],[{fun,[{line,271}],nil},{f,[{line,271}],nil}]}]},{'->',[{line,272}],[[{when,[{line,272}],[{l,[{line,272}],nil},{is_list,[{line,272}],[{l,[{line,272}],nil}]}]}],{'++',[{line,273}],[{l,[{line,273}],nil},{filter_f,[{line,273}],[{fun,[{line,273}],nil},{f,[{line,273}],nil}]}]}]}]}]]}}]]},{defp,[{line,277}],[{filter_r,[{line,277}],[{'_',[{line,277}],nil},[]]},[{do,[]}]]},{defp,[{line,279}],[{filter_r,[{line,279}],[{fun,[{line,279}],nil},[{'|',[{line,279}],[{x,[{line,279}],nil},{r0,[{line,279}],nil}]}]]},[{do,{'__block__',[{line,279}],[{'=',[{line,280}],[{r,[{line,280}],nil},{filter_r,[{line,280}],[{fun,[{line,280}],nil},{r0,[{line,280}],nil}]}]},{case,[{line,281}],[{{'.',[{line,281}],[{fun,[{line,281}],nil}]},[{line,281}],[{x,[{line,281}],nil}]},[{do,[{'->',[{line,282}],[[true],[{'|',[{line,283}],[{x,[{line,283}],nil},{r,[{line,283}],nil}]}]]},{'->',[{line,284}],[[false],{r,[{line,285}],nil}]},{'->',[{line,286}],[[{when,[{line,286}],[{l,[{line,286}],nil},{is_list,[{line,286}],[{l,[{line,286}],nil}]}]}],{{'.',[{line,287}],[lists,reverse]},[{line,287}],[{l,[{line,287}],nil},{r,[{line,287}],nil}]}]}]}]]}]}}]]},{'@',[{line,291}],[{spec,[{line,291}],[{'::',[{line,291}],[{get,[{line,291}],[[],[]]},{term,[{line,291}],[]}]}]}]},{defp,[{line,292}],[{when,[{line,292}],[{get,[{line,292}],[{r,[{line,292}],nil},[{'|',[{line,292}],[{h,[{line,292}],nil},{'_',[{line,292}],nil}]}]]},{is_list,[{line,292}],[{r,[{line,292}],nil}]}]},[{do,{h,[{line,292}],nil}}]]},{defp,[{line,294}],[{get,[{line,294}],[[{h,[{line,294}],nil}],[]]},[{do,{h,[{line,294}],nil}}]]},{defp,[{line,296}],[{get,[{line,296}],[[{'|',[{line,296}],[{'_',[{line,296}],nil},{r,[{line,296}],nil}]}],[]]},[{do,{{'.',[{line,296}],[lists,last]},[{line,296}],[{r,[{line,296}],nil}]}}]]},{defp,[{line,298}],[{split_f1_to_r2,[{line,298}],[0,{r1,[{line,298}],nil},{f1,[{line,298}],nil},{r2,[{line,298}],nil},{f2,[{line,298}],nil}]},[{do,{{{r2,[{line,298}],nil},{f2,[{line,298}],nil}},{{r1,[{line,298}],nil},{f1,[{line,298}],nil}}}}]]},{defp,[{line,300}],[{split_f1_to_r2,[{line,300}],[{n,[{line,300}],nil},{r1,[{line,300}],nil},[{'|',[{line,300}],[{x,[{line,300}],nil},{f1,[{line,300}],nil}]}],{r2,[{line,300}],nil},{f2,[{line,300}],nil}]},[{do,{split_f1_to_r2,[{line,300}],[{'-',[{line,300}],[{n,[{line,300}],nil},1]},{r1,[{line,300}],nil},{f1,[{line,300}],nil},[{'|',[{line,300}],[{x,[{line,300}],nil},{r2,[{line,300}],nil}]}],{f2,[{line,300}],nil}]}}]]},{defp,[{line,302}],[{split_r1_to_f2,[{line,302}],[0,{r1,[{line,302}],nil},{f1,[{line,302}],nil},{r2,[{line,302}],nil},{f2,[{line,302}],nil}]},[{do,{{{r1,[{line,302}],nil},{f1,[{line,302}],nil}},{{r2,[{line,302}],nil},{f2,[{line,302}],nil}}}}]]},{defp,[{line,304}],[{split_r1_to_f2,[{line,304}],[{n,[{line,304}],nil},[{'|',[{line,304}],[{x,[{line,304}],nil},{r1,[{line,304}],nil}]}],{f1,[{line,304}],nil},{r2,[{line,304}],nil},{f2,[{line,304}],nil}]},[{do,{split_r1_to_f2,[{line,304}],[{'-',[{line,304}],[{n,[{line,304}],nil},1]},{r1,[{line,304}],nil},{f1,[{line,304}],nil},{r2,[{line,304}],nil},[{'|',[{line,304}],[{x,[{line,304}],nil},{f2,[{line,304}],nil}]}]]}}]]}]}}]]}
+2	functionName	`defmodule`	defmodule
+2	atom	`:queue`	queue
+6	functionName	`::`	'::'
+6	functionName	`queue`	queue
+6	functionName	`queue`	queue
+6	functionName	`any`	any
+8	functionName	`::`	'::'
+8	functionName	`queue`	queue
+8	functionName	`item`	item
+8	tuple	`{[item], [item]}`	{[{item,[{line,8}],nil}],[{item,[{line,8}],nil}]}
+8	functionName	`item`	item
+8	functionName	`item`	item
+12	functionName	`::`	'::'
+12	functionName	`cons`	cons
+12	functionName	`item`	item
+12	functionName	`::`	'::'
+12	functionName	`q1`	q1
+12	functionName	`queue`	queue
+12	functionName	`item`	item
+12	functionName	`::`	'::'
+12	functionName	`q2`	q2
+12	functionName	`queue`	queue
+12	functionName	`item`	item
+13	functionName	`def`	def
+13	head	`cons`	cons
+13	functionName	`cons`	cons
+13	functionName	`x`	x
+13	functionName	`q`	q
+13	keywordKey	`do`	do
+13	keywordValue	`in_r(x, q)`	{in_r,[{line,13}],[{x,[{line,13}],nil},{q,[{line,13}],nil}]}
+13	functionName	`in_r`	in_r
+13	functionName	`x`	x
+13	functionName	`q`	q
+15	functionName	`::`	'::'
+15	functionName	`daeh`	daeh
+15	functionName	`::`	'::'
+15	functionName	`q`	q
+15	functionName	`queue`	queue
+15	functionName	`item`	item
+15	functionName	`item`	item
+16	functionName	`def`	def
+16	head	`daeh`	daeh
+16	functionName	`daeh`	daeh
+16	functionName	`q`	q
+16	keywordKey	`do`	do
+16	keywordValue	`get_r(q)`	{get_r,[{line,16}],[{q,[{line,16}],nil}]}
+16	functionName	`get_r`	get_r
+16	functionName	`q`	q
+18	functionName	`::`	'::'
+18	functionName	`drop`	drop
+18	functionName	`::`	'::'
+18	functionName	`q1`	q1
+18	functionName	`queue`	queue
+18	functionName	`item`	item
+18	functionName	`::`	'::'
+18	functionName	`q2`	q2
+18	functionName	`queue`	queue
+18	functionName	`item`	item
+19	functionName	`def`	def
+19	head	`drop`	drop
+19	functionName	`drop`	drop
+19	functionName	`=`	'='
+19	tuple	`{[], []}`	{[],[]}
+19	functionName	`q`	q
+19	keywordKey	`do`	do
+19	keywordValue	`:erlang.error(:empty, [q])`	{{'.',[{line,19}],[erlang,error]},[{line,19}],[empty,[{q,[{line,19}],nil}]]}
+19	functionName	`error`	error
+19	atom	`:erlang`	erlang
+19	atom	`:empty`	empty
+19	functionName	`q`	q
+21	functionName	`def`	def
+21	head	`drop`	drop
+21	functionName	`drop`	drop
+21	tuple	`{[_], []}`	{[{'_',[{line,21}],nil}],[]}
+21	functionName	`_`	'_'
+21	keywordKey	`do`	do
+21	keywordValue	`{[], []}`	{[],[]}
+21	tuple	`{[], []}`	{[],[]}
+23	functionName	`def`	def
+23	head	`drop`	drop
+23	functionName	`drop`	drop
+23	tuple	`{[y | r], []}`	{[{'|',[{line,23}],[{y,[{line,23}],nil},{r,[{line,23}],nil}]}],[]}
+23	functionName	`|`	'|'
+23	functionName	`y`	y
+23	functionName	`r`	r
+24	functionName	`=`	'='
+24	functionName	`|`	'|'
+24	functionName	`_`	'_'
+24	functionName	`f`	f
+24	functionName	`reverse`	reverse
+24	atom	`:lists`	lists
+24	functionName	`r`	r
+25	tuple	`{[y], f}`	{[{y,[{line,25}],nil}],{f,[{line,25}],nil}}
+25	functionName	`y`	y
+25	functionName	`f`	f
+28	functionName	`def`	def
+28	head	`drop`	drop
+28	functionName	`when`	when
+28	functionName	`drop`	drop
+28	tuple	`{r, [_]}`	{{r,[{line,28}],nil},[{'_',[{line,28}],nil}]}
+28	functionName	`r`	r
+28	functionName	`_`	'_'
+28	functionName	`is_list`	is_list
+28	functionName	`r`	r
+28	keywordKey	`do`	do
+28	keywordValue	`r2f(r)`	{r2f,[{line,28}],[{r,[{line,28}],nil}]}
+28	functionName	`r2f`	r2f
+28	functionName	`r`	r
+30	functionName	`def`	def
+30	head	`drop`	drop
+30	functionName	`when`	when
+30	functionName	`drop`	drop
+30	tuple	`{r, [_ | f]}`	{{r,[{line,30}],nil},[{'|',[{line,30}],[{'_',[{line,30}],nil},{f,[{line,30}],nil}]}]}
+30	functionName	`r`	r
+30	functionName	`|`	'|'
+30	functionName	`_`	'_'
+30	functionName	`f`	f
+30	functionName	`is_list`	is_list
+30	functionName	`r`	r
+30	keywordKey	`do`	do
+30	keywordValue	`{r, f}`	{{r,[{line,30}],nil},{f,[{line,30}],nil}}
+30	tuple	`{r, f}`	{{r,[{line,30}],nil},{f,[{line,30}],nil}}
+30	functionName	`r`	r
+30	functionName	`f`	f
+32	functionName	`def`	def
+32	head	`drop`	drop
+32	functionName	`drop`	drop
+32	functionName	`q`	q
+32	keywordKey	`do`	do
+32	keywordValue	`:erlang.error(:badarg, [q])`	{{'.',[{line,32}],[erlang,error]},[{line,32}],[badarg,[{q,[{line,32}],nil}]]}
+32	functionName	`error`	error
+32	atom	`:erlang`	erlang
+32	atom	`:badarg`	badarg
+32	functionName	`q`	q
+34	functionName	`::`	'::'
+34	functionName	`drop_r`	drop_r
+34	functionName	`::`	'::'
+34	functionName	`q1`	q1
+34	functionName	`queue`	queue
+34	functionName	`item`	item
+34	functionName	`::`	'::'
+34	functionName	`q2`	q2
+34	functionName	`queue`	queue
+34	functionName	`item`	item
+35	functionName	`def`	def
+35	head	`drop_r`	drop_r
+35	functionName	`drop_r`	drop_r
+35	functionName	`=`	'='
+35	tuple	`{[], []}`	{[],[]}
+35	functionName	`q`	q
+35	keywordKey	`do`	do
+35	keywordValue	`:erlang.error(:empty, [q])`	{{'.',[{line,35}],[erlang,error]},[{line,35}],[empty,[{q,[{line,35}],nil}]]}
+35	functionName	`error`	error
+35	atom	`:erlang`	erlang
+35	atom	`:empty`	empty
+35	functionName	`q`	q
+37	functionName	`def`	def
+37	head	`drop_r`	drop_r
+37	functionName	`drop_r`	drop_r
+37	tuple	`{[], [_]}`	{[],[{'_',[{line,37}],nil}]}
+37	functionName	`_`	'_'
+37	keywordKey	`do`	do
+37	keywordValue	`{[], []}`	{[],[]}
+37	tuple	`{[], []}`	{[],[]}
+39	functionName	`def`	def
+39	head	`drop_r`	drop_r
+39	functionName	`drop_r`	drop_r
+39	tuple	`{[], [y | f]}`	{[],[{'|',[{line,39}],[{y,[{line,39}],nil},{f,[{line,39}],nil}]}]}
+39	functionName	`|`	'|'
+39	functionName	`y`	y
+39	functionName	`f`	f
+40	functionName	`=`	'='
+40	functionName	`|`	'|'
+40	functionName	`_`	'_'
+40	functionName	`r`	r
+40	functionName	`reverse`	reverse
+40	atom	`:lists`	lists
+40	functionName	`f`	f
+41	tuple	`{r, [y]}`	{{r,[{line,41}],nil},[{y,[{line,41}],nil}]}
+41	functionName	`r`	r
+41	functionName	`y`	y
+44	functionName	`def`	def
+44	head	`drop_r`	drop_r
+44	functionName	`when`	when
+44	functionName	`drop_r`	drop_r
+44	tuple	`{[_], f}`	{[{'_',[{line,44}],nil}],{f,[{line,44}],nil}}
+44	functionName	`_`	'_'
+44	functionName	`f`	f
+44	functionName	`is_list`	is_list
+44	functionName	`f`	f
+44	keywordKey	`do`	do
+44	keywordValue	`f2r(f)`	{f2r,[{line,44}],[{f,[{line,44}],nil}]}
+44	functionName	`f2r`	f2r
+44	functionName	`f`	f
+46	functionName	`def`	def
+46	head	`drop_r`	drop_r
+46	functionName	`when`	when
+46	functionName	`drop_r`	drop_r
+46	tuple	`{[_ | r], f}`	{[{'|',[{line,46}],[{'_',[{line,46}],nil},{r,[{line,46}],nil}]}],{f,[{line,46}],nil}}
+46	functionName	`|`	'|'
+46	functionName	`_`	'_'
+46	functionName	`r`	r
+46	functionName	`f`	f
+46	functionName	`is_list`	is_list
+46	functionName	`f`	f
+46	keywordKey	`do`	do
+46	keywordValue	`{r, f}`	{{r,[{line,46}],nil},{f,[{line,46}],nil}}
+46	tuple	`{r, f}`	{{r,[{line,46}],nil},{f,[{line,46}],nil}}
+46	functionName	`r`	r
+46	functionName	`f`	f
+48	functionName	`def`	def
+48	head	`drop_r`	drop_r
+48	functionName	`drop_r`	drop_r
+48	functionName	`q`	q
+48	keywordKey	`do`	do
+48	keywordValue	`:erlang.error(:badarg, [q])`	{{'.',[{line,48}],[erlang,error]},[{line,48}],[badarg,[{q,[{line,48}],nil}]]}
+48	functionName	`error`	error
+48	atom	`:erlang`	erlang
+48	atom	`:badarg`	badarg
+48	functionName	`q`	q
+50	functionName	`when`	when
+50	functionName	`::`	'::'
+50	functionName	`filter`	filter
+50	functionName	`fun`	fun
+50	functionName	`::`	'::'
+50	functionName	`q1`	q1
+50	functionName	`queue`	queue
+50	functionName	`item`	item
+50	functionName	`::`	'::'
+50	functionName	`q2`	q2
+50	functionName	`queue`	queue
+50	functionName	`item`	item
+50	keywordKey	`fun`	fun
+50	keywordValue	`(item -> (boolean() | [item]))`	[{'->',[{line,50}],[[{item,[{line,50}],nil}],{'|',[{line,50}],[{boolean,[{line,50}],[]},[{item,[{line,50}],nil}]]}]}]
+50	functionName	`item`	item
+50	functionName	`|`	'|'
+50	functionName	`boolean`	boolean
+50	functionName	`item`	item
+51	functionName	`def`	def
+51	head	`filter`	filter
+51	functionName	`when`	when
+51	functionName	`filter`	filter
+51	functionName	`fun`	fun
+51	tuple	`{r0, f0}`	{{r0,[{line,51}],nil},{f0,[{line,51}],nil}}
+51	functionName	`r0`	r0
+51	functionName	`f0`	f0
+51	functionName	`and`	and
+51	functionName	`and`	and
+51	functionName	`is_function`	is_function
+51	functionName	`fun`	fun
+51	functionName	`is_list`	is_list
+51	functionName	`r0`	r0
+51	functionName	`is_list`	is_list
+51	functionName	`f0`	f0
+52	functionName	`=`	'='
+52	functionName	`f`	f
+52	functionName	`filter_f`	filter_f
+52	functionName	`fun`	fun
+52	functionName	`f0`	f0
+53	functionName	`=`	'='
+53	functionName	`r`	r
+53	functionName	`filter_r`	filter_r
+53	functionName	`fun`	fun
+53	functionName	`r0`	r0
+54	functionName	`cond`	cond
+55	functionName	`===`	'==='
+55	functionName	`r`	r
+56	functionName	`f2r`	f2r
+56	functionName	`f`	f
+57	functionName	`===`	'==='
+57	functionName	`f`	f
+58	functionName	`r2f`	r2f
+58	functionName	`r`	r
+60	tuple	`{r, f}`	{{r,[{line,60}],nil},{f,[{line,60}],nil}}
+60	functionName	`r`	r
+60	functionName	`f`	f
+64	functionName	`def`	def
+64	head	`filter`	filter
+64	functionName	`filter`	filter
+64	functionName	`fun`	fun
+64	functionName	`q`	q
+64	keywordKey	`do`	do
+64	keywordValue	`:erlang.error(:badarg, [fun, q])`	{{'.',[{line,64}],[erlang,error]},[{line,64}],[badarg,[{fun,[{line,64}],nil},{q,[{line,64}],nil}]]}
+64	functionName	`error`	error
+64	atom	`:erlang`	erlang
+64	atom	`:badarg`	badarg
+64	functionName	`fun`	fun
+64	functionName	`q`	q
+66	functionName	`::`	'::'
+66	functionName	`from_list`	from_list
+66	functionName	`::`	'::'
+66	functionName	`l`	l
+66	functionName	`item`	item
+66	functionName	`queue`	queue
+66	functionName	`item`	item
+67	functionName	`def`	def
+67	head	`from_list`	from_list
+67	functionName	`when`	when
+67	functionName	`from_list`	from_list
+67	functionName	`l`	l
+67	functionName	`is_list`	is_list
+67	functionName	`l`	l
+67	keywordKey	`do`	do
+67	keywordValue	`f2r(l)`	{f2r,[{line,67}],[{l,[{line,67}],nil}]}
+67	functionName	`f2r`	f2r
+67	functionName	`l`	l
+69	functionName	`def`	def
+69	head	`from_list`	from_list
+69	functionName	`from_list`	from_list
+69	functionName	`l`	l
+69	keywordKey	`do`	do
+69	keywordValue	`:erlang.error(:badarg, [l])`	{{'.',[{line,69}],[erlang,error]},[{line,69}],[badarg,[{l,[{line,69}],nil}]]}
+69	functionName	`error`	error
+69	atom	`:erlang`	erlang
+69	atom	`:badarg`	badarg
+69	functionName	`l`	l
+71	functionName	`::`	'::'
+71	functionName	`get`	get
+71	functionName	`::`	'::'
+71	functionName	`q`	q
+71	functionName	`queue`	queue
+71	functionName	`item`	item
+71	functionName	`item`	item
+72	functionName	`def`	def
+72	head	`get`	get
+72	functionName	`get`	get
+72	functionName	`=`	'='
+72	tuple	`{[], []}`	{[],[]}
+72	functionName	`q`	q
+72	keywordKey	`do`	do
+72	keywordValue	`:erlang.error(:empty, [q])`	{{'.',[{line,72}],[erlang,error]},[{line,72}],[empty,[{q,[{line,72}],nil}]]}
+72	functionName	`error`	error
+72	atom	`:erlang`	erlang
+72	atom	`:empty`	empty
+72	functionName	`q`	q
+74	functionName	`def`	def
+74	head	`get`	get
+74	functionName	`when`	when
+74	functionName	`get`	get
+74	tuple	`{r, f}`	{{r,[{line,74}],nil},{f,[{line,74}],nil}}
+74	functionName	`r`	r
+74	functionName	`f`	f
+74	functionName	`and`	and
+74	functionName	`is_list`	is_list
+74	functionName	`r`	r
+74	functionName	`is_list`	is_list
+74	functionName	`f`	f
+74	keywordKey	`do`	do
+74	keywordValue	`get(r, f)`	{get,[{line,74}],[{r,[{line,74}],nil},{f,[{line,74}],nil}]}
+74	functionName	`get`	get
+74	functionName	`r`	r
+74	functionName	`f`	f
+76	functionName	`def`	def
+76	head	`get`	get
+76	functionName	`get`	get
+76	functionName	`q`	q
+76	keywordKey	`do`	do
+76	keywordValue	`:erlang.error(:badarg, [q])`	{{'.',[{line,76}],[erlang,error]},[{line,76}],[badarg,[{q,[{line,76}],nil}]]}
+76	functionName	`error`	error
+76	atom	`:erlang`	erlang
+76	atom	`:badarg`	badarg
+76	functionName	`q`	q
+78	functionName	`::`	'::'
+78	functionName	`get_r`	get_r
+78	functionName	`::`	'::'
+78	functionName	`q`	q
+78	functionName	`queue`	queue
+78	functionName	`item`	item
+78	functionName	`item`	item
+79	functionName	`def`	def
+79	head	`get_r`	get_r
+79	functionName	`get_r`	get_r
+79	functionName	`=`	'='
+79	tuple	`{[], []}`	{[],[]}
+79	functionName	`q`	q
+79	keywordKey	`do`	do
+79	keywordValue	`:erlang.error(:empty, [q])`	{{'.',[{line,79}],[erlang,error]},[{line,79}],[empty,[{q,[{line,79}],nil}]]}
+79	functionName	`error`	error
+79	atom	`:erlang`	erlang
+79	atom	`:empty`	empty
+79	functionName	`q`	q
+81	functionName	`def`	def
+81	head	`get_r`	get_r
+81	functionName	`when`	when
+81	functionName	`get_r`	get_r
+81	tuple	`{[h | _], f}`	{[{'|',[{line,81}],[{h,[{line,81}],nil},{'_',[{line,81}],nil}]}],{f,[{line,81}],nil}}
+81	functionName	`|`	'|'
+81	functionName	`h`	h
+81	functionName	`_`	'_'
+81	functionName	`f`	f
+81	functionName	`is_list`	is_list
+81	functionName	`f`	f
+81	keywordKey	`do`	do
+81	keywordValue	`h`	{h,[{line,81}],nil}
+81	functionName	`h`	h
+83	functionName	`def`	def
+83	head	`get_r`	get_r
+83	functionName	`get_r`	get_r
+83	tuple	`{[], [h]}`	{[],[{h,[{line,83}],nil}]}
+83	functionName	`h`	h
+83	keywordKey	`do`	do
+83	keywordValue	`h`	{h,[{line,83}],nil}
+83	functionName	`h`	h
+85	functionName	`def`	def
+85	head	`get_r`	get_r
+85	functionName	`get_r`	get_r
+85	tuple	`{[], [_ | f]}`	{[],[{'|',[{line,85}],[{'_',[{line,85}],nil},{f,[{line,85}],nil}]}]}
+85	functionName	`|`	'|'
+85	functionName	`_`	'_'
+85	functionName	`f`	f
+85	keywordKey	`do`	do
+85	keywordValue	`:lists.last(f)`	{{'.',[{line,85}],[lists,last]},[{line,85}],[{f,[{line,85}],nil}]}
+85	functionName	`last`	last
+85	atom	`:lists`	lists
+85	functionName	`f`	f
+87	functionName	`def`	def
+87	head	`get_r`	get_r
+87	functionName	`get_r`	get_r
+87	functionName	`q`	q
+87	keywordKey	`do`	do
+87	keywordValue	`:erlang.error(:badarg, [q])`	{{'.',[{line,87}],[erlang,error]},[{line,87}],[badarg,[{q,[{line,87}],nil}]]}
+87	functionName	`error`	error
+87	atom	`:erlang`	erlang
+87	atom	`:badarg`	badarg
+87	functionName	`q`	q
+89	functionName	`::`	'::'
+89	functionName	`head`	head
+89	functionName	`::`	'::'
+89	functionName	`q`	q
+89	functionName	`queue`	queue
+89	functionName	`item`	item
+89	functionName	`item`	item
+90	functionName	`def`	def
+90	head	`head`	head
+90	functionName	`head`	head
+90	functionName	`=`	'='
+90	tuple	`{[], []}`	{[],[]}
+90	functionName	`q`	q
+90	keywordKey	`do`	do
+90	keywordValue	`:erlang.error(:empty, [q])`	{{'.',[{line,90}],[erlang,error]},[{line,90}],[empty,[{q,[{line,90}],nil}]]}
+90	functionName	`error`	error
+90	atom	`:erlang`	erlang
+90	atom	`:empty`	empty
+90	functionName	`q`	q
+92	functionName	`def`	def
+92	head	`head`	head
+92	functionName	`when`	when
+92	functionName	`head`	head
+92	tuple	`{r, f}`	{{r,[{line,92}],nil},{f,[{line,92}],nil}}
+92	functionName	`r`	r
+92	functionName	`f`	f
+92	functionName	`and`	and
+92	functionName	`is_list`	is_list
+92	functionName	`r`	r
+92	functionName	`is_list`	is_list
+92	functionName	`f`	f
+92	keywordKey	`do`	do
+92	keywordValue	`get(r, f)`	{get,[{line,92}],[{r,[{line,92}],nil},{f,[{line,92}],nil}]}
+92	functionName	`get`	get
+92	functionName	`r`	r
+92	functionName	`f`	f
+94	functionName	`def`	def
+94	head	`head`	head
+94	functionName	`head`	head
+94	functionName	`q`	q
+94	keywordKey	`do`	do
+94	keywordValue	`:erlang.error(:badarg, [q])`	{{'.',[{line,94}],[erlang,error]},[{line,94}],[badarg,[{q,[{line,94}],nil}]]}
+94	functionName	`error`	error
+94	atom	`:erlang`	erlang
+94	atom	`:badarg`	badarg
+94	functionName	`q`	q
+96	functionName	`::`	'::'
+96	functionName	`unquote`	unquote
+96	atom	`:in`	in
+96	functionName	`item`	item
+96	functionName	`::`	'::'
+96	functionName	`q1`	q1
+96	functionName	`queue`	queue
+96	functionName	`item`	item
+96	functionName	`::`	'::'
+96	functionName	`q2`	q2
+96	functionName	`queue`	queue
+96	functionName	`item`	item
+97	functionName	`def`	def
+97	head	`:in`	in
+97	functionName	`unquote`	unquote
+97	atom	`:in`	in
+97	functionName	`x`	x
+97	tuple	`{[_] = erlangVariableIn, []}`	{{'=',[{line,97}],[[{'_',[{line,97}],nil}],{erlangVariableIn,[{line,97}],nil}]},[]}
+97	functionName	`=`	'='
+97	functionName	`_`	'_'
+97	functionName	`erlangVariableIn`	erlangVariableIn
+97	keywordKey	`do`	do
+97	keywordValue	`{[x], erlangVariableIn}`	{[{x,[{line,97}],nil}],{erlangVariableIn,[{line,97}],nil}}
+97	tuple	`{[x], erlangVariableIn}`	{[{x,[{line,97}],nil}],{erlangVariableIn,[{line,97}],nil}}
+97	functionName	`x`	x
+97	functionName	`erlangVariableIn`	erlangVariableIn
+99	functionName	`def`	def
+99	head	`:in`	in
+99	functionName	`when`	when
+99	functionName	`unquote`	unquote
+99	atom	`:in`	in
+99	functionName	`x`	x
+99	tuple	`{erlangVariableIn, out}`	{{erlangVariableIn,[{line,99}],nil},{out,[{line,99}],nil}}
+99	functionName	`erlangVariableIn`	erlangVariableIn
+99	functionName	`out`	out
+99	functionName	`and`	and
+99	functionName	`is_list`	is_list
+99	functionName	`erlangVariableIn`	erlangVariableIn
+99	functionName	`is_list`	is_list
+99	functionName	`out`	out
+99	keywordKey	`do`	do
+99	keywordValue	`{[x | erlangVariableIn], out}`	{[{'|',[{line,99}],[{x,[{line,99}],nil},{erlangVariableIn,[{line,99}],nil}]}],{out,[{line,99}],nil}}
+99	tuple	`{[x | erlangVariableIn], out}`	{[{'|',[{line,99}],[{x,[{line,99}],nil},{erlangVariableIn,[{line,99}],nil}]}],{out,[{line,99}],nil}}
+99	functionName	`|`	'|'
+99	functionName	`x`	x
+99	functionName	`erlangVariableIn`	erlangVariableIn
+99	functionName	`out`	out
+101	functionName	`def`	def
+101	head	`:in`	in
+101	functionName	`unquote`	unquote
+101	atom	`:in`	in
+101	functionName	`x`	x
+101	functionName	`q`	q
+101	keywordKey	`do`	do
+101	keywordValue	`:erlang.error(:badarg, [x, q])`	{{'.',[{line,101}],[erlang,error]},[{line,101}],[badarg,[{x,[{line,101}],nil},{q,[{line,101}],nil}]]}
+101	functionName	`error`	error
+101	atom	`:erlang`	erlang
+101	atom	`:badarg`	badarg
+101	functionName	`x`	x
+101	functionName	`q`	q
+103	functionName	`::`	'::'
+103	functionName	`in_r`	in_r
+103	functionName	`item`	item
+103	functionName	`::`	'::'
+103	functionName	`q1`	q1
+103	functionName	`queue`	queue
+103	functionName	`item`	item
+103	functionName	`::`	'::'
+103	functionName	`q2`	q2
+103	functionName	`queue`	queue
+103	functionName	`item`	item
+104	functionName	`def`	def
+104	head	`in_r`	in_r
+104	functionName	`in_r`	in_r
+104	functionName	`x`	x
+104	tuple	`{[], [_] = f}`	{[],{'=',[{line,104}],[[{'_',[{line,104}],nil}],{f,[{line,104}],nil}]}}
+104	functionName	`=`	'='
+104	functionName	`_`	'_'
+104	functionName	`f`	f
+104	keywordKey	`do`	do
+104	keywordValue	`{f, [x]}`	{{f,[{line,104}],nil},[{x,[{line,104}],nil}]}
+104	tuple	`{f, [x]}`	{{f,[{line,104}],nil},[{x,[{line,104}],nil}]}
+104	functionName	`f`	f
+104	functionName	`x`	x
+106	functionName	`def`	def
+106	head	`in_r`	in_r
+106	functionName	`when`	when
+106	functionName	`in_r`	in_r
+106	functionName	`x`	x
+106	tuple	`{r, f}`	{{r,[{line,106}],nil},{f,[{line,106}],nil}}
+106	functionName	`r`	r
+106	functionName	`f`	f
+106	functionName	`and`	and
+106	functionName	`is_list`	is_list
+106	functionName	`r`	r
+106	functionName	`is_list`	is_list
+106	functionName	`f`	f
+106	keywordKey	`do`	do
+106	keywordValue	`{r, [x | f]}`	{{r,[{line,106}],nil},[{'|',[{line,106}],[{x,[{line,106}],nil},{f,[{line,106}],nil}]}]}
+106	tuple	`{r, [x | f]}`	{{r,[{line,106}],nil},[{'|',[{line,106}],[{x,[{line,106}],nil},{f,[{line,106}],nil}]}]}
+106	functionName	`r`	r
+106	functionName	`|`	'|'
+106	functionName	`x`	x
+106	functionName	`f`	f
+108	functionName	`def`	def
+108	head	`in_r`	in_r
+108	functionName	`in_r`	in_r
+108	functionName	`x`	x
+108	functionName	`q`	q
+108	keywordKey	`do`	do
+108	keywordValue	`:erlang.error(:badarg, [x, q])`	{{'.',[{line,108}],[erlang,error]},[{line,108}],[badarg,[{x,[{line,108}],nil},{q,[{line,108}],nil}]]}
+108	functionName	`error`	error
+108	atom	`:erlang`	erlang
+108	atom	`:badarg`	badarg
+108	functionName	`x`	x
+108	functionName	`q`	q
+110	functionName	`::`	'::'
+110	functionName	`init`	init
+110	functionName	`::`	'::'
+110	functionName	`q1`	q1
+110	functionName	`queue`	queue
+110	functionName	`item`	item
+110	functionName	`::`	'::'
+110	functionName	`q2`	q2
+110	functionName	`queue`	queue
+110	functionName	`item`	item
+111	functionName	`def`	def
+111	head	`init`	init
+111	functionName	`init`	init
+111	functionName	`q`	q
+111	keywordKey	`do`	do
+111	keywordValue	`drop_r(q)`	{drop_r,[{line,111}],[{q,[{line,111}],nil}]}
+111	functionName	`drop_r`	drop_r
+111	functionName	`q`	q
+113	functionName	`::`	'::'
+113	functionName	`is_empty`	is_empty
+113	functionName	`::`	'::'
+113	functionName	`q`	q
+113	functionName	`queue`	queue
+113	functionName	`boolean`	boolean
+114	functionName	`def`	def
+114	head	`is_empty`	is_empty
+114	functionName	`is_empty`	is_empty
+114	tuple	`{[], []}`	{[],[]}
+114	keywordKey	`do`	do
+114	keywordValue	`true`	true
+116	functionName	`def`	def
+116	head	`is_empty`	is_empty
+116	functionName	`when`	when
+116	functionName	`is_empty`	is_empty
+116	tuple	`{erlangVariableIn, out}`	{{erlangVariableIn,[{line,116}],nil},{out,[{line,116}],nil}}
+116	functionName	`erlangVariableIn`	erlangVariableIn
+116	functionName	`out`	out
+116	functionName	`and`	and
+116	functionName	`is_list`	is_list
+116	functionName	`erlangVariableIn`	erlangVariableIn
+116	functionName	`is_list`	is_list
+116	functionName	`out`	out
+116	keywordKey	`do`	do
+116	keywordValue	`false`	false
+118	functionName	`def`	def
+118	head	`is_empty`	is_empty
+118	functionName	`is_empty`	is_empty
+118	functionName	`q`	q
+118	keywordKey	`do`	do
+118	keywordValue	`:erlang.error(:badarg, [q])`	{{'.',[{line,118}],[erlang,error]},[{line,118}],[badarg,[{q,[{line,118}],nil}]]}
+118	functionName	`error`	error
+118	atom	`:erlang`	erlang
+118	atom	`:badarg`	badarg
+118	functionName	`q`	q
+120	functionName	`::`	'::'
+120	functionName	`is_queue`	is_queue
+120	functionName	`::`	'::'
+120	functionName	`term`	term
+120	functionName	`term`	term
+120	functionName	`boolean`	boolean
+121	functionName	`def`	def
+121	head	`is_queue`	is_queue
+121	functionName	`when`	when
+121	functionName	`is_queue`	is_queue
+121	tuple	`{r, f}`	{{r,[{line,121}],nil},{f,[{line,121}],nil}}
+121	functionName	`r`	r
+121	functionName	`f`	f
+121	functionName	`and`	and
+121	functionName	`is_list`	is_list
+121	functionName	`r`	r
+121	functionName	`is_list`	is_list
+121	functionName	`f`	f
+121	keywordKey	`do`	do
+121	keywordValue	`true`	true
+123	functionName	`def`	def
+123	head	`is_queue`	is_queue
+123	functionName	`is_queue`	is_queue
+123	functionName	`_`	'_'
+123	keywordKey	`do`	do
+123	keywordValue	`false`	false
+125	functionName	`::`	'::'
+125	functionName	`join`	join
+125	functionName	`::`	'::'
+125	functionName	`q1`	q1
+125	functionName	`queue`	queue
+125	functionName	`item`	item
+125	functionName	`::`	'::'
+125	functionName	`q2`	q2
+125	functionName	`queue`	queue
+125	functionName	`item`	item
+125	functionName	`::`	'::'
+125	functionName	`q3`	q3
+125	functionName	`queue`	queue
+125	functionName	`item`	item
+126	functionName	`def`	def
+126	head	`join`	join
+126	functionName	`when`	when
+126	functionName	`join`	join
+126	functionName	`=`	'='
+126	tuple	`{r, f}`	{{r,[{line,126}],nil},{f,[{line,126}],nil}}
+126	functionName	`r`	r
+126	functionName	`f`	f
+126	functionName	`q`	q
+126	tuple	`{[], []}`	{[],[]}
+126	functionName	`and`	and
+126	functionName	`is_list`	is_list
+126	functionName	`r`	r
+126	functionName	`is_list`	is_list
+126	functionName	`f`	f
+126	keywordKey	`do`	do
+126	keywordValue	`q`	{q,[{line,126}],nil}
+126	functionName	`q`	q
+128	functionName	`def`	def
+128	head	`join`	join
+128	functionName	`when`	when
+128	functionName	`join`	join
+128	tuple	`{[], []}`	{[],[]}
+128	functionName	`=`	'='
+128	tuple	`{r, f}`	{{r,[{line,128}],nil},{f,[{line,128}],nil}}
+128	functionName	`r`	r
+128	functionName	`f`	f
+128	functionName	`q`	q
+128	functionName	`and`	and
+128	functionName	`is_list`	is_list
+128	functionName	`r`	r
+128	functionName	`is_list`	is_list
+128	functionName	`f`	f
+128	keywordKey	`do`	do
+128	keywordValue	`q`	{q,[{line,128}],nil}
+128	functionName	`q`	q
+130	functionName	`def`	def
+130	head	`join`	join
+130	functionName	`when`	when
+130	functionName	`join`	join
+130	tuple	`{r1, f1}`	{{r1,[{line,130}],nil},{f1,[{line,130}],nil}}
+130	functionName	`r1`	r1
+130	functionName	`f1`	f1
+130	tuple	`{r2, f2}`	{{r2,[{line,130}],nil},{f2,[{line,130}],nil}}
+130	functionName	`r2`	r2
+130	functionName	`f2`	f2
+130	functionName	`and`	and
+130	functionName	`and`	and
+130	functionName	`and`	and
+130	functionName	`is_list`	is_list
+130	functionName	`r1`	r1
+130	functionName	`is_list`	is_list
+130	functionName	`f1`	f1
+130	functionName	`is_list`	is_list
+130	functionName	`r2`	r2
+130	functionName	`is_list`	is_list
+130	functionName	`f2`	f2
+130	keywordKey	`do`	do
+130	keywordValue	`{r2, f1 ++ :lists.reverse(r1, f2)}`	{{r2,[{line,130}],nil},{'++',[{line,130}],[{f1,[{line,130}],nil},{{'.',[{line,130}],[lists,reverse]},[{line,130}],[{r1,[{line,130}],nil},{f2,[{line,130}],nil}]}]}}
+130	tuple	`{r2, f1 ++ :lists.reverse(r1, f2)}`	{{r2,[{line,130}],nil},{'++',[{line,130}],[{f1,[{line,130}],nil},{{'.',[{line,130}],[lists,reverse]},[{line,130}],[{r1,[{line,130}],nil},{f2,[{line,130}],nil}]}]}}
+130	functionName	`r2`	r2
+130	functionName	`++`	'++'
+130	functionName	`f1`	f1
+130	functionName	`reverse`	reverse
+130	atom	`:lists`	lists
+130	functionName	`r1`	r1
+130	functionName	`f2`	f2
+132	functionName	`def`	def
+132	head	`join`	join
+132	functionName	`join`	join
+132	functionName	`q1`	q1
+132	functionName	`q2`	q2
+132	keywordKey	`do`	do
+132	keywordValue	`:erlang.error(:badarg, [q1, q2])`	{{'.',[{line,132}],[erlang,error]},[{line,132}],[badarg,[{q1,[{line,132}],nil},{q2,[{line,132}],nil}]]}
+132	functionName	`error`	error
+132	atom	`:erlang`	erlang
+132	atom	`:badarg`	badarg
+132	functionName	`q1`	q1
+132	functionName	`q2`	q2
+134	functionName	`::`	'::'
+134	functionName	`lait`	lait
+134	functionName	`::`	'::'
+134	functionName	`q1`	q1
+134	functionName	`queue`	queue
+134	functionName	`item`	item
+134	functionName	`::`	'::'
+134	functionName	`q2`	q2
+134	functionName	`queue`	queue
+134	functionName	`item`	item
+135	functionName	`def`	def
+135	head	`lait`	lait
+135	functionName	`lait`	lait
+135	functionName	`q`	q
+135	keywordKey	`do`	do
+135	keywordValue	`drop_r(q)`	{drop_r,[{line,135}],[{q,[{line,135}],nil}]}
+135	functionName	`drop_r`	drop_r
+135	functionName	`q`	q
+137	functionName	`::`	'::'
+137	functionName	`last`	last
+137	functionName	`::`	'::'
+137	functionName	`q`	q
+137	functionName	`queue`	queue
+137	functionName	`item`	item
+137	functionName	`item`	item
+138	functionName	`def`	def
+138	head	`last`	last
+138	functionName	`last`	last
+138	functionName	`q`	q
+138	keywordKey	`do`	do
+138	keywordValue	`get_r(q)`	{get_r,[{line,138}],[{q,[{line,138}],nil}]}
+138	functionName	`get_r`	get_r
+138	functionName	`q`	q
+140	functionName	`::`	'::'
+140	functionName	`len`	len
+140	functionName	`::`	'::'
+140	functionName	`q`	q
+140	functionName	`queue`	queue
+140	functionName	`non_neg_integer`	non_neg_integer
+141	functionName	`def`	def
+141	head	`len`	len
+141	functionName	`when`	when
+141	functionName	`len`	len
+141	tuple	`{r, f}`	{{r,[{line,141}],nil},{f,[{line,141}],nil}}
+141	functionName	`r`	r
+141	functionName	`f`	f
+141	functionName	`and`	and
+141	functionName	`is_list`	is_list
+141	functionName	`r`	r
+141	functionName	`is_list`	is_list
+141	functionName	`f`	f
+141	keywordKey	`do`	do
+141	keywordValue	`length(r) + length(f)`	{'+',[{line,141}],[{length,[{line,141}],[{r,[{line,141}],nil}]},{length,[{line,141}],[{f,[{line,141}],nil}]}]}
+141	functionName	`+`	'+'
+141	functionName	`length`	length
+141	functionName	`r`	r
+141	functionName	`length`	length
+141	functionName	`f`	f
+143	functionName	`def`	def
+143	head	`len`	len
+143	functionName	`len`	len
+143	functionName	`q`	q
+143	keywordKey	`do`	do
+143	keywordValue	`:erlang.error(:badarg, [q])`	{{'.',[{line,143}],[erlang,error]},[{line,143}],[badarg,[{q,[{line,143}],nil}]]}
+143	functionName	`error`	error
+143	atom	`:erlang`	erlang
+143	atom	`:badarg`	badarg
+143	functionName	`q`	q
+145	functionName	`::`	'::'
+145	functionName	`liat`	liat
+145	functionName	`::`	'::'
+145	functionName	`q1`	q1
+145	functionName	`queue`	queue
+145	functionName	`item`	item
+145	functionName	`::`	'::'
+145	functionName	`q2`	q2
+145	functionName	`queue`	queue
+145	functionName	`item`	item
+146	functionName	`def`	def
+146	head	`liat`	liat
+146	functionName	`liat`	liat
+146	functionName	`q`	q
+146	keywordKey	`do`	do
+146	keywordValue	`drop_r(q)`	{drop_r,[{line,146}],[{q,[{line,146}],nil}]}
+146	functionName	`drop_r`	drop_r
+146	functionName	`q`	q
+148	functionName	`::`	'::'
+148	functionName	`member`	member
+148	functionName	`item`	item
+148	functionName	`::`	'::'
+148	functionName	`q`	q
+148	functionName	`queue`	queue
+148	functionName	`item`	item
+148	functionName	`boolean`	boolean
+149	functionName	`def`	def
+149	head	`member`	member
+149	functionName	`when`	when
+149	functionName	`member`	member
+149	functionName	`x`	x
+149	tuple	`{r, f}`	{{r,[{line,149}],nil},{f,[{line,149}],nil}}
+149	functionName	`r`	r
+149	functionName	`f`	f
+149	functionName	`and`	and
+149	functionName	`is_list`	is_list
+149	functionName	`r`	r
+149	functionName	`is_list`	is_list
+149	functionName	`f`	f
+149	keywordKey	`do`	do
+149	keywordValue	`:lists.member(x, r) or :lists.member(x, f)`	{or,[{line,149}],[{{'.',[{line,149}],[lists,member]},[{line,149}],[{x,[{line,149}],nil},{r,[{line,149}],nil}]},{{'.',[{line,149}],[lists,member]},[{line,149}],[{x,[{line,149}],nil},{f,[{line,149}],nil}]}]}
+149	functionName	`or`	or
+149	functionName	`member`	member
+149	atom	`:lists`	lists
+149	functionName	`x`	x
+149	functionName	`r`	r
+149	functionName	`member`	member
+149	atom	`:lists`	lists
+149	functionName	`x`	x
+149	functionName	`f`	f
+151	functionName	`def`	def
+151	head	`member`	member
+151	functionName	`member`	member
+151	functionName	`x`	x
+151	functionName	`q`	q
+151	keywordKey	`do`	do
+151	keywordValue	`:erlang.error(:badarg, [x, q])`	{{'.',[{line,151}],[erlang,error]},[{line,151}],[badarg,[{x,[{line,151}],nil},{q,[{line,151}],nil}]]}
+151	functionName	`error`	error
+151	atom	`:erlang`	erlang
+151	atom	`:badarg`	badarg
+151	functionName	`x`	x
+151	functionName	`q`	q
+153	functionName	`def`	def
+153	head	`module_info`	module_info
+153	functionName	`module_info`	module_info
+157	functionName	`def`	def
+157	head	`module_info`	module_info
+157	functionName	`module_info`	module_info
+157	functionName	`p0`	p0
+161	functionName	`::`	'::'
+161	functionName	`new`	new
+161	functionName	`queue`	queue
+162	functionName	`def`	def
+162	head	`new`	new
+162	functionName	`new`	new
+162	keywordKey	`do`	do
+162	keywordValue	`{[], []}`	{[],[]}
+162	tuple	`{[], []}`	{[],[]}
+164	functionName	`::`	'::'
+164	functionName	`out`	out
+164	functionName	`::`	'::'
+164	functionName	`q1`	q1
+164	functionName	`queue`	queue
+164	functionName	`item`	item
+164	functionName	`|`	'|'
+164	tuple	`{{:value, item}, q2 :: queue(item)}`	{{value,{item,[{line,164}],nil}},{'::',[{line,164}],[{q2,[{line,164}],nil},{queue,[{line,164}],[{item,[{line,164}],nil}]}]}}
+164	tuple	`{:value, item}`	{value,{item,[{line,164}],nil}}
+164	atom	`:value`	value
+164	functionName	`item`	item
+164	functionName	`::`	'::'
+164	functionName	`q2`	q2
+164	functionName	`queue`	queue
+164	functionName	`item`	item
+164	tuple	`{:empty, q1 :: queue(item)}`	{empty,{'::',[{line,164}],[{q1,[{line,164}],nil},{queue,[{line,164}],[{item,[{line,164}],nil}]}]}}
+164	atom	`:empty`	empty
+164	functionName	`::`	'::'
+164	functionName	`q1`	q1
+164	functionName	`queue`	queue
+164	functionName	`item`	item
+165	functionName	`def`	def
+165	head	`out`	out
+165	functionName	`out`	out
+165	functionName	`=`	'='
+165	tuple	`{[], []}`	{[],[]}
+165	functionName	`q`	q
+165	keywordKey	`do`	do
+165	keywordValue	`{:empty, q}`	{empty,{q,[{line,165}],nil}}
+165	tuple	`{:empty, q}`	{empty,{q,[{line,165}],nil}}
+165	atom	`:empty`	empty
+165	functionName	`q`	q
+167	functionName	`def`	def
+167	head	`out`	out
+167	functionName	`out`	out
+167	tuple	`{[v], []}`	{[{v,[{line,167}],nil}],[]}
+167	functionName	`v`	v
+167	keywordKey	`do`	do
+167	keywordValue	`{{:value, v}, {[], []}}`	{{value,{v,[{line,167}],nil}},{[],[]}}
+167	tuple	`{{:value, v}, {[], []}}`	{{value,{v,[{line,167}],nil}},{[],[]}}
+167	tuple	`{:value, v}`	{value,{v,[{line,167}],nil}}
+167	atom	`:value`	value
+167	functionName	`v`	v
+167	tuple	`{[], []}`	{[],[]}
+169	functionName	`def`	def
+169	head	`out`	out
+169	functionName	`out`	out
+169	tuple	`{[y | erlangVariableIn], []}`	{[{'|',[{line,169}],[{y,[{line,169}],nil},{erlangVariableIn,[{line,169}],nil}]}],[]}
+169	functionName	`|`	'|'
+169	functionName	`y`	y
+169	functionName	`erlangVariableIn`	erlangVariableIn
+170	functionName	`=`	'='
+170	functionName	`|`	'|'
+170	functionName	`v`	v
+170	functionName	`out`	out
+170	functionName	`reverse`	reverse
+170	atom	`:lists`	lists
+170	functionName	`erlangVariableIn`	erlangVariableIn
+171	tuple	`{{:value, v}, {[y], out}}`	{{value,{v,[{line,171}],nil}},{[{y,[{line,171}],nil}],{out,[{line,171}],nil}}}
+171	tuple	`{:value, v}`	{value,{v,[{line,171}],nil}}
+171	atom	`:value`	value
+171	functionName	`v`	v
+171	tuple	`{[y], out}`	{[{y,[{line,171}],nil}],{out,[{line,171}],nil}}
+171	functionName	`y`	y
+171	functionName	`out`	out
+174	functionName	`def`	def
+174	head	`out`	out
+174	functionName	`when`	when
+174	functionName	`out`	out
+174	tuple	`{erlangVariableIn, [v]}`	{{erlangVariableIn,[{line,174}],nil},[{v,[{line,174}],nil}]}
+174	functionName	`erlangVariableIn`	erlangVariableIn
+174	functionName	`v`	v
+174	functionName	`is_list`	is_list
+174	functionName	`erlangVariableIn`	erlangVariableIn
+174	keywordKey	`do`	do
+174	keywordValue	`{{:value, v}, r2f(erlangVariableIn)}`	{{value,{v,[{line,174}],nil}},{r2f,[{line,174}],[{erlangVariableIn,[{line,174}],nil}]}}
+174	tuple	`{{:value, v}, r2f(erlangVariableIn)}`	{{value,{v,[{line,174}],nil}},{r2f,[{line,174}],[{erlangVariableIn,[{line,174}],nil}]}}
+174	tuple	`{:value, v}`	{value,{v,[{line,174}],nil}}
+174	atom	`:value`	value
+174	functionName	`v`	v
+174	functionName	`r2f`	r2f
+174	functionName	`erlangVariableIn`	erlangVariableIn
+176	functionName	`def`	def
+176	head	`out`	out
+176	functionName	`when`	when
+176	functionName	`out`	out
+176	tuple	`{erlangVariableIn, [v | out]}`	{{erlangVariableIn,[{line,176}],nil},[{'|',[{line,176}],[{v,[{line,176}],nil},{out,[{line,176}],nil}]}]}
+176	functionName	`erlangVariableIn`	erlangVariableIn
+176	functionName	`|`	'|'
+176	functionName	`v`	v
+176	functionName	`out`	out
+176	functionName	`is_list`	is_list
+176	functionName	`erlangVariableIn`	erlangVariableIn
+176	keywordKey	`do`	do
+176	keywordValue	`{{:value, v}, {erlangVariableIn, out}}`	{{value,{v,[{line,176}],nil}},{{erlangVariableIn,[{line,176}],nil},{out,[{line,176}],nil}}}
+176	tuple	`{{:value, v}, {erlangVariableIn, out}}`	{{value,{v,[{line,176}],nil}},{{erlangVariableIn,[{line,176}],nil},{out,[{line,176}],nil}}}
+176	tuple	`{:value, v}`	{value,{v,[{line,176}],nil}}
+176	atom	`:value`	value
+176	functionName	`v`	v
+176	tuple	`{erlangVariableIn, out}`	{{erlangVariableIn,[{line,176}],nil},{out,[{line,176}],nil}}
+176	functionName	`erlangVariableIn`	erlangVariableIn
+176	functionName	`out`	out
+178	functionName	`def`	def
+178	head	`out`	out
+178	functionName	`out`	out
+178	functionName	`q`	q
+178	keywordKey	`do`	do
+178	keywordValue	`:erlang.error(:badarg, [q])`	{{'.',[{line,178}],[erlang,error]},[{line,178}],[badarg,[{q,[{line,178}],nil}]]}
+178	functionName	`error`	error
+178	atom	`:erlang`	erlang
+178	atom	`:badarg`	badarg
+178	functionName	`q`	q
+180	functionName	`::`	'::'
+180	functionName	`out_r`	out_r
+180	functionName	`::`	'::'
+180	functionName	`q1`	q1
+180	functionName	`queue`	queue
+180	functionName	`item`	item
+180	functionName	`|`	'|'
+180	tuple	`{{:value, item}, q2 :: queue(item)}`	{{value,{item,[{line,180}],nil}},{'::',[{line,180}],[{q2,[{line,180}],nil},{queue,[{line,180}],[{item,[{line,180}],nil}]}]}}
+180	tuple	`{:value, item}`	{value,{item,[{line,180}],nil}}
+180	atom	`:value`	value
+180	functionName	`item`	item
+180	functionName	`::`	'::'
+180	functionName	`q2`	q2
+180	functionName	`queue`	queue
+180	functionName	`item`	item
+180	tuple	`{:empty, q1 :: queue(item)}`	{empty,{'::',[{line,180}],[{q1,[{line,180}],nil},{queue,[{line,180}],[{item,[{line,180}],nil}]}]}}
+180	atom	`:empty`	empty
+180	functionName	`::`	'::'
+180	functionName	`q1`	q1
+180	functionName	`queue`	queue
+180	functionName	`item`	item
+181	functionName	`def`	def
+181	head	`out_r`	out_r
+181	functionName	`out_r`	out_r
+181	functionName	`=`	'='
+181	tuple	`{[], []}`	{[],[]}
+181	functionName	`q`	q
+181	keywordKey	`do`	do
+181	keywordValue	`{:empty, q}`	{empty,{q,[{line,181}],nil}}
+181	tuple	`{:empty, q}`	{empty,{q,[{line,181}],nil}}
+181	atom	`:empty`	empty
+181	functionName	`q`	q
+183	functionName	`def`	def
+183	head	`out_r`	out_r
+183	functionName	`out_r`	out_r
+183	tuple	`{[], [v]}`	{[],[{v,[{line,183}],nil}]}
+183	functionName	`v`	v
+183	keywordKey	`do`	do
+183	keywordValue	`{{:value, v}, {[], []}}`	{{value,{v,[{line,183}],nil}},{[],[]}}
+183	tuple	`{{:value, v}, {[], []}}`	{{value,{v,[{line,183}],nil}},{[],[]}}
+183	tuple	`{:value, v}`	{value,{v,[{line,183}],nil}}
+183	atom	`:value`	value
+183	functionName	`v`	v
+183	tuple	`{[], []}`	{[],[]}
+185	functionName	`def`	def
+185	head	`out_r`	out_r
+185	functionName	`out_r`	out_r
+185	tuple	`{[], [y | out]}`	{[],[{'|',[{line,185}],[{y,[{line,185}],nil},{out,[{line,185}],nil}]}]}
+185	functionName	`|`	'|'
+185	functionName	`y`	y
+185	functionName	`out`	out
+186	functionName	`=`	'='
+186	functionName	`|`	'|'
+186	functionName	`v`	v
+186	functionName	`erlangVariableIn`	erlangVariableIn
+186	functionName	`reverse`	reverse
+186	atom	`:lists`	lists
+186	functionName	`out`	out
+187	tuple	`{{:value, v}, {erlangVariableIn, [y]}}`	{{value,{v,[{line,187}],nil}},{{erlangVariableIn,[{line,187}],nil},[{y,[{line,187}],nil}]}}
+187	tuple	`{:value, v}`	{value,{v,[{line,187}],nil}}
+187	atom	`:value`	value
+187	functionName	`v`	v
+187	tuple	`{erlangVariableIn, [y]}`	{{erlangVariableIn,[{line,187}],nil},[{y,[{line,187}],nil}]}
+187	functionName	`erlangVariableIn`	erlangVariableIn
+187	functionName	`y`	y
+190	functionName	`def`	def
+190	head	`out_r`	out_r
+190	functionName	`when`	when
+190	functionName	`out_r`	out_r
+190	tuple	`{[v], out}`	{[{v,[{line,190}],nil}],{out,[{line,190}],nil}}
+190	functionName	`v`	v
+190	functionName	`out`	out
+190	functionName	`is_list`	is_list
+190	functionName	`out`	out
+190	keywordKey	`do`	do
+190	keywordValue	`{{:value, v}, f2r(out)}`	{{value,{v,[{line,190}],nil}},{f2r,[{line,190}],[{out,[{line,190}],nil}]}}
+190	tuple	`{{:value, v}, f2r(out)}`	{{value,{v,[{line,190}],nil}},{f2r,[{line,190}],[{out,[{line,190}],nil}]}}
+190	tuple	`{:value, v}`	{value,{v,[{line,190}],nil}}
+190	atom	`:value`	value
+190	functionName	`v`	v
+190	functionName	`f2r`	f2r
+190	functionName	`out`	out
+192	functionName	`def`	def
+192	head	`out_r`	out_r
+192	functionName	`when`	when
+192	functionName	`out_r`	out_r
+192	tuple	`{[v | erlangVariableIn], out}`	{[{'|',[{line,192}],[{v,[{line,192}],nil},{erlangVariableIn,[{line,192}],nil}]}],{out,[{line,192}],nil}}
+192	functionName	`|`	'|'
+192	functionName	`v`	v
+192	functionName	`erlangVariableIn`	erlangVariableIn
+192	functionName	`out`	out
+192	functionName	`is_list`	is_list
+192	functionName	`out`	out
+192	keywordKey	`do`	do
+192	keywordValue	`{{:value, v}, {erlangVariableIn, out}}`	{{value,{v,[{line,192}],nil}},{{erlangVariableIn,[{line,192}],nil},{out,[{line,192}],nil}}}
+192	tuple	`{{:value, v}, {erlangVariableIn, out}}`	{{value,{v,[{line,192}],nil}},{{erlangVariableIn,[{line,192}],nil},{out,[{line,192}],nil}}}
+192	tuple	`{:value, v}`	{value,{v,[{line,192}],nil}}
+192	atom	`:value`	value
+192	functionName	`v`	v
+192	tuple	`{erlangVariableIn, out}`	{{erlangVariableIn,[{line,192}],nil},{out,[{line,192}],nil}}
+192	functionName	`erlangVariableIn`	erlangVariableIn
+192	functionName	`out`	out
+194	functionName	`def`	def
+194	head	`out_r`	out_r
+194	functionName	`out_r`	out_r
+194	functionName	`q`	q
+194	keywordKey	`do`	do
+194	keywordValue	`:erlang.error(:badarg, [q])`	{{'.',[{line,194}],[erlang,error]},[{line,194}],[badarg,[{q,[{line,194}],nil}]]}
+194	functionName	`error`	error
+194	atom	`:erlang`	erlang
+194	atom	`:badarg`	badarg
+194	functionName	`q`	q
+196	functionName	`::`	'::'
+196	functionName	`peek`	peek
+196	functionName	`::`	'::'
+196	functionName	`q`	q
+196	functionName	`queue`	queue
+196	functionName	`item`	item
+196	functionName	`|`	'|'
+196	atom	`:empty`	empty
+196	tuple	`{:value, item}`	{value,{item,[{line,196}],nil}}
+196	atom	`:value`	value
+196	functionName	`item`	item
+197	functionName	`def`	def
+197	head	`peek`	peek
+197	functionName	`peek`	peek
+197	tuple	`{[], []}`	{[],[]}
+197	keywordKey	`do`	do
+197	keywordValue	`:empty`	empty
+197	atom	`:empty`	empty
+199	functionName	`def`	def
+199	head	`peek`	peek
+199	functionName	`when`	when
+199	functionName	`peek`	peek
+199	tuple	`{r, [h | _]}`	{{r,[{line,199}],nil},[{'|',[{line,199}],[{h,[{line,199}],nil},{'_',[{line,199}],nil}]}]}
+199	functionName	`r`	r
+199	functionName	`|`	'|'
+199	functionName	`h`	h
+199	functionName	`_`	'_'
+199	functionName	`is_list`	is_list
+199	functionName	`r`	r
+199	keywordKey	`do`	do
+199	keywordValue	`{:value, h}`	{value,{h,[{line,199}],nil}}
+199	tuple	`{:value, h}`	{value,{h,[{line,199}],nil}}
+199	atom	`:value`	value
+199	functionName	`h`	h
+201	functionName	`def`	def
+201	head	`peek`	peek
+201	functionName	`peek`	peek
+201	tuple	`{[h], []}`	{[{h,[{line,201}],nil}],[]}
+201	functionName	`h`	h
+201	keywordKey	`do`	do
+201	keywordValue	`{:value, h}`	{value,{h,[{line,201}],nil}}
+201	tuple	`{:value, h}`	{value,{h,[{line,201}],nil}}
+201	atom	`:value`	value
+201	functionName	`h`	h
+203	functionName	`def`	def
+203	head	`peek`	peek
+203	functionName	`peek`	peek
+203	tuple	`{[_ | r], []}`	{[{'|',[{line,203}],[{'_',[{line,203}],nil},{r,[{line,203}],nil}]}],[]}
+203	functionName	`|`	'|'
+203	functionName	`_`	'_'
+203	functionName	`r`	r
+203	keywordKey	`do`	do
+203	keywordValue	`{:value, :lists.last(r)}`	{value,{{'.',[{line,203}],[lists,last]},[{line,203}],[{r,[{line,203}],nil}]}}
+203	tuple	`{:value, :lists.last(r)}`	{value,{{'.',[{line,203}],[lists,last]},[{line,203}],[{r,[{line,203}],nil}]}}
+203	atom	`:value`	value
+203	functionName	`last`	last
+203	atom	`:lists`	lists
+203	functionName	`r`	r
+205	functionName	`def`	def
+205	head	`peek`	peek
+205	functionName	`peek`	peek
+205	functionName	`q`	q
+205	keywordKey	`do`	do
+205	keywordValue	`:erlang.error(:badarg, [q])`	{{'.',[{line,205}],[erlang,error]},[{line,205}],[badarg,[{q,[{line,205}],nil}]]}
+205	functionName	`error`	error
+205	atom	`:erlang`	erlang
+205	atom	`:badarg`	badarg
+205	functionName	`q`	q
+207	functionName	`::`	'::'
+207	functionName	`peek_r`	peek_r
+207	functionName	`::`	'::'
+207	functionName	`q`	q
+207	functionName	`queue`	queue
+207	functionName	`item`	item
+207	functionName	`|`	'|'
+207	atom	`:empty`	empty
+207	tuple	`{:value, item}`	{value,{item,[{line,207}],nil}}
+207	atom	`:value`	value
+207	functionName	`item`	item
+208	functionName	`def`	def
+208	head	`peek_r`	peek_r
+208	functionName	`peek_r`	peek_r
+208	tuple	`{[], []}`	{[],[]}
+208	keywordKey	`do`	do
+208	keywordValue	`:empty`	empty
+208	atom	`:empty`	empty
+210	functionName	`def`	def
+210	head	`peek_r`	peek_r
+210	functionName	`when`	when
+210	functionName	`peek_r`	peek_r
+210	tuple	`{[h | _], f}`	{[{'|',[{line,210}],[{h,[{line,210}],nil},{'_',[{line,210}],nil}]}],{f,[{line,210}],nil}}
+210	functionName	`|`	'|'
+210	functionName	`h`	h
+210	functionName	`_`	'_'
+210	functionName	`f`	f
+210	functionName	`is_list`	is_list
+210	functionName	`f`	f
+210	keywordKey	`do`	do
+210	keywordValue	`{:value, h}`	{value,{h,[{line,210}],nil}}
+210	tuple	`{:value, h}`	{value,{h,[{line,210}],nil}}
+210	atom	`:value`	value
+210	functionName	`h`	h
+212	functionName	`def`	def
+212	head	`peek_r`	peek_r
+212	functionName	`peek_r`	peek_r
+212	tuple	`{[], [h]}`	{[],[{h,[{line,212}],nil}]}
+212	functionName	`h`	h
+212	keywordKey	`do`	do
+212	keywordValue	`{:value, h}`	{value,{h,[{line,212}],nil}}
+212	tuple	`{:value, h}`	{value,{h,[{line,212}],nil}}
+212	atom	`:value`	value
+212	functionName	`h`	h
+214	functionName	`def`	def
+214	head	`peek_r`	peek_r
+214	functionName	`peek_r`	peek_r
+214	tuple	`{[], [_ | r]}`	{[],[{'|',[{line,214}],[{'_',[{line,214}],nil},{r,[{line,214}],nil}]}]}
+214	functionName	`|`	'|'
+214	functionName	`_`	'_'
+214	functionName	`r`	r
+214	keywordKey	`do`	do
+214	keywordValue	`{:value, :lists.last(r)}`	{value,{{'.',[{line,214}],[lists,last]},[{line,214}],[{r,[{line,214}],nil}]}}
+214	tuple	`{:value, :lists.last(r)}`	{value,{{'.',[{line,214}],[lists,last]},[{line,214}],[{r,[{line,214}],nil}]}}
+214	atom	`:value`	value
+214	functionName	`last`	last
+214	atom	`:lists`	lists
+214	functionName	`r`	r
+216	functionName	`def`	def
+216	head	`peek_r`	peek_r
+216	functionName	`peek_r`	peek_r
+216	functionName	`q`	q
+216	keywordKey	`do`	do
+216	keywordValue	`:erlang.error(:badarg, [q])`	{{'.',[{line,216}],[erlang,error]},[{line,216}],[badarg,[{q,[{line,216}],nil}]]}
+216	functionName	`error`	error
+216	atom	`:erlang`	erlang
+216	atom	`:badarg`	badarg
+216	functionName	`q`	q
+218	functionName	`::`	'::'
+218	functionName	`reverse`	reverse
+218	functionName	`::`	'::'
+218	functionName	`q1`	q1
+218	functionName	`queue`	queue
+218	functionName	`item`	item
+218	functionName	`::`	'::'
+218	functionName	`q2`	q2
+218	functionName	`queue`	queue
+218	functionName	`item`	item
+219	functionName	`def`	def
+219	head	`reverse`	reverse
+219	functionName	`when`	when
+219	functionName	`reverse`	reverse
+219	tuple	`{r, f}`	{{r,[{line,219}],nil},{f,[{line,219}],nil}}
+219	functionName	`r`	r
+219	functionName	`f`	f
+219	functionName	`and`	and
+219	functionName	`is_list`	is_list
+219	functionName	`r`	r
+219	functionName	`is_list`	is_list
+219	functionName	`f`	f
+219	keywordKey	`do`	do
+219	keywordValue	`{f, r}`	{{f,[{line,219}],nil},{r,[{line,219}],nil}}
+219	tuple	`{f, r}`	{{f,[{line,219}],nil},{r,[{line,219}],nil}}
+219	functionName	`f`	f
+219	functionName	`r`	r
+221	functionName	`def`	def
+221	head	`reverse`	reverse
+221	functionName	`reverse`	reverse
+221	functionName	`q`	q
+221	keywordKey	`do`	do
+221	keywordValue	`:erlang.error(:badarg, [q])`	{{'.',[{line,221}],[erlang,error]},[{line,221}],[badarg,[{q,[{line,221}],nil}]]}
+221	functionName	`error`	error
+221	atom	`:erlang`	erlang
+221	atom	`:badarg`	badarg
+221	functionName	`q`	q
+223	functionName	`::`	'::'
+223	functionName	`snoc`	snoc
+223	functionName	`::`	'::'
+223	functionName	`q1`	q1
+223	functionName	`queue`	queue
+223	functionName	`item`	item
+223	functionName	`item`	item
+223	functionName	`::`	'::'
+223	functionName	`q2`	q2
+223	functionName	`queue`	queue
+223	functionName	`item`	item
+224	functionName	`def`	def
+224	head	`snoc`	snoc
+224	functionName	`snoc`	snoc
+224	functionName	`q`	q
+224	functionName	`x`	x
+224	keywordKey	`do`	do
+224	keywordValue	`apply(__MODULE__, :in, [x, q])`	{apply,[{line,224}],[{'__MODULE__',[{line,224}],nil},in,[{x,[{line,224}],nil},{q,[{line,224}],nil}]]}
+224	functionName	`apply`	apply
+224	functionName	`__MODULE__`	'__MODULE__'
+224	atom	`:in`	in
+224	functionName	`x`	x
+224	functionName	`q`	q
+226	functionName	`::`	'::'
+226	functionName	`split`	split
+226	functionName	`::`	'::'
+226	functionName	`n`	n
+226	functionName	`non_neg_integer`	non_neg_integer
+226	functionName	`::`	'::'
+226	functionName	`q1`	q1
+226	functionName	`queue`	queue
+226	functionName	`item`	item
+226	tuple	`{q2 :: queue(item), q3 :: queue(item)}`	{{'::',[{line,226}],[{q2,[{line,226}],nil},{queue,[{line,226}],[{item,[{line,226}],nil}]}]},{'::',[{line,226}],[{q3,[{line,226}],nil},{queue,[{line,226}],[{item,[{line,226}],nil}]}]}}
+226	functionName	`::`	'::'
+226	functionName	`q2`	q2
+226	functionName	`queue`	queue
+226	functionName	`item`	item
+226	functionName	`::`	'::'
+226	functionName	`q3`	q3
+226	functionName	`queue`	queue
+226	functionName	`item`	item
+227	functionName	`def`	def
+227	head	`split`	split
+227	functionName	`when`	when
+227	functionName	`split`	split
+227	functionName	`=`	'='
+227	tuple	`{r, f}`	{{r,[{line,227}],nil},{f,[{line,227}],nil}}
+227	functionName	`r`	r
+227	functionName	`f`	f
+227	functionName	`q`	q
+227	functionName	`and`	and
+227	functionName	`is_list`	is_list
+227	functionName	`r`	r
+227	functionName	`is_list`	is_list
+227	functionName	`f`	f
+227	keywordKey	`do`	do
+227	keywordValue	`{{[], []}, q}`	{{[],[]},{q,[{line,227}],nil}}
+227	tuple	`{{[], []}, q}`	{{[],[]},{q,[{line,227}],nil}}
+227	tuple	`{[], []}`	{[],[]}
+227	functionName	`q`	q
+229	functionName	`def`	def
+229	head	`split`	split
+229	functionName	`when`	when
+229	functionName	`split`	split
+229	functionName	`n`	n
+229	functionName	`=`	'='
+229	tuple	`{r, f}`	{{r,[{line,229}],nil},{f,[{line,229}],nil}}
+229	functionName	`r`	r
+229	functionName	`f`	f
+229	functionName	`q`	q
+229	functionName	`and`	and
+229	functionName	`and`	and
+229	functionName	`and`	and
+229	functionName	`is_integer`	is_integer
+229	functionName	`n`	n
+229	functionName	`>=`	'>='
+229	functionName	`n`	n
+229	functionName	`is_list`	is_list
+229	functionName	`r`	r
+229	functionName	`is_list`	is_list
+229	functionName	`f`	f
+230	functionName	`=`	'='
+230	functionName	`lf`	lf
+230	functionName	`length`	length
+230	atom	`:erlang`	erlang
+230	functionName	`f`	f
+231	functionName	`cond`	cond
+232	functionName	`<`	'<'
+232	functionName	`n`	n
+232	functionName	`lf`	lf
+233	functionName	`=`	'='
+233	functionName	`|`	'|'
+233	functionName	`x`	x
+233	functionName	`f1`	f1
+233	functionName	`f`	f
+234	functionName	`split_f1_to_r2`	split_f1_to_r2
+234	functionName	`-`	'-'
+234	functionName	`n`	n
+234	functionName	`r`	r
+234	functionName	`f1`	f1
+234	functionName	`x`	x
+235	functionName	`>`	'>'
+235	functionName	`n`	n
+235	functionName	`lf`	lf
+236	functionName	`=`	'='
+236	functionName	`lr`	lr
+236	functionName	`length`	length
+236	functionName	`r`	r
+237	functionName	`=`	'='
+237	functionName	`m`	m
+237	functionName	`-`	'-'
+237	functionName	`-`	'-'
+237	functionName	`lr`	lr
+237	functionName	`n`	n
+237	functionName	`lf`	lf
+238	functionName	`cond`	cond
+239	functionName	`<`	'<'
+239	functionName	`m`	m
+240	functionName	`error`	error
+240	atom	`:erlang`	erlang
+240	atom	`:badarg`	badarg
+240	functionName	`n`	n
+240	functionName	`q`	q
+241	functionName	`>`	'>'
+241	functionName	`m`	m
+242	functionName	`=`	'='
+242	functionName	`|`	'|'
+242	functionName	`x`	x
+242	functionName	`r1`	r1
+242	functionName	`r`	r
+243	functionName	`split_r1_to_f2`	split_r1_to_f2
+243	functionName	`-`	'-'
+243	functionName	`m`	m
+243	functionName	`r1`	r1
+243	functionName	`f`	f
+243	functionName	`x`	x
+245	tuple	`{q, {[], []}}`	{{q,[{line,245}],nil},{[],[]}}
+245	functionName	`q`	q
+245	tuple	`{[], []}`	{[],[]}
+248	tuple	`{f2r(f), r2f(r)}`	{{f2r,[{line,248}],[{f,[{line,248}],nil}]},{r2f,[{line,248}],[{r,[{line,248}],nil}]}}
+248	functionName	`f2r`	f2r
+248	functionName	`f`	f
+248	functionName	`r2f`	r2f
+248	functionName	`r`	r
+252	functionName	`def`	def
+252	head	`split`	split
+252	functionName	`split`	split
+252	functionName	`n`	n
+252	functionName	`q`	q
+252	keywordKey	`do`	do
+252	keywordValue	`:erlang.error(:badarg, [n, q])`	{{'.',[{line,252}],[erlang,error]},[{line,252}],[badarg,[{n,[{line,252}],nil},{q,[{line,252}],nil}]]}
+252	functionName	`error`	error
+252	atom	`:erlang`	erlang
+252	atom	`:badarg`	badarg
+252	functionName	`n`	n
+252	functionName	`q`	q
+254	functionName	`::`	'::'
+254	functionName	`tail`	tail
+254	functionName	`::`	'::'
+254	functionName	`q1`	q1
+254	functionName	`queue`	queue
+254	functionName	`item`	item
+254	functionName	`::`	'::'
+254	functionName	`q2`	q2
+254	functionName	`queue`	queue
+254	functionName	`item`	item
+255	functionName	`def`	def
+255	head	`tail`	tail
+255	functionName	`tail`	tail
+255	functionName	`q`	q
+255	keywordKey	`do`	do
+255	keywordValue	`drop(q)`	{drop,[{line,255}],[{q,[{line,255}],nil}]}
+255	functionName	`drop`	drop
+255	functionName	`q`	q
+257	functionName	`::`	'::'
+257	functionName	`to_list`	to_list
+257	functionName	`::`	'::'
+257	functionName	`q`	q
+257	functionName	`queue`	queue
+257	functionName	`item`	item
+257	functionName	`item`	item
+258	functionName	`def`	def
+258	head	`to_list`	to_list
+258	functionName	`when`	when
+258	functionName	`to_list`	to_list
+258	tuple	`{erlangVariableIn, out}`	{{erlangVariableIn,[{line,258}],nil},{out,[{line,258}],nil}}
+258	functionName	`erlangVariableIn`	erlangVariableIn
+258	functionName	`out`	out
+258	functionName	`and`	and
+258	functionName	`is_list`	is_list
+258	functionName	`erlangVariableIn`	erlangVariableIn
+258	functionName	`is_list`	is_list
+258	functionName	`out`	out
+258	keywordKey	`do`	do
+258	keywordValue	`out ++ :lists.reverse(erlangVariableIn, [])`	{'++',[{line,258}],[{out,[{line,258}],nil},{{'.',[{line,258}],[lists,reverse]},[{line,258}],[{erlangVariableIn,[{line,258}],nil},[]]}]}
+258	functionName	`++`	'++'
+258	functionName	`out`	out
+258	functionName	`reverse`	reverse
+258	atom	`:lists`	lists
+258	functionName	`erlangVariableIn`	erlangVariableIn
+260	functionName	`def`	def
+260	head	`to_list`	to_list
+260	functionName	`to_list`	to_list
+260	functionName	`q`	q
+260	keywordKey	`do`	do
+260	keywordValue	`:erlang.error(:badarg, [q])`	{{'.',[{line,260}],[erlang,error]},[{line,260}],[badarg,[{q,[{line,260}],nil}]]}
+260	functionName	`error`	error
+260	atom	`:erlang`	erlang
+260	atom	`:badarg`	badarg
+260	functionName	`q`	q
+264	functionName	`defp`	defp
+264	head	`filter_f`	filter_f
+264	functionName	`filter_f`	filter_f
+264	functionName	`_`	'_'
+264	keywordKey	`do`	do
+264	keywordValue	`[]`	[]
+266	functionName	`defp`	defp
+266	head	`filter_f`	filter_f
+266	functionName	`filter_f`	filter_f
+266	functionName	`fun`	fun
+266	functionName	`|`	'|'
+266	functionName	`x`	x
+266	functionName	`f`	f
+267	functionName	`case`	case
+267	functionName	`fun`	fun
+267	functionName	`x`	x
+269	functionName	`|`	'|'
+269	functionName	`x`	x
+269	functionName	`filter_f`	filter_f
+269	functionName	`fun`	fun
+269	functionName	`f`	f
+271	functionName	`filter_f`	filter_f
+271	functionName	`fun`	fun
+271	functionName	`f`	f
+272	functionName	`when`	when
+272	functionName	`l`	l
+272	functionName	`is_list`	is_list
+272	functionName	`l`	l
+273	functionName	`++`	'++'
+273	functionName	`l`	l
+273	functionName	`filter_f`	filter_f
+273	functionName	`fun`	fun
+273	functionName	`f`	f
+277	functionName	`defp`	defp
+277	head	`filter_r`	filter_r
+277	functionName	`filter_r`	filter_r
+277	functionName	`_`	'_'
+277	keywordKey	`do`	do
+277	keywordValue	`[]`	[]
+279	functionName	`defp`	defp
+279	head	`filter_r`	filter_r
+279	functionName	`filter_r`	filter_r
+279	functionName	`fun`	fun
+279	functionName	`|`	'|'
+279	functionName	`x`	x
+279	functionName	`r0`	r0
+280	functionName	`=`	'='
+280	functionName	`r`	r
+280	functionName	`filter_r`	filter_r
+280	functionName	`fun`	fun
+280	functionName	`r0`	r0
+281	functionName	`case`	case
+281	functionName	`fun`	fun
+281	functionName	`x`	x
+283	functionName	`|`	'|'
+283	functionName	`x`	x
+283	functionName	`r`	r
+285	functionName	`r`	r
+286	functionName	`when`	when
+286	functionName	`l`	l
+286	functionName	`is_list`	is_list
+286	functionName	`l`	l
+287	functionName	`reverse`	reverse
+287	atom	`:lists`	lists
+287	functionName	`l`	l
+287	functionName	`r`	r
+291	functionName	`::`	'::'
+291	functionName	`get`	get
+291	functionName	`term`	term
+292	functionName	`defp`	defp
+292	head	`get`	get
+292	functionName	`when`	when
+292	functionName	`get`	get
+292	functionName	`r`	r
+292	functionName	`|`	'|'
+292	functionName	`h`	h
+292	functionName	`_`	'_'
+292	functionName	`is_list`	is_list
+292	functionName	`r`	r
+292	keywordKey	`do`	do
+292	keywordValue	`h`	{h,[{line,292}],nil}
+292	functionName	`h`	h
+294	functionName	`defp`	defp
+294	head	`get`	get
+294	functionName	`get`	get
+294	functionName	`h`	h
+294	keywordKey	`do`	do
+294	keywordValue	`h`	{h,[{line,294}],nil}
+294	functionName	`h`	h
+296	functionName	`defp`	defp
+296	head	`get`	get
+296	functionName	`get`	get
+296	functionName	`|`	'|'
+296	functionName	`_`	'_'
+296	functionName	`r`	r
+296	keywordKey	`do`	do
+296	keywordValue	`:lists.last(r)`	{{'.',[{line,296}],[lists,last]},[{line,296}],[{r,[{line,296}],nil}]}
+296	functionName	`last`	last
+296	atom	`:lists`	lists
+296	functionName	`r`	r
+298	functionName	`defp`	defp
+298	head	`split_f1_to_r2`	split_f1_to_r2
+298	functionName	`split_f1_to_r2`	split_f1_to_r2
+298	functionName	`r1`	r1
+298	functionName	`f1`	f1
+298	functionName	`r2`	r2
+298	functionName	`f2`	f2
+298	keywordKey	`do`	do
+298	keywordValue	`{{r2, f2}, {r1, f1}}`	{{{r2,[{line,298}],nil},{f2,[{line,298}],nil}},{{r1,[{line,298}],nil},{f1,[{line,298}],nil}}}
+298	tuple	`{{r2, f2}, {r1, f1}}`	{{{r2,[{line,298}],nil},{f2,[{line,298}],nil}},{{r1,[{line,298}],nil},{f1,[{line,298}],nil}}}
+298	tuple	`{r2, f2}`	{{r2,[{line,298}],nil},{f2,[{line,298}],nil}}
+298	functionName	`r2`	r2
+298	functionName	`f2`	f2
+298	tuple	`{r1, f1}`	{{r1,[{line,298}],nil},{f1,[{line,298}],nil}}
+298	functionName	`r1`	r1
+298	functionName	`f1`	f1
+300	functionName	`defp`	defp
+300	head	`split_f1_to_r2`	split_f1_to_r2
+300	functionName	`split_f1_to_r2`	split_f1_to_r2
+300	functionName	`n`	n
+300	functionName	`r1`	r1
+300	functionName	`|`	'|'
+300	functionName	`x`	x
+300	functionName	`f1`	f1
+300	functionName	`r2`	r2
+300	functionName	`f2`	f2
+300	keywordKey	`do`	do
+300	keywordValue	`split_f1_to_r2(n - 1, r1, f1, [x | r2], f2)`	{split_f1_to_r2,[{line,300}],[{'-',[{line,300}],[{n,[{line,300}],nil},1]},{r1,[{line,300}],nil},{f1,[{line,300}],nil},[{'|',[{line,300}],[{x,[{line,300}],nil},{r2,[{line,300}],nil}]}],{f2,[{line,300}],nil}]}
+300	functionName	`split_f1_to_r2`	split_f1_to_r2
+300	functionName	`-`	'-'
+300	functionName	`n`	n
+300	functionName	`r1`	r1
+300	functionName	`f1`	f1
+300	functionName	`|`	'|'
+300	functionName	`x`	x
+300	functionName	`r2`	r2
+300	functionName	`f2`	f2
+302	functionName	`defp`	defp
+302	head	`split_r1_to_f2`	split_r1_to_f2
+302	functionName	`split_r1_to_f2`	split_r1_to_f2
+302	functionName	`r1`	r1
+302	functionName	`f1`	f1
+302	functionName	`r2`	r2
+302	functionName	`f2`	f2
+302	keywordKey	`do`	do
+302	keywordValue	`{{r1, f1}, {r2, f2}}`	{{{r1,[{line,302}],nil},{f1,[{line,302}],nil}},{{r2,[{line,302}],nil},{f2,[{line,302}],nil}}}
+302	tuple	`{{r1, f1}, {r2, f2}}`	{{{r1,[{line,302}],nil},{f1,[{line,302}],nil}},{{r2,[{line,302}],nil},{f2,[{line,302}],nil}}}
+302	tuple	`{r1, f1}`	{{r1,[{line,302}],nil},{f1,[{line,302}],nil}}
+302	functionName	`r1`	r1
+302	functionName	`f1`	f1
+302	tuple	`{r2, f2}`	{{r2,[{line,302}],nil},{f2,[{line,302}],nil}}
+302	functionName	`r2`	r2
+302	functionName	`f2`	f2
+304	functionName	`defp`	defp
+304	head	`split_r1_to_f2`	split_r1_to_f2
+304	functionName	`split_r1_to_f2`	split_r1_to_f2
+304	functionName	`n`	n
+304	functionName	`|`	'|'
+304	functionName	`x`	x
+304	functionName	`r1`	r1
+304	functionName	`f1`	f1
+304	functionName	`r2`	r2
+304	functionName	`f2`	f2
+304	keywordKey	`do`	do
+304	keywordValue	`split_r1_to_f2(n - 1, r1, f1, r2, [x | f2])`	{split_r1_to_f2,[{line,304}],[{'-',[{line,304}],[{n,[{line,304}],nil},1]},{r1,[{line,304}],nil},{f1,[{line,304}],nil},{r2,[{line,304}],nil},[{'|',[{line,304}],[{x,[{line,304}],nil},{f2,[{line,304}],nil}]}]]}
+304	functionName	`split_r1_to_f2`	split_r1_to_f2
+304	functionName	`-`	'-'
+304	functionName	`n`	n
+304	functionName	`r1`	r1
+304	functionName	`f1`	f1
+304	functionName	`r2`	r2
+304	functionName	`|`	'|'
+304	functionName	`x`	x
+304	functionName	`f2`	f2

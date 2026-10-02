@@ -27,6 +27,29 @@ internal object Tokenization {
     @RequiresReadLock
     fun lines(file: ElixirFile, text: CharSequence, languageLevel: ElixirLanguageLevel): Lines {
         ThreadingAssertions.assertReadAccess()
+        LoweringCounters.count(LoweringCounters.tokenizations)
+
+        val scan = scan(file.node, text, languageLevel)
+
+        return Lines(text, Graphemes.of(languageLevel), scan.uncountedNewlines, scan.quotedTexts, scan.zeroWidthRanges)
+    }
+
+    /** What [scan] finds under a node. */
+    class Scan(val uncountedNewlines: List<Int>, val quotedTexts: List<Lines.QuotedText>, val zeroWidthRanges: List<TextRange>)
+
+    /**
+     * The newlines [languageLevel]'s tokenizer leaves uncounted under [node] when [newlines], and its quoted text and
+     * zero-width ranges when [columns].
+     */
+    @RequiresReadLock
+    fun scan(
+        node: ASTNode,
+        text: CharSequence,
+        languageLevel: ElixirLanguageLevel,
+        newlines: Boolean = true,
+        columns: Boolean = true,
+    ): Scan {
+        ThreadingAssertions.assertReadAccess()
 
         val newlineCountedInCharacter = NEWLINE_COUNTED_IN_CHARACTER.isSufficient(languageLevel)
         val newlineCountedInLiteralSigilLine = ESCAPED_NEWLINE_COUNTED_IN_LITERAL_SIGIL_LINE.isSufficient(languageLevel)
@@ -41,7 +64,7 @@ internal object Tokenization {
         fun visit(node: ASTNode) {
             ProgressManager.checkCanceled()
 
-            when (node.elementType) {
+            if (newlines) when (node.elementType) {
                 ElixirTypes.ESCAPED_EOL -> {
                     val parent = node.treeParent
                     val uncounted =
@@ -58,6 +81,9 @@ internal object Tokenization {
                     if (!newlineCountedInCharacter && node.lastChildNode.elementType != ElixirTypes.ESCAPED_EOL) {
                         node.text.indexOf('\n').takeIf { it >= 0 }?.let { uncountedNewlines.add(node.startOffset + it) }
                     }
+            }
+
+            if (columns) when (node.elementType) {
                 ElixirTypes.ESCAPED_CHARACTER ->
                     if (!escapedInterpolationColumns && node.text == "\\#" &&
                         node.treeNext?.text?.startsWith("{") == true
@@ -66,9 +92,9 @@ internal object Tokenization {
                     }
             }
 
-            val psi = node.psi
+            val psi = if (columns) node.psi else null
 
-            if (clusters && psi is Body) {
+            if (columns && clusters && psi is Body) {
                 val quote = generateSequence(node.treeParent) { it.treeParent }
                     .firstOrNull { it.findChildByType(TERMINATORS) != null }
                 val terminator = quote?.findChildByType(TERMINATORS)?.text
@@ -93,7 +119,7 @@ internal object Tokenization {
 
             // 1.11 strips the indentation from every line of the body, those inside an interpolation too, before
             // tokenizing it.
-            if (!heredocIndentationInColumns && psi is HeredocLiteral) {
+            if (columns && !heredocIndentationInColumns && psi is HeredocLiteral) {
                 val indentation = psi.heredocPrefix.textLength
                 val bodyEnd = psi.heredocPrefix.textRange.startOffset
                 var lineStart = psi.heredocLineList.firstOrNull()?.textRange?.startOffset ?: bodyEnd
@@ -119,8 +145,8 @@ internal object Tokenization {
             }
         }
 
-        visit(file.node)
+        visit(node)
 
-        return Lines(text, Graphemes.of(languageLevel), uncountedNewlines, quotedTexts, zeroWidthRanges)
+        return Scan(uncountedNewlines, quotedTexts, zeroWidthRanges)
     }
 }
