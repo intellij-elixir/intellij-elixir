@@ -22,6 +22,7 @@ import org.elixir_lang.heex.ParserDefinition
 import org.elixir_lang.heex.file.view_provider.Factory
 import org.elixir_lang.heex.html.HeexHTMLOuterLanguageRangePatcher
 import org.elixir_lang.junit.logs.UnexpectedLogs
+import org.elixir_lang.parser_definition.clearElixirAstFactory
 import org.elixir_lang.psi.EexDataAstFactory
 
 /**
@@ -68,6 +69,8 @@ abstract class HeexParsingTestCase : ParsingTestCase(
         // the Elixir root's EEx Data leaf would build a plain LeafPsiElement here instead of the real
         // OuterLanguageElementImpl production uses, silently testing a different tree shape.
         addExplicitExtension(LanguageASTFactory.INSTANCE, ElixirLanguage, EexDataAstFactory())
+        // The registration alone leaves a factory an earlier test cached for Elixir in place.
+        clearElixirAstFactory(testRootDisposable)
         addExplicitExtension(TemplateDataElementType.TREE_PATCHER, XMLLanguage.INSTANCE, XmlTemplateTreePatcher())
         // A bare ParsingTestCase never loads plugin.xml; without the production patcher the outer
         // ranges get a different default replacement and the HTML trees differ.

@@ -1,5 +1,10 @@
 package org.elixir_lang.heex.parser
 
+import com.intellij.psi.templateLanguages.OuterLanguageElement
+import com.intellij.psi.util.PsiTreeUtil
+import org.elixir_lang.ElixirLanguage
+import org.elixir_lang.psi.ElixirTypes
+
 /**
  * Multi-root parsing fixtures covering constructs beyond plain HTML: `<%= %>`, an `<% %>` block
  * spanning tags, `{}` in body/attribute/root position, local/remote components, a `<:slot>` tag,
@@ -69,5 +74,20 @@ class HeexParsingTest : HeexParsingTestCase() {
      */
     fun testLongComment() {
         doTest(true)
+    }
+
+    /** No golden shows the leaf class: a plain leaf and an outer-language one both print as `PsiElement(EEx Data)`. */
+    fun testEexDataLeavesAreOuterLanguageElements() {
+        val file = createPsiFile(getTestName(false), "<div>\n  <%= @x %>\n</div>\n")
+        val elixirRoot = checkNotNull(file.viewProvider.getPsi(ElixirLanguage)) { "Expected an Elixir root in ${file.name}" }
+        val eexDataLeaves = PsiTreeUtil.collectElements(elixirRoot) { it.node?.elementType == ElixirTypes.EEX_DATA }
+
+        assertTrue("Expected at least one EEx Data leaf in: ${elixirRoot.text}", eexDataLeaves.isNotEmpty())
+        for (leaf in eexDataLeaves) {
+            assertTrue(
+                "Expected EEx Data leaf '${leaf.text}' to be an OuterLanguageElement, was ${leaf::class.java.name}",
+                leaf is OuterLanguageElement
+            )
+        }
     }
 }
