@@ -11,7 +11,12 @@ import com.intellij.navigation.GotoRelatedItem
 import com.intellij.navigation.GotoRelatedProvider
 import com.intellij.openapi.extensions.ExtensionPointName
 import com.intellij.psi.PsiManager
+import com.intellij.psi.ElementDescriptionUtil
+import com.intellij.psi.PsiNamedElement
 import com.intellij.psi.PsiPolyVariantReference
+import com.intellij.usageView.UsageViewNodeTextLocation
+import com.intellij.usageView.UsageViewShortNameLocation
+import com.intellij.usageView.UsageViewTypeLocation
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.runInEdtAndWait
@@ -40,6 +45,7 @@ import com.intellij.refactoring.rename.api.RenameValidationResult
 import java.lang.management.ManagementFactory
 import com.intellij.codeInsight.lookup.LookupManager
 import org.elixir_lang.psi.ElixirFile
+import org.elixir_lang.psi.ElixirStabBody
 import org.elixir_lang.structure_view.Model
 import org.elixir_lang.structure_view.node_provider.Used
 import org.elixir_lang.code_insight.matrix.Declaration
@@ -293,6 +299,7 @@ private class Group(val scenario: Scenario) {
             Feature.GO_TO_DECLARATION -> checkGoToDeclaration(binding)
             Feature.FIND_USAGES -> checkFindUsages(binding)
             Feature.LABEL -> checkLabel(binding)
+            Feature.DESCRIPTION -> checkDescription(binding!!, name!!)
             Feature.QUICK_DOCUMENTATION -> if (binding?.namesModule == true) checkModuleDocumentation(binding) else checkQuickDocumentation(binding)
             Feature.UNAVAILABLE_NOTICE -> checkUnavailableNotice(binding)
             Feature.PARAMETER_INFO -> checkParameterInfo(binding)
@@ -324,7 +331,17 @@ private class Group(val scenario: Scenario) {
         val module = binding?.let { definition(it).first } ?: scenario.main
         val expected = module.definitions
             .filter { it.name == site.name && site.sees(it) }
-            .map { definition -> Expected.heads(module, definition.name, definition.maxArity).first().parameters.joinToString(", ") }
+            .flatMap { definition ->
+                // A `.beam` with neither debug info nor docs records each exported arity, but not which are defaults.
+                if (scenario.backing == "ex_gen" && definition.minArity < definition.maxArity) {
+                    (definition.minArity..definition.maxArity)
+                        .filter { arity -> site.visible?.let { "${definition.name}/$arity" in it } ?: true }
+                        .map { arity -> (1..arity).map { "arg$it" } }
+                } else {
+                    listOf(Expected.heads(module, definition.name, definition.maxArity).first().parameters)
+                }
+            }
+            .map { parameters -> parameters.joinToString(", ").ifEmpty { "<no parameters>" } }
             .sorted()
 
         assertEquals("Parameter Info at ${place.id} showed the wrong signatures", expected, parameterInfoSignaturesAtCaret().sorted())
@@ -1207,6 +1224,46 @@ private class Group(val scenario: Scenario) {
         }
     }
 
+    /**
+     * What the platform's usage views and dialogs say of the definition the place resolves to, one [location] per
+     * cell: its `name`, its `shortName`, its `nodeText` (the head as [checkLabel] presents it, the parameters by
+     * [checkParameterInfo]'s rules) and its `type`, which is Elixir's own kind of the definer: `function` or `macro`.
+     */
+    private fun checkDescription(binding: Binding, location: String) {
+        openAt(place)
+        val (module, definition) = describedDefinition(binding)
+        // At a head, what the caret is in; elsewhere, what Go To Declaration lands in.
+        val targets = if (place is Place.Head) {
+            listOfNotNull(myFixture.file.findElementAt(myFixture.caretOffset)?.let(::definingStatement))
+        } else {
+            myFixture.gotoDeclarationTargetsAtCaret().orEmpty().mapNotNull { it.destination?.let(::definingStatement) }.distinct()
+        }
+        assertFalse("Nothing at ${place.id} resolves to describe", targets.isEmpty())
+
+        val heads = Expected.heads(module, definition.name, definition.maxArity)
+        val definer = heads.first().definer
+        val (expected, actual) = when (location) {
+            "name" -> setOf(definition.name) to targets.map { (it as? PsiNamedElement)?.name }
+            "shortName" -> setOf(definition.name) to targets.map { ElementDescriptionUtil.getElementDescription(it, UsageViewShortNameLocation.INSTANCE) }
+            "type" -> setOf(if (definer in MACRO_FORMS) "macro" else "function") to
+                targets.map { ElementDescriptionUtil.getElementDescription(it, UsageViewTypeLocation.INSTANCE) }
+            "nodeText" -> {
+                // A `.beam` with neither debug info nor docs records each exported arity, but not which are defaults.
+                val labels = if (backing == Backing.EX_GEN && definition.minArity < definition.maxArity) {
+                    (definition.minArity..definition.maxArity).map { arity -> "$definer ${definition.name}(${(1..arity).joinToString(", ") { "arg$it" }})" }
+                } else if (place is Place.Head) {
+                    listOf(presentedHead(binding).label)
+                } else {
+                    heads.map { it.label }
+                }
+                labels.toSet() to targets.map { ElementDescriptionUtil.getElementDescription(it, UsageViewNodeTextLocation.INSTANCE) }
+            }
+            else -> throw AssertionError("No description location $location")
+        }
+        val wrong = actual.filter { it !in expected }
+        assertEquals("The $location of what ${place.id} resolves to is not one of ${expected.sorted()}", emptyList<String?>(), wrong)
+    }
+
     /** The `@doc` the compiler kept on [documented]'s own definition, if any. */
     private fun ownDoc(documented: Binding): String? =
         definition(documented).let { (module, definition) -> module.doc(definition.name, definition.maxArity) }
@@ -1509,6 +1566,17 @@ private class Group(val scenario: Scenario) {
         }
     }
 
+    /** The definition Go To Declaration from the place lands in, as [goToDeclarationLines] decides it. */
+    private fun describedDefinition(binding: Binding): Pair<DeclaringModule, Definition> {
+        val (module, definition) = definition(binding)
+        val target = delegatedTarget(module, definition)
+            ?.takeUnless { place is Place.Head || specName(place.id) || (module.compiled && backing in setOf(Backing.EX_GEN, Backing.ERL_GEN)) }
+            ?: return module to definition
+        val name = module.delegateAs.orEmpty() + definition.name
+
+        return target to target.definitions.first { it.name == name && definition.maxArity in it.minArity..it.maxArity }
+    }
+
     /**
      * Where each clause head of the definition [binding] is in, as `file:line `text``. A mirror gives each arity a
      * default argument creates its own head, so there it is the heads covering the arity called.
@@ -1620,6 +1688,13 @@ private class Group(val scenario: Scenario) {
 
     // -- Positions --------------------------------------------------------------------------
 
+    /** The clause [element] is in, or for a form that writes no clause, such as `defdelegate`, its statement. */
+    private fun definingStatement(element: PsiElement): PsiElement {
+        val calls = generateSequence(element) { it.parent }.filterIsInstance<Call>()
+
+        return calls.firstOrNull { CallDefinitionClause.`is`(it) } ?: calls.firstOrNull { it.parent is ElixirStabBody } ?: element
+    }
+
     private fun offsetOf(file: VirtualFile, line: Int, column: Int): Int {
         val text = String(file.contentsToByteArray(), file.charset)
         return text.split('\n').take(line - 1).sumOf { it.length + 1 } + column - 1
@@ -1658,6 +1733,8 @@ private class Group(val scenario: Scenario) {
         private val GUARD_CALL: TextAttributesKey = TextAttributesKey.find("ELIXIR_GUARD_CALL")
         private val GUARD_DECLARATION: TextAttributesKey = TextAttributesKey.find("ELIXIR_GUARD_DECLARATION")
         private val GUARD_FORMS = setOf("defguard", "defguardp")
+
+        private val DESCRIPTION_LOCATIONS = listOf("name", "shortName", "nodeText", "type")
 
         /** The keys [highlightKeysAt] can tell apart. */
         private val HIGHLIGHT_KEYS = listOf(
@@ -1717,7 +1794,11 @@ private class Group(val scenario: Scenario) {
                 } else {
                     emptyList()
                 }
-                listOf(Cell(scenario, feature, place)) + others
+                if (feature == Feature.DESCRIPTION) {
+                    DESCRIPTION_LOCATIONS.map { Cell(scenario, feature, place, it) }
+                } else {
+                    listOf(Cell(scenario, feature, place)) + others
+                }
             }.filter { cell -> ONLY?.containsMatchIn(cell.testName) ?: true }
         }
 
