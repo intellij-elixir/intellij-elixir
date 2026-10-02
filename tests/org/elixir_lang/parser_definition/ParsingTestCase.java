@@ -54,6 +54,7 @@ public abstract class ParsingTestCase extends com.intellij.testFramework.Parsing
     @Override
     protected void setUp() throws Exception {
         super.setUp();
+        ElixirAstFactoryCache.clearElixirAstFactory(getTestRootDisposable());
 
         ElixirLanguageLevelResolver.overrideLanguageLevel(
                 getProject(),
