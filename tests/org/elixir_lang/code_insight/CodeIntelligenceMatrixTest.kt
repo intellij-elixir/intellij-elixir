@@ -1207,7 +1207,7 @@ private class Group(val scenario: Scenario) {
             val candidates = candidates(siteOrNull()!!).flatMap(::headLines).distinct().sorted()
             assertEquals("Go To Declaration from ${place.id} did not offer the declared arities", candidates, landed)
         } else if (binding == null) {
-            val functionHeads = headLines(primary())
+            val functionHeads = named().flatMap(::headLines).toSet()
             assertEquals("Go To Declaration from ${place.id} landed on a function head", emptyList<String>(), landed.filter { it in functionHeads })
         } else {
             // A `@spec` describes the definition it is written over, so from a delegate's spec the user lands on the
@@ -1234,7 +1234,7 @@ private class Group(val scenario: Scenario) {
                 found
             )
         } else if (binding == null) {
-            val functionCalls = boundSites(primary())
+            val functionCalls = named().flatMap(::boundSites).toSet()
             assertEquals(
                 "Find Usages from ${place.id} found calls of the function from $targets search targets at the caret",
                 emptyList<String>(),
@@ -1492,6 +1492,15 @@ private class Group(val scenario: Scenario) {
     /** The world's first definition, which a variable, atom or keyword site shares its name with. */
     private fun primary(): Binding =
         scenario.main.definitions.first().let { Binding(scenario.main.module, it.name, it.maxArity, "declaration") }
+
+    /** Every arity of every definition named what the place writes, which a place nothing binds must reach none of. */
+    private fun named(): List<Binding> {
+        val name = siteOrNull()?.name ?: primary().name
+
+        return scenario.main.definitions
+            .filter { it.name == name }
+            .flatMap { definition -> (definition.minArity..definition.maxArity).map { Binding(scenario.main.module, definition.name, it, "declaration") } }
+    }
 
     /** The marked site the caret is at, or null at a declaration. */
     private fun siteOrNull(): Site? = (place as? Place.Marked)?.let { marked -> scenario.sites.single { it.id == marked.id } }

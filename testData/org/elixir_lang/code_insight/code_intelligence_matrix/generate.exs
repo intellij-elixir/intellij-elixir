@@ -96,7 +96,7 @@ defmodule Matrix do
       %{id: "eex_function_from_args", definer: "def", eex: true, eex_attribute: :args},
       # `Mix.Generator.embed_template(:snoc, ...)` declares `snoc_template/1`, `embed_text(:snoc, ...)` `snoc_text/0`: the
       # names are the atom plus a suffix, so this form has a world of its own, `x_embed`.
-      %{id: "generator_embed", definer: "def", embed: true, private: true},
+      %{id: "generator_embed", definer: "defp", embed: true, private: true},
       # Not a function: `@limit value` writes a module attribute and `@limit` reads it. Only the attribute worlds ask it.
       %{id: "attribute", attribute: true},
       # Not a function: a variable bound in a function body and read inside a nested clause. Only the variable worlds ask it.
