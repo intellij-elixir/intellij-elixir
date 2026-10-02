@@ -96,7 +96,7 @@ class QuoteExpanderTest : ExpanderTestCase() {
                 val level = ElixirLanguageLevel.of(version)
                 val ast = placeholding(lower(code, level), "y")
 
-                "$version: " + render(code, Expander.expand(ast, ExState.empty(level), Env.empty(level, kernel), level, exports))
+                "$version: " + render(code, Expander.expand(ast, ExState.empty(level), Env.empty(level, kernel), level, exports, structs))
             }
         )
     }
@@ -366,7 +366,7 @@ class QuoteExpanderTest : ExpanderTestCase() {
     private fun value(code: String, level: ElixirLanguageLevel, lineOffset: Int = 0): String {
         val ast = lower(code, level)
         val statements = if (ast is ElixirAst.Block) ast.expressions else listOf(ast)
-        val run = Run(level, ExpansionObserver.NONE, exports)
+        val run = Run(level, ExpansionObserver.NONE, exports, structs)
         var state = ExState.empty(level)
         var env = Env.empty(level, kernel).copy(module = "Elixir.T")
 

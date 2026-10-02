@@ -20,6 +20,14 @@ internal fun counterOf(meta: Meta): Env.Counter? =
             }
         }
 
+/** [counter] as the `counter` entry of metadata holds it, which [counterOf] reads back. */
+internal fun counterMetaValue(counter: Env.Counter): Meta.Value =
+    when (counter) {
+        is Env.Counter.InModule ->
+            Meta.Value.Tuple(listOf(Meta.Value.Atom(counter.module), Meta.Value.Integer(counter.n)))
+        is Env.Counter.Unique -> Meta.Value.Integer(counter.n)
+    }
+
 /**
  * `elixir_module:next_counter/1`: each module's macro expansions, counted from 1. One expansion owns it, and it isn't
  * thread-safe.
@@ -64,10 +72,7 @@ internal fun expandQuoted(
  * `require` call.
  */
 internal fun linifyWithContextCounter(line: Int, receiver: String, counter: Env.Counter, node: ElixirAst): ElixirAst {
-    val counterValue = when (counter) {
-        is Env.Counter.InModule -> Meta.Value.Tuple(listOf(Meta.Value.Atom(counter.module), Meta.Value.Integer(counter.n)))
-        is Env.Counter.Unique -> Meta.Value.Integer(counter.n)
-    }
+    val counterValue = counterMetaValue(counter)
     val receiverContext = ElixirAst.VariableContext.Atom(receiver)
 
     fun lined(meta: Meta): Meta = if (line == 0) meta else keynew(meta, "line", Meta.Value.Integer(line.toLong()))

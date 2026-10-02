@@ -13,8 +13,14 @@ internal val GUARD_HEADS = listOf(
  * `elixir_clauses:guard/3`: [node] split at each `when`, each part expanded in turn in the context the caller set,
  * which is a guard's.
  */
-internal fun guard(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel, exports: Exports): Expansion =
-    guard(node, state, env, Run(level, ExpansionObserver.NONE, exports))
+internal fun guard(
+    node: ElixirAst,
+    state: ExState,
+    env: Env,
+    level: ElixirLanguageLevel,
+    exports: Exports,
+    structs: Structs,
+): Expansion = guard(node, state, env, Run(level, ExpansionObserver.NONE, exports, structs))
 
 internal fun guard(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion =
     if (isCall(node, "when", 2)) {

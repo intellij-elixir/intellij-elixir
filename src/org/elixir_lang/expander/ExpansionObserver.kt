@@ -26,6 +26,9 @@ fun interface ExpansionObserver {
      */
     fun quotedImport(node: ElixirAst, kind: QuotedImportKind, module: String, name: String, arities: List<Int>) {}
 
+    /** The struct [node] builds, updates or matches expands as [module]'s, with [keys] given as written. */
+    fun structExpanded(node: ElixirAst, module: String, keys: List<String>) {}
+
     companion object {
         val NONE = ExpansionObserver { _, _, _ -> }
     }

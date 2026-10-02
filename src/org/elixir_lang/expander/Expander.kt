@@ -11,8 +11,9 @@ import org.elixir_lang.psi.Import.Term
 object Expander {
     /**
      * [ast] expanded from [state] and [env] as Elixir at [level] expands it, with [exports] standing for the modules
-     * Elixir would load, up to the first error Elixir raises or the first node that isn't ported. [observer] is told
-     * of each node reached, and [counters] gives each macro expansion its hygiene counter.
+     * Elixir would load and [structs] for their structs, up to the first error Elixir raises or the first node that
+     * isn't ported. [observer] is told of each node reached, and [counters] gives each macro expansion its hygiene
+     * counter.
      */
     fun expand(
         ast: ElixirAst,
@@ -20,20 +21,27 @@ object Expander {
         env: Env,
         level: ElixirLanguageLevel,
         exports: Exports,
+        structs: Structs,
         observer: ExpansionObserver = ExpansionObserver.NONE,
         counters: Counters = Counters(),
-    ): Expansion = expand(ast, state, env, Run(level, observer, exports, counters))
+    ): Expansion = expand(ast, state, env, Run(level, observer, exports, structs, counters))
 
-    internal fun expand(ast: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
+    internal fun expand(ast: ElixirAst, state: ExState, env: Env, run: Run): Expansion =
+        observed(ast, state, env, run) {
+            Clause.entries
+                .firstOrNull { it.matches(ast, state, env, run.level) }
+                ?.expand(ast, state, env, run)
+                ?: Expansion.Unported(ast)
+        }
+
+    /** [ast] expanded by [body] in place of its clause, with the observer told of it as of any node. */
+    internal inline fun observed(ast: ElixirAst, state: ExState, env: Env, run: Run, body: () -> Expansion): Expansion {
         ProgressManager.checkCanceled()
         // A built node shares its source node's origin, so an observer would take it for that node.
         val observed = !ast.meta.built
         if (observed) run.observer.entering(ast, state, env)
 
-        val expansion = Clause.entries
-            .firstOrNull { it.matches(ast, state, env, run.level) }
-            ?.expand(ast, state, env, run)
-            ?: Expansion.Unported(ast)
+        val expansion = body()
 
         if (observed) run.observer.left(ast, expansion)
 
@@ -46,6 +54,7 @@ internal class Run(
     val level: ElixirLanguageLevel,
     val observer: ExpansionObserver,
     val exports: Exports,
+    val structs: Structs,
     val counters: Counters = Counters(),
 )
 
@@ -103,14 +112,23 @@ internal inline fun mapfold(
  * value is the list of the arguments' values.
  */
 internal fun expandArgs(args: List<ElixirAst>, state: ExState, env: Env, run: Run): Expansion =
+    expandArgs(args, state, env) { arg, s, e -> Expander.expand(arg, s, e, run) }
+
+/** `elixir_expand:expand_args/3`, with [expand] for its `expand/3`. */
+internal inline fun expandArgs(
+    args: List<ElixirAst>,
+    state: ExState,
+    env: Env,
+    expand: (ElixirAst, ExState, Env) -> Expansion,
+): Expansion =
     when {
-        args.size == 1 -> Expander.expand(args.single(), state, env, run).thenValue { s, e, v ->
+        args.size == 1 -> expand(args.single(), state, env).thenValue { s, e, v ->
             Expansion.Expanded(s, e, Term.List(listOf(v)))
         }
-        env.context == Env.Context.MATCH -> mapfold(args, state, env) { arg, s, e -> Expander.expand(arg, s, e, run) }
+        env.context == Env.Context.MATCH -> mapfold(args, state, env, expand)
         else ->
             argumentScope(state, env) { scope ->
-                mapfold(args, scope, env) { arg, s, e -> expandArg(arg, s, state, e, run) }
+                mapfold(args, scope, env) { arg, s, e -> expandArg(arg, s, state, e, expand) }
             }
     }
 
@@ -152,10 +170,20 @@ internal inline fun argumentScope(state: ExState, env: Env, body: (ExState) -> E
 
 /** `elixir_expand:expand_arg/3`: an argument reads only what [start], the scope's start, could. */
 internal fun expandArg(arg: ElixirAst, acc: ExState, start: ExState, env: Env, run: Run): Expansion =
+    expandArg(arg, acc, start, env) { a, s, e -> Expander.expand(a, s, e, run) }
+
+/** `elixir_expand:expand_arg/3`, with [expand] for its `expand/3`. */
+internal inline fun expandArg(
+    arg: ElixirAst,
+    acc: ExState,
+    start: ExState,
+    env: Env,
+    expand: (ElixirAst, ExState, Env) -> Expansion,
+): Expansion =
     if (arg is ElixirAst.Literal) {
         Expansion.Expanded(acc, env, literalValue(arg))
     } else {
-        Expander.expand(arg, acc.resetRead(start), env, run)
+        expand(arg, acc.resetRead(start), env)
     }
 
 internal fun literalValue(literal: ElixirAst.Literal): Term =

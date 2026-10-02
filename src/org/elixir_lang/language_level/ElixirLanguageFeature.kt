@@ -850,7 +850,8 @@ enum class ElixirLanguageFeature(
     CAPTURE_ARGUMENT_BELOW_ONE_IS_INVALID_ARITY(sinceElixir = "1.14.0-rc.0"),
 
     /**
-     * A capture of a remote call whose module part has no `&N` reports its errors at the call, not at the `&`.
+     * A capture of a remote call whose module part has no `&N` reports its errors at the call, not at the `&`, and
+     * `&f/a` and `&M.f/a` trace their lookup at `f` or `M.f`.
      *
      * `elixir-lang/elixir@6c068176d` ("Emit consistent position meta on fn capture traces", #12033), first released in
      * v1.14.0-rc.1.
@@ -864,6 +865,29 @@ enum class ElixirLanguageFeature(
      * `elixir-lang/elixir@a4c700b23` ("Unify caret position in diagnostics"), first released in v1.16.0-rc.0.
      */
     CAPTURE_REPORTED_AT_CALL(sinceElixir = "1.16.0-rc.0"),
+
+    /**
+     * Each distinct `&N` in a capture takes a hygiene counter, which its variable, named `capture`, carries, so the
+     * variable is apart from every other.
+     *
+     * `elixir-lang/elixir@53c93b91d` ("Avoid nesting of capture inside macros"), first released in v1.17.0-rc.1.
+     */
+    CAPTURE_ARGUMENT_COUNTER(sinceElixir = "1.17.0-rc.1"),
+
+    /**
+     * A capture argument's variable records its position, as `capture` metadata after its counter.
+     *
+     * `elixir-lang/elixir@59a1ad913` ("Allow captures to be reconstructed on type system pretty printing"), first
+     * released in v1.19.0-rc.1.
+     */
+    CAPTURE_ARGUMENT_POSITION_META(sinceElixir = "1.19.0-rc.1"),
+
+    /**
+     * The variable for an `&N` is named `_&`, in `elixir_fn`'s context, not `capture`.
+     *
+     * `elixir-lang/elixir@aae39c87d` ("Fix warnings"), first released in v1.20.0-rc.5.
+     */
+    CAPTURE_ARGUMENT_IN_ELIXIR_FN_CONTEXT(sinceElixir = "1.20.0-rc.5"),
 
     /**
      * `case`, `cond`, `receive`, `try`, `fn`, `with` and `for` each take a version once their clauses are expanded,
@@ -1119,6 +1143,34 @@ enum class ElixirLanguageFeature(
      * `elixir-lang/elixir@a3b12428f` ("Let runtime pass check for unrequired macros"), first released in v1.13.0-rc.0.
      */
     UNREQUIRED_MACRO_CALLED_AS_FUNCTION(sinceElixir = "1.13.0-rc.0"),
+
+    /**
+     * A struct key that doesn't expand to an atom raises `invalid_key_for_struct` before the struct is read. Before it,
+     * a build raises the struct function's `KeyError`, and an update or a match raises `unknown_key_for_struct`.
+     *
+     * `elixir-lang/elixir@514355f3d` ("Type inference for structs and type checking for dot/remote", #13518), first
+     * released in v1.17.0-rc.0.
+     */
+    STRUCT_KEYS_MUST_BE_ATOMS(sinceElixir = "1.17.0-rc.0"),
+
+    /**
+     * Inside a function, a struct update or match reads no struct, so an undefined struct or an unknown key is left to
+     * the type checker.
+     *
+     * `elixir-lang/elixir@a0ef7f0c3` ("Move struct validation in patterns and updates to type checker"), first released
+     * in v1.20.0-rc.2.
+     */
+    STRUCT_KEYS_IN_FUNCTIONS_LEFT_TO_TYPES(sinceElixir = "1.20.0-rc.2"),
+
+    /**
+     * In its own body, the module being defined has no struct until it defines `__struct__`, so `%__MODULE__{}` is
+     * `inaccessible_struct`. Before it, Elixir calls the `__struct__` of a loaded module of the same name, if there is
+     * one, so the answer depends on what the compiling node has loaded.
+     *
+     * `elixir-lang/elixir@b78b48058`, a backport of `elixir-lang/elixir@904072081` ("Raise on missing struct for module
+     * conflict", #12113), first released in v1.14.1.
+     */
+    STRUCT_OF_MODULE_BEING_DEFINED_NEVER_LOADED(sinceElixir = "1.14.1"),
 
     /**
      * Inside a `catch` or `rescue` clause, `System.stacktrace()` expands to `__STACKTRACE__`, with no dispatch.

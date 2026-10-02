@@ -14,11 +14,17 @@ abstract class ExpanderTestCase : ParsingTestCase() {
     /** The modules the expanded snippets can load. */
     protected open val exports: Exports = NO_EXPORTS
 
+    /** The structs of the modules the expanded snippets can load. */
+    protected open val structs: Structs = NO_STRUCTS
+
     /** What the empty env imports from `Kernel`. */
     protected open val kernel: KernelImports = NO_KERNEL
 
     /** The module whose body the snippets are in, or `null` for none. */
     protected open val module: String? = null
+
+    /** The modules defined before the snippets in the same context: `E`'s `context_modules`. */
+    protected open val contextModules: List<String> = emptyList()
 
     /** The function whose body the snippets are in, or `null` for the module body. */
     protected open val function: NameArity? = null
@@ -32,9 +38,10 @@ abstract class ExpanderTestCase : ParsingTestCase() {
         Expander.expand(
             lower(code, level),
             ExState.empty(level),
-            Env.empty(level, kernel).copy(module = module, function = function),
+            Env.empty(level, kernel).copy(module = module, contextModules = contextModules, function = function),
             level,
             exports,
+            structs,
             observer,
         )
 
@@ -185,6 +192,9 @@ abstract class ExpanderTestCase : ParsingTestCase() {
 
         /** No module is loaded. */
         val NO_EXPORTS = Exports { ModuleExports.Absent }
+
+        /** No module defines a struct. */
+        val NO_STRUCTS = Structs { ModuleStruct.Absent }
 
         /** The last tag of each supported minor. */
         val LEVELS = listOf(

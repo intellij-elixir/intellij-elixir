@@ -26,7 +26,7 @@ class OpaqueProbeTest : ProbeTestCase() {
     fun testEachCaseMatchesElixirUpToItsMacro() {
         val module = "Opaque" + UUID.randomUUID().toString().replace("-", "")
         val macros = Exports { if (it == "Elixir.$module") MACROS else legExports.of(it) }
-        val bodies = CASES.map { it.first } + PREAMBLE_CASES.map { it.replace(M, module) }
+        val bodies = CASES.map { it.first } + CAPTURE_CASES + PREAMBLE_CASES.map { it.replace(M, module) }
 
         probes.assertMatchesElixirUpToMacro(
             bodies.associateWith { probes.expand(it, exports = macros) },
@@ -54,6 +54,14 @@ class OpaqueProbeTest : ProbeTestCase() {
                 "2 imported_macro Elixir.Kernel.def/2 `def f do\n  raise \"x\"\nend`",
             "a = 1\n_ = fn -> raise \"x\" end\nb = 2" to "2 imported_macro Elixir.Kernel.raise/1 `raise \"x\"`",
             "a = 1\nx = \"a\"\n\"#{x}\" = \"a\"" to "3 remote_macro Elixir.Kernel.to_string/1 `#{x}`",
+        )
+
+        /** A capture of a macro stops at the macro its `fn` calls, whose position differs by leg. */
+        val CAPTURE_CASES = listOf(
+            "a = 1\n_ = &is_nil/1",
+            "a = 1\n_ = &is_nil(&1)",
+            "a = 1\n_ = &Kernel.is_nil/1",
+            "a = 1\nrequire Integer\n_ = &Integer.is_odd/1",
         )
 
         /** Stands for the preamble module's name. */

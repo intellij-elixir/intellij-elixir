@@ -577,6 +577,8 @@
 
 ### Threading / Platform Hygiene
 
+- [#4347](https://github.com/intellij-elixir/intellij-elixir/pull/4347) [@sh41](https://github.com/sh41)
+  - **The expander expands structs, `super` outside functions, and captures of named functions, as each Elixir release does, with the hygiene counter that capture arguments take from 1.17; nothing uses it yet.** Fixes [#4326](https://github.com/intellij-elixir/intellij-elixir/issues/4326).
 - [#4339](https://github.com/intellij-elixir/intellij-elixir/pull/4339) [@sh41](https://github.com/sh41)
   - **The expander tracks macro hygiene, `var!` and `alias!`, and the variables a quote's run-time options bind, as each Elixir release does; nothing uses it yet.** Fixes [#4325](https://github.com/intellij-elixir/intellij-elixir/issues/4325).
 - [#4335](https://github.com/intellij-elixir/intellij-elixir/pull/4335) [@sh41](https://github.com/sh41)

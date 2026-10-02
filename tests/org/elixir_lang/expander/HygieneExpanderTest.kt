@@ -3,6 +3,7 @@ package org.elixir_lang.expander
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
 
 /**
@@ -26,6 +27,12 @@ class HygieneExpanderTest : ExpanderTestCase() {
 
     /** The value of the last top-level expression of the expansion being rendered. */
     private var lastValue: Term? = null
+
+    /** Whether to render the variables read at the last node entered, in place of the expansion. */
+    private var renderingInside = false
+
+    /** The variables read at the last node entered. */
+    private var inside: Map<Variable, Int> = emptyMap()
 
     // var!
 
@@ -67,7 +74,7 @@ class HygieneExpanderTest : ExpanderTestCase() {
                 val node = placeholding(lower(code, level), "c")
                 val env = Env.empty(level, kernel).copy(module = module)
 
-                "$version: " + render(code, Expander.expand(node, ExState.empty(level), env, level, exports))
+                "$version: " + render(code, Expander.expand(node, ExState.empty(level), env, level, exports, structs))
             },
         )
     }
@@ -189,6 +196,22 @@ class HygieneExpanderTest : ExpanderTestCase() {
     fun testAliasBangIsDispatchedAndItsOutputDispatchesNothing() =
         assertDispatches("_ = alias!(Foo)", "imported_macro Elixir.Kernel.alias!/1")
 
+    /** A remote capture's function body takes the value of its module part, so `alias!` there expands once. */
+    fun testTheModulePartOfARemoteCaptureExpandsOnce() {
+        assertLevels("h = &alias!(Integer).to_string(&1, 2)", CAPTURE_LEVELS) {
+            // The `fn`'s parameter takes a version, and from 1.20.0-rc.5 the `fn` takes one too.
+            val h = if (isBefore(it, "1.20.0-rc.5")) "{h/nil:1} next 2" else "{h/nil:2} next 3"
+
+            "expanded $h; counted ${if (isBefore(it, "1.17.0-rc.1")) 1 else 2}"
+        }
+        assertSplit(
+            "require Integer\nh = &alias!(Integer).is_odd(&1)",
+            "1.17.0-rc.1",
+            "opaque remote_macro Elixir.Integer.is_odd/1 `alias!(Integer).is_odd(&1)`; counted 1",
+            "opaque remote_macro Elixir.Integer.is_odd/1 `alias!(Integer).is_odd(&1)`; counted 2",
+        )
+    }
+
     // A counter outside a module
 
     fun testOutsideAModuleTheCounterIsAUniqueInteger() {
@@ -200,6 +223,7 @@ class HygieneExpanderTest : ExpanderTestCase() {
             Env.empty(level, kernel),
             level,
             exports,
+            structs,
             counters = counters,
         ) as Expansion.Expanded
 
@@ -313,7 +337,111 @@ class HygieneExpanderTest : ExpanderTestCase() {
             )
         }
 
+    // Capture arguments
+
+    fun testEachDistinctCaptureArgumentTakesACounterFrom1_17_0_rc_1() =
+        assertInside("&(&1 + &2 + &1)", CAPTURE_LEVELS) {
+            when {
+                isBefore(it, "1.17.0-rc.1") -> "inside {&1/nil:0 &2/nil:1}; counted 0"
+                isBefore(it, "1.20.0-rc.5") ->
+                    "inside {capture/{Elixir.Case,1}:0 capture/{Elixir.Case,2}:1}; counted 2"
+                else -> "inside {_&/{Elixir.Case,1}:0 _&/{Elixir.Case,2}:1}; counted 2"
+            }
+        }
+
+    fun testACaptureArgumentIsNotTheVariableOfItsName() =
+        assertInside("capture = 5\n&(&1 + capture)", CAPTURE_LEVELS) {
+            when {
+                isBefore(it, "1.17.0-rc.1") -> "inside {&1/nil:1 capture/nil:0}; counted 0"
+                isBefore(it, "1.20.0-rc.5") -> "inside {capture/nil:0 capture/{Elixir.Case,1}:1}; counted 1"
+                else -> "inside {_&/{Elixir.Case,1}:1 capture/nil:0}; counted 1"
+            }
+        }
+
+    fun testADispatchedCaptureTakesNoCounter() {
+        assertInside("&Integer.to_string(&1)", CAPTURE_LEVELS) { "inside {}; counted 0" }
+        assertInside("&abs/1", CAPTURE_LEVELS) { "inside {}; counted 0" }
+    }
+
+    fun testTheModulePartOfARemoteCaptureTakesItsCounterOnce() =
+        assertInside("&(&1).to_string(&2)", CAPTURE_LEVELS) {
+            when {
+                isBefore(it, "1.17.0-rc.1") -> "inside {&1/nil:0 &2/nil:1}; counted 0"
+                isBefore(it, "1.20.0-rc.5") ->
+                    "inside {capture/{Elixir.Case,1}:0 capture/{Elixir.Case,2}:1}; counted 2"
+                else -> "inside {_&/{Elixir.Case,1}:0 _&/{Elixir.Case,2}:1}; counted 2"
+            }
+        }
+
+    /**
+     * From 1.19.0-rc.1 a capture argument's variable records its position after its counter, as the `fn`'s parameter
+     * and in its body.
+     */
+    fun testACaptureArgumentRecordsItsPositionFrom1_19_0_rc_1() {
+        val versions = listOf("1.18.4", "1.19.0-rc.0", "1.19.0-rc.1", "1.19.5", "1.20.4")
+
+        assertEquals(
+            versions.joinToString("\n") {
+                val keys = if (isBefore(it, "1.19.0-rc.1")) "counter" else "counter capture:1"
+
+                "$it: $keys, $keys"
+            },
+            versions.joinToString("\n") { version ->
+                val keys = mutableListOf<String>()
+
+                expand("&(&1 + 1)", version, object : ExpansionObserver {
+                    override fun entering(node: ElixirAst, state: ExState, env: Env) {
+                        if (isVariable(node)) {
+                            keys += node.meta.keys.filterIsInstance<Meta.Key.Entry>().joinToString(" ") {
+                                when (val value = it.value) {
+                                    is Meta.Value.Integer -> "${it.name}:${value.value}"
+                                    else -> it.name
+                                }
+                            }
+                        }
+                    }
+                })
+
+                "$version: " + keys.joinToString()
+            }
+        )
+    }
+
+    fun testOutsideAModuleACaptureArgumentsCounterIsAUniqueInteger() {
+        val level = ElixirLanguageLevel.of("1.20.4")
+        val counters = Counters()
+        var inside: Map<Variable, Int> = emptyMap()
+
+        Expander.expand(
+            lower("&(&1 + 1)", level),
+            ExState.empty(level),
+            Env.empty(level, kernel),
+            level,
+            exports,
+            structs,
+            object : ExpansionObserver {
+                override fun entering(node: ElixirAst, state: ExState, env: Env) {
+                    inside = state.read
+                }
+            },
+            counters,
+        )
+
+        assertEquals(mapOf(Variable("_&", Variable.Context.Counter(Env.Counter.Unique(1))) to 0), inside)
+        assertEquals(1L, counters.count(null))
+    }
+
     // Rendering
+
+    /** [code] expands at each of [versions] to [expected]'s variables read at the last node it enters. */
+    private fun assertInside(code: String, versions: List<String>, expected: (String) -> String) {
+        renderingInside = true
+        try {
+            assertLevels(code, versions, expected)
+        } finally {
+            renderingInside = false
+        }
+    }
 
     /** [code] leaves the env with [expected]'s aliases, then `; macro `, then its macro aliases, at every level. */
     private fun assertAliases(code: String, expected: String) {
@@ -347,6 +475,7 @@ class HygieneExpanderTest : ExpanderTestCase() {
         val level = ElixirLanguageLevel.of(version)
         val counters = Counters()
         lastValue = null
+        inside = emptyMap()
         val node = lower(code, level)
         // A block's value is the block, so the value rendered is its last expression's.
         val last = (node as? ElixirAst.Block)?.expressions?.lastOrNull() ?: node
@@ -356,8 +485,11 @@ class HygieneExpanderTest : ExpanderTestCase() {
             Env.empty(level, kernel).copy(module = module),
             level,
             exports,
+            structs,
             object : ExpansionObserver {
-                override fun entering(node: ElixirAst, state: ExState, env: Env) {}
+                override fun entering(node: ElixirAst, state: ExState, env: Env) {
+                    inside = state.read
+                }
 
                 override fun left(node: ElixirAst, expansion: Expansion) {
                     if (node === last && expansion is Expansion.Expanded) lastValue = expansion.value
@@ -373,7 +505,9 @@ class HygieneExpanderTest : ExpanderTestCase() {
                 env.macroAliases.joinToString(" ") { "${it.alias}=${context(it.counter)}=${it.module}" }
         }
 
-        return "${render(code, expansion)}; counted ${counters.count(module)}"
+        val rendered = if (renderingInside) "inside {${render(inside)}}" else render(code, expansion)
+
+        return "$rendered; counted ${counters.count(module)}"
     }
 
     /** As [ExpanderTestCase.render], with each variable's context, and the value when no variable is read. */
@@ -386,14 +520,16 @@ class HygieneExpanderTest : ExpanderTestCase() {
                 }
             expansion is Expansion.Expanded -> {
                 val state = expansion.state
-                val read = state.read.entries
-                    .sortedWith(compareBy(TERM_ORDER) { it.key })
-                    .joinToString(" ") { (variable, version) -> "${variable.name}/${context(variable.context)}:$version" }
 
-                "expanded {$read} next ${state.version}"
+                "expanded {${render(state.read)}} next ${state.version}"
             }
             else -> super.render(code, expansion)
         }
+
+    private fun render(read: Map<Variable, Int>): String =
+        read.entries
+            .sortedWith(compareBy(TERM_ORDER) { it.key })
+            .joinToString(" ") { (variable, version) -> "${variable.name}/${context(variable.context)}:$version" }
 
     private fun context(context: Variable.Context): String =
         when (context) {
@@ -415,6 +551,10 @@ class HygieneExpanderTest : ExpanderTestCase() {
             functions = CallFixtures.KERNEL.functions,
             macros = CallFixtures.KERNEL.macros + listOf(NameArity("var!", 1), NameArity("var!", 2), NameArity("alias!", 1)),
         )
+
+        /** [LEVELS] and the first tags either side of the capture counter, and of the capture argument's name. */
+        val CAPTURE_LEVELS = (LEVELS + listOf("1.17.0-rc.0", "1.17.0-rc.1", "1.20.0-rc.5"))
+            .sortedBy { ElixirLanguageLevel.of(it).elixir }
 
         /** [LEVELS] and the first tags of the `if_undefined` and undefined-variable changes. */
         val BOUNDARY_LEVELS = (LEVELS + listOf("1.13.0-rc.0", "1.15.0-rc.0")).sortedBy { ElixirLanguageLevel.of(it).elixir }

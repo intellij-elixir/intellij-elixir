@@ -132,14 +132,15 @@ class CaptureExpanderTest : ExpanderTestCase() {
     fun testACaptureInAGuardIsAnError() =
         assertEvery("x = 1\ncase x do\ny when &[&1] -> y\nend", "error invalid_expr_in_guard `&[&1]`")
 
-    fun testACaptureThatNeedsALookupIsUnported() {
-        assertEvery("&foo/1", "unported `&foo/1`")
-        assertEvery("&:erlang.abs/1", "unported `&:erlang.abs/1`")
-        assertEvery("&__MODULE__.abs/1", "unported `&__MODULE__.abs/1`")
-        assertEvery("&foo(&1)", "unported `&foo(&1)`")
-        assertEvery("&(&1 + &2)", "unported `&(&1 + &2)`")
-        assertEvery("&super(&1)", "unported `&super(&1)`")
-        assertEvery("&super/1", "unported `&super/1`")
+    /** With nothing imported, a capture by name in a module body is of a local function, which it can't have. */
+    fun testACaptureThatNeedsALookup() {
+        assertEvery("&foo/1", "error undefined_local_capture `&foo/1`")
+        assertEvery("&:erlang.abs/1", "expanded {} next 0")
+        assertEvery("&__MODULE__.abs/1", "expanded {} next 0")
+        assertEvery("&foo(&1)", "error undefined_local_capture `&foo(&1)`")
+        assertEvery("&(&1 + &2)", "error undefined_local_capture `&(&1 + &2)`")
+        assertEvery("&super(&1)", "error invalid_expr_in_scope `&super(&1)`")
+        assertEvery("&super/1", "error invalid_expr_in_scope `&super/1`")
     }
 
     fun testACapturesBodyIsExpandedAsAnFnBody() = assertEvery("&(&1 + 1)", "error undefined_function `&1 + 1`")
@@ -156,7 +157,33 @@ class CaptureExpanderTest : ExpanderTestCase() {
                 val list = capture.arguments!!.single()
                 val ast = ElixirAst.Call(capture.meta, capture.callee, listOf(ElixirAst.Block(list.meta, listOf(list))))
 
-                "$version: " + render(code, Expander.expand(ast, ExState.empty(level), Env.empty(level, NO_KERNEL), level, NO_EXPORTS))
+                "$version: " + render(code, Expander.expand(ast, ExState.empty(level), Env.empty(level, NO_KERNEL), level, NO_EXPORTS, NO_STRUCTS))
+            }
+        )
+    }
+
+    /** A variable in a macro's context, which only macro output has, keeps that context inside a capture. */
+    fun testAVariableInAMacrosContextKeepsItInsideACapture() {
+        val code = "&[&1, x]"
+
+        assertEquals(
+            LEVELS.joinToString("\n") { "$it: expanded {x:0} next " + if (isBefore(it, "1.20.0-rc.5")) 2 else 3 },
+            LEVELS.joinToString("\n") { version ->
+                val level = ElixirLanguageLevel.of(version)
+                val capture = lower(code, level) as ElixirAst.Call
+                val list = capture.arguments!!.single() as ElixirAst.ListNode
+                val (argument, x) = list.elements.map { it as ElixirAst.Call }
+                val inKernel = ElixirAst.Call(x.meta, x.callee, null, ElixirAst.VariableContext.Atom("Kernel"))
+                val ast = ElixirAst.Call(
+                    capture.meta,
+                    capture.callee,
+                    listOf(ElixirAst.ListNode(list.meta, listOf(argument, inKernel))),
+                )
+                val state = ExState.empty(level)
+                    .copy(read = mapOf(Variable("x", Variable.Context.Atom("Kernel")) to 0), version = 1)
+                val env = Env.empty(level, NO_KERNEL)
+
+                "$version: " + render(code, Expander.expand(ast, state, env, level, NO_EXPORTS, NO_STRUCTS))
             }
         )
     }

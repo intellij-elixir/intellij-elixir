@@ -184,6 +184,8 @@ class VariableClassProbeTest : ProbeTestCase() {
             "&(fn x -> &1 end)",
             "m = :lists\n&m.reverse/1",
             "m = :lists\n&m.reverse(&1)",
+            "%URI{host: h} = URI.parse(\"a\")\nh",
+            "u = URI.parse(\"a\")\n%m{host: h} = u\n{m, h}",
         )
     }
 }

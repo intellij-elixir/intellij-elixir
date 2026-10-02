@@ -1,7 +1,6 @@
 package org.elixir_lang.expander
 
-import com.ericsson.otp.erlang.OtpErlangAtom
-import org.elixir_lang.lowering.inspect
+import org.elixir_lang.language_level.ElixirLanguageFeature.UNREQUIRED_MACRO_CALLED_AS_FUNCTION
 import org.elixir_lang.psi.ElixirFile
 
 /**
@@ -12,35 +11,21 @@ class DispatchProbeTest : ProbeTestCase() {
     private val probes = ExpansionProbes(harness) { createPsiFile(getTestName(false), it) as ElixirFile }
 
     fun testDispatchesMatchTheCompilersEvents() {
-        val expansions = CASES.map { probes.expand(it, PLACEHOLDER) }
-
-        expansions.forEach { assertTrue("${it.case.body}: ${it.outcome}", it.outcome is Expansion.Expanded) }
-
-        val attempt = harness.attempt(expansions.map { it.case })
-
-        assertEquals(
-            "compile status ${attempt.compiled.diagnostics.map(::inspect)}",
-            OtpErlangAtom("ok"),
-            attempt.compiled.status,
-        )
-        assertEquals(
-            CASES.indices.joinToString("\n") { render(it, expansions[it].dispatches) },
-            CASES.indices.joinToString("\n") { case ->
-                val caseModule = attempt.batch.caseModule(case)
-                val events = DispatchEvents.of(
-                    attempt.compiled.events,
-                    caseModule,
-                    attempt.batch.probeModule,
-                    attempt.bodyLines[case],
-                )
-
-                render(case, events.map { it.replace(caseModule, PLACEHOLDER) })
-            },
-        )
+        probes.assertTracesMatchElixir(CASES.map { probes.expand(it, PLACEHOLDER) }, PLACEHOLDER)
     }
 
-    private fun render(case: Int, dispatches: List<String>) =
-        "== ${CASES[case].replace("\n", "; ")}\n" + dispatches.joinToString("") { "  $it\n" }
+    /** Below 1.13, Elixir reads an unrequired module's macros only if the module happens to be loaded. */
+    fun testAnUnrequiredMacroCaptureIsARemoteFunctionFrom113() {
+        val expansion = probes.expand(UNREQUIRED_MACRO_CAPTURE, PLACEHOLDER)
+
+        if (UNREQUIRED_MACRO_CALLED_AS_FUNCTION.isSufficient(legLevel())) {
+            probes.assertTracesMatchElixir(listOf(expansion), PLACEHOLDER)
+        } else {
+            val unported = expansion.outcome as? Expansion.Unported
+
+            assertEquals("&Integer.is_odd/1", unported?.at?.meta?.origin?.substring(UNREQUIRED_MACRO_CAPTURE))
+        }
+    }
 
     private companion object {
         const val PLACEHOLDER = "Elixir.DispatchCase"
@@ -87,6 +72,18 @@ class DispatchProbeTest : ProbeTestCase() {
             "var!(x, Kernel) = 1",
             "Kernel.var!(z) = 3",
             "_ = alias!(Foo)",
+            "_ = &abs/1",
+            "_ = &abs(&1)",
+            "_ = &Integer.to_string/1",
+            "_ = &Integer.to_string(&1)",
+            "_ = &Integer.to_string(&1, 2)",
+            "_ = &:lists.reverse/1",
+            "_ = &NoSuchMod.foo/1",
+            "_ = &__MODULE__.foo/0",
+            "m = URI\n_ = &m.parse/1",
+            "f = fn x -> x end\n_ = &f.(&1)",
         )
+
+        const val UNREQUIRED_MACRO_CAPTURE = "_ = &Integer.is_odd/1"
     }
 }

@@ -1,6 +1,7 @@
 package org.elixir_lang.expander
 
 import org.elixir_lang.NameArity
+import org.elixir_lang.lowering.Meta
 
 /**
  * A call as `elixir_dispatch` resolves it: [receiver] and [name] are after `elixir_rewrite:inline/3`, and every name is
@@ -8,7 +9,7 @@ import org.elixir_lang.NameArity
  */
 data class Dispatch(val kind: Kind, val receiver: String, val name: String, val arity: Int) {
     /** The kind of the trace event Elixir emits for the call. */
-    enum class Kind { IMPORTED_FUNCTION, IMPORTED_MACRO, REMOTE_FUNCTION, REMOTE_MACRO }
+    enum class Kind { IMPORTED_FUNCTION, IMPORTED_MACRO, REMOTE_FUNCTION, REMOTE_MACRO, LOCAL_FUNCTION }
 }
 
 /** The kind of the trace event `quote` emits for an import it quotes. */
@@ -34,6 +35,9 @@ sealed class NameImports {
     /** Two modules import the name at [arity]: the one `E` holds later, then the one it holds first. */
     data class Ambiguous(val arity: Int, val modules: List<String>) : NameImports()
 }
+
+/** Whether [meta] has the quoted import `elixir_quote` marks a call with, which `find_import_by_name_arity/4` reads. */
+internal fun hasQuotedImport(meta: Meta): Boolean = hasMetaKey(meta, "imports") || hasMetaKey(meta, "import")
 
 /** `elixir_dispatch:find_imports/3`: every arity [env] imports [name] at, from its functions and then its macros. */
 fun findImports(name: String, env: Env): NameImports {
