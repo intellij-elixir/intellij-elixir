@@ -1,5 +1,7 @@
 package org.elixir_lang.expander
 
+import org.elixir_lang.expander.ErrorSite.INVALID_KEY_FOR_STRUCT
+import org.elixir_lang.expander.ErrorSite.UNKNOWN_KEY_FOR_STRUCT
 import org.elixir_lang.language_level.ElixirLanguageFeature.STRUCT_KEYS_IN_FUNCTIONS_LEFT_TO_TYPES
 import org.elixir_lang.language_level.ElixirLanguageFeature.STRUCT_KEYS_MUST_BE_ATOMS
 import org.elixir_lang.language_level.ElixirLanguageFeature.STRUCT_OF_MODULE_BEING_DEFINED_NEVER_LOADED
@@ -34,9 +36,10 @@ internal fun expandStruct(node: ElixirAst.Call, state: ExState, env: Env, run: R
                 val keys = pairs.map { (it as? Term.Pair)?.first ?: return@thenValue Expansion.Unported(node) }
 
                 structError(node, name.name, keys, mapUpdate(map) != null, env, run)
-                    ?: Expansion.Expanded(s, e, NODE).also {
-                        run.observer.structExpanded(node, name.name, keys.map { key -> (key as Term.Atom).name })
+                    ?: traced(keys)?.let { traced ->
+                        Expansion.Expanded(s, e, NODE).also { run.observer.structExpanded(node, name.name, traced) }
                     }
+                    ?: Expansion.Unported(node)
             }
             match && (name == Term.Node(Term.Node.Kind.VARIABLE) || name == Term.Node(Term.Node.Kind.PIN)) ->
                 Expansion.Expanded(s, e, NODE)
@@ -46,9 +49,13 @@ internal fun expandStruct(node: ElixirAst.Call, state: ExState, env: Env, run: R
     }
 }
 
+/** Each of [keys] as the `struct_expansion` trace is compared: an atom by its name, any other by `inspect/1`. */
+private fun traced(keys: List<Term>): List<String>? =
+    keys.map { key -> (key as? Term.Atom)?.name ?: inspected(key) ?: return null }
+
 /**
- * What [module]'s struct gives the [keys] written, as their expansions, if anything stops it expanding: the first error
- * Elixir reports, or `Unported`.
+ * What [module]'s struct gives the [keys] written, as their expansions, if anything stops it expanding: the error that
+ * ends it, or `Unported`. Each error Elixir carries on after is reported, one per key.
  */
 private fun structError(
     node: ElixirAst,
@@ -60,8 +67,10 @@ private fun structError(
 ): Expansion? {
     // Up to 1.18 a second `__struct__` key is dropped silently; from 1.19 it reaches the struct's own checks.
     if (Term.Atom("__struct__") in keys) return Expansion.Unported(node)
-    if (STRUCT_KEYS_MUST_BE_ATOMS.isSufficient(run.level) && keys.any { it !is Term.Atom }) {
-        return Expansion.Error("invalid_key_for_struct", node)
+    if (STRUCT_KEYS_MUST_BE_ATOMS.isSufficient(run.level)) {
+        repeat(keys.count { it !is Term.Atom }) {
+            reportOrEnd(INVALID_KEY_FOR_STRUCT, node, env, run)?.let { error -> return error }
+        }
     }
 
     val build = !update && env.context != Env.Context.MATCH
@@ -82,12 +91,16 @@ private fun structError(
         ModuleStruct.Absent -> return undefinedStruct(node, module, env)
     }
     val names = keys.map { (it as? Term.Atom)?.name }
-    val unknown = names.any { it == null || it !in struct.fields }
+    val unknown = names.filter { it == null || it !in struct.fields }
 
     return when {
-        !build -> Expansion.Error("unknown_key_for_struct", node).takeIf { unknown }
+        !build -> {
+            repeat(unknown.size) { reportOrEnd(UNKNOWN_KEY_FOR_STRUCT, node, env, run)?.let { error -> return error } }
+
+            null
+        }
         // `__struct__/1` raises, for an unknown key before a missing enforced one.
-        unknown -> Expansion.Error("struct_unknown_key", node)
+        unknown.isNotEmpty() -> Expansion.Error("struct_unknown_key", node)
         else -> when (val enforced = struct.enforced) {
             is Enforced.Known ->
                 Expansion.Error("struct_missing_enforced_keys", node).takeUnless { names.containsAll(enforced.keys) }

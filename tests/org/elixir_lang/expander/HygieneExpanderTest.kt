@@ -212,6 +212,29 @@ class HygieneExpanderTest : ExpanderTestCase() {
         )
     }
 
+    // The definers
+
+    fun testEachDefinitionTakesACounter() =
+        assertEvery("def f, do: :ok\ndefp g, do: :ok\nx = 1", "expanded {x/nil:0} next 1; counted 2")
+
+    fun testAnUnquoteFragmentIsLinifiedWithItsDefinitionsCounter() =
+        assertAliases(
+            "def unquote((alias Foo.Bar, as: B; :f))(), do: :ok",
+            "Elixir.B=Elixir.Foo.Bar; macro Elixir.B={Elixir.Case,1}=Elixir.Foo.Bar",
+        )
+
+    fun testDefmoduleTakesACounterThatItsDirectiveHolds() =
+        assertAliases(
+            "defmodule Inner do\nend",
+            "Elixir.Inner=Elixir.Case.Inner; macro Elixir.Inner={Elixir.Case,1}=Elixir.Case.Inner",
+        )
+
+    fun testARootDefmoduleTakesACounter() =
+        assertEvery("defmodule Elixir.Root do\nend\nx = 1", "expanded {x/nil:0} next 1; counted 1")
+
+    fun testADefmoduleNamedByANonAtomTakesACounter() =
+        assertEvery("defmodule \"name\" do\nend\nx = 1", "expanded {x/nil:0} next 1; counted 1")
+
     // A counter outside a module
 
     fun testOutsideAModuleTheCounterIsAUniqueInteger() {
@@ -528,7 +551,7 @@ class HygieneExpanderTest : ExpanderTestCase() {
 
     private fun render(read: Map<Variable, Int>): String =
         read.entries
-            .sortedWith(compareBy(TERM_ORDER) { it.key })
+            .sortedWith(compareBy(VARIABLE_ORDER) { it.key })
             .joinToString(" ") { (variable, version) -> "${variable.name}/${context(variable.context)}:$version" }
 
     private fun context(context: Variable.Context): String =
@@ -549,7 +572,14 @@ class HygieneExpanderTest : ExpanderTestCase() {
 
         val KERNEL_IMPORTS = KernelImports(
             functions = CallFixtures.KERNEL.functions,
-            macros = CallFixtures.KERNEL.macros + listOf(NameArity("var!", 1), NameArity("var!", 2), NameArity("alias!", 1)),
+            macros = CallFixtures.KERNEL.macros + listOf(
+                NameArity("var!", 1),
+                NameArity("var!", 2),
+                NameArity("alias!", 1),
+                NameArity("def", 2),
+                NameArity("defp", 2),
+                NameArity("defmodule", 2),
+            ),
         )
 
         /** [LEVELS] and the first tags either side of the capture counter, and of the capture argument's name. */

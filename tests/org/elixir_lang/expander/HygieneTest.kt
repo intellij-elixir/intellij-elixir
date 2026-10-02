@@ -82,7 +82,7 @@ class HygieneTest {
 
         assertEquals(
             listOf(unique, earlierAtom, atom, inModule, laterInModule, y),
-            listOf(y, laterInModule, atom, inModule, earlierAtom, unique).sortedWith(TERM_ORDER),
+            listOf(y, laterInModule, atom, inModule, earlierAtom, unique).sortedWith(VARIABLE_ORDER),
         )
     }
 

@@ -1,6 +1,7 @@
 package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangAtom
+import com.ericsson.otp.erlang.OtpErlangDouble
 import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangObject
 import org.elixir_lang.expander.ExState.Prematch.Bitsize
@@ -18,6 +19,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.PINNED_SEGMENT_INFER
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.psi.Import.Term
+import java.math.BigDecimal
 import java.math.BigInteger
 
 /**
@@ -67,6 +69,7 @@ private fun expandSegments(
     var accState = state
     var accEnv = env
     var bareMeta = bitstring
+    val report = Reporter { site, at -> reportOrEnd(site, at, env, run) }
 
     for ((index, segment) in segments.withIndex()) {
         val matchSize = requireSize || matchSize(context, index, segments)
@@ -77,7 +80,7 @@ private fun expandSegments(
         val expansion = expandValue(value, accState, original, accEnv, run)
         if (expansion !is Expansion.Expanded) return expansion
 
-        valueError(value, metaNode, context, level)?.let { return it }
+        valueError(value, metaNode, context, level, report)?.let { return it }
 
         val shape = valueShape(value, context)
         val described = if (typed) {
@@ -91,7 +94,7 @@ private fun expandSegments(
                     accState = if (hides) specs.state.copy(read = expansion.state.read, write = expansion.state.write) else specs.state
                     accEnv = specs.env
 
-                    describeTyped(segment, shape, specs.args, context, matchSize, level)
+                    describeTyped(segment, shape, specs.args, context, matchSize, level, report)
                 }
             }
         } else {
@@ -99,13 +102,17 @@ private fun expandSegments(
             accEnv = expansion.env
             bareMeta = nextBareMeta
 
-            describeBare(metaNode, shape, context, matchSize, level)
+            describeBare(metaNode, shape, context, matchSize, level, report)
         }
 
         when (described) {
             is Described.Segment -> Unit
-            is Described.Error -> return described.error
+            is Described.Ended -> return described.expansion
             is Described.Unported -> return Expansion.Unported(described.at)
+            is Described.NumberSizeRaises ->
+                return Expansion.Error(ErrorSite.BAD_UNIT_ARGUMENT.kind, segment).also {
+                    run.crash = Crash(it, ARITHMETIC_ERROR)
+                }
         }
     }
 
@@ -165,12 +172,18 @@ private fun valueShape(value: ElixirAst, context: Env.Context): ElixirAst =
     expandedShape(interpolated(value, context) ?: value)
 
 /** `invalid_literal` before 1.18, which `expand_expr/5` raises, and `unknown_match` from 1.19. */
-private fun valueError(value: ElixirAst, metaNode: ElixirAst, context: Env.Context, level: ElixirLanguageLevel) =
+private fun valueError(
+    value: ElixirAst,
+    metaNode: ElixirAst,
+    context: Env.Context,
+    level: ElixirLanguageLevel,
+    report: Reporter,
+): Expansion? =
     if (BITSTRING_PATTERN_SEGMENT_VALIDATED.isSufficient(level)) {
         val shape = valueShape(value, context)
 
         if (context == Env.Context.MATCH && !isMatchSegment(shape)) {
-            Expansion.Error("unknown_match", if (shape.hasMetadata()) shape else metaNode)
+            report(ErrorSite.UNKNOWN_MATCH, if (shape.hasMetadata()) shape else metaNode)
         } else {
             null
         }
@@ -228,6 +241,14 @@ private sealed interface SpecArg {
 private val SpecArg?.integer: BigInteger?
     get() = ((this as? SpecArg.Literal)?.term as? OtpErlangLong)?.bigIntegerValue()
 
+private val SpecArg?.number: BigDecimal?
+    get() =
+        when (val term = (this as? SpecArg.Literal)?.term) {
+            is OtpErlangLong -> term.bigIntegerValue().toBigDecimal()
+            is OtpErlangDouble -> term.doubleValue().toBigDecimal()
+            else -> null
+        }
+
 private sealed interface Specs {
     /** The last argument given to each spec key. */
     class Expanded(val args: Map<String, SpecArg>, val state: ExState, val env: Env) : Specs
@@ -245,20 +266,22 @@ private fun expandSpecs(spec: ElixirAst, state: ExState, original: ExState, env:
         val builtin = when (unpacked) {
             is Unpacked.Builtin -> unpacked
             is Unpacked.Named -> {
-                val expansion = expandNamedSpec(unpacked.node as ElixirAst.Call, segment, accState, accEnv, run)
-                val size = ((expansion as? Expansion.Expanded)?.value as? Term.Integer)
-                    ?: return Specs.Stopped(expansion)
-
-                Unpacked.Builtin(unpacked.node, "size", ElixirAst.Literal.Integer(unpacked.node.meta, size.value))
-            }
-            is Unpacked.Other ->
-                return Specs.Stopped(
-                    if (unpacked.node is ElixirAst.Placeholder) {
-                        Expansion.Unported(unpacked.node)
-                    } else {
-                        Expansion.Error("undefined_bittype", segment)
+                when (val named = expandNamedSpec(unpacked.node as ElixirAst.Call, accState, accEnv, run)) {
+                    is NamedSpec.Size ->
+                        Unpacked.Builtin(unpacked.node, "size", ElixirAst.Literal.Integer(unpacked.node.meta, named.value))
+                    NamedSpec.Unchanged -> {
+                        reportOrEnd(ErrorSite.UNDEFINED_BITTYPE, segment, accEnv, run)?.let { return Specs.Stopped(it) }
+                        continue
                     }
-                )
+                    is NamedSpec.Other -> return Specs.Stopped(named.expansion)
+                }
+            }
+            is Unpacked.Other -> {
+                if (unpacked.node is ElixirAst.Placeholder) return Specs.Stopped(Expansion.Unported(unpacked.node))
+
+                reportOrEnd(ErrorSite.UNDEFINED_BITTYPE, segment, accEnv, run)?.let { return Specs.Stopped(it) }
+                continue
+            }
         }
         val arg = builtin.arg
 
@@ -274,7 +297,11 @@ private fun expandSpecs(spec: ElixirAst, state: ExState, original: ExState, env:
 
         val value = SpecArg.of(literalShape(arg, accEnv, run.level))
 
-        specArgError(builtin.key, value, accState, original, accEnv, run.level)?.let {
+        if (builtin.key == "unit" && value.integer == null) {
+            reportOrEnd(ErrorSite.BAD_UNIT_ARGUMENT, segment, accEnv, run)?.let { return Specs.Stopped(it) }
+        }
+
+        sizeArgError(builtin.key, value, accState, original, accEnv, run.level)?.let {
             return Specs.Stopped(Expansion.Error(it, segment))
         }
 
@@ -282,7 +309,10 @@ private fun expandSpecs(spec: ElixirAst, state: ExState, original: ExState, env:
 
         if (previous != null) {
             when (sameTerm(previous, value)) {
-                false -> return Specs.Stopped(Expansion.Error("bittype_mismatch", segment))
+                false ->
+                    reportOrEnd(ErrorSite.BITTYPE_MISMATCH_SPEC, segment, accEnv, run)?.let {
+                        return Specs.Stopped(it)
+                    }
                 // Expanded terms carry their metadata, columns included from 1.16.
                 null -> return Specs.Stopped(Expansion.Unported(unpacked.node))
                 true -> Unit
@@ -295,21 +325,32 @@ private fun expandSpecs(spec: ElixirAst, state: ExState, original: ExState, env:
     return Specs.Expanded(args, accState, accEnv)
 }
 
-/**
- * `Macro.expand/2` of a spec `validate_spec/2` doesn't know: an imported macro's expansion, the integer an imported
- * `Kernel.+/1` or `-/1` folds to, which is a size, or `undefined_bittype` at [segment] for anything it leaves as it is.
- * From 1.15 a name is first made a call of no arguments.
- */
-private fun expandNamedSpec(spec: ElixirAst.Call, segment: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
+/** What `Macro.expand/2` makes of a spec `validate_spec/2` doesn't know. */
+private sealed interface NamedSpec {
+    /** The integer an imported `Kernel.+/1` or `-/1` folds to, which is a size. */
+    class Size(val value: BigInteger) : NamedSpec
+
+    /** The spec left as it is, which is `undefined_bittype`. */
+    data object Unchanged : NamedSpec
+
+    /** An imported macro's expansion, or where expanding the spec stopped. */
+    class Other(val expansion: Expansion) : NamedSpec
+}
+
+/** `Macro.expand/2` of a spec `validate_spec/2` doesn't know. From 1.15 a name is first made a call of no arguments. */
+private fun expandNamedSpec(spec: ElixirAst.Call, state: ExState, env: Env, run: Run): NamedSpec {
     val call = when {
         spec.arguments != null -> spec
         BITSTRING_SPEC_NAME_EXPANDED_AS_CALL.isSufficient(run.level) ->
             ElixirAst.Call(spec.meta, spec.callee, emptyList())
-        else -> return Expansion.Error("undefined_bittype", segment)
+        else -> return NamedSpec.Unchanged
     }
-    val undefined = { Expansion.Error("undefined_bittype", segment) }
-
-    return expandImport(
+    var unchanged = false
+    val leftAsItIs = {
+        unchanged = true
+        Expansion.Expanded(state, env, NODE)
+    }
+    val expansion = expandImport(
         call,
         state,
         env,
@@ -319,13 +360,20 @@ private fun expandNamedSpec(spec: ElixirAst.Call, segment: ElixirAst, state: ExS
             importedFunction(call, receiver, run)
 
             when (val folded = signed(call, receiver, state, env, run)) {
-                null -> undefined()
-                is Expansion.Expanded -> folded.takeIf { it.value is Term.Integer } ?: undefined()
+                null -> leftAsItIs()
+                is Expansion.Expanded -> folded.takeIf { it.value is Term.Integer } ?: leftAsItIs()
                 else -> folded
             }
         },
-        none = undefined,
+        none = leftAsItIs,
     )
+    val size = (expansion as? Expansion.Expanded)?.value as? Term.Integer
+
+    return when {
+        unchanged -> NamedSpec.Unchanged
+        size != null -> NamedSpec.Size(size.value)
+        else -> NamedSpec.Other(expansion)
+    }
 }
 
 /**
@@ -395,10 +443,10 @@ private fun expandSpecArg(arg: ElixirAst, state: ExState, original: ExState, env
     }
 
 /**
- * `validate_spec_arg/6`: a unit must be an integer, and before 1.14 a size must be an integer, or a variable that the
- * pattern bound before the bitstring's own segments did not.
+ * `validate_spec_arg/6` for a size, which before 1.14 must be an integer, or a variable that the pattern bound before
+ * the bitstring's own segments did not.
  */
-private fun specArgError(
+private fun sizeArgError(
     key: String,
     value: SpecArg,
     state: ExState,
@@ -407,7 +455,6 @@ private fun specArgError(
     level: ElixirLanguageLevel,
 ): String? =
     when {
-        key == "unit" -> if (value.integer == null) "bad_unit_argument" else null
         key != "size" || BITSTRING_SIZE_EXPANDED_AS_GUARD.isSufficient(level) || value.integer != null -> null
         value is SpecArg.Expression && isVariable(value.node) -> {
             val variable = variable(value.node)
@@ -502,10 +549,22 @@ private sealed interface Described {
     /** @property alignment modulo 8, or `null` where it is `unknown` */
     class Segment(val parts: List<Part>, val alignment: Int?) : Described
 
-    class Error(val error: Expansion.Error) : Described
+    /** An error Elixir doesn't carry on from. */
+    class Ended(val expansion: Expansion) : Described
 
     class Unported(val at: ElixirAst) : Described
+
+    /** `number_size/2` multiplying an integer size by a unit that isn't a number, which raises `ArithmeticError`. */
+    data object NumberSizeRaises : Described
 }
+
+/** Reports a site's error, giving `null` where Elixir carries on, and otherwise the expansion that ends there. */
+private fun interface Reporter {
+    operator fun invoke(site: ErrorSite, at: ElixirAst): Expansion?
+}
+
+/** For a bitstring already expanded, whose errors were reported then. */
+private val ALREADY_REPORTED = Reporter { _, _ -> null }
 
 /** `expr_type/1`. */
 private fun exprType(shape: ElixirAst) =
@@ -524,10 +583,11 @@ private fun describeBare(
     context: Env.Context,
     matchSize: Boolean,
     level: ElixirLanguageLevel,
+    report: Reporter,
 ): Described {
     val alone = exprType(shape).takeIf { it in BINARIES }
 
-    return concat(metaNode, shape, alone, 0, context, matchSize, level)
+    return concat(metaNode, shape, alone, 0, context, matchSize, level, report)
 }
 
 /** `expand_specs/7` from a segment's expanded spec arguments, then `concat_or_prepend_bitstring/6`. */
@@ -538,51 +598,68 @@ private fun describeTyped(
     context: Env.Context,
     matchSize: Boolean,
     level: ElixirLanguageLevel,
+    report: Reporter,
 ): Described {
-    fun error(kind: String) = Described.Error(Expansion.Error(kind, segment))
+    fun ended(site: ErrorSite) = report(site, segment)?.let(Described::Ended)
+
+    /** A site whose helper's return value `expand_specs/7` can't match. */
+    fun crashed(site: ErrorSite) = ended(site) ?: Described.Unported(segment)
 
     val exprType = exprType(shape)
     val type = ((args["type"] as SpecArg.Literal?)?.term as OtpErlangAtom?)?.atomValue()
     val size = args["size"]
     val unit = args["unit"]
     val sign = args["sign"]
-    val merged = mergedType(exprType, type) ?: return error("bittype_mismatch")
+    val merged = mergedType(exprType, type)
+
+    if (!typesAgree(exprType, type)) ended(ErrorSite.BITTYPE_MISMATCH_TYPE)?.let { return it }
+
     val inferSize = isCall(shape, "^", 1) &&
         PINNED_BINARY_SEGMENT_INFERS_SIZE.isSufficient(level) &&
         (matchSize || !PINNED_SEGMENT_INFERS_SIZE_ONLY_WHEN_SIZED.isSufficient(level))
 
     if (matchSize && !inferSize && exprType == "default" && merged in BINARIES && size == null) {
-        return error("unsized_binary")
+        ended(ErrorSite.UNSIZED_BINARY_REQUIRED)?.let { return it }
     }
 
     val sizeOrUnit = size != null || unit != null
 
-    if (sizeOrUnit && exprType == "bitstring") return error("bittype_literal_bitstring")
-    if (sizeOrUnit && exprType == "binary") return error("bittype_literal_string")
+    if (sizeOrUnit && exprType == "bitstring") ended(ErrorSite.BITTYPE_LITERAL_BITSTRING)?.let { return it }
+    if (sizeOrUnit && exprType == "binary") ended(ErrorSite.BITTYPE_LITERAL_STRING)?.let { return it }
 
     when (merged) {
-        "utf8", "utf16", "utf32" -> {
-            if (sizeOrUnit) return error("bittype_utf")
-            if (sign != null) return error("bittype_signed")
-        }
-        "binary", "bitstring" -> {
-            if (merged == "bitstring" && unit != null && unit.integer != BigInteger.ONE) return error("bittype_mismatch")
-            if (sign != null) return error("bittype_signed")
-        }
+        "utf8", "utf16", "utf32" ->
+            when {
+                sizeOrUnit -> ended(ErrorSite.BITTYPE_UTF)
+                sign != null -> ended(ErrorSite.BITTYPE_SIGNED)
+                else -> null
+            }?.let { return it }
+        "binary", "bitstring" ->
+            when {
+                merged == "bitstring" && unit != null && unit.number?.compareTo(BigDecimal.ONE) != 0 ->
+                    ended(ErrorSite.BITTYPE_MISMATCH_UNIT)
+                sign != null -> ended(ErrorSite.BITTYPE_SIGNED)
+                else -> null
+            }?.let { return it }
         else -> {
-            val numberSize = size.integer?.let { s -> unit.integer?.let { s * it } ?: s }
+            val integerSize = size.integer
+
+            if (integerSize != null && unit != null && unit.number == null) return Described.NumberSizeRaises
+
+            val numberSize = integerSize?.let { s -> if (unit == null) s else unit.integer?.let { s * it } }
 
             if (merged == "float" && numberSize != null) {
-                if (numberSize !in validFloatSizes(level)) return error("bittype_float_size")
+                if (numberSize !in validFloatSizes(level)) return crashed(ErrorSite.BITTYPE_FLOAT_SIZE)
             } else if (size == null && unit != null) {
-                return error("bittype_unit")
+                return crashed(ErrorSite.BITTYPE_UNIT)
             }
         }
     }
 
-    val alone = merged.takeIf { it in BINARIES && !sizeOrUnit && !inferSize }
+    // `size_and_unit/5` drops a literal's size and unit, so they don't stop it being spliced in.
+    val alone = merged.takeIf { it in BINARIES && !(sizeOrUnit && exprType !in BINARIES) && !inferSize }
 
-    return concat(segment, shape, alone, alignment(merged, size, unit), context, matchSize, level)
+    return concat(segment, shape, alone, alignment(merged, size, unit), context, matchSize, level, report)
 }
 
 private val BINARIES = setOf("binary", "bitstring")
@@ -591,16 +668,19 @@ private val BINARIES = setOf("binary", "bitstring")
 private fun validFloatSizes(level: ElixirLanguageLevel) =
     listOfNotNull(16.takeIf { HALF_FLOAT_SEGMENT.isSufficient(level) }, 32, 64).map(Int::toBigInteger)
 
-/** `type/4`: the type a segment's value and its type spec agree on, or `null` where they conflict. */
-private fun mergedType(exprType: String, type: String?): String? =
+/** `type/4`: the type a segment's value and its type spec give it, which is the spec's where they conflict. */
+private fun mergedType(exprType: String, type: String?): String =
+    type ?: if (exprType == "default") "integer" else exprType
+
+/** Whether `type/4` accepts a segment's value of [exprType] under its type spec. */
+private fun typesAgree(exprType: String, type: String?): Boolean =
     when {
-        type == null -> if (exprType == "default") "integer" else exprType
-        exprType == "default" -> type
-        exprType == "binary" && type in setOf("binary", "bitstring", "utf8", "utf16", "utf32") -> type
-        exprType == "bitstring" && type in BINARIES -> type
-        exprType == "integer" && type in setOf("integer", "float", "utf8", "utf16", "utf32") -> type
-        exprType == "float" && type == "float" -> type
-        else -> null
+        type == null || exprType == "default" -> true
+        exprType == "binary" -> type in setOf("binary", "bitstring", "utf8", "utf16", "utf32")
+        exprType == "bitstring" -> type in BINARIES
+        exprType == "integer" -> type in setOf("integer", "float", "utf8", "utf16", "utf32")
+        exprType == "float" -> type == "float"
+        else -> false
     }
 
 /** `compute_alignment/3`, modulo 8. */
@@ -641,13 +721,14 @@ private fun concat(
     context: Env.Context,
     matchSize: Boolean,
     level: ElixirLanguageLevel,
+    report: Reporter,
 ): Described {
     val self = Described.Segment(listOf(Part(at, shape, alone)), alignment)
     if (!isBitstring(shape)) return self
 
     val inner = when (val described = describe(shape as ElixirAst.Call, context, level)) {
         is Described.Segment -> described
-        is Described.Error, is Described.Unported -> return Described.Unported(shape)
+        else -> return Described.Unported(shape)
     }
     if (inner.parts.isEmpty()) return Described.Segment(emptyList(), alignment)
 
@@ -655,7 +736,7 @@ private fun concat(
         val last = inner.parts.last()
 
         if ((last.alone == "binary" && last.value !is ElixirAst.Literal.Binary) || last.alone == "bitstring") {
-            return Described.Error(Expansion.Error("unsized_binary", last.at))
+            report(ErrorSite.UNSIZED_BINARY_NESTED, last.at)?.let { return Described.Ended(it) }
         }
     }
 
@@ -664,7 +745,9 @@ private fun concat(
             when (inner.alignment) {
                 null -> self
                 0 -> Described.Segment(inner.parts, alignment)
-                else -> Described.Error(Expansion.Error("unaligned_binary", at))
+                else ->
+                    report(ErrorSite.UNALIGNED_BINARY, at)?.let(Described::Ended)
+                        ?: Described.Segment(inner.parts, alignment)
             }
         "bitstring" -> Described.Segment(inner.parts, alignment)
         else -> self
@@ -684,12 +767,12 @@ private fun describe(bitstring: ElixirAst.Call, context: Env.Context, level: Eli
             val (value, spec) = (segment as ElixirAst.Call).arguments!!
             val args = unpackSpecs(spec).filterIsInstance<Unpacked.Builtin>().associate { it.key to SpecArg.of(it.arg) }
 
-            describeTyped(segment, valueShape(value, context), args, context, matchSize, level)
+            describeTyped(segment, valueShape(value, context), args, context, matchSize, level, ALREADY_REPORTED)
         } else {
             val (metaNode, nextBareMeta) = bareMeta(segment, bareMeta, level)
             bareMeta = nextBareMeta
 
-            describeBare(metaNode, valueShape(segment, context), context, matchSize, level)
+            describeBare(metaNode, valueShape(segment, context), context, matchSize, level, ALREADY_REPORTED)
         }
 
         when (described) {
@@ -697,7 +780,7 @@ private fun describe(bitstring: ElixirAst.Call, context: Env.Context, level: Eli
                 parts = parts + described.parts
                 alignment = alignment?.let { a -> described.alignment?.let { (a + it) % 8 } }
             }
-            is Described.Error, is Described.Unported -> return described
+            else -> return described
         }
     }
 

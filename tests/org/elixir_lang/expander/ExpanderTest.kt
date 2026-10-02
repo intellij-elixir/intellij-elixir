@@ -1,5 +1,7 @@
 package org.elixir_lang.expander
 
+import org.elixir_lang.expander.DirectiveFixtures.BMP
+import org.elixir_lang.expander.DirectiveFixtures.SUPPLEMENTARY
 import org.elixir_lang.language_level.ElixirLanguageLevel
 
 /**
@@ -218,6 +220,15 @@ class ExpanderTest : ExpanderTestCase() {
     fun testParallelMapPatternsPairTheirFieldsInKeyOrder() =
         assertSplit(
             "%{b: <<x>>,\na: <<y>>} = %{b: <<z>>,\na: <<w>>} = %{a: <<1>>, b: <<2>>}",
+            "1.18.0-rc.0",
+            "error parallel_bitstring_match `<<w>>`",
+            "expanded {w:1 x:2 y:3 z:0} next 4"
+        )
+
+    fun testParallelMapPatternsPairTheirAtomKeysByCodePoint() =
+        assertSplit(
+            "%{\"$SUPPLEMENTARY\": <<x>>,\n\"$BMP\": <<y>>} = %{\"$SUPPLEMENTARY\": <<z>>,\n\"$BMP\": <<w>>} = " +
+                "%{\"$BMP\": <<1>>, \"$SUPPLEMENTARY\": <<2>>}",
             "1.18.0-rc.0",
             "error parallel_bitstring_match `<<w>>`",
             "expanded {w:1 x:2 y:3 z:0} next 4"

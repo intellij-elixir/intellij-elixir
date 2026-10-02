@@ -11,25 +11,29 @@ class DispatchProbeTest : ProbeTestCase() {
     private val probes = ExpansionProbes(harness) { createPsiFile(getTestName(false), it) as ElixirFile }
 
     fun testDispatchesMatchTheCompilersEvents() {
-        probes.assertTracesMatchElixir(CASES.map { probes.expand(it, PLACEHOLDER) }, PLACEHOLDER)
+        probes.assertTracesMatchElixir(probes.expandAll(CASES))
     }
 
     /** Below 1.13, Elixir reads an unrequired module's macros only if the module happens to be loaded. */
     fun testAnUnrequiredMacroCaptureIsARemoteFunctionFrom113() {
-        val expansion = probes.expand(UNREQUIRED_MACRO_CAPTURE, PLACEHOLDER)
+        val expansions = probes.expandAll(listOf(UNREQUIRED_MACRO_CAPTURE))
 
         if (UNREQUIRED_MACRO_CALLED_AS_FUNCTION.isSufficient(legLevel())) {
-            probes.assertTracesMatchElixir(listOf(expansion), PLACEHOLDER)
+            probes.assertTracesMatchElixir(expansions)
         } else {
+            val expansion = expansions.cases.single()
             val unported = expansion.outcome as? Expansion.Unported
 
-            assertEquals("&Integer.is_odd/1", unported?.at?.meta?.origin?.substring(UNREQUIRED_MACRO_CAPTURE))
+            assertEquals("&Integer.is_odd/1", unported?.at?.let(expansion::source))
         }
     }
 
-    private companion object {
-        const val PLACEHOLDER = "Elixir.DispatchCase"
+    /** A call of a local macro in a function body stops that body at the call, and up to there agrees with Elixir. */
+    fun testLocalMacrosStopAtTheCall() {
+        probes.assertMatchesElixirUpToMacro(LOCAL_MACRO_CASES.associateWith { probes.expand(it) })
+    }
 
+    private companion object {
         /** Each must expand, and compile in a module body; a call that would raise when the body runs is in an `fn`. */
         val CASES = listOf(
             "x = 1\n_ = x + 1",
@@ -82,6 +86,18 @@ class DispatchProbeTest : ProbeTestCase() {
             "_ = &__MODULE__.foo/0",
             "m = URI\n_ = &m.parse/1",
             "f = fn x -> x end\n_ = &f.(&1)",
+            "def f, do: g()\ndef g, do: 1",
+            "def f(0), do: 0\ndef f(n), do: f(n - 1)",
+            "def f, do: &g/1\ndef g(x), do: x",
+            "def f(x), do: &f/1",
+            "Kernel.def h, do: 1",
+            "defmodule Inner do\n  def f, do: 1\nend",
+        )
+
+        val LOCAL_MACRO_CASES = listOf(
+            "defmacro m, do: 1\ndef f, do: m()",
+            "defmacro m(a, b), do: {a, b}\ndefmacro m(x), do: m(x, x)",
+            "defmacro m(x), do: x\ndef f, do: &m/1",
         )
 
         const val UNREQUIRED_MACRO_CAPTURE = "_ = &Integer.is_odd/1"

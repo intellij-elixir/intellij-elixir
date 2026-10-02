@@ -1,10 +1,14 @@
 package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangAtom
+import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.util.TextRange
+import org.elixir_lang.expander.ExpansionResult.Ended
+import org.elixir_lang.expander.ExpansionResult.Owner
 import org.elixir_lang.expander.ProbeHarness.Tag
+import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_ERRORS_CONTINUE
 import org.elixir_lang.language_level.ElixirLanguageFeature.REMOTE_CAPTURE_REPORTED_AT_CALL
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNDEFINED_VARIABLE_RAISES
 import org.elixir_lang.language_level.ElixirLanguageLevel
@@ -14,31 +18,35 @@ import org.elixir_lang.lowering.Meta
 import org.elixir_lang.lowering.expressionNodes
 import org.elixir_lang.lowering.inspect
 import org.elixir_lang.psi.ElixirFile
-import org.elixir_lang.psi.Import
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import java.util.IdentityHashMap
 import kotlin.time.Duration
 import kotlin.time.TimeSource
 
 /**
- * Expands case module bodies statement by statement, as `expand_block` threads them, and compares the expander with
- * Elixir on the leg's Elixir through a [ProbeHarness]:
+ * Expands case module bodies as Elixir compiles them, and compares the expander with Elixir on the leg's Elixir
+ * through a [ProbeHarness]. A batch of cases is one file, the harness's modules and a preamble's, then a module for each
+ * case, which [Expander.expandFile] expands whole; each node it reaches belongs to the case whose body holds it.
  *
- * - a case the expander expands is compiled in a batch, and if the batch fails, alone, where it must compile, or fail
+ * - a case module that compiles is compiled in a batch, and if the batch fails, alone, where it must compile, or fail
  *   only after expansion: raise when run, or raise with no error diagnostic once every probe has delivered;
- * - a case the expander reports an error for is compiled alone, and must fail at expansion, at the error's line and
- *   for its reason;
+ * - a case module the expander reports an error in is compiled alone, and must report the same errors at the same
+ *   lines, and end as the expander says, failing at expansion where the expander's error raised;
  *
- * and at each probe either delivers, the variables fall into the same classes and the env's other fields are equal. A
- * case the expander doesn't cover is not compiled.
+ * and at each probe either delivers, the variables fall into the same classes and the env's fields are equal. A case
+ * that stops at a node the expander doesn't cover, or at a macro whose expansion isn't modelled, is compared up to
+ * there only, by [assertMatchesElixirUpToMacro].
  *
  * Each variable and `_` of a pattern, each `^` and each non-literal bitstring size in one, and each variable of a
- * clause's guard, is wrapped in an identity probe, which the expander matches when it enters that node. Each statement
- * of a body nested in a clause, such as a `->` clause's, is followed by a probe, which the expander matches when it
- * leaves that statement.
+ * clause's or a definition's guard, is wrapped in an identity probe, which the expander matches when it enters that
+ * node. Each statement of a body nested in a clause, a definition or a module, is followed by a probe, which the
+ * expander matches when it leaves that statement. Elixir may expand a definition that isn't a statement of its module's
+ * body, and every definition after it, elsewhere than the expander does, so the comparison stops at the first probe in
+ * such a body.
  *
  * With [accounting], each probe also compares the hygiene counters taken: Elixir's `counter_before`, less the probes
- * delivered before it, each of which took one, against the expander's count.
+ * delivered before it in its module, each of which took one, against the expander's count.
  */
 internal class ExpansionProbes(
     private val harness: ProbeHarness,
@@ -46,168 +54,180 @@ internal class ExpansionProbes(
     private val parse: (String) -> ElixirFile,
 ) {
     /**
-     * What the expander saw at the probe [tag], whose `case` is always 0, and [count], the hygiene counters its module
-     * had given.
+     * What the expander saw at the probe [tag], whose `case` is always 0.
+     *
+     * @property offset where the node at [tag] starts in its case body, or -1 at the body's start
+     * @property count the hygiene counters its module had given, or `null` outside any module
      */
-    class Step(val tag: Tag, val read: Map<Variable, Int>, val env: Env, val stacktrace: Boolean, val count: Long)
+    class Step(
+        val tag: Tag,
+        val read: Map<Variable, Int>,
+        val env: Env,
+        val stacktrace: Boolean,
+        val caller: Boolean,
+        val offset: Int,
+        val count: Long?,
+    )
 
     /**
-     * [case] expanded from the start of an empty module body.
+     * [case]'s module compiled as the expander compiles it.
      *
-     * @property steps the statement probes, and the identity probes the expander entered, in its order, up to [outcome]
-     * @property outcome the last statement's expansion, or the first that isn't [Expansion.Expanded]
-     * @property statements the top-level statements, lowered
-     * @property starts the state and env each top-level statement the expander reached was expanded from
+     * @property steps the statement probes, and the identity probes the expander entered, in its order, up to where
+     *   the comparison stops
+     * @property cut whether the comparison stops before the expander's last probe
+     * @property outcome the error the module raised, or the node it stopped at, or else its body's expansion
+     * @property statements the top-level statements the expander reached, as the file lowers them
+     * @property starts the state and env each of [statements] was expanded from
      * @property traces each dispatch, quoted import and struct expansion the expander reported, as [DispatchEvents]
-     *   keys it, in order
-     * @property bodyStatements the 1-based top-level statement each nested body, block 1 onward, is in
+     *   keys it, in order, up to where it stopped
+     * @property macro the key of the macro dispatch [outcome] stopped at, if it did
+     * @property tagRanges where the statement each statement probe follows is in the case body
+     * @property definitions where each `def*` call is in the case body
+     * @property unordered whether the comparison stops at a body Elixir may expand elsewhere
      */
     class CaseExpansion(
         val case: ProbeHarness.Case,
         val steps: List<Step>,
+        val cut: Boolean,
         val outcome: Expansion,
+        val result: ExpansionResult,
         val statements: List<ElixirAst>,
         val starts: List<Pair<ExState, Env>>,
         val traces: List<String>,
-        val bodyStatements: List<Int>,
+        val macro: String?,
+        val tagRanges: Map<Tag, TextRange>,
+        val definitions: List<TextRange>,
+        val unordered: Boolean,
+        val origin: Origin,
     ) {
-        /** The 1-based top-level statement [tag]'s probe is in, or, for a statement probe, follows. */
-        fun statementOf(tag: Tag): Int = if (tag.block == 0) tag.statement else bodyStatements[tag.block - 1]
+        val ended: Ended get() = result.ended
+
+        /** Where [node] is in the case body. */
+        fun range(node: ElixirAst): TextRange = node.meta.origin.shiftLeft(origin.layout.bodyStarts[origin.index])
+
+        /** [node]'s source in the case body. */
+        fun source(node: ElixirAst): String = range(node).substring(case.body)
     }
 
     /**
-     * [body] expanded from the start of an empty module body, which is in [module] when one is given, with [exports]
-     * and [structs] standing for the modules Elixir loads.
+     * What a case was expanded from: [body] and [preamble] before their `{token}` was replaced, and where, as
+     * [layout]'s case [index].
+     */
+    class Origin(
+        val body: String,
+        val preamble: String,
+        val exports: Exports,
+        val structs: Structs,
+        val hook: Boolean,
+        val layout: ProbeHarness.Layout,
+        val index: Int,
+    )
+
+    /**
+     * A batch expanded as one file laid out by [layout], what the top-level probe stands for when it has one, and the
+     * traces outside any module, keyed as [DispatchEvents.top] keys them.
+     */
+    class Expansions(
+        val layout: ProbeHarness.Layout,
+        val cases: List<CaseExpansion>,
+        val top: Step?,
+        val topTraces: List<String>,
+    )
+
+    /**
+     * [body] as the body of a case module of its own, after [preamble]'s modules, with [exports] and [structs] standing
+     * for the modules Elixir loads.
      */
     fun expand(
         body: String,
-        module: String? = null,
+        preamble: String = "",
         exports: Exports = legExports,
         structs: Structs = legStructs,
-    ): CaseExpansion {
+    ): CaseExpansion = expandAll(listOf(body), preamble, exports, structs).cases.single()
+
+    /**
+     * Each of [bodies] as the body of a case module, in one file after [preamble]'s modules, with `{token}` in either
+     * standing for the compile's token and [exports] and [structs] for the modules Elixir loads. [hook] adds the
+     * definition hook to each case module, [top] the top-level probe to the end of the file, and [values] sends each
+     * case's `q` after its last statement.
+     */
+    fun expandAll(
+        bodies: List<String>,
+        preamble: String = "",
+        exports: Exports = legExports,
+        structs: Structs = legStructs,
+        hook: Boolean = false,
+        top: Boolean = false,
+        values: Boolean = false,
+    ): Expansions {
         val level = legLevel()
-        val file = parse(body)
-        val statements = ReadAction.computeBlocking<List<ElixirAst>, Throwable> {
-            val lowering = Lowering.of(file, level)
-
-            expressionNodes(file).map { lowering.lower(it.psi) }
-        }
-
-        check(statements.none(::hasPlaceholder)) { "a case body must lower without placeholders: $body" }
-        // The module body runs when it compiles, and a `receive` waits for its timeout, or for ever without one.
-        check(statements.none(::hasReceiveWithoutAfterZero)) { "a case's receive must wait after 0: $body" }
-
-        val sites = statements.flatMap { identitySites(it, false) }.sortedBy { it.meta.origin.startOffset }
-        val identities = sites.withIndex().associate { (index, site) -> site.meta.origin to index + 1 }
-        val bodies = statements.flatMap(::nestedBodies).sortedBy { it.first().meta.origin.startOffset }
-        val nested = bodies.withIndex()
-            .flatMap { (block, body) ->
-                body.withIndex().map { (statement, node) -> node.meta.origin to Tag(0, block + 1, statement + 1) }
-            }
-            .toMap()
-        var state = ExState.empty(level)
-        var env = Env.empty(level, legKernel).copy(module = module)
-        // Elixir keeps the counter in the module, across the statements of its body.
-        val counters = Counters()
-        fun step(tag: Tag, state: ExState, env: Env) = Step(tag, state.read, env, state.stacktrace, counters.count(env.module))
-        val steps = mutableListOf(step(Tag(0, 0, 0), state, env))
-        val starts = mutableListOf<Pair<ExState, Env>>()
-        val traces = mutableListOf<String>()
-        var outcome: Expansion = Expansion.Expanded(state, env, Import.Term.Atom("nil"))
-
-        for ((index, statement) in statements.withIndex()) {
-            starts.add(state to env)
-            val entered = mutableSetOf<TextRange>()
-            val left = mutableSetOf<TextRange>()
-            val open = ArrayDeque<ElixirAst>()
-            val observer = object : ExpansionObserver {
-                override fun entering(node: ElixirAst, state: ExState, env: Env) {
-                    open.addLast(node)
-
-                    identities[node.meta.origin]?.let { identity ->
-                        if (entered.add(node.meta.origin)) {
-                            steps.add(step(Tag(0, 0, index + 1, identity), state, env))
-                        }
-                    }
-                }
-
-                override fun dispatched(node: ElixirAst, dispatch: Dispatch) {
-                    traces.add(DispatchEvents.key(node, dispatch))
-                    retraced(open.lastOrNull(), node, dispatch, level)?.let {
-                        traces.add(DispatchEvents.key(it, dispatch))
-                    }
-                }
-
-                override fun quotedImport(
-                    node: ElixirAst,
-                    kind: QuotedImportKind,
-                    module: String,
-                    name: String,
-                    arities: List<Int>,
-                ) {
-                    traces.add(DispatchEvents.key(node, kind, module, name, arities))
-                }
-
-                override fun structExpanded(node: ElixirAst, module: String, keys: List<String>) {
-                    traces.add(DispatchEvents.structKey(node, module, keys))
-                }
-
-                // Nodes that share an origin, such as a block of one expression and that expression, leave with one state.
-                override fun left(node: ElixirAst, expansion: Expansion) {
-                    open.removeLast()
-
-                    val tag = nested[node.meta.origin]
-
-                    if (tag != null && expansion is Expansion.Expanded && left.add(node.meta.origin)) {
-                        steps.add(step(tag, expansion.state, expansion.env))
-                    }
-                }
-            }
-
-            outcome = Expander.expand(statement, state, env, level, exports, structs, observer, counters)
-
-            when (val expansion = outcome) {
-                is Expansion.Expanded -> {
-                    state = expansion.state
-                    env = expansion.env
-                    steps.add(step(Tag(0, 0, index + 1), state, env))
-                }
-                is Expansion.Error, is Expansion.Unported, is Expansion.Opaque -> break
-            }
-        }
-
-        return CaseExpansion(
-            ProbeHarness.Case(body, sites.map { it.meta.origin }, bodies.map { it.map { node -> node.meta.origin } }),
-            steps,
-            outcome,
-            statements,
-            starts,
-            traces,
-            bodies.map { body ->
-                statements.indexOfFirst { it.meta.origin.contains(body.first().meta.origin) } + 1
+        val token = harness.token()
+        val shapes = bodies.map { shape(it.replace(TOKEN, token), level) }
+        val layout = ProbeHarness.Layout(
+            token,
+            shapes.map { shape ->
+                ProbeHarness.Case(
+                    shape.body,
+                    shape.sites.map { it.meta.origin },
+                    shape.bodies.map { body -> body.map { it.meta.origin } },
+                    if (values) shape.statements.size else null,
+                )
             },
+            preamble.replace(TOKEN, token),
+            hook,
+            top,
         )
+        // Elixir keeps the counter in the module, across its body and its definitions.
+        val counters = Counters()
+        val recorders = shapes.indices.map {
+            Recorder(shapes[it], layout.bodyStarts[it], layout.bodyLines[it], counters)
+        }
+        val observer = Observer(recorders, counters, level)
+        val file = parse(layout.plain)
+        val forms = ReadAction.computeBlocking<ElixirAst, Throwable> { Lowering.lower(file, level) }
+        val expansion =
+            Expander.expandFile(forms, Env.empty(level, legKernel), level, exports, structs, observer, counters)
+        val cases = recorders.mapIndexed { index, recorder ->
+            val module = layout.caseModule(index)
+            val result = expansion.modules.firstOrNull { it.module == module }
+                ?: throw AssertionError(
+                    "$module wasn't compiled: top ${expansion.top}, " +
+                        expansion.modules.joinToString { "${it.module} ${it.ended}" }
+                )
+
+            recorder.expansion(
+                result,
+                observer.leftAt,
+                Origin(bodies[index], preamble, exports, structs, hook, layout, index),
+            )
+        }
+        val topStep = (expansion.top as? Expansion.Expanded)
+            ?.takeIf { top }
+            ?.let { Step(Tag(-1, 0, 0), it.state.read, it.env, it.state.stacktrace, it.state.caller, -1, null) }
+
+        return Expansions(layout, cases, topStep, observer.top)
     }
 
     /**
-     * Compares each of [cases] the expander covers with Elixir, and returns how long the compiles of the erroring
-     * ones took.
+     * Compares each of [cases] whose module compiles or reports an error with Elixir, and returns how long the
+     * compiles of the erroring ones took. With [errorsFirst], an erroring case's errors need only begin Elixir's, for
+     * a module whose later errors come from checks the expander doesn't make.
      */
-    fun assertMatchesElixir(cases: Map<String, CaseExpansion>): Duration {
+    fun assertMatchesElixir(cases: Map<String, CaseExpansion>, errorsFirst: Boolean = false): Duration {
         assertDefaultCompilerOptions()
 
-        val expanded = cases.filterValues { it.outcome is Expansion.Expanded }
-        val erroring = cases.filterValues { it.outcome is Expansion.Error }
+        val compiled = cases.filterValues { it.ended == Ended.Compiled }
+        val erroring = cases.filterValues { it.ended.raises }
         val expected = mutableListOf<String>()
         val actual = mutableListOf<String>()
 
-        compareExpanded(expanded, expected, actual)
+        compareCompiled(compiled, expected, actual)
 
         val start = TimeSource.Monotonic.markNow()
-        erroring.forEach { (name, expansion) -> compareError(name, expansion, expected, actual) }
+        erroring.forEach { (name, expansion) -> compareError(name, expansion, errorsFirst, expected, actual) }
         val elapsed = start.elapsedNow()
 
-        println("${expanded.size} expanded and ${erroring.size} erroring cases; erroring compiles took $elapsed")
+        println("${compiled.size} compiled and ${erroring.size} erroring cases; erroring compiles took $elapsed")
 
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
 
@@ -215,68 +235,84 @@ internal class ExpansionProbes(
     }
 
     /**
-     * Compares each of [cases], which stop at [Expansion.Opaque], with Elixir up to the macro, compiled after
-     * [preamble] in one batch, or alone if the batch fails: the probes Elixir delivers before the macro's statement, and
-     * inside it those the expander reached, equal the expander's steps, and the traces equal the leg's events up to
-     * and including the first macro event on the macro's line. What follows the macro isn't compared.
+     * Compares [expansions], whose cases must compile, with Elixir compiling its layout: each case's probes, the
+     * top-level probe's, and the traces outside any module.
      */
-    fun assertMatchesElixirUpToMacro(cases: Map<String, CaseExpansion>, preamble: String = "") {
-        if (cases.isEmpty()) return
-
+    fun assertMatchesElixir(names: List<String>, expansions: Expansions) {
         assertDefaultCompilerOptions()
 
-        val names = cases.keys.toList()
-        val batch = harness.attempt(names.map { cases.getValue(it).case }, preamble)
-        // A case that fails to compile stops the modules after it, so then each case is compiled alone.
-        val attempts = if (batch.compiled.status == OtpErlangAtom("ok")) {
-            names.indices.map { batch to it }
-        } else {
-            names.map { harness.attempt(listOf(cases.getValue(it).case), preamble) to 0 }
-        }
+        val attempt = harness.attempt(expansions.layout)
         val expected = mutableListOf<String>()
         val actual = mutableListOf<String>()
 
-        names.forEachIndexed { position, name ->
-            val (attempt, index) = attempts[position]
-            val expansion = cases.getValue(name)
-            val opaque = expansion.outcome as Expansion.Opaque
-            val tags = expansion.steps.map { it.tag }.toSet()
-            // Every probe before the macro's statement, and inside it those the expander reached before the macro.
-            val macroStatement = expansion.starts.size
-            val delivered = attempt.batch.observations.filter { it.tag.case == index }
-            val observed = delivered.filter { observation ->
-                val tag = observation.tag.copy(case = 0)
+        assertEquals(
+            "compile status ${attempt.compiled.diagnostics.map(::inspect)}",
+            OtpErlangAtom("ok"),
+            attempt.compiled.status,
+        )
+        compareBatch(names, expansions, attempt, expected, actual)
+        expected.add("== outside any module\n" + expansions.topTraces.joinToString("\n"))
+        actual.add(
+            "== outside any module\n" +
+                DispatchEvents.top(attempt.compiled.events, expansions.layout.topLine).joinToString("\n")
+        )
+        assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
+    }
 
-                expansion.statementOf(tag).let { statement ->
-                    statement < macroStatement || statement == macroStatement && tag in tags
-                }
+    /**
+     * Compares each of [cases], which stop at [Expansion.Opaque], with Elixir up to the macro, compiled together, or
+     * alone if that fails: the probes Elixir delivers before the macro's statement in the body it is in, and those the
+     * expander reached, equal the expander's steps, and the traces equal the leg's events up to and including the
+     * first macro event on the macro's line. What follows the macro isn't compared.
+     */
+    fun assertMatchesElixirUpToMacro(cases: Map<String, CaseExpansion>) {
+        assertDefaultCompilerOptions()
+
+        val expected = mutableListOf<String>()
+        val actual = mutableListOf<String>()
+
+        for ((names, batch) in batches(cases)) {
+            val together = harness.attempt(batch.layout)
+            // A case that fails to compile stops the modules after it, so then each case is compiled alone.
+            val attempts = if (together.compiled.status == OtpErlangAtom("ok")) {
+                names.indices.map { Triple(batch.cases[it], together, it) }
+            } else {
+                names.map { alone(cases.getValue(it)).let { (expansion, attempt) -> Triple(expansion, attempt, 0) } }
             }
-            val macro = DispatchEvents.key(opaque.at, opaque.dispatch)
-            val events = DispatchEvents.of(
-                attempt.compiled.events,
-                attempt.batch.caseModule(index),
-                attempt.batch.probeModule,
-                attempt.bodyLines[index],
-            )
-            val line = DispatchEvents.line(macro)
-            val end = events.indexOfFirst { DispatchEvents.isMacro(it) && DispatchEvents.line(it) == line }
-            val prefix = if (end < 0) events + "no macro event on line $line" else events.take(end + 1)
 
-            expected.add(render(name, expansion.steps) + "\n" + (expansion.traces + macro).joinToString("\n"))
-            actual.add(render(name, observed, attempt.batch.probeModule, delivered) + "\n" + prefix.joinToString("\n"))
+            names.forEachIndexed { position, name ->
+                val (expansion, attempt, index) = attempts[position]
+                val tags = expansion.steps.map { it.tag }.toSet()
+                val before = beforeMacro(expansion)
+                val observed = attempt.batch.observations.filter {
+                    it.tag.case == index && it.tag.copy(case = 0).let { tag -> tag in tags || before(tag) }
+                }
+                val macro = expansion.macro ?: "not opaque: ${expansion.outcome}"
+                val events = events(attempt, index)
+                val line = DispatchEvents.line(macro)
+                val end = events.indexOf(macro).takeIf { it >= 0 }
+                    ?: events.indexOfFirst { DispatchEvents.isMacro(it) && DispatchEvents.line(it) == line }
+                val prefix = if (end < 0) events + "no macro event on line $line" else events.take(end + 1)
+
+                expected.add(render(name, expansion.steps) + "\n" + (expansion.traces + macro).joinToString("\n"))
+                actual.add(
+                    render(name, observed, attempt.batch.probeModule, delivered(attempt, index)) + "\n" +
+                        prefix.joinToString("\n")
+                )
+            }
         }
 
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
     }
 
     /**
-     * Compares the traces of [expansions], which all expand and were expanded in [module], with the events the leg's
-     * compiler traces for the same case module bodies, as [DispatchEvents] normalises them.
+     * Compares the traces of [expansions], whose cases all expand, with the events the leg's compiler traces for the
+     * same case module bodies, as [DispatchEvents] normalises them.
      */
-    fun assertTracesMatchElixir(expansions: List<CaseExpansion>, module: String) {
-        expansions.forEach { assertTrue("${it.case.body}: ${it.outcome}", it.outcome is Expansion.Expanded) }
+    fun assertTracesMatchElixir(expansions: Expansions) {
+        expansions.cases.forEach { assertTrue("${it.case.body}: ${it.outcome}", it.outcome is Expansion.Expanded) }
 
-        val attempt = harness.attempt(expansions.map { it.case })
+        val attempt = harness.attempt(expansions.layout)
 
         assertEquals(
             "compile status ${attempt.compiled.diagnostics.map(::inspect)}",
@@ -284,17 +320,9 @@ internal class ExpansionProbes(
             attempt.compiled.status,
         )
         assertEquals(
-            expansions.joinToString("\n") { renderTraces(it.case.body, it.traces) },
-            expansions.indices.joinToString("\n") { case ->
-                val caseModule = attempt.batch.caseModule(case)
-                val events = DispatchEvents.of(
-                    attempt.compiled.events,
-                    caseModule,
-                    attempt.batch.probeModule,
-                    attempt.bodyLines[case],
-                )
-
-                renderTraces(expansions[case].case.body, events.map { it.replace(caseModule, module) })
+            expansions.cases.joinToString("\n") { renderTraces(it.case.body, it.traces) },
+            expansions.cases.withIndex().joinToString("\n") { (index, expansion) ->
+                renderTraces(expansion.case.body, events(attempt, index))
             },
         )
     }
@@ -302,117 +330,433 @@ internal class ExpansionProbes(
     private fun renderTraces(body: String, traces: List<String>) =
         "== ${body.replace("\n", "; ")}\n" + traces.joinToString("") { "  $it\n" }
 
-    private fun compareExpanded(
+    /**
+     * Whether Elixir delivers a tag's probe before [expansion]'s macro: it is in the body the macro is in, in a
+     * statement before the macro's, and not in a definition or module nested there, whose body Elixir expands later.
+     */
+    private fun beforeMacro(expansion: CaseExpansion): (Tag) -> Boolean {
+        val opaque = expansion.outcome as? Expansion.Opaque ?: return { false }
+        val at = expansion.range(opaque.at)
+        // The case module's own body is the first unit.
+        val nested = units(expansion.result).drop(1).map { expansion.range(it.node) }
+        val body = nested.filter { it.contains(at) }.minByOrNull { it.length }
+        val inner = nested.filter { it != body && (body == null || body.contains(it)) }
+
+        fun inBody(range: TextRange) = (body == null || body.contains(range)) && inner.none { it.contains(range) }
+
+        val statements = expansion.tagRanges.values.filter(::inBody)
+        val statement = statements.filter { it.contains(at) }.maxByOrNull { it.length } ?: return { false }
+        val earlier = earlierBodies(expansion, at)
+
+        return { tag ->
+            val range = tagRange(expansion, tag)
+
+            range != null && (range.endOffset <= statement.startOffset && inBody(range) || earlier(range))
+        }
+    }
+
+    /** The dispatch events of [attempt]'s case [index], as [DispatchEvents] normalises them. */
+    fun events(attempt: ProbeHarness.Attempt, index: Int): List<String> =
+        DispatchEvents.of(
+            attempt.compiled.events,
+            attempt.batch.caseModule(index),
+            attempt.batch.probeModule,
+            attempt.bodyLines[index],
+            attempt.layout.hookModule,
+        )
+
+    private fun compareCompiled(
         cases: Map<String, CaseExpansion>,
         expected: MutableList<String>,
         actual: MutableList<String>,
     ) {
-        if (cases.isEmpty()) return
+        for ((names, batch) in batches(cases)) {
+            val attempt = harness.attempt(batch.layout)
 
-        val names = cases.keys.toList()
-        val attempt = harness.attempt(names.map { cases.getValue(it).case })
-
-        if (attempt.compiled.status == OtpErlangAtom("ok")) {
-            assertEquals("probes that reported", attempt.tags.toSet(), attempt.batch.observations.map { it.tag }.toSet())
-
-            val byCase = attempt.batch.observations.groupBy { it.tag.case }
-
-            names.forEachIndexed { index, name ->
-                expected.add(render(name, cases.getValue(name).steps))
-                actual.add(render(name, byCase[index].orEmpty(), attempt.batch.probeModule))
-            }
-        } else {
-            names.forEach { name ->
-                val expansion = cases.getValue(name)
-                val alone = harness.attempt(listOf(expansion.case))
-                val compiled = alone.compiled
-                val status = compiled.status
-                // A raise once every probe has delivered comes after expansion: when the body runs, or, for a
-                // `CompileError` with no error diagnostic, from a later pass.
-                val afterExpansion = status is OtpErlangTuple &&
-                    status.elementAt(0) == OtpErlangAtom("raise") &&
-                    errors(compiled.diagnostics).isEmpty() &&
-                    alone.tags.toSet() == alone.batch.observations.map { it.tag }.toSet()
-
-                expected.add(render(name, expansion.steps))
-                actual.add(
-                    if (status == OtpErlangAtom("ok") || afterExpansion) {
-                        render(name, alone.batch.observations, alone.batch.probeModule)
-                    } else {
-                        "== $name\ncompile failed: ${inspect(compiled.status)} ${compiled.diagnostics.map(::inspect)}"
-                    }
-                )
+            if (attempt.compiled.status == OtpErlangAtom("ok") && batch.cases.all { it.ended == Ended.Compiled }) {
+                compareBatch(names, batch, attempt, expected, actual)
+            } else {
+                names.forEach { name -> compareAlone(name, cases.getValue(name), expected, actual) }
             }
         }
     }
 
-    private fun compareError(
+    private fun compareBatch(
+        names: List<String>,
+        expansions: Expansions,
+        attempt: ProbeHarness.Attempt,
+        expected: MutableList<String>,
+        actual: MutableList<String>,
+    ) {
+        val byCase = attempt.batch.observations.groupBy { it.tag.case }
+        val cut = expansions.cases.indices.filter { expansions.cases[it].cut }.toSet()
+        val missing = attempt.tags.filter { it.case !in cut }.toSet() - byCase.values.flatten().map { it.tag }.toSet()
+
+        expected.add("probes not delivered: []")
+        actual.add("probes not delivered: $missing")
+
+        names.forEachIndexed { index, name ->
+            val expansion = expansions.cases[index]
+
+            expected.add(render(name, expansion.steps))
+            val observed = delivered(expansion, byCase[index].orEmpty())
+
+            actual.add(render(name, observed, attempt.batch.probeModule, byCase[index].orEmpty()))
+        }
+
+        if (expansions.layout.top) {
+            expected.add(render("top", listOfNotNull(expansions.top)))
+            actual.add(render("top", byCase[-1].orEmpty(), attempt.batch.probeModule))
+        }
+    }
+
+    private fun compareAlone(
         name: String,
         expansion: CaseExpansion,
         expected: MutableList<String>,
         actual: MutableList<String>,
     ) {
-        val error = expansion.outcome as Expansion.Error
-        val alone = harness.attempt(listOf(expansion.case))
-        val compiled = alone.compiled
-        val bodyLine = alone.bodyLines.single()
-        val line = error.at.meta.keys.filterIsInstance<Meta.Key.Location>().singleOrNull()?.position?.line
-        val location = if (ErrorKinds.hasLine(error.kind)) " at line ${line?.let { it + bodyLine - 1 }}" else ""
-        val raising = Tag(0, 0, expansion.starts.size)
+        val (alone, attempt) = alone(expansion)
+        val compiled = attempt.compiled
+        val observations = attempt.batch.observations
+        val status = compiled.status
+        // A raise once every probe has delivered comes after expansion: when the body runs, or, for a
+        // `CompileError` with no error diagnostic, from a later pass.
+        val afterExpansion = status is OtpErlangTuple &&
+            status.elementAt(0) == OtpErlangAtom("raise") &&
+            errors(compiled.diagnostics).isEmpty() &&
+            attempt.tags.toSet() == observations.map { it.tag }.toSet() &&
+            !isPostModuleError(status)
 
-        expected.add(render(name, expansion.steps) + "\nerror ${error.kind}$location")
+        expected.add(render(name, alone.steps))
         actual.add(
-            render(name, alone.batch.observations, alone.batch.probeModule) + "\n" +
-                elixirError(error, compiled, alone.batch.observations.any { it.tag == raising })
+            if (status == OtpErlangAtom("ok") || afterExpansion) {
+                render(name, delivered(alone, observations), attempt.batch.probeModule, observations)
+            } else {
+                "== $name\ncompile failed: ${inspect(compiled.status)} ${compiled.diagnostics.map(::inspect)}"
+            }
         )
     }
 
-    /**
-     * The error [compiled] failed with, as `error <kind> at line <n>` when its message is [error]'s kind, or as `error
-     * <kind>` for a kind with no line. A raise failed at expansion if and only if the probe after the raising statement
-     * wasn't [delivered]: the module body is expanded whole before it runs.
-     */
-    private fun elixirError(
-        error: Expansion.Error,
-        compiled: org.elixir_lang.intellij_elixir.Quoter.Compiled,
-        delivered: Boolean,
-    ): String {
-        val status = compiled.status as? OtpErlangTuple
-        val raised = status != null && status.elementAt(0) == OtpErlangAtom("raise")
+    /** Whether [status] is the `CompileError` of a check Elixir makes once the body has run, which the expander predicts. */
+    private fun isPostModuleError(status: OtpErlangTuple): Boolean {
+        if (status.elementAt(1) != OtpErlangAtom(COMPILE_ERROR)) return false
 
-        if (!raised || delivered) {
+        val message = PREFIXED_MESSAGE.find(utf8(status.elementAt(2)))?.groupValues?.get(2) ?: return false
+
+        return POST_MODULE_KINDS.any { ErrorKinds.pattern(it).containsMatchIn(message) }
+    }
+
+    /**
+     * Compares the errors of [expansion]'s module with Elixir's for the case compiled alone: up to 1.14, the error
+     * that raised; from 1.15, every error in order, then how the compile ended. Where the comparison stops at a body
+     * Elixir may expand elsewhere, only the errors before it are compared, as a prefix of Elixir's.
+     */
+    private fun compareError(
+        name: String,
+        expansion: CaseExpansion,
+        errorsFirst: Boolean,
+        expected: MutableList<String>,
+        actual: MutableList<String>,
+    ) {
+        val (alone, attempt) = alone(expansion)
+        val compiled = attempt.compiled
+        val observations = attempt.batch.observations
+        val level = legLevel()
+        val witness = witness(alone)
+        val errors = expectedErrors(alone, level, errorsFirst)
+
+        expected.add(render(name, alone.steps) + "\n" + errors.joinToString("\n") { it.render() })
+        actual.add(
+            render(name, delivered(alone, observations), attempt.batch.probeModule, observations) + "\n" +
+                if (witness != null && observations.any { it.tag == witness }) {
+                    "not an expansion error: ${inspect(compiled.status)} ${compiled.diagnostics.map(::inspect)}"
+                } else if (FUNCTION_ERRORS_CONTINUE.isSufficient(level)) {
+                    elixirErrors(errors, compiled, errorsFirst || alone.unordered)
+                } else {
+                    elixirError(errors.single(), compiled)
+                }
+        )
+    }
+
+    /** An error the expander expects Elixir to report, or how it expects the compile to end. */
+    private class ExpectedError(val kind: String, val line: Int?, val status: String? = null) {
+        fun render(): String = status ?: "error $kind${line?.let { " at line $it" } ?: ""}"
+    }
+
+    /**
+     * The errors [expansion]'s module reports, in Elixir's order, at [level]: up to 1.14 the one that raises; from
+     * 1.15 those Elixir logs as diagnostics, then the raise that ends the compile. Where the comparison stops at a body
+     * Elixir may expand elsewhere, only those before it, and no raise; with [errorsFirst], no raise.
+     */
+    private fun expectedErrors(
+        expansion: CaseExpansion,
+        level: ElixirLanguageLevel,
+        errorsFirst: Boolean,
+    ): List<ExpectedError> {
+        val result = expansion.result
+
+        if (!FUNCTION_ERRORS_CONTINUE.isSufficient(level)) {
+            val error = timeline(result).firstOrNull() ?: return listOf(ExpectedError("none", null, "no error"))
+            val raised = (result.ended as? Ended.Raised)?.error ?: (result.ended as? Ended.Crashed)?.error
+            val units = units(result)
+            val unit = units.indexOfFirst { it.expansion === raised }
+
+            // Elixir may store a body that isn't ordered elsewhere, so which error raises first isn't known.
+            if (unit >= 0 && units.take(unit + 1).any { !it.ordered }) {
+                return listOf(ExpectedError("", null, "raise CompileError"))
+            }
+
+            return listOf(ExpectedError(error.kind, line(error.at).takeIf { ErrorKinds.hasLine(error.kind, level) }))
+        }
+
+        val logged = collapsed(timeline(result, expansion.takeIf { it.unordered }), level) { error ->
+            error.kind.takeIf { it in POST_MODULE_KINDS }?.let { Triple(it, line(error.at), column(error.at)) }
+        }
+            .filter { ErrorKinds.hasLine(it.kind, level) }
+            .map { ExpectedError(it.kind, line(it.at)) }
+
+        if (errorsFirst || expansion.unordered) return logged
+
+        val status = when (val ended = result.ended) {
+            is Ended.Raised ->
+                if (ended.error.kind == NESTED_RAISED || ErrorKinds.hasLine(ended.error.kind, level)) {
+                    "raise CompileError"
+                } else {
+                    "raise ${ended.error.kind}"
+                }
+            is Ended.Crashed -> "raise ${ended.exception}"
+            Ended.Tainted -> "raise CompileError"
+            Ended.Compiled, is Ended.Stopped -> "ended ${result.ended}"
+        }
+
+        return logged + ExpectedError((result.ended as? Ended.Raised)?.error?.kind ?: "", null, status)
+    }
+
+    /**
+     * [result]'s errors in the order Elixir reports them: the module body's, then each definition's and each nested
+     * module's in the order the body defines them, then the checks once the body has run, then the error that raised,
+     * when it raised in this module. With [unordered], only those before the first body Elixir may expand elsewhere.
+     */
+    private fun timeline(result: ExpansionResult, unordered: CaseExpansion? = null): List<Reported> {
+        val definitions = result.units.filter { it.owner is Owner.Definition }
+
+        fun unit(error: Reported) = definitions.firstOrNull { it.node.meta.origin.contains(error.at.meta.origin) }
+
+        val after = result.errors.filter { it.kind in POST_MODULE_KINDS && unit(it) != null }
+        val during = result.errors.filterNot { error -> after.any { it === error } }
+        // A nested module whose name raised has no body, and its error is at its `defmodule`.
+        val placed = definitions.map { unit -> start(unit.node) to during.filter { unit(it) === unit } } +
+            result.nested.map { nested ->
+                val at = nested.units.firstOrNull()?.node ?: (nested.ended as? Ended.Raised)?.error?.at
+
+                (at?.let(::start) ?: Int.MAX_VALUE) to timeline(nested)
+            }
+        val stop = unordered?.let { definitions.firstOrNull { !it.ordered } }?.node?.let(::start)
+        val raised = (result.ended as? Ended.Raised)?.error?.takeIf { error ->
+            error.kind != NESTED_RAISED && result.nested.none { (it.ended as? Ended.Raised)?.error === error }
+        }
+        val ordered = during.filter { unit(it) == null } +
+            placed.sortedBy { it.first }.filter { stop == null || it.first < stop }.flatMap { it.second }
+
+        return if (stop != null) ordered else ordered + after + listOfNotNull(raised?.let { Reported(it.kind, it.at) })
+    }
+
+    /**
+     * [errors] with only the first of those [key] gives one key, from [REPEATED_LOCAL_ERRORS_COLLAPSED]: how many times
+     * Elixir reports a default's call there depends on the types it infers, which the expander doesn't.
+     */
+    private fun <T> collapsed(errors: List<T>, level: ElixirLanguageLevel, key: (T) -> Any?): List<T> {
+        if (level.elixir < REPEATED_LOCAL_ERRORS_COLLAPSED.elixir) return errors
+
+        val seen = mutableSetOf<Any>()
+
+        return errors.filter { error -> key(error)?.let(seen::add) ?: true }
+    }
+
+    /**
+     * Elixir's logged errors, each as `error <kind> at line <n>` where its message is the [expected] error's kind at
+     * its place, then how the compile ended, unless [prefix], where only as many errors as [expected] are compared.
+     */
+    private fun elixirErrors(
+        expected: List<ExpectedError>,
+        compiled: org.elixir_lang.intellij_elixir.Quoter.Compiled,
+        prefix: Boolean,
+    ): String {
+        val logged = collapsed(errors(compiled.diagnostics), legLevel()) { diagnostic ->
+            POST_MODULE_KINDS.firstOrNull { ErrorKinds.pattern(it).containsMatchIn(diagnostic.message) }
+                ?.let { Triple(it, diagnostic.line, diagnostic.column) }
+        }
+            .let { if (prefix) it.take(expected.size) else it }
+        val errors = logged.mapIndexed { index, diagnostic ->
+            val kind = expected.getOrNull(index)?.takeIf { it.status == null }?.kind
+
+            if (kind != null && ErrorKinds.pattern(kind).containsMatchIn(diagnostic.message)) {
+                "error $kind at line ${diagnostic.line}"
+            } else {
+                "error at line ${diagnostic.line}: ${diagnostic.message}"
+            }
+        }
+
+        return (if (prefix) errors else errors + status(expected.last(), compiled.status)).joinToString("\n")
+    }
+
+    /** How a compile ended, as [expected] renders it when they agree. */
+    private fun status(expected: ExpectedError, status: OtpErlangObject): String {
+        val raised = status as? OtpErlangTuple
+
+        if (raised == null || raised.elementAt(0) != OtpErlangAtom("raise")) return "ended ${inspect(status)}"
+
+        val exception = (raised.elementAt(1) as OtpErlangAtom).atomValue()
+        val message = utf8(raised.elementAt(2))
+
+        return when {
+            exception == COMPILE_ERROR -> "raise CompileError"
+            "raise $exception" == expected.status -> expected.status
+            expected.kind.isNotEmpty() && ErrorKinds.pattern(expected.kind).containsMatchIn(message) ->
+                "raise ${expected.kind}"
+            else -> "raise $exception: $message"
+        }
+    }
+
+    /**
+     * The error [compiled] failed with up to 1.14, as `error <kind> at line <n>` when its message is the [expected]
+     * kind's, or as `error <kind>` for a kind with no line.
+     */
+    private fun elixirError(expected: ExpectedError, compiled: org.elixir_lang.intellij_elixir.Quoter.Compiled): String {
+        val status = compiled.status as? OtpErlangTuple
+
+        if (status == null || status.elementAt(0) != OtpErlangAtom("raise")) {
             return "not an expansion error: ${inspect(compiled.status)} ${compiled.diagnostics.map(::inspect)}"
         }
 
-        if (status.elementAt(1) != OtpErlangAtom(COMPILE_ERROR)) {
-            val message = utf8(status.elementAt(2))
+        val message = utf8(status.elementAt(2))
 
-            return if (!ErrorKinds.hasLine(error.kind) && ErrorKinds.pattern(error.kind).containsMatchIn(message)) {
-                "error ${error.kind}"
+        if (expected.status == "raise CompileError" && status.elementAt(1) == OtpErlangAtom(COMPILE_ERROR)) {
+            return "raise CompileError"
+        }
+
+        if (status.elementAt(1) != OtpErlangAtom(COMPILE_ERROR)) {
+            return if (expected.line == null && ErrorKinds.pattern(expected.kind).containsMatchIn(message)) {
+                "error ${expected.kind}"
             } else {
                 "error ${inspect(status.elementAt(1))}: $message"
             }
         }
 
-        val (line, message) = if (legLevel().elixir >= DIAGNOSTICS_SINCE.elixir) {
-            val errors = errors(compiled.diagnostics)
+        val match = PREFIXED_MESSAGE.find(message) ?: return "no <file>:<line>: prefix: ${inspect(status.elementAt(2))}"
+        val line = match.groupValues[1].toInt()
 
-            if (errors.size != 1) return "not one :error diagnostic: ${compiled.diagnostics.map(::inspect)}"
-
-            errors.single().line to errors.single().message
+        return if (ErrorKinds.pattern(expected.kind).containsMatchIn(match.groupValues[2])) {
+            "error ${expected.kind} at line $line"
         } else {
-            val match = PREFIXED_MESSAGE.find(utf8(status.elementAt(2)))
-                ?: return "no <file>:<line>: prefix: ${inspect(status.elementAt(2))}"
-
-            match.groupValues[1].toInt() to match.groupValues[2]
+            "error at line $line: ${match.groupValues[2]}"
         }
-        val pattern = ErrorKinds.pattern(error.kind)
+    }
 
-        return if (pattern.containsMatchIn(message)) {
-            "error ${error.kind} at line $line"
+    /**
+     * The probe that delivers only if [expansion]'s raise came after expansion: the one after the innermost statement
+     * holding the error, of the body the error raised in. `null` for a raise from the checks once the body has run, and
+     * for an error no probed statement holds.
+     */
+    private fun witness(expansion: CaseExpansion): Tag? {
+        val error = when (val ended = expansion.ended) {
+            is Ended.Raised -> ended.error
+            is Ended.Crashed -> ended.error
+            else -> return null
+        }
+        val unit = units(expansion.result).firstOrNull { it.expansion === error } ?: return null
+        val at = expansion.range(error.at)
+        val body = if (unit.owner is Owner.ModuleBody) null else expansion.range(unit.node)
+
+        return expansion.tagRanges.entries
+            .filter { (_, range) -> range.contains(at) && (body == null || body.contains(range) && range != body) }
+            .minByOrNull { (_, range) -> range.length }
+            ?.key
+    }
+
+    /**
+     * [observations] of [expansion]'s probes. Where its comparison stops early, only those its steps have, and those
+     * Elixir delivers before the body it stops in.
+     */
+    private fun delivered(
+        expansion: CaseExpansion,
+        observations: List<ProbeHarness.Observation>,
+    ): List<ProbeHarness.Observation> {
+        if (!expansion.cut) return observations
+
+        val tags = expansion.steps.map { it.tag }.toSet()
+        val earlier: (TextRange) -> Boolean = stopRange(expansion)?.let { earlierBodies(expansion, it) } ?: { false }
+
+        return observations.filter { observation ->
+            val tag = observation.tag.copy(case = 0)
+
+            tag in tags || tagRange(expansion, tag)?.let(earlier) == true
+        }
+    }
+
+    /** Where [expansion]'s comparison stops: the first body Elixir may expand elsewhere, or the node it stopped at. */
+    private fun stopRange(expansion: CaseExpansion): TextRange? =
+        if (expansion.unordered) {
+            units(expansion.result).filterNot { it.ordered }.map { expansion.range(it.node) }.minByOrNull { it.startOffset }
         } else {
-            "error at line $line: $message"
+            at(expansion.outcome)?.let(expansion::range)
         }
+
+    /**
+     * Whether Elixir delivers the probe at a range before it reaches [at] in a definition or nested module, whatever
+     * the expander recorded: one in a module body that holds [at], outside its definitions, which Elixir expands whole
+     * before them, or one in an ordered body wholly before [at]. None for [at] in the case module's own body.
+     */
+    private fun earlierBodies(expansion: CaseExpansion, at: TextRange): (TextRange) -> Boolean {
+        val units = units(expansion.result)
+        val ranges = units.map { expansion.range(it.node) }
+
+        fun innermost(range: TextRange): Int? =
+            units.indices.filter { ranges[it].contains(range) }.minByOrNull { ranges[it].length }
+
+        if ((innermost(at) ?: 0) == 0) return { false }
+
+        return { range ->
+            innermost(range)?.let { index ->
+                units[index].ordered && (
+                    ranges[index].endOffset <= at.startOffset ||
+                        units[index].owner is Owner.ModuleBody && ranges[index].contains(at) &&
+                        // A definition the expander didn't reach, because a unit before it raised.
+                        expansion.definitions.none { it.contains(range) && it.startOffset >= at.endOffset }
+                    )
+            } == true
+        }
+    }
+
+    /** Where in [expansion]'s case body the probe with [tag] is. */
+    private fun tagRange(expansion: CaseExpansion, tag: Tag): TextRange? =
+        if (tag.identity > 0) expansion.case.identities[tag.identity - 1] else expansion.tagRanges[tag]
+
+    /**
+     * [cases] expanded again together, a batch for each preamble, exports, structs and hook they were expanded with.
+     */
+    private fun batches(cases: Map<String, CaseExpansion>): List<Pair<List<String>, Expansions>> =
+        cases.keys
+            .groupBy { cases.getValue(it).origin.let { listOf(it.preamble, it.exports, it.structs, it.hook) } }
+            .values
+            .map { names ->
+                val origin = cases.getValue(names.first()).origin
+                val bodies = names.map { cases.getValue(it).origin.body }
+
+                names to expandAll(bodies, origin.preamble, origin.exports, origin.structs, origin.hook)
+            }
+
+    /** [expansion]'s case expanded and compiled in a file of its own. */
+    private fun alone(expansion: CaseExpansion): Pair<CaseExpansion, ProbeHarness.Attempt> {
+        val origin = expansion.origin
+        val alone = if (origin.layout.cases.size == 1) {
+            expansion
+        } else {
+            expandAll(listOf(origin.body), origin.preamble, origin.exports, origin.structs, origin.hook).cases.single()
+        }
+
+        return alone to harness.attempt(alone.origin.layout)
     }
 
     /**
@@ -425,12 +769,14 @@ internal class ExpansionProbes(
             steps.map { it.tag },
             VariableClasses.canonical(steps.map { it.read }),
             steps.map { it.count },
-            steps.map { ProbedEnvNormaliser.render(ProbedEnvNormaliser.projected(it.env, it.stacktrace, legLevel())) }
+            ProbedEnvNormaliser.numberedCounters(
+                steps.map { ProbedEnvNormaliser.projected(it.env, it.stacktrace, it.caller, legLevel()) }
+            ).map(ProbedEnvNormaliser::render)
         )
 
     /**
-     * [observations] as [render] renders steps, where the counters taken at each are its `counter_before` less the
-     * probes [delivered] before it in its case.
+     * As the other [render], for what Elixir's probes saw, where the counters taken at each are its `counter_before`
+     * less the probes [delivered] before it in its module.
      */
     private fun render(
         name: String,
@@ -440,20 +786,33 @@ internal class ExpansionProbes(
     ): String =
         render(
             name,
-            observations.map { it.tag.copy(case = 0) },
+            observations.map { if (it.tag.case < 0) it.tag else it.tag.copy(case = 0) },
             VariableClasses.canonical(observations.map { VariableClasses.observed(it.env) }),
-            if (accounting) observations.map { it.counterBefore - delivered.indexOf(it) } else emptyList(),
-            observations.map { ProbedEnvNormaliser.render(ProbedEnvNormaliser.observed(it.env, probeModule)) }
+            if (accounting) observations.map { counted(it, delivered) } else emptyList(),
+            ProbedEnvNormaliser.numberedCounters(observations.map { ProbedEnvNormaliser.observed(it.env, probeModule) })
+                .map(ProbedEnvNormaliser::render)
         )
 
-    private fun render(name: String, tags: List<Tag>, classes: List<String>, counts: List<Long>, envs: List<String>) =
+    private fun render(name: String, tags: List<Tag>, classes: List<String>, counts: List<Long?>, envs: List<String>) =
         "== $name\n" +
             tags.indices.joinToString("\n") {
                 "$it ${tags[it]}: ${classes[it]}" + if (accounting) " counters ${counts[it]}" else ""
             } + "\n" +
             tags.indices.joinToString("\n") { "${tags[it]}\n${envs[it].prependIndent("  ")}" }
 
-    private fun errors(diagnostics: List<com.ericsson.otp.erlang.OtpErlangObject>) =
+    /** [observation]'s `counter_before`, less the probes [delivered] before it in its module, each of which took one. */
+    private fun counted(observation: ProbeHarness.Observation, delivered: List<ProbeHarness.Observation>): Long? =
+        observation.counterBefore?.let { before ->
+            val module = observation.env.get(OtpErlangAtom("module"))
+
+            before - delivered.takeWhile { it !== observation }.count { it.env.get(OtpErlangAtom("module")) == module }
+        }
+
+    /** The observations of [attempt]'s case [index], in the order they were delivered. */
+    private fun delivered(attempt: ProbeHarness.Attempt, index: Int): List<ProbeHarness.Observation> =
+        attempt.batch.observations.filter { it.tag.case == index }
+
+    private fun errors(diagnostics: List<OtpErlangObject>) =
         diagnostics.map(Diagnostic::of).filter { it.severity == "error" }
 
     private fun assertDefaultCompilerOptions() {
@@ -464,13 +823,274 @@ internal class ExpansionProbes(
         optionsAsserted = true
     }
 
+    /** [body] lowered alone: its statements, its identity sites and the bodies nested in it, where they are in it. */
+    private fun shape(body: String, level: ElixirLanguageLevel): Shape {
+        val file = parse(body)
+        val (statements, ends) = ReadAction.computeBlocking<Pair<List<ElixirAst>, List<Int>>, Throwable> {
+            val lowering = Lowering.of(file, level)
+            val nodes = expressionNodes(file)
+
+            nodes.map { lowering.lower(it.psi) } to nodes.map { it.textRange.endOffset }
+        }
+
+        check(statements.none(::hasPlaceholder)) { "a case body must lower without placeholders: $body" }
+        // The module body runs when it compiles, and a `receive` waits for its timeout, or for ever without one.
+        check(statements.none(::hasReceiveWithoutAfterZero)) { "a case's receive must wait after 0: $body" }
+
+        return Shape(
+            body,
+            statements,
+            ends,
+            statements.flatMap { identitySites(it, false) }.sortedBy { it.meta.origin.startOffset },
+            statements.flatMap(::nestedBodies).sortedBy { it.first().meta.origin.startOffset },
+        )
+    }
+
+    /**
+     * A case body as it lowers alone, each range in it: the tag of the probe after each of its [statements], which end
+     * at [ends], of the identity probe around each of its [sites], and of the probe after each statement of its nested
+     * [bodies].
+     */
+    private class Shape(
+        val body: String,
+        val statements: List<ElixirAst>,
+        ends: List<Int>,
+        val sites: List<ElixirAst>,
+        val bodies: List<List<ElixirAst>>,
+    ) {
+        val statementTags = statements.withIndex().associate { (index, node) -> node.meta.origin to Tag(0, 0, index + 1) }
+        val identityTags = sites.withIndex().associate { (index, site) ->
+            site.meta.origin to Tag(0, 0, ends.indexOfFirst { site.meta.origin.endOffset <= it } + 1, index + 1)
+        }
+        val nestedTags = bodies.withIndex()
+            .flatMap { (block, body) ->
+                body.withIndex().map { (statement, node) -> node.meta.origin to Tag(0, block + 1, statement + 1) }
+            }
+            .toMap()
+        val tagRanges = (statementTags + nestedTags).entries.associate { (range, tag) -> tag to range }
+
+        /** Each `def*` call's range, inside which only an unquote fragment is expanded outside the definition. */
+        val definitions = statements.flatMap { definitions(it) }.map { it.meta.origin }
+    }
+
+    /** What the expander did in one case body, which starts at [start] in the file, on [bodyLine]. */
+    private class Recorder(val shape: Shape, val start: Int, val bodyLine: Int, val counters: Counters) {
+        val range = TextRange(start, start + shape.body.length)
+        val steps = mutableListOf<Step>()
+
+        /** When each of [steps] was taken, counted across the file. */
+        val serials = mutableListOf<Int>()
+        val statements = mutableListOf<ElixirAst>()
+        val starts = mutableListOf<Pair<ExState, Env>>()
+        val traces = mutableListOf<String>()
+
+        /** The node first entered at each probed statement, which, being outermost, is the one the probe follows. */
+        val outermost = mutableMapOf<TextRange, ElixirAst>()
+        val entered = mutableSetOf<TextRange>()
+        var stop: Expansion? = null
+        var stopSteps = 0
+        var stopTraces = 0
+        var macro: String? = null
+
+        fun add(step: Step, serial: Int) {
+            steps.add(step)
+            serials.add(serial)
+        }
+
+        fun expansion(result: ExpansionResult, leftAt: Map<ElixirAst, Int>, origin: Origin): CaseExpansion {
+            // An empty body has no node to enter, so its start is where it ends.
+            if (steps.isEmpty()) {
+                (result.units.firstOrNull()?.expansion as? Expansion.Expanded)?.let {
+                    val count = counters.count(it.env.module)
+
+                    add(Step(Tag(0, 0, 0), it.state.read, it.env, it.state.stacktrace, it.state.caller, -1, count), -1)
+                }
+            }
+
+            val bodyEnd = result.units.firstOrNull()?.let { leftAt[it.node] }?.let { end -> serials.count { it < end } }
+                ?: steps.size
+            val unorderedRanges = units(result).filterNot { it.ordered }.map { it.node.meta.origin.shiftLeft(start) }
+            val stopped = stop != null && result.ended.let {
+                it is Ended.Stopped || it is Ended.Raised || it is Ended.Crashed
+            }
+            val stopAt = at(stop)?.meta?.origin?.shiftLeft(start)
+            // A body that isn't ordered can stop before any step is taken in it.
+            val unordered = (bodyEnd until steps.size).firstOrNull { index ->
+                unorderedRanges.any { it.contains(steps[index].offset) }
+            } ?: stopSteps.takeIf { stopped && stopAt != null && unorderedRanges.any { it.contains(stopAt) } }
+            val cut = listOfNotNull(stopSteps.takeIf { stopped }, unordered).minOrNull()
+            val outcome = when (val ended = result.ended) {
+                is Ended.Raised -> ended.error
+                is Ended.Crashed -> ended.error
+                is Ended.Stopped -> stop ?: Expansion.Unported(ended.at)
+                Ended.Compiled, Ended.Tainted -> result.units.first().expansion
+            }
+
+            return CaseExpansion(
+                origin.layout.cases[origin.index],
+                steps.take(cut ?: steps.size),
+                // A stop in a body that isn't ordered cuts what Elixir delivers after it, even at the last step.
+                cut != null && (cut < steps.size || unordered == cut),
+                outcome,
+                result,
+                statements,
+                starts,
+                if (stopped) traces.take(stopTraces) else traces,
+                macro.takeIf { stopped },
+                shape.tagRanges,
+                shape.definitions,
+                unordered != null && unordered == cut,
+                origin,
+            )
+        }
+    }
+
+    /** Attributes each node the expander reaches to the case whose body holds it. */
+    private class Observer(
+        private val recorders: List<Recorder>,
+        private val counters: Counters,
+        private val level: ElixirLanguageLevel,
+    ) : ExpansionObserver {
+        /** When each node was left, counted as [Recorder.serials] counts. */
+        val leftAt = IdentityHashMap<ElixirAst, Int>()
+
+        /** The traces outside any module, keyed by file line. */
+        val top = mutableListOf<String>()
+        private var serial = 0
+        private var env: Env? = null
+
+        /** The nodes entered and not yet left, innermost last. */
+        private val open = ArrayDeque<ElixirAst>()
+
+        private fun step(tag: Tag, state: ExState, env: Env, offset: Int) =
+            Step(tag, state.read, env, state.stacktrace, state.caller, offset, counters.count(env.module))
+
+        private fun recorder(node: ElixirAst): Recorder? =
+            recorders.firstOrNull { it.range.contains(node.meta.origin.startOffset) }
+
+        override fun entering(node: ElixirAst, state: ExState, env: Env) {
+            open.addLast(node)
+            this.env = env
+
+            val recorder = recorder(node) ?: return
+            val at = node.meta.origin.shiftLeft(recorder.start)
+            val shape = recorder.shape
+
+            if (recorder.steps.isEmpty()) {
+                recorder.add(step(Tag(0, 0, 0), state, env, -1), serial++)
+            }
+
+            // The first node entered within a probed range is the outermost one expanded there: the statement itself,
+            // or the `for` of a discarded `_ = for`, which is all `expand_block` expands of it. An unquote fragment in
+            // a definition is expanded where the definition is, before its body.
+            for (range in shape.tagRanges.values) {
+                val fragment = env.function == null && shape.definitions.any { it.contains(range) && it != range }
+
+                if (range.contains(at) && !fragment && !recorder.outermost.containsKey(range)) {
+                    recorder.outermost[range] = node
+
+                    if (range in shape.statementTags) {
+                        recorder.starts.add(state to env)
+                        recorder.statements.add(node)
+                    }
+                }
+            }
+
+            shape.identityTags[at]?.let { tag ->
+                if (recorder.entered.add(at)) {
+                    recorder.add(step(tag, state, env, at.startOffset), serial++)
+                }
+            }
+        }
+
+        override fun dispatched(node: ElixirAst, dispatch: Dispatch) {
+            val recorder = recorder(node)
+            val nodes = listOfNotNull(node, retraced(open.lastOrNull(), node, dispatch, level))
+
+            if (recorder != null) {
+                nodes.forEach {
+                    recorder.traces.add(DispatchEvents.key(it, dispatch, env?.function, recorder.bodyLine))
+                }
+            } else if (env?.module == null) {
+                nodes.forEach { top.add(DispatchEvents.key(it, dispatch, null, 1)) }
+            }
+        }
+
+        override fun quotedImport(
+            node: ElixirAst,
+            kind: QuotedImportKind,
+            module: String,
+            name: String,
+            arities: List<Int>,
+        ) {
+            val recorder = recorder(node)
+
+            if (recorder != null) {
+                recorder.traces.add(
+                    DispatchEvents.key(node, kind, module, name, arities, env?.function, recorder.bodyLine)
+                )
+            } else if (env?.module == null) {
+                top.add(DispatchEvents.key(node, kind, module, name, arities, null, 1))
+            }
+        }
+
+        override fun structExpanded(node: ElixirAst, module: String, keys: List<String>) {
+            val recorder = recorder(node)
+
+            if (recorder != null) {
+                recorder.traces.add(DispatchEvents.structKey(node, module, keys, env?.function, recorder.bodyLine))
+            } else if (env?.module == null) {
+                top.add(DispatchEvents.structKey(node, module, keys, null, 1))
+            }
+        }
+
+        override fun left(node: ElixirAst, expansion: Expansion) {
+            open.removeLast()
+            leftAt[node] = serial
+
+            val recorder = recorder(node) ?: return
+
+            if (expansion !is Expansion.Expanded) {
+                if (recorder.stop == null) {
+                    recorder.stop = expansion
+                    recorder.stopSteps = recorder.steps.size
+                    recorder.stopTraces = recorder.traces.size
+                    recorder.macro = (expansion as? Expansion.Opaque)?.let {
+                        DispatchEvents.key(it.at, it.dispatch, env?.function, recorder.bodyLine)
+                    }
+                }
+
+                return
+            }
+
+            val shape = recorder.shape
+            val state = expansion.state
+
+            for (at in recorder.outermost.filterValues { it === node }.keys.sortedBy { it.length }) {
+                val tag = shape.statementTags[at] ?: shape.nestedTags.getValue(at)
+
+                recorder.add(step(tag, state, expansion.env, at.startOffset), serial++)
+            }
+        }
+    }
+
     private companion object {
         const val COMPILE_ERROR = "Elixir.CompileError"
 
-        /** From 1.15, `Code.with_diagnostics` reports the error, and the exception says only that compiling failed. */
-        val DIAGNOSTICS_SINCE: ElixirLanguageLevel = ElixirLanguageLevel.of("1.15.0-rc.0")
+        /** In a case body or preamble, the compile's token. */
+        const val TOKEN = "{token}"
 
-        val PREFIXED_MESSAGE = Regex("""^[^:\n]*:(\d+): (.*)""", RegexOption.DOT_MATCHES_ALL)
+        /** What a module raises once a module nested in it has logged errors. */
+        const val NESTED_RAISED = "compile_error"
+
+        /** The errors of the checks of a module's local calls once its body has run. */
+        val POST_MODULE_KINDS = setOf("undefined_function", "incorrect_dispatch")
+
+        /**
+         * `elixir-lang/elixir@41353c6cf` checks a default's calls once for each type inferred for it, so how many times
+         * a call is reported once the body has run isn't the expander's to give.
+         */
+        val REPEATED_LOCAL_ERRORS_COLLAPSED: ElixirLanguageLevel = ElixirLanguageLevel.of("1.20.0-rc.5")
 
         /**
          * `elixir-lang/elixir@73d776256`: before it, `expand_fn_capture` traced a remote capture again after `inline/3`.
@@ -488,8 +1108,31 @@ internal class ExpansionProbes(
                     level.elixir < REMOTE_CAPTURE_TRACED_ONCE_SINCE.elixir
             }?.let { amp -> if (REMOTE_CAPTURE_REPORTED_AT_CALL.isSufficient(level)) node else amp }
 
+        val PREFIXED_MESSAGE = Regex("""^[^:\n]*:(\d+): (.*)""", RegexOption.DOT_MATCHES_ALL)
+
         @Volatile
         var optionsAsserted = false
+
+        /** [result]'s units, then each nested module's. */
+        fun units(result: ExpansionResult): List<ExpansionResult.Unit> =
+            result.units + result.nested.flatMap(::units)
+
+        fun start(node: ElixirAst): Int = node.meta.origin.startOffset
+
+        fun line(node: ElixirAst): Int? =
+            node.meta.keys.filterIsInstance<Meta.Key.Location>().firstOrNull()?.position?.line
+
+        fun column(node: ElixirAst): Int? =
+            node.meta.keys.filterIsInstance<Meta.Key.Location>().firstOrNull()?.position?.column
+
+        /** The node [expansion] stopped at, if it stopped. */
+        fun at(expansion: Expansion?): ElixirAst? =
+            when (expansion) {
+                is Expansion.Error -> expansion.at
+                is Expansion.Unported -> expansion.at
+                is Expansion.Opaque -> expansion.at
+                is Expansion.Expanded, null -> null
+            }
 
         fun hasPlaceholder(node: ElixirAst): Boolean =
             when (node) {
@@ -508,7 +1151,8 @@ internal class ExpansionProbes(
          * of a clause's guard. A `rescue` head's only site is the variable left of an `in` other than `in _`: wrapped, a
          * variable is a call, which neither a bare `rescue` nor `in _` takes. Nothing inside a capture is a site: Elixir
          * names its parameters apart from source variables, and from 1.17 by the module's counter, which the expander
-         * doesn't keep. The `_` of `_ = for` isn't one: wrapped, a block would expand it, not discard it.
+         * doesn't keep. Of a `quote`, only its options and unquoted expressions hold sites. The `_` of `_ = for` isn't
+         * one: wrapped, a block would expand it, not discard it.
          */
         fun identitySites(node: ElixirAst, pattern: Boolean): List<ElixirAst> =
             when {
@@ -523,6 +1167,7 @@ internal class ExpansionProbes(
                     parts(node)?.flatMap { (kind, value) ->
                         when (kind) {
                             Part.EXPRESSION, Part.BODY -> identitySites(value, false)
+                            Part.HEAD -> definitionHeadSites(value)
                             Part.GENERATOR -> generatorSites(value)
                             else -> clauses(value).flatMap { (args, body) ->
                                 headSites(kind, args) + identitySites(body, false)
@@ -567,6 +1212,17 @@ internal class ExpansionProbes(
             }
         }
 
+        /** The `def*` calls in [node], outermost first. */
+        fun definitions(node: ElixirAst): List<ElixirAst> {
+            val definer = node is ElixirAst.Call &&
+                (node.callee as? ElixirAst.Literal.Atom)?.name in DEFINERS &&
+                node.arguments?.size in 1..2
+
+            return listOfNotNull(node.takeIf { definer }) + children(node).flatMap(::definitions)
+        }
+
+        val DEFINERS = setOf("def", "defp", "defmacro", "defmacrop")
+
         fun children(node: ElixirAst): List<ElixirAst> =
             when (node) {
                 is ElixirAst.Call -> node.arguments.orEmpty()
@@ -576,10 +1232,13 @@ internal class ExpansionProbes(
                 is ElixirAst.Alias, is ElixirAst.Literal, is ElixirAst.Placeholder -> emptyList()
             }
 
-        /** How a part of a `case`, `cond`, `receive`, `try`, `fn`, `with` or `for` is expanded. */
+        /** How a part of a `case`, `cond`, `receive`, `try`, `fn`, `with`, `for`, `def*` or `defmodule` is expanded. */
         enum class Part {
             EXPRESSION,
             BODY,
+
+            /** A definition's head: its arguments are patterns, their defaults expressions, then its guard. */
+            HEAD,
 
             /** A `<-` clause, or a bitstring whose last segment is one: a pattern, with an optional guard, from an expression. */
             GENERATOR,
@@ -645,6 +1304,27 @@ internal class ExpansionProbes(
                     } else {
                         null
                     }
+                // A bodiless head defines no clause, so nothing in it is expanded.
+                "def", "defp", "defmacro", "defmacrop" ->
+                    if (arguments.size == 2) {
+                        keyword {
+                            when (it) {
+                                "do", "after" -> Part.BODY
+                                "else", "catch" -> Part.PATTERN_CLAUSES
+                                "rescue" -> Part.RESCUE_CLAUSES
+                                else -> Part.EXPRESSION
+                            }
+                        }?.let { listOf(Part.HEAD to arguments[0]) + it }
+                    } else {
+                        null
+                    }
+                "defmodule" ->
+                    if (arguments.size == 2) {
+                        keyword { if (it == "do") Part.BODY else Part.EXPRESSION }
+                            ?.let { listOf(Part.EXPRESSION to arguments[0]) + it }
+                    } else {
+                        null
+                    }
                 "with", "for" -> {
                     // `elixir_utils:split_opts/1`, which `with` takes from 1.15: the parts are the same either way.
                     val lists = arguments.takeLastWhile { it is ElixirAst.ListNode }.takeLast(2)
@@ -663,9 +1343,29 @@ internal class ExpansionProbes(
                         }
                     }?.let { clauses + it }
                 }
+                // Only the options and the unquoted expressions are expanded.
+                "quote" -> {
+                    val options = arguments.flatMap { (it as? ElixirAst.ListNode)?.elements.orEmpty() }
+                    val body = options.firstOrNull { keyOf(it) == "do" }?.let(::valueOf)
+                    val unquotes = options.none {
+                        keyOf(it) == "bind_quoted" ||
+                            keyOf(it) == "unquote" && (valueOf(it) as? ElixirAst.Literal.Atom)?.name == "false"
+                    }
+
+                    options.filter { keyOf(it) != null && keyOf(it) != "do" }.map { Part.EXPRESSION to valueOf(it) } +
+                        body?.takeIf { unquotes }?.let(::unquoted).orEmpty().map { Part.EXPRESSION to it }
+                }
                 else -> null
             }
         }
+
+        /** The expressions [node] unquotes, outside any `quote` nested in it. */
+        private fun unquoted(node: ElixirAst): List<ElixirAst> =
+            when {
+                isNamedCall(node, "quote") -> emptyList()
+                isCall(node, "unquote", 1) || isCall(node, "unquote_splicing", 1) -> (node as ElixirAst.Call).arguments!!
+                else -> children(node).flatMap(::unquoted)
+            }
 
         fun hasReceiveWithoutAfterZero(node: ElixirAst): Boolean {
             val options = (node as? ElixirAst.Call)?.arguments?.singleOrNull() as? ElixirAst.ListNode
@@ -745,6 +1445,22 @@ internal class ExpansionProbes(
                 emptyList()
             }
 
+        /** A definition head's sites: each argument's as a pattern, its default's as an expression, then the guard's. */
+        fun definitionHeadSites(head: ElixirAst): List<ElixirAst> {
+            val guarded = head.takeIf { isCall(it, "when", 2) } as ElixirAst.Call?
+            val call = guarded?.arguments?.first() ?: head
+
+            return (call as? ElixirAst.Call)?.arguments.orEmpty().flatMap { argument ->
+                if (isCall(argument, "\\\\", 2)) {
+                    val (pattern, default) = (argument as ElixirAst.Call).arguments!!
+
+                    identitySites(pattern, true) + identitySites(default, false)
+                } else {
+                    identitySites(argument, true)
+                }
+            } + guarded?.arguments?.last()?.let(::guardSites).orEmpty()
+        }
+
         /** A `var!`'s argument isn't a site: `var!` takes only a variable. */
         fun guardSites(guard: ElixirAst): List<ElixirAst> =
             when {
@@ -773,6 +1489,8 @@ internal class ExpansionProbes(
             return parts.flatMap { (kind, value) ->
                 when (kind) {
                     Part.EXPRESSION -> nestedBodies(value)
+                    // A pattern or guard holds no body, whatever a call in it is named.
+                    Part.HEAD -> emptyList()
                     Part.BODY -> bodies(value)
                     Part.GENERATOR -> nestedBodies(generatorRight(value))
                     else -> clauses(value).flatMap { (args, body) -> nestedBodies(args) + bodies(body) }

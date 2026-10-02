@@ -15,7 +15,7 @@ import org.elixir_lang.psi.Import.Term
 
 /**
  * The local-call head, `{Atom, Meta, Args}`: `assert_no_ambiguous_op/5`, then `elixir_dispatch:dispatch_import/6`, then
- * `expand_local/5`, which in a module body is always `undefined_function`.
+ * `expand_local/5`.
  */
 internal fun expandLocalCall(node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion {
     val name = (node.callee as ElixirAst.Literal.Atom).name
@@ -44,7 +44,10 @@ internal fun expandLocalCall(node: ElixirAst.Call, state: ExState, env: Env, run
                 run,
             )
         },
-        none = { Expansion.Error("undefined_function", node) },
+        none = {
+            if (env.function == null) Expansion.Error("undefined_function", node) else expandLocal(node, state, env, run)
+        },
+        external = false,
     )
 }
 
@@ -71,8 +74,12 @@ internal fun importedFunction(
 }
 
 /**
- * `elixir_dispatch:expand_import/7` of [call], a local call or what `Macro.expand/2` reads as one: an imported macro
- * is dispatched, and [ambiguous], [function] with the import's module, or [none] answer the rest.
+ * `elixir_dispatch:expand_import/7` of [call], a local call or what `Macro.expand/2` reads as one: a local macro is
+ * dispatched, then an imported macro, and [ambiguous], [function] with the import's module, or [none] answer the rest.
+ *
+ * @param external whether [call] is `Macro.expand/2`'s, which reads the module's macros wherever it is.
+ *   `dispatch_import/6` reads them only inside a function, and never for the function being defined. The caller reads
+ *   the macro's output, which a summary doesn't give, so a summarised macro is [Expansion.Unported] there.
  */
 internal fun expandImport(
     call: ElixirAst.Call,
@@ -82,18 +89,53 @@ internal fun expandImport(
     ambiguous: () -> Expansion,
     function: (receiver: String) -> Expansion,
     none: () -> Expansion,
+    external: Boolean = true,
 ): Expansion {
+    if (hasQuotedImport(call.meta)) return Expansion.Unported(call)
+
     val name = (call.callee as ElixirAst.Literal.Atom).name
     val arity = call.arguments!!.size
+    val nameArity = NameArity(name, arity)
+    val match = findImportByNameArity(name, arity, emptyList(), env)
+    val localMacro = if (match is ImportMatch.Ambiguous) null else localMacro(nameArity, env, run, external)
+    val dispatchMacro = { dispatch: Dispatch ->
+        if (external && Summaries.of(dispatch) != null) {
+            Expansion.Unported(call)
+        } else {
+            macro(dispatch, call, state, env, run)
+        }
+    }
 
-    return when (val match = importOf(call, env) ?: return Expansion.Unported(call)) {
+    if (localMacro != null) {
+        val module = env.module!!
+        val imported = (match as? ImportMatch.Function)?.receiver ?: (match as? ImportMatch.Macro)?.receiver
+
+        if (imported != null && imported != module) return Expansion.Error("macro_conflict", call)
+
+        if (localMacro == DefinitionTable.Kind.DEFMACROP) run.compiling.getValue(module).usedPrivate += nameArity
+
+        return dispatchMacro(Dispatch(Dispatch.Kind.LOCAL_MACRO, module, name, arity))
+    }
+
+    return when (match) {
         is ImportMatch.Ambiguous -> ambiguous()
-        is ImportMatch.Macro ->
-            macro(Dispatch(Dispatch.Kind.IMPORTED_MACRO, match.receiver, name, arity), call, state, env, run)
+        is ImportMatch.Macro -> dispatchMacro(Dispatch(Dispatch.Kind.IMPORTED_MACRO, match.receiver, name, arity))
         is ImportMatch.Function -> function(match.receiver)
         ImportMatch.None -> none()
     }
 }
+
+/**
+ * `elixir_def:local_for/5` for a macro, where `elixir_dispatch` allows locals: the kind of [nameArity] if [env]'s module
+ * has defined it as a macro so far. Locals are allowed for an [external] lookup, and inside a function for every name
+ * and arity but the function's own.
+ */
+internal fun localMacro(nameArity: NameArity, env: Env, run: Run, external: Boolean = false): DefinitionTable.Kind? =
+    if (external || env.function != null && env.function != nameArity) {
+        run.compiling[env.module]?.table?.get(nameArity)?.kind?.takeIf { it.macro }
+    } else {
+        null
+    }
 
 /**
  * `elixir_dispatch:find_import_by_name_arity/4` of [call], a local call, in [env]; `null` inside a function, where
@@ -104,6 +146,56 @@ internal fun importOf(call: ElixirAst.Call, env: Env): ImportMatch? {
     if (hasQuotedImport(call.meta)) return null
 
     return findImportByNameArity((call.callee as ElixirAst.Literal.Atom).name, call.arguments!!.size, emptyList(), env)
+}
+
+/**
+ * `expand_local/5` inside a function: in a pattern or guard the call is an error and its arguments are expanded;
+ * otherwise it is a call of the module's own function, kept for the checks once the module's body has run.
+ */
+private fun expandLocal(node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion {
+    val args = node.arguments!!
+
+    if (env.context != Env.Context.NONE) {
+        return report(ErrorSite.INVALID_LOCAL_INVOCATION, node, env, run) {
+            expandArgs(args, state, env, run).withValue(NODE)
+        }
+    }
+
+    val name = (node.callee as ElixirAst.Literal.Atom).name
+    val called = NameArity(name, args.size)
+
+    run.observer.dispatched(node, Dispatch(Dispatch.Kind.LOCAL_FUNCTION, env.module ?: "nil", name, args.size))
+
+    val inArguments = mutableListOf<LocalCall<ElixirAst>>()
+
+    run.callArguments.addLast(inArguments)
+
+    val expansion = try {
+        expandArgs(args, state, env, run)
+    } finally {
+        run.callArguments.removeLast()
+    }
+    recordLocal(node, called, inArguments, env, run)
+
+    return expansion.withValue(NODE)
+}
+
+/**
+ * Keeps [call], a local call of [called] inside a function, for the checks once the module's body has run: in the
+ * arguments of the local call it is in, or else in its definition's calls.
+ */
+internal fun recordLocal(
+    call: ElixirAst,
+    called: NameArity,
+    inArguments: List<LocalCall<ElixirAst>>,
+    env: Env,
+    run: Run,
+) {
+    val position = location(call.meta)
+    val local = LocalCall(call, called, position?.line ?: 0, position?.column ?: 0, inArguments)
+
+    (run.callArguments.lastOrNull() ?: run.compiling[env.module]?.calls?.getOrPut(env.function!!) { mutableListOf() })
+        ?.add(local)
 }
 
 /**
@@ -135,7 +227,7 @@ internal fun expandAnonymousCall(node: ElixirAst.Call, state: ExState, env: Env,
         val callsAnAtom = (values as Term.List).elements.first() is Term.Atom
 
         if (callsAnAtom && ANONYMOUS_CALL_OF_ATOM_REFUSED.isSufficient(run.level)) {
-            Expansion.Error("invalid_function_call", node)
+            report(ErrorSite.INVALID_FUNCTION_CALL, node, env, run) { Expansion.Expanded(s, e, NODE) }
         } else {
             Expansion.Expanded(s, e, NODE)
         }
@@ -187,7 +279,9 @@ private fun dispatchRequire(
         true ->
             when {
                 required -> macro(Dispatch(Dispatch.Kind.REMOTE_MACRO, receiver, name, arity), node, state, env, run)
-                UNREQUIRED_MACRO_SEEN_ONLY_WHEN_LOADED.isSufficient(run.level) -> Expansion.Unported(node)
+                // Inside a function the deprecation check doesn't load the module first.
+                UNREQUIRED_MACRO_SEEN_ONLY_WHEN_LOADED.isSufficient(run.level) || env.function != null ->
+                    Expansion.Unported(node)
                 else -> Expansion.Error("unrequired_module", node)
             }
         false -> remoteFunction(receiver, name, node, state, after, env, run)
@@ -252,7 +346,8 @@ private fun expandRemote(
     if (env.context == Env.Context.GUARD && receiver !is Term.Atom) {
         return when {
             isNoParens(node.meta) -> Expansion.Expanded(after, env, NODE)
-            PARENS_MAP_LOOKUP_ATOM.isSufficient(level) -> Expansion.Error("parens_map_lookup", node)
+            PARENS_MAP_LOOKUP_ATOM.isSufficient(level) ->
+                report(ErrorSite.PARENS_MAP_LOOKUP, node, env, run) { Expansion.Expanded(after, env, NODE) }
             else -> Expansion.Error("parens_map_lookup_guard", node)
         }
     }

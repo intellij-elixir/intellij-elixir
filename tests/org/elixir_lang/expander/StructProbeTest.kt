@@ -18,24 +18,22 @@ class StructProbeTest : ProbeTestCase() {
         assertEquals(
             cases.joinToString("\n") { "${it.code}: ${if (isUnported(it)) "unported `${it.at}`" else "ported"}" },
             cases.joinToString("\n") { case ->
-                val outcome = probes.expand(case.code, PLACEHOLDER).outcome as? Expansion.Unported
+                val expansion = probes.expand(case.code)
+                val outcome = expansion.outcome as? Expansion.Unported
 
-                "${case.code}: ${outcome?.let { "unported `${it.at.meta.origin.substring(case.code)}`" } ?: "ported"}"
+                "${case.code}: ${outcome?.let { "unported `${expansion.source(it.at)}`" } ?: "ported"}"
             },
         )
     }
 
     fun testEachCaseMatchesElixir() {
         probes.assertMatchesElixir(
-            cases().filterNot(::isUnported).associate { it.code to probes.expand(it.code, PLACEHOLDER) }
+            cases().filterNot(::isUnported).associate { it.code to probes.expand(it.code) }
         )
     }
 
     fun testEachExpandedCaseTracesAsTheCompilerDoes() {
-        probes.assertTracesMatchElixir(
-            EXPANDS.filterNot(::isUnported).map { probes.expand(it.code, PLACEHOLDER) },
-            PLACEHOLDER,
-        )
+        probes.assertTracesMatchElixir(probes.expandAll(EXPANDS.filterNot(::isUnported).map { it.code }))
     }
 
     /**
@@ -61,7 +59,6 @@ class StructProbeTest : ProbeTestCase() {
             case.comparedFrom?.let { legLevel().elixir < ElixirLanguageLevel.of(it).elixir } == true
 
     private companion object {
-        const val PLACEHOLDER = "Elixir.StructCase"
         const val URI = "Elixir.URI"
         const val VERSION = "Elixir.Version"
 
@@ -82,6 +79,8 @@ class StructProbeTest : ProbeTestCase() {
             Case("u = URI.parse(\"\")\n%URI{host: h} = u"),
             Case("u = URI.parse(\"\")\n%URI{u | host: \"b\"}"),
             Case("v = Version.parse!(\"1.0.0\")\n%Version{major: m} = v"),
+            Case("def f do\n  %URI{host: \"a\"}\nend", URI, "%URI{host: \"a\"}"),
+            Case("def f(u) do\n  %URI{host: h} = u\n  h\nend"),
         )
 
         /** Each errors or raises, on every leg or on some. */
@@ -101,6 +100,23 @@ class StructProbeTest : ProbeTestCase() {
             Case("%URI{nope: 1}"),
             Case("%Version{nope: 1}"),
             Case("%Version{}", VERSION, "%Version{}"),
+            // Inside a function an unknown or invalid key is reported and expansion carries on from 1.15.
+            Case("def f(u) do\n  %URI{nope: x} = u\n  x\nend"),
+            Case("def f(u) do\n  %URI{u | nope: 1}\nend"),
+            Case("def f do\n  %URI{nope: 1}\nend"),
+            Case("def f(u) do\n  %URI{nope: x, nah: y} = u\n  {x, y}\nend"),
+            Case("def f(u) do\n  %URI{nope: x} = u\n  h(x)\nend"),
+            Case("def f(u) do\n  %URI{\"host\" => x} = u\n  x\nend"),
+            Case("def f(u) do\n  %URI{u | \"host\" => 1}\nend"),
+            Case("def f do\n  %URI{\"host\" => 1}\nend"),
+            Case("def f(u) do\n  %NoSuchStruct{} = u\nend"),
+            Case("def f(u) do\n  %NoSuchStruct{u | a: 1}\nend"),
+            Case("def f do\n  %NoSuchStruct{}\nend"),
+            Case("def f do\n  %:lists{}\nend"),
+            Case("def f do\n  %Version{}\nend", VERSION, "%Version{}"),
+            // The enclosing module's body is still expanding, so its struct isn't defined yet.
+            Case("alias __MODULE__, as: Outer\ndefmodule Inner do\n  _ = %Outer{}\nend"),
+            Case("alias __MODULE__, as: Outer\ndefmodule Inner do\n  _ = %Outer{}\nend\ndefstruct [:a]"),
         )
     }
 }

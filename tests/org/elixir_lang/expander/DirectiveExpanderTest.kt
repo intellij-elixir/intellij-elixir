@@ -1,5 +1,7 @@
 package org.elixir_lang.expander
 
+import org.elixir_lang.expander.DirectiveFixtures.BMP
+import org.elixir_lang.expander.DirectiveFixtures.SUPPLEMENTARY
 import org.elixir_lang.language_level.ElixirLanguageLevel
 
 /**
@@ -248,6 +250,12 @@ class DirectiveExpanderTest : ExpanderTestCase() {
     fun testRequireOfNilIsAnError() = assertEvery("require nil", "error unloaded_module `require nil`")
 
     fun testRequiresAreAnOrdset() = assertEvery("require M.B\nrequire M.A", env(requires = "[M.A, M.B]"))
+
+    fun testRequiresAreOrderedByCodePoint() =
+        assertEvery(
+            "require :\"$SUPPLEMENTARY\"\nrequire :\"$BMP\"",
+            env(requires = "[:\"$BMP\", :\"$SUPPLEMENTARY\"]"),
+        )
 
     fun testRequireOfAnErlangModule() = assertEvery("require :x3e", env(requires = "[:x3e]"))
 

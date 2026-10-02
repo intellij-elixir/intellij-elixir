@@ -1,8 +1,11 @@
 package org.elixir_lang.expander
 
 import com.intellij.openapi.progress.ProgressManager
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
+import org.elixir_lang.language_level.ElixirLanguageFeature.FAST_PATH_ADDS_CONTEXT_MODULE
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
 
 /**
@@ -13,7 +16,8 @@ object Expander {
      * [ast] expanded from [state] and [env] as Elixir at [level] expands it, with [exports] standing for the modules
      * Elixir would load and [structs] for their structs, up to the first error Elixir raises or the first node that
      * isn't ported. [observer] is told of each node reached, and [counters] gives each macro expansion its hygiene
-     * counter.
+     * counter. An error Elixir reports and carries on after isn't returned, and a definition or module [ast] defines is
+     * never compiled; [expandFile] does both.
      */
     fun expand(
         ast: ElixirAst,
@@ -34,6 +38,85 @@ object Expander {
                 ?: Expansion.Unported(ast)
         }
 
+    /**
+     * A file's top-level [forms] expanded from [env] as Elixir at [level] compiles them: the forms, then each module
+     * they define, in turn, with [counters] giving each macro expansion its hygiene counter. A file of only modules
+     * compiles each directly from [DEFMODULE_FAST_PATH].
+     */
+    internal fun expandFile(
+        forms: ElixirAst,
+        env: Env,
+        level: ElixirLanguageLevel,
+        exports: Exports,
+        structs: Structs,
+        observer: ExpansionObserver = ExpansionObserver.NONE,
+        counters: Counters = Counters(),
+    ): FileExpansion {
+        val run = Run(level, observer, exports, structs, counters)
+        val state = ExState.empty(level)
+
+        if (DEFMODULE_FAST_PATH.isSufficient(level) && env.module == null && onlyDefmodule(forms)) {
+            return fastCompile(forms, state, env, run)
+        }
+
+        val top = expand(forms, state, env, run)
+
+        return FileExpansion(top, if (top is Expansion.Error) emptyList() else compilePending(run))
+    }
+
+    /** `elixir_compiler:fast_compile/2` for each of [forms]: each module compiled directly, with no module variables. */
+    private fun fastCompile(forms: ElixirAst, state: ExState, env: Env, run: Run): FileExpansion {
+        val modules = mutableListOf<ExpansionResult>()
+
+        for (form in defmodules(forms)) {
+            val (nameNode, options) = form.arguments!!
+            val (name, isAtom) = fastName(nameNode, env, run.level)
+                ?: return FileExpansion(Expansion.Unported(nameNode), modules)
+            val contextModules =
+                if (FAST_PATH_ADDS_CONTEXT_MODULE.isSufficient(run.level)) listOf(name) + env.contextModules
+                else env.contextModules
+            val body = ((options as ElixirAst.ListNode).elements.single() as ElixirAst.Tuple).elements[1]
+            val moduleEnv = env.copy(module = name, contextModules = contextModules)
+            val result = compileModule(Pending.Module(form, name, isAtom, body, moduleEnv, state), run)
+
+            modules += result
+
+            if (result.ended.raises) break
+        }
+
+        return FileExpansion(Expansion.Expanded(state, env, NODE), modules)
+    }
+
+    /** `expand_defmodule/2`'s walk: each `defmodule` in [forms], into nested blocks. */
+    private fun defmodules(forms: ElixirAst): List<ElixirAst.Call> =
+        if (forms is ElixirAst.Block) forms.expressions.flatMap(::defmodules) else listOf(forms as ElixirAst.Call)
+
+    /**
+     * `expand_defmodule/2`'s name: an alias as `expand_or_concat` gives it, otherwise `Macro.expand/2`'s, which
+     * [env] gives `__MODULE__` alone or leading an alias. With whether it is an atom, or `null` where it isn't ported.
+     */
+    private fun fastName(nameNode: ElixirAst, env: Env, level: ElixirLanguageLevel): Pair<String, Boolean>? {
+        val module = env.module ?: "nil"
+
+        return when {
+            nameNode is ElixirAst.Literal.Atom -> nameNode.name to true
+            nameNode is ElixirAst.Alias -> {
+                val head = nameNode.segments.first()
+                val tail = nameNode.segments.drop(1).map { (it as? ElixirAst.Literal.Atom)?.name ?: return null }
+
+                aliasesModule(nameNode, env, level)?.let { it to true }
+                    ?: if (isModuleVariable(head)) concat(listOf(module) + tail) to true else null
+            }
+            isModuleVariable(nameNode) -> module to true
+            nameNode is ElixirAst.Literal.Integer -> inspected(Term.Integer(nameNode.value))?.let { it to false }
+            nameNode is ElixirAst.Literal.Binary -> inspected(Term.Binary(nameNode.bytes))?.let { it to false }
+            else -> null
+        }
+    }
+
+    private fun isModuleVariable(node: ElixirAst): Boolean =
+        isVariable(node) && ((node as ElixirAst.Call).callee as ElixirAst.Literal.Atom).name == "__MODULE__"
+
     /** [ast] expanded by [body] in place of its clause, with the observer told of it as of any node. */
     internal inline fun observed(ast: ElixirAst, state: ExState, env: Env, run: Run, body: () -> Expansion): Expansion {
         ProgressManager.checkCanceled()
@@ -53,10 +136,62 @@ object Expander {
 internal class Run(
     val level: ElixirLanguageLevel,
     val observer: ExpansionObserver,
-    val exports: Exports,
+    exports: Exports,
     val structs: Structs,
     val counters: Counters = Counters(),
-)
+) {
+    /** The modules whose exports the run read, in the order it read them. */
+    val consulted = mutableListOf<String>()
+
+    /** What each module the run compiled exports, which Elixir loads once `elixir_module:compile` returns. */
+    private val compiled = HashMap<String, ModuleExports>()
+
+    /**
+     * What each module exports: one the run compiled, what it defined; one it is compiling, nothing, as Elixir hasn't
+     * loaded it; any other, what [exports] gives.
+     */
+    val exports = Exports { module ->
+        compiled[module] ?: if (module in compiling) {
+            ModuleExports.Absent
+        } else {
+            consulted += module
+            exports.of(module)
+        }
+    }
+
+    /** [result]'s module loaded, as Elixir loads a module once it compiles. */
+    fun load(result: ExpansionResult) {
+        val table = result.table
+        val named = { kind: DefinitionTable.Kind ->
+            table.entries.filterValues { it.kind == kind }.keys.sortedWith(NAME_ARITY_ORDER)
+        }
+
+        compiled[result.module] = when {
+            result.ended is ExpansionResult.Ended.Stopped || table.unnamed.isNotEmpty() -> ModuleExports.Unreadable
+            result.ended == ExpansionResult.Ended.Compiled ->
+                ModuleExports.Present(named(DefinitionTable.Kind.DEF), named(DefinitionTable.Kind.DEFMACRO), true)
+            else -> ModuleExports.Absent
+        }
+    }
+
+    /** The errors Elixir reported and carried on after, in its order. No state restore takes them back. */
+    val errors = mutableListOf<Reported>()
+
+    /** How Elixir's own code raised after a reported error, if it did. */
+    var crash: Crash? = null
+
+    /** Each module whose body or definitions are being expanded, by name. */
+    val compiling = HashMap<String, Compiling>()
+
+    /** The definitions and modules the body being expanded defines, in the order it reached them. */
+    var pending = mutableListOf<Pending>()
+
+    /**
+     * For each local call whose arguments are being expanded, or default argument, innermost last, the local calls in
+     * it.
+     */
+    val callArguments = ArrayDeque<MutableList<LocalCall<ElixirAst>>>()
+}
 
 internal inline fun Expansion.then(next: (ExState, Env) -> Expansion): Expansion =
     thenValue { state, env, _ -> next(state, env) }
@@ -69,6 +204,13 @@ internal inline fun Expansion.thenValue(next: (ExState, Env, Term) -> Expansion)
 
 /** This expansion with [value] in place of its own, if it expanded. */
 internal fun Expansion.withValue(value: Term): Expansion = if (this is Expansion.Expanded) copy(value = value) else this
+
+/** `?line(Meta)`: the `line` in [meta], or 0. */
+internal fun line(meta: Meta): Int = location(meta)?.line ?: 0
+
+/** The line and column in [meta], if it has them. */
+internal fun location(meta: Meta): Meta.Position? =
+    meta.keys.firstNotNullOfOrNull { (it as? Meta.Key.Location)?.position }
 
 /** The value of a node that expands to an AST node other than a variable or a pin. */
 internal val NODE: Term = Term.Node(Term.Node.Kind.OTHER)

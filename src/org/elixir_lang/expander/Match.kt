@@ -167,7 +167,7 @@ private fun compareTerms(left: OtpErlangObject, right: OtpErlangObject): Int {
 
     return when (left) {
         is OtpErlangLong, is OtpErlangDouble -> number(left).compareTo(number(right))
-        is OtpErlangAtom -> left.atomValue().compareTo((right as OtpErlangAtom).atomValue())
+        is OtpErlangAtom -> ATOM_ORDER.compare(left.atomValue(), (right as OtpErlangAtom).atomValue())
         is OtpErlangTuple -> {
             val other = right as OtpErlangTuple
 
@@ -259,7 +259,7 @@ private fun storeCycles(writes: List<Map<Variable, Int>>, prematch: InMatch): St
 private fun isCyclic(prematch: InMatch): Boolean {
     var seen = emptyMap<Variable, Boolean>()
 
-    for (current in prematch.cycles.keys.sortedWith(TERM_ORDER)) {
+    for (current in prematch.cycles.keys.sortedWith(VARIABLE_ORDER)) {
         seen = recurCycles(prematch, current, null, seen) ?: return true
     }
 
@@ -295,7 +295,7 @@ private fun recurCycles(
 
     var accSeen = always.associateWith { false } + seen + (current to true)
 
-    for (variable in dependsOn.keys.sortedWith(TERM_ORDER)) {
+    for (variable in dependsOn.keys.sortedWith(VARIABLE_ORDER)) {
         when {
             dependsOn.getValue(variable) == Dependency.REPEATED -> return null
             variable == source || variable in once -> Unit
@@ -307,34 +307,3 @@ private fun recurCycles(
 
     return accSeen
 }
-
-private val CONTEXT_TERM_ORDER: Comparator<Variable.Context> = compareBy(
-    {
-        when (it) {
-            is Variable.Context.Atom -> 1
-            is Variable.Context.Counter -> if (it.counter is Env.Counter.Unique) 0 else 2
-        }
-    },
-    {
-        when (it) {
-            is Variable.Context.Atom -> it.text
-            is Variable.Context.Counter -> (it.counter as? Env.Counter.InModule)?.module
-        }
-    },
-    {
-        when (it) {
-            is Variable.Context.Atom -> null
-            is Variable.Context.Counter -> when (val counter = it.counter) {
-                is Env.Counter.InModule -> counter.n
-                is Env.Counter.Unique -> counter.n
-            }
-        }
-    },
-)
-
-/**
- * Erlang's term order on `{name, context}`, which a small map folds in. A context is an atom, a `{Module, n}` counter, or
- * outside a module an integer counter, and a number sorts before an atom, which sorts before a tuple.
- */
-internal val TERM_ORDER: Comparator<Variable> =
-    compareBy<Variable> { it.name }.thenComparing({ it.context }, CONTEXT_TERM_ORDER)

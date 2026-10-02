@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.CAPTURE_ARGUMENT_BELOW_ONE_IS_INVALID_ARITY
 import org.elixir_lang.language_level.ElixirLanguageFeature.CAPTURE_ARGUMENT_COUNTER
 import org.elixir_lang.language_level.ElixirLanguageFeature.CAPTURE_ARGUMENT_IN_ELIXIR_FN_CONTEXT
@@ -117,7 +118,8 @@ private fun captureImport(
 
 /**
  * `elixir_dispatch:import_function/4` for a capture of [call], and then `expand_fn_capture/4`'s answer, or `null` for
- * Elixir's `false`: a macro or a special form, whose capture is an `fn` that calls it.
+ * Elixir's `false`: a macro, a local macro or a special form, whose capture is an `fn` that calls it. A capture of a
+ * local function inside a function is kept for the checks once the module's body has run, as a call is.
  */
 private fun importFunction(
     amp: ElixirAst,
@@ -138,19 +140,27 @@ private fun importFunction(
         }
         is ImportMatch.Macro -> null
         is ImportMatch.Ambiguous -> Expansion.Error("ambiguous_call", call)
-        ImportMatch.None ->
+        ImportMatch.None -> {
+            val nameArity = NameArity(name, arity)
+
             when {
                 specialForm(name, arity, run.level) -> null
-                // `elixir_def:local_for/5` reads the module's definitions, which aren't modelled.
-                env.function != null -> Expansion.Unported(amp)
+                localMacro(nameArity, env, run) != null -> null
                 else -> {
                     val module = env.module ?: "nil"
 
                     run.observer.dispatched(call, Dispatch(Dispatch.Kind.LOCAL_FUNCTION, module, name, arity))
 
-                    Expansion.Error("undefined_local_capture", amp)
+                    if (env.function == null) {
+                        Expansion.Error("undefined_local_capture", amp)
+                    } else {
+                        recordLocal(call, nameArity, emptyList(), env, run)
+
+                        Expansion.Expanded(state, env, NODE)
+                    }
                 }
             }
+        }
     }
 }
 

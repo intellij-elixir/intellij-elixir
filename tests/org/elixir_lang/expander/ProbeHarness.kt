@@ -55,18 +55,23 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
         val value: Int? = null,
     )
 
-    /** What the probe at [tag] saw: `__CALLER__` as a map, and its module's hygiene counter before it took one. */
-    data class Observation(val tag: Tag, val env: OtpErlangMap, val counterBefore: Long)
+    /**
+     * What the probe at [tag] saw: `__CALLER__` as a map, and its module's hygiene counter before it took one, or
+     * `null` outside any module.
+     */
+    data class Observation(val tag: Tag, val env: OtpErlangMap, val counterBefore: Long?)
 
     /**
      * [probeModule] and [caseModule] are atom text, as [Env] holds modules.
      *
      * @property values each case's [Case.value] as it was sent, by case
+     * @property hooks what the hook saw of each module it ran in, by module
      */
     class Batch(
         private val token: String,
         val observations: List<Observation>,
         val values: Map<Int, OtpErlangObject> = emptyMap(),
+        val hooks: Map<String, List<HookEntry>> = emptyMap(),
     ) {
         val probeModule = "Elixir." + probeModule(token)
 
@@ -86,6 +91,62 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
         val bodyLines: List<Int>,
         val batch: Batch,
         val source: String,
+        val layout: Layout,
+    )
+
+    /**
+     * A batch laid out for one compile: [cases], whose bodies already have `{token}` replaced by [token], after the
+     * probe module, the hook module if [hook], and [preamble]'s modules, and the top-level probe at the end of the file
+     * if [top].
+     *
+     * The expander reads [plain]: the source without the harness's own text. The probes are left out, and the probe
+     * module's and the hook's bodies, the hook's header, the `require` of the probe module and the step-0 probe are
+     * blanked to their newlines, so lines are kept. The top-level probe is `:ok` on its line, so the file still holds
+     * more than modules.
+     *
+     * @property bodyStarts where each case body starts in [plain]
+     * @property bodyLines the line each case body starts on, in [plain] and in the compiled source alike
+     * @property topLine the top-level probe's line, if there is one
+     */
+    class Layout(
+        val token: String,
+        val cases: List<Case>,
+        val preamble: String = "",
+        val hook: Boolean = false,
+        val top: Boolean = false,
+    ) {
+        val probeModule = "Elixir." + probeModule(token)
+        val hookModule = "Elixir." + hookModule(token)
+        val plain: String
+        val bodyStarts: List<Int>
+        val bodyLines: List<Int>
+        val topLine: Int?
+
+        init {
+            val written = write(this, null) { _, case -> case.body }
+
+            plain = written.source
+            bodyStarts = written.bodyStarts
+            bodyLines = written.bodyLines
+            topLine = written.topLine
+        }
+
+        fun caseModule(case: Int) = "Elixir." + caseModule(token, case)
+    }
+
+    /**
+     * A definition as the hook saw it before its module compiled. Before `Module.get_definition/2` (1.12) only the
+     * name, arity and kind are known.
+     *
+     * @property default whether the definition's meta holds `:context`, which from 1.20 marks a default arity's
+     */
+    data class HookEntry(
+        val name: String,
+        val arity: Int,
+        val kind: String,
+        val line: Int?,
+        val clauses: Int?,
+        val default: Boolean?,
     )
 
     /** Compiles each of [bodies] as the body of a module of its own. */
@@ -109,56 +170,42 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
      * Compiles each of [cases] as the body of a module of its own, after [preamble]'s modules, and returns what
      * happened, however it ended.
      */
-    fun attempt(cases: List<Case>, preamble: String = ""): Attempt {
-        val token = "ProbeCase" + UUID.randomUUID().toString().replace("-", "")
-        val probeModule = probeModule(token)
+    fun attempt(cases: List<Case>, preamble: String = ""): Attempt = attempt(Layout(token(), cases, preamble))
+
+    /** Compiles [layout], and returns what happened, however it ended. */
+    fun attempt(layout: Layout): Attempt {
         val tags = mutableListOf<Tag>()
-        val bodyLines = mutableListOf<Int>()
-        val source = buildString {
-            append(
-                """
-                defmodule $probeModule do
-                  defmacro p(tag) do
-                    IntellijElixir.Quoter.Probe.send(__CALLER__, observation(tag, __CALLER__))
-                    nil
-                  end
+        val written = write(layout, tags) { index, case -> probed(probeModule(layout.token), index, case, tags) }
+        val compiled = Quoter.compile(written.source, COMPILE_TIMEOUT)
+        val values = mutableMapOf<Int, OtpErlangObject>()
+        val hooks = mutableMapOf<String, List<HookEntry>>()
+        val observations = mutableListOf<Observation>()
 
-                  defmacro i(tag, expr) do
-                    IntellijElixir.Quoter.Probe.send(__CALLER__, observation(tag, __CALLER__))
-                    expr
-                  end
+        for (message in compiled.messages) {
+            val elements = (message as OtpErlangTuple).elements()
 
-                  defp observation(tag, caller) do
-                    {data, _} = :elixir_module.data_tables(caller.module)
-
-                    {List.to_tuple(tag), Map.from_struct(caller), :ets.lookup_element(data, {:elixir, :counter}, 2)}
-                  end
-                end
-
-                """.trimIndent()
-            )
-            append(preamble)
-
-            cases.forEachIndexed { index, case ->
-                append("\ndefmodule ${caseModule(token, index)} do\n")
-                append("require $probeModule\n")
-                append(probe(probeModule, Tag(index, 0, 0).also(tags::add)))
-                append("\n")
-                bodyLines.add(count { it == '\n' } + 1)
-                append(probed(probeModule, index, case, tags))
-                append("\nend\n")
+            when (elements[0]) {
+                OtpErlangAtom("value") -> values[(elements[1] as OtpErlangLong).intValue()] = elements[2]
+                OtpErlangAtom("hook") -> hooks[(elements[1] as OtpErlangAtom).atomValue()] = hookEntries(elements[2])
+                else -> observations += observation(message)
             }
         }
-        val compiled = Quoter.compile(source, COMPILE_TIMEOUT)
-        val (values, probes) = compiled.messages.partition(::isValue)
-        val valuesByCase = values.associate { value ->
-            val (_, case, q) = (value as OtpErlangTuple).elements()
 
-            (case as OtpErlangLong).intValue() to q
-        }
-
-        return Attempt(compiled, tags, bodyLines, Batch(token, probes.map(::observation), valuesByCase), source)
+        return Attempt(
+            compiled,
+            tags,
+            written.bodyLines,
+            Batch(layout.token, observations, values, hooks),
+            written.source,
+            layout,
+        )
     }
+
+    /** Compiles [source] as it is, with no probes. */
+    fun compileSource(source: String): Quoter.Compiled = Quoter.compile(source, COMPILE_TIMEOUT)
+
+    /** A token unique to one compile, which names its modules. */
+    fun token(): String = "ProbeCase" + UUID.randomUUID().toString().replace("-", "")
 
     /**
      * Compiles a module whose body reports `Code.get_compiler_option([name])` as its compile sees it.
@@ -251,14 +298,6 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
             expressionNodes(file).map { it.textRange.endOffset }
         }
 
-    private fun probe(probeModule: String, tag: Tag): String = "$probeModule.p(${tagList(tag)})"
-
-    private fun tagList(tag: Tag) =
-        listOfNotNull(tag.case, tag.block, tag.statement, tag.identity.takeIf { it > 0 }).joinToString(", ", "[", "]")
-
-    private fun isValue(message: OtpErlangObject): Boolean =
-        message is OtpErlangTuple && message.arity() == 3 && message.elementAt(0) == OtpErlangAtom("value")
-
     private fun observation(message: OtpErlangObject): Observation {
         val (tag, env, counterBefore) = (message as OtpErlangTuple).elements()
         val numbers = (tag as OtpErlangTuple).elements().map { (it as OtpErlangLong).intValue() }
@@ -266,30 +305,169 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
         return Observation(
             Tag(numbers[0], numbers[1], numbers[2], numbers.getOrElse(3) { 0 }),
             env as OtpErlangMap,
-            (counterBefore as OtpErlangLong).longValue(),
+            (counterBefore as? OtpErlangLong)?.longValue(),
         )
     }
+
+    /** A layout's source, where and on which line each case body starts in it, and the top-level probe's line. */
+    private class Written(val source: String, val bodyStarts: List<Int>, val bodyLines: List<Int>, val topLine: Int?)
 
     private companion object {
         val COMPILE_TIMEOUT = 30.seconds
 
+        val PROBE_BODY = """
+            |  defmacro p(tag) do
+            |    IntellijElixir.Quoter.Probe.send(__CALLER__, observation(tag, __CALLER__))
+            |    nil
+            |  end
+            |
+            |  defmacro i(tag, expr) do
+            |    IntellijElixir.Quoter.Probe.send(__CALLER__, observation(tag, __CALLER__))
+            |    expr
+            |  end
+            |
+            |  defp observation(tag, caller) do
+            |    {data, _} = :elixir_module.data_tables(caller.module)
+            |
+            |    {List.to_tuple(tag), Map.from_struct(caller), :ets.lookup_element(data, {:elixir, :counter}, 2)}
+            |  end
+            |""".trimMargin()
+
+        /**
+         * Sends each definition of the module it is compiled into, before the module compiles. `on_def/6` only makes
+         * the module run its `@on_definition` callbacks.
+         */
+        val HOOK_BODY = """
+            |  defmacro __before_compile__(env) do
+            |    defs =
+            |      if function_exported?(Module, :get_definition, 2) do
+            |        for {name, arity} <- Module.definitions_in(env.module) do
+            |          {:v1, kind, meta, clauses} = apply(Module, :get_definition, [env.module, {name, arity}])
+            |          {name, arity, kind, meta[:line], length(clauses), Keyword.has_key?(meta, :context)}
+            |        end
+            |      else
+            |        for kind <- [:def, :defp, :defmacro, :defmacrop],
+            |            {name, arity} <- Module.definitions_in(env.module, kind),
+            |            do: {name, arity, kind}
+            |      end
+            |
+            |    IntellijElixir.Quoter.Probe.send(env, {:hook, env.module, defs})
+            |    nil
+            |  end
+            |
+            |  def on_def(_env, _kind, _name, _args, _guards, _body), do: nil
+            |""".trimMargin()
+
+        const val TOP_PROBE =
+            "IntellijElixir.Quoter.Probe.send(__ENV__, {List.to_tuple([-1, 0, 0]), Map.from_struct(__ENV__), nil})"
+
+        /**
+         * [layout]'s source, each case body written by [body]: the probed source when [tags] collects the probes'
+         * tags, and [Layout.plain] when it is `null`.
+         */
+        fun write(layout: Layout, tags: MutableList<Tag>?, body: (Int, Case) -> String): Written {
+            val probeModule = probeModule(layout.token)
+            val hookModule = hookModule(layout.token)
+            val bodyStarts = mutableListOf<Int>()
+            val bodyLines = mutableListOf<Int>()
+            var topLine: Int? = null
+
+            fun StringBuilder.harness(text: String) {
+                append(if (tags == null) text.filter { it == '\n' } else text)
+            }
+
+            val source = buildString {
+                append("defmodule $probeModule do\n")
+                harness(PROBE_BODY)
+                append("end\n")
+
+                if (layout.hook) {
+                    append("\ndefmodule $hookModule do\n")
+                    harness(HOOK_BODY)
+                    append("end\n")
+                }
+
+                append(layout.preamble)
+
+                layout.cases.forEachIndexed { index, case ->
+                    append("\ndefmodule ${caseModule(layout.token, index)} do\n")
+                    harness("require $probeModule\n")
+
+                    if (layout.hook) harness("@before_compile $hookModule\n@on_definition {$hookModule, :on_def}\n")
+
+                    harness(probe(probeModule, Tag(index, 0, 0).also { tags?.add(it) }) + "\n")
+                    bodyStarts.add(length)
+                    bodyLines.add(count { it == '\n' } + 1)
+                    append(body(index, case))
+                    append("\nend\n")
+                }
+
+                if (layout.top) {
+                    append("\n")
+                    topLine = count { it == '\n' } + 1
+
+                    if (tags == null) {
+                        append(":ok")
+                    } else {
+                        append(TOP_PROBE)
+                        tags.add(Tag(-1, 0, 0))
+                    }
+
+                    append("\n")
+                }
+            }
+
+            return Written(source, bodyStarts, bodyLines, topLine)
+        }
+
+        fun probe(probeModule: String, tag: Tag): String = "$probeModule.p(${tagList(tag)})"
+
+        fun tagList(tag: Tag) =
+            listOfNotNull(tag.case, tag.block, tag.statement, tag.identity.takeIf { it > 0 })
+                .joinToString(", ", "[", "]")
+
         fun probeModule(token: String) = "$token.Probe"
 
+        fun hookModule(token: String) = "$token.Hook"
+
         fun caseModule(token: String, case: Int) = "$token.Case$case"
+
+        /** The definitions a hook sent: 6-tuples from 1.12, and before it `{name, arity, kind}`. */
+        fun hookEntries(term: OtpErlangObject): List<HookEntry> =
+            (term as OtpErlangList).elements().map { entry ->
+                val elements = (entry as OtpErlangTuple).elements()
+                val name = (elements[0] as OtpErlangAtom).atomValue()
+                val arity = (elements[1] as OtpErlangLong).intValue()
+                val kind = (elements[2] as OtpErlangAtom).atomValue()
+
+                if (elements.size == 3) {
+                    HookEntry(name, arity, kind, null, null, null)
+                } else {
+                    HookEntry(
+                        name,
+                        arity,
+                        kind,
+                        (elements[3] as? OtpErlangLong)?.intValue(),
+                        (elements[4] as OtpErlangLong).intValue(),
+                        (elements[5] as OtpErlangAtom).booleanValue(),
+                    )
+                }
+            }
 
         fun List<Tag>.sorted() = sortedWith(compareBy({ it.case }, { it.block }, { it.statement }, { it.identity }))
     }
 }
 
 /** The elements of a `{severity, line, column, message}` diagnostic, as the quoter reports one. */
-internal class Diagnostic(val severity: String, val line: Int?, val message: String) {
+internal class Diagnostic(val severity: String, val line: Int?, val column: Int?, val message: String) {
     companion object {
         fun of(term: OtpErlangObject): Diagnostic {
-            val (severity, line, _, message) = (term as OtpErlangTuple).elements()
+            val (severity, line, column, message) = (term as OtpErlangTuple).elements()
 
             return Diagnostic(
                 (severity as OtpErlangAtom).atomValue(),
                 (line as? OtpErlangLong)?.intValue(),
+                (column as? OtpErlangLong)?.intValue(),
                 utf8(message)
             )
         }

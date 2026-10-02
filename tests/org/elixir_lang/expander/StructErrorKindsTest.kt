@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -40,9 +41,10 @@ class StructErrorKindsTest {
     }
 
     @Test
-    fun `the struct function's raises have no line`() {
-        assertEquals(false, ErrorKinds.hasLine("struct_unknown_key"))
-        assertEquals(false, ErrorKinds.hasLine("struct_missing_enforced_keys"))
-        assertEquals(true, ErrorKinds.hasLine("undefined_struct"))
-    }
+    fun `the struct function's raises have no line`() =
+        listOf("1.11.4", "1.20.4").map(ElixirLanguageLevel::of).forEach { level ->
+            assertEquals(false, ErrorKinds.hasLine("struct_unknown_key", level))
+            assertEquals(false, ErrorKinds.hasLine("struct_missing_enforced_keys", level))
+            assertEquals(true, ErrorKinds.hasLine("undefined_struct", level))
+        }
 }

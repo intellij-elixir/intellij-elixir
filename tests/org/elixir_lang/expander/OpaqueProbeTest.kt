@@ -1,6 +1,5 @@
 package org.elixir_lang.expander
 
-import org.elixir_lang.NameArity
 import org.elixir_lang.psi.ElixirFile
 import java.util.UUID
 
@@ -25,13 +24,11 @@ class OpaqueProbeTest : ProbeTestCase() {
      */
     fun testEachCaseMatchesElixirUpToItsMacro() {
         val module = "Opaque" + UUID.randomUUID().toString().replace("-", "")
-        val macros = Exports { if (it == "Elixir.$module") MACROS else legExports.of(it) }
         val bodies = CASES.map { it.first } + CAPTURE_CASES + PREAMBLE_CASES.map { it.replace(M, module) }
 
-        probes.assertMatchesElixirUpToMacro(
-            bodies.associateWith { probes.expand(it, exports = macros) },
-            "\ndefmodule $module do\n$PREAMBLE\nend\n",
-        )
+        val preamble = "\ndefmodule $module do\n$PREAMBLE\nend\n"
+
+        probes.assertMatchesElixirUpToMacro(bodies.associateWith { probes.expand(it, preamble) })
     }
 
     /** The statement [body]'s expansion stopped at, its dispatch, and the source of the call. */
@@ -40,7 +37,7 @@ class OpaqueProbeTest : ProbeTestCase() {
         val opaque = expansion.outcome as? Expansion.Opaque ?: return "not opaque: ${expansion.outcome}"
 
         return "${expansion.starts.size} ${ExpanderTestCase.render(opaque.dispatch)} " +
-            "`${opaque.at.meta.origin.substring(body)}`"
+            "`${expansion.source(opaque.at)}`"
     }
 
     private companion object {
@@ -50,10 +47,9 @@ class OpaqueProbeTest : ProbeTestCase() {
             "a = 1\n_ = a |> abs()\nb = 2" to "2 imported_macro Elixir.Kernel.|>/2 `a |> abs()`",
             "a = 1\nrequire Integer\n_ = Integer.is_odd(abs(a))\nb = 2" to
                 "3 remote_macro Elixir.Integer.is_odd/1 `Integer.is_odd(abs(a))`",
-            "a = 1\ndef f do\n  raise \"x\"\nend\nb = 2" to
-                "2 imported_macro Elixir.Kernel.def/2 `def f do\n  raise \"x\"\nend`",
             "a = 1\n_ = fn -> raise \"x\" end\nb = 2" to "2 imported_macro Elixir.Kernel.raise/1 `raise \"x\"`",
             "a = 1\nx = \"a\"\n\"#{x}\" = \"a\"" to "3 remote_macro Elixir.Kernel.to_string/1 `#{x}`",
+            "a = 1\ndef f do\n  raise \"x\"\nend\nb = 2" to "3 imported_macro Elixir.Kernel.raise/1 `raise \"x\"`",
         )
 
         /** A capture of a macro stops at the macro its `fn` calls, whose position differs by leg. */
@@ -79,11 +75,5 @@ class OpaqueProbeTest : ProbeTestCase() {
             defmacro ali, do: quote(do: alias(String.Chars, as: SC))
             defmacro bind, do: quote(do: var!(y) = 1)
             """.trimIndent()
-
-        val MACROS = ModuleExports.Present(
-            emptyList(),
-            listOf(NameArity("ali", 0), NameArity("bind", 0), NameArity("imp", 0)),
-            hasInfo = true,
-        )
     }
 }

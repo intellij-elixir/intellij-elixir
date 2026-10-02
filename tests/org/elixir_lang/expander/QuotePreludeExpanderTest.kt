@@ -287,7 +287,7 @@ class QuotePreludeExpanderTest : ExpanderTestCase() {
             is Expansion.Expanded -> {
                 val state = expansion.state
                 val read = state.read.entries
-                    .sortedWith(compareBy(TERM_ORDER) { it.key })
+                    .sortedWith(compareBy(VARIABLE_ORDER) { it.key })
                     .joinToString(" ") { (variable, version) ->
                         "${variable.name}/${context(variable.context)}:$version"
                     }
