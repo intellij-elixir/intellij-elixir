@@ -125,6 +125,9 @@
 - [#4341](https://github.com/intellij-elixir/intellij-elixir/pull/4341) [@sh41](https://github.com/sh41)
   - **Completing a function with defaults that an `import` brings in only at a lower arity inserts that arity's parameters, not every parameter.**
     Fixes [#4330](https://github.com/intellij-elixir/intellij-elixir/issues/4330).
+- [#4340](https://github.com/intellij-elixir/intellij-elixir/pull/4340) [@sh41](https://github.com/sh41)
+  - **A function or module written as a quoted atom in `apply/3` or an MFA tuple (`apply(M, :"f", args)`, `{:"Elixir.M", :f, 2}`) resolves, completes and shows Quick Documentation like its bare form.**
+    Fixes [#4329](https://github.com/intellij-elixir/intellij-elixir/issues/4329).
 - [#4338](https://github.com/intellij-elixir/intellij-elixir/pull/4338) [@sh41](https://github.com/sh41)
   - **A decompiled `.beam` definition whose parameter names weren't kept is written and completed with Elixir's `arg1`, `arg2` and so on, or with the names of the documented definition whose defaults cover its arity.** Fixes [#4328](https://github.com/intellij-elixir/intellij-elixir/issues/4328).
 - [#4324](https://github.com/intellij-elixir/intellij-elixir/pull/4324) [@sh41](https://github.com/sh41)

@@ -24,23 +24,29 @@ class AtomReference(
     /**
      * The module element from the MFA tuple or apply/3 - either:
      * - a [org.elixir_lang.psi.QualifiableAlias] for Elixir-style modules (`Enum`, `MyApp.Worker`)
-     * - an [ElixirAtom] (unquoted) for Erlang-style modules (`:math`, `:lists`)
+     * - an [ElixirAtom] (`:lists`, `:"Elixir.Enum"`)
      */
     private val moduleElement: PsiElement,
     private val rangeInElement: TextRange = contentTextRange(atom),
     private val arity: Int
 ) : PsiReferenceBase<ElixirAtom>(atom, contentTextRange(atom)), PsiPolyVariantReference, PsiSymbolReference {
     private val functionName: String?
-        get() = quotedAtomValue(myElement) ?: myElement.node.lastChildNode?.text
+        get() = quotedAtomValue(myElement)
 
     override fun getVariants(): Array<Any> {
+        if (functionName == null) return emptyArray()
+
         val modulars = moduleElement.maybeModularNameToModulars(
             maxScope = myElement.containingFile,
             useCall = null,
             incompleteCode = true
         )
 
-        return callDefinitionClauseLookupElements(modulars, QualifiedName.ATOM).toTypedArray()
+        val insertHandler = myElement.line
+            ?.let { QualifiedName.quotedAtom(if (it.isCharList) '\'' else '"') }
+            ?: QualifiedName.ATOM
+
+        return callDefinitionClauseLookupElements(modulars, insertHandler).toTypedArray()
     }
 
     override fun getAbsoluteRange(): TextRange =
@@ -137,9 +143,9 @@ private fun sourceCallResolveResults(call: Call, name: String, validResult: Bool
 
 internal fun contentTextRange(atom: ElixirAtom): TextRange {
     val atomNode = atom.node
-    val lastChildNode = atomNode.lastChildNode ?: return TextRange(0, atom.textLength)
-    val start = lastChildNode.startOffset - atomNode.startOffset
-    val end = start + lastChildNode.textLength
+    val nameRange = atom.line?.body?.textRange
+        ?: atomNode.lastChildNode?.textRange
+        ?: return TextRange(0, atom.textLength)
 
-    return TextRange(start, end)
+    return nameRange.shiftLeft(atomNode.startOffset)
 }
