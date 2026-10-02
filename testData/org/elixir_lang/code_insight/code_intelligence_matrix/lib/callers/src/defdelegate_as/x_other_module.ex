@@ -10,6 +10,18 @@ defmodule Callers.Src.DefdelegateAs.XOtherModule do
   def at_unqualified(a, b), do: src_defdelegate_as_x_other_module_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> src_defdelegate_as_x_other_module_snoc(b) # @pipe
   def at_capture(a, b), do: {&Src.DefdelegateAs.XOtherModule.src_defdelegate_as_x_other_module_snoc/2, a, b} # @capture
+  def at_qualified_quoted(a, b), do: Src.DefdelegateAs.XOtherModule."src_defdelegate_as_x_other_module_snoc"(a, b) # @qualified_quoted
+  def at_capture_quoted(a, b), do: {&Src.DefdelegateAs.XOtherModule."src_defdelegate_as_x_other_module_snoc"/2, a, b} # @capture_quoted
   def at_apply(a, b), do: apply(Src.DefdelegateAs.XOtherModule, :src_defdelegate_as_x_other_module_snoc, [a, b]) # @apply
+  def at_apply_quoted(a, b), do: apply(Src.DefdelegateAs.XOtherModule, :"src_defdelegate_as_x_other_module_snoc", [a, b]) # @apply_quoted
+  def at_apply_module_quoted(a, b), do: apply(:"Elixir.Src.DefdelegateAs.XOtherModule", :src_defdelegate_as_x_other_module_snoc, [a, b]) # @apply_module_quoted
+  def at_apply_interpolated(a, b), do: apply(Src.DefdelegateAs.XOtherModule, :"#{a}src_defdelegate_as_x_other_module_snoc", [a, b]) # @apply_interpolated
+  def at_apply_nested(a, b), do: apply(Src.DefdelegateAs.XOtherModule, pick(b, :src_defdelegate_as_x_other_module_snoc), [a, b]) # @apply_nested
+  def at_apply_nested_quoted(a, b), do: apply(Src.DefdelegateAs.XOtherModule, pick(b, :"src_defdelegate_as_x_other_module_snoc"), [a, b]) # @apply_nested_quoted
+  def at_mfa_quoted(a, b), do: {{Src.DefdelegateAs.XOtherModule, :"src_defdelegate_as_x_other_module_snoc", 2}, a, b} # @mfa_quoted
+  def at_mfa_module_quoted(a, b), do: {{:"Elixir.Src.DefdelegateAs.XOtherModule", :src_defdelegate_as_x_other_module_snoc, 2}, a, b} # @mfa_module_quoted
+  def at_mfa_interpolated(a, b), do: {{Src.DefdelegateAs.XOtherModule, :"#{a}src_defdelegate_as_x_other_module_snoc", 2}, a, b} # @mfa_interpolated
   def at_other_qualified(a, b), do: Src.DefdelegateAs.XOtherModule.Other.src_defdelegate_as_x_other_module_snoc(a, b) # @other_qualified
+
+  defp pick(opts, key), do: opts[key]
 end

@@ -10,10 +10,22 @@ defmodule Callers.ExGen.DefdelegateUnresolvable.XDefaultsHead do
   def at_unqualified(a, b), do: ex_gen_defdelegate_unresolvable_x_defaults_head_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> ex_gen_defdelegate_unresolvable_x_defaults_head_snoc(b) # @pipe
   def at_capture(a, b), do: {&ExGen.DefdelegateUnresolvable.XDefaultsHead.ex_gen_defdelegate_unresolvable_x_defaults_head_snoc/2, a, b} # @capture
+  def at_qualified_quoted(a, b), do: ExGen.DefdelegateUnresolvable.XDefaultsHead."ex_gen_defdelegate_unresolvable_x_defaults_head_snoc"(a, b) # @qualified_quoted
+  def at_capture_quoted(a, b), do: {&ExGen.DefdelegateUnresolvable.XDefaultsHead."ex_gen_defdelegate_unresolvable_x_defaults_head_snoc"/2, a, b} # @capture_quoted
   def at_apply(a, b), do: apply(ExGen.DefdelegateUnresolvable.XDefaultsHead, :ex_gen_defdelegate_unresolvable_x_defaults_head_snoc, [a, b]) # @apply
+  def at_apply_quoted(a, b), do: apply(ExGen.DefdelegateUnresolvable.XDefaultsHead, :"ex_gen_defdelegate_unresolvable_x_defaults_head_snoc", [a, b]) # @apply_quoted
+  def at_apply_module_quoted(a, b), do: apply(:"Elixir.ExGen.DefdelegateUnresolvable.XDefaultsHead", :ex_gen_defdelegate_unresolvable_x_defaults_head_snoc, [a, b]) # @apply_module_quoted
+  def at_apply_interpolated(a, b), do: apply(ExGen.DefdelegateUnresolvable.XDefaultsHead, :"#{a}ex_gen_defdelegate_unresolvable_x_defaults_head_snoc", [a, b]) # @apply_interpolated
+  def at_apply_nested(a, b), do: apply(ExGen.DefdelegateUnresolvable.XDefaultsHead, pick(b, :ex_gen_defdelegate_unresolvable_x_defaults_head_snoc), [a, b]) # @apply_nested
+  def at_apply_nested_quoted(a, b), do: apply(ExGen.DefdelegateUnresolvable.XDefaultsHead, pick(b, :"ex_gen_defdelegate_unresolvable_x_defaults_head_snoc"), [a, b]) # @apply_nested_quoted
+  def at_mfa_quoted(a, b), do: {{ExGen.DefdelegateUnresolvable.XDefaultsHead, :"ex_gen_defdelegate_unresolvable_x_defaults_head_snoc", 2}, a, b} # @mfa_quoted
+  def at_mfa_module_quoted(a, b), do: {{:"Elixir.ExGen.DefdelegateUnresolvable.XDefaultsHead", :ex_gen_defdelegate_unresolvable_x_defaults_head_snoc, 2}, a, b} # @mfa_module_quoted
+  def at_mfa_interpolated(a, b), do: {{ExGen.DefdelegateUnresolvable.XDefaultsHead, :"#{a}ex_gen_defdelegate_unresolvable_x_defaults_head_snoc", 2}, a, b} # @mfa_interpolated
   def at_no_arguments(_a, _b), do: ExGen.DefdelegateUnresolvable.XDefaultsHead.ex_gen_defdelegate_unresolvable_x_defaults_head_snoc # @no_arguments
   def at_arity_1(a, _b), do: ExGen.DefdelegateUnresolvable.XDefaultsHead.ex_gen_defdelegate_unresolvable_x_defaults_head_snoc(a) # @arity_1
   def at_capture_1(a, b), do: {&ExGen.DefdelegateUnresolvable.XDefaultsHead.ex_gen_defdelegate_unresolvable_x_defaults_head_snoc/1, a, b} # @capture_1
   def at_apply_1(a, _b), do: apply(ExGen.DefdelegateUnresolvable.XDefaultsHead, :ex_gen_defdelegate_unresolvable_x_defaults_head_snoc, [a]) # @apply_1
   def at_mfa_1(a, b), do: {{ExGen.DefdelegateUnresolvable.XDefaultsHead, :ex_gen_defdelegate_unresolvable_x_defaults_head_snoc, 1}, a, b} # @mfa_1
+
+  defp pick(opts, key), do: opts[key]
 end

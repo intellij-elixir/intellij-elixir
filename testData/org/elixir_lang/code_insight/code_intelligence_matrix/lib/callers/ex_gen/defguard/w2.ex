@@ -10,6 +10,7 @@ defmodule Callers.ExGen.Defguard.W2 do
   def at_aliased_as(a, b), do: Aliased.ex_gen_defguard_w2_snoc(a, b) # @aliased_as
   def at_unqualified(a, b), do: ex_gen_defguard_w2_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> ex_gen_defguard_w2_snoc(b) # @pipe
+  def at_qualified_quoted(a, b), do: ExGen.Defguard.W2."ex_gen_defguard_w2_snoc"(a, b) # @qualified_quoted
   def at_second_qualified(a, b), do: ExGen.Defguard.W2.ex_gen_defguard_w2_snoc(a, b) # @second_qualified
   def at_arity_1(a, _b), do: ExGen.Defguard.W2.ex_gen_defguard_w2_snoc(a) # @arity_1
   def at_arity_3(a, b), do: ExGen.Defguard.W2.ex_gen_defguard_w2_snoc(a, b, a) # @arity_3

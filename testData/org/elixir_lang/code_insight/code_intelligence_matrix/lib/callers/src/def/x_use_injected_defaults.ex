@@ -10,7 +10,19 @@ defmodule Callers.Src.Def.XUseInjectedDefaults do
   def at_unqualified(a, b), do: src_def_x_use_injected_defaults_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> src_def_x_use_injected_defaults_snoc(b) # @pipe
   def at_capture(a, b), do: {&Src.Def.XUseInjectedDefaults.src_def_x_use_injected_defaults_snoc/2, a, b} # @capture
+  def at_qualified_quoted(a, b), do: Src.Def.XUseInjectedDefaults."src_def_x_use_injected_defaults_snoc"(a, b) # @qualified_quoted
+  def at_capture_quoted(a, b), do: {&Src.Def.XUseInjectedDefaults."src_def_x_use_injected_defaults_snoc"/2, a, b} # @capture_quoted
   def at_apply(a, b), do: apply(Src.Def.XUseInjectedDefaults, :src_def_x_use_injected_defaults_snoc, [a, b]) # @apply
+  def at_apply_quoted(a, b), do: apply(Src.Def.XUseInjectedDefaults, :"src_def_x_use_injected_defaults_snoc", [a, b]) # @apply_quoted
+  def at_apply_module_quoted(a, b), do: apply(:"Elixir.Src.Def.XUseInjectedDefaults", :src_def_x_use_injected_defaults_snoc, [a, b]) # @apply_module_quoted
+  def at_apply_interpolated(a, b), do: apply(Src.Def.XUseInjectedDefaults, :"#{a}src_def_x_use_injected_defaults_snoc", [a, b]) # @apply_interpolated
+  def at_apply_nested(a, b), do: apply(Src.Def.XUseInjectedDefaults, pick(b, :src_def_x_use_injected_defaults_snoc), [a, b]) # @apply_nested
+  def at_apply_nested_quoted(a, b), do: apply(Src.Def.XUseInjectedDefaults, pick(b, :"src_def_x_use_injected_defaults_snoc"), [a, b]) # @apply_nested_quoted
+  def at_mfa_quoted(a, b), do: {{Src.Def.XUseInjectedDefaults, :"src_def_x_use_injected_defaults_snoc", 2}, a, b} # @mfa_quoted
+  def at_mfa_module_quoted(a, b), do: {{:"Elixir.Src.Def.XUseInjectedDefaults", :src_def_x_use_injected_defaults_snoc, 2}, a, b} # @mfa_module_quoted
+  def at_mfa_interpolated(a, b), do: {{Src.Def.XUseInjectedDefaults, :"#{a}src_def_x_use_injected_defaults_snoc", 2}, a, b} # @mfa_interpolated
   def at_arity_1(a, _b), do: Src.Def.XUseInjectedDefaults.src_def_x_use_injected_defaults_snoc(a) # @arity_1
   def at_unqualified_arity_1(a, _b), do: src_def_x_use_injected_defaults_snoc(a) # @unqualified_arity_1
+
+  defp pick(opts, key), do: opts[key]
 end

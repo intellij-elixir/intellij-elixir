@@ -10,8 +10,20 @@ defmodule Callers.ExDbgi.Def.W2 do
   def at_unqualified(a, b), do: ex_dbgi_def_w2_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> ex_dbgi_def_w2_snoc(b) # @pipe
   def at_capture(a, b), do: {&ExDbgi.Def.W2.ex_dbgi_def_w2_snoc/2, a, b} # @capture
+  def at_qualified_quoted(a, b), do: ExDbgi.Def.W2."ex_dbgi_def_w2_snoc"(a, b) # @qualified_quoted
+  def at_capture_quoted(a, b), do: {&ExDbgi.Def.W2."ex_dbgi_def_w2_snoc"/2, a, b} # @capture_quoted
   def at_apply(a, b), do: apply(ExDbgi.Def.W2, :ex_dbgi_def_w2_snoc, [a, b]) # @apply
+  def at_apply_quoted(a, b), do: apply(ExDbgi.Def.W2, :"ex_dbgi_def_w2_snoc", [a, b]) # @apply_quoted
+  def at_apply_module_quoted(a, b), do: apply(:"Elixir.ExDbgi.Def.W2", :ex_dbgi_def_w2_snoc, [a, b]) # @apply_module_quoted
+  def at_apply_interpolated(a, b), do: apply(ExDbgi.Def.W2, :"#{a}ex_dbgi_def_w2_snoc", [a, b]) # @apply_interpolated
+  def at_apply_nested(a, b), do: apply(ExDbgi.Def.W2, pick(b, :ex_dbgi_def_w2_snoc), [a, b]) # @apply_nested
+  def at_apply_nested_quoted(a, b), do: apply(ExDbgi.Def.W2, pick(b, :"ex_dbgi_def_w2_snoc"), [a, b]) # @apply_nested_quoted
+  def at_mfa_quoted(a, b), do: {{ExDbgi.Def.W2, :"ex_dbgi_def_w2_snoc", 2}, a, b} # @mfa_quoted
+  def at_mfa_module_quoted(a, b), do: {{:"Elixir.ExDbgi.Def.W2", :ex_dbgi_def_w2_snoc, 2}, a, b} # @mfa_module_quoted
+  def at_mfa_interpolated(a, b), do: {{ExDbgi.Def.W2, :"#{a}ex_dbgi_def_w2_snoc", 2}, a, b} # @mfa_interpolated
   def at_second_qualified(a, b), do: ExDbgi.Def.W2.ex_dbgi_def_w2_snoc(a, b) # @second_qualified
   def at_arity_1(a, _b), do: ExDbgi.Def.W2.ex_dbgi_def_w2_snoc(a) # @arity_1
   def at_arity_3(a, b), do: ExDbgi.Def.W2.ex_dbgi_def_w2_snoc(a, b, a) # @arity_3
+
+  defp pick(opts, key), do: opts[key]
 end

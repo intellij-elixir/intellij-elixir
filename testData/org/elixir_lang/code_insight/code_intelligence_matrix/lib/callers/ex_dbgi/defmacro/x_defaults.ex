@@ -10,5 +10,6 @@ defmodule Callers.ExDbgi.Defmacro.XDefaults do
   def at_aliased_as(a, b), do: Aliased.ex_dbgi_defmacro_x_defaults_snoc(a, b) # @aliased_as
   def at_unqualified(a, b), do: ex_dbgi_defmacro_x_defaults_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> ex_dbgi_defmacro_x_defaults_snoc(b) # @pipe
+  def at_qualified_quoted(a, b), do: ExDbgi.Defmacro.XDefaults."ex_dbgi_defmacro_x_defaults_snoc"(a, b) # @qualified_quoted
   def at_default_arity(a, _b), do: ExDbgi.Defmacro.XDefaults.ex_dbgi_defmacro_x_defaults_snoc(a) # @default_arity
 end

@@ -10,7 +10,19 @@ defmodule Callers.Src.Def.XUseInQuoteWith do
   def at_unqualified(a, b), do: src_def_x_use_in_quote_with_snoc(a, b) # @unqualified
   def at_pipe(a, b), do: a |> src_def_x_use_in_quote_with_snoc(b) # @pipe
   def at_capture(a, b), do: {&Src.Def.XUseInQuoteWith.src_def_x_use_in_quote_with_snoc/2, a, b} # @capture
+  def at_qualified_quoted(a, b), do: Src.Def.XUseInQuoteWith."src_def_x_use_in_quote_with_snoc"(a, b) # @qualified_quoted
+  def at_capture_quoted(a, b), do: {&Src.Def.XUseInQuoteWith."src_def_x_use_in_quote_with_snoc"/2, a, b} # @capture_quoted
   def at_apply(a, b), do: apply(Src.Def.XUseInQuoteWith, :src_def_x_use_in_quote_with_snoc, [a, b]) # @apply
+  def at_apply_quoted(a, b), do: apply(Src.Def.XUseInQuoteWith, :"src_def_x_use_in_quote_with_snoc", [a, b]) # @apply_quoted
+  def at_apply_module_quoted(a, b), do: apply(:"Elixir.Src.Def.XUseInQuoteWith", :src_def_x_use_in_quote_with_snoc, [a, b]) # @apply_module_quoted
+  def at_apply_interpolated(a, b), do: apply(Src.Def.XUseInQuoteWith, :"#{a}src_def_x_use_in_quote_with_snoc", [a, b]) # @apply_interpolated
+  def at_apply_nested(a, b), do: apply(Src.Def.XUseInQuoteWith, pick(b, :src_def_x_use_in_quote_with_snoc), [a, b]) # @apply_nested
+  def at_apply_nested_quoted(a, b), do: apply(Src.Def.XUseInQuoteWith, pick(b, :"src_def_x_use_in_quote_with_snoc"), [a, b]) # @apply_nested_quoted
+  def at_mfa_quoted(a, b), do: {{Src.Def.XUseInQuoteWith, :"src_def_x_use_in_quote_with_snoc", 2}, a, b} # @mfa_quoted
+  def at_mfa_module_quoted(a, b), do: {{:"Elixir.Src.Def.XUseInQuoteWith", :src_def_x_use_in_quote_with_snoc, 2}, a, b} # @mfa_module_quoted
+  def at_mfa_interpolated(a, b), do: {{Src.Def.XUseInQuoteWith, :"#{a}src_def_x_use_in_quote_with_snoc", 2}, a, b} # @mfa_interpolated
   def at_arity_1(a, _b), do: Src.Def.XUseInQuoteWith.src_def_x_use_in_quote_with_snoc(a) # @arity_1
   def at_other_qualified(a, b), do: Src.Def.XUseInQuoteWith.Other.src_def_x_use_in_quote_with_snoc(a, b) # @other_qualified
+
+  defp pick(opts, key), do: opts[key]
 end
