@@ -1507,7 +1507,7 @@ defmodule Matrix do
         "file" => path,
         "line" => line,
         "column" => name_column(text, name),
-        "name" => nfc(name),
+        "name" => written_atom(text, name),
         "arity" => arity,
         "binding" => nil,
         "diagnostic" => %{"severity" => to_string(said.severity), "message" => said.message}
@@ -1822,7 +1822,7 @@ defmodule Matrix do
       "file" => path,
       "line" => line,
       "column" => name_column(text, name),
-      "name" => nfc(name),
+      "name" => written_atom(text, name),
       "arity" => arity,
       "binding" => nil,
       "diagnostic" => %{"severity" => "error", "message" => message}
@@ -1921,7 +1921,7 @@ defmodule Matrix do
       "module" => reference(backing, module),
       "source" => path,
       "spec" => spec,
-      "heads" => artefact_heads(if(form[:use] && form.use.module == nil, do: form.use.heads, else: heads(spec)), beam),
+      "heads" => artefact_heads(if(form[:use] && form.use.module == nil, do: form.use.heads, else: declared_heads(backing, spec, definitions)), beam),
       "complete" => complete?(beam),
       "beam" => beam,
       "clauseSource" => Map.get(backing, :clause_source),
@@ -1930,7 +1930,7 @@ defmodule Matrix do
       "delegateAs" => form[:as],
       # Under `if`/`else` only the `if`'s definition is compiled, and so only it is defined.
       "definitions" =>
-        Enum.map(if(form[:branches], do: Enum.take(definitions, 1), else: definitions) ++ injected(form, :definitions), &definition/1),
+        Enum.map(if(form[:branches], do: Enum.take(definitions, 1), else: definitions) ++ injected(form, :definitions), &definition(&1, backing.language)),
       "declarations" =>
         cond do
           # A user of a `use` declares nothing itself: what it defines is written in the quotes it uses.
@@ -1980,13 +1980,13 @@ defmodule Matrix do
 
   # The arities come from the first clause, which is the bodiless head where there is one, because that is where the
   # defaults are declared. A head is not itself a clause, so it is not counted as one.
-  defp definition({name, [first | _] = clauses}) do
+  defp definition({name, [first | _] = clauses}, language) do
     {parameters, _guard, _head?} = clause_parts(first)
     defaults = Enum.count(parameters, &is_tuple/1)
     bodied = Enum.reject(clauses, &head?/1)
 
     %{
-      "name" => nfc(name),
+      "name" => atom_name(language, name),
       "minArity" => length(parameters) - defaults,
       "maxArity" => length(parameters),
       "clauses" => length(bodied)
@@ -2251,6 +2251,21 @@ defmodule Matrix do
   defp guard_string(other), do: Macro.to_string(other)
 
   defp nfc(name), do: :unicode.characters_to_nfc_binary(name)
+
+  # The atom a declared name compiles to: Elixir normalises an identifier it reads to NFC, Erlang keeps its bytes.
+  defp atom_name(:elixir, name), do: nfc(name)
+  defp atom_name(:erlang, name), do: name
+
+  # The atom a call written in [text] names: quoted, its bytes; bare, the identifier Elixir normalised.
+  defp written_atom(text, name), do: if(String.contains?(text, ~s("#{name}")), do: name, else: nfc(name))
+
+  # An Erlang module's heads are quoted from its Elixir rendering, whose identifiers Elixir has normalised.
+  defp declared_heads(%{language: :elixir}, spec, _definitions), do: heads(spec)
+
+  defp declared_heads(%{language: :erlang}, spec, definitions) do
+    declared = Map.new(definitions, fn {name, _} -> {nfc(name), name} end)
+    Enum.map(heads(spec), &%{&1 | "name" => Map.get(declared, &1["name"], &1["name"])})
+  end
 
   # A module a `use` world's main module uses is written whole by `use_supports/6`.
   defp render_source(%{language: :elixir}, %{written: source}, _module, _definitions, _primary, _target), do: source
@@ -2690,14 +2705,15 @@ defmodule Matrix do
         {text, line} = Enum.find(lines, fn {text, _} -> String.ends_with?(text, "# @#{id}") end)
         # A module is asked at its own name, the alias's last segment: an earlier one names a module of its own.
         name = if shape in @module_shapes, do: last_segment(Enum.at(names, module)), else: name
-        binding = binding(events, path, line, name, shape, backing, Enum.at(names, module), arity)
+        atom = if shape in @module_shapes, do: name, else: written_atom(text, name)
+        binding = binding(events, path, line, atom, shape, backing, Enum.at(names, module), arity)
 
         site = %{
           "id" => id,
           "file" => path,
           "line" => line,
           "column" => name_column(text, name),
-          "name" => nfc(name),
+          "name" => atom,
           "arity" => arity,
           "binding" => binding
         }
@@ -2719,7 +2735,7 @@ defmodule Matrix do
   # reference to M.name/length([...]), and so does this oracle. A variable, a bare atom and a keyword key bind to no
   # definition.
   defp binding(_events, _path, _line, name, shape, backing, module, arity) when shape in [:apply, :apply_quoted, :mfa],
-    do: %{"module" => reference(backing, module), "name" => nfc(name), "arity" => arity, "kind" => to_string(shape)}
+    do: %{"module" => reference(backing, module), "name" => name, "arity" => arity, "kind" => to_string(shape)}
 
   defp binding(_events, _path, _line, _name, shape, _backing, _module, _arity) when shape in @not_calls, do: nil
 

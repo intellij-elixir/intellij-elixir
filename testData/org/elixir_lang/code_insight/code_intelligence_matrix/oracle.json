@@ -360228,7 +360228,7 @@
               "clauses": 1,
               "maxArity": 2,
               "minArity": 2,
-              "name": "erl_abst_def_w3_snoć"
+              "name": "erl_abst_def_w3_snoć"
             }
           ],
           "delegateAs": null,
@@ -360288,7 +360288,7 @@
               "defaults": 0,
               "definer": "def",
               "guard": null,
-              "name": "erl_abst_def_w3_snoć",
+              "name": "erl_abst_def_w3_snoć",
               "parameters": [
                 "q",
                 "x"
@@ -360439,7 +360439,7 @@
           "file": "lib/callers/erl_abst/def/w3.ex",
           "id": "lookalike_snoc_combining",
           "line": 14,
-          "name": "erl_abst_def_w3_snoć"
+          "name": "erl_abst_def_w3_snoć"
         },
         {
           "arity": 2,
@@ -360517,7 +360517,7 @@
               "clauses": 1,
               "maxArity": 2,
               "minArity": 2,
-              "name": "erl_abst_def_w4_snoć"
+              "name": "erl_abst_def_w4_snoć"
             }
           ],
           "delegateAs": null,
@@ -360607,7 +360607,7 @@
               "defaults": 0,
               "definer": "def",
               "guard": null,
-              "name": "erl_abst_def_w4_snoć",
+              "name": "erl_abst_def_w4_snoć",
               "parameters": [
                 "q",
                 "x"
@@ -360800,7 +360800,7 @@
           "file": "lib/callers/erl_abst/def/w4.ex",
           "id": "lookalike_snoc_combining",
           "line": 17,
-          "name": "erl_abst_def_w4_snoć"
+          "name": "erl_abst_def_w4_snoć"
         },
         {
           "arity": 2,
@@ -361997,7 +361997,7 @@
               "clauses": 1,
               "maxArity": 2,
               "minArity": 2,
-              "name": "erl_abst_def_x_lookalike_absent_snoć"
+              "name": "erl_abst_def_x_lookalike_absent_snoć"
             }
           ],
           "delegateAs": null,
@@ -362057,7 +362057,7 @@
               "defaults": 0,
               "definer": "def",
               "guard": null,
-              "name": "erl_abst_def_x_lookalike_absent_snoć",
+              "name": "erl_abst_def_x_lookalike_absent_snoć",
               "parameters": [
                 "q",
                 "x"
@@ -362208,7 +362208,7 @@
           "file": "lib/callers/erl_abst/def/x_lookalike_absent.ex",
           "id": "lookalike_snoc_combining",
           "line": 14,
-          "name": "erl_abst_def_x_lookalike_absent_snoć"
+          "name": "erl_abst_def_x_lookalike_absent_snoć"
         },
         {
           "arity": 2,
@@ -362861,7 +362861,7 @@
               "clauses": 1,
               "maxArity": 2,
               "minArity": 2,
-              "name": "erl_abst_defp_w3_snoć"
+              "name": "erl_abst_defp_w3_snoć"
             }
           ],
           "delegateAs": null,
@@ -362921,7 +362921,7 @@
               "defaults": 0,
               "definer": "defp",
               "guard": null,
-              "name": "erl_abst_defp_w3_snoć",
+              "name": "erl_abst_defp_w3_snoć",
               "parameters": [
                 "q",
                 "x"
@@ -363010,7 +363010,7 @@
               "clauses": 1,
               "maxArity": 2,
               "minArity": 2,
-              "name": "erl_abst_defp_w4_snoć"
+              "name": "erl_abst_defp_w4_snoć"
             }
           ],
           "delegateAs": null,
@@ -363100,7 +363100,7 @@
               "defaults": 0,
               "definer": "defp",
               "guard": null,
-              "name": "erl_abst_defp_w4_snoć",
+              "name": "erl_abst_defp_w4_snoć",
               "parameters": [
                 "q",
                 "x"
@@ -363560,7 +363560,7 @@
               "clauses": 1,
               "maxArity": 2,
               "minArity": 2,
-              "name": "erl_abst_defp_x_lookalike_absent_snoć"
+              "name": "erl_abst_defp_x_lookalike_absent_snoć"
             }
           ],
           "delegateAs": null,
@@ -363620,7 +363620,7 @@
               "defaults": 0,
               "definer": "defp",
               "guard": null,
-              "name": "erl_abst_defp_x_lookalike_absent_snoć",
+              "name": "erl_abst_defp_x_lookalike_absent_snoć",
               "parameters": [
                 "q",
                 "x"

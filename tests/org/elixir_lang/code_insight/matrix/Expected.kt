@@ -22,7 +22,7 @@ data class Head(val definer: String, val name: String, val parameters: List<Stri
     fun covers(arity: Int): Boolean = arity in (parameters.size - defaults)..parameters.size
 }
 
-/** Elixir compares identifiers in NFC, so a name written decomposed is the same name as its precomposed form. */
+/** Elixir reads a bare identifier as its NFC form, so a name written decomposed and bare is its precomposed atom. */
 fun nfc(text: String): String = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFC)
 
 /**
@@ -48,5 +48,5 @@ object Expected {
     fun heads(module: DeclaringModule, name: String, arity: Int): List<Head> =
         module.heads
             .map { Head(it.definer, it.name, it.parameters, it.defaults, it.guard) }
-            .filter { nfc(it.name) == nfc(name) && it.covers(arity) }
+            .filter { it.name == name && it.covers(arity) }
 }
