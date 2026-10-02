@@ -50,6 +50,7 @@ enum class Feature(val testName: String, val edits: Boolean = false) {
     SHOW_USED("showUsed"),
     COMPLETION_OFFERED("completionOffered", edits = true),
     COMPLETION_INSERTED("completionInserted", edits = true),
+    COMPLETION_INSERTED_QUOTED("completionInsertedQuoted", edits = true),
     RENAME("rename", edits = true),
     INCOMPLETE_RESOLUTION("incompleteResolution"),
     GO_TO_RELATED("goToRelated"),
@@ -193,6 +194,15 @@ object Crossing {
         val backing = Backing.of(scenario)
 
         return when {
+            feature == Feature.COMPLETION_INSERTED_QUOTED ->
+                if (place is Place.Marked && !scenario.attribute && !scenario.variable &&
+                    quotedOnly(scenario, scenario.sites.single { it.id == place.id }) != null &&
+                    applicability(scenario, Feature.COMPLETION_INSERTED, place) is Applicability.Applicable
+                ) {
+                    Applicability.Applicable
+                } else {
+                    Applicability.NotApplicable("asked only at a qualified call that can reach an Erlang name that is not NFC")
+                }
             scenario.attribute -> attributeApplicability(scenario, feature, place)
             scenario.variable -> variableApplicability(scenario, feature, place)
             place is Place.Marked && namesModule(scenario, place) && feature != Feature.QUICK_DOCUMENTATION ->
@@ -345,6 +355,19 @@ object Crossing {
 
         return scenario.module(site.binding?.module ?: scenario.main.module).definitions
             .none { nfc(it.name) == nfc(site.name) && site.sees(it) }
+    }
+
+    /**
+     * At a qualified call, the NFC name and declared spelling of an Erlang definition the call can reach whose name
+     * is not NFC; null where there is none.
+     */
+    fun quotedOnly(scenario: Scenario, site: Site): Pair<String, String>? {
+        if (site.attribute != null || site.variable != null || !qualified(site)) return null
+        val module = scenario.module(site.binding?.module ?: scenario.main.module)
+
+        return erlangNonNfcNames(module).entries
+            .firstOrNull { (name, _) -> module.definitions.any { nfc(it.name) == name && site.sees(it) } }
+            ?.toPair()
     }
 
     /** A site naming a function no module in the scenario declares at any arity - the control for "no such name". */
