@@ -37,8 +37,7 @@ import static org.elixir_lang.psi.impl.ElixirPsiImplUtil.*;
 import static org.elixir_lang.psi.impl.PsiElementImplKt.document;
 
 /**
- * @note MUST implement {@link BlockEx} or language-specific indent settings will NOT be used and only the generic ones
- * will be used.
+ * Must implement {@link BlockEx}, or only the generic indent settings are used, not the language-specific ones.
  */
 public class Block extends AbstractBlock implements BlockEx {
     private static final TokenSet ARROW_OPERATION_TOKEN_SET = TokenSet.create(
@@ -394,18 +393,6 @@ public class Block extends AbstractBlock implements BlockEx {
 
                     return blockList;
                 }
-        );
-    }
-
-    @NotNull
-    private List<com.intellij.formatting.Block> buildAlignedOperandsOperationChildren(
-            @NotNull ASTNode operation,
-            @NotNull Predicate<CodeStyleSettings> alignOperands,
-            @NotNull IElementType operatorRuleElementType) {
-        return buildAlignedOperandsOperationChildren(
-                operation,
-                alignOperands,
-                TokenSet.create(operatorRuleElementType)
         );
     }
 
@@ -2116,7 +2103,7 @@ public class Block extends AbstractBlock implements BlockEx {
         return buildAlignedOperandsOperationChildren(
                 twoOperation,
                 (codeStyleSettings) -> codeStyleSettings.ALIGN_TWO_OPERANDS,
-                TWO_INFIX_OPERATOR
+                TokenSet.create(TWO_INFIX_OPERATOR)
         );
     }
 
@@ -2210,7 +2197,7 @@ public class Block extends AbstractBlock implements BlockEx {
     private WrapType containerValueWrapType(@NotNull ASTNode container) {
         WrapType wrapType;
 
-        if (container.findChildByType(KEYWORDS) != null && !oneLinerUnmatchedCallBody(container)) {
+        if (container.findChildByType(KEYWORDS) != null && notOneLinerUnmatchedCallBody(container)) {
             wrapType = WrapType.ALWAYS;
         } else {
             wrapType = WrapType.CHOP_DOWN_IF_LONG;
@@ -2368,7 +2355,7 @@ public class Block extends AbstractBlock implements BlockEx {
      *
      * <p>A space indent is resolved against the indent of the line the answering block starts on, so the pipe's column
      * has to be re-expressed as a distance from there. It cannot be anchored to the block itself: a map update's block
-     * starts at the {@code %{}, which is to the right of its own pipe, and an indent can never place the caret left of
+     * starts at the <code>%{</code>, which is to the right of its own pipe, and an indent can never place the caret left of
      * the block it is relative to.
      *
      * @return {@code null} when the pipe or either column cannot be read, so that the caret keeps delegating rather
@@ -2609,7 +2596,7 @@ public class Block extends AbstractBlock implements BlockEx {
 
             if (mapArgumentsChild != null &&
                     mapArgumentsChild.findChildByType(MAP_TAIL_ARGUMENTS_TOKEN_SET) != null &&
-                    !oneLinerUnmatchedCallBody(mapOrStructOperation)) {
+                    notOneLinerUnmatchedCallBody(mapOrStructOperation)) {
                 wrapType = WrapType.ALWAYS;
             }
         }
@@ -2707,19 +2694,18 @@ public class Block extends AbstractBlock implements BlockEx {
         return oneLiner;
     }
 
-    private boolean oneLinerUnmatchedCallBody(@NotNull ASTNode container) {
+    private boolean notOneLinerUnmatchedCallBody(@NotNull ASTNode container) {
         ASTNode containerParent = container.getTreeParent();
-        boolean oneLiner = false;
 
         if (containerParent.getElementType() == ACCESS_EXPRESSION) {
             ASTNode accessExpressionParent = containerParent.getTreeParent();
 
             if (KEYWORD_PAIR_TOKEN_SET.contains(accessExpressionParent.getElementType())) {
-                oneLiner = oneLinerKeywordPair(accessExpressionParent);
+                return !oneLinerKeywordPair(accessExpressionParent);
             }
         }
 
-        return oneLiner;
+        return true;
     }
 
     @Nullable

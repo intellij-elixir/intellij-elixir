@@ -286,7 +286,11 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
             // A closed group that falls through is re-dispatched live, implicit imports and all, from this node.
             live.group?.chain.orEmpty().firstOrNull { !opens(it) }.let { closed -> closed == null || closed.fallThrough }
         }
-        val nodes = (leaves + table.livesFor(entrance) + listOfNotNull(implicitImport)).sortedBy { it.order }
+        val nodes = buildList {
+            addAll(leaves)
+            addAll(table.livesFor(entrance))
+            implicitImport?.let(::add)
+        }.sortedBy { it.order }
         // Each group's answer so far, and the groups a `false` has ended. A group answers its parent when the replay
         // leaves it, as its site's loop returns after its last child.
         val answers = HashMap<Recording.Group, Boolean>()

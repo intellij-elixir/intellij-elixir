@@ -155,14 +155,13 @@ object FunctionArityKeywordPair {
         generateSequence(pair.parent) { it.parent }
             .takeWhile { it !== hostCall }
             .filterIsInstance<QuotableKeywordPair>()
-            .mapNotNull {
+            .firstNotNullOfOrNull {
                 when (nameOf(it.keywordKey)) {
                     "only" -> Host.IMPORT_ONLY
                     "except" -> Host.IMPORT_EXCEPT
                     else -> null
                 }
             }
-            .firstOrNull()
 
     /** The function/macro name named by [keywordKey], or `null` if it has no textual name. */
     @RequiresReadLock

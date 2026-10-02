@@ -487,6 +487,4 @@ object Query : ModuleWalker(
      * Whether the `call` is a `join(...)` macro call
      */
     private fun isJoin(call: Call, state: ResolveState): Boolean = Join.hasNameArity(call) && resolvesTo(call, state)
-
-    private val logger by lazy { com.intellij.openapi.diagnostic.Logger.getInstance(Query::class.java) }
 }

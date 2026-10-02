@@ -224,6 +224,5 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
 }
 
 // https://github.com/ueberauth/guardian/issues/594
-@Suppress("SpellCheckingInspection")
 const val GUARDIAN_RUNTIME_TYPO: String = "runtume"
 const val EDELIVER_DISTILLERY_WARN_MISSING: String = "warn_missing"

@@ -26,13 +26,11 @@ import org.elixir_lang.psi.qualification.Qualified
 import org.elixir_lang.psi.qualification.Unqualified
 import org.elixir_lang.psi.scope.WhileIn.whileIn
 import org.elixir_lang.psi.scope.ancestorTypeSpec
-import org.elixir_lang.psi.scope.isTypeSpecPseudoFunction
 import org.elixir_lang.psi.stub.call.Stub
 import org.elixir_lang.reference.Callable
 import org.elixir_lang.reference.Callable.Companion.isBitStreamSegmentOption
 import org.elixir_lang.util.AccumulatorContinue
 import org.jetbrains.annotations.Contract
-import java.util.*
 import org.elixir_lang.psi.impl.macroChildCallList as psiElementToMacroChildCallList
 import org.elixir_lang.psi.operation.Normalized as OperationNormalized
 import org.elixir_lang.psi.operation.infix.Normalized as InfixNormalized
@@ -142,14 +140,7 @@ private fun Call.computeCallableReference(): PsiReference? =
         val ancestorTypeSpec = this.ancestorTypeSpec()
 
         if (ancestorTypeSpec != null && !Unquote.`is`(this)) {
-            if (this.isTypeSpecPseudoFunction()) {
-                null
-            } else {
-                // Type-spec references (`@type`/`@spec` usage sites) are owned by Symbol API providers:
-                // - TypeReferenceProvider for type names
-                // - SpecFunctionReferenceProvider for @spec function heads
-                null
-            }
+            null
         } else {
             Callable(this)
         }
@@ -618,13 +609,13 @@ object CallImpl {
 
         return if (leftOperand != null) {
             if (rightOperand != null) {
-                arrayOf<PsiElement>(leftOperand, rightOperand)
+                arrayOf(leftOperand, rightOperand)
             } else {
-                arrayOf<PsiElement>(leftOperand)
+                arrayOf(leftOperand)
             }
         } else {
             if (rightOperand != null) {
-                arrayOf<PsiElement>(rightOperand)
+                arrayOf(rightOperand)
             } else {
                 emptyArray()
             }
@@ -647,7 +638,7 @@ object CallImpl {
 
             assert(children[0] is ElixirIdentifier)
 
-            Arrays.copyOfRange(children, 1, children.size)
+            children.copyOfRange(1, children.size)
         }
     }
 
