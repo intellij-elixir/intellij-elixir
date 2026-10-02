@@ -34,13 +34,19 @@ class AtomReference(
         get() = quotedAtomValue(myElement)
 
     override fun getVariants(): Array<Any> {
+        if (functionName == null) return emptyArray()
+
         val modulars = moduleElement.maybeModularNameToModulars(
             maxScope = myElement.containingFile,
             useCall = null,
             incompleteCode = true
         )
 
-        return callDefinitionClauseLookupElements(modulars, QualifiedName.ATOM).toTypedArray()
+        val insertHandler = myElement.line
+            ?.let { QualifiedName.quotedAtom(if (it.isCharList) '\'' else '"') }
+            ?: QualifiedName.ATOM
+
+        return callDefinitionClauseLookupElements(modulars, insertHandler).toTypedArray()
     }
 
     override fun getAbsoluteRange(): TextRange =
@@ -137,9 +143,9 @@ private fun sourceCallResolveResults(call: Call, name: String, validResult: Bool
 
 internal fun contentTextRange(atom: ElixirAtom): TextRange {
     val atomNode = atom.node
-    val lastChildNode = atomNode.lastChildNode ?: return TextRange(0, atom.textLength)
-    val start = lastChildNode.startOffset - atomNode.startOffset
-    val end = start + lastChildNode.textLength
+    val nameRange = atom.line?.body?.textRange
+        ?: atomNode.lastChildNode?.textRange
+        ?: return TextRange(0, atom.textLength)
 
-    return TextRange(start, end)
+    return nameRange.shiftLeft(atomNode.startOffset)
 }

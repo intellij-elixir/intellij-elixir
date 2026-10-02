@@ -36,6 +36,10 @@ class QualifiedName private constructor(
         /** `apply(Mod, :<caret>, args)`: the function atom after the user's `:`. */
         val ATOM = QualifiedName(::atomAfterColon, call = false)
 
+        /** `apply(Mod, :"<caret>", args)`: the function atom's body, between the user's [delimiter]s. */
+        fun quotedAtom(delimiter: Char): QualifiedName =
+            QualifiedName({ InspectAtom.escape(it, delimiter) }, call = false)
+
         /**
          * An alias, `nil`, `true` or `false` has a literal with no colon (`Elixir.Foo`'s is `Foo`), so after the user's
          * `:` it takes its key's spelling.

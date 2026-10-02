@@ -35,8 +35,7 @@ import org.elixir_lang.NameArityInterval
  * source modules ([Call]) and BEAM-decompiled modules ([BeamModule]); any other element type yields
  * nothing.
  *
- * @param insertHandler how the name is written where it is completed: [QualifiedName.CALL] for a qualified
- *   `Mod.<caret>` call, [QualifiedName.CAPTURE] for `&Mod.<caret>/arity` and [QualifiedName.ATOM] for an MFA atom.
+ * @param insertHandler how the name is written where it is completed.
  *
  * Shared by qualified `Mod.<caret>` completion
  * ([org.elixir_lang.code_insight.completion.provider.CallDefinitionClause]), capture completion
