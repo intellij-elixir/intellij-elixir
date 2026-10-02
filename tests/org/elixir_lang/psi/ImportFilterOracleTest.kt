@@ -1,9 +1,15 @@
 package org.elixir_lang.psi
 
+import com.intellij.openapi.application.ReadAction
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.NameArity
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.expander.Env
+import org.elixir_lang.expander.KernelImports
+import org.elixir_lang.expander.directiveValue
 import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.psi.call.Call
 import java.io.File
 
@@ -30,6 +36,55 @@ class ImportFilterOracleTest : PlatformTestCase() {
         val actual = cases.joinToString("\n") { case -> section(case, imported(case, exports, languageLevel)) }
 
         assertEquals(expected, actual)
+    }
+
+    /**
+     * The same cases through [Import.Filter.of] over the options' expanded term, as the expander reads them. A case
+     * whose options don't expand to a known term is skipped.
+     */
+    fun testEveryCaseAgreesThroughTheExpandedOptions() {
+        val languageLevel = ElixirLanguageLevel.of(System.getenv("ELIXIR_VERSION"))
+        val goldens = File(testDataPath, languageLevel.elixirVersion)
+        val exports = imports(goldens.resolve("exports.golden").readLines())
+        val cases = File(testDataPath, "cases").listFiles { file -> file.extension == "ex" }!!.sortedBy { it.name }
+        val compared = cases.associateWith { case -> expandedImported(case, exports, languageLevel) }
+            .filterValues { it != null }
+
+        assertEquals(
+            listOf("except_macro_call", "except_map", "only_map", "only_three_tuple"),
+            (cases - compared.keys).map { it.nameWithoutExtension },
+        )
+        assertEquals(
+            compared.keys.joinToString("\n") { case ->
+                section(case, goldens.resolve("${case.nameWithoutExtension}.golden").readLines().filterNot(::isComment))
+            },
+            compared.entries.joinToString("\n") { (case, lines) -> section(case, lines!!) },
+        )
+    }
+
+    /** `null` when an `import`'s options have no known expanded term. */
+    private fun expandedImported(case: File, exports: Import.Imports, languageLevel: ElixirLanguageLevel): List<String>? {
+        val file = myFixture.configureByText("case.ex", case.readText()) as ElixirFile
+        val root = ReadAction.computeBlocking<ElixirAst, Throwable> { Lowering.lower(file, languageLevel) }
+        val statements = (root as? ElixirAst.Block)?.expressions ?: listOf(root)
+        val env = Env.empty(languageLevel, KernelImports(emptyList(), emptyList()))
+        var imports: Import.Imports? = null
+
+        for (statement in statements) {
+            val arguments = (statement as? ElixirAst.Call)
+                ?.takeIf { (it.callee as? ElixirAst.Literal.Atom)?.name == "import" }
+                ?.arguments
+                ?: continue
+            val options = arguments.getOrNull(1)?.let { directiveValue(it, env, languageLevel) ?: return null }
+                ?: Import.Term.List(emptyList())
+
+            when (val filter = Import.Filter.of(options as Import.Term.List, languageLevel, imports).filter) {
+                is Import.Filter.Invalid -> return listOf("error: ${filter.error.kind}")
+                else -> imports = filter.imports(exports)
+            }
+        }
+
+        return lines(checkNotNull(imports) { "${case.name} has no `import`" })
     }
 
     private fun imported(case: File, exports: Import.Imports, languageLevel: ElixirLanguageLevel): List<String> {

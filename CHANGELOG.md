@@ -122,6 +122,9 @@
 
 ### Bug Fixes
 
+- [#4314](https://github.com/intellij-elixir/intellij-elixir/pull/4314) [@sh41](https://github.com/sh41)
+  - **An `import` whose `only:` or `except:` list holds anything but `name: arity` pairs now brings in nothing, as
+    Elixir rejects it, `only: [{:f, 1}]` brings in `f/1`, and `except: [{:f, 1}]` leaves it out.** Fixes [#4301](https://github.com/intellij-elixir/intellij-elixir/issues/4301).
 - [#4313](https://github.com/intellij-elixir/intellij-elixir/pull/4313) [@sh41](https://github.com/sh41)
   - **Kernel's private functions are no longer offered in completion or resolved from an unqualified call.**
   - **`import M, except: [f: 1]` now leaves out only `f/1`, so a call to `f/2` of a function with a default
@@ -554,6 +557,8 @@
 
 ### Threading / Platform Hygiene
 
+- [#4314](https://github.com/intellij-elixir/intellij-elixir/pull/4314) [@sh41](https://github.com/sh41)
+  - **The expander applies `alias`, `require` and `import` as each Elixir release does; nothing uses it yet.** Fixes [#4301](https://github.com/intellij-elixir/intellij-elixir/issues/4301).
 - [#4309](https://github.com/intellij-elixir/intellij-elixir/pull/4309) [@sh41](https://github.com/sh41)
   - **The expander expands `case`, `cond`, `receive`, `try` and `fn`, as each Elixir release does; nothing uses it yet.** Fixes [#4302](https://github.com/intellij-elixir/intellij-elixir/issues/4302).
 - [#4306](https://github.com/intellij-elixir/intellij-elixir/pull/4306) [@sh41](https://github.com/sh41)

@@ -203,11 +203,11 @@ class ClauseExpanderTest : ExpanderTestCase() {
     fun testARescueOfAVariableInUnderscore() =
         assertVersioned("try do\n1\nrescue\ne in _ -> e\nend", "{} next 1", "{} next 2")
 
-    fun testARescueOfAnAliasIsUnported() =
-        assertEvery("try do\n1\nrescue\nArgumentError -> 1\nend", "unported `ArgumentError`")
+    fun testARescueOfAnAlias() =
+        assertVersioned("try do\n1\nrescue\nArgumentError -> 1\nend", "{} next 0", "{} next 2")
 
-    fun testARescueOfAVariableInAnAliasIsUnported() =
-        assertEvery("try do\n1\nrescue\ne in ArgumentError -> e\nend", "unported `ArgumentError`")
+    fun testARescueOfAVariableInAnAlias() =
+        assertVersioned("try do\n1\nrescue\ne in ArgumentError -> e\nend", "{} next 1", "{} next 2")
 
     fun testARescueOfACallIsUnported() = assertEvery("try do\n1\nrescue\nfoo() -> 1\nend", "unported `foo()`")
 

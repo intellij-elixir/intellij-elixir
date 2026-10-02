@@ -7,6 +7,7 @@ import org.elixir_lang.expander.ExState.Write
 import org.elixir_lang.language_level.ElixirLanguageFeature.CURSOR_RAISES
 import org.elixir_lang.language_level.ElixirLanguageFeature.MISPLACED_TYPE_AND_CONS_OPERATORS
 import org.elixir_lang.language_level.ElixirLanguageFeature.PARALLEL_MATCH
+import org.elixir_lang.language_level.ElixirLanguageFeature.PATTERN_SEES_RIGHT_SIDE_ENV
 import org.elixir_lang.language_level.ElixirLanguageFeature.PIN_IN_BITSTRING_SIZE
 import org.elixir_lang.language_level.ElixirLanguageFeature.REPEATED_PATTERN_VARIABLE_WRITTEN_AT_NEXT_VERSION
 import org.elixir_lang.language_level.ElixirLanguageFeature.STACKTRACE_REFUSED_IN_PATTERN
@@ -46,17 +47,27 @@ internal enum class Clause(vararg val heads: Head) {
                 Env.Context.MATCH ->
                     Expander.expand(right, state, env, run).then { rightState, rightEnv ->
                         Expander.expand(left, rightState, rightEnv, run)
-                    }.then { s, e -> refuteParallelBitstringMatch(left, right, true, s, e) }
-                Env.Context.NONE ->
+                    }.then { s, e -> refuteParallelBitstringMatch(left, right, true, s, e, run.level) }
+                Env.Context.NONE -> {
+                    val seesRightSide = PATTERN_SEES_RIGHT_SIDE_ENV.isSufficient(run.level)
+
                     Expander.expand(right, state, env, run).then { after, rightEnv ->
-                        match(left, after, state, rightEnv, run, node)
-                    }.then { s, e ->
-                        if (PARALLEL_MATCH.isSufficient(run.level)) {
-                            Expansion.Expanded(s, e)
+                        if (seesRightSide) {
+                            match(left, after, state, rightEnv, run, node)
                         } else {
-                            refuteParallelBitstringMatch(left, right, false, s, e)
+                            match(left, after, state, env, run, node).then { s, _ -> Expansion.Expanded(s, rightEnv) }
+                        }
+                    }.then { s, e ->
+                        when {
+                            PARALLEL_MATCH.isSufficient(run.level) -> Expansion.Expanded(s, e)
+                            seesRightSide -> refuteParallelBitstringMatch(left, right, false, s, e, run.level)
+                            else ->
+                                refuteParallelBitstringMatch(left, right, false, s, env, run.level).then { rs, _ ->
+                                    Expansion.Expanded(rs, e)
+                                }
                         }
                     }
+                }
             }
         }
     },
@@ -143,6 +154,50 @@ internal enum class Clause(vararg val heads: Head) {
         }
     },
 
+    ALIASES(expandHead("{'__aliases__',_,_}")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            node is ElixirAst.Alias
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            expandAliasesClause(node as ElixirAst.Alias, state, env, run)
+    },
+
+    /** `alias`, `require` or `import` of `Base.{A, B}`. */
+    MULTI_ALIAS(
+        expandHead("{V1,_,[{{'.',_,[_,'{}']},_,_}|_]} when V1 == alias; V1 == require; V1 == import"),
+    ) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            Directive.entries.any { isNamedCall(node, it.atom) } &&
+                isMultiAlias((node as ElixirAst.Call).arguments!!.firstOrNull())
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            expandMultiAlias(node as ElixirAst.Call, state, env, run)
+    },
+
+    ALIAS(expandHead("{alias,_,[_]}"), expandHead("{alias,_,[_,_]}")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            isDirective(node, Directive.ALIAS)
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            expandDirective(Directive.ALIAS, node, state, env, run)
+    },
+
+    REQUIRE(expandHead("{require,_,[_]}"), expandHead("{require,_,[_,_]}")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            isDirective(node, Directive.REQUIRE)
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            expandDirective(Directive.REQUIRE, node, state, env, run)
+    },
+
+    IMPORT(expandHead("{import,_,[_]}"), expandHead("{import,_,[_,_]}")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            isDirective(node, Directive.IMPORT)
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            expandDirective(Directive.IMPORT, node, state, env, run)
+    },
+
     STACKTRACE(expandHead("{'__STACKTRACE__',_,V1} when is_atom(V1)")) {
         override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
             isVariable(node) && variable(node).name == "__STACKTRACE__"
@@ -158,7 +213,7 @@ internal enum class Clause(vararg val heads: Head) {
      */
     ENVIRONMENT_NAME(*ENVIRONMENT_NAMES.map { expandHead("{'$it',_,V1} when is_atom(V1)") }.toTypedArray()) {
         override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
-            isVariable(node) && ((node as ElixirAst.Call).callee as ElixirAst.Literal.Atom).name in ENVIRONMENT_NAMES
+            isEnvironmentName(node)
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) = Expansion.Unported(node)
     },
@@ -407,6 +462,24 @@ internal fun noGuardScope(node: ElixirAst, state: ExState): Expansion.Error =
 private fun expandHead(pattern: String) = Clause.Head("elixir_expand", "expand", 1, pattern)
 
 private val ENVIRONMENT_NAMES = listOf("__MODULE__", "__DIR__", "__CALLER__", "__ENV__")
+
+private fun isDirective(node: ElixirAst, directive: Directive) =
+    isCall(node, directive.atom, 1) || isCall(node, directive.atom, 2)
+
+private fun expandDirective(directive: Directive, node: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
+    val arguments = (node as ElixirAst.Call).arguments!!
+
+    return expandDirective(directive, node, arguments[0], arguments.getOrNull(1), state, env, run)
+}
+
+/** `{{'.', _, [Base, '{}']}, _, Refs}`. */
+private fun isMultiAlias(node: ElixirAst?): Boolean =
+    node is ElixirAst.Call && node.arguments != null && (node.callee as? ElixirAst.Call)?.let { dot ->
+        isCall(dot, ".", 2) && (dot.arguments!![1] as? ElixirAst.Literal.Atom)?.name == "{}"
+    } == true
+
+internal fun isEnvironmentName(node: ElixirAst): Boolean =
+    isVariable(node) && ((node as ElixirAst.Call).callee as ElixirAst.Literal.Atom).name in ENVIRONMENT_NAMES
 
 private val EXPAND_LIST = arrayOf(
     Clause.Head("elixir_expand", "expand_list", 1, "[]"),

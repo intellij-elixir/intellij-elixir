@@ -94,7 +94,7 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
                 }
             }
 
-            outcome = Expander.expand(statement, state, env, level, observer)
+            outcome = Expander.expand(statement, state, env, level, legExports, observer)
 
             when (val expansion = outcome) {
                 is Expansion.Expanded -> {
@@ -337,7 +337,7 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
                 isCall(spec, "*", 2) -> {
                     val size = (spec as ElixirAst.Call).arguments!![0]
 
-                    if (isVariable(size) && variable(size).name == "_") emptyList() else nonLiteral(size)
+                    if (isUnderscore(size)) emptyList() else nonLiteral(size)
                 }
                 isCall(spec, "size", 1) -> nonLiteral((spec as ElixirAst.Call).arguments!!.single())
                 else -> emptyList()
@@ -375,14 +375,11 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
 
             fun keyword(each: (String) -> Part): List<Pair<Part, ElixirAst>>? =
                 options?.elements?.map { option ->
-                    val pair = option as? ElixirAst.Tuple
-                    val key = (pair?.elements?.firstOrNull() as? ElixirAst.Literal.Atom)?.name
-                    if (pair == null || pair.elements.size != 2 || key == null) return null
-
+                    val key = keyOf(option) ?: return null
+                    val value = (option as ElixirAst.Tuple).elements[1]
                     val kind = each(key)
 
-                    (if (kind != Part.EXPRESSION && kind != Part.BODY && !isClauses(pair.elements[1])) Part.EXPRESSION else kind) to
-                        pair.elements[1]
+                    (if (kind != Part.EXPRESSION && kind != Part.BODY && !isClauses(value)) Part.EXPRESSION else kind) to value
                 }
 
             return when ((node.callee as? ElixirAst.Literal.Atom)?.name) {
@@ -428,11 +425,7 @@ internal class ExpansionProbes(private val harness: ProbeHarness, private val pa
             val options = (node as? ElixirAst.Call)?.arguments?.singleOrNull() as? ElixirAst.ListNode
             val isReceive = isNamedCall(node, "receive") &&
                 !options?.elements.isNullOrEmpty() &&
-                options!!.elements.none { option ->
-                    val (key, value) = (option as? ElixirAst.Tuple)?.elements?.takeIf { it.size == 2 } ?: return@none false
-
-                    (key as? ElixirAst.Literal.Atom)?.name == "after" && isZeroTimeout(value)
-                }
+                options!!.elements.none { keyOf(it) == "after" && isZeroTimeout((it as ElixirAst.Tuple).elements[1]) }
 
             return isReceive || children(node).any(::hasReceiveWithoutAfterZero)
         }
