@@ -108,7 +108,7 @@ class DeclaringModule(
 ) {
     val compiled: Boolean get() = beam != null
 
-    fun doc(name: String, arity: Int): String? = docs?.firstOrNull { nfc(it.name) == nfc(name) && it.arity == arity }?.doc
+    fun doc(name: String, arity: Int): String? = docs?.firstOrNull { it.name == name && it.arity == arity }?.doc
 }
 
 class FunctionDoc(val name: String, val arity: Int, val doc: String)
@@ -130,7 +130,7 @@ class CommittedHead(
 
 /** A definition spans [minArity] to [maxArity] when it has default arguments. */
 class Definition(val name: String, val minArity: Int, val maxArity: Int, val clauses: Int) {
-    fun covers(binding: Binding): Boolean = nfc(binding.name) == nfc(name) && binding.arity in minArity..maxArity
+    fun covers(binding: Binding): Boolean = binding.name == name && binding.arity in minArity..maxArity
 }
 
 /**
@@ -197,10 +197,7 @@ class VariableSite(val binding: Boolean, val declarations: List<String>, val ren
 
 /** Whether a bare call at [this] site can reach [definition] at any of its arities: always, unless [Site.visible] says. */
 fun Site.sees(definition: Definition): Boolean =
-    visible?.let { names ->
-        val visible = names.map(::nfc)
-        (definition.minArity..definition.maxArity).any { "${nfc(definition.name)}/$it" in visible }
-    } ?: true
+    visible?.let { visible -> (definition.minArity..definition.maxArity).any { "${definition.name}/$it" in visible } } ?: true
 
 /** [severity] is the compiler's: a remote call at an unknown arity warns, a local one is an error. */
 class Diagnostic(val severity: String, val message: String)
@@ -212,26 +209,29 @@ class Binding(val module: String, val name: String, val arity: Int, val kind: St
 
 private val MODULE_KINDS = setOf("alias_reference", "defmodule")
 
-/**
- * Elixir normalises an identifier it reads to NFC, so an Erlang name that is not NFC is a different atom from any
- * identifier: only a quoted remote call reaches it. `oracle.json` holds every name in NFC, so the declared spelling
- * is read from the `.erl` source. Keyed by the NFC name.
- */
-fun erlangNonNfcNames(module: DeclaringModule): Map<String, String> =
-    if (module.source.endsWith(".erl")) {
-        Regex("""^'([^']+)'\(""", RegexOption.MULTILINE)
-            .findAll(Fixtures.file(module.source).readText())
-            .map { it.groupValues[1] }
-            .filter { it != nfc(it) }
-            .associateBy(::nfc)
-    } else {
-        emptyMap()
-    }
-
 private val fixtureLines = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
 
-/** Whether the call at [site] is written after a module and `.`. */
-fun qualified(site: Site): Boolean =
-    fixtureLines.computeIfAbsent(site.file) { Fixtures.file(it).readLines() }[site.line - 1]
-        .substring(0, site.column - 1)
-        .endsWith('.')
+/**
+ * The name at a site as its fixture line writes it: the text [before] it, the [position] that decides its spelling,
+ * and the text [after] it. At a [call] completion writes the arguments, so a user types it with nothing after.
+ */
+class Written(val before: String, val position: Position, val after: String) {
+    val call: Boolean get() = (position == Position.REMOTE_CALL || position == Position.LOCAL_CALL) && !after.startsWith('/')
+}
+
+private val WORD = Regex("""[\p{L}\p{M}\p{N}_]+[?!]?""")
+
+fun written(site: Site): Written {
+    val line = fixtureLines.computeIfAbsent(site.file) { Fixtures.file(it).readLines() }[site.line - 1]
+    val start = site.column - 1
+    val before = line.substring(0, start)
+    val end = if (before.endsWith('"')) line.indexOf('"', start) else start + WORD.find(line, start)!!.value.length
+
+    return when {
+        before.endsWith(":\"") -> Written(before, Position.QUOTED_ATOM_BODY, line.substring(end))
+        before.endsWith(".\"") -> Written(before.dropLast(1), Position.REMOTE_CALL, line.substring(end + 1))
+        before.endsWith(':') -> Written(before, Position.ATOM, line.substring(end))
+        before.endsWith('.') -> Written(before, Position.REMOTE_CALL, line.substring(end))
+        else -> Written(before, Position.LOCAL_CALL, line.substring(end))
+    }
+}

@@ -50,7 +50,6 @@ enum class Feature(val testName: String, val edits: Boolean = false) {
     SHOW_USED("showUsed"),
     COMPLETION_OFFERED("completionOffered", edits = true),
     COMPLETION_INSERTED("completionInserted", edits = true),
-    COMPLETION_INSERTED_QUOTED("completionInsertedQuoted", edits = true),
     RENAME("rename", edits = true),
     INCOMPLETE_RESOLUTION("incompleteResolution"),
     GO_TO_RELATED("goToRelated"),
@@ -104,14 +103,14 @@ private val SUGGESTION = Regex("""^\s*\* (\S+/\d+)\s*$""", RegexOption.MULTILINE
  * unqualified call, which it reports as `undefined function` with no list.
  */
 fun suggestionsOf(message: String): List<String> =
-    SUGGESTION.findAll(message).map { nfc(it.groupValues[1]) }.distinct().sorted().toList()
+    SUGGESTION.findAll(message).map { it.groupValues[1] }.distinct().sorted().toList()
 
 /** The `name/arity`s [description] names, sorted; like [complaintOf], the one place a wording is read. */
 fun namedArities(description: String): List<String> =
-    NAME_ARITY.findAll(description).map { nfc(it.value) }.distinct().sorted().toList()
+    NAME_ARITY.findAll(description).map { it.value }.distinct().sorted().toList()
 
-/** The sites whose text is a call a user could be typing; a capture, `apply`'s atom and a non-call are not. */
-private val NOT_TYPED_CALLS = setOf("capture", "apply", "apply_quoted", "variable", "atom", "keyword", "capture_1", "apply_1", "mfa_1")
+/** The sites with no argument list of their own: a capture, `apply`'s atom and a non-call. */
+private val NO_ARGUMENT_LIST = setOf("capture", "apply", "apply_quoted", "variable", "atom", "keyword", "capture_1", "apply_1", "mfa_1")
 
 /** The sites that name the function with an atom: `apply`'s argument and an MFA tuple's middle element. */
 private val ATOM_NAMED = setOf("apply", "apply_quoted", "apply_1", "mfa_1")
@@ -178,9 +177,10 @@ const val LOCAL = "local"
  */
 fun privateUse(id: String): Boolean = id.startsWith("uses_")
 
-data class Cell(val scenario: Scenario, val feature: Feature, val place: Place) {
+/** A cell asking [feature] at [place]; a completionInserted cell with a [name] completes that name instead of the site's. */
+data class Cell(val scenario: Scenario, val feature: Feature, val place: Place, val name: String? = null) {
     val testName: String
-        get() = "${feature.testName}[${scenario.backing},${scenario.form},${scenario.world},${place.id}]"
+        get() = "${feature.testName}[${scenario.backing},${scenario.form},${scenario.world},${place.id}${name?.let { ",->$it" }.orEmpty()}]"
 }
 
 sealed interface Applicability {
@@ -194,15 +194,6 @@ object Crossing {
         val backing = Backing.of(scenario)
 
         return when {
-            feature == Feature.COMPLETION_INSERTED_QUOTED ->
-                if (place is Place.Marked && !scenario.attribute && !scenario.variable &&
-                    quotedOnly(scenario, scenario.sites.single { it.id == place.id }) != null &&
-                    applicability(scenario, Feature.COMPLETION_INSERTED, place) is Applicability.Applicable
-                ) {
-                    Applicability.Applicable
-                } else {
-                    Applicability.NotApplicable("asked only at a qualified call that can reach an Erlang name that is not NFC")
-                }
             scenario.attribute -> attributeApplicability(scenario, feature, place)
             scenario.variable -> variableApplicability(scenario, feature, place)
             place is Place.Marked && namesModule(scenario, place) && feature != Feature.QUICK_DOCUMENTATION ->
@@ -232,7 +223,7 @@ object Crossing {
                 Applicability.NotApplicable("Ctrl+Click on a declaration is Show Usages, asked separately")
             feature == Feature.CTRL_CLICK && place !is Place.Head ->
                 Applicability.NotApplicable("a call's Ctrl+Click is Go To Declaration, asked separately")
-            feature == Feature.PARAMETER_INFO && (place is Place.Head || place.id in NOT_TYPED_CALLS) ->
+            feature == Feature.PARAMETER_INFO && (place is Place.Head || place.id in NO_ARGUMENT_LIST) ->
                 Applicability.NotApplicable("${place.id} has no argument list to show hints for")
             feature == Feature.PARAMETER_INFO && writtenWithoutArguments(place.id) ->
                 Applicability.NotApplicable("a call written without an argument list has nowhere to put a hint")
@@ -258,13 +249,10 @@ object Crossing {
                 Applicability.NotApplicable("a definition has one structure view entry, asked at its first clause")
             (feature == Feature.COMPLETION_OFFERED || feature == Feature.COMPLETION_INSERTED) && place is Place.Head ->
                 Applicability.NotApplicable("nothing is typed at a declaration's name")
-            (feature == Feature.COMPLETION_OFFERED || feature == Feature.COMPLETION_INSERTED) && place.id in NOT_TYPED_CALLS ->
-                Applicability.NotApplicable("${place.id} is not a call being typed")
+            (feature == Feature.COMPLETION_OFFERED || feature == Feature.COMPLETION_INSERTED) && place.id in NOT_CALLS ->
+                Applicability.NotApplicable("${place.id} does not name a definition, so no definition's name is typed there")
             (feature == Feature.COMPLETION_OFFERED || feature == Feature.COMPLETION_INSERTED) && place.id == LOCAL && backing.compiled ->
                 Applicability.NotApplicable("the ${backing.id} mirror is read-only")
-            (feature == Feature.COMPLETION_OFFERED || feature == Feature.COMPLETION_INSERTED) &&
-                place.id == "lookalike_snoc_combining" && backing == Backing.ERL_ABST ->
-                Applicability.NotApplicable("a decomposed Erlang name is called as a quoted atom, which is not typed as an identifier")
             feature == Feature.RENAME && place.id in NOT_CALLS ->
                 Applicability.NotApplicable("${place.id} is not a use of the function")
             else -> Applicability.Applicable
@@ -284,7 +272,7 @@ object Crossing {
                 Applicability.NotApplicable("a module attribute has no function's heads, docs or arguments, and the compiler says nothing else about one")
             (feature == Feature.COMPLETION_OFFERED || feature == Feature.COMPLETION_INSERTED) && attribute.write ->
                 Applicability.NotApplicable("a write names the attribute it sets; completion is asked where a read is typed")
-            feature == Feature.COMPLETION_INSERTED && attribute.visible.orEmpty().none { nfc(it) == nfc(site.name) } ->
+            feature == Feature.COMPLETION_INSERTED && site.name !in attribute.visible.orEmpty() ->
                 Applicability.NotApplicable("nothing sets the attribute before the read, so there is nothing completion could insert; that it offers nothing is asked by completionOffered")
             feature == Feature.DIAGNOSTIC && site.diagnostic == null ->
                 Applicability.NotApplicable("asked only where the compiler reports the read as undefined")
@@ -354,27 +342,35 @@ object Crossing {
         val site = scenario.sites.firstOrNull { it.id == place.id } ?: return false
 
         return scenario.module(site.binding?.module ?: scenario.main.module).definitions
-            .none { nfc(it.name) == nfc(site.name) && site.sees(it) }
+            .none { it.name == site.name && site.sees(it) }
     }
 
-    /**
-     * At a qualified call, the NFC name and declared spelling of an Erlang definition the call can reach whose name
-     * is not NFC; null where there is none.
-     */
-    fun quotedOnly(scenario: Scenario, site: Site): Pair<String, String>? {
-        if (site.attribute != null || site.variable != null || !qualified(site)) return null
-        val module = scenario.module(site.binding?.module ?: scenario.main.module)
+    /** What a user types at [site] to complete toward its name: three letters past the scenario's own prefix. */
+    fun prefix(scenario: Scenario, site: Site): String =
+        site.name.take(if (scenario.attribute) 3 else "${scenario.backing}_${scenario.form}_${scenario.world}_".length + 3)
 
-        return erlangNonNfcNames(module).entries
-            .firstOrNull { (name, _) -> module.definitions.any { nfc(it.name) == name && site.sees(it) } }
-            ?.toPair()
+    /**
+     * The names completion should offer at [site] after its [prefix], raw: the reachable ones, less those its position
+     * cannot spell, as a bare call cannot name an atom that is not an NFC identifier.
+     */
+    fun offered(scenario: Scenario, site: Site): List<String> {
+        val prefix = prefix(scenario, site)
+        site.attribute?.let { attribute -> return attribute.visible.orEmpty().filter { it.startsWith(prefix) }.distinct().sorted() }
+        val position = written(site).position
+
+        return scenario.module(site.binding?.module ?: scenario.main.module).definitions
+            .filter(site::sees)
+            .map { it.name }
+            .filter { it.startsWith(prefix) && Spelling.of(it, position) != null }
+            .distinct()
+            .sorted()
     }
 
     /** A site naming a function no module in the scenario declares at any arity - the control for "no such name". */
     private fun undeclared(scenario: Scenario, place: Place.Marked): Boolean {
         val site = scenario.sites.firstOrNull { it.id == place.id } ?: return false
 
-        return scenario.modules.none { module -> module.definitions.any { nfc(it.name) == nfc(site.name) } }
+        return scenario.modules.none { module -> module.definitions.any { it.name == site.name } }
     }
 
     fun places(scenario: Scenario): List<Place> {
