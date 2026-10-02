@@ -45,6 +45,28 @@ class ProbedEnvNormaliserTest : ProbeTestCase() {
         )
     }
 
+    fun testMacroAliasCountersAreNumberedAsTheyFirstAppearAcrossProbes() {
+        val first = Env.MacroAlias("Elixir.A", Env.Counter.InModule("Elixir.M", 7), "Elixir.M.A")
+        val second = Env.MacroAlias("Elixir.B", Env.Counter.Unique(-3), "Elixir.B")
+        val third = Env.MacroAlias("Elixir.C", Env.Counter.InModule("Elixir.M", 7), "Elixir.M.C")
+
+        assertEquals(
+            listOf(
+                list(tuple(atom("Elixir.A"), tuple(atom("c0"), atom("Elixir.M.A")))),
+                list(
+                    tuple(atom("Elixir.B"), tuple(atom("c1"), atom("Elixir.B"))),
+                    tuple(atom("Elixir.C"), tuple(atom("c0"), atom("Elixir.M.C"))),
+                ),
+            ).map(::inspect),
+            ProbedEnvNormaliser.numberedCounters(
+                listOf(
+                    mapOf("macro_aliases" to macroAliases(first)),
+                    mapOf("macro_aliases" to macroAliases(second, third)),
+                )
+            ).map { inspect(it.getValue("macro_aliases")) }
+        )
+    }
+
     private fun macroAliases(vararg macroAliases: Env.MacroAlias): OtpErlangObject =
         ProbedEnvNormaliser.projected(
             Env(
@@ -58,6 +80,7 @@ class ProbedEnvNormaliserTest : ProbeTestCase() {
                 module = null,
                 function = null,
             ),
+            false,
             false,
             legLevel(),
         ).getValue("macro_aliases")

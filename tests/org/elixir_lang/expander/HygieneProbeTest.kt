@@ -12,7 +12,7 @@ class HygieneProbeTest : ProbeTestCase() {
     }
 
     fun testHygiene() {
-        val expansions = CASES.associateWith { probes.expand(it, PLACEHOLDER) }
+        val expansions = CASES.associateWith { probes.expand(it) }
 
         assertEquals(
             "",
@@ -24,8 +24,6 @@ class HygieneProbeTest : ProbeTestCase() {
     }
 
     private companion object {
-        const val PLACEHOLDER = "Elixir.HygieneCase"
-
         val CASES = listOf(
             "a = 1\nvar!(x) = 1\n_ = alias!(Foo)\ny = 2",
             "var!(x, Kernel) = 1\nvar!(x, Kernel) = 2",
@@ -44,6 +42,9 @@ class HygieneProbeTest : ProbeTestCase() {
             "h = &abs/1",
             "m = Integer\nh = &m.to_string(&1)",
             "_ = case 1 do\n  1 -> &(&1 + &2)\n  _ -> & &1\nend\nz = 3",
+            // Each `def` takes a counter where it is, and the bodies count on after the module body.
+            "a = 1\ndef f do\n  :ok\n  _ = alias!(Foo)\nend\nb = 2\ndef g do\n  :ok\nend\nc = 3",
+            "a = 1\ndefmodule Inner do\n  b = 2\nend\nc = 3",
         )
     }
 }

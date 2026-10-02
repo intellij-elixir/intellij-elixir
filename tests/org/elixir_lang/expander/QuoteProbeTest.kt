@@ -13,7 +13,7 @@ class QuoteProbeTest : ProbeTestCase() {
     private val probes = ExpansionProbes(harness) { createPsiFile(getTestName(false), it) as ElixirFile }
 
     fun testQuoteSiteVariables() {
-        val expansions = SITE_FORMS.associateWith { probes.expand("l = 3\nf = \"x.ex\"\n$it", PLACEHOLDER) }
+        val expansions = SITE_FORMS.associateWith { probes.expand("l = 3\nf = \"x.ex\"\n$it") }
 
         assertUnported(expansions, emptyList())
         probes.assertMatchesElixir(expansions)
@@ -38,11 +38,12 @@ class QuoteProbeTest : ProbeTestCase() {
     /** The prelude expands an option's value a second time, which dispatches the first expansion's result. */
     fun testADynamicOptionHoldingACallIsUnportedAtItsValue() {
         val body = "quote(file: f = String.trim(\"x.ex\"), do: x)"
-        val outcome = probes.expand(body).outcome
+        val expansion = probes.expand(body)
+        val outcome = expansion.outcome
 
         assertEquals(
             "f = String.trim(\"x.ex\")",
-            (outcome as? Expansion.Unported)?.at?.meta?.origin?.substring(body) ?: outcome.toString(),
+            (outcome as? Expansion.Unported)?.at?.let(expansion::source) ?: outcome.toString(),
         )
     }
 
@@ -55,24 +56,20 @@ class QuoteProbeTest : ProbeTestCase() {
 
     /**
      * Each form's value, as Elixir sends it back, equals [quotedValue] of the escaped expression the expander builds
-     * from the state and env before it, with the case module read as one placeholder module. The expander reads the
-     * form from the line Elixir compiles it at, since `__ENV__.line` is a value the quote can hold.
+     * from the state and env before it, the two compiled from one file.
      */
     fun testQuotedValues() {
         val level = legLevel()
-        val expansions = VALUE_FORMS.map { probes.expand(it, PLACEHOLDER) }
+        val expansions = probes.expandAll(VALUE_FORMS, values = true)
 
-        expansions.forEach { assertTrue("${it.case.body}: ${it.outcome}", it.outcome is Expansion.Expanded) }
+        expansions.cases.forEach { assertTrue("${it.case.body}: ${it.outcome}", it.outcome is Expansion.Expanded) }
 
-        val attempt = harness.attempt(
-            expansions.map { ProbeHarness.Case(it.case.body, it.case.identities, it.case.bodies, it.statements.size) }
-        )
+        val attempt = harness.attempt(expansions.layout)
 
         assertEquals("compile status", OtpErlangAtom("ok"), attempt.compiled.status)
 
         val run = Run(level, ExpansionObserver.NONE, legExports, legStructs)
-        val expected = VALUE_FORMS.mapIndexed { index, form ->
-            val expansion = probes.expand("\n".repeat(attempt.bodyLines[index] - 1) + form, PLACEHOLDER)
+        val expected = expansions.cases.mapIndexed { index, expansion ->
             val (state, env) = expansion.starts.last()
             val quote = (expansion.statements.last() as ElixirAst.Call).arguments!![1] as ElixirAst.Call
             val escaped = Quote.escaped(quote, state, env, run)
@@ -81,13 +78,8 @@ class QuoteProbeTest : ProbeTestCase() {
             "${VALUE_FORMS[index]}\n  $value"
         }
         val actual = VALUE_FORMS.indices.map { index ->
-            val caseModule = attempt.batch.caseModule(index)
             val value = attempt.batch.values[index]?.let { term ->
-                QuotedTerms.of(
-                    term,
-                    atoms = { if (it == caseModule) PLACEHOLDER else it },
-                    binaries = { it.replace(COMPILE_FILE, "quoter-compile.ex") },
-                )
+                QuotedTerms.of(term, binaries = { it.replace(COMPILE_FILE, "quoter-compile.ex") })
             }
 
             "${VALUE_FORMS[index]}\n  ${value?.let(QuotedTerms::inspect) ?: "no value from Elixir"}"
@@ -103,8 +95,6 @@ class QuoteProbeTest : ProbeTestCase() {
         )
 
     private companion object {
-        const val PLACEHOLDER = "Elixir.QuoteCase"
-
         val COMPILE_FILE = Regex("""quoter-compile-\d+\.ex""")
 
         /** After `l = 3` and `f = "x.ex"`. */

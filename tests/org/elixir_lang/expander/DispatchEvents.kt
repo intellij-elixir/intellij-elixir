@@ -1,12 +1,14 @@
 package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangAtom
+import com.ericsson.otp.erlang.OtpErlangBinary
 import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
+import org.elixir_lang.NameArity
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
@@ -18,8 +20,10 @@ import org.elixir_lang.lowering.Meta
  * a `quote` traces, as [ExpansionObserver.quotedImport] reports it, and one per struct, as
  * [ExpansionObserver.structExpanded] does:
  *
- * - only dispatch, `imported_quoted` and `struct_expansion` events of the case module, less the probes' own,
- *   `:elixir_utils.noop/0` and `Module.compile_definition_attributes/6`;
+ * - only dispatch, `imported_quoted` and `struct_expansion` events of the case module and the modules nested in it,
+ *   from the case body's first line on, less the probes' and the definition hook's own, `:elixir_utils.noop/0`,
+ *   `Module.compile_definition_attributes/6`, and the calls the output of `defmodule` and `def*` makes:
+ *   `:elixir_module`'s, `:elixir_def`'s and `Kernel.LexicalTracker.read_cache/2`;
  * - each dispatch's receiver and name mapped through the leg's committed `inline/3` table, since Elixir reports the
  *   name as called up to 1.15.5 in some places and after `inline/3` in others; an `imported_quoted` event's module is
  *   the import's, and isn't mapped;
@@ -27,11 +31,32 @@ import org.elixir_lang.lowering.Meta
  *   `imported_function` would also drop a same-key `remote_function` just after it on its line, so cases keep the two
  *   on separate lines.
  *
- * Each is keyed by its line, counted from the case body's first, and `env.function` when it has one.
+ * Each is keyed by its line, counted from the case body's first, and `env.function` when it has one. [top] takes the
+ * dispatches outside any module the same way, keyed by file line.
  */
 internal object DispatchEvents {
     /** [module]'s normalised dispatches in [events], with lines counted from [bodyLine]. */
-    fun of(events: List<OtpErlangObject>, module: String, probeModule: String, bodyLine: Int): List<String> {
+    fun of(
+        events: List<OtpErlangObject>,
+        module: String,
+        probeModule: String,
+        bodyLine: Int,
+        hookModule: String,
+    ): List<String> =
+        normalised(events, bodyLine) { event ->
+            (event.module == module || event.module?.startsWith("$module.") == true) &&
+                (event.line == null || event.line >= bodyLine) &&
+                event.receiver != probeModule &&
+                event.receiver != hookModule
+        }
+
+    /** The normalised dispatches in [events] outside any module, before [endLine] if there is one, keyed by line. */
+    fun top(events: List<OtpErlangObject>, endLine: Int?): List<String> =
+        normalised(events, 1) { event ->
+            event.module == NIL && (endLine == null || event.line == null || event.line < endLine)
+        }
+
+    private fun normalised(events: List<OtpErlangObject>, bodyLine: Int, include: (Event) -> Boolean): List<String> {
         val version = LegManifest.environment("ELIXIR_VERSION")
         val inline = RewriteManifests.inline(version)
         val repeats = ElixirLanguageLevel.of(version).elixir < ElixirLanguageLevel.of(REPEAT_DROPPED).elixir
@@ -39,7 +64,7 @@ internal object DispatchEvents {
         var previous: Event? = null
 
         for (event in events.mapNotNull(::event)) {
-            if (event.module != module || event.receiver == probeModule || isInternal(event)) continue
+            if (!include(event) || isInternal(event)) continue
 
             val mapped = inline[Triple(event.receiver, event.name, event.arity)]
                 ?.takeIf { event.arities == null }
@@ -67,29 +92,57 @@ internal object DispatchEvents {
         return normalised.map { it.key(bodyLine) }
     }
 
-    /** [dispatch] of [node], keyed as [of] keys an event, its line counted from the body's first. */
-    fun key(node: ElixirAst, dispatch: Dispatch): String =
+    /** [dispatch] of [node] in [function], keyed as [of] keys an event, its line counted from [bodyLine]. */
+    fun key(node: ElixirAst, dispatch: Dispatch, function: NameArity?, bodyLine: Int): String =
         Event(
             dispatch.kind.name.lowercase(),
             line(node.meta),
-            dispatch.receiver,
+            // A local event names no receiver.
+            if (dispatch.kind.name.lowercase() in LOCAL_KINDS) "" else dispatch.receiver,
             dispatch.name,
             dispatch.arity,
             null,
-            "nil"
-        ).key(1)
+            function?.let { "${it.name}/${it.arity}" } ?: "nil"
+        ).key(bodyLine)
 
-    /** The import `quote` traced for [node], keyed as [of] keys an event, its line counted from the body's first. */
-    fun key(node: ElixirAst, kind: QuotedImportKind, module: String, name: String, arities: List<Int>): String =
-        if (kind == QuotedImportKind.IMPORTED_QUOTED) {
-            Event(IMPORTED_QUOTED, line(node.meta), module, name, 0, null, "nil", arities).key(1)
+    /**
+     * The import `quote` traced for [node] in [function], keyed as [of] keys an event, its line counted from [bodyLine].
+     */
+    fun key(
+        node: ElixirAst,
+        kind: QuotedImportKind,
+        module: String,
+        name: String,
+        arities: List<Int>,
+        function: NameArity?,
+        bodyLine: Int,
+    ): String {
+        val inFunction = function?.let { "${it.name}/${it.arity}" } ?: NIL
+
+        val event = if (kind == QuotedImportKind.IMPORTED_QUOTED) {
+            Event(IMPORTED_QUOTED, line(node.meta), module, name, 0, null, inFunction, arities)
         } else {
-            Event(kind.name.lowercase(), line(node.meta), module, name, arities.single(), null, "nil").key(1)
+            Event(kind.name.lowercase(), line(node.meta), module, name, arities.single(), null, inFunction)
         }
 
-    /** The expansion of [node], a struct of [module] given [keys], keyed as [of] keys a `struct_expansion` event. */
-    fun structKey(node: ElixirAst, module: String, keys: List<String>): String =
-        Event(STRUCT_EXPANSION, line(node.meta), module, "", 0, null, "nil", keys = keys).key(1)
+        return event.key(bodyLine)
+    }
+
+    /**
+     * The expansion of [node], a struct of [module] given [keys], in [function], keyed as [of] keys a
+     * `struct_expansion` event, its line counted from [bodyLine].
+     */
+    fun structKey(node: ElixirAst, module: String, keys: List<String>, function: NameArity?, bodyLine: Int): String =
+        Event(
+            STRUCT_EXPANSION,
+            line(node.meta),
+            module,
+            "",
+            0,
+            null,
+            function?.let { "${it.name}/${it.arity}" } ?: NIL,
+            keys = keys,
+        ).key(bodyLine)
 
     /** Whether [key] is a macro's dispatch. */
     fun isMacro(key: String): Boolean = key.split(" ")[1].endsWith("_macro")
@@ -166,11 +219,19 @@ internal object DispatchEvents {
                 0,
                 module,
                 function,
-                keys = (tuple.elementAt(3) as OtpErlangList).elements().map { (it as OtpErlangAtom).atomValue() },
+                keys = (tuple.elementAt(3) as OtpErlangList).elements().map(::structKey),
             )
             else -> null
         }
     }
+
+    /** A struct's key as the expander traces it: an atom by its name, a binary or an integer as `inspect/1` gives it. */
+    private fun structKey(term: OtpErlangObject): String =
+        when (term) {
+            is OtpErlangAtom -> term.atomValue()
+            is OtpErlangBinary -> "\"${String(term.binaryValue(), Charsets.ISO_8859_1)}\""
+            else -> term.toString()
+        }
 
     /** A list of integers, which the term encoding sends as a string when each is below 256. */
     private fun integers(term: OtpErlangObject): List<Int> =
@@ -189,7 +250,10 @@ internal object DispatchEvents {
 
     private fun isInternal(event: Event): Boolean =
         event.receiver == "elixir_utils" && event.name == "noop" && event.arity == 0 ||
-            event.receiver == "Elixir.Module" && event.name == "compile_definition_attributes" && event.arity == 6
+            event.receiver == "Elixir.Module" && event.name == "compile_definition_attributes" && event.arity == 6 ||
+            event.receiver == "elixir_module" ||
+            event.receiver == "elixir_def" ||
+            event.receiver == "Elixir.Kernel.LexicalTracker" && event.name == "read_cache" && event.arity == 2
 
     private fun keyword(list: OtpErlangList, key: String): OtpErlangObject? =
         list.elements().firstNotNullOfOrNull { entry ->
@@ -200,6 +264,7 @@ internal object DispatchEvents {
 
     /** The release from which an imported function is dispatched once, not again as a remote call. */
     private const val REPEAT_DROPPED = "1.18.0-rc.0"
+    private const val NIL = "nil"
     private const val IMPORTED_FUNCTION = "imported_function"
     private const val REMOTE_FUNCTION = "remote_function"
     private const val IMPORTED_QUOTED = "imported_quoted"

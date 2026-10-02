@@ -1,5 +1,8 @@
 package org.elixir_lang.expander
 
+import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_ERRORS_CONTINUE
+import org.elixir_lang.language_level.ElixirLanguageLevel
+
 /**
  * The message Elixir gives for each error [Expansion.Error] can name, as one pattern matching every supported
  * release's wording.
@@ -93,6 +96,7 @@ object ErrorKinds {
         // elixir_module
         "invalid_module_name" to """^invalid module name: """,
         "module_reserved" to """^module \S+ is reserved and cannot be defined$""",
+        "module_in_definition" to """^cannot define module \S+ because it is currently being defined in """,
         // elixir_errors: a module whose errors were logged, from 1.15
         "compile_error" to """^cannot compile module .+ \(errors have been logged\)$""",
         // Kernel's ArgumentErrors, and before 1.20.0-rc.2 the FunctionClauseError of a `defmodule` with other blocks
@@ -129,7 +133,7 @@ object ErrorKinds {
         "invalid_alias_for_as" to """^invalid value for option :as, expected (an alias, got: |a simple alias, got nested alias: )""",
         "unloaded_module" to """^module \S+ is not loaded and could not be found$""",
         "scheduled_module" to """^module \S+ is not loaded but was defined\.""",
-        "circular_module" to """^you are trying to use/import/require the module \S+ which is currently being defined""",
+        "circular_module" to """^you are trying to use(/import/require)? the module \S+ which is currently being defined""",
         // elixir_import
         "invalid_option" to
             """^invalid :(only|except) option for import, expected (a keyword list with integer values$|value to be )""",
@@ -221,5 +225,10 @@ object ErrorKinds {
 
     fun pattern(kind: String): Regex = PATTERNS[kind] ?: throw AssertionError("no message pattern for error $kind")
 
-    fun hasLine(kind: String): Boolean = kind !in WITHOUT_LINE
+    /**
+     * Whether Elixir at [level] reports [kind] with a line: an invalid module name is a `CompileError` with one up to
+     * 1.14, and an `ArgumentError` from 1.15.
+     */
+    fun hasLine(kind: String, level: ElixirLanguageLevel): Boolean =
+        kind !in WITHOUT_LINE && !(kind == "invalid_module_name" && FUNCTION_ERRORS_CONTINUE.isSufficient(level))
 }

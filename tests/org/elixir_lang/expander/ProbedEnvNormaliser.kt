@@ -5,6 +5,7 @@ import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
+import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.inspect
@@ -17,14 +18,16 @@ object ProbedEnvNormaliser {
         "vars", "current_vars", "unused_vars", "prematch_vars", "versioned_vars",
     )
 
-    /** Fields that differ with the modules around the case, until `defmodule` is expanded. */
-    private val NOT_YET_COMPARED = setOf("module", "context_modules")
-
     /**
-     * [env] in `E`'s form at [level], where [stacktrace] says whether `__STACKTRACE__` can be read: before 1.13 `E`
-     * holds that in `contextual_vars`.
+     * [env] in `E`'s form at [level], where [stacktrace] and [caller] say whether `__STACKTRACE__` and `__CALLER__` can
+     * be read: before 1.13 `E` holds those in `contextual_vars`.
      */
-    fun projected(env: Env, stacktrace: Boolean, level: ElixirLanguageLevel): Map<String, OtpErlangObject> =
+    fun projected(
+        env: Env,
+        stacktrace: Boolean,
+        caller: Boolean,
+        level: ElixirLanguageLevel,
+    ): Map<String, OtpErlangObject> =
         mapOf(
             "aliases" to list(env.aliases.map { tuple(atom(it.alias), atom(it.module)) }),
             "requires" to list(env.requires.map(::atom)),
@@ -43,11 +46,17 @@ object ProbedEnvNormaliser {
             "context_modules" to list(env.contextModules.map(::atom)),
             "module" to atom(env.module ?: "nil"),
             "function" to (env.function?.let(::nameArity) ?: atom("nil")),
-        ) + contextualVars(stacktrace, level) - NOT_YET_COMPARED
+        ) + contextualVars(stacktrace, caller, level)
 
-    private fun contextualVars(stacktrace: Boolean, level: ElixirLanguageLevel): Map<String, OtpErlangObject> =
+    private fun contextualVars(
+        stacktrace: Boolean,
+        caller: Boolean,
+        level: ElixirLanguageLevel,
+    ): Map<String, OtpErlangObject> =
         if (level.elixir < CONTEXTUAL_VARS_REMOVED.elixir) {
-            mapOf("contextual_vars" to list(if (stacktrace) listOf(atom("__STACKTRACE__")) else emptyList()))
+            val names = listOfNotNull("__STACKTRACE__".takeIf { stacktrace }, "__CALLER__".takeIf { caller })
+
+            mapOf("contextual_vars" to list(names.map(::atom)))
         } else {
             emptyMap()
         }
@@ -59,7 +68,7 @@ object ProbedEnvNormaliser {
      */
     fun observed(env: OtpErlangMap, probeModule: String): Map<String, OtpErlangObject> =
         env.keys().associate { (it as OtpErlangAtom).atomValue() to env.get(it) }
-            .minus(DROPPED + NOT_YET_COMPARED)
+            .minus(DROPPED)
             .mapValues { (field, value) ->
                 when (field) {
                     "requires" -> list((value as OtpErlangList).elements().filterNot { it == atom(probeModule) })
@@ -67,6 +76,26 @@ object ProbedEnvNormaliser {
                     else -> value
                 }
             }
+
+    /**
+     * Each of [probes]' fields, with each macro alias's counter numbered as it first appears across [probes]. Elixir's
+     * counts also take in the probes' own expansions, so only which aliases share a counter is compared here; the
+     * counts are compared at the probes, by accounting.
+     */
+    fun numberedCounters(probes: List<Map<String, OtpErlangObject>>): List<Map<String, OtpErlangObject>> {
+        val numbers = mutableMapOf<OtpErlangObject, Int>()
+
+        return probes.map { fields ->
+            val macroAliases = (fields.getValue("macro_aliases") as OtpErlangList).elements().map { entry ->
+                val (alias, held) = (entry as OtpErlangTuple).elements()
+                val (counter, module) = (held as OtpErlangTuple).elements()
+
+                tuple(alias, tuple(atom("c${numbers.getOrPut(counter) { numbers.size }}"), module))
+            }
+
+            fields + ("macro_aliases" to list(macroAliases))
+        }
+    }
 
     /** [fields] one per line, sorted, so a failed comparison shows which field differs. */
     fun render(fields: Map<String, OtpErlangObject>): String =
