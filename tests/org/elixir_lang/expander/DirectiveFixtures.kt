@@ -6,9 +6,13 @@ import org.elixir_lang.NameArity
  * The modules the directive tests load, as `__info__` or `module_info(exports)` gives them for the fixtures the
  * plain-Elixir oracle compiled: `M`, `M.A`, `M.B`, `S`, whose macros clash with special forms, and the Erlang module
  * `:x3e`. `Sig` and `SigMac` are written here: each exports a sigil name `is_sigil/1` has no clause for from 1.17 to
- * 1.20.0-rc.4, as a function and as a macro.
+ * 1.20.0-rc.4, as a function and as a macro. So are the empty Erlang modules named U+F900 and U+20000, which Erlang
+ * orders by code point and UTF-16 the other way round.
  */
 internal object DirectiveFixtures {
+    const val BMP = "\uF900"
+    val SUPPLEMENTARY = String(Character.toChars(0x20000))
+
     val EXPORTS = Exports { module ->
         when (module) {
             "Elixir.M" -> ModuleExports.Present(
@@ -26,6 +30,7 @@ internal object DirectiveFixtures {
                 emptyList(),
                 hasInfo = false,
             )
+            BMP, SUPPLEMENTARY -> ModuleExports.Present(emptyList(), emptyList(), hasInfo = false)
             "Elixir.U" -> ModuleExports.Unreadable
             else -> ModuleExports.Absent
         }

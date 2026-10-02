@@ -528,7 +528,7 @@ class HygieneExpanderTest : ExpanderTestCase() {
 
     private fun render(read: Map<Variable, Int>): String =
         read.entries
-            .sortedWith(compareBy(TERM_ORDER) { it.key })
+            .sortedWith(compareBy(VARIABLE_ORDER) { it.key })
             .joinToString(" ") { (variable, version) -> "${variable.name}/${context(variable.context)}:$version" }
 
     private fun context(context: Variable.Context): String =

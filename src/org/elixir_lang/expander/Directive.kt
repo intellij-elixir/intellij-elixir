@@ -418,7 +418,7 @@ private inline fun expandRequire(
 
 /** `ordsets:add_element/2`. */
 private fun require(module: String, env: Env): List<String> =
-    if (module in env.requires) env.requires else (env.requires + module).sorted()
+    if (module in env.requires) env.requires else (env.requires + module).sortedWith(ATOM_ORDER)
 
 /**
  * `elixir_import:import` and the `require` it implies: [module]'s entries in `E.functions` and `E.macros` as the
@@ -519,7 +519,7 @@ private inline fun calculateKey(
     val others = old.filter { it.module != module }
     // `calculate_except` subtracts from an entry left empty, which the filter's prior reads as none.
     val leftEmpty = exceptGiven && old.any { it.module == module && it.nameArities.isEmpty() }
-    var set = (if (leftEmpty) emptySet() else new).sortedWith(compareBy({ it.name }, { it.arity }))
+    var set = (if (leftEmpty) emptySet() else new).sortedWith(NAME_ARITY_ORDER)
 
     set = set - removed
     if (set.isEmpty()) return others

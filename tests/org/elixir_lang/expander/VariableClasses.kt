@@ -51,7 +51,7 @@ object VariableClasses {
 
         return steps.map { step ->
             step.entries
-                .sortedWith(compareBy(TERM_ORDER) { it.key })
+                .sortedWith(compareBy(VARIABLE_ORDER) { it.key })
                 .joinToString(" ") { (variable, version) ->
                     val context = when (val context = variable.context) {
                         is Variable.Context.Atom -> context.text
