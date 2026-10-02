@@ -37,6 +37,7 @@ object BeamDocsHelper {
                                 // In Elixir, default-argument stubs (e.g. info/1) delegate to the full-arity
                                 // definition (e.g. info/2) which is where the @doc lives.
                                 val documented = kind.firstNotNullOfOrNull { k -> docs.documented(k, name, arity) }
+                                    ?: kind.firstNotNullOfOrNull { k -> docs.covering(k, name, arity) }
                                     ?: kind.firstNotNullOfOrNull { k -> docs.documentedByNameFallback(k, name, arity) }
 
                                 documented?.let {

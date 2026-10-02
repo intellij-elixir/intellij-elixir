@@ -13,6 +13,9 @@ data class Documented(val kind: String,
                       val metadatumByName: Map<String, OtpErlangObject>) {
     fun deprecated(): OtpErlangObject? = metadatumByName["deprecated"]
 
+    /** How many of the trailing arities below [arity] this entry's default arguments cover. */
+    fun defaults(): Int = (metadatumByName["defaults"] as? OtpErlangLong)?.intValue() ?: 0
+
     companion object {
         private val logger = Logger.getInstance(Documented::class.java)
 

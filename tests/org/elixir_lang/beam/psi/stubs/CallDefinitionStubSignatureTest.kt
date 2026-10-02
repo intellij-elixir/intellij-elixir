@@ -121,10 +121,18 @@ class CallDefinitionStubSignatureTest : PlatformTestCase() {
         assertSignature(stubs, "def", "apply", 3, listOf("module", "function_name", "args"), true)
     }
 
+    // `Docs` has only `inspect/2` and `def/2`, whose defaults cover `inspect/1` and `def/1`.
+    fun testDocsSignatureOfALowerArityTheDefaultsCover() {
+        val stubs = callDefinitionStubs(stub(withoutDbgi(beamBytes("Docs/Elixir.Kernel"))))
+
+        assertSignature(stubs, "def", "inspect", 1, listOf("term"), true)
+        assertSignature(stubs, "defmacro", "def", 1, listOf("call"), true)
+    }
+
     // Names the decompiler invents
 
     fun testCompilerGeneratedFunctionHasGeneratedNames() {
-        assertSignature("Elixir.Ecto.Changeset", "def", "__info__", 1, listOf("p0"), true)
+        assertSignature("Elixir.Ecto.Changeset", "def", "__info__", 1, listOf("arg1"), true)
     }
 
     fun testZeroArityHasNoGeneratedNames() {
@@ -132,7 +140,7 @@ class CallDefinitionStubSignatureTest : PlatformTestCase() {
     }
 
     fun testUnquotedNameHasGeneratedNames() {
-        assertSignature("Elixir.LDAPEx.ELDAPv3", "defmacro", "AddRequest", 1, listOf("p0"), true)
+        assertSignature("Elixir.LDAPEx.ELDAPv3", "defmacro", "AddRequest", 1, listOf("arg1"), true)
     }
 
     fun testInfixOperatorWithoutDebugInfoHasGeneratedNames() {
@@ -140,7 +148,7 @@ class CallDefinitionStubSignatureTest : PlatformTestCase() {
     }
 
     fun testWithoutDebugInfoHasGeneratedNames() {
-        assertSignature("OTP20/Elixir.Kernel", "defmacro", "defp", 1, listOf("p0"), true)
+        assertSignature("OTP20/Elixir.Kernel", "defmacro", "defp", 1, listOf("arg1"), true)
     }
 
     // Persistence

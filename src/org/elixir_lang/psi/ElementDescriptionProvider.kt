@@ -10,6 +10,7 @@ import org.elixir_lang.annotator.Parameter
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.beam.psi.Module as BeamModule
 import org.elixir_lang.beam.psi.TypeDefinition as BeamTypeDefinition
+import org.elixir_lang.code_insight.Signature
 import org.elixir_lang.declaration.Presentation
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.ALIAS
@@ -186,11 +187,10 @@ internal class ElementDescriptionProvider : com.intellij.psi.ElementDescriptionP
                         "defp"
                     }
                 }
-                val name = callDefinitionImpl.name
-                val parameterCount = callDefinitionImpl.nameArityInterval.arityInterval.closed().last
-                val parameters = (0 until parameterCount).joinToString(", ") { i -> "p${i}" }
+                val signature = Signature.of(callDefinitionImpl)
+                val parameters = signature.parameters.joinToString(", ")
 
-                "$macro $name(${parameters}), do: ..."
+                "$macro ${signature.nameArityInterval.name}(${parameters}), do: ..."
             }
             UsageViewLongNameLocation.INSTANCE, UsageViewShortNameLocation.INSTANCE ->
                 callDefinitionImpl.nameArityInterval.toString()

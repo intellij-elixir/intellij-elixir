@@ -122,6 +122,8 @@
 
 ### Bug Fixes
 
+- [#4338](https://github.com/intellij-elixir/intellij-elixir/pull/4338) [@sh41](https://github.com/sh41)
+  - **A decompiled `.beam` definition whose parameter names weren't kept is written and completed with Elixir's `arg1`, `arg2` and so on, or with the names of the documented definition whose defaults cover its arity.** Fixes [#4328](https://github.com/intellij-elixir/intellij-elixir/issues/4328).
 - [#4324](https://github.com/intellij-elixir/intellij-elixir/pull/4324) [@sh41](https://github.com/sh41)
   - **Decompiled `.beam` code, debugger values and completion now write atoms and function names as Elixir does.**
     Fixes [#4300](https://github.com/intellij-elixir/intellij-elixir/issues/4300).

@@ -4,6 +4,7 @@ import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.NameArityInterval
+import org.elixir_lang.beam.decompiler.generatedArguments
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
@@ -29,10 +30,10 @@ data class Signature(val nameArityInterval: NameArityInterval, val parameters: L
             return Signature(nameArityInterval, parameters)
         }
 
-        /** A stub stores no parameters for a definition the decompiler did not render, so those get its `pN` names. */
+        /** A stub stores no parameters for a definition the decompiler did not render, so those get generated names. */
         fun of(definition: BeamCallDefinition): Signature {
             val arity = definition.nameArityInterval.arityInterval.minimum
-            val parameters = definition.parameters.takeIf { it.size == arity } ?: List(arity) { "p$it" }
+            val parameters = definition.parameters.takeIf { it.size == arity } ?: generatedArguments(arity)
 
             return Signature(definition.nameArityInterval, parameters)
         }

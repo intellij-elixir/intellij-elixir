@@ -22,12 +22,20 @@ class Docs(private val documentedByArityByNameByKind: MutableMap<String, TreeMap
             documentedByArityByNameByKind[kind]?.get(name)?.get(arity)
 
     /**
+     * The entry for a higher arity whose default arguments cover [arity]. Elixir exports each arity a default covers,
+     * but documents only the full one.
+     */
+    fun covering(kind: String, name: String, arity: Int): Documented? =
+            documentedByArityByNameByKind[kind]?.get(name)
+                    ?.tailMap(arity, false)
+                    ?.values
+                    ?.firstOrNull { it.arity - it.defaults() <= arity }
+
+    fun covering(macroNameArity: MacroNameArity): Documented? =
+            kind(macroNameArity)?.let { kind -> covering(kind, macroNameArity.name, macroNameArity.arity) }
+
+    /**
      * Falls back to finding documentation for [name] at any arity when exact arity lookup fails.
-     *
-     * In Elixir, default arguments generate lower-arity stubs (e.g. `info/1`) that delegate to the
-     * full-arity definition (e.g. `info/2`).  The `@doc` is only on the full-arity definition, so
-     * the BEAM documentation chunk only has an entry for that arity. When navigation resolves to the
-     * lower-arity stub, we need to find the docs at the higher arity.
      *
      * Returns the [Documented] with the smallest arity >= [arity], or the closest lower arity if none
      * is >= [arity].
