@@ -63,6 +63,14 @@ object Quoter {
 
     private const val QUOTER_REF_PROPERTY = "elixir.quoter.ref"
 
+    private val callerNode: OtpNode by lazy {
+        IntellijElixir.getLocalNode()
+    }
+
+    private val callerMbox: OtpMbox by lazy {
+        callerNode.createMbox()
+    }
+
     /**
      * As [assertError], for the releases that reject by raising rather than by answering `{:error, _}`.
      * The quoter replies `{:raise, module, message}` instead of dying, so an [OtpErlangExit] here is
@@ -545,10 +553,7 @@ object Quoter {
 
     private fun send(request: OtpErlangObject, timeoutInMilliseconds: Int): OtpErlangObject? {
         assertAvailable()
-
-        val otpNode = IntellijElixir.getLocalNode()
-
-        return call(otpNode.createMbox(), otpNode, REMOTE_NAME, IntellijElixir.REMOTE_NODE, request, timeoutInMilliseconds)
+        return call(callerMbox, callerNode, REMOTE_NAME, IntellijElixir.REMOTE_NODE, request, timeoutInMilliseconds)
     }
 
     private fun keyword(key: String, value: OtpErlangObject) = OtpErlangTuple(arrayOf(OtpErlangAtom(key), value))
