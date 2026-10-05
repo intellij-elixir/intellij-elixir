@@ -34,7 +34,7 @@ mockito-core = "5.24.0"
 kodein = "7.33.0"
 kotlinx-coroutines = "1.11.0"
 # buildSrc only: available memory for sizing the test forks. Never on the plugin or test runtime classpath.
-oshi = "7.6.1"
+oshi = "7.7.0"
 
 # See https://plugins.jetbrains.com/docs/intellij/build-number-ranges.html#platformVersions
 # 2026.1 (261.x) requires Java 21.
