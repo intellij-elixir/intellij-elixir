@@ -4,18 +4,15 @@ import com.intellij.codeInsight.CodeInsightActionHandler
 import com.intellij.codeInsight.navigation.PsiTargetNavigator
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
+import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.ResolveState
-import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.psi.stubs.StubIndex
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallDefinitionClause.nameArityInterval
 import org.elixir_lang.psi.Implementation
-import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.stub.index.ModularName
 
 
 internal class GotoSuper : CodeInsightActionHandler {
@@ -44,12 +41,12 @@ internal class GotoSuper : CodeInsightActionHandler {
         val defimpl = CallDefinitionClause.enclosingModularMacroCall(callDefinitionClause) ?: return
         if (!Implementation.`is`(defimpl)) return
 
-        val protocolName = Implementation.protocolName(defimpl) ?: return
         val nameArityInterval = nameArityInterval(callDefinitionClause, ResolveState.initial()) ?: return
 
-        val globalSearchScope = GlobalSearchScope.everythingScope(project)
-        val targets = StubIndex
-                .getElements(ModularName.KEY, protocolName, project, globalSearchScope, NamedElement::class.java)
+        val protocols = mutableListOf<PsiElement>()
+        Implementation.processProtocols(defimpl) { protocol -> protocols.add(protocol) }
+
+        val targets = protocols
                 .asSequence()
                 .filterIsInstance<Call>()
                 .flatMap { defprotocol ->

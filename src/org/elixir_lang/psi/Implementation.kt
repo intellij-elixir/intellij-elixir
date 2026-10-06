@@ -1,10 +1,9 @@
 package org.elixir_lang.psi
 
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.ElementDescriptionLocation
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiNamedElement
-import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.psi.stubs.StubIndex
 import com.intellij.usageView.UsageViewTypeLocation
 import com.intellij.util.Processor
 import com.intellij.util.concurrency.annotations.RequiresReadLock
@@ -15,7 +14,7 @@ import org.elixir_lang.psi.impl.call.CanonicallyNamedImpl
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.keywordValue
 import org.elixir_lang.psi.impl.moduleName
-import org.elixir_lang.psi.stub.index.ModularName
+import org.elixir_lang.reference.resolver.Module as ModuleResolver
 
 object Implementation {
     @RequiresReadLock
@@ -111,19 +110,12 @@ object Implementation {
 
     @RequiresReadLock
     fun processProtocols(defimpl: Call, consumer: Processor<in PsiElement>) {
-        protocolName(defimpl)?.let { protocolName ->
-            val project = defimpl.project
+        val protocolName = protocolName(defimpl) ?: return
 
-            StubIndex
-                .getInstance()
-                .processElements(
-                    ModularName.KEY,
-                    protocolName,
-                    project,
-                    GlobalSearchScope.everythingScope(project),
-                    NamedElement::class.java,
-                    consumer
-                )
+        for (protocol in ModuleResolver.resolvePreferred(defimpl, protocolName, incompleteCode = false, inScope = false)) {
+            ProgressManager.checkCanceled()
+
+            if (!consumer.process(protocol.element)) return
         }
     }
 

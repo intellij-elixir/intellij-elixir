@@ -122,7 +122,9 @@
 
 ### Bug Fixes
 
-- [#PR-TBD](https://github.com/intellij-elixir/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)
+- [#4360](https://github.com/intellij-elixir/intellij-elixir/pull/4360) [@sh41](https://github.com/sh41)
+  - **Documentation links, protocol gutter icons and module completion prefer a module's source over a compiled `.beam` of it, as code does, and a callback or type link (`c:Mod.cb/1`) to an existing module renders as a link.** Refs [#4349](https://github.com/intellij-elixir/intellij-elixir/issues/4349).
+- [#4360](https://github.com/intellij-elixir/intellij-elixir/pull/4360) [@sh41](https://github.com/sh41)
   - **A module written as an atom (`:"Elixir.Mod"`) resolves to the same definitions as its alias, preferring source over a compiled `.beam` of it.** Refs [#4349](https://github.com/intellij-elixir/intellij-elixir/issues/4349).
 - [#4355](https://github.com/intellij-elixir/intellij-elixir/pull/4355) [@sh41](https://github.com/sh41)
   - **Go To Related from a function, `defdelegate`, `EEx.function_from_file`, `embed_template`, `embed_text`, `defexception`, `defimpl` or `defmodule` lands on its decompiled definition in a dependency's or the SDK's `.beam`.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).

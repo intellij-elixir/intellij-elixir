@@ -2,20 +2,16 @@ package org.elixir_lang.model.psi.type
 
 import com.intellij.model.Symbol
 import com.intellij.model.psi.PsiSymbolReference
-import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveResult
-import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.psi.stubs.StubIndex
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.psi.TypeDefinition as BeamTypeDefinition
-import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.call.qualification.qualifiedToModulars
 import org.elixir_lang.psi.scope.type.MultiResolve
-import org.elixir_lang.psi.stub.index.ModularName
+import org.elixir_lang.reference.resolver.Module as ModuleResolver
 import org.elixir_lang.structure_view.element.Type as TypeElement
 
 @Suppress("UnstableApiUsage")
@@ -129,22 +125,9 @@ class TypeReference(
             } ?: emptyList()
 
         @RequiresReadLock
-        private fun resolveBuiltin(entrance: PsiElement, name: String, arity: Int): List<ResolveResult> {
-            val project = entrance.project
-            if (DumbService.isDumb(project)) return emptyList()
-
-            val resolveResults = mutableListOf<ResolveResult>()
-            StubIndex.getInstance().processElements(
-                ModularName.KEY,
-                org.elixir_lang.Module.indexName("erlang"),
-                project,
-                GlobalSearchScope.allScope(project),
-                NamedElement::class.java
-            ) { namedElement ->
-                resolveResults.addAll(MultiResolve.resolveResults(name, arity, false, namedElement))
-                true
-            }
-            return resolveResults
-        }
+        private fun resolveBuiltin(entrance: PsiElement, name: String, arity: Int): List<ResolveResult> =
+            ModuleResolver
+                .resolvePreferred(entrance, org.elixir_lang.Module.indexName("erlang"), incompleteCode = false, inScope = false)
+                .flatMap { MultiResolve.resolveResults(name, arity, false, it.element) }
     }
 }

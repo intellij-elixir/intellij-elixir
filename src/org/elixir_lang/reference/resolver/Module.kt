@@ -9,6 +9,7 @@ import com.intellij.psi.PsiElementResolveResult
 import com.intellij.psi.ResolveResult
 import com.intellij.psi.impl.source.resolve.ResolveCache
 import com.intellij.psi.stubs.StubIndex
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.psi.Alias
 import org.elixir_lang.psi.NamedElement
@@ -131,7 +132,8 @@ object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Modul
     private fun resolveInScope(element: PsiElement, name: String, incompleteCode: Boolean) =
         MultiResolve.resolveResults(name, incompleteCode, element)
 
-    private fun multiResolveProject(
+    @RequiresReadLock
+    internal fun multiResolveProject(
         entrance: PsiElement,
         name: String
     ): List<VisitedElementSetResolveResult> {

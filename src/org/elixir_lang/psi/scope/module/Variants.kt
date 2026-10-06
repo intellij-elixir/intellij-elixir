@@ -1,9 +1,7 @@
 package org.elixir_lang.psi.scope.module
 
 import com.intellij.codeInsight.lookup.LookupElement
-import com.intellij.openapi.project.Project
 import com.intellij.psi.*
-import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.stubs.StubIndex
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.util.contextOfType
@@ -18,10 +16,10 @@ import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.operation.Normalized
 import org.elixir_lang.psi.scope.LookupElementByLookupName
 import org.elixir_lang.psi.scope.Module
-import org.elixir_lang.psi.stub.index.AllName
 import org.elixir_lang.psi.stub.index.ModularName
 import org.elixir_lang.psi.stub.type.call.Stub
 import org.elixir_lang.reference.module.UnaliasedName
+import org.elixir_lang.reference.resolver.Module as ModuleResolver
 
 class Variants(private val entrance: PsiElement) : Module() {
     /**
@@ -37,7 +35,7 @@ class Variants(private val entrance: PsiElement) : Module() {
         lookupElementByLookupName.put(aliasedName, match)
 
         val splitPrefix = org.elixir_lang.Module.split(aliasedName)
-        putNestedAliased(lookupElementByLookupName, splitPrefix, match)
+        putNestedAliased(lookupElementByLookupName, entrance, splitPrefix, match)
 
         return true
     }
@@ -66,21 +64,10 @@ class Variants(private val entrance: PsiElement) : Module() {
      * Puts all project `Alias`es.
      */
     private fun putProject(): Variants {
-        val project = entrance.project
-        val scope = GlobalSearchScope.allScope(project)
-
-        val stubIndex = StubIndex.getInstance()
-        stubIndex.processAllKeys(ModularName.KEY, project) { name ->
+        for (name in modularNames(entrance)) {
             if (!lookupElementByLookupName.contains(name)) {
-                stubIndex.processElements(AllName.KEY, name, project, scope, NamedElement::class.java) { named_element ->
-                    lookupElementByLookupName.put(name, named_element)
-
-                    // just use the first element
-                    false
-                }
+                preferredNamedElement(entrance, name)?.let { lookupElementByLookupName.put(name, it) }
             }
-
-            true
         }
 
         return this
@@ -114,37 +101,35 @@ class Variants(private val entrance: PsiElement) : Module() {
                 qualifier
                         .maybeModularNameToModulars(qualifier.containingFile, useCall = null, incompleteCode = false)
                         .takeIf { it.isNotEmpty() }
-                        ?.let { modularsRelativeLookupElements(qualifier.project, it) }
+                        ?.let { modularsRelativeLookupElements(qualifier, it) }
                         ?:
                         // The qualifier is an Alias to namespace that is shared, but never declared in an explicit modular
                         namespacesRelativeLookupElements(
-                            qualifier.project,
+                            qualifier,
                             setOf(moduleName(qualifier)?.takeIf { it.absolute }?.name ?: qualifier.fullyQualifiedName())
                         )
 
         /**
          * Any modules under `modulars` with each `modular` stripped off the final names for the respective nested one
          */
-        private fun modularsRelativeLookupElements(project: Project, modulars: Set<PsiNamedElement>): Collection<LookupElement> =
+        private fun modularsRelativeLookupElements(entrance: PsiElement, modulars: Set<PsiNamedElement>): Collection<LookupElement> =
                 modulars
                         .asSequence()
                         .filterIsInstance<CanonicallyNamed>()
                         .flatMap { it.canonicalNameSet().asSequence() }
                         .toSet()
-                        .let { namespacesRelativeLookupElements(project, it) }
+                        .let { namespacesRelativeLookupElements(entrance, it) }
 
         /**
          * Any modules under the `namespace`, with the namespace stripped of the final names.
          */
-        private fun namespacesRelativeLookupElements(project: Project, namespaces: Set<String>): Collection<LookupElement> =
-            namespaces.map { namespace -> org.elixir_lang.Module.split(namespace) }.let { relativeLookupElements(project, it) }
+        private fun namespacesRelativeLookupElements(entrance: PsiElement, namespaces: Set<String>): Collection<LookupElement> =
+            relativeLookupElements(entrance, namespaces.map { namespace -> org.elixir_lang.Module.split(namespace) })
 
-        private fun relativeLookupElements(project: Project, splitNamespaces: List<List<String>>): Collection<LookupElement> {
+        private fun relativeLookupElements(entrance: PsiElement, splitNamespaces: List<List<String>>): Collection<LookupElement> {
             val lookupElementByLookupName = LookupElementByLookupName()
-            val scope = GlobalSearchScope.allScope(project)
-            val stubIndex = StubIndex.getInstance()
 
-            stubIndex.processAllKeys(ModularName.KEY, project) { name ->
+            for (name in modularNames(entrance)) {
                 val splitName = org.elixir_lang.Module.split(name)
 
                 for (splitNamespace in splitNamespaces) {
@@ -157,17 +142,10 @@ class Variants(private val entrance: PsiElement) : Module() {
                         val aliasedNestedName = org.elixir_lang.Module.concat(splitRelativeName)
 
                         if (!lookupElementByLookupName.contains(aliasedNestedName)) {
-                            stubIndex.processElements(AllName.KEY, name, project, scope, NamedElement::class.java) { named_element ->
-                                lookupElementByLookupName.put(aliasedNestedName, named_element)
-
-                                // only take the first element
-                                false
-                            }
+                            preferredNamedElement(entrance, name)?.let { lookupElementByLookupName.put(aliasedNestedName, it) }
                         }
                     }
                 }
-
-                true
             }
 
             return lookupElementByLookupName.lookupElements()
@@ -191,16 +169,12 @@ class Variants(private val entrance: PsiElement) : Module() {
                     val resolvedModulars =
                         resolvedElements.filterIsInstance<Call>().filter { Stub.isModular(it) }
 
-                    val resolveds = if (resolvedModulars.isNotEmpty()) {
-                        resolvedModulars
-                    } else {
-                        resolvedElements
-
-                    }
+                    val resolveds = resolvedModulars.ifEmpty { resolvedElements }
 
                     for (resolved in resolveds) {
                         putNestedAliased(
                             lookupElementByLookupName,
+                            qualifier,
                             emptyList(),
                             resolved as PsiNamedElement
                         )
@@ -213,30 +187,35 @@ class Variants(private val entrance: PsiElement) : Module() {
                 // modulars.
                 emptyList()
 
-        private fun putNestedAliased(lookupElementByLookupName: LookupElementByLookupName, splitPrefix: List<String>, aliasedElement: PsiNamedElement) {
+        /**
+         * The names of the project's modulars, read out whole because [preferredNamedElement] reads the index for each
+         * and a stub index read must not nest under another.
+         */
+        private fun modularNames(entrance: PsiElement): Collection<String> =
+            StubIndex.getInstance().getAllKeys(ModularName.KEY, entrance.project)
+
+        /**
+         * The first of the modulars named `name` that [ModuleResolver.resolvePreferred] returns from `entrance`.
+         */
+        private fun preferredNamedElement(entrance: PsiElement, name: String): PsiNamedElement? =
+            ModuleResolver
+                .resolvePreferred(entrance, name, incompleteCode = false, inScope = false)
+                .firstNotNullOfOrNull { it.element as? PsiNamedElement }
+
+        private fun putNestedAliased(lookupElementByLookupName: LookupElementByLookupName, entrance: PsiElement, splitPrefix: List<String>, aliasedElement: PsiNamedElement) {
             UnaliasedName.unaliasedName(aliasedElement)?.let { unaliasedName ->
                 val splitUnaliasedName = org.elixir_lang.Module.split(unaliasedName)
-                val project = aliasedElement.project
-                val scope = GlobalSearchScope.allScope(project)
 
-                val stubIndex = StubIndex.getInstance()
-                stubIndex.processAllKeys(ModularName.KEY, project) { name ->
+                for (name in modularNames(entrance)) {
                     val splitRelativeName = org.elixir_lang.Module.relative(ancestors = splitUnaliasedName, descendant = name)
 
                     if (splitRelativeName.isNotEmpty()) {
                         val aliasedNestedName = org.elixir_lang.Module.concat(splitPrefix + splitRelativeName)
 
                         if (!lookupElementByLookupName.contains(aliasedNestedName)) {
-                            stubIndex.processElements(AllName.KEY, name, project, scope, NamedElement::class.java) { named_element ->
-                                lookupElementByLookupName.put(aliasedNestedName, named_element)
-
-                                // only take the first element
-                                false
-                            }
+                            preferredNamedElement(entrance, name)?.let { lookupElementByLookupName.put(aliasedNestedName, it) }
                         }
                     }
-
-                    true
                 }
             }
         }

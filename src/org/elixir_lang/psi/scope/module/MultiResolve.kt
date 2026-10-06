@@ -5,7 +5,6 @@ import com.intellij.openapi.util.RecursionManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiNamedElement
 import com.intellij.psi.ResolveState
-import com.intellij.psi.stubs.StubIndex
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.Module.concat
 import org.elixir_lang.Module.split
@@ -18,9 +17,8 @@ import org.elixir_lang.psi.scope.Module
 import org.elixir_lang.psi.scope.ResolveResultOrderedSet
 import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
 import org.elixir_lang.psi.scope.maxScope
-import org.elixir_lang.psi.stub.index.ModularName
 import org.elixir_lang.reference.module.UnaliasedName
-import org.elixir_lang.reference.resolver.narrowedScope
+import org.elixir_lang.reference.resolver.Module as ModuleResolver
 
 class MultiResolve internal constructor(private val name: String, private val incompleteCode: Boolean) : Module() {
     /**
@@ -106,28 +104,18 @@ class MultiResolve internal constructor(private val name: String, private val in
         val project = match.project
 
         if (!DumbService.isDumb(project)) {
-            var found = false
+            val projectResults = ModuleResolver.multiResolveProject(match, unaliasedName)
 
-            val searchScope = narrowedScope(match, project)
-
-            StubIndex
-                    .getInstance()
-                    .processElements(
-                            ModularName.KEY,
-                            unaliasedName,
-                            project,
-                            searchScope,
-                            NamedElement::class.java) {
-                resolveResultOrderedSet.add(it, unaliasedName, true, visitedElementSet)
-                found = true
-
-                true
+            for (projectResult in projectResults) {
+                resolveResultOrderedSet.add(projectResult.element, unaliasedName, true, visitedElementSet)
             }
+
+            val found = projectResults.isNotEmpty()
 
             // Transitive alias fallback: if stub lookup found nothing and match is a QualifiableAlias,
             // resolve it through the module scope to follow alias chains
             // (e.g., `alias MyNamespace.Referenced; alias Referenced, as: Refd` - resolving `Refd` needs
-            // to follow Referenced → MyNamespace.Referenced transitively)
+            // to follow Referenced -> MyNamespace.Referenced transitively)
             if (!found && match is QualifiableAlias) {
                 addTransitiveResults(match, unaliasedName, visitedElementSet)
             }

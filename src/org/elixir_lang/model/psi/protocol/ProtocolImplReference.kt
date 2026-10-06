@@ -6,14 +6,10 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
-import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.psi.stubs.StubIndex
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.Implementation
-import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.stub.index.ModularName
 
 /**
  * Symbol reference from a `def`/`defmacro` clause inside a `defimpl` to the matching
@@ -40,12 +36,12 @@ class ProtocolImplReference(
 
         // Walk up to the defimpl - confirmed present by ProtocolImplReferenceProvider
         val defimpl = CallDefinitionClause.enclosingModularMacroCall(call) ?: return emptyList()
-        val protocolName = Implementation.protocolName(defimpl) ?: return emptyList()
+        val protocols = mutableListOf<PsiElement>()
+        Implementation.processProtocols(defimpl) { protocol -> protocols.add(protocol) }
 
-        val scope = GlobalSearchScope.allScope(call.project)
         val results = mutableListOf<Symbol>()
 
-        for (element in StubIndex.getElements(ModularName.KEY, protocolName, call.project, scope, NamedElement::class.java)) {
+        for (element in protocols) {
             ProgressManager.checkCanceled()
             if (element !is Call) continue
             CallDefinitionClause.modularChildCalls(element)

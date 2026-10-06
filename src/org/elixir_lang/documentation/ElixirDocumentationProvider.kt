@@ -7,7 +7,6 @@ import com.intellij.lang.documentation.DocumentationProvider
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.*
 import com.intellij.psi.impl.source.tree.LeafPsiElement
@@ -44,7 +43,7 @@ private val LOG = logger<ElixirDocumentationProvider>()
 
 internal class ElixirDocumentationProvider : DocumentationProvider {
     override fun generateDoc(element: PsiElement, originalElement: PsiElement?): String? =
-        fetchDocs(element)?.let { formatDocs(element.project, it) }
+        fetchDocs(element)?.let { formatDocs(element, it) }
 
     override fun generateHoverDoc(element: PsiElement, originalElement: PsiElement?): String? =
         generateDoc(element, originalElement)
@@ -52,7 +51,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
     override fun generateRenderedDoc(comment: PsiDocCommentBase): String? =
         comment
             .let(::markdown)
-            ?.let { html(comment.project, it) }
+            ?.let { html(comment, it) }
 
     private fun markdown(comment: PsiDocCommentBase): String? =
         when (comment) {
@@ -104,7 +103,6 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         link: String,
         context: PsiElement
     ): PsiElement? {
-        val project = context.project
         val relativeLinkMatcher = LINK_RELATIVE_PATTERN.matcher(link)
 
         return if (relativeLinkMatcher.matches()) {
@@ -117,7 +115,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
 
                     val resolveResults = if (module != null) {
                         MarkdownFlavourDescriptor
-                            .modulars(project, module)
+                            .modulars(context, module)
                             .flatMap { modular ->
                                 org.elixir_lang.psi.scope.call_definition_clause.MultiResolve.resolveResults(
                                     relative,
@@ -154,7 +152,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
 
                     val resolveResults = if (module != null) {
                         MarkdownFlavourDescriptor
-                            .modulars(project, module)
+                            .modulars(context, module)
                             .flatMap { modular ->
                                 org.elixir_lang.psi.scope.call_definition_clause.MultiResolve.resolveResults(
                                     relative,
@@ -198,7 +196,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
 
                     val resolveResults = if (module != null) {
                         MarkdownFlavourDescriptor
-                            .modulars(project, module)
+                            .modulars(context, module)
                             .flatMap { modular ->
                                 org.elixir_lang.psi.scope.type.MultiResolve.resolveResults(
                                     relative,
@@ -224,12 +222,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 }
             }
         } else {
-            val modulars = MarkdownFlavourDescriptor.modulars(project, link)
-
-            modulars
-                .toList()
-                .let { Resolver.preferredElements(context, it) }
-                .firstOrNull()
+            MarkdownFlavourDescriptor.modulars(context, link).firstOrNull()
         }
     }
 
@@ -338,7 +331,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         PsiTreeUtil.getParentOfType(element, ElixirLine::class.java, false, ElixirInterpolation::class.java)
             ?.parent as? ElixirAtom
 
-    private fun formatDocs(project: Project, fetchedDocs: FetchedDocs): String {
+    private fun formatDocs(element: PsiElement, fetchedDocs: FetchedDocs): String {
         val documentationHtml = StringBuilder()
 
         documentationHtml.append(DocumentationMarkup.DEFINITION_START)
@@ -370,7 +363,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 fetchedDocs.doc.let { doc ->
                     documentationHtml
                         .append(DocumentationMarkup.CONTENT_START)
-                        .append(html(project, doc))
+                        .append(html(element, doc))
                         .append(DocumentationMarkup.CONTENT_END)
                 }
             }
@@ -379,7 +372,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 fetchedDocs.moduledoc.let { moduledoc ->
                     documentationHtml
                         .append(DocumentationMarkup.CONTENT_START)
-                        .append(html(project, moduledoc))
+                        .append(html(element, moduledoc))
                         .append(DocumentationMarkup.CONTENT_END)
                 }
             }
@@ -398,7 +391,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                             doc.formattedByLanguage.values.map { formatted ->
                                 documentationHtml
                                     .append(DocumentationMarkup.CONTENT_START)
-                                    .append(html(project, formatted))
+                                    .append(html(element, formatted))
                                     .append(DocumentationMarkup.CONTENT_END)
                             }
                     }
@@ -418,7 +411,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                             .append(DocumentationMarkup.SECTION_HEADER_START)
                             .append("Deprecated")
                             .append(DocumentationMarkup.SECTION_SEPARATOR)
-                            .append(html(project, deprecated))
+                            .append(html(element, deprecated))
                             .append(DocumentationMarkup.SECTION_END)
                     }
 
@@ -462,7 +455,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 fetchedDocs.typedoc.let { typedoc ->
                     documentationHtml
                         .append(DocumentationMarkup.CONTENT_START)
-                        .append(html(project, typedoc))
+                        .append(html(element, typedoc))
                         .append(DocumentationMarkup.CONTENT_END)
                 }
             }
@@ -472,13 +465,13 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         return documentationHtml.toString()
     }
 
-    private fun html(project: Project, otpErlangObject: OtpErlangObject): String =
+    private fun html(element: PsiElement, otpErlangObject: OtpErlangObject): String =
         when (otpErlangObject) {
             is OtpErlangBinary ->
                 otpErlangObject
                     .binaryValue()
                     .let { String(it, Charsets.UTF_8) }
-                    .let { html(project, it) }
+                    .let { html(element, it) }
 
             else -> {
                 LOG.warn("Don't know how to render deprecated metadata: $otpErlangObject")
@@ -487,8 +480,8 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             }
         }
 
-    private fun html(project: Project, markdownText: String): String {
-        val flavour = MarkdownFlavourDescriptor(project)
+    private fun html(element: PsiElement, markdownText: String): String {
+        val flavour = MarkdownFlavourDescriptor(element)
         val parsedTree = MarkdownParser(flavour).buildMarkdownTreeFromString(markdownText)
 
         return HtmlGenerator(markdownText, parsedTree, flavour, false)
