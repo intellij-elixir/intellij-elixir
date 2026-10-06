@@ -1140,6 +1140,33 @@ enum class ElixirLanguageFeature(
     QUOTE_IMPORTS_EVERY_ARITY(sinceElixir = "1.14.0-rc.0"),
 
     /**
+     * An `imports:` in a call's meta that isn't a non-empty list is no recorded import, so the call is looked up in the
+     * env's imports. Before it, from [QUOTE_IMPORTS_EVERY_ARITY], one beside `context:` crashes the dispatch.
+     *
+     * `elixir-lang/elixir@f9263fdc5` ("Do not crash on invalid imports metadata"), first released in v1.17.0-rc.0.
+     */
+    QUOTE_IMPORTS_NON_LIST_FALLS_THROUGH(sinceElixir = "1.17.0-rc.0"),
+
+    /**
+     * An imported function is handed to the dispatch's callback as it is. Before it, it was expanded again as a remote
+     * call, which traced `remote_function`: the only trace of a function a quoted import names, until
+     * [QUOTED_IMPORT_FUNCTION_TRACED].
+     *
+     * `elixir-lang/elixir@1b6c31a0e` ("Avoid the number of duplicate traces on imports"), first released in
+     * v1.18.0-rc.0.
+     */
+    IMPORTED_FUNCTION_NOT_REEXPANDED(sinceElixir = "1.18.0-rc.0"),
+
+    /**
+     * A function a quoted import names traces `remote_function` where it is found, in the dispatch and in
+     * `Macro.expand/2`.
+     *
+     * `elixir-lang/elixir@bb8761a3c` ("Properly track imported function calls in tracer"), first released in
+     * v1.19.0-rc.0, and its backport `ef002e2b1`, first released in v1.18.4.
+     */
+    QUOTED_IMPORT_FUNCTION_TRACED(sinceElixir = "1.18.4"),
+
+    /**
      * A `quote` given `file:` keeps the `line:` option in `keep: {file, line}`: a node's own line for `line: true`,
      * and 0 by default. Before it, `file:` keeps every node's own line whatever `line:` says.
      *

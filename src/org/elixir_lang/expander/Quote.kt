@@ -579,6 +579,7 @@ internal object Quote {
                 is Meta.Value.Integer -> s.integer(value.value.toBigInteger())
                 is Meta.Value.Binary -> ElixirAst.Literal.Binary(s.meta(), value.text.toByteArray(Charsets.UTF_8))
                 is Meta.Value.Keywords -> s.keywords(keywords(value.keys, columns))
+                is Meta.Value.List -> s.list(value.elements.map { value(it, columns) })
                 is Meta.Value.Tuple -> s.tuple(*value.elements.map { value(it, columns) }.toTypedArray())
             }
 
@@ -831,7 +832,7 @@ internal object Quote {
 
         /** `elixir_dispatch:find_import/4`, raising at [node] for an ambiguous import. */
         private fun findImport(node: ElixirAst, name: String, arity: Int): String? =
-            when (val match = findImportByNameArity(name, arity, emptyList(), env)) {
+            when (val match = findImportByNameArity(node.meta, name, arity, emptyList(), env, level)) {
                 is ImportMatch.Function -> match.receiver.also { receiver ->
                     val (module, inlined) = inline(receiver, name, arity, level) ?: (receiver to name)
 
@@ -841,7 +842,9 @@ internal object Quote {
                     observer.quotedImport(node, QuotedImportKind.IMPORTED_MACRO, receiver, name, listOf(arity))
                 }
                 is ImportMatch.Ambiguous -> throw Stop(Expansion.Error("ambiguous_call", node))
-                ImportMatch.None -> null
+                // `find_import/4` answers `false` for a recorded import.
+                ImportMatch.None, is ImportMatch.Quoted -> null
+                ImportMatch.Unreadable -> throw Stop(Expansion.Unported(node))
             }
 
         /** The `alias` annotation `elixir_aliases:expand/4` gives [node]: the module it names, or `false`. */

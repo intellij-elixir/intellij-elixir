@@ -130,15 +130,16 @@ private fun importFunction(
     env: Env,
     run: Run,
 ): Expansion? {
-    if (hasQuotedImport(call.meta)) return Expansion.Unported(amp)
-
-    return when (val match = findImportByNameArity(name, arity, emptyList(), env)) {
+    return when (val match = findImportByNameArity(call.meta, name, arity, emptyList(), env, run.level)) {
         is ImportMatch.Function -> {
-            importedFunction(call, match.receiver, name, arity, env, run)
+            importedFunction(call, match.receiver, name, arity, Dispatch.Kind.IMPORTED_FUNCTION, run)
+            recordImport(NameArity(name, arity), match.receiver, env, run)
 
             Expansion.Expanded(state, env, NODE)
         }
         is ImportMatch.Macro -> null
+        is ImportMatch.Quoted -> requireFunction(amp, call, match.receiver, name, arity, state, env, run)
+        ImportMatch.Unreadable -> Expansion.Unported(amp)
         is ImportMatch.Ambiguous -> Expansion.Error("ambiguous_call", call)
         ImportMatch.None -> {
             val nameArity = NameArity(name, arity)
@@ -196,27 +197,32 @@ private fun captureRequire(
                 arguments == Arguments.NON_SEQUENTIAL -> captureExpr(at, expanded, arguments, s, e, run)
                 value == VARIABLE_NODE -> Expansion.Expanded(s, e, NODE)
                 value is Term.Atom ->
-                    requireFunction(amp, call, value.name, s, e, run) ?: captureExpr(at, expanded, arguments, s, e, run)
+                    requireFunction(amp, call, value.name, remoteName(call), call.arguments!!.size, s, e, run)
+                        ?: captureExpr(at, expanded, arguments, s, e, run)
                 else -> captureExpr(at, call, arguments, s, e, run)
             }
         }
     }
 }
 
+/** The function name of [call], a remote call. */
+private fun remoteName(call: ElixirAst.Call): String =
+    ((call.callee as ElixirAst.Call).arguments!![1] as ElixirAst.Literal.Atom).name
+
 /**
- * `elixir_dispatch:require_function/5` for a capture of [call] on [receiver], and then `expand_fn_capture/4`'s answer,
- * or `null` for Elixir's `false`: a macro, whose capture is an `fn` that calls it.
+ * `elixir_dispatch:require_function/5` for a capture of [call], which calls [name]/[arity] on [receiver], and then
+ * `expand_fn_capture/4`'s answer, or `null` for Elixir's `false`: a macro, whose capture is an `fn` that calls it.
  */
 private fun requireFunction(
     amp: ElixirAst,
-    call: ElixirAst.Call,
+    call: ElixirAst,
     receiver: String,
+    name: String,
+    arity: Int,
     state: ExState,
     env: Env,
     run: Run,
 ): Expansion? {
-    val name = ((call.callee as ElixirAst.Call).arguments!![1] as ElixirAst.Literal.Atom).name
-    val arity = call.arguments!!.size
     val required = receiver in env.requires
 
     when (isMacro(receiver, name, arity, required, run)) {

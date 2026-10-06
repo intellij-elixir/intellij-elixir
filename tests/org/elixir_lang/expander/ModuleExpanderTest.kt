@@ -2,6 +2,7 @@ package org.elixir_lang.expander
 
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
 
 /**
@@ -700,6 +701,15 @@ class ModuleExpanderTest : ExpanderTestCase() {
               defmacro first/1: expanded {x:0} next 1
               def f/1: error macro_conflict `first(y)`
             """.trimIndent()
+        }
+
+    /** `expand_import/7` dispatches an import `quote` recorded before it looks for a local macro. */
+    fun testAQuotedImportIsDispatchedBeforeALocalMacro() =
+        withKeys("first(y)" to QUOTED_LIST_FIRST) {
+            assertEvents("defmodule A do\n  defmacro first(x), do: x\n  def f(y), do: first(y)\nend\n:ok", LEVELS) {
+                "imported_macro Elixir.Kernel.defmodule/2; imported_macro Elixir.Kernel.defmacro/2; " +
+                    "imported_macro Elixir.Kernel.def/2; remote_function Elixir.List.first/1"
+            }
         }
 
     /** A function's own name and arity is never a local macro, so a macro that calls itself calls a function. */
@@ -1790,6 +1800,16 @@ class ModuleExpanderTest : ExpanderTestCase() {
         val FAST_PATH_LEVELS = listOf(
             "1.11.4", "1.12.3", "1.13.0-rc.0", "1.13.1", "1.13.2", "1.13.4", "1.14.5", "1.15.8", "1.16.3", "1.17.3",
             "1.18.4", "1.19.5", "1.20.4",
+        )
+
+        /** `List.first/1`'s import as each era's `quote` records it. */
+        val QUOTED_LIST_FIRST = listOf(
+            Meta.Key.Entry("context", Meta.Value.Atom("Elixir.Quoter")),
+            Meta.Key.Entry("import", Meta.Value.Atom("Elixir.List")),
+            Meta.Key.Entry(
+                "imports",
+                Meta.Value.List(listOf(Meta.Value.Tuple(listOf(Meta.Value.Integer(1), Meta.Value.Atom("Elixir.List"))))),
+            ),
         )
     }
 }

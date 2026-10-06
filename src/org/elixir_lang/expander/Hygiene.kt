@@ -16,7 +16,7 @@ internal fun counterOf(meta: Meta): Env.Counter? =
 
                     Env.Counter.InModule((module as Meta.Value.Atom).name, (n as Meta.Value.Integer).value)
                 }
-                is Meta.Value.Atom, is Meta.Value.Binary, is Meta.Value.Keywords -> null
+                is Meta.Value.Atom, is Meta.Value.Binary, is Meta.Value.Keywords, is Meta.Value.List -> null
             }
         }
 
@@ -187,13 +187,15 @@ private fun macroExpandCall(node: ElixirAst.Call, env: Env, run: Run): MacroExpa
 
     when (val callee = node.callee) {
         is ElixirAst.Literal.Atom ->
-            return when (val match = importOf(node, env)) {
+            return when (val match = importOf(node, env, run.level)) {
                 is ImportMatch.Function -> {
-                    importedFunction(node, match.receiver, env, run)
+                    importedFunction(node, match.receiver, Dispatch.Kind.IMPORTED_FUNCTION, run)
+                    recordImport(NameArity(callee.name, node.arguments!!.size), match.receiver, env, run)
                     MacroExpanded.Other
                 }
                 ImportMatch.None -> MacroExpanded.Other
-                is ImportMatch.Macro, is ImportMatch.Ambiguous, null -> MacroExpanded.Unported
+                is ImportMatch.Macro, is ImportMatch.Ambiguous, is ImportMatch.Quoted, ImportMatch.Unreadable, null ->
+                    MacroExpanded.Unported
             }
         is ElixirAst.Call -> {
             val (left, right) = dotArguments(callee)?.takeIf { it.size == 2 } ?: return MacroExpanded.Other

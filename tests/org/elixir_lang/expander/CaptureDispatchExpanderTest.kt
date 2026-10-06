@@ -3,7 +3,6 @@ package org.elixir_lang.expander
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
-import org.elixir_lang.lowering.Meta
 
 /**
  * Captures of named functions, which `elixir_dispatch:import_function/4` and `require_function/5` look up: each gives
@@ -54,38 +53,6 @@ class CaptureDispatchExpanderTest : ExpanderTestCase() {
 
         assertCaptured("&foo/1", "expanded {} next 0 | local_function Elixir.Capturing.foo/1")
     }
-
-    /** The lookup reads the `&`'s metadata until 1.14.0-rc.1 and the name's from it, so both carry the import. */
-    fun testACaptureOfAQuotedImportIsUnported() {
-        val code = "&f/1"
-
-        assertEquals(
-            LEVELS.joinToString("\n") { "$it: unported `&f/1`" },
-            LEVELS.joinToString("\n") { version ->
-                val level = ElixirLanguageLevel.of(version)
-                val amp = lower(code, level) as ElixirAst.Call
-                val slash = amp.arguments!!.single() as ElixirAst.Call
-                val (name, arity) = slash.arguments!!
-                val imported = name as ElixirAst.Call
-                val ast = ElixirAst.Call(
-                    quotedImport(amp.meta),
-                    amp.callee,
-                    listOf(
-                        ElixirAst.Call(
-                            slash.meta,
-                            slash.callee,
-                            listOf(ElixirAst.Call(quotedImport(imported.meta), imported.callee, null), arity)
-                        )
-                    ),
-                )
-
-                "$version: " + render(code, expandAst(ast, level))
-            }
-        )
-    }
-
-    private fun quotedImport(meta: Meta) =
-        Meta(meta.origin, meta.start, meta.end, meta.keys + Meta.Key.Entry("imports", Meta.Value.Keywords(emptyList())))
 
     // Remotes
 
@@ -166,16 +133,6 @@ class CaptureDispatchExpanderTest : ExpanderTestCase() {
 
             "$version: " + render(code, expand(code, version, observer)) + " | " + events.joinToString(" ")
         }
-
-    private fun expandAst(ast: ElixirAst, level: ElixirLanguageLevel) =
-        Expander.expand(
-            ast,
-            ExState.empty(level),
-            Env.empty(level, kernel).copy(module = module, function = function),
-            level,
-            exports,
-            structs,
-        )
 
     private companion object {
         /** `elixir-lang/elixir@6c068176d`: `&f/a` and `&M.f/a` build their call with the name's metadata. */

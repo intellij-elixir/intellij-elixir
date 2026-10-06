@@ -299,7 +299,7 @@ private fun rescueExpandedOnce(arrow: ElixirAst, arg: ElixirAst, state: ExState,
             env,
             run,
             ambiguous = { Expansion.Unported(arg) },
-            function = { invalid() },
+            function = { _, _ -> invalid() },
             none = invalid,
         )
     }

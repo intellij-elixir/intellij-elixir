@@ -42,10 +42,13 @@ class Meta(
         class Atom(val name: String) : Value()
         class Integer(val value: Long) : Value()
         class Binary(val text: String) : Value()
-        class Keywords(val keys: List<Key>) : Value()
+        class Keywords(val keys: kotlin.collections.List<Key>) : Value()
+
+        /** Only the expander builds one: a quoted import's `[{arity, Module}]`. */
+        class List(val elements: kotlin.collections.List<Value>) : Value()
 
         /** Only the expander builds one: a hygiene counter's `{Module, n}`. */
-        class Tuple(val elements: List<Value>) : Value()
+        class Tuple(val elements: kotlin.collections.List<Value>) : Value()
     }
 
     fun toOtp(options: ParserOptions): OtpErlangList = toOtp(keys, options)
@@ -75,6 +78,7 @@ class Meta(
                 is Value.Integer -> OtpErlangLong(value.value)
                 is Value.Binary -> OtpErlangBinary(value.text.toByteArray(Charsets.UTF_8))
                 is Value.Keywords -> toOtp(value.keys, options)
+                is Value.List -> OtpErlangList(value.elements.map { toOtp(it, options) }.toTypedArray())
                 is Value.Tuple -> OtpErlangTuple(value.elements.map { toOtp(it, options) }.toTypedArray())
             }
 
