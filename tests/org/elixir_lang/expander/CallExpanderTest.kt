@@ -81,6 +81,25 @@ class CallExpanderTest : ExpanderTestCase() {
         assertEvery("<<x::+binding()>> = <<1>>", "opaque imported_macro Elixir.Kernel.binding/0 `binding()`")
     }
 
+    fun testABitstringSpecifierThatIsAnAmbiguousImportIsAnError() =
+        assertEvery(
+            "import M, only: [f: 1]\nimport :x3e, only: [f: 1]\n<<x::f(1)>> = <<1>>",
+            "error ambiguous_call `f(1)`",
+        )
+
+    fun testARescueOfAnAmbiguousImportIsAnError() =
+        assertEvery(
+            "import M, only: [f: 1]\nimport :x3e, only: [f: 1]\ntry do\n1\nrescue\nf(1) -> 1\nend",
+            "error ambiguous_call `f(1)`",
+        )
+
+    /** From 1.15 `Macro.expand_once/2` leaves a remote function's call as it is. */
+    fun testARescueOfARemoteFunctionCallIsInvalid() =
+        assertLevels(
+            "try do\n1\nrescue\nInteger.parse(1) -> 1\nend",
+            LEVELS.filterNot { isBefore(it, "1.15.0-rc.0") },
+        ) { "error invalid_rescue_clause `Integer.parse(1) -> 1`" }
+
     /** Before 1.15 the call is what `_ in` reads; from 1.15 it is expanded once as a macro. */
     fun testARescueOfAMacro() =
         assertEvery(

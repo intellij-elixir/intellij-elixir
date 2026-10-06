@@ -642,7 +642,7 @@ private fun isMultiAlias(node: ElixirAst?): Boolean =
     } == true
 
 /** `{name, meta, context}` with an atom context. */
-private fun isVariableNamed(node: ElixirAst, name: String): Boolean =
+internal fun isVariableNamed(node: ElixirAst, name: String): Boolean =
     isVariable(node) && ((node as ElixirAst.Call).callee as ElixirAst.Literal.Atom).name == name
 
 /** The arguments of a `{'.', DotMeta, Args}` callee. */

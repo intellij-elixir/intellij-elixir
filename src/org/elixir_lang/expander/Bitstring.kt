@@ -327,13 +327,13 @@ private fun expandSpecs(spec: ElixirAst, state: ExState, original: ExState, env:
 
 /** What `Macro.expand/2` makes of a spec `validate_spec/2` doesn't know. */
 private sealed interface NamedSpec {
-    /** The integer an imported `Kernel.+/1` or `-/1` folds to, which is a size. */
+    /** The integer the spec expands to, which is a size. */
     class Size(val value: BigInteger) : NamedSpec
 
     /** The spec left as it is, which is `undefined_bittype`. */
     data object Unchanged : NamedSpec
 
-    /** An imported macro's expansion, or where expanding the spec stopped. */
+    /** Where expanding the spec stopped. */
     class Other(val expansion: Expansion) : NamedSpec
 }
 
@@ -345,75 +345,21 @@ private fun expandNamedSpec(spec: ElixirAst.Call, state: ExState, env: Env, run:
             ElixirAst.Call(spec.meta, spec.callee, emptyList())
         else -> return NamedSpec.Unchanged
     }
-    var unchanged = false
-    val leftAsItIs = {
-        unchanged = true
-        Expansion.Expanded(state, env, NODE)
-    }
-    val expansion = expandImport(
-        call,
-        state,
-        env,
-        run,
-        ambiguous = { Expansion.Unported(call) },
-        function = { receiver, kind ->
-            importedFunction(call, receiver, kind, run)
 
-            when (val folded = signed(call, receiver, state, env, run)) {
-                null -> leftAsItIs()
-                is Expansion.Expanded -> folded.takeIf { it.value is Term.Integer } ?: leftAsItIs()
-                else -> folded
+    return when (val expanded = macroExpand(call, state, env, run)) {
+        is MacroExpanded.Node -> {
+            val node = expanded.node
+
+            when {
+                !expanded.expanded -> NamedSpec.Unchanged
+                node is ElixirAst.Literal.Integer -> NamedSpec.Size(node.value)
+                // Elixir unpacks the specs it expands to again.
+                else -> NamedSpec.Other(Expansion.Unported(call))
             }
-        },
-        none = leftAsItIs,
-    )
-    val size = (expansion as? Expansion.Expanded)?.value as? Term.Integer
-
-    return when {
-        unchanged -> NamedSpec.Unchanged
-        size != null -> NamedSpec.Size(size.value)
-        else -> NamedSpec.Other(expansion)
-    }
-}
-
-/**
- * `Macro.expand_once/2` of [node] as the fold of `Kernel.+/1` and `-/1` reads it: the value is the integer it folds
- * to, or a node for anything else.
- */
-private fun expandOnce(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
-    val unchanged = Expansion.Expanded(state, env, NODE)
-
-    return when {
-        node is ElixirAst.Literal.Integer -> Expansion.Expanded(state, env, Term.Integer(node.value))
-        node !is ElixirAst.Call || node.arguments == null -> unchanged
-        node.callee is ElixirAst.Literal.Atom ->
-            expandImport(
-                node,
-                state,
-                env,
-                run,
-                ambiguous = { Expansion.Unported(node) },
-                function = { receiver, kind ->
-                    importedFunction(node, receiver, kind, run)
-                    signed(node, receiver, state, env, run) ?: unchanged
-                },
-                none = { unchanged },
-            )
-        // A remote call can be a macro.
-        else -> Expansion.Unported(node)
-    }
-}
-
-/** [call], imported from [receiver], folded as `Kernel.+/1` or `-/1` of what its argument expands once to. */
-private fun signed(call: ElixirAst.Call, receiver: String, state: ExState, env: Env, run: Run): Expansion? {
-    val name = (call.callee as ElixirAst.Literal.Atom).name
-    val arg = call.arguments!!.singleOrNull()?.takeIf { receiver == KERNEL && (name == "+" || name == "-") }
-        ?: return null
-
-    return expandOnce(arg, state, env, run).thenValue { _, _, value ->
-        val folded = (value as? Term.Integer)?.let { if (name == "-") Term.Integer(it.value.negate()) else it }
-
-        Expansion.Expanded(state, env, folded ?: NODE)
+        }
+        // A call is never `__DIR__`.
+        MacroExpanded.Dir -> NamedSpec.Other(Expansion.Unported(call))
+        is MacroExpanded.Stopped -> NamedSpec.Other(expanded.expansion)
     }
 }
 

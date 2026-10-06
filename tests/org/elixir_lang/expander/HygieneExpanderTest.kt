@@ -129,8 +129,11 @@ class HygieneExpanderTest : ExpanderTestCase() {
     fun testVarBangsContextThatIsAVariableIsNotAnAtom() =
         assertEvery("c = :a\nvar!(x, c) = 1", "error var_bang_context_not_atom `var!(x, c)`; counted 0")
 
-    fun testVarBangsContextThatIsAMacroCallIsUnported() =
-        assertEvery("var!(x, if(true, do: :a)) = 1", "unported `if(true, do: :a)`; counted 0")
+    fun testVarBangsContextThatIsAMacroCallIsOpaque() =
+        assertEvery(
+            "var!(x, if(true, do: :a)) = 1",
+            "opaque imported_macro Elixir.Kernel.if/2 `if(true, do: :a)`; counted 0",
+        )
 
     fun testVarBangsContextThatIsAnUnimportedLocalCallIsNotAnAtom() =
         assertEvery("var!(x, foo()) = 1", "error var_bang_context_not_atom `var!(x, foo())`; counted 0")
@@ -153,11 +156,24 @@ class HygieneExpanderTest : ExpanderTestCase() {
     fun testVarBangsContextThatIsAnEnvFieldIsUnported() =
         assertEvery("var!(x, __ENV__.module) = 1", "unported `__ENV__.module`; counted 0")
 
-    fun testVarBangsContextThatIsARemoteMacroCallIsUnported() =
-        assertEvery("var!(x, Integer.is_odd(1)) = 1", "unported `Integer.is_odd(1)`; counted 0")
+    /** `Integer` isn't required: the macro raises, then is unseen, then is a function's call. */
+    fun testVarBangsContextThatIsAnUnrequiredRemoteMacroCall() =
+        assertLevels("var!(x, Integer.is_odd(1)) = 1", LEVELS) { version ->
+            when {
+                isBefore(version, "1.12.2") -> "error unrequired_module `Integer.is_odd(1)`; counted 0"
+                isBefore(version, "1.13.0-rc.0") -> "unported `Integer.is_odd(1)`; counted 0"
+                else -> "error var_bang_context_not_atom `var!(x, Integer.is_odd(1))`; counted 0"
+            }
+        }
 
-    fun testVarBangsContextThatIsAnAliasOfAVariableIsUnported() =
-        assertEvery("var!(x, __MODULE__.Foo) = 1", "unported `__MODULE__.Foo`; counted 0")
+    fun testVarBangsContextThatIsARequiredRemoteMacroCallIsOpaque() =
+        assertEvery(
+            "require Integer\nvar!(x, Integer.is_odd(1)) = 1",
+            "opaque remote_macro Elixir.Integer.is_odd/1 `Integer.is_odd(1)`; counted 0",
+        )
+
+    fun testVarBangsContextThatIsAnAliasOfTheModuleIsConcatenated() =
+        assertEvery("var!(x, __MODULE__.Foo) = 1", "expanded {x/Elixir.Case.Foo:0} next 1; counted 1")
 
     fun testVarBangIsDispatchedAndItsOutputDispatchesNothing() {
         assertDispatches("var!(x) = 1", "imported_macro Elixir.Kernel.var!/1")
@@ -211,6 +227,13 @@ class HygieneExpanderTest : ExpanderTestCase() {
             "opaque remote_macro Elixir.Integer.is_odd/1 `alias!(Integer).is_odd(&1)`; counted 2",
         )
     }
+
+    /** From 1.15 a rescue's call is expanded once as `Macro.expand_once/2` does, which takes a counter for a macro. */
+    fun testAliasBangInARescueIsExpandedOnce() =
+        assertLevels(
+            "try do\n1\nrescue\nalias!(ArgumentError) -> 1\nend",
+            BOUNDARY_LEVELS.filterNot { isBefore(it, "1.15.0-rc.0") },
+        ) { "value Node(kind=OTHER); counted 1" }
 
     // The definers
 

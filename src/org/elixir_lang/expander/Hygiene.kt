@@ -1,6 +1,5 @@
 package org.elixir_lang.expander
 
-import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.VAR_BANG_IF_UNDEFINED
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
@@ -115,112 +114,45 @@ internal fun lineOf(meta: Meta): Int =
     } ?: 0
 
 /** `Kernel.var!/1,2`. */
-internal val VAR_BANG = Summary { _, node, state, env, run ->
-    val (variable, context) = node.arguments!!.let { it[0] to it.getOrNull(1) }
+internal val VAR_BANG = object : Summary.Rewrite() {
+    override fun output(dispatch: Dispatch, node: ElixirAst.Call, state: ExState, env: Env, run: Run): Summary.Output {
+        val (variable, context) = node.arguments!!.let { it[0] to it.getOrNull(1) }
 
-    if (variable !is ElixirAst.Call || variable.arguments != null || variable.callee !is ElixirAst.Literal.Atom) {
-        return@Summary Expansion.Error("var_bang_not_a_variable", node)
+        if (variable !is ElixirAst.Call || variable.arguments != null || variable.callee !is ElixirAst.Literal.Atom) {
+            return Summary.Output.Raised("var_bang_not_a_variable")
+        }
+
+        val expandedContext = if (context == null) "nil" else when (val expanded = macroExpand(context, state, env, run)) {
+            is MacroExpanded.Node ->
+                (expanded.node as? ElixirAst.Literal.Atom)?.name
+                    ?: return Summary.Output.Raised("var_bang_context_not_atom")
+            MacroExpanded.Dir -> return Summary.Output.Raised("var_bang_context_not_atom")
+            is MacroExpanded.Stopped -> return Summary.Output.Stopped(expanded.expansion)
+        }
+        val (key, value) = if (VAR_BANG_IF_UNDEFINED.isSufficient(run.level)) "if_undefined" to "raise" else "var" to "true"
+        val keys = keystore(keydelete(variable.meta.keys, "counter"), key, Meta.Value.Atom(value))
+        val meta = Meta(variable.meta.origin, variable.meta.start, variable.meta.end, keys, variable.meta.built)
+        val variableContext =
+            if (expandedContext == "nil") ElixirAst.VariableContext.Nil else ElixirAst.VariableContext.Atom(expandedContext)
+
+        return Summary.Output.Built(ElixirAst.Call(meta, variable.callee, null, variableContext))
     }
-
-    val expandedContext = if (context == null) "nil" else when (val expanded = macroExpandToAtom(context, env, run)) {
-        is MacroExpanded.Atom -> expanded.name
-        MacroExpanded.Other -> return@Summary Expansion.Error("var_bang_context_not_atom", node)
-        MacroExpanded.Unported -> return@Summary Expansion.Unported(context)
-    }
-    val (key, value) = if (VAR_BANG_IF_UNDEFINED.isSufficient(run.level)) "if_undefined" to "raise" else "var" to "true"
-    val keys = keystore(keydelete(variable.meta.keys, "counter"), key, Meta.Value.Atom(value))
-    val meta = Meta(variable.meta.origin, variable.meta.start, variable.meta.end, keys, variable.meta.built)
-    val output = ElixirAst.Call(
-        meta,
-        variable.callee,
-        null,
-        if (expandedContext == "nil") ElixirAst.VariableContext.Nil else ElixirAst.VariableContext.Atom(expandedContext),
-    )
-
-    expandQuoted(node, KERNEL, output, state, env, run)
 }
 
 /** `Kernel.alias!/1`. */
-internal val ALIAS_BANG = Summary { _, node, state, env, run ->
-    val output = when (val alias = node.arguments!!.single()) {
-        is ElixirAst.Literal.Atom -> alias
-        is ElixirAst.Alias -> {
-            val meta = alias.meta
+internal val ALIAS_BANG = object : Summary.Rewrite() {
+    override fun output(dispatch: Dispatch, node: ElixirAst.Call, state: ExState, env: Env, run: Run): Summary.Output =
+        when (val alias = node.arguments!!.single()) {
+            is ElixirAst.Literal.Atom -> Summary.Output.Built(alias)
+            is ElixirAst.Alias -> {
+                val meta = alias.meta
+                val keys = keydelete(meta.keys, "alias")
 
-            ElixirAst.Alias(Meta(meta.origin, meta.start, meta.end, keydelete(meta.keys, "alias"), meta.built), alias.segments)
+                Summary.Output.Built(ElixirAst.Alias(Meta(meta.origin, meta.start, meta.end, keys, meta.built), alias.segments))
+            }
+            else -> Summary.Output.Raised("alias_bang_function_clause")
         }
-        else -> return@Summary Expansion.Error("alias_bang_function_clause", node)
-    }
-
-    expandQuoted(node, KERNEL, output, state, env, run)
 }
-
-private sealed class MacroExpanded {
-    class Atom(val name: String) : MacroExpanded()
-
-    object Other : MacroExpanded()
-
-    object Unported : MacroExpanded()
-}
-
-/**
- * Whether `Macro.expand/2` gives an atom for [node] in the caller's [env]. A node the port can't follow it through, such
- * as one it would expand by running a macro, is [MacroExpanded.Unported].
- */
-private fun macroExpandToAtom(node: ElixirAst, env: Env, run: Run): MacroExpanded =
-    when {
-        node is ElixirAst.Literal.Atom -> MacroExpanded.Atom(node.name)
-        node is ElixirAst.Alias ->
-            if (node.segments.first() is ElixirAst.Literal.Atom) {
-                aliasesModule(node, env, run.level)?.let { MacroExpanded.Atom(it) } ?: MacroExpanded.Unported
-            } else {
-                MacroExpanded.Unported
-            }
-        isVariable(node) && variableName(node) == "__MODULE__" -> MacroExpanded.Atom(env.module ?: "nil")
-        node is ElixirAst.Call && node.arguments != null -> macroExpandCall(node, env, run)
-        node is ElixirAst.Placeholder -> MacroExpanded.Unported
-        else -> MacroExpanded.Other
-    }
-
-private fun macroExpandCall(node: ElixirAst.Call, env: Env, run: Run): MacroExpanded {
-    val arity = node.arguments!!.size
-
-    when (val callee = node.callee) {
-        is ElixirAst.Literal.Atom ->
-            return when (val match = importOf(node, env, run.level)) {
-                is ImportMatch.Function -> {
-                    importedFunction(node, match.receiver, Dispatch.Kind.IMPORTED_FUNCTION, run)
-                    recordImport(NameArity(callee.name, node.arguments!!.size), match.receiver, env, run)
-                    MacroExpanded.Other
-                }
-                ImportMatch.None -> MacroExpanded.Other
-                is ImportMatch.Macro, is ImportMatch.Ambiguous, is ImportMatch.Quoted, ImportMatch.Unreadable, null ->
-                    MacroExpanded.Unported
-            }
-        is ElixirAst.Call -> {
-            val (left, right) = dotArguments(callee)?.takeIf { it.size == 2 } ?: return MacroExpanded.Other
-            val name = (right as? ElixirAst.Literal.Atom)?.name ?: return MacroExpanded.Other
-
-            if (isVariable(left) && variableName(left) == "__ENV__") return MacroExpanded.Unported
-
-            val receiver = when (val expanded = macroExpandToAtom(left, env, run)) {
-                is MacroExpanded.Atom -> expanded.name
-                MacroExpanded.Other -> return MacroExpanded.Other
-                MacroExpanded.Unported -> return MacroExpanded.Unported
-            }
-
-            return when (val exports = run.exports.of(receiver)) {
-                ModuleExports.Absent -> MacroExpanded.Other
-                ModuleExports.Unreadable -> MacroExpanded.Unported
-                is ModuleExports.Present ->
-                    if (NameArity(name, arity) in exports.macros) MacroExpanded.Unported else MacroExpanded.Other
-            }
-        }
-        else -> return MacroExpanded.Other
-    }
-}
-
-private fun variableName(node: ElixirAst): String = ((node as ElixirAst.Call).callee as ElixirAst.Literal.Atom).name
 
 /** `keynew/3`: [meta] with [name] put first, unless it has one; a source location is a `line`. */
 private fun keynew(meta: Meta, name: String, value: Meta.Value): Meta {

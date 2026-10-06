@@ -282,28 +282,21 @@ private fun rescue(arrow: ElixirAst, arg: ElixirAst, state: ExState, env: Env, r
     }
 
 /**
- * `Macro.expand_once/2` of a `rescue` argument: an imported macro's expansion, or `invalid_rescue_clause` at [arrow]
- * for anything it leaves as it is.
+ * `Macro.expand_once/2` of a `rescue` argument, which is expanded as a `rescue` argument again, or is
+ * `invalid_rescue_clause` at [arrow] where it is left as it is.
  */
-private fun rescueExpandedOnce(arrow: ElixirAst, arg: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
-    val call = arg as? ElixirAst.Call
-    val invalid = { Expansion.Error("invalid_rescue_clause", arrow) }
-
-    return when {
-        // A remote call's expansion needs its receiver's.
-        call != null && (call.callee as? ElixirAst.Call)?.let { isCall(it, ".", 2) } == true -> Expansion.Unported(arg)
-        call?.callee !is ElixirAst.Literal.Atom || call.arguments == null -> invalid()
-        else -> expandImport(
-            call,
-            state,
-            env,
-            run,
-            ambiguous = { Expansion.Unported(arg) },
-            function = { _, _ -> invalid() },
-            none = invalid,
-        )
+private fun rescueExpandedOnce(arrow: ElixirAst, arg: ElixirAst, state: ExState, env: Env, run: Run): Expansion =
+    when (val expanded = macroExpandOnce(arg, state, env, run)) {
+        is MacroExpanded.Node ->
+            if (expanded.expanded) {
+                rescue(arrow, expanded.node, state, env, run)
+            } else {
+                Expansion.Error("invalid_rescue_clause", arrow)
+            }
+        // A binary.
+        MacroExpanded.Dir -> Expansion.Error("invalid_rescue_clause", arrow)
+        is MacroExpanded.Stopped -> expanded.expansion
     }
-}
 
 /** `rescue left in right`, where [right] must expand to an atom or a list of atoms, and [left] be a variable. */
 private fun rescueIn(

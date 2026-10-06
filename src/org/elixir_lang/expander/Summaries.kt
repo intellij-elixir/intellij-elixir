@@ -7,6 +7,41 @@ import org.elixir_lang.lowering.ElixirAst
 internal fun interface Summary {
     /** What expanding [node], a call that dispatches as [dispatch], gives. */
     fun expand(dispatch: Dispatch, node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion
+
+    /** A macro whose output is built, then expanded where the call was; `Macro.expand/2` takes the output itself. */
+    abstract class Rewrite : Summary {
+        /** The macro's output for [node], a call that dispatches as [dispatch]. */
+        abstract fun output(dispatch: Dispatch, node: ElixirAst.Call, state: ExState, env: Env, run: Run): Output
+
+        final override fun expand(
+            dispatch: Dispatch,
+            node: ElixirAst.Call,
+            state: ExState,
+            env: Env,
+            run: Run,
+        ): Expansion =
+            when (val output = output(dispatch, node, state, env, run)) {
+                is Output.Built -> expandQuoted(node, dispatch.receiver, output.ast, state, env, run)
+                is Output.Raised -> Expansion.Error(output.kind, node)
+                is Output.Unported -> Expansion.Unported(output.at)
+                is Output.Stopped -> output.expansion
+            }
+    }
+
+    /** What a [Rewrite]'s macro gives. */
+    sealed class Output {
+        /** The macro's output, [ast]. */
+        class Built(val ast: ElixirAst) : Output()
+
+        /** The macro raised, an error of [kind]. */
+        class Raised(val kind: String) : Output()
+
+        /** An input the port can't follow, at [at]. */
+        class Unported(val at: ElixirAst) : Output()
+
+        /** The macro's own `Macro.expand/2` stopped where the port does, as [expansion]. */
+        class Stopped(val expansion: Expansion) : Output()
+    }
 }
 
 /** The summary registry: each modelled macro, by its [MacroKey]. */
@@ -38,10 +73,21 @@ internal object Summaries {
  * A call of a macro, which [node] dispatches as [dispatch]: its summary's expansion, or [Expansion.Opaque] where the
  * macro has none. The observer is told of the dispatch only when it is modelled.
  */
-internal fun macro(dispatch: Dispatch, node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion {
-    val summary = Summaries.of(dispatch) ?: return Expansion.Opaque(node, dispatch)
+internal fun macro(dispatch: Dispatch, node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion =
+    summarised(dispatch, node, opaque = { it }) { summary ->
+        run.observer.dispatched(node, dispatch)
 
-    run.observer.dispatched(node, dispatch)
+        summary.expand(dispatch, node, state, env, run)
+    }
 
-    return summary.expand(dispatch, node, state, env, run)
-}
+/** [summarised] of [dispatch]'s summary, or [opaque] of the [Expansion.Opaque] a call [node] gives where it has none. */
+internal inline fun <T> summarised(
+    dispatch: Dispatch,
+    node: ElixirAst.Call,
+    opaque: (Expansion.Opaque) -> T,
+    summarised: (Summary) -> T,
+): T =
+    when (val summary = Summaries.of(dispatch)) {
+        null -> opaque(Expansion.Opaque(node, dispatch))
+        else -> summarised(summary)
+    }
