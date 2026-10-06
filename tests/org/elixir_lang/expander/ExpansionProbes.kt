@@ -40,11 +40,11 @@ import kotlin.time.TimeSource
  * there only, by [assertMatchesElixirUpToMacro].
  *
  * Each variable and `_` of a pattern, each `^` and each non-literal bitstring size in one, and each variable of a
- * clause's or a definition's guard, is wrapped in an identity probe, which the expander matches when it enters that
- * node. Each statement of a body nested in a clause, a definition or a module, is followed by a probe, which the
- * expander matches when it leaves that statement. Elixir may expand a definition that isn't a statement of its module's
- * body, and every definition after it, elsewhere than the expander does, so the comparison stops at the first probe in
- * such a body.
+ * clause's or a definition's guard outside a `Kernel` macro's arguments, is wrapped in an identity probe, which the
+ * expander matches when it enters that node. Each statement of a body nested in a clause, a definition or a module, is
+ * followed by a probe, which the expander matches when it leaves that statement. Elixir may expand a definition that
+ * isn't a statement of its module's body, and every definition after it, elsewhere than the expander does, so the
+ * comparison stops at the first probe in such a body.
  *
  * With [accounting], each probe also compares the hygiene counters taken: Elixir's `counter_before`, less the probes
  * delivered before it in its module, each of which took one, against the expander's count.
@@ -120,8 +120,23 @@ internal class ExpansionProbes(
         val exports: Exports,
         val structs: Structs,
         val hook: ProbeHarness.Hook?,
+        val standIns: List<StandIn>,
         val layout: ProbeHarness.Layout,
         val index: Int,
+    )
+
+    /**
+     * The output of a macro of the preamble's, which the expander doesn't run: each call whose source is [source] is
+     * expanded as [output] gives it, after the `remote_macro` dispatch of [receiver]'s [name]/[arity] and the counter
+     * Elixir takes for it. `{token}` in [source] and [receiver] stands for the compile's token; [output] is given the
+     * call and the receiver with it replaced.
+     */
+    class StandIn(
+        val source: String,
+        val receiver: String,
+        val name: String,
+        val arity: Int,
+        val output: (call: ElixirAst.Call, receiver: String) -> ElixirAst,
     )
 
     /**
@@ -139,20 +154,21 @@ internal class ExpansionProbes(
 
     /**
      * [body] as the body of a case module of its own, after [preamble]'s modules, with [exports] and [structs] standing
-     * for the modules Elixir loads.
+     * for the modules Elixir loads and [standIns] for the preamble's macros.
      */
     fun expand(
         body: String,
         preamble: String = "",
         exports: Exports = legExports,
         structs: Structs = legStructs,
-    ): CaseExpansion = expandAll(listOf(body), preamble, exports, structs).cases.single()
+        standIns: List<StandIn> = emptyList(),
+    ): CaseExpansion = expandAll(listOf(body), preamble, exports, structs, standIns = standIns).cases.single()
 
     /**
      * Each of [bodies] as the body of a case module, in one file after [preamble]'s modules, with `{token}` in either
-     * standing for the compile's token and [exports] and [structs] for the modules Elixir loads. [hook] adds that hook
-     * to each case module, [top] the top-level probe to the end of the file, and [values] sends each case's `q` after
-     * its last statement.
+     * standing for the compile's token, [exports] and [structs] for the modules Elixir loads and [standIns] for the
+     * preamble's macros. [hook] adds that hook to each case module, [top] the top-level probe to the end of the
+     * file, and [values] sends each case's `q` after its last statement.
      */
     fun expandAll(
         bodies: List<String>,
@@ -162,6 +178,7 @@ internal class ExpansionProbes(
         hook: ProbeHarness.Hook? = null,
         top: Boolean = false,
         values: Boolean = false,
+        standIns: List<StandIn> = emptyList(),
     ): Expansions {
         val level = legLevel()
         val token = harness.token()
@@ -185,9 +202,11 @@ internal class ExpansionProbes(
         val recorders = shapes.indices.map {
             Recorder(shapes[it], layout.bodyStarts[it], layout.bodyLines[it], counters)
         }
-        val observer = Observer(recorders, counters, level)
+        val standing = IdentityHashMap<ElixirAst, Dispatch>()
+        val observer = Observer(recorders, counters, level, standing)
         val file = parse(layout.plain)
-        val forms = ReadAction.computeBlocking<ElixirAst, Throwable> { Lowering.lower(file, level) }
+        val lowered = ReadAction.computeBlocking<ElixirAst, Throwable> { Lowering.lower(file, level) }
+        val forms = if (standIns.isEmpty()) lowered else stoodIn(lowered, layout.plain, token, standIns, standing)
         val expansion =
             Expander.expandFile(forms, Env.empty(level, legKernel), level, exports, structs, observer, counters)
         val cases = recorders.mapIndexed { index, recorder ->
@@ -201,7 +220,7 @@ internal class ExpansionProbes(
             recorder.expansion(
                 result,
                 observer.leftAt,
-                Origin(bodies[index], preamble, exports, structs, hook, layout, index),
+                Origin(bodies[index], preamble, exports, structs, hook, standIns, layout, index),
             )
         }
         val topStep = (expansion.top as? Expansion.Expanded)
@@ -746,13 +765,22 @@ internal class ExpansionProbes(
      */
     private fun batches(cases: Map<String, CaseExpansion>): List<Pair<List<String>, Expansions>> =
         cases.keys
-            .groupBy { cases.getValue(it).origin.let { listOf(it.preamble, it.exports, it.structs, it.hook) } }
+            .groupBy {
+                cases.getValue(it).origin.let { listOf(it.preamble, it.exports, it.structs, it.hook, it.standIns) }
+            }
             .values
             .map { names ->
                 val origin = cases.getValue(names.first()).origin
                 val bodies = names.map { cases.getValue(it).origin.body }
 
-                names to expandAll(bodies, origin.preamble, origin.exports, origin.structs, origin.hook)
+                names to expandAll(
+                    bodies,
+                    origin.preamble,
+                    origin.exports,
+                    origin.structs,
+                    origin.hook,
+                    standIns = origin.standIns,
+                )
             }
 
     /** [expansion]'s case expanded and compiled in a file of its own. */
@@ -761,10 +789,55 @@ internal class ExpansionProbes(
         val alone = if (origin.layout.cases.size == 1) {
             expansion
         } else {
-            expandAll(listOf(origin.body), origin.preamble, origin.exports, origin.structs, origin.hook).cases.single()
+            expandAll(
+                listOf(origin.body),
+                origin.preamble,
+                origin.exports,
+                origin.structs,
+                origin.hook,
+                standIns = origin.standIns,
+            ).cases.single()
         }
 
         return alone to harness.attempt(alone.origin.layout)
+    }
+
+    /**
+     * [node], lowered from [file], with each call one of [standIns] is for replaced by its output, which [standing]
+     * maps to the call's dispatch.
+     */
+    private fun stoodIn(
+        node: ElixirAst,
+        file: String,
+        token: String,
+        standIns: List<StandIn>,
+        standing: IdentityHashMap<ElixirAst, Dispatch>,
+    ): ElixirAst {
+        val bySource = standIns.associateBy { it.source.replace(TOKEN, token) }
+
+        fun replaced(node: ElixirAst): ElixirAst =
+            when (node) {
+                is ElixirAst.Call -> {
+                    val standIn = bySource[node.meta.origin.substring(file)]
+
+                    if (standIn == null) {
+                        ElixirAst.Call(node.meta, replaced(node.callee), node.arguments?.map(::replaced), node.context)
+                    } else {
+                        val receiver = standIn.receiver.replace(TOKEN, token)
+
+                        standIn.output(node, receiver).also {
+                            standing[it] = Dispatch(Dispatch.Kind.REMOTE_MACRO, receiver, standIn.name, standIn.arity)
+                        }
+                    }
+                }
+                is ElixirAst.Alias -> ElixirAst.Alias(node.meta, node.segments.map(::replaced))
+                is ElixirAst.Block -> ElixirAst.Block(node.meta, node.expressions.map(::replaced))
+                is ElixirAst.Tuple -> ElixirAst.Tuple(node.meta, node.elements.map(::replaced))
+                is ElixirAst.ListNode -> ElixirAst.ListNode(node.meta, node.elements.map(::replaced))
+                is ElixirAst.Literal, is ElixirAst.Placeholder -> node
+            }
+
+        return replaced(node)
     }
 
     /**
@@ -997,11 +1070,15 @@ internal class ExpansionProbes(
         }
     }
 
-    /** Attributes each node the expander reaches to the case whose body holds it. */
+    /**
+     * Attributes each node the expander reaches to the case whose body holds it, and reports the dispatch [standing]
+     * maps a stand-in's output to as the expander enters it.
+     */
     private class Observer(
         private val recorders: List<Recorder>,
         private val counters: Counters,
         private val level: ElixirLanguageLevel,
+        private val standing: IdentityHashMap<ElixirAst, Dispatch>,
     ) : ExpansionObserver {
         /** When each node was left, counted as [Recorder.serials] counts. */
         val leftAt = IdentityHashMap<ElixirAst, Int>()
@@ -1030,6 +1107,11 @@ internal class ExpansionProbes(
 
             if (recorder.steps.isEmpty()) {
                 recorder.add(step(Tag(0, 0, 0), state, env, -1), serial++)
+            }
+
+            standing.remove(node)?.let {
+                dispatched(node, it)
+                counters.next(env.module)
             }
 
             // The first node entered within a probed range is the outermost one expanded there: the statement itself,
@@ -1251,11 +1333,11 @@ internal class ExpansionProbes(
         /**
          * The nodes of [node] to wrap in an identity probe: in a pattern, each variable and `_` outside a `^`, a map
          * key and a bitstring spec, each `^` outside a map key, and each non-literal bitstring size; and each variable
-         * of a clause's guard. A `rescue` head's only site is the variable left of an `in` other than `in _`: wrapped, a
-         * variable is a call, which neither a bare `rescue` nor `in _` takes. Nothing inside a capture is a site: Elixir
-         * names its parameters apart from source variables, and from 1.17 by the module's counter, which the expander
-         * doesn't keep. Of a `quote`, only its options and unquoted expressions hold sites. The `_` of `_ = for` isn't
-         * one: wrapped, a block would expand it, not discard it.
+         * of a clause's guard outside a `Kernel` macro's arguments. A `rescue` head's only site is the variable left
+         * of an `in` other than `in _`: wrapped, a variable is a call, which neither a bare `rescue` nor `in _` takes.
+         * Nothing inside a capture is a site: Elixir names its parameters apart from source variables, and from 1.17
+         * by the module's counter, which the expander doesn't keep. Of a `quote`, only its options and unquoted
+         * expressions hold sites. The `_` of `_ = for` isn't one: wrapped, a block would expand it, not discard it.
          */
         fun identitySites(node: ElixirAst, pattern: Boolean): List<ElixirAst> =
             when {
@@ -1564,20 +1646,31 @@ internal class ExpansionProbes(
             } + guarded?.arguments?.last()?.let(::guardSites).orEmpty()
         }
 
-        /** Neither a `var!`'s argument nor an `@`'s is a site: `var!` takes only a variable, and `@` only a name. */
+        /**
+         * The variables of [guard] outside a `Kernel` macro's arguments: wrapped, a variable is a call, which the
+         * macro may reject, copy, drop or expand at macro time, so Elixir would deliver its probe where the macro's
+         * output says.
+         */
         fun guardSites(guard: ElixirAst): List<ElixirAst> =
             when {
                 isVariable(guard) -> listOf(guard)
-                isVarBang(guard) || isNamedCall(guard, "@") -> emptyList()
+                isKernelMacro(guard) -> emptyList()
                 else -> children(guard).flatMap(::guardSites)
             }
 
-        /** `var!` or `Kernel.var!`, whose first argument must stay a variable. */
-        fun isVarBang(node: ElixirAst): Boolean {
-            val dot = (node as? ElixirAst.Call)?.callee as? ElixirAst.Call
-            val name = dot?.takeIf { isCall(it, ".", 2) }?.arguments?.get(1)
+        /** A call of one of the leg's `Kernel` macros, imported or through `Kernel.`. */
+        fun isKernelMacro(node: ElixirAst): Boolean {
+            val call = node as? ElixirAst.Call ?: return false
+            val arguments = call.arguments ?: return false
+            val dot = (call.callee as? ElixirAst.Call)?.takeIf { isCall(it, ".", 2) }
+            val name = when {
+                dot == null -> call.callee
+                ((dot.arguments!![0] as? ElixirAst.Alias)?.segments?.singleOrNull() as? ElixirAst.Literal.Atom)?.name ==
+                    "Kernel" -> dot.arguments[1]
+                else -> null
+            }
 
-            return isNamedCall(node, "var!") || (name as? ElixirAst.Literal.Atom)?.name == "var!"
+            return (name as? ElixirAst.Literal.Atom)?.let { NameArity(it.name, arguments.size) in legKernel.macros } == true
         }
 
         /**

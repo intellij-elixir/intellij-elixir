@@ -581,7 +581,7 @@
 
 ### Threading / Platform Hygiene
 
-- [#PR-TBD](https://github.com/intellij-elixir/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)
+- [#4358](https://github.com/intellij-elixir/intellij-elixir/pull/4358) [@sh41](https://github.com/sh41)
   - **The expander expands `if`, `unless`, the boolean operators, `|>`, `in`, `<>`, `to_string`, `raise`, `binding`, `destructure` and ranges as each Elixir release does; nothing uses it yet.** Fixes [#4342](https://github.com/intellij-elixir/intellij-elixir/issues/4342).
 - [#4357](https://github.com/intellij-elixir/intellij-elixir/pull/4357) [@sh41](https://github.com/sh41)
   - **The expander expands module attributes, gives each function the attribute values it is defined with, and reports the checks Elixir makes after a module's body; nothing uses it yet.** Fixes [#4318](https://github.com/intellij-elixir/intellij-elixir/issues/4318).
