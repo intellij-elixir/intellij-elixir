@@ -163,7 +163,11 @@ internal enum class Clause(vararg val heads: Head) {
                 val discarded = if (expression !== expressions.last()) discardedFor(expression) else null
 
                 Expander.expand(discarded ?: expression, s, e, run)
-            }.withValue(NODE)
+            }.thenValue { s, e, values ->
+                val last = (values as Term.List).elements.last()
+
+                Expansion.Expanded(s, e, if (returnsBoolean(last)) BOOLEAN_NODE else NODE)
+            }
         }
     },
 

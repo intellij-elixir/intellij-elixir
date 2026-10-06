@@ -145,6 +145,25 @@ object ErrorKinds {
         "var_bang_not_a_variable" to """^expected a variable to be given to var!, got: """,
         "var_bang_context_not_atom" to """^expected var! context to expand to an atom, got: """,
         "alias_bang_function_clause" to """^no function clause matching in Kernel\.alias!/1""",
+        "invalid_if_keys" to """^invalid or duplicate keys for (if|unless), only "do" and an optional "else" are permitted$""",
+        "kernel_invalid_match" to
+            """^invalid expression in match, \S+ is not allowed in patterns such as function clauses, case clauses or on the left side of the = operator$""",
+        "kernel_invalid_guard" to """^invalid expression in guard, \S+ is not allowed in guards\. """,
+        "pipe_bad_target" to
+            """^cannot pipe .+ into .+, can only pipe into local calls foo\(\), remote calls Foo\.bar\(\) or anonymous function calls foo\.\(\)$""",
+        "pipe_special_form" to """^cannot pipe .+ into the special form unquote(_splicing)?/1 since """,
+        "pipe_fn" to """^cannot pipe .+ into an anonymous function without calling the function; use """,
+        "pipe_unary" to """^piping into a unary operator is not supported, please use the qualified name: """,
+        "pipe_from_brackets" to """^wrong operator precedence when piping into bracket-based access""",
+        "pipe_operator_arity" to """^cannot pipe .+ into .+, the :\S+ operator can only take (one argument|two arguments)$""",
+        "in_invalid_guard_argument" to
+            """^invalid right argument for operator "in", it expects a compile-time proper list or compile-time range on the right side when used in guard expressions, got: """,
+        "concat_not_binary" to """^expected binary argument in <> operator but got: """,
+        "concat_unknown_size" to
+            """^(cannot perform prefix match because the left operand of <> has unknown size|the left argument of <> operator inside a match should always be a literal binary because its size can't be verified)""",
+        "destructure_function_clause" to """^no function clause matching in Kernel\.destructure/2""",
+        "range_not_integers" to """^ranges \(first\.\.last(//step)?\) expect both sides to be integers, got: """,
+        "range_zero_step" to """^ranges \(first\.\.last//step\) expect the step to be a non-zero integer, got: """,
         // elixir_dispatch
         "macro_conflict" to
             """^call to local macro \S+/\d+ conflicts with imported \S+\.\S+/\d+, please rename the local macro or remove the conflicting import$""",
@@ -257,6 +276,21 @@ object ErrorKinds {
         "behavior_attribute",
         "attribute_arity",
         "invalid_attribute_value",
+        "invalid_if_keys",
+        "kernel_invalid_match",
+        "kernel_invalid_guard",
+        "pipe_bad_target",
+        "pipe_special_form",
+        "pipe_fn",
+        "pipe_unary",
+        "pipe_from_brackets",
+        "pipe_operator_arity",
+        "in_invalid_guard_argument",
+        "concat_not_binary",
+        "concat_unknown_size",
+        "destructure_function_clause",
+        "range_not_integers",
+        "range_zero_step",
     )
 
     fun pattern(kind: String): Regex = PATTERNS[kind] ?: throw AssertionError("no message pattern for error $kind")

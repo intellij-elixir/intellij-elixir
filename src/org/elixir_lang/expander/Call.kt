@@ -470,7 +470,7 @@ private fun rewrite(
             val arg = args.elements.singleOrNull()
             val isToString = atom == STRING_CHARS && name == "to_string" && arg is Term.Binary
 
-            Expansion.Expanded(state, env, if (isToString) arg else NODE)
+            Expansion.Expanded(state, env, if (isToString) arg else callValue(atom, name, args.elements, run.level))
         }
         Env.Context.MATCH ->
             if (atom == ERLANG && name == "++" && args.elements.size == 2) {

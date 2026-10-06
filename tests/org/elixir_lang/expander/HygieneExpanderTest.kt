@@ -131,8 +131,8 @@ class HygieneExpanderTest : ExpanderTestCase() {
 
     fun testVarBangsContextThatIsAMacroCallIsOpaque() =
         assertEvery(
-            "var!(x, if(true, do: :a)) = 1",
-            "opaque imported_macro Elixir.Kernel.if/2 `if(true, do: :a)`; counted 0",
+            "var!(x, is_nil(1)) = 1",
+            "opaque imported_macro Elixir.Kernel.is_nil/1 `is_nil(1)`; counted 0",
         )
 
     fun testVarBangsContextThatIsAnUnimportedLocalCallIsNotAnAtom() =

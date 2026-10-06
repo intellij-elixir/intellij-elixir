@@ -27,10 +27,10 @@ class CaptureDispatchExpanderTest : ExpanderTestCase() {
      * until 1.14.0-rc.1, and the name's from it.
      */
     fun testACaptureOfAnImportedMacro() {
-        val macro = "imported_macro Elixir.Kernel.to_string/1"
+        val macro = "imported_macro Elixir.Kernel.is_nil/1"
 
-        assertCapturedSplit("&to_string/1", NAME_META, "opaque $macro `&to_string/1` | ", "opaque $macro `to_string` | ")
-        assertCaptured("&to_string(&1)", "opaque $macro `to_string(&1)` | ")
+        assertCapturedSplit("&is_nil/1", NAME_META, "opaque $macro `&is_nil/1` | ", "opaque $macro `is_nil` | ")
+        assertCaptured("&is_nil(&1)", "opaque $macro `is_nil(&1)` | ")
     }
 
     fun testACaptureOfAnAmbiguousImport() =

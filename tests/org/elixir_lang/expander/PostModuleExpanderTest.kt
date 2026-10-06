@@ -33,7 +33,7 @@ class PostModuleExpanderTest : ExpanderTestCase() {
               defp f, do: if(true, [])
             end
             """.trimIndent(),
-            "module Elixir.A stopped `if(true, [])`",
+            "module Elixir.A raised invalid_if_keys `if(true, [])`",
         )
 
     fun testDuplicateDefaults() =

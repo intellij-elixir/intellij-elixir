@@ -86,6 +86,12 @@ class MacroKeyTest {
                 MacroKey.DEFMACRO_2, MacroKey.DEFMACROP_1, MacroKey.DEFMACROP_2, MacroKey.DEFMODULE,
             ),
             "module attributes" to listOf(MacroKey.AT),
+            "kernel control flow" to listOf(
+                MacroKey.IF, MacroKey.UNLESS, MacroKey.AND_AND, MacroKey.OR_OR, MacroKey.NOT, MacroKey.AND, MacroKey.OR,
+                MacroKey.PIPE, MacroKey.IN, MacroKey.CONCAT, MacroKey.TO_STRING, MacroKey.RAISE_1, MacroKey.RAISE_2,
+                MacroKey.BINDING_0, MacroKey.BINDING_1, MacroKey.DESTRUCTURE, MacroKey.RANGE, MacroKey.STEP_RANGE,
+                MacroKey.FULL_RANGE,
+            ),
         )
     }
 }

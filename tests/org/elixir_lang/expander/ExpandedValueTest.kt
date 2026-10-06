@@ -174,6 +174,7 @@ class ExpandedValueTest : ExpanderTestCase() {
                 when (term.kind) {
                     Term.Node.Kind.VARIABLE -> "node(variable)"
                     Term.Node.Kind.PIN -> "node(pin)"
+                    Term.Node.Kind.BOOLEAN -> "node(boolean)"
                     Term.Node.Kind.OTHER -> "node"
                 }
             Term.NonTuple -> "non-tuple"

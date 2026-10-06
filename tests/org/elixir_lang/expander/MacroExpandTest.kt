@@ -12,7 +12,7 @@ import org.elixir_lang.lowering.Meta
 class MacroExpandTest : ExpanderTestCase() {
     override val exports: Exports = Exports { module ->
         when (module) {
-            KERNEL -> ModuleExports.Present(listOf(NameArity("length", 1)), emptyList(), hasInfo = true)
+            KERNEL -> ModuleExports.Present(kernel.functions, kernel.macros, hasInfo = true)
             LIST -> ModuleExports.Present(listOf(NameArity("first", 1)), emptyList(), hasInfo = true)
             INTEGER -> ModuleExports.Present(emptyList(), listOf(NameArity("is_odd", 1)), hasInfo = true)
             MODULE -> ModuleExports.Present(emptyList(), listOf(NameArity("foo", 1)), hasInfo = true)
@@ -23,10 +23,13 @@ class MacroExpandTest : ExpanderTestCase() {
     override val kernel = KernelImports(
         functions = listOf(NameArity("+", 1), NameArity("-", 1), NameArity("inspect", 1), NameArity("length", 1)),
         macros = listOf(
-            NameArity("var!", 1), NameArity("var!", 2), NameArity("alias!", 1), NameArity("def", 2),
-            NameArity("defmodule", 2),
+            NameArity("!", 1), NameArity("alias!", 1), NameArity("def", 2), NameArity("defmodule", 2), NameArity("if", 2),
+            NameArity("unless", 2), NameArity("var!", 1), NameArity("var!", 2),
         ),
     )
+
+    /** Render the output node's name, whether its meta has a line, and the counters taken, in place of the node. */
+    private var output = false
 
     private var inModule: String? = MODULE
     override val module: String? get() = inModule
@@ -146,6 +149,22 @@ class MacroExpandTest : ExpanderTestCase() {
         )
     }
 
+    fun testAKernelMacroIsItsOutput() =
+        assertEvery("if c, do: 1", "node `if c, do: 1` | imported_macro Elixir.Kernel.if/2")
+
+    fun testAKernelMacroTakesOneCounterAndItsOutputGainsNoLineFromTheCall() {
+        output = true
+
+        assertEvery("\nif c, do: 1", "case, no line, 1 counter")
+    }
+
+    /** Before 1.20 `unless` gives an `if`, which `Macro.expand/2` expands in turn. */
+    fun testEachMacroOfAnExpansionTakesACounter() {
+        output = true
+
+        assertSplit("unless c, do: 1", "1.20.0-rc.2", "case, no line, 2 counters", "case, no line, 1 counter")
+    }
+
     // Remote calls
 
     fun testARequiredRemoteMacroWithoutASummaryIsOpaque() {
@@ -202,7 +221,17 @@ class MacroExpandTest : ExpanderTestCase() {
             macros = empty.macros + macros,
             module = module,
         )
-        val expanded = macroExpand(lower(code, level), ExState.empty(level), env, Run(level, observer, exports, structs))
+        val run = Run(level, observer, exports, structs)
+        val expanded = macroExpand(lower(code, level), ExState.empty(level), env, run)
+
+        if (output) {
+            val node = (expanded as MacroExpanded.Node).node as ElixirAst.Call
+            val name = (node.callee as ElixirAst.Literal.Atom).name
+            val line = if (node.meta.keys.any { it is Meta.Key.Location }) "line" else "no line"
+            val counters = run.counters.count(module)
+
+            return "$name, $line, $counters counter${if (counters == 1L) "" else "s"}"
+        }
 
         return (render(code, expanded) + " | " + dispatched.joinToString()).trimEnd()
     }

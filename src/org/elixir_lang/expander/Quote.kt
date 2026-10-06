@@ -479,47 +479,6 @@ internal object Quote {
             is ElixirAst.Literal, is ElixirAst.ListNode, is ElixirAst.Placeholder -> null
         }
 
-    /** The nodes Elixir builds, all at the `quote`'s position. */
-    private class Synthetic(private val at: Meta) {
-        fun meta(keys: List<Meta.Key> = emptyList()) = Meta(at.origin, at.start, at.end, keys, built = true)
-
-        fun atom(name: String) = ElixirAst.Literal.Atom(meta(), name)
-
-        fun integer(value: BigInteger) = ElixirAst.Literal.Integer(meta(), value)
-
-        fun list(vararg elements: ElixirAst) = list(elements.toList())
-
-        fun list(elements: List<ElixirAst>) = ElixirAst.ListNode(meta(), elements)
-
-        fun tuple(vararg elements: ElixirAst) = ElixirAst.Tuple(meta(), elements.toList())
-
-        fun keywords(pairs: List<Pair<String, ElixirAst>>) = list(pairs.map { (key, value) -> tuple(atom(key), value) })
-
-        /** `{Key, Meta, elixir_quote}`, the variable the prelude binds a run-time option to, with the `quote`'s keys. */
-        fun variable(key: String) =
-            ElixirAst.Call(meta(at.keys), atom(key), null, ElixirAst.VariableContext.Atom("elixir_quote"))
-
-        /** `{'=', Meta, [Left, Right]}`, with the `quote`'s keys. */
-        fun match(left: ElixirAst, right: ElixirAst) = ElixirAst.Call(meta(at.keys), atom("="), listOf(left, right))
-
-        /** `{{'.', Meta, [Module, Function]}, Meta, Args}`, with [source]'s keys. */
-        fun remoteCall(source: Meta, module: String, function: String, args: List<ElixirAst>) =
-            ElixirAst.Call(
-                meta(source.keys),
-                ElixirAst.Call(meta(source.keys), atom("."), listOf(atom(module), atom(function))),
-                args,
-            )
-
-        /** [node], a literal, as a node of its own. */
-        fun literal(node: ElixirAst.Literal): ElixirAst =
-            when (node) {
-                is ElixirAst.Literal.Atom -> atom(node.name)
-                is ElixirAst.Literal.Integer -> integer(node.value)
-                is ElixirAst.Literal.Float -> ElixirAst.Literal.Float(meta(), node.value)
-                is ElixirAst.Literal.Binary -> ElixirAst.Literal.Binary(meta(), node.bytes)
-            }
-    }
-
     private val QUOTE_OPTIONS = listOf("context", "location", "line", "file", "unquote", "bind_quoted", "generated")
 
     private val DEFINITIONS = setOf("def", "defp", "defmacro", "defmacrop", "@")
@@ -797,22 +756,19 @@ internal object Quote {
 
         /** `import_meta/5`. */
         private fun importMeta(node: ElixirAst, meta: Keywords, name: String, arity: Int): Keywords {
-            if (QUOTE_IMPORTS_EVERY_ARITY.isSufficient(level)) {
-                when (val imports = findImports(name, env)) {
+            val imports = if (QUOTE_IMPORTS_EVERY_ARITY.isSufficient(level)) {
+                when (val found = findImports(name, env)) {
                     is NameImports.Ambiguous -> throw Stop(Expansion.Error("ambiguous_call", node))
-                    is NameImports.Found ->
-                        if (imports.imports.isNotEmpty()) {
-                            traceImportQuoted(node, name, imports.imports)
-
-                            val list = s.list(imports.imports.map { (a, module) -> s.tuple(s.integer(a.toBigInteger()), s.atom(module)) })
-
-                            return keystore(keystore(meta, "context", contextNode()), "imports", list)
-                        }
+                    is NameImports.Found -> found.imports.also { if (it.isNotEmpty()) traceImportQuoted(node, name, it) }
                 }
             } else {
-                findImport(node, name, arity)?.let { receiver ->
-                    return keystore(keystore(meta, "context", contextNode()), "import", s.atom(receiver))
-                }
+                listOfNotNull(findImport(node, name, arity)?.let { arity to it })
+            }
+
+            if (imports.isNotEmpty()) {
+                val key = importKey(level, imports)
+
+                return keystore(keystore(meta, "context", contextNode()), key.name, value(key.value, columns = false))
             }
 
             val ambiguousOp = meta.firstOrNull { it.first == "ambiguous_op" }?.second

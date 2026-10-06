@@ -353,6 +353,8 @@ private fun expandNamedSpec(spec: ElixirAst.Call, state: ExState, env: Env, run:
             when {
                 !expanded.expanded -> NamedSpec.Unchanged
                 node is ElixirAst.Literal.Integer -> NamedSpec.Size(node.value)
+                node is ElixirAst.ListNode || node is ElixirAst.Tuple || node is ElixirAst.Literal ||
+                    node is ElixirAst.Call && node.callee !is ElixirAst.Literal.Atom -> NamedSpec.Unchanged
                 // Elixir unpacks the specs it expands to again.
                 else -> NamedSpec.Other(Expansion.Unported(call))
             }

@@ -9,8 +9,8 @@ import org.junit.Test
 import java.io.File
 
 /**
- * The expander's `inline/3` and guard functions against every leg's committed [RewriteManifestTest] manifests, row for
- * row, at that leg's Elixir and Erlang/OTP.
+ * The expander's `inline/3`, `rewrite/5` and guard functions against every leg's committed [RewriteManifestTest]
+ * manifests, row for row, at that leg's Elixir and Erlang/OTP.
  */
 class RewriteTableTest {
     @Test
@@ -21,16 +21,38 @@ class RewriteTableTest {
         assertTrue("no committed inline manifest", versions.isNotEmpty())
         assertEquals(
             versions.joinToString("\n") { version ->
-                "$version\n" + render(RewriteManifests.inline(version))
+                "$version\n" + render(RewriteManifests.inline(version).mapValues { (_, erlang) -> erlang.toList() })
             },
             versions.joinToString("\n") { version ->
                 val level = ElixirLanguageLevel.of(version)
 
                 val inlined = calls.mapNotNull { call ->
-                    inline(call.first, call.second, call.third, level)?.let { call to it }
+                    inline(call.first, call.second, call.third, level)?.let { call to it.toList() }
                 }
 
                 "$version\n" + render(inlined.toMap())
+            },
+        )
+    }
+
+    @Test
+    fun `the expander rewrites what each leg rewrites`() {
+        val versions = RewriteManifests.versions(RewriteManifestTest.REWRITE)
+        val calls = versions.flatMap { RewriteManifests.rewrite(it).keys }.toSet() + REWRITTEN.keys
+
+        assertTrue("no committed rewrite manifest", versions.isNotEmpty())
+        assertEquals(
+            versions.joinToString("\n") { version -> "$version\n" + render(RewriteManifests.rewrite(version)) },
+            versions.joinToString("\n") { version ->
+                val level = ElixirLanguageLevel.of(version)
+
+                val rewritten = calls.mapNotNull { call ->
+                    rewrite(call.first, call.second, call.third, level)?.let {
+                        call to listOf(it.erlangModule, it.erlangName, it.erlangArity.toString())
+                    }
+                }
+
+                "$version\n" + render(rewritten.toMap())
             },
         )
     }
@@ -55,8 +77,8 @@ class RewriteTableTest {
         )
     }
 
-    private fun render(inline: Map<Triple<String, String, Int>, Pair<String, String>>): String =
-        inline.map { (call, erlang) -> "  ${call.first} ${call.second} ${call.third} ${erlang.first} ${erlang.second}" }
+    private fun render(table: Map<Triple<String, String, Int>, List<String>>): String =
+        table.map { (call, erlang) -> "  ${call.first} ${call.second} ${call.third} ${erlang.joinToString(" ")}" }
             .sorted()
             .joinToString("\n")
 
@@ -80,6 +102,14 @@ internal object RewriteManifests {
             val (module, name, arity, erlangModule, erlangName) = row
 
             Triple(module, name, arity.toInt()) to (erlangModule to erlangName)
+        }
+
+    /** [version]'s `rewrite/5` table: each call's `[erlang_module, erlang_name, erlang_arity]`. */
+    fun rewrite(version: String): Map<Triple<String, String, Int>, List<String>> =
+        rows(version, RewriteManifestTest.REWRITE).associate { row ->
+            val (module, name, arity) = row
+
+            Triple(module, name, arity.toInt()) to row.drop(3)
         }
 
     /** The `:erlang` functions [version]'s leg admits in a guard. */

@@ -218,6 +218,9 @@ internal val NODE: Term = Term.Node(Term.Node.Kind.OTHER)
 /** The value of a node that expands to a variable, which `^` and `rescue ... in` accept. */
 internal val VARIABLE_NODE: Term = Term.Node(Term.Node.Kind.VARIABLE)
 
+/** The value of a node other than a boolean that `elixir_utils:returns_boolean/1` holds of. */
+internal val BOOLEAN_NODE: Term = Term.Node(Term.Node.Kind.BOOLEAN)
+
 internal val NIL = Term.Atom("nil")
 
 internal val TRUE = Term.Atom("true")

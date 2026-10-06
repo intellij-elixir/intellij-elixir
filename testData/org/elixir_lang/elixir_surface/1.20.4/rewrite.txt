@@ -1,0 +1,6 @@
+# ./gradlew test --tests org.elixir_lang.expander.RewriteManifestTest -PoverwriteTestData=true
+Elixir.Float to_charlist 1 erlang float_to_list 2
+Elixir.Float to_string 1 erlang float_to_binary 2
+Elixir.Port monitor 1 erlang monitor 2
+Elixir.Process monitor 1 erlang monitor 2
+Elixir.Process monitor 2 erlang monitor 3

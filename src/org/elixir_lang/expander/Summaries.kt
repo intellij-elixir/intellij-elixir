@@ -44,6 +44,30 @@ internal fun interface Summary {
     }
 }
 
+/**
+ * [node] through the macro's own `Macro.expand/2`, or [stopped] of the [Summary.Output] the macro gives where that
+ * expansion can't be followed. `__DIR__`'s binary, which [Env] doesn't hold, is `__DIR__` itself, which expands to it
+ * where the output puts it ([isDirBinary]).
+ */
+internal inline fun expandArgument(
+    node: ElixirAst,
+    state: ExState,
+    env: Env,
+    run: Run,
+    stopped: (Summary.Output) -> Nothing,
+): ElixirAst =
+    when (val expanded = macroExpand(node, state, env, run)) {
+        is MacroExpanded.Node -> expanded.node
+        MacroExpanded.Dir -> Synthetic(node.meta).variable("__DIR__", "nil")
+        is MacroExpanded.Stopped -> stopped(Summary.Output.Stopped(expanded.expansion))
+    }
+
+/** Whether [node], an [expandArgument] result, is `__DIR__`'s binary: `Macro.expand/2` never leaves `__DIR__` as it is. */
+internal fun isDirBinary(node: ElixirAst): Boolean = isVariableNamed(node, "__DIR__")
+
+/** `is_binary/1` of [node], an [expandArgument] result. */
+internal fun isBinaryValue(node: ElixirAst): Boolean = node is ElixirAst.Literal.Binary || isDirBinary(node)
+
 /** The summary registry: each modelled macro, by its [MacroKey]. */
 internal object Summaries {
     fun of(dispatch: Dispatch): Summary? = MacroKey.of(dispatch.receiver, dispatch.name, dispatch.arity)?.let(::of)
@@ -56,16 +80,31 @@ internal object Summaries {
             MacroKey.DEF_1, MacroKey.DEF_2, MacroKey.DEFP_1, MacroKey.DEFP_2, MacroKey.DEFMACRO_1, MacroKey.DEFMACRO_2,
             MacroKey.DEFMACROP_1, MacroKey.DEFMACROP_2 -> DEFINE
             MacroKey.DEFMODULE -> DEFMODULE
+            MacroKey.IF -> IF
+            MacroKey.UNLESS -> UNLESS
+            MacroKey.AND_AND -> AND_AND
+            MacroKey.OR_OR -> OR_OR
+            MacroKey.NOT -> NOT
+            MacroKey.AND -> AND
+            MacroKey.OR -> OR
+            MacroKey.TO_STRING -> TO_STRING
+            MacroKey.RAISE_1 -> RAISE_1
+            MacroKey.RAISE_2 -> RAISE_2
+            MacroKey.BINDING_0, MacroKey.BINDING_1 -> BINDING
+            MacroKey.DESTRUCTURE -> DESTRUCTURE
+            MacroKey.PIPE -> PIPE
+            MacroKey.CONCAT -> CONCAT
+            MacroKey.RANGE -> RANGE
+            MacroKey.STEP_RANGE -> STEP_RANGE
+            MacroKey.FULL_RANGE -> FULL_RANGE
+            MacroKey.IN -> IN
             MacroKey.AT -> ATTRIBUTE
-            MacroKey.IF, MacroKey.UNLESS, MacroKey.AND_AND, MacroKey.OR_OR, MacroKey.NOT, MacroKey.AND, MacroKey.OR,
-            MacroKey.PIPE, MacroKey.IN, MacroKey.CONCAT, MacroKey.TO_STRING, MacroKey.RAISE_1, MacroKey.RAISE_2,
-            MacroKey.BINDING_0, MacroKey.BINDING_1, MacroKey.DESTRUCTURE, MacroKey.RANGE, MacroKey.STEP_RANGE,
-            MacroKey.FULL_RANGE, MacroKey.DEFSTRUCT, MacroKey.DEFEXCEPTION, MacroKey.DEFGUARD,
-            MacroKey.DEFGUARDP, MacroKey.DEFOVERRIDABLE, MacroKey.DEFDELEGATE, MacroKey.DEFPROTOCOL, MacroKey.DEFIMPL_2,
-            MacroKey.DEFIMPL_3, MacroKey.USE_1, MacroKey.USE_2, MacroKey.SIGIL_C_UPPER, MacroKey.SIGIL_D,
-            MacroKey.SIGIL_N, MacroKey.SIGIL_R_UPPER, MacroKey.SIGIL_S_UPPER, MacroKey.SIGIL_T, MacroKey.SIGIL_U,
-            MacroKey.SIGIL_W_UPPER, MacroKey.SIGIL_C, MacroKey.SIGIL_R, MacroKey.SIGIL_S, MacroKey.SIGIL_W,
-            MacroKey.PROTOCOL_DEF, MacroKey.UTILS_DEFGUARD -> null
+            MacroKey.DEFSTRUCT, MacroKey.DEFEXCEPTION, MacroKey.DEFGUARD, MacroKey.DEFGUARDP,
+            MacroKey.DEFOVERRIDABLE, MacroKey.DEFDELEGATE, MacroKey.DEFPROTOCOL, MacroKey.DEFIMPL_2, MacroKey.DEFIMPL_3,
+            MacroKey.USE_1, MacroKey.USE_2, MacroKey.SIGIL_C_UPPER, MacroKey.SIGIL_D, MacroKey.SIGIL_N,
+            MacroKey.SIGIL_R_UPPER, MacroKey.SIGIL_S_UPPER, MacroKey.SIGIL_T, MacroKey.SIGIL_U, MacroKey.SIGIL_W_UPPER,
+            MacroKey.SIGIL_C, MacroKey.SIGIL_R, MacroKey.SIGIL_S, MacroKey.SIGIL_W, MacroKey.PROTOCOL_DEF,
+            MacroKey.UTILS_DEFGUARD -> null
         }
 }
 
