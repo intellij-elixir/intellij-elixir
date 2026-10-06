@@ -106,6 +106,11 @@ object ErrorKinds {
         "invalid_module_name" to """^invalid module name: """,
         "module_reserved" to """^module \S+ is reserved and cannot be defined$""",
         "module_in_definition" to """^cannot define module \S+ because it is currently being defined in """,
+        // Module's ArgumentErrors for a written attribute value
+        "invalid_attribute_value" to
+            """^(@\S+ is a built-in module attribute |@behaviour expects a module, got: |""" +
+            """the @on_load attribute can only be set once per module$|invalid value for @dialyzer attribute: |""" +
+            """attributes type, typep, opaque, spec, callback, and macrocallback must be set directly via the @ notation$)""",
         // A function `@on_load`, `@dialyzer`, `@nifs` or `@compile :inline` names, in each release's wording
         "undefined_attribute_function" to
             """^(undefined function \S+/\d+ given to @\S+( :\S+)?|@on_load function \S+/\d+ is undefined|""" +
@@ -122,6 +127,13 @@ object ErrorKinds {
             """^invalid expression in match, (def|defp|defmacro|defmacrop|defmodule)/2 is not allowed in patterns """,
         "definer_in_guard" to
             """^invalid expression in guard, (def|defp|defmacro|defmacrop|defmodule)/2 is not allowed in guards\. """,
+        "attribute_outside_module" to """^cannot invoke @/1 outside module$""",
+        "attribute_in_match_or_guard" to
+            """^(invalid write attribute syntax\. If you want to define an attribute, don't do this:|""" +
+            """invalid usage of module attributes\. Module attributes cannot be used inside pattern matching \(and guards\) outside of a function\.)""",
+        "attribute_set_in_function" to """^cannot set attribute @\S+ inside function/macro$""",
+        "behavior_attribute" to """^@behavior attribute is not supported, please use @behaviour instead$""",
+        "attribute_arity" to """^expected 0 or 1 argument for @\S+, got:? \d+""",
         "reserved_word" to
             """^(unexpected reserved word at the top-level of the "defmodule .+" do-block: |""" +
             """no function clause matching in Kernel\.defmodule/2)""",
@@ -239,6 +251,12 @@ object ErrorKinds {
         "definer_in_match",
         "definer_in_guard",
         "reserved_word",
+        "attribute_outside_module",
+        "attribute_in_match_or_guard",
+        "attribute_set_in_function",
+        "behavior_attribute",
+        "attribute_arity",
+        "invalid_attribute_value",
     )
 
     fun pattern(kind: String): Regex = PATTERNS[kind] ?: throw AssertionError("no message pattern for error $kind")

@@ -1,7 +1,6 @@
 package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangAtom
-import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_ERRORS_CONTINUE
 import org.elixir_lang.language_level.ElixirLanguageLevel
@@ -51,7 +50,7 @@ class DefinitionTableProbeTest : ProbeTestCase() {
         val actual = mutableListOf<String>()
 
         for (case in cases) {
-            val expansions = probes.expandAll(listOf(case), hook = true)
+            val expansions = probes.expandAll(listOf(case), hook = ProbeHarness.Hook())
             val expansion = expansions.cases.single()
 
             assertFalse("${case}: ${expansion.outcome}", expansion.ended is ExpansionResult.Ended.Stopped)
@@ -100,47 +99,7 @@ class DefinitionTableProbeTest : ProbeTestCase() {
         "$name/$arity $kind" + (line?.let { " line $it" } ?: "") + (clauses?.let { " clauses $it" } ?: "") +
             (default?.let { " default $it" } ?: "")
 
-    /** The invariant each compile keeps: none of [layout]'s modules is loaded or open, and the same names compile. */
-    private fun assertLeftNothingBehind(layout: ProbeHarness.Layout) {
-        val modules = listOf(layout.probeModule, layout.hookModule) + layout.cases.indices.map(layout::caseModule)
-
-        assertEquals("left behind", emptyList<String>(), loadedOrOpen(modules))
-
-        val again = harness.attempt(
-            ProbeHarness.Layout(layout.token, layout.cases.map { ProbeHarness.Case(":ok") }, hook = true)
-        )
-
-        assertEquals("the same names again", OtpErlangAtom("ok"), again.compiled.status)
-        assertEquals("left behind again", emptyList<String>(), loadedOrOpen(modules))
-    }
-
-    private fun loadedOrOpen(modules: List<String>): List<String> {
-        val compiled = harness.compileSource(
-            modules.joinToString("\n") {
-                val module = it.removePrefix("Elixir.")
-
-                "IntellijElixir.Quoter.Probe.send(__ENV__, {$module, :code.is_loaded($module), Module.open?($module)})"
-            }
-        )
-
-        assertEquals("invariant compile status", OtpErlangAtom("ok"), compiled.status)
-
-        return compiled.messages.map { it as OtpErlangTuple }
-            .filterNot { it.elementAt(1) == FALSE && it.elementAt(2) == FALSE }
-            .map(::inspect)
-    }
-
-    private fun compilerOptions(): OtpErlangObject {
-        val compiled = harness.compileSource("IntellijElixir.Quoter.Probe.send(__ENV__, Code.compiler_options())")
-
-        assertEquals("compiler options compile status", OtpErlangAtom("ok"), compiled.status)
-
-        return compiled.messages.single()
-    }
-
     private companion object {
-        val FALSE = OtpErlangAtom("false")
-
         /** `Module.get_definition/2`, which gives a definition's meta and clauses. */
         val GET_DEFINITION: ElixirLanguageLevel = ElixirLanguageLevel.of("1.12.0-rc.0")
 
@@ -149,6 +108,12 @@ class DefinitionTableProbeTest : ProbeTestCase() {
 
         val CASES = listOf(
             """
+            @behaviour Access
+            Module.register_attribute(__MODULE__, :acc, accumulate: true)
+            @acc :a
+            @acc :b
+            @x 1
+            @x 2
             def f(a, b \\ 1, c \\ 2), do: {a, b, c}
             defp g(x), do: x
             defmacro m(x \\ nil), do: x

@@ -581,7 +581,7 @@
 
 ### Threading / Platform Hygiene
 
-- [#PR-TBD](https://github.com/intellij-elixir/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)
+- [#4357](https://github.com/intellij-elixir/intellij-elixir/pull/4357) [@sh41](https://github.com/sh41)
   - **The expander expands module attributes, gives each function the attribute values it is defined with, and reports the checks Elixir makes after a module's body; nothing uses it yet.** Fixes [#4318](https://github.com/intellij-elixir/intellij-elixir/issues/4318).
 - [#4350](https://github.com/intellij-elixir/intellij-elixir/pull/4350) [@sh41](https://github.com/sh41)
   - **The expander expands `defmodule` and `def`, builds each module's definitions, and keeps going after an error inside a function where Elixir does; nothing uses it yet.** Fixes [#4316](https://github.com/intellij-elixir/intellij-elixir/issues/4316).

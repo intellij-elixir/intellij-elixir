@@ -6,7 +6,7 @@ import org.elixir_lang.psi.ElixirFile
 /**
  * The errors of a module's definitions, compiled on the leg's Elixir: up to 1.14 the first raises; from 1.15 an error
  * inside a function is logged and its body expanded on, so each error is reported, in the order the bodies run, then
- * the checks of the module's local calls once its body has run, and the compile ends as Elixir's does.
+ * the checks Elixir makes once the module's body has run, and the compile ends as Elixir's does.
  */
 class ContinuingErrorProbeTest : ProbeTestCase() {
     private val probes = ExpansionProbes(harness) { createPsiFile(getTestName(false), it) as ElixirFile }
@@ -39,16 +39,24 @@ class ContinuingErrorProbeTest : ProbeTestCase() {
         assertMatchesElixir(listOf("def f(a \\\\ (x = 1), b \\\\ x), do: {a, b}"))
     }
 
-    /**
-     * The errors before a check that isn't expanded yet: a bodiless head's missing clauses, and an import that
-     * conflicts with a definition.
-     */
-    fun testErrorsBeforeLaterChecks() {
-        val expansions = LATER_CHECKS.associateWith { probes.expand(it) }
+    /** A bodiless head's missing clauses, and an import that conflicts with a definition, after a body's errors. */
+    fun testBodilessHeadsAndImportConflictsAfterBodyErrors() {
+        assertMatchesElixir(LATER_CHECKS)
+    }
 
-        assertEquals("", expansions.filterValues { it.ended is ExpansionResult.Ended.Stopped }.keys.joinToString("\n"))
+    /** The checks once the body has run of bodiless heads, imports and the functions attributes name, in each band. */
+    fun testPostModuleChecks() {
+        assertMatchesElixir(POST_MODULE)
+    }
 
-        probes.assertMatchesElixir(expansions, errorsFirst = true)
+    /** A definition whose kind or defaults conflict with an earlier one's, after its own body's errors. */
+    fun testDefinitionTimeChecks() {
+        assertMatchesElixir(DEFINITION_TIME)
+    }
+
+    /** What `@` raises as it expands, and what an attribute's validation raises as the module body runs. */
+    fun testAttributeRaises() {
+        assertMatchesElixir(ATTRIBUTE_RAISES)
     }
 
     private fun assertMatchesElixir(cases: List<String>) {
@@ -155,6 +163,79 @@ class ContinuingErrorProbeTest : ProbeTestCase() {
             "def f(:a)\ndef g(:b)",
             "def f(a) when is_integer(a)\ndef g(b) when is_integer(b)",
             "import List, only: [first: 1]\ndef f, do: __STACKTRACE__\ndef g(x), do: first(x)\ndef first(x), do: x",
+        )
+
+        /**
+         * Bodiless heads, import conflicts and the functions attributes name, alone and together. An imported macro
+         * that conflicts with a definition isn't here: its use in a function stops at a macro the expander doesn't
+         * expand yet.
+         */
+        val POST_MODULE = listOf(
+            "def f(a)",
+            "def b(x)\ndef a(x)",
+            "def f(a)\ndef g, do: nope()",
+            "import List\ndef f(l), do: first(l)\ndef first(x), do: x",
+            "import List\ndef f, do: &first/1\ndef first(x), do: x",
+            "import List\ndef f(l), do: {first(l), last(l)}\ndef first(x), do: x\ndef last(x), do: x",
+            "import List\ndef f(l), do: first(l)\ndef first(x), do: x\ndef g, do: nope()",
+            "import List\n_ = first([1])\ndef first(x), do: x",
+            "@on_load :init\ndef f, do: 1",
+            "@on_load :init\ndefmacro init, do: :ok",
+            "@on_load :init\ndefp init, do: :ok",
+            "@on_load :init\ndef g, do: nope()",
+            "@on_load :init\n@compile {:inline, i: 0}\ndef g, do: 1",
+            "@dialyzer {:nowarn_function, d: 0}\n@on_load :init\ndef g, do: 1",
+            "@dialyzer {:nowarn_function, nope: 0}\ndef f, do: 1",
+            "@dialyzer {:nowarn_function, m: 0}\ndefmacro m, do: 1",
+            "@dialyzer {:nowarn_function, a: 0}\n@dialyzer {:nowarn_function, [c: 0, b: 0]}",
+            "@dialyzer {:nowarn_function, f: 0}\n@dialyzer {:nowarn_function, nope: 0}\ndef f, do: 1",
+            "@dialyzer nil\ndef f, do: 1",
+            "@dialyzer [nil]\ndef f, do: 1",
+            "@nifs [nope: 0]\ndef f, do: 1",
+            "@nifs [:nope]\ndef f, do: 1",
+            "@nifs [m: 0]\ndefmacro m, do: 1",
+            "@nifs [c: 0, b: 0]",
+            "@nifs [f: 0]\n@nifs [nope: 0]\ndef f, do: 1",
+            "@compile {:inline, nope: 0}\ndef f, do: 1",
+            "@compile {:inline, nope: 0}\ndef g, do: nope2()",
+            "@compile {:inline, m: 0}\ndefmacro m, do: 1",
+            "@compile {:inline, a: 0}\n@compile {:inline, [c: 0, b: 0]}",
+            "@on_load :init\n@dialyzer {:nowarn_function, d: 0}\n@compile {:inline, i: 0}\n@nifs [n: 0]\ndef h(a)\n" +
+                "import List\ndef f(l), do: first(l)\ndef first(x), do: x\ndef g, do: nope()",
+            "def unquote(:f)(a)",
+        )
+
+        /** Definitions whose kind or defaults conflict with an earlier one's, with and without body errors. */
+        val DEFINITION_TIME = listOf(
+            "def f, do: 1\ndefp f, do: 2",
+            "def f(a \\\\ 1), do: a\ndef f(a \\\\ 2), do: a",
+            "def f(a, b \\\\ 1), do: {a, b}\ndef f(a), do: a",
+            "def g, do: __STACKTRACE__\ndef f, do: 1\ndefp f, do: 2",
+            "def f, do: 1\ndefp f, do: __STACKTRACE__\ndef g, do: __STACKTRACE__",
+            "def f(a, b \\\\ 1), do: {a, b}\ndef f(a), do: __STACKTRACE__",
+            "def f(a \\\\ 1), do: a\ndef f(a \\\\ 2), do: __STACKTRACE__",
+        )
+
+        /** What `@` and the attribute validations raise, less a read whose value has no Term. */
+        val ATTRIBUTE_RAISES = listOf(
+            "def f, do: @x 1",
+            "def g, do: __STACKTRACE__\ndef f, do: @x 1\ndef h, do: 1",
+            "@behavior Foo",
+            "@x = 1",
+            "@x 1\ncase 1 do\n  y when y == @x -> y\nend",
+            "@x 1, 2",
+            "@x foo do\n  1\nend",
+            "@impl \"s\"\ndef f, do: 1",
+            "def g, do: __STACKTRACE__\n@impl \"s\"\ndef f, do: __STACKTRACE__",
+            "@behaviour \"s\"",
+            "@doc 1\ndef f, do: 1",
+            "@deprecated 1\ndef f, do: 1",
+            "@on_load 1",
+            "@on_load :a\n@on_load :b\ndef a, do: :ok\ndef b, do: :ok",
+            "@external_resource 1",
+            "@x 1\ndef f(@x), do: 1",
+            "def f, do: @spec(f() :: any)",
+            "@x 1\ndef f, do: @x()",
         )
     }
 }
