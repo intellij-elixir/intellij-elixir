@@ -88,7 +88,7 @@ object Import {
             enum class Kind { VARIABLE, PIN, BOOLEAN, OTHER }
         }
 
-        /** A value that is neither an atom, a tuple nor a list, such as a float. */
+        /** A float. Readers type it as a float, so no value of another kind is one. */
         data object NonTuple : Term()
 
         /** A call that isn't expanded where the term is read, such as `unquote(x)`, `@attr` or a macro. */
