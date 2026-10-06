@@ -1,13 +1,9 @@
 package org.elixir_lang.psi.scope
 
 import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.project.DumbService
-import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
 import com.intellij.psi.*
 import com.intellij.psi.scope.PsiScopeProcessor
-import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.psi.stubs.StubIndex
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.isAncestor
@@ -40,7 +36,7 @@ import org.elixir_lang.psi.impl.siblingExpressions
 import org.elixir_lang.psi.scope.WhileIn.whileIn
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.psi.stub.type.call.Stub.isModular
-import org.elixir_lang.reference.resolver.narrowedScope
+import org.elixir_lang.reference.resolver.Module as ModuleResolver
 import org.jetbrains.annotations.TestOnly
 
 abstract class CallDefinitionClause : PsiScopeProcessor {
@@ -452,35 +448,30 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
 
     private fun implicitImports(element: PsiElement, state: ResolveState): Boolean {
         WalkProbe.count(WalkProbe.Counter.IMPLICIT_IMPORTS)
-        val project = element.project
-        // Use the entrance element (the call being resolved) for narrowedScope so the search
-        // is limited to the SDK / libraries attached to the module that contains the reference.
-        // Falling back to `element` covers the ElixirFile case where ENTRANCE may be absent.
+        // The entrance (the call being resolved) narrows the search to the SDK and libraries attached to the module
+        // that contains the reference. Falling back to `element` covers the ElixirFile case where ENTRANCE may be absent.
         val entrance = state.get(ENTRANCE) ?: element
-        val scope = narrowedScope(entrance, project)
 
         val implicitState = state.reachedThrough(Reach.IMPLICIT_IMPORT)
-        val keepProcessing = implicitImport(project, scope, KERNEL, implicitState)
+        val keepProcessing = implicitImport(entrance, KERNEL, implicitState)
 
         return if (keepProcessing) {
             val modularCanonicalNameState = implicitState.put(MODULAR_CANONICAL_NAME, KERNEL_SPECIAL_FORMS)
 
-            implicitImport(project, scope, KERNEL_SPECIAL_FORMS, modularCanonicalNameState)
+            implicitImport(entrance, KERNEL_SPECIAL_FORMS, modularCanonicalNameState)
         } else {
             false
         }
     }
 
-    private fun implicitImport(project: Project, scope: GlobalSearchScope, moduleName: String, state: ResolveState): Boolean =
-        if (DumbService.isDumb(project)) {
-            true
-        } else {
-            whileIn(sourceFirstNamedElements(project, scope, moduleName)) { namedElement ->
-                when (namedElement) {
-                    is Call -> implicitImport(namedElement, state.putVisitedElement(namedElement))
-                    is BeamModule -> implicitImport(namedElement, state)
-                    else -> true
-                }
+    private fun implicitImport(entrance: PsiElement, moduleName: String, state: ResolveState): Boolean =
+        whileIn(
+            ModuleResolver.resolvePreferred(entrance, moduleName, incompleteCode = false, inScope = false).map { it.element }
+        ) { modular ->
+            when (modular) {
+                is Call -> implicitImport(modular, state.putVisitedElement(modular))
+                is BeamModule -> implicitImport(modular, state)
+                else -> true
             }
         }
 
@@ -508,36 +499,6 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
         }
 
         return true
-    }
-
-    /**
-     * Returns the [NamedElement]s for [moduleName] within [scope] to walk, preferring source [Call]s
-     * over decompiled [BeamModule] beam stubs: when the module is available as source, the beam stubs
-     * are dropped entirely so a module present in both forms is not visited twice.
-     *
-     * Dropping the beam stubs matters for Variants-style completion, where [keepProcessing] is always
-     * `true`, so a source [Call] and its [BeamModule] beam counterpart would otherwise both be visited
-     * and offer every definition twice (e.g. each `Kernel.SpecialForms` macro). For resolution, where
-     * [keepProcessing] stops after the first result, the surviving source [Call]s are still ordered
-     * first so the walk short-circuits on source before any beam stub (which are now only present when
-     * no source exists) is reached.
-     */
-    private fun sourceFirstNamedElements(project: Project, scope: GlobalSearchScope, moduleName: String): List<NamedElement> {
-        val namedElements = buildList {
-            StubIndex.getInstance().processElements(
-                org.elixir_lang.psi.stub.index.ModularName.KEY,
-                moduleName,
-                project,
-                scope,
-                NamedElement::class.java
-            ) { add(it); true }
-        }
-
-        return if (namedElements.any { it is Call }) {
-            namedElements.filter { it is Call }
-        } else {
-            namedElements
-        }
     }
 
     companion object {

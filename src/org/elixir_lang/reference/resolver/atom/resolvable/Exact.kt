@@ -1,32 +1,13 @@
 package org.elixir_lang.reference.resolver.atom.resolvable
 
-import com.intellij.openapi.project.DumbService
-import com.intellij.psi.PsiElementResolveResult
 import com.intellij.psi.ResolveResult
 import org.elixir_lang.psi.ElixirAtom
-import org.elixir_lang.psi.NamedElement
-import org.elixir_lang.psi.stub.index.ModularName
 import org.elixir_lang.reference.resolver.atom.Resolvable
-import org.elixir_lang.reference.resolver.narrowedScope
-import com.intellij.psi.stubs.StubIndex
+import org.elixir_lang.reference.resolver.Module as ModuleResolver
 
 class Exact(private val name: String) : Resolvable() {
-    override fun resolve(element: ElixirAtom): Array<ResolveResult> {
-        val resolveResultList = mutableListOf<ResolveResult>()
-        val project = element.project
-
-        if (!DumbService.isDumb(project)) {
-            val scope = narrowedScope(element, project)
-
-            StubIndex.getInstance().processElements(
-                ModularName.KEY, name, project, scope, NamedElement::class.java
-            ) { namedElement ->
-                resolveResultList.add(PsiElementResolveResult(namedElement))
-
-                true
-            }
-        }
-
-        return resolveResultList.toTypedArray()
-    }
+    override fun resolve(element: ElixirAtom): Array<ResolveResult> =
+        ModuleResolver
+            .resolvePreferred(element, name, incompleteCode = false, inScope = false)
+            .toTypedArray<ResolveResult>()
 }

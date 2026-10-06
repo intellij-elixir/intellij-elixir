@@ -44,7 +44,7 @@ object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Modul
         if (startsWith("Elixir.")) removePrefix("Elixir.") else this
 
     fun resolve(element: PsiElement, name: String, incompleteCode: Boolean): Array<ResolveResult> {
-        val preferred = resolvePreferred(element, name, incompleteCode)
+        val preferred = resolvePreferred(element, name, incompleteCode, inScope = true)
         val expanded = expand(preferred)
 
         return expanded.toTypedArray()
@@ -76,21 +76,33 @@ object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Modul
             .groupBy { it.element }
             .map { (_, resolveResults) -> resolveResults.first() }
 
-    private fun resolvePreferred(
+    /**
+     * The modulars named [name], preferring valid ones, source over a compiled copy, then those under the caller's IDE
+     * module. The one place a name becomes modulars, whichever way the module was written.
+     *
+     * @param name an index name verbatim: `Mod` for `Mod` and `:"Elixir.Mod"`, `:lists` for `:lists`.
+     * @param inScope whether to look at the `alias`es in scope first, which a module written as an atom never is.
+     */
+    fun resolvePreferred(
         element: PsiElement,
         name: String,
-        incompleteCode: Boolean
+        incompleteCode: Boolean,
+        inScope: Boolean
     ): List<VisitedElementSetResolveResult> {
-        val all = resolveAll(element, name, incompleteCode)
+        val all = resolveAll(element, name, incompleteCode, inScope)
 
         return org.elixir_lang.reference.Resolver.preferred(element, incompleteCode, all)
     }
 
-    private fun resolveAll(element: PsiElement, name: String, incompleteCode: Boolean) =
+    private fun resolveAll(element: PsiElement, name: String, incompleteCode: Boolean, inScope: Boolean) =
         try {
-            resolveInScope(element, name, incompleteCode)
-                .takeIf { set -> set.any(ResolveResult::isValidResult) }
-                ?: multiResolveProject(element, name)
+            if (inScope) {
+                resolveInScope(element, name, incompleteCode)
+                    .takeIf { set -> set.any(ResolveResult::isValidResult) }
+                    ?: multiResolveProject(element, name)
+            } else {
+                multiResolveProject(element, name)
+            }
         } catch (stackOverflowError: StackOverflowError) {
             Logger.error(Module::class.java, "StackOverflowError when resolving Alias", element, stackOverflowError)
 

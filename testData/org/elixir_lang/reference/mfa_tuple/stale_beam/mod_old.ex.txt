@@ -1,0 +1,18 @@
+# Compiled into ebin/Elixir.Mod.beam with `cp mod_old.ex.txt mod_old.ex && elixirc -o ebin mod_old.ex && rm mod_old.ex`.
+# It is `Mod` as it was before the project's `lib/mod.ex` changed: other parameter names, a function and a type the
+# source no longer has, and a `__using__` that defines a function in the caller.
+defmodule Mod do
+  @type t :: term
+  @type stale_t :: term
+
+  @doc "Old."
+  def f(old_q, old_x), do: {:stale, old_q, old_x}
+
+  def stale_only(x), do: x
+
+  defmacro __using__(_) do
+    quote do
+      def stale_used, do: :stale
+    end
+  end
+end

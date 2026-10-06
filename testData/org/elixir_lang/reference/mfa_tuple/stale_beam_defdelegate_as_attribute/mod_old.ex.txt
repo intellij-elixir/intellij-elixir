@@ -1,0 +1,5 @@
+# Compiled into ebin/Elixir.Mod.beam with `cp mod_old.ex.txt mod_old.ex && elixirc -o ebin mod_old.ex && rm mod_old.ex`.
+# `Mod` as it was before the project's `lib/mod.ex` delegated `f`, through `as:`, to `Mod.Target`.
+defmodule Mod do
+  def f(old_q, old_x), do: {:stale, old_q, old_x}
+end
