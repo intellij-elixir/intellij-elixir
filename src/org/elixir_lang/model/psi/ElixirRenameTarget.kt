@@ -16,6 +16,9 @@ import com.intellij.refactoring.rename.api.RenameValidator
 interface ElixirRenameTarget : ElixirSymbolWithUsages, RenameTarget {
     override fun createPointer(): Pointer<out ElixirRenameTarget>
 
+    /** Why [newName] is not a name this symbol can take, or `null` when it is. */
+    fun newNameRefusal(newName: String): String? = null
+
     override fun validator(): RenameValidator {
         val refusal = ReadAction.computeBlocking<String?, Throwable> {
             when {
@@ -24,10 +27,12 @@ interface ElixirRenameTarget : ElixirSymbolWithUsages, RenameTarget {
                     "$targetName cannot be renamed: it is declared outside the project, in a library or SDK"
                 else -> null
             }
-        } ?: return RenameValidator.empty()
+        }
 
         return object : RenameValidator {
-            override fun validate(newName: String): RenameValidationResult = RenameValidationResult.invalid(refusal)
+            override fun validate(newName: String): RenameValidationResult =
+                (refusal ?: newNameRefusal(newName))?.let(RenameValidationResult::invalid)
+                    ?: RenameValidationResult.ok()
         }
     }
 }

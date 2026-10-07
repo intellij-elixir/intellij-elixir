@@ -98,7 +98,14 @@ internal object ElixirUsageQueries {
         searchScope: SearchScope
     ): Collection<Query<out Usage>> {
         val queries = mutableListOf<Query<out Usage>>()
-        queries += ElixirDirectUsageQuery(ElixirPsiUsage.create(target.file, target.range, declaration = true))
+        queries += ElixirDirectUsageQuery(
+            ElixirPsiUsage.create(
+                target.file,
+                target.range,
+                declaration = true,
+                usageTextByName = target.declarationTextByName
+            )
+        )
 
         queries += usageQueries(project, target, searchScope)
 
@@ -593,7 +600,7 @@ internal object ElixirUsageQueries {
                 TextRange(0, alias.textLength),
                 declaration = false,
                 usageType = MODULE_REFERENCE,
-                usageTextByName = usageTextByName
+                usageTextByName = ModuleSymbol.textAt(alias.text, usageTextByName)
             )
         }
 
