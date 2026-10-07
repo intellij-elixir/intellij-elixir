@@ -3,6 +3,7 @@ package org.elixir_lang.psi.stub.type;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.stubs.StubElement;
 import com.intellij.psi.stubs.StubInputStream;
+import org.elixir_lang.psi.DefinitionKt;
 import org.elixir_lang.psi.ElixirUnmatchedAtUnqualifiedNoParenthesesCall;
 import org.elixir_lang.psi.impl.ElixirUnmatchedAtUnqualifiedNoParenthesesCallImpl;
 import org.elixir_lang.psi.call.SyntacticCall;
@@ -42,6 +43,7 @@ public class UnmatchedAtUnqualifiedNoParenthesesCall extends Stub<org.elixir_lan
                 call.hasDoBlockOrKeyword(),
                 StringUtil.notNullize(call.name(), "?"),
                 call.canonicalNameSet(),
+                DefinitionKt.moduleAttributeDefinition(call),
                 call.implementedProtocolName()
         );
     }

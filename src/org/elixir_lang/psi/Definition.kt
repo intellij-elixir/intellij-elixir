@@ -36,6 +36,17 @@ fun definition(call: Call): Definition? = definition(SyntacticCall.of(call))
 fun definition(call: SyntacticCall): Definition? =
         definition(call.resolvedModuleName(), call.functionName(), call.resolvedFinalArity(), call.hasDoBlockOrKeyword())
 
+/**
+ * What an `@` [call] declares: a module attribute, except for a callback or spec, whose name is a function's
+ * and sets no attribute of that name.
+ */
+@RequiresReadLock
+fun moduleAttributeDefinition(call: SyntacticCall): Definition? =
+    Definition.MODULE_ATTRIBUTE.takeUnless {
+        call.moduleAttributeName()?.removePrefix("@")
+            ?.let { ModuleAttribute.isCallbackName(it) || ModuleAttribute.isSpecificationName(it) } == true
+    }
+
 fun definition(resolvedModuleName: String?, functionName: String?, resolvedFinalArity: Int, hasDoBlockOrKeyword: Boolean) =
         when (resolvedModuleName) {
             KERNEL -> if (resolvedFinalArity == 3 && hasDoBlockOrKeyword) {

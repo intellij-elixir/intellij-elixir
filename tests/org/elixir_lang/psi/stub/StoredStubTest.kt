@@ -237,9 +237,21 @@ class StoredStubTest : PlatformTestCase() {
             "  @a 1\n" +
             "end\n",
         "MODULE S Kernel.defmodule/2 do [S] -",
-        "MODULE_ATTRIBUTE f null.null/1 - [f] -",
-        "MODULE_ATTRIBUTE c null.null/1 - [c] -",
-        "MODULE_ATTRIBUTE mc null.null/1 - [mc] -",
+        "- f null.null/1 - [f] -",
+        "- c null.null/1 - [c] -",
+        "- mc null.null/1 - [mc] -",
+    )
+
+    fun testSpecificationAndCallbacksWithSpaceAfterAt() = assertStored(
+        "defmodule S do\n" +
+            "  @ spec f(integer) :: integer\n" +
+            "  @ callback c(atom) :: atom\n" +
+            "  @ macrocallback mc(atom) :: Macro.t\n" +
+            "end\n",
+        "MODULE S Kernel.defmodule/2 do [S] -",
+        "- f null.null/1 - [f] -",
+        "- c null.null/1 - [c] -",
+        "- mc null.null/1 - [mc] -",
     )
 
     fun testQuotedDeclarations() = assertStored(
@@ -318,7 +330,7 @@ class StoredStubTest : PlatformTestCase() {
         "PUBLIC_FUNCTION ab Kernel.def/2 do [ab] -",
         "PUBLIC_FUNCTION in Kernel.def/2 do [in] -",
         "PUBLIC_MACRO ! Kernel.defmacro/2 do [!] -",
-        "MODULE_ATTRIBUTE foo bar null.null/1 - [foo bar] -",
+        "- foo bar null.null/1 - [foo bar] -",
     )
 
     fun testDefinitionNamedByADecomposedIdentifierIsComposed() = assertStored(

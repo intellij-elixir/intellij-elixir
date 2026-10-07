@@ -47,7 +47,7 @@ class CallDefinitionLeafElementTest : PlatformTestCase() {
     fun testAllLineMarkersAnchoredToLeafElements() {
         myFixture.configureByFile("leaf_element_contract.ex")
 
-        // Run the highlighting passes — this triggers all LineMarkerProviders
+        // Run the highlighting passes - this triggers all LineMarkerProviders
         myFixture.doHighlighting()
 
         val document = myFixture.editor.document
@@ -163,4 +163,25 @@ class CallDefinitionLeafElementTest : PlatformTestCase() {
 
     private fun formatElement(element: PsiElement): String =
         "${element.node.elementType} (${element.javaClass.simpleName}) text='${element.text.take(30)}'"
+
+    /** `@ doc` and `@ spec` are the attributes `@doc` and `@spec`, so they group with their definition as those do. */
+    fun testSpaceAfterAtGroupsDocAndSpecWithTheirDefinition() {
+        val definitions = "def a, do: 1\n\n%s\n%s\ndef b, do: 2\n\n%s\ndef c, do: 3\n"
+
+        val plain = markerLines(definitions.format("@doc \"b\"", "@spec b() :: integer", "@doc \"c\""))
+
+        assertTrue("the unspaced definitions get no separator, so this test checks nothing", plain.isNotEmpty())
+        assertEquals(plain, markerLines(definitions.format("@ doc \"b\"", "@ spec b() :: integer", "@ doc \"c\"")))
+    }
+
+    private fun markerLines(body: String): List<Int> {
+        myFixture.configureByText("grouped.ex", "defmodule M do\n" + body.prependIndent("  ") + "end\n")
+        myFixture.doHighlighting()
+
+        val document = myFixture.editor.document
+
+        return DaemonCodeAnalyzerImpl.getLineMarkers(document, myFixture.project)
+            .map { document.getLineNumber(it.startOffset) }
+            .sorted()
+    }
 }

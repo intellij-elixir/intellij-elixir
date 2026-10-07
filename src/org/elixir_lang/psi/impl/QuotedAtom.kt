@@ -9,8 +9,13 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Macro
 import org.elixir_lang.Module.NO_VALUE
 import org.elixir_lang.lowering.AtomName
+import org.elixir_lang.psi.AtOperation
+import org.elixir_lang.psi.ElixirAtIdentifier
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirAtomKeyword
+import org.elixir_lang.psi.ElixirIdentifier
+import org.elixir_lang.psi.ElixirParentheticalStab
+import org.elixir_lang.psi.ElixirVariable
 import org.elixir_lang.psi.Quotable
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.UNQUOTE
@@ -64,6 +69,33 @@ private const val ELIXIR = "Elixir"
 
 private fun isModuleVariable(quoted: OtpErlangObject): Boolean =
     quoted is OtpErlangTuple && quoted.arity() == 3 && (quoted.elementAt(0) as? OtpErlangAtom)?.atomValue() == __MODULE__
+
+/**
+ * The attribute name [atOperation] reads or sets, without its `@`: the name of the call or variable the `@` applies to,
+ * through parentheses around one expression. `null` when it applies to anything else.
+ */
+@RequiresReadLock
+fun moduleAttributeAtom(atOperation: AtOperation): String? {
+    ThreadingAssertions.assertReadAccess()
+
+    return attributeNameElement(atOperation.operand())?.let { AtomName.of(it) }
+}
+
+/** The attribute name [atIdentifier] declares, without its `@`. */
+@RequiresReadLock
+fun moduleAttributeAtom(atIdentifier: ElixirAtIdentifier): String? {
+    ThreadingAssertions.assertReadAccess()
+
+    return AtomName.of(atIdentifier)
+}
+
+private tailrec fun attributeNameElement(operand: PsiElement?): PsiElement? =
+    when (val stripped = operand?.stripAccessExpression()) {
+        is ElixirParentheticalStab -> attributeNameElement(stripped.stab?.stabBody?.childExpressions()?.singleOrNull())
+        is ElixirVariable -> stripped
+        is Call -> stripped.functionNameElement()?.takeIf { it is ElixirIdentifier }
+        else -> null
+    }
 
 /** The atom value of the name [call] uses. */
 @RequiresReadLock

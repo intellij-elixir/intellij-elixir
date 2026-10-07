@@ -2,8 +2,10 @@ package org.elixir_lang.psi
 
 import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
+import org.elixir_lang.psi.impl.moduleAttributeAtom
 
 object ModuleAttribute {
     private const val BEHAVIOUR_NAME = "behaviour"
@@ -39,8 +41,9 @@ object ModuleAttribute {
     fun isDocumentationName(name: String): Boolean = DOCUMENTATION_NAME_SET.contains(name)
 
     @JvmStatic
+    @RequiresReadLock
     fun isNonReferencing(moduleAttribute: ElixirAtIdentifier): Boolean =
-        moduleAttribute.text.removePrefix("@").let(::isNonReferencingName)
+        moduleAttributeAtom(moduleAttribute)?.let(::isNonReferencingName) ?: false
 
     @JvmStatic
     fun isSpecificationName(name: String): Boolean = SPECIFICATION_NAME == name
@@ -52,6 +55,7 @@ object ModuleAttribute {
     fun isNonReferencingName(name: String): Boolean = NON_REFERENCING_NAME_SET.contains(name)
 
     @JvmStatic
+    @RequiresReadLock
     fun isHead(element: PsiElement): Boolean {
         val declaration = when (element) {
             is AtUnqualifiedNoParenthesesCall<*> -> element
