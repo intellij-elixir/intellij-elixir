@@ -134,7 +134,7 @@ private fun importFunction(
 
     return when (val match = findImportByNameArity(name, arity, emptyList(), env)) {
         is ImportMatch.Function -> {
-            importedFunction(call, match.receiver, name, arity, run)
+            importedFunction(call, match.receiver, name, arity, env, run)
 
             Expansion.Expanded(state, env, NODE)
         }

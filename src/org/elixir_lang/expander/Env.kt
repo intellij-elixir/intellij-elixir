@@ -67,6 +67,5 @@ data class Env(
 
         private const val APPLICATION = "Elixir.Application"
         private const val KERNEL = "Elixir.Kernel"
-        private const val KERNEL_TYPESPEC = "Elixir.Kernel.Typespec"
     }
 }

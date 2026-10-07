@@ -41,19 +41,17 @@ internal data class LocalError<out At>(val site: ErrorSite, val call: LocalCall<
  * @param kinds each definition's kind, in the order they were defined
  * @param calls each definition's local calls, in expansion order
  * @param usedPrivate the private macros dispatched as local macros, in the order they were first dispatched
- * @param tainted whether an error was reported in the module before these checks
  */
 internal fun <At> localErrors(
     level: ElixirLanguageLevel,
     kinds: Map<NameArity, Kind>,
     calls: Map<NameArity, List<LocalCall<At>>>,
     usedPrivate: List<NameArity>,
-    tainted: Boolean,
 ): List<LocalError<At>> =
-    when {
-        !POST_MODULE_LOCAL_CHECKS_TYPED.isSufficient(level) -> sorted(level, kinds, calls)
-        tainted -> emptyList()
-        else -> Traversal(level, kinds, calls).errors(usedPrivate)
+    if (POST_MODULE_LOCAL_CHECKS_TYPED.isSufficient(level)) {
+        Traversal(level, kinds, calls).errors(usedPrivate)
+    } else {
+        sorted(level, kinds, calls)
     }
 
 /** The error for [call] from [caller], if it is one. */

@@ -710,6 +710,97 @@ enum class ElixirLanguageFeature(
     FUNCTION_ERRORS_CONTINUE(sinceElixir = "1.15.0-rc.0"),
 
     /**
+     * `@` builds `Module.__put_attribute__/5` and `Module.__get_attribute__/4`, `@behavior` raises rather than warns,
+     * and a doc attribute's `{line, list}` is metadata before the doc is checked, so `@doc []` is empty metadata. Before
+     * it, a doc's list must start with a pair whose key is an atom.
+     *
+     * `elixir-lang/elixir@562113720` ("Lazily expand module attributes to avoid compile-time deps"), first released in
+     * v1.14.0-rc.0.
+     */
+    ATTRIBUTES_EXPANDED_LAZILY(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * A doc attribute read in the module body binds what isn't `{line, doc}` to `value`. Before it, to `other`.
+     *
+     * `elixir-lang/elixir@76c64a0f3` ("Recompile regexes when escaped from module attributes"), first released in
+     * v1.18.4.
+     */
+    MODULE_BODY_DOC_READ_BINDS_VALUE(sinceElixir = "1.18.4"),
+
+    /**
+     * `@after_verify` accumulates, and a module given to it is called as `__after_verify__/1`. Before it, it is an
+     * ordinary attribute.
+     *
+     * `elixir-lang/elixir@4056be1d4` ("Add @after_verify callback"), first released in v1.14.0-rc.0.
+     */
+    AFTER_VERIFY_ACCUMULATES(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * `@nifs` must be a list of `{name, arity}` pairs, and each one must name a function the module defines;
+     * `@compile inline:` refuses a macro.
+     *
+     * `elixir-lang/elixir@08f315016` ("Add @nifs attributes"), first released in v1.16.0-rc.0.
+     */
+    NIFS_ATTRIBUTE_CHECKED(sinceElixir = "1.16.0-rc.0"),
+
+    /**
+     * `@nifs` accumulates. Before it, a second `@nifs` replaces the first.
+     *
+     * `elixir-lang/elixir@27a825aaf` ("Annotate nifs to accumulate"), first released in v1.19.0-rc.0.
+     */
+    NIFS_ACCUMULATES(sinceElixir = "1.19.0-rc.0"),
+
+    /**
+     * `@behaviour` must be a module. Before it, any value is kept.
+     *
+     * `elixir-lang/elixir@2eb03e4a3` ("Reduce the amount of module map copies when compiling"), first released in
+     * v1.13.0-rc.0.
+     */
+    BEHAVIOUR_VALUE_CHECKED(sinceElixir = "1.13.0-rc.0"),
+
+    /**
+     * `@dialyzer` must name dialyzer options, and each function it names must be defined. Before it, any value is
+     * kept.
+     *
+     * `elixir-lang/elixir@c537c39c5` ("Validate dialyzer attributes, closes #10534"), first released in v1.12.0-rc.0.
+     */
+    DIALYZER_ATTRIBUTE_CHECKED(sinceElixir = "1.12.0-rc.0"),
+
+    /**
+     * `@` in a guard outside a function raises, as it does in a pattern. Before it, only a pattern raises, and a guard
+     * reads the attribute through a remote call the guard refuses.
+     *
+     * `elixir-lang/elixir@b8732bd24` ("Improve error message for invalid module attribute usage, closes #12656"),
+     * first released in v1.15.0.
+     */
+    ATTRIBUTE_REFUSED_IN_GUARD(sinceElixir = "1.15.0"),
+
+    /**
+     * `@on_load` may name a private function, and is checked before the module's local calls. Before it, the function
+     * must be a `def`, and is checked after them.
+     *
+     * `elixir-lang/elixir@aa78b3229` ("Allow @on_load to be private, closes #10438"), first released in v1.12.0-rc.0.
+     */
+    ON_LOAD_ALLOWS_PRIVATE(sinceElixir = "1.12.0-rc.0"),
+
+    /**
+     * A macro named by `@dialyzer` is an error. Before it, only a function that isn't defined is.
+     *
+     * `elixir-lang/elixir@d4d7c8bcf` ("Raise when macros are given to dialyzer, closes #12597"), first released in
+     * v1.15.0-rc.1.
+     */
+    DIALYZER_REFUSES_MACROS(sinceElixir = "1.15.0-rc.1"),
+
+    /**
+     * A bodiless head is an error even when its last head was generated: an `unquote` in it, or `context` in its meta,
+     * and in `Module` itself. Before it, such a head is skipped.
+     *
+     * `elixir-lang/elixir@7e2b22402` ("Do not ignore unimplemented function headers from used modules"), first
+     * released in v1.12.0-rc.1.
+     */
+    GENERATED_HEADS_CHECKED(sinceElixir = "1.12.0-rc.1"),
+
+    /**
      * `::` and `|` outside a bitstring or a list have clauses of their own, which raise `unhandled_type_op` and
      * `unhandled_cons_op`. Before it, they reach local dispatch.
      *

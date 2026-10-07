@@ -5,6 +5,7 @@ import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.util.TextRange
+import org.elixir_lang.NameArity
 import org.elixir_lang.expander.ExpansionResult.Ended
 import org.elixir_lang.expander.ExpansionResult.Owner
 import org.elixir_lang.expander.ProbeHarness.Tag
@@ -118,20 +119,22 @@ internal class ExpansionProbes(
         val preamble: String,
         val exports: Exports,
         val structs: Structs,
-        val hook: Boolean,
+        val hook: ProbeHarness.Hook?,
         val layout: ProbeHarness.Layout,
         val index: Int,
     )
 
     /**
-     * A batch expanded as one file laid out by [layout], what the top-level probe stands for when it has one, and the
-     * traces outside any module, keyed as [DispatchEvents.top] keys them.
+     * A batch expanded as one file laid out by [layout], what the top-level probe stands for when it has one, the
+     * traces outside any module, keyed as [DispatchEvents.top] keys them, and every module the file compiled, nested
+     * ones among them.
      */
     class Expansions(
         val layout: ProbeHarness.Layout,
         val cases: List<CaseExpansion>,
         val top: Step?,
         val topTraces: List<String>,
+        val modules: List<ExpansionResult>,
     )
 
     /**
@@ -147,16 +150,16 @@ internal class ExpansionProbes(
 
     /**
      * Each of [bodies] as the body of a case module, in one file after [preamble]'s modules, with `{token}` in either
-     * standing for the compile's token and [exports] and [structs] for the modules Elixir loads. [hook] adds the
-     * definition hook to each case module, [top] the top-level probe to the end of the file, and [values] sends each
-     * case's `q` after its last statement.
+     * standing for the compile's token and [exports] and [structs] for the modules Elixir loads. [hook] adds that hook
+     * to each case module, [top] the top-level probe to the end of the file, and [values] sends each case's `q` after
+     * its last statement.
      */
     fun expandAll(
         bodies: List<String>,
         preamble: String = "",
         exports: Exports = legExports,
         structs: Structs = legStructs,
-        hook: Boolean = false,
+        hook: ProbeHarness.Hook? = null,
         top: Boolean = false,
         values: Boolean = false,
     ): Expansions {
@@ -205,15 +208,14 @@ internal class ExpansionProbes(
             ?.takeIf { top }
             ?.let { Step(Tag(-1, 0, 0), it.state.read, it.env, it.state.stacktrace, it.state.caller, -1, null) }
 
-        return Expansions(layout, cases, topStep, observer.top)
+        return Expansions(layout, cases, topStep, observer.top, expansion.modules)
     }
 
     /**
      * Compares each of [cases] whose module compiles or reports an error with Elixir, and returns how long the
-     * compiles of the erroring ones took. With [errorsFirst], an erroring case's errors need only begin Elixir's, for
-     * a module whose later errors come from checks the expander doesn't make.
+     * compiles of the erroring ones took.
      */
-    fun assertMatchesElixir(cases: Map<String, CaseExpansion>, errorsFirst: Boolean = false): Duration {
+    fun assertMatchesElixir(cases: Map<String, CaseExpansion>): Duration {
         assertDefaultCompilerOptions()
 
         val compiled = cases.filterValues { it.ended == Ended.Compiled }
@@ -224,7 +226,7 @@ internal class ExpansionProbes(
         compareCompiled(compiled, expected, actual)
 
         val start = TimeSource.Monotonic.markNow()
-        erroring.forEach { (name, expansion) -> compareError(name, expansion, errorsFirst, expected, actual) }
+        erroring.forEach { (name, expansion) -> compareError(name, expansion, expected, actual) }
         val elapsed = start.elapsedNow()
 
         println("${compiled.size} compiled and ${erroring.size} erroring cases; erroring compiles took $elapsed")
@@ -313,9 +315,10 @@ internal class ExpansionProbes(
         expansions.cases.forEach { assertTrue("${it.case.body}: ${it.outcome}", it.outcome is Expansion.Expanded) }
 
         val attempt = harness.attempt(expansions.layout)
+        val raised = (attempt.compiled.status as? OtpErlangTuple)?.elementAt(2)?.let(::utf8)
 
         assertEquals(
-            "compile status ${attempt.compiled.diagnostics.map(::inspect)}",
+            "compile status $raised ${attempt.compiled.diagnostics.map(::inspect)}\n${attempt.source}",
             OtpErlangAtom("ok"),
             attempt.compiled.status,
         )
@@ -363,6 +366,7 @@ internal class ExpansionProbes(
             attempt.batch.probeModule,
             attempt.bodyLines[index],
             attempt.layout.hookModule,
+            attempt.batch.definitionAttributes,
         )
 
     private fun compareCompiled(
@@ -455,7 +459,6 @@ internal class ExpansionProbes(
     private fun compareError(
         name: String,
         expansion: CaseExpansion,
-        errorsFirst: Boolean,
         expected: MutableList<String>,
         actual: MutableList<String>,
     ) {
@@ -464,7 +467,7 @@ internal class ExpansionProbes(
         val observations = attempt.batch.observations
         val level = legLevel()
         val witness = witness(alone)
-        val errors = expectedErrors(alone, level, errorsFirst)
+        val errors = expectedErrors(alone, level)
 
         expected.add(render(name, alone.steps) + "\n" + errors.joinToString("\n") { it.render() })
         actual.add(
@@ -472,7 +475,7 @@ internal class ExpansionProbes(
                 if (witness != null && observations.any { it.tag == witness }) {
                     "not an expansion error: ${inspect(compiled.status)} ${compiled.diagnostics.map(::inspect)}"
                 } else if (FUNCTION_ERRORS_CONTINUE.isSufficient(level)) {
-                    elixirErrors(errors, compiled, errorsFirst || alone.unordered)
+                    elixirErrors(errors, compiled, alone.unordered)
                 } else {
                     elixirError(errors.single(), compiled)
                 }
@@ -487,12 +490,11 @@ internal class ExpansionProbes(
     /**
      * The errors [expansion]'s module reports, in Elixir's order, at [level]: up to 1.14 the one that raises; from
      * 1.15 those Elixir logs as diagnostics, then the raise that ends the compile. Where the comparison stops at a body
-     * Elixir may expand elsewhere, only those before it, and no raise; with [errorsFirst], no raise.
+     * Elixir may expand elsewhere, only those before it, and no raise.
      */
     private fun expectedErrors(
         expansion: CaseExpansion,
         level: ElixirLanguageLevel,
-        errorsFirst: Boolean,
     ): List<ExpectedError> {
         val result = expansion.result
 
@@ -511,16 +513,18 @@ internal class ExpansionProbes(
         }
 
         val logged = collapsed(timeline(result, expansion.takeIf { it.unordered }), level) { error ->
-            error.kind.takeIf { it in POST_MODULE_KINDS }?.let { Triple(it, line(error.at), column(error.at)) }
+            error.kind.takeIf { it in LOCAL_CHECK_KINDS }?.let { Triple(it, line(error.at), column(error.at)) }
         }
             .filter { ErrorKinds.hasLine(it.kind, level) }
             .map { ExpectedError(it.kind, line(it.at)) }
 
-        if (errorsFirst || expansion.unordered) return logged
+        if (expansion.unordered) return logged
 
         val status = when (val ended = result.ended) {
             is Ended.Raised ->
-                if (ended.error.kind == NESTED_RAISED || ErrorKinds.hasLine(ended.error.kind, level)) {
+                if (ended.error.kind in FILE_ERROR_KINDS) {
+                    FILE_NOT_COMPILED
+                } else if (ended.error.kind == NESTED_RAISED || ErrorKinds.hasLine(ended.error.kind, level)) {
                     "raise CompileError"
                 } else {
                     "raise ${ended.error.kind}"
@@ -543,7 +547,9 @@ internal class ExpansionProbes(
 
         fun unit(error: Reported) = definitions.firstOrNull { it.node.meta.origin.contains(error.at.meta.origin) }
 
-        val after = result.errors.filter { it.kind in POST_MODULE_KINDS && unit(it) != null }
+        val after = result.errors.filter {
+            it.kind in POST_MODULE_KINDS && (it.kind !in LOCAL_CHECK_KINDS || unit(it) != null)
+        }
         val during = result.errors.filterNot { error -> after.any { it === error } }
         // A nested module whose name raised has no body, and its error is at its `defmodule`.
         val placed = definitions.map { unit -> start(unit.node) to during.filter { unit(it) === unit } } +
@@ -584,7 +590,7 @@ internal class ExpansionProbes(
         prefix: Boolean,
     ): String {
         val logged = collapsed(errors(compiled.diagnostics), legLevel()) { diagnostic ->
-            POST_MODULE_KINDS.firstOrNull { ErrorKinds.pattern(it).containsMatchIn(diagnostic.message) }
+            LOCAL_CHECK_KINDS.firstOrNull { ErrorKinds.pattern(it).containsMatchIn(diagnostic.message) }
                 ?.let { Triple(it, diagnostic.line, diagnostic.column) }
         }
             .let { if (prefix) it.take(expected.size) else it }
@@ -611,6 +617,8 @@ internal class ExpansionProbes(
         val message = utf8(raised.elementAt(2))
 
         return when {
+            exception == COMPILE_ERROR && expected.status == FILE_NOT_COMPILED && message.contains(FILE_NOT_COMPILED_MESSAGE) ->
+                FILE_NOT_COMPILED
             exception == COMPILE_ERROR -> "raise CompileError"
             "raise $exception" == expected.status -> expected.status
             expected.kind.isNotEmpty() && ErrorKinds.pattern(expected.kind).containsMatchIn(message) ->
@@ -884,6 +892,9 @@ internal class ExpansionProbes(
         val starts = mutableListOf<Pair<ExState, Env>>()
         val traces = mutableListOf<String>()
 
+        /** Where each of [traces] was made: its node's start in the file, and the function it was made in. */
+        val sites = mutableListOf<Pair<Int, NameArity?>>()
+
         /** The node first entered at each probed statement, which, being outermost, is the one the probe follows. */
         val outermost = mutableMapOf<TextRange, ElixirAst>()
         val entered = mutableSetOf<TextRange>()
@@ -926,6 +937,8 @@ internal class ExpansionProbes(
                 Ended.Compiled, Ended.Tainted -> result.units.first().expansion
             }
 
+            val (signed, signedStop) = withSignatureReads(result)
+
             return CaseExpansion(
                 origin.layout.cases[origin.index],
                 steps.take(cut ?: steps.size),
@@ -935,13 +948,52 @@ internal class ExpansionProbes(
                 result,
                 statements,
                 starts,
-                if (stopped) traces.take(stopTraces) else traces,
+                if (stopped) signed.take(signedStop) else signed,
                 macro.takeIf { stopped },
                 shape.tagRanges,
                 shape.definitions,
                 unordered != null && unordered == cut,
                 origin,
             )
+        }
+
+        /**
+         * [traces] with the `@` reads `Module.compile_definition_attributes/6` makes again once each public clause
+         * is stored, and where [stopTraces] falls among them. Its `build_signature` expands each `@` in a default's
+         * value and each argument that is an `@`, once more, in the clause's function; they follow the
+         * clause's own last dispatch. A clause that didn't expand doesn't reach the callback.
+         */
+        private fun withSignatureReads(result: ExpansionResult): Pair<List<String>, Int> {
+            val after = mutableMapOf<Int, MutableList<String>>()
+
+            for (unit in units(result)) {
+                val owner = unit.owner as? Owner.Definition ?: continue
+                val name = owner.name ?: continue
+                val start = start(unit.node)
+
+                if (!owner.kind.public || unit.expansion !is Expansion.Expanded || !range.contains(start)) continue
+
+                val function = NameArity(name, owner.arity)
+                val end = unit.node.meta.origin.endOffset
+                val last = sites.indices.lastOrNull { sites[it].first in start until end && sites[it].second == function }
+                    ?: continue
+
+                after.getOrPut(last) { mutableListOf() } += signatureReads(unit.node).map { at ->
+                    DispatchEvents.key(at, Dispatch(Dispatch.Kind.IMPORTED_MACRO, KERNEL, "@", 1), function, bodyLine)
+                }
+            }
+
+            val signed = mutableListOf<String>()
+            var signedStop = 0
+
+            for ((index, trace) in traces.withIndex()) {
+                signed += trace
+                signed += after[index].orEmpty()
+
+                if (index < stopTraces) signedStop = signed.size
+            }
+
+            return signed to signedStop
         }
     }
 
@@ -1010,6 +1062,7 @@ internal class ExpansionProbes(
             if (recorder != null) {
                 nodes.forEach {
                     recorder.traces.add(DispatchEvents.key(it, dispatch, env?.function, recorder.bodyLine))
+                    recorder.sites.add(start(it) to env?.function)
                 }
             } else if (env?.module == null) {
                 nodes.forEach { top.add(DispatchEvents.key(it, dispatch, null, 1)) }
@@ -1029,6 +1082,7 @@ internal class ExpansionProbes(
                 recorder.traces.add(
                     DispatchEvents.key(node, kind, module, name, arities, env?.function, recorder.bodyLine)
                 )
+                recorder.sites.add(start(node) to env?.function)
             } else if (env?.module == null) {
                 top.add(DispatchEvents.key(node, kind, module, name, arities, null, 1))
             }
@@ -1039,6 +1093,7 @@ internal class ExpansionProbes(
 
             if (recorder != null) {
                 recorder.traces.add(DispatchEvents.structKey(node, module, keys, env?.function, recorder.bodyLine))
+                recorder.sites.add(start(node) to env?.function)
             } else if (env?.module == null) {
                 top.add(DispatchEvents.structKey(node, module, keys, null, 1))
             }
@@ -1080,11 +1135,22 @@ internal class ExpansionProbes(
         /** In a case body or preamble, the compile's token. */
         const val TOKEN = "{token}"
 
+        /** The errors that, from 1.15, fail the file's compile, not the module's: `elixir_def` gives them the file. */
+        val FILE_ERROR_KINDS = setOf("changed_kind", "duplicate_defaults")
+
+        const val FILE_NOT_COMPILED_MESSAGE = "cannot compile file (errors have been logged)"
+
+        const val FILE_NOT_COMPILED = "raise CompileError: $FILE_NOT_COMPILED_MESSAGE"
+
         /** What a module raises once a module nested in it has logged errors. */
         const val NESTED_RAISED = "compile_error"
 
-        /** The errors of the checks of a module's local calls once its body has run. */
-        val POST_MODULE_KINDS = setOf("undefined_function", "incorrect_dispatch")
+        /** The errors of the checks of a module's local calls once its body has run, which its body can also report. */
+        val LOCAL_CHECK_KINDS = setOf("undefined_function", "incorrect_dispatch")
+
+        /** The errors of the checks a module makes once its body has run. */
+        val POST_MODULE_KINDS = LOCAL_CHECK_KINDS +
+            setOf("function_head", "import_conflict", "undefined_attribute_function", "wrong_kind_attribute_function")
 
         /**
          * `elixir-lang/elixir@41353c6cf` checks a default's calls once for each type inferred for it, so how many times
@@ -1132,6 +1198,43 @@ internal class ExpansionProbes(
                 is Expansion.Unported -> expansion.at
                 is Expansion.Opaque -> expansion.at
                 is Expansion.Expanded, null -> null
+            }
+
+        /**
+         * The `@` nodes `build_signature` expands in [definition]'s head (`Module`'s `simplify_arg/3`): each in a
+         * default's value, in `Macro.prewalk/2`'s order and not inside another, an argument that is one, a default's
+         * left side that is one, and a struct argument's name that is one.
+         */
+        fun signatureReads(definition: ElixirAst): List<ElixirAst> {
+            val head = (definition as? ElixirAst.Call)?.arguments?.firstOrNull() ?: return emptyList()
+            val call = extractGuards(head).first as? ElixirAst.Call ?: return emptyList()
+
+            return call.arguments.orEmpty().flatMap(::argumentReads)
+        }
+
+        private fun argumentReads(argument: ElixirAst): List<ElixirAst> {
+            val arguments = (argument as? ElixirAst.Call)?.arguments.orEmpty()
+
+            return when {
+                isCall(argument, "\\\\", 2) -> argumentReads(arguments[0]) + prewalkReads(arguments[1])
+                isNamedCall(argument, "@") -> listOf(argument)
+                isCall(argument, "%", 2) && isNamedCall(arguments[0], "@") -> listOf(arguments[0])
+                else -> emptyList()
+            }
+        }
+
+        private fun prewalkReads(node: ElixirAst): List<ElixirAst> =
+            if (isNamedCall(node, "@")) {
+                listOf(node)
+            } else {
+                when (node) {
+                    is ElixirAst.Call -> listOf(node.callee) + node.arguments.orEmpty()
+                    is ElixirAst.Alias -> node.segments
+                    is ElixirAst.ListNode -> node.elements
+                    is ElixirAst.Tuple -> node.elements
+                    is ElixirAst.Block -> node.expressions
+                    is ElixirAst.Literal, is ElixirAst.Placeholder -> emptyList()
+                }.flatMap(::prewalkReads)
             }
 
         fun hasPlaceholder(node: ElixirAst): Boolean =
@@ -1461,11 +1564,11 @@ internal class ExpansionProbes(
             } + guarded?.arguments?.last()?.let(::guardSites).orEmpty()
         }
 
-        /** A `var!`'s argument isn't a site: `var!` takes only a variable. */
+        /** Neither a `var!`'s argument nor an `@`'s is a site: `var!` takes only a variable, and `@` only a name. */
         fun guardSites(guard: ElixirAst): List<ElixirAst> =
             when {
                 isVariable(guard) -> listOf(guard)
-                isVarBang(guard) -> emptyList()
+                isVarBang(guard) || isNamedCall(guard, "@") -> emptyList()
                 else -> children(guard).flatMap(::guardSites)
             }
 

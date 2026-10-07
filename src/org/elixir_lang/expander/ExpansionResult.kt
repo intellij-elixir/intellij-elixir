@@ -12,6 +12,7 @@ import org.elixir_lang.lowering.ElixirAst
  *   module's are its own
  * @property opaque each unit's [Expansion.Opaque]
  * @property consulted the modules whose exports the module's expansion read
+ * @property attributes what the module body did to its attributes
  */
 internal data class ExpansionResult(
     val module: String,
@@ -22,6 +23,7 @@ internal data class ExpansionResult(
     val opaque: List<Expansion.Opaque>,
     val consulted: Set<String>,
     val nested: List<ExpansionResult>,
+    val attributes: AttributeLog,
 ) {
     /**
      * One body.

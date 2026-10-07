@@ -16,6 +16,7 @@ internal object Summaries {
             Triple(KERNEL, "var!", 2) to VAR_BANG,
             Triple(KERNEL, "alias!", 1) to ALIAS_BANG,
             Triple(KERNEL, "defmodule", 2) to DEFMODULE,
+            Triple(KERNEL, "@", 1) to ATTRIBUTE,
         ) +
             listOf("def", "defp", "defmacro", "defmacrop").flatMap { name ->
                 listOf(Triple(KERNEL, name, 1) to DEFINE, Triple(KERNEL, name, 2) to DEFINE)

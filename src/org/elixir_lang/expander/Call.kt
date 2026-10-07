@@ -32,7 +32,7 @@ internal fun expandLocalCall(node: ElixirAst.Call, state: ExState, env: Env, run
         run,
         ambiguous = { Expansion.Error("ambiguous_call", node) },
         function = { receiver ->
-            val (inlinedReceiver, inlined) = importedFunction(node, receiver, run)
+            val (inlinedReceiver, inlined) = importedFunction(node, receiver, env, run)
 
             stacktrace(inlinedReceiver, inlined, args.size, state, env, run) ?: expandRemote(
                 Term.Atom(inlinedReceiver),
@@ -52,11 +52,11 @@ internal fun expandLocalCall(node: ElixirAst.Call, state: ExState, env: Env, run
 }
 
 /**
- * `elixir_dispatch:do_expand_import/7`'s trace of [call] as a function imported from [receiver]: the receiver and name
- * after `inline/3`, which it reports.
+ * `elixir_dispatch:do_expand_import/7`'s trace and record of [call] as a function imported from [receiver]: the
+ * receiver and name after `inline/3`, which it reports.
  */
-internal fun importedFunction(call: ElixirAst.Call, receiver: String, run: Run): Pair<String, String> =
-    importedFunction(call, receiver, (call.callee as ElixirAst.Literal.Atom).name, call.arguments!!.size, run)
+internal fun importedFunction(call: ElixirAst.Call, receiver: String, env: Env, run: Run): Pair<String, String> =
+    importedFunction(call, receiver, (call.callee as ElixirAst.Literal.Atom).name, call.arguments!!.size, env, run)
 
 /** As [importedFunction] of a call, for [node], which calls or captures [name]/[arity]. */
 internal fun importedFunction(
@@ -64,13 +64,23 @@ internal fun importedFunction(
     receiver: String,
     name: String,
     arity: Int,
+    env: Env,
     run: Run,
 ): Pair<String, String> {
     val inlined = inline(receiver, name, arity, run.level) ?: (receiver to name)
 
     run.observer.dispatched(node, Dispatch(Dispatch.Kind.IMPORTED_FUNCTION, inlined.first, inlined.second, arity))
+    recordImport(NameArity(name, arity), receiver, env, run)
 
     return inlined
+}
+
+/**
+ * `elixir_import:record/4`: inside a function, [nameArity] dispatched through an import of [receiver], another module,
+ * is kept for the import-conflict check once the module's body has run.
+ */
+private fun recordImport(nameArity: NameArity, receiver: String, env: Env, run: Run) {
+    if (env.function != null && receiver != env.module) run.compiling[env.module]?.imports?.put(nameArity, receiver)
 }
 
 /**
@@ -119,7 +129,10 @@ internal fun expandImport(
 
     return when (match) {
         is ImportMatch.Ambiguous -> ambiguous()
-        is ImportMatch.Macro -> dispatchMacro(Dispatch(Dispatch.Kind.IMPORTED_MACRO, match.receiver, name, arity))
+        is ImportMatch.Macro -> {
+            recordImport(nameArity, match.receiver, env, run)
+            dispatchMacro(Dispatch(Dispatch.Kind.IMPORTED_MACRO, match.receiver, name, arity))
+        }
         is ImportMatch.Function -> function(match.receiver)
         ImportMatch.None -> none()
     }
@@ -208,7 +221,9 @@ internal fun expandRemoteCall(node: ElixirAst.Call, state: ExState, env: Env, ru
 
     return Expander.expand(left, receiverState(state, env, run), env, run).thenValue { after, receiverEnv, receiver ->
         if (receiver is Term.Atom) {
-            dispatchRequire(receiver.name, name, node, state, after, receiverEnv, run)
+            dispatchRequire(receiver.name, name, node, state, receiverEnv, run) { functionReceiver, functionName ->
+                remoteFunction(functionReceiver, functionName, node, state, after, receiverEnv, run)
+            }
         } else {
             expandRemote(receiver, name, node, state, after, receiverEnv, run)
         }
@@ -251,25 +266,23 @@ private fun stacktrace(receiver: String, name: String, arity: Int, state: ExStat
 
 /**
  * `elixir_dispatch:dispatch_require/7` for an atom [receiver]: an inlined function, a required macro, or else a
- * function.
- *
- * @param after the state after the receiver, `SL`
+ * function, which [function] is given as its receiver and name.
  */
-private fun dispatchRequire(
+internal fun dispatchRequire(
     receiver: String,
     name: String,
     node: ElixirAst.Call,
     state: ExState,
-    after: ExState,
     env: Env,
     run: Run,
+    function: (receiver: String, name: String) -> Expansion,
 ): Expansion {
     val arity = node.arguments!!.size
 
     stacktrace(receiver, name, arity, state, env, run)?.let { return it }
 
     inline(receiver, name, arity, run.level)?.let { (inlinedReceiver, inlinedName) ->
-        return remoteFunction(inlinedReceiver, inlinedName, node, state, after, env, run)
+        return function(inlinedReceiver, inlinedName)
     }
 
     val required = receiver == env.module || isRequiredByMeta(node.meta) || receiver in env.requires
@@ -284,7 +297,7 @@ private fun dispatchRequire(
                     Expansion.Unported(node)
                 else -> Expansion.Error("unrequired_module", node)
             }
-        false -> remoteFunction(receiver, name, node, state, after, env, run)
+        false -> function(receiver, name)
     }
 }
 
@@ -367,6 +380,8 @@ private fun expandRemote(
     }
 
     return mapfold(args, after, env) { arg, s, e -> expandArg(arg, s, state, e, run) }.thenValue { s, e, values ->
+        if (env.context == Env.Context.NONE) queueEffect(receiver, name, node, values as Term.List, env, run)
+
         val closed = s.closeWrite(state)
         val arg = (values as Term.List).elements.singleOrNull()
         val folds = env.context == Env.Context.MATCH || SIGNED_NUMBER_REWRITTEN_EVERYWHERE.isSufficient(level)
@@ -378,6 +393,23 @@ private fun expandRemote(
             rewrite(receiver, name, values, node, closed, e, run)
         }
     }
+}
+
+/**
+ * What a call of [receiver] with [values] in a module body does to the module's attributes, if anything, queued at its
+ * place in the order the body runs. A call in a function runs only when the function does.
+ */
+private fun queueEffect(receiver: Term, name: String, node: ElixirAst.Call, values: Term.List, env: Env, run: Run) {
+    val module = env.module ?: return
+    val compiling = run.compiling[module] ?: return
+
+    if (receiver !is Term.Atom || env.function != null) return
+
+    val dispatch = Dispatch(Dispatch.Kind.REMOTE_FUNCTION, receiver.name, name, values.elements.size)
+    val effect = ModuleEffects.of(dispatch, values.elements, module, run.level) ?: return
+    val at = compiling.site(node)
+
+    run.pending += Pending.Attribute(effect, at, compiling.isStatement(at))
 }
 
 /**

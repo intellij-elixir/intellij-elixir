@@ -357,7 +357,7 @@ private fun expandNamedSpec(spec: ElixirAst.Call, state: ExState, env: Env, run:
         run,
         ambiguous = { Expansion.Unported(call) },
         function = { receiver ->
-            importedFunction(call, receiver, run)
+            importedFunction(call, receiver, env, run)
 
             when (val folded = signed(call, receiver, state, env, run)) {
                 null -> leftAsItIs()
@@ -394,7 +394,7 @@ private fun expandOnce(node: ElixirAst, state: ExState, env: Env, run: Run): Exp
                 run,
                 ambiguous = { Expansion.Unported(node) },
                 function = { receiver ->
-                    importedFunction(node, receiver, run)
+                    importedFunction(node, receiver, env, run)
                     signed(node, receiver, state, env, run) ?: unchanged
                 },
                 none = { unchanged },

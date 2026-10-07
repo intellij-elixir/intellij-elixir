@@ -23,7 +23,8 @@ import org.elixir_lang.lowering.Meta
  * - only dispatch, `imported_quoted` and `struct_expansion` events of the case module and the modules nested in it,
  *   from the case body's first line on, less the probes' and the definition hook's own, `:elixir_utils.noop/0`,
  *   `Module.compile_definition_attributes/6`, and the calls the output of `defmodule` and `def*` makes:
- *   `:elixir_module`'s, `:elixir_def`'s and `Kernel.LexicalTracker.read_cache/2`;
+ *   `:elixir_module`'s, `:elixir_def`'s and `Kernel.LexicalTracker.read_cache/2`, and the calls compiled code didn't
+ *   make (see [generated]);
  * - each dispatch's receiver and name mapped through the leg's committed `inline/3` table, since Elixir reports the
  *   name as called up to 1.15.5 in some places and after `inline/3` in others; an `imported_quoted` event's module is
  *   the import's, and isn't mapped;
@@ -35,15 +36,19 @@ import org.elixir_lang.lowering.Meta
  * dispatches outside any module the same way, keyed by file line.
  */
 internal object DispatchEvents {
-    /** [module]'s normalised dispatches in [events], with lines counted from [bodyLine]. */
+    /**
+     * [module]'s normalised dispatches in [events], with lines counted from [bodyLine]. [clauses] are what the
+     * definition hook saw of each clause, by module, when the case module has the hook.
+     */
     fun of(
         events: List<OtpErlangObject>,
         module: String,
         probeModule: String,
         bodyLine: Int,
         hookModule: String,
+        clauses: Map<String, List<ProbeHarness.ClauseAttributes>> = emptyMap(),
     ): List<String> =
-        normalised(events, bodyLine) { event ->
+        normalised(events, bodyLine, clauses) { event ->
             (event.module == module || event.module?.startsWith("$module.") == true) &&
                 (event.line == null || event.line >= bodyLine) &&
                 event.receiver != probeModule &&
@@ -52,19 +57,27 @@ internal object DispatchEvents {
 
     /** The normalised dispatches in [events] outside any module, before [endLine] if there is one, keyed by line. */
     fun top(events: List<OtpErlangObject>, endLine: Int?): List<String> =
-        normalised(events, 1) { event ->
+        normalised(events, 1, emptyMap()) { event ->
             event.module == NIL && (endLine == null || event.line == null || event.line < endLine)
         }
 
-    private fun normalised(events: List<OtpErlangObject>, bodyLine: Int, include: (Event) -> Boolean): List<String> {
+    private fun normalised(
+        events: List<OtpErlangObject>,
+        bodyLine: Int,
+        clauses: Map<String, List<ProbeHarness.ClauseAttributes>>,
+        include: (Event) -> Boolean,
+    ): List<String> {
         val version = LegManifest.environment("ELIXIR_VERSION")
         val inline = RewriteManifests.inline(version)
         val repeats = ElixirLanguageLevel.of(version).elixir < ElixirLanguageLevel.of(REPEAT_DROPPED).elixir
         val normalised = mutableListOf<Event>()
         var previous: Event? = null
+        val parsed = events.mapNotNull(::event)
+        val callbacksTraced = ElixirLanguageLevel.of(version).elixir >= ElixirLanguageLevel.of(CALLBACKS_TRACED).elixir
+        val generated = generated(parsed, clauses.takeIf { callbacksTraced }.orEmpty())
 
-        for (event in events.mapNotNull(::event)) {
-            if (!include(event) || isInternal(event)) continue
+        for ((index, event) in parsed.withIndex()) {
+            if (!include(event) || isInternal(event) || index in generated) continue
 
             val mapped = inline[Triple(event.receiver, event.name, event.arity)]
                 ?.takeIf { event.arities == null }
@@ -162,7 +175,12 @@ internal object DispatchEvents {
         val arities: List<Int>? = null,
         /** A `struct_expansion`'s keys, as written. */
         val keys: List<String>? = null,
+        /** The traced meta, for an event read from a trace. */
+        val meta: OtpErlangObject? = null,
     ) {
+        val isCompileDefinitionAttributes: Boolean
+            get() = receiver == "Elixir.Module" && name == "compile_definition_attributes" && arity == 6
+
         fun key(bodyLine: Int): String {
             val target = when {
                 keys != null -> "$receiver ${keys.joinToString(", ", "[", "]")}"
@@ -191,6 +209,7 @@ internal object DispatchEvents {
                 (tuple.elementAt(4) as OtpErlangLong).intValue(),
                 module,
                 function,
+                meta = tuple.elementAt(1),
             )
             IMPORTED_QUOTED -> Event(
                 kind,
@@ -210,6 +229,7 @@ internal object DispatchEvents {
                 (tuple.elementAt(3) as OtpErlangLong).intValue(),
                 module,
                 function,
+                meta = tuple.elementAt(1),
             )
             STRUCT_EXPANSION -> Event(
                 kind,
@@ -248,6 +268,71 @@ internal object DispatchEvents {
             "nil"
         }
 
+    /**
+     * The indices in [events] of the calls compiled code didn't make: what Elixir calls for a module once its body has
+     * run, which is every `env.function` of `nil` or `__info__/1` traced after the `:elixir_utils.noop/0` that ends the
+     * body, but a `@before_compile` macro; and each `@on_definition` callback [clauses] name for a clause, which is
+     * traced with the clause's meta and env before `Module.compile_definition_attributes/6`, Elixir's own. A call the
+     * clause's body makes to a callback has the same meta and env, so only as many are dropped as the clause has
+     * callbacks, nearest first.
+     */
+    private fun generated(events: List<Event>, clauses: Map<String, List<ProbeHarness.ClauseAttributes>>): Set<Int> {
+        val ended = mutableSetOf<String?>()
+        val generated = mutableSetOf<Int>()
+
+        for ((module, indexed) in events.withIndex().groupBy { it.value.module }) {
+            // Elixir runs the callbacks once per clause, in the order it stores them, so a function's nth
+            // `compile_definition_attributes` is its nth clause.
+            val remaining = clauses[module].orEmpty()
+                .groupBy { "${it.name}/${it.arity}" }
+                .mapValues { it.value.iterator() }
+
+            for ((position, indexedEvent) in indexed.withIndex()) {
+                val (index, event) = indexedEvent
+
+                if (module in ended && event.function in POST_MODULE_FUNCTIONS && event.kind != REMOTE_MACRO) {
+                    generated += index
+                }
+
+                if (event.isCompileDefinitionAttributes) {
+                    remaining[event.function]?.takeIf { it.hasNext() }?.next()?.let { clause ->
+                        generated += callbackTraces(indexed.subList(0, position), event, clause.callbacks)
+                    }
+                }
+
+                if (event.receiver == "elixir_utils" && event.name == "noop" && event.arity == 0) ended += module
+            }
+        }
+
+        return generated
+    }
+
+    /**
+     * The indices of [callbacks]' traces among [before], the events of [stored]'s module before it: for each callback
+     * but Elixir's own, the nearest arity-6 `remote_function` to it with [stored]'s meta and function, back to the
+     * previous clause's.
+     */
+    private fun callbackTraces(
+        before: List<IndexedValue<Event>>,
+        stored: Event,
+        callbacks: List<Pair<String, String>>,
+    ): List<Int> {
+        val unmatched = callbacks.filterNot { it == ELIXIR_CALLBACK }.toMutableList()
+        val traces = mutableListOf<Int>()
+
+        for ((index, event) in before.asReversed()) {
+            if (unmatched.isEmpty() || event.isCompileDefinitionAttributes) break
+
+            if (event.kind == REMOTE_FUNCTION && event.arity == 6 && event.meta == stored.meta &&
+                event.function == stored.function && unmatched.remove(event.receiver to event.name)
+            ) {
+                traces += index
+            }
+        }
+
+        return traces
+    }
+
     private fun isInternal(event: Event): Boolean =
         event.receiver == "elixir_utils" && event.name == "noop" && event.arity == 0 ||
             event.receiver == "Elixir.Module" && event.name == "compile_definition_attributes" && event.arity == 6 ||
@@ -262,6 +347,12 @@ internal object DispatchEvents {
 
     private fun line(meta: Meta): Int? = meta.keys.filterIsInstance<Meta.Key.Location>().firstOrNull()?.position?.line
 
+    /** The release from which Elixir traces each `@on_definition` callback it runs (`afe470466`). */
+    private const val CALLBACKS_TRACED = "1.18.4"
+
+    /** Elixir's own `@on_definition` entry, which every module starts with. */
+    private val ELIXIR_CALLBACK = "Elixir.Module" to "compile_definition_attributes"
+
     /** The release from which an imported function is dispatched once, not again as a remote call. */
     private const val REPEAT_DROPPED = "1.18.0-rc.0"
     private const val NIL = "nil"
@@ -269,6 +360,10 @@ internal object DispatchEvents {
     private const val REMOTE_FUNCTION = "remote_function"
     private const val IMPORTED_QUOTED = "imported_quoted"
     private const val STRUCT_EXPANSION = "struct_expansion"
+    private const val REMOTE_MACRO = "remote_macro"
+
+    /** The `env.function` of a call Elixir makes for a module once its body has run. */
+    private val POST_MODULE_FUNCTIONS = setOf(NIL, "__info__/1")
     private val REMOTE_KINDS = setOf(IMPORTED_FUNCTION, "imported_macro", REMOTE_FUNCTION, "remote_macro")
     private val LOCAL_KINDS = setOf("local_function", "local_macro")
 }

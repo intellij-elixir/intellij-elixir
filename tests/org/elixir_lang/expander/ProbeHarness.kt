@@ -66,12 +66,20 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
      *
      * @property values each case's [Case.value] as it was sent, by case
      * @property hooks what the hook saw of each module it ran in, by module
+     * @property finals the value of each of [Hook.attributes] when each module's body ended, by module
+     * @property definitionAttributes what each definition's clauses saw of [DEFINITION_ATTRIBUTES], by module
+     * @property reads what each read function returned once its module compiled, by module and then by name
+     * @property docs each compiled module's Docs chunk, by module
      */
     class Batch(
         private val token: String,
         val observations: List<Observation>,
         val values: Map<Int, OtpErlangObject> = emptyMap(),
         val hooks: Map<String, List<HookEntry>> = emptyMap(),
+        val finals: Map<String, Map<String, OtpErlangObject>> = emptyMap(),
+        val definitionAttributes: Map<String, List<ClauseAttributes>> = emptyMap(),
+        val reads: Map<String, Map<String, OtpErlangObject>> = emptyMap(),
+        val docs: Map<String, Docs> = emptyMap(),
     ) {
         val probeModule = "Elixir." + probeModule(token)
 
@@ -96,8 +104,8 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
 
     /**
      * A batch laid out for one compile: [cases], whose bodies already have `{token}` replaced by [token], after the
-     * probe module, the hook module if [hook], and [preamble]'s modules, and the top-level probe at the end of the file
-     * if [top].
+     * probe module, the hook module if there is a [hook], and [preamble]'s modules, and the top-level probe at the end
+     * of the file if [top].
      *
      * The expander reads [plain]: the source without the harness's own text. The probes are left out, and the probe
      * module's and the hook's bodies, the hook's header, the `require` of the probe module and the step-0 probe are
@@ -112,7 +120,7 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
         val token: String,
         val cases: List<Case>,
         val preamble: String = "",
-        val hook: Boolean = false,
+        val hook: Hook? = null,
         val top: Boolean = false,
     ) {
         val probeModule = "Elixir." + probeModule(token)
@@ -133,6 +141,56 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
 
         fun caseModule(case: Int) = "Elixir." + caseModule(token, case)
     }
+
+    /**
+     * The hook a case module names in its header, which reports to the harness:
+     * - `__before_compile__/1`: each definition, and the value of each of [attributes];
+     * - `on_def/6`, an `@on_definition` callback: the [DEFINITION_ATTRIBUTES] each clause is defined with, which
+     *   Elixir's own callback, run after it, takes, and the `@on_definition` callbacks it is defined with;
+     * - `__after_compile__/2`, once the module has compiled and loaded: the value each of its read functions returns,
+     *   the public zero-arity functions whose names start `r_`, and each function's and macro's doc and deprecation
+     *   as the Docs chunk of its bytecode holds them, which is where the compiler merges its clauses'.
+     *
+     * @property attributes names of the attributes whose values at the end of the module body are sent
+     */
+    data class Hook(val attributes: List<String> = emptyList())
+
+    /**
+     * A function's or macro's entry in a module's Docs chunk.
+     *
+     * @property doc its doc's text, `:hidden` for `@doc false`, or `:none` where it has none
+     * @property deprecated its `deprecated` metadata, or `nil`
+     */
+    data class DocEntry(
+        val kind: String,
+        val name: String,
+        val arity: Int,
+        val doc: OtpErlangObject,
+        val deprecated: OtpErlangObject,
+    )
+
+    /**
+     * A module's Docs chunk as `__after_compile__/2` read it.
+     *
+     * @property enabled the `:docs` compiler option the module compiled with
+     * @property entries its functions and macros, or `null` where its bytecode has no Docs chunk
+     */
+    data class Docs(val enabled: Boolean, val entries: List<DocEntry>?)
+
+    /**
+     * What a clause of [name]/[arity] saw of [DEFINITION_ATTRIBUTES] as it was defined, each `nil` where unset.
+     *
+     * @property line the line of the definition, which is its `env.line`
+     * @property callbacks the `{module, function}` of each `@on_definition` callback Elixir runs for the clause
+     */
+    data class ClauseAttributes(
+        val kind: String,
+        val name: String,
+        val arity: Int,
+        val line: Int,
+        val values: Map<String, OtpErlangObject>,
+        val callbacks: List<Pair<String, String>>,
+    )
 
     /**
      * A definition as the hook saw it before its module compiled. Before `Module.get_definition/2` (1.12) only the
@@ -179,6 +237,10 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
         val compiled = Quoter.compile(written.source, COMPILE_TIMEOUT)
         val values = mutableMapOf<Int, OtpErlangObject>()
         val hooks = mutableMapOf<String, List<HookEntry>>()
+        val finals = mutableMapOf<String, Map<String, OtpErlangObject>>()
+        val definitionAttributes = mutableMapOf<String, MutableList<ClauseAttributes>>()
+        val reads = mutableMapOf<String, Map<String, OtpErlangObject>>()
+        val docs = mutableMapOf<String, Docs>()
         val observations = mutableListOf<Observation>()
 
         for (message in compiled.messages) {
@@ -186,7 +248,12 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
 
             when (elements[0]) {
                 OtpErlangAtom("value") -> values[(elements[1] as OtpErlangLong).intValue()] = elements[2]
-                OtpErlangAtom("hook") -> hooks[(elements[1] as OtpErlangAtom).atomValue()] = hookEntries(elements[2])
+                OtpErlangAtom("hook") -> hooks[atom(elements[1])] = hookEntries(elements[2])
+                OtpErlangAtom("final") -> finals[atom(elements[1])] = named(elements[2])
+                OtpErlangAtom("on_def") ->
+                    definitionAttributes.getOrPut(atom(elements[1])) { mutableListOf() } += clauseAttributes(elements)
+                OtpErlangAtom("reads") -> reads[atom(elements[1])] = named(elements[2])
+                OtpErlangAtom("docs") -> docs[atom(elements[1])] = docs(elements[2], elements[3])
                 else -> observations += observation(message)
             }
         }
@@ -195,7 +262,7 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
             compiled,
             tags,
             written.bodyLines,
-            Batch(layout.token, observations, values, hooks),
+            Batch(layout.token, observations, values, hooks, finals, definitionAttributes, reads, docs),
             written.source,
             layout,
         )
@@ -318,7 +385,8 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
         val PROBE_BODY = """
             |  defmacro p(tag) do
             |    IntellijElixir.Quoter.Probe.send(__CALLER__, observation(tag, __CALLER__))
-            |    nil
+            |    # A body's last statement is a probe, so an `@on_load` function returns this.
+            |    :ok
             |  end
             |
             |  defmacro i(tag, expr) do
@@ -334,10 +402,13 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
             |""".trimMargin()
 
         /**
-         * Sends each definition of the module it is compiled into, before the module compiles. `on_def/6` only makes
-         * the module run its `@on_definition` callbacks.
+         * The names `on_def/6` reads, which `Module.compile_definition_attributes/6` takes once it has run. A clause's
+         * `@doc` and `@deprecated` are compared as the Docs chunk merges them instead.
          */
-        val HOOK_BODY = """
+        val DEFINITION_ATTRIBUTES = listOf("impl")
+
+        /** [hook]'s module body. */
+        fun hookBody(hook: Hook): String = """
             |  defmacro __before_compile__(env) do
             |    defs =
             |      if function_exported?(Module, :get_definition, 2) do
@@ -352,11 +423,54 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
             |      end
             |
             |    IntellijElixir.Quoter.Probe.send(env, {:hook, env.module, defs})
+            |    finals = for name <- ${atoms(hook.attributes)}, do: {name, Module.get_attribute(env.module, name)}
+            |    IntellijElixir.Quoter.Probe.send(env, {:final, env.module, finals})
             |    nil
             |  end
             |
-            |  def on_def(_env, _kind, _name, _args, _guards, _body), do: nil
+            |  def on_def(env, kind, name, args, _guards, _body) do
+            |    values = for key <- ${atoms(DEFINITION_ATTRIBUTES)}, do: {key, Module.get_attribute(env.module, key)}
+            |    callbacks = Module.get_attribute(env.module, :on_definition)
+            |
+            |    IntellijElixir.Quoter.Probe.send(
+            |      env,
+            |      {:on_def, env.module, kind, name, length(args), env.line, values, callbacks}
+            |    )
+            |  end
+            |
+            |  def __after_compile__(env, bytecode) do
+            |    reads =
+            |      for {name, 0} <- env.module.__info__(:functions), match?("r_" <> _, Atom.to_string(name)),
+            |          do: {name, apply(env.module, name, [])}
+            |
+            |    IntellijElixir.Quoter.Probe.send(env, {:reads, env.module, reads})
+            |
+            |    docs =
+            |      case :beam_lib.chunks(bytecode, [~c"Docs"]) do
+            |        {:ok, {_, [{_, chunk}]}} ->
+            |          {:docs_v1, _, _, _, _, _, entries} = :erlang.binary_to_term(chunk)
+            |
+            |          for {{kind, name, arity}, _, _, doc, metadata} <- entries, kind in [:function, :macro] do
+            |            # 1.12 writes a public function's missing doc as an empty map, where the other releases write :none.
+            |            text =
+            |              case doc do
+            |                %{"en" => text} -> text
+            |                empty when empty == %{} -> :none
+            |                other -> other
+            |              end
+            |
+            |            {kind, name, arity, text, Map.get(metadata, :deprecated)}
+            |          end
+            |
+            |        _ ->
+            |          nil
+            |      end
+            |
+            |    IntellijElixir.Quoter.Probe.send(env, {:docs, env.module, Code.get_compiler_option(:docs), docs})
+            |  end
             |""".trimMargin()
+
+        fun atoms(names: List<String>) = names.joinToString(", ", "[", "]") { ":$it" }
 
         const val TOP_PROBE =
             "IntellijElixir.Quoter.Probe.send(__ENV__, {List.to_tuple([-1, 0, 0]), Map.from_struct(__ENV__), nil})"
@@ -381,9 +495,9 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
                 harness(PROBE_BODY)
                 append("end\n")
 
-                if (layout.hook) {
+                layout.hook?.let { hook ->
                     append("\ndefmodule $hookModule do\n")
-                    harness(HOOK_BODY)
+                    harness(hookBody(hook))
                     append("end\n")
                 }
 
@@ -393,7 +507,12 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
                     append("\ndefmodule ${caseModule(layout.token, index)} do\n")
                     harness("require $probeModule\n")
 
-                    if (layout.hook) harness("@before_compile $hookModule\n@on_definition {$hookModule, :on_def}\n")
+                    if (layout.hook != null) {
+                        harness(
+                            "@before_compile $hookModule\n@on_definition {$hookModule, :on_def}\n" +
+                                "@after_compile $hookModule\n"
+                        )
+                    }
 
                     harness(probe(probeModule, Tag(index, 0, 0).also { tags?.add(it) }) + "\n")
                     bodyStarts.add(length)
@@ -453,6 +572,42 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
                     )
                 }
             }
+
+        /** `[{name, value}]`, by name. */
+        fun named(term: OtpErlangObject): Map<String, OtpErlangObject> =
+            (term as OtpErlangList).elements().associate { pair ->
+                val (name, value) = (pair as OtpErlangTuple).elements()
+
+                atom(name) to value
+            }
+
+        /** `{:on_def, module, kind, name, arity, line, [{key, value}], [{module, function}]}`'s elements. */
+        fun clauseAttributes(elements: Array<OtpErlangObject>): ClauseAttributes =
+            ClauseAttributes(
+                atom(elements[2]),
+                atom(elements[3]),
+                (elements[4] as OtpErlangLong).intValue(),
+                (elements[5] as OtpErlangLong).intValue(),
+                named(elements[6]),
+                (elements[7] as OtpErlangList).elements().map { callback ->
+                    val (module, function) = (callback as OtpErlangTuple).elements()
+
+                    atom(module) to atom(function)
+                },
+            )
+
+        /** `{:docs, module, enabled, [{kind, name, arity, doc, deprecated}] | nil}`'s last two elements. */
+        fun docs(enabled: OtpErlangObject, entries: OtpErlangObject): Docs =
+            Docs(
+                (enabled as OtpErlangAtom).booleanValue(),
+                (entries as? OtpErlangList)?.elements()?.map { entry ->
+                    val (kind, name, arity, doc, deprecated) = (entry as OtpErlangTuple).elements()
+
+                    DocEntry(atom(kind), atom(name), (arity as OtpErlangLong).intValue(), doc, deprecated)
+                },
+            )
+
+        fun atom(term: OtpErlangObject): String = (term as OtpErlangAtom).atomValue()
 
         fun List<Tag>.sorted() = sortedWith(compareBy({ it.case }, { it.block }, { it.statement }, { it.identity }))
     }
