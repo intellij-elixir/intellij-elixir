@@ -122,6 +122,7 @@
 
 ### Bug Fixes
 
+- **Go to Declaration on a call inside a list, map, or tuple in a module-level `if` or `unless` no longer opens a function defined later in the module.** Fixes [#4280](https://github.com/intellij-elixir/intellij-elixir/issues/4280).
 - [#4348](https://github.com/intellij-elixir/intellij-elixir/pull/4348) [@sh41](https://github.com/sh41)
   - **Quoted keyword keys, such as `"do":` and `"path":`, are read as their atoms.** Refs [#4344](https://github.com/intellij-elixir/intellij-elixir/issues/4344).
 - [#4341](https://github.com/intellij-elixir/intellij-elixir/pull/4341) [@sh41](https://github.com/sh41)

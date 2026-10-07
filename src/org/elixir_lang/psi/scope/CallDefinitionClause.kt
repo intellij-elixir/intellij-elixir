@@ -570,8 +570,8 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
         private fun walksBranches(element: Call, state: ResolveState): Boolean {
             val branches = Branches(element)
 
-            return !containsCompileTimeEntranceAncestorOrSelf(branches.primaryChildExpressions.filterIsInstance<Call>(), state) &&
-                !containsCompileTimeEntranceAncestorOrSelf(branches.alternativeChildExpressions.filterIsInstance<Call>(), state)
+            return !containsCompileTimeEntranceAncestorOrSelf(branches.primaryChildExpressions, state) &&
+                !containsCompileTimeEntranceAncestorOrSelf(branches.alternativeChildExpressions, state)
         }
 
         /** The entrance is in another file than [call] (an injection or a view file), so [call]'s arm walks it whole. */
@@ -615,17 +615,17 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
             DeclaringForm.shapedForm(call) != null || Use.`is`(call)
 
         /**
-         * The `state.get(ENTRANCE)` is one of the `childCalls` OR any calls in the way are compile-time conditional
-         * logic like `if`s
+         * The `state.get(ENTRANCE)` is one of the [children], is inside one, or any calls in the way are compile-time
+         * conditional logic like `if`s.
          */
         private fun containsCompileTimeEntranceAncestorOrSelf(
-            childCalls: Sequence<Call>,
+            children: Sequence<PsiElement>,
             state: ResolveState
         ): Boolean =
             state.get(ENTRANCE).let { entrance ->
                 val ancestors = compileTimeAncestors(entrance).toList()
 
-                childCalls.any { it.isEquivalentTo(entrance) || it in ancestors }
+                children.any { it.isEquivalentTo(entrance) || it in ancestors || it.isAncestor(entrance) }
             }
 
         /**
@@ -638,7 +638,7 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
                 isMacroChild(modular, it)
             }
 
-        /** The `if`s and `unless`es that [entrance] is directly in, innermost first, through any blocks between. */
+        /** The `if`s and `unless`es that [entrance] is directly in, innermost first, through blocks and containers between. */
         private fun compileTimeAncestors(entrance: PsiElement): Sequence<Call> = sequence {
             var ancestor: PsiElement? = entrance.parent
 
@@ -647,8 +647,14 @@ abstract class CallDefinitionClause : PsiScopeProcessor {
                     is ElixirDoBlock,
                     is ElixirBlockList, is ElixirBlockItem,
                     is ElixirStab, is ElixirStabBody,
-                    is ElixirAccessExpression, is ElixirParentheticalStab -> ancestor.parent
-                    is QuotableKeywordPair -> ancestor.selfOrEnclosingMacroCall()
+                    is ElixirAccessExpression, is ElixirParentheticalStab,
+                    is ElixirList, is ElixirTuple,
+                    is ElixirMapOperation, is ElixirStructOperation,
+                    is ElixirMapArguments, is ElixirMapConstructionArguments, is ElixirMapUpdateArguments,
+                    is ElixirKeywords, is ElixirNoParenthesesKeywords,
+                    is ElixirAssociations, is ElixirAssociationsBase,
+                    is ElixirContainerAssociationOperation -> ancestor.parent
+                    is QuotableKeywordPair -> ancestor.selfOrEnclosingMacroCall() ?: ancestor.parent
                     is Call ->
                         if (If.`is`(ancestor) || Unless.`is`(ancestor)) {
                             yield(ancestor)
