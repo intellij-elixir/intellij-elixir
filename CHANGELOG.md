@@ -122,6 +122,8 @@
 
 ### Bug Fixes
 
+- [#PR-TBD](https://github.com/intellij-elixir/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)
+  - **Rename refuses a declaration in the Elixir SDK's sources or a dependency's sources, which the project does not own.** Refs [#4359](https://github.com/intellij-elixir/intellij-elixir/issues/4359).
 - [#4366](https://github.com/intellij-elixir/intellij-elixir/pull/4366) [@sh41](https://github.com/sh41)
   - **Module attributes written with a space after `@`, such as `@ doc`, are recognised.** Refs [#4362](https://github.com/intellij-elixir/intellij-elixir/issues/4362).
 - [#4360](https://github.com/intellij-elixir/intellij-elixir/pull/4360) [@sh41](https://github.com/sh41)
