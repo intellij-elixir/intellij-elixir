@@ -22,12 +22,15 @@ internal sealed interface AttributeValue {
     }
 }
 
-private fun Term.isExact(): Boolean =
+private fun Term.isExact(): Boolean = isShaped(contentKnown = true)
+
+/** Whether Elixir's checks of [this] can be made: no node or non-tuple anywhere in it, though a binary may be unread. */
+private fun Term.isShaped(contentKnown: Boolean = false): Boolean =
     when (this) {
         is Term.Atom, is Term.Integer -> true
-        is Term.Binary -> bytes != null
-        is Term.List -> elements.all { it.isExact() } && tail?.isExact() ?: true
-        is Term.Pair -> first.isExact() && second.isExact()
+        is Term.Binary -> !contentKnown || bytes != null
+        is Term.List -> elements.all { it.isShaped(contentKnown) } && tail?.isShaped(contentKnown) ?: true
+        is Term.Pair -> first.isShaped(contentKnown) && second.isShaped(contentKnown)
         is Term.Node, Term.NonTuple, Term.Unexpanded -> false
     }
 
@@ -172,7 +175,7 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
     private fun applyElsewhere(effect: Effect): EffectOutcome =
         when (effect) {
             is Effect.Write -> {
-                val prepared = prepare(effect.name, AttributeValue.of(effect.value), statement = false)
+                val prepared = prepare(effect.name, effect.value, statement = false)
 
                 unknown += effect.name
 
@@ -185,7 +188,7 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
         }
 
     private fun write(name: String, term: Term): EffectOutcome =
-        when (val prepared = prepare(name, AttributeValue.of(term), statement = true)) {
+        when (val prepared = prepare(name, term, statement = true)) {
             Prepared.Raise -> EffectOutcome.Raises(INVALID_ATTRIBUTE_VALUE)
             is Prepared.Metadata -> if (prepared.checked) EffectOutcome.Stored else EffectOutcome.Unchecked
             is Prepared.Store.Checked -> EffectOutcome.Stored.also { store(name, prepared.value) }
@@ -222,20 +225,23 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
     /** A walked value as Elixir takes it. Its `FunctionClauseError` isn't modelled. */
     private fun prepareWalked(term: Term, walk: Walk): Prepared =
         when (walk) {
-            Walk.VALID -> Prepared.Store.Checked(AttributeValue.Known(term))
+            Walk.VALID -> Prepared.Store.Checked(AttributeValue.of(term))
             Walk.INVALID -> Prepared.Raise
-            Walk.CRASHES -> Prepared.Store.Unchecked(AttributeValue.Known(term))
+            Walk.CRASHES -> Prepared.Store.Unchecked(AttributeValue.of(term))
         }
 
     /** `Module.put_attribute/7`'s clauses and `preprocess_attribute/2` (`Mod:2138–2345`). */
-    private fun prepare(name: String, value: AttributeValue, statement: Boolean): Prepared =
-        when {
+    private fun prepare(name: String, term: Term, statement: Boolean): Prepared {
+        val value = AttributeValue.of(term)
+
+        return when {
             name == "on_load" -> prepareOnLoad(value, statement)
             name in TYPESPECS -> Prepared.Raise
-            value is AttributeValue.Known -> prepareKnown(name, value.term)
+            term.isShaped() -> prepareKnown(name, term)
             isChecked(name) -> Prepared.Store.Unchecked(value)
             else -> Prepared.Store.Checked(value)
         }
+    }
 
     /** The value is checked before an earlier write is looked for (`Mod:2139–2163`). */
     private fun prepareOnLoad(value: AttributeValue, statement: Boolean): Prepared {
@@ -284,7 +290,7 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
             ?.takeIf { name != "after_verify" || AFTER_VERIFY_ACCUMULATES.isSufficient(level) }
             ?.takeIf { term is Term.Atom }
 
-        return Prepared.Store.Checked(AttributeValue.Known(callback?.let { Term.Pair(term, Term.Atom(it)) } ?: term))
+        return Prepared.Store.Checked(AttributeValue.of(callback?.let { Term.Pair(term, Term.Atom(it)) } ?: term))
     }
 
     /**
@@ -297,7 +303,7 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
         return when {
             list != null && (ATTRIBUTES_EXPANDED_LAZILY.isSufficient(level) || isLegacyMetadata(term)) -> metadata(list)
             term is Term.Pair && term.first is Term.Integer && term.second.isDoc() ->
-                Prepared.Store.Checked(AttributeValue.Known(term))
+                Prepared.Store.Checked(AttributeValue.of(term))
             else -> Prepared.Raise
         }
     }

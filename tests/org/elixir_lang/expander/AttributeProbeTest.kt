@@ -226,6 +226,25 @@ class AttributeProbeTest : ProbeTestCase() {
     }
 
     /**
+     * An interpolation is a binary whose content isn't known, so `@doc` and `@external_resource` take it as the text they
+     * need and the module goes on to compile.
+     */
+    fun testAnInterpolatedDocIsText() = assertCompilesLikeElixir("x = \"a\"\n@doc \"x: #{x}\"\ndef f, do: 1")
+
+    fun testAComputedExternalResourceIsText() =
+        assertCompilesLikeElixir("@external_resource \"#{__DIR__}/a.txt\"\ndef f, do: 1")
+
+    fun testAnInterpolatedDeprecationIsText() =
+        assertCompilesLikeElixir("x = \"g\"\n@deprecated \"use #{x} instead\"\ndef f, do: 1")
+
+    private fun assertCompilesLikeElixir(body: String) {
+        val expansion = probes.expandAll(listOf(body), hook = ProbeHarness.Hook()).cases.single()
+
+        assertEquals("$body: ${expansion.outcome}", ExpansionResult.Ended.Compiled, expansion.ended)
+        probes.assertMatchesElixir(mapOf(body to expansion))
+    }
+
+    /**
      * A case body, the attributes whose values at the end of the body are compared, and the read functions whose
      * values the expander doesn't know.
      */

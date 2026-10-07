@@ -123,7 +123,11 @@ private fun expandSegments(
 
     run.bitstrings[bitstring] = BitstringParts(parts, alignment)
 
-    return Expansion.Expanded(accState, accEnv, NODE)
+    // Outside a pattern or a guard it builds a binary when every part is one, whatever the content; there it is no
+    // literal, which the pattern and guard readers of `Term.Binary` take it for.
+    val binary = context == Env.Context.NONE && alignment == 0 && parts.isNotEmpty() && parts.all { it.alone == "binary" }
+
+    return Expansion.Expanded(accState, accEnv, if (binary) Term.Binary(null) else NODE)
 }
 
 /** `is_match_size/2`: whether segment [index] is in a pattern and another follows it. */
