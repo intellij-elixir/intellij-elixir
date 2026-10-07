@@ -652,6 +652,8 @@
 
 ### Build / CI
 
+- [#4356](https://github.com/intellij-elixir/intellij-elixir/pull/4356) [@sh41](https://github.com/sh41)
+  - **The unexpected-log check no longer fails a test run, after every test has passed, on a platform error from a project removed through a mock application.** Seen on PR #4354 in the Elixir 1.14.5 job.
 - [#4351](https://github.com/intellij-elixir/intellij-elixir/pull/4351) [@sh41](https://github.com/sh41)
   - **The Quoter client now only instantiates one mailbox for its lifetime, rather than one per message** Fixes [#4156](https://github.com/intellij-elixir/intellij-elixir/issues/4156).
 - [#4323](https://github.com/intellij-elixir/intellij-elixir/pull/4323) [@sh41](https://github.com/sh41)
