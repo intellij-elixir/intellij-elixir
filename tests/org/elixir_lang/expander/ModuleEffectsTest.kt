@@ -126,7 +126,9 @@ class ModuleEffectsTest {
             legs.joinToString("\n") { leg ->
                 val dispatch = Dispatch(Dispatch.Kind.REMOTE_FUNCTION, receiver, name, args.size)
 
-                "$leg: ${ModuleEffects.of(dispatch, args, MODULE, ElixirLanguageLevel.of(leg))}"
+                val change = ModuleEffects.of(dispatch, args, MODULE, ElixirLanguageLevel.of(leg))
+
+                "$leg: ${(change as ModuleEffects.Change.Attributes?)?.effect}"
             },
         )
     }

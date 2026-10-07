@@ -36,7 +36,7 @@ internal class DefinitionTable {
         val checksClauses: Boolean,
     ) {
         /** The line of its first head. */
-        val line: Int get() = line(at.meta)
+        val line: Int get() = lineOf(at.meta)
     }
 
     /** Each named definition, in the order it was first stored. */
@@ -79,7 +79,7 @@ internal class DefinitionTable {
         checksClauses: Boolean,
     ): String? {
         if (name == null) {
-            unnamed += Unnamed(kind, line(at.meta), ordered)
+            unnamed += Unnamed(kind, lineOf(at.meta), ordered)
 
             return null
         }

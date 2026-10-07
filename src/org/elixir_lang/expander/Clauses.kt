@@ -153,17 +153,6 @@ internal fun noMatchScope(node: ElixirAst, env: Env): Expansion.Error? =
     if (env.context == Env.Context.MATCH) Expansion.Error("invalid_pattern_in_match", node) else null
 
 /**
- * `elixir_expand:resolve_super/3` for [node], `super` or `&super`: outside a function in a module, an error, and
- * otherwise not ported, since it reads the module's overridable definitions.
- */
-internal fun resolveSuper(node: ElixirAst, env: Env): Expansion =
-    if (env.module == null || env.function == null) {
-        Expansion.Error("invalid_expr_in_scope", node)
-    } else {
-        Expansion.Unported(node)
-    }
-
-/**
  * `elixir_clauses:clause/6`: [clause]'s head expanded by [head], and then its body.
  *
  * @param construct the `case`, `cond`, `receive`, `try` or `fn`, which a clause that isn't `->` reports

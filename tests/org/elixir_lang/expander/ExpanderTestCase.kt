@@ -55,6 +55,23 @@ abstract class ExpanderTestCase : ParsingTestCase() {
         return withKeys(ReadAction.computeBlocking<_, Throwable> { Lowering.lower(file, level) }, code)
     }
 
+    /** The dispatches [code]'s expansion reports at [version], in order, as [render] shows them. */
+    protected fun events(code: String, version: String): List<String> {
+        val level = ElixirLanguageLevel.of(version)
+        val events = mutableListOf<String>()
+        val observer = object : ExpansionObserver {
+            override fun entering(node: ElixirAst, state: ExState, env: Env) {}
+
+            override fun dispatched(node: ElixirAst, dispatch: Dispatch) {
+                events += render(dispatch)
+            }
+        }
+
+        Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, observer)
+
+        return events
+    }
+
     /** Runs [assertion] with each list in [keys] added to the meta of the node whose source is its key, as macro output. */
     protected fun withKeys(vararg keys: Pair<String, List<Meta.Key>>, assertion: () -> Unit) {
         this.keys = keys.toMap()
@@ -166,10 +183,6 @@ abstract class ExpanderTestCase : ParsingTestCase() {
         )
     }
 
-    /** Whether [version] is a release before [boundary]. */
-    protected fun isBefore(version: String, boundary: String) =
-        ElixirLanguageLevel.of(version).elixir < ElixirLanguageLevel.of(boundary).elixir
-
     /** [code] expands to what [expected] gives each of [versions]. */
     protected fun assertLevels(code: String, versions: List<String>, expected: (String) -> String) =
         assertLevels(code, versions.map { it to expected(it) })
@@ -202,3 +215,7 @@ abstract class ExpanderTestCase : ParsingTestCase() {
         )
     }
 }
+
+/** Whether [version] is a release before [boundary]. */
+internal fun isBefore(version: String, boundary: String) =
+    ElixirLanguageLevel.of(version).elixir < ElixirLanguageLevel.of(boundary).elixir

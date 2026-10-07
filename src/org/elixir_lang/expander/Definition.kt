@@ -20,28 +20,56 @@ import java.util.IdentityHashMap
  */
 internal val DEFINE = Summary { dispatch, node, state, env, run ->
     val kind = Kind.valueOf(dispatch.name.uppercase())
+    val scope = definerScopeError(node, env)
 
     when {
         env.context != Env.Context.NONE && !DEFINER_REFUSED_IN_MATCH_OR_GUARD.isSufficient(run.level) ->
             Expansion.Unported(node)
         env.context == Env.Context.MATCH -> Expansion.Error("definer_in_match", node)
         env.context == Env.Context.GUARD -> Expansion.Error("definer_in_guard", node)
-        env.module == null -> Expansion.Error("definer_outside_module", node)
-        env.function != null -> Expansion.Error("definer_inside_function", node)
-        else -> define(kind, node, state, env, run)
+        scope != null -> scope
+        else -> define(kind, node, node.arguments!![0], bodyOf(node), run.counters.next(env.module), state, env, run)
     }
 }
 
+/** `Kernel.define/4`'s `assert_module_scope/3` and `assert_no_function_scope/3`: the error, or `null` in a module body. */
+internal fun definerScopeError(node: ElixirAst, env: Env): Expansion.Error? = when {
+    env.module == null -> Expansion.Error("definer_outside_module", node)
+    env.function != null -> Expansion.Error("definer_inside_function", node)
+    else -> null
+}
+
 /**
- * [node]'s unquote fragments evaluated in turn, and the definition queued with their values in its head and body. The
- * output takes the module's next counter, as `elixir_dispatch:expand_quoted/7` gives it, and the fragments are linified
- * with it.
+ * `elixir_bootstrap:def/2`, the `def` `Kernel`'s own macros call: the same definition, with none of `Kernel.def`'s
+ * checks of where it is, which the compiler makes when the definition is stored.
  */
-private fun define(kind: Kind, node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion {
-    val counter = run.counters.next(env.module)
-    val head = node.arguments!![0]
-    // `def(call, expr \\ nil)`: a `nil` body is no body.
-    val body = node.arguments.getOrNull(1)?.takeUnless { (it as? ElixirAst.Literal.Atom)?.name == "nil" }
+internal val BOOTSTRAP_DEF = Summary { _, node, state, env, run ->
+    if (env.module == null || env.function != null || env.context != Env.Context.NONE) {
+        Expansion.Unported(node)
+    } else {
+        define(Kind.DEF, node, node.arguments!![0], bodyOf(node), run.counters.next(env.module), state, env, run)
+    }
+}
+
+/** `def(call, expr \\ nil)`: the options of [node], a `nil` body being no body. */
+private fun bodyOf(node: ElixirAst.Call): ElixirAst? =
+    node.arguments!!.getOrNull(1)?.takeUnless { (it as? ElixirAst.Literal.Atom)?.name == "nil" }
+
+/**
+ * [node]'s definition of [head] and [body], its unquote fragments evaluated in turn and the definition queued with
+ * their values. The fragments are linified with [counter], the one `elixir_dispatch:expand_quoted/7` gave the macro's
+ * output.
+ */
+internal fun define(
+    kind: Kind,
+    node: ElixirAst.Call,
+    head: ElixirAst,
+    body: ElixirAst?,
+    counter: Env.Counter,
+    state: ExState,
+    env: Env,
+    run: Run,
+): Expansion {
     val fragments = Fragments()
     val unquotes = hasUnquotes(head, run.level) || body != null && hasUnquotes(body, run.level)
 
@@ -94,7 +122,7 @@ private fun define(kind: Kind, node: ElixirAst.Call, state: ExState, env: Env, r
 }
 
 /** The literal [fragment]'s value [term] is, if it is one a definition can hold. */
-private fun literalOf(fragment: ElixirAst, term: Term): ElixirAst? =
+internal fun literalOf(fragment: ElixirAst, term: Term): ElixirAst? =
     when (term) {
         is Term.Atom -> ElixirAst.Literal.Atom(fragment.meta, term.name)
         is Term.Integer -> ElixirAst.Literal.Integer(fragment.meta, term.value)
@@ -177,7 +205,7 @@ private class Fragments {
     }
 }
 
-private fun children(node: ElixirAst): List<ElixirAst> =
+internal fun children(node: ElixirAst): List<ElixirAst> =
     when (node) {
         is ElixirAst.Call -> listOf(node.callee) + node.arguments.orEmpty()
         is ElixirAst.Alias -> node.segments
@@ -188,7 +216,7 @@ private fun children(node: ElixirAst): List<ElixirAst> =
     }
 
 /** [node] with each node in [replacements] replaced, rebuilding only what holds a replaced node. */
-private fun substitute(node: ElixirAst, replacements: Map<ElixirAst, ElixirAst>): ElixirAst {
+internal fun substitute(node: ElixirAst, replacements: Map<ElixirAst, ElixirAst>): ElixirAst {
     replacements[node]?.let { return it }
 
     if (replacements.isEmpty()) return node
@@ -227,9 +255,12 @@ private fun substituteAll(nodes: List<ElixirAst>, replacements: Map<ElixirAst, E
     return if (substituted.indices.all { substituted[it] === nodes[it] }) nodes else substituted
 }
 
-/** `elixir_utils:extract_guards/1`: [head] without its guard, and the guard. */
-internal fun extractGuards(head: ElixirAst): Pair<ElixirAst, ElixirAst?> =
-    whenArguments(head)?.takeIf { it.size == 2 }?.let { (call, guard) -> call to guard } ?: (head to null)
+/** `elixir_utils:extract_guards/1`: [head] without its guards, and each guard of its `when`s, which `extract_or_guards/1` splits. */
+internal fun extractGuards(head: ElixirAst): Pair<ElixirAst, List<ElixirAst>> =
+    whenArguments(head)?.takeIf { it.size == 2 }?.let { (call, guards) -> call to orGuards(guards) } ?: (head to emptyList())
+
+private fun orGuards(node: ElixirAst): List<ElixirAst> =
+    whenArguments(node)?.takeIf { it.size == 2 }?.let { (guard, rest) -> listOf(guard) + orGuards(rest) } ?: listOf(node)
 
 /**
  * `elixir_def:store_definition/5`: [definition]'s name checked, its defaults and clause expanded in the env where it
@@ -249,7 +280,7 @@ internal fun storeDefinition(definition: Pending.Definition, compiling: Compilin
         return Owner.Definition(kind, null, 0) to Expansion.Unported(unnamedAt)
     }
 
-    val (call, guard) = extractGuards(definition.head)
+    val (call, guards) = extractGuards(definition.head)
     val (name, defaultsArgs) = when (call) {
         is ElixirAst.Call if call.callee is ElixirAst.Literal.Atom -> call.callee.name to call.arguments.orEmpty()
         // `{'__aliases__', Meta, Segments}`: a name `assert_no_aliases_name/4` refuses for one segment.
@@ -277,7 +308,7 @@ internal fun storeDefinition(definition: Pending.Definition, compiling: Compilin
     val fresh = ExState.empty(run.level).copy(caller = kind.macro)
     val args = defaultsArgs.map { arg -> if (arg in defaults) (arg as ElixirAst.Call).arguments!![0] else arg }
     val expansion = expandDefaults(defaults, fresh, env, run, compiling, node)
-        .then { _, _ -> clause(node, args, guard, definition.body, fresh, env, run) }
+        .then { _, _ -> clause(node, args, guards, definition.body, fresh, env, run) }
 
     if (expansion is Expansion.Error) return owner to expansion
 
@@ -381,18 +412,18 @@ private fun expandDefaults(
 private fun clause(
     node: ElixirAst.Call,
     args: List<ElixirAst>,
-    guard: ElixirAst?,
+    guards: List<ElixirAst>,
     options: ElixirAst?,
     state: ExState,
     env: Env,
     run: Run,
 ): Expansion {
     if (options == null) {
-        if (guard != null && !FUNCTION_HEAD_GUARDS_CONTINUE.isSufficient(run.level)) {
+        if (guards.isNotEmpty() && !FUNCTION_HEAD_GUARDS_CONTINUE.isSufficient(run.level)) {
             return Expansion.Error("missing_option", node)
         }
 
-        val errors = args.filterNot(::isVariable).size + if (guard != null) 1 else 0
+        val errors = args.filterNot(::isVariable).size + if (guards.isNotEmpty()) 1 else 0
 
         repeat(errors) { reportOrEnd(ErrorSite.INVALID_FUNCTION_HEAD, node, env, run)?.let { return it } }
 
@@ -409,10 +440,8 @@ private fun clause(
 
     return match(state, state, env, node) { s, e -> expandArgs(args, s, e, run) }
         .then { s, e ->
-            if (guard == null) {
-                Expansion.Expanded(s, e, NODE)
-            } else {
-                guard(guard, s, e.copy(context = Env.Context.GUARD), run)
+            guards.fold(Expansion.Expanded(s, e, NODE) as Expansion) { expansion, guard ->
+                expansion.then { s, e -> guard(guard, s, e.copy(context = Env.Context.GUARD), run) }
             }
         }
         .then { s, e -> Expander.expand(body, s, e.copy(context = Env.Context.NONE), run) }

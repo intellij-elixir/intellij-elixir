@@ -65,7 +65,9 @@ enum class MacroKey(val receiver: String, val macroName: String, val arity: Int,
     SIGIL_S(KERNEL, "sigil_s", 2, Block.NOT_A_BLOCK),
     SIGIL_W(KERNEL, "sigil_w", 2, Block.NOT_A_BLOCK),
     PROTOCOL_DEF("Elixir.Protocol", "def", 1, Block.NOT_A_BLOCK),
-    UTILS_DEFGUARD("Elixir.Kernel.Utils", "defguard", 2, Block.NOT_A_BLOCK);
+    UTILS_DEFGUARD("Elixir.Kernel.Utils", "defguard", 2, Block.NOT_A_BLOCK),
+    BOOTSTRAP_AT("elixir_bootstrap", "@", 1, Block.NOT_A_BLOCK),
+    BOOTSTRAP_DEF("elixir_bootstrap", "def", 2, Block.BOUNDARY);
 
     companion object {
         private val BY_DISPATCH: Map<Triple<String, String, Int>, MacroKey> =

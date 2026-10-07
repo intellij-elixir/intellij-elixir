@@ -1,6 +1,7 @@
 package org.elixir_lang.expander
 
 import com.intellij.openapi.progress.ProgressManager
+import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAST_PATH_ADDS_CONTEXT_MODULE
 import org.elixir_lang.language_level.ElixirLanguageLevel
@@ -129,8 +130,18 @@ object Expander {
 
         if (observed) run.observer.left(ast, expansion)
 
+        run.watched(ast, expansion)
+
         return expansion
     }
+}
+
+/**
+ * A node of the output [expandQuoted] expands whose value the caller reads after: [value] is the term it expanded to, or
+ * `null` where the expansion never reached it or stopped at it.
+ */
+internal class Watched(val node: ElixirAst) {
+    var value: Term? = null
 }
 
 /** What every recursive expansion of one [Expander.expand] call shares. */
@@ -143,6 +154,14 @@ internal class Run(
 ) {
     /** The modules whose exports the run read, in the order it read them. */
     val consulted = mutableListOf<String>()
+
+    /** The nodes being expanded whose value a summary reads, by identity, until they are read. */
+    val watching = IdentityHashMap<ElixirAst, Watched>()
+
+    /** [node] was expanded to [expansion], which the watch of it reads. */
+    fun watched(node: ElixirAst, expansion: Expansion) {
+        watching.remove(node)?.value = (expansion as? Expansion.Expanded)?.value
+    }
 
     /** What each module the run compiled exports, which Elixir loads once `elixir_module:compile` returns. */
     private val compiled = HashMap<String, ModuleExports>()
@@ -160,17 +179,42 @@ internal class Run(
         }
     }
 
-    /** [result]'s module loaded, as Elixir loads a module once it compiles. */
-    fun load(result: ExpansionResult) {
+    /** The struct of each module the run compiled, which Elixir loads once `elixir_module:compile` returns. */
+    private val compiledStructs = HashMap<String, ModuleStruct>()
+
+    /**
+     * [module]'s struct: one the run is compiling, the record its `defstruct` made, or none before it, and unreadable
+     * where the module defines `__struct__/1` itself, which Elixir calls; one it compiled, what it left; any other,
+     * what [structs] gives.
+     */
+    fun structOf(module: String): ModuleStruct {
+        val inProgress = compiling[module] ?: return compiledStructs[module] ?: structs.of(module)
+
+        return recorded(inProgress.struct, inProgress.table)
+    }
+
+    /** The [struct] a module's `defstruct` recorded, or where it recorded none, `Unreadable` if [table] defines `__struct__/1` itself. */
+    private fun recorded(struct: ModuleStruct?, table: DefinitionTable): ModuleStruct =
+        struct ?: if (table[NameArity("__struct__", 1)] != null) ModuleStruct.Unreadable else ModuleStruct.Absent
+
+    /** [result]'s module loaded, with the [struct] its `defstruct` recorded, as Elixir loads a module once it compiles. */
+    fun load(result: ExpansionResult, struct: ModuleStruct?) {
         val table = result.table
         val named = { kind: DefinitionTable.Kind ->
             table.entries.filterValues { it.kind == kind }.keys.sortedWith(NAME_ARITY_ORDER)
         }
 
+        val unreadable = result.ended is ExpansionResult.Ended.Stopped || table.unnamed.isNotEmpty()
+        val loaded = !unreadable && result.ended == ExpansionResult.Ended.Compiled
+
+        compiledStructs[result.module] = when {
+            unreadable -> ModuleStruct.Unreadable
+            loaded -> recorded(struct, table)
+            else -> ModuleStruct.Absent
+        }
         compiled[result.module] = when {
-            result.ended is ExpansionResult.Ended.Stopped || table.unnamed.isNotEmpty() -> ModuleExports.Unreadable
-            result.ended == ExpansionResult.Ended.Compiled ->
-                ModuleExports.Present(named(DefinitionTable.Kind.DEF), named(DefinitionTable.Kind.DEFMACRO), true)
+            unreadable -> ModuleExports.Unreadable
+            loaded -> ModuleExports.Present(named(DefinitionTable.Kind.DEF), named(DefinitionTable.Kind.DEFMACRO), true)
             else -> ModuleExports.Absent
         }
     }
@@ -317,9 +361,13 @@ internal inline fun expandList(
 internal inline fun argumentScope(state: ExState, env: Env, body: (ExState) -> Expansion): Expansion =
     body(state.prepareWrite()).thenValue { s, e, v -> Expansion.Expanded(s.closeWrite(state), e, v) }
 
-/** `elixir_expand:expand_arg/3`: an argument reads only what [start], the scope's start, could. */
+/**
+ * `elixir_expand:expand_arg/3`: an argument reads only what [start], the scope's start, could. A literal isn't expanded,
+ * so [Expander.observed] never reports it to the watch, and this does.
+ */
 internal fun expandArg(arg: ElixirAst, acc: ExState, start: ExState, env: Env, run: Run): Expansion =
     expandArg(arg, acc, start, env) { a, s, e -> Expander.expand(a, s, e, run) }
+        .also { if (arg is ElixirAst.Literal) run.watched(arg, it) }
 
 /** `elixir_expand:expand_arg/3`, with [expand] for its `expand/3`. */
 internal inline fun expandArg(

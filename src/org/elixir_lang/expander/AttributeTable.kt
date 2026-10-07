@@ -153,6 +153,32 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
         }
     }
 
+    /**
+     * [name]'s row in the set table as `Kernel.Utils.defstruct` reads it from 1.14 (`:ets.lookup(set, name)`): `null`
+     * where there is none, `nil` for an attribute registered and never written, and `[]` for an accumulating one,
+     * whose values are in the bag.
+     */
+    fun row(name: String): AttributeValue? {
+        if (everyUnknown || name in unknown) return AttributeValue.Unknown
+
+        return when (val entry = entries[name]) {
+            null -> null
+            Entry.Unset -> AttributeValue.Known(NIL)
+            is Entry.Set -> entry.value
+            is Entry.Accumulate -> AttributeValue.Known(Term.List(emptyList()))
+        }
+    }
+
+    /**
+     * `:ets.update_element(set, name, {3, :used})`, which `Kernel.Utils.defstruct` does to the row it reads: an
+     * accumulating attribute stops accumulating, and holds the row's `[]`.
+     */
+    fun used(name: String) {
+        if (everyUnknown || name in unknown) return
+
+        if (entries[name] is Entry.Accumulate) entries[name] = Entry.Set(AttributeValue.Known(Term.List(emptyList())))
+    }
+
     /** Makes every later read of [names] unknown, as after a definition that isn't a statement takes them. */
     fun markUnknown(vararg names: String) {
         unknown += names

@@ -16,11 +16,12 @@ internal object AttributeFixtures {
                 ModuleExports.Present(
                     nameArities(
                         "__get_attribute__/3 __get_attribute__/4 __put_attribute__/4 __put_attribute__/5 " +
-                            "delete_attribute/2 put_attribute/3 register_attribute/3"
+                            "delete_attribute/2 has_attribute?/2 make_overridable/2 put_attribute/3 register_attribute/3"
                     ),
                     emptyList(),
                     hasInfo = true,
                 )
+            "elixir_bootstrap" -> ModuleExports.Present(emptyList(), nameArities("@/1"), hasInfo = true)
             "Elixir.Kernel.Typespec" ->
                 ModuleExports.Present(nameArities("deftypespec/6"), emptyList(), hasInfo = true)
             else -> ModuleFixtures.EXPORTS.of(module)

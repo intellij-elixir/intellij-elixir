@@ -41,6 +41,15 @@ internal class Compiling(body: ElixirAst, level: ElixirLanguageLevel) {
     /** The reads of the definition being stored, which take its owner once it is. */
     private val definitionReads = mutableListOf<Pair<String, Pair<ElixirAst, Term>>>()
 
+    /** The struct `defstruct` recorded, if it has run. */
+    var struct: ModuleStruct? = null
+
+    /**
+     * The `bind_quoted` values of the macro whose output is expanding, by variable name, in `Kernel`'s context: what
+     * `defexception` gives `defstruct` to evaluate as the fields it builds on.
+     */
+    var bound: Map<String, ElixirAst> = emptyMap()
+
     val definitions = LinkedHashMap<NameArity, AttributeLog.DefinitionAttributes>()
 
     val unnamed = mutableListOf<AttributeLog.DefinitionAttributes>()
@@ -84,8 +93,15 @@ internal class Compiling(body: ElixirAst, level: ElixirLanguageLevel) {
     val log: AttributeLog
         get() = AttributeLog(effects, reads, attributes.final, definitions, unnamed, attributes.accumulating)
 
+    /** A block's expressions are statements, and so is what a statement that is a match binds, which runs where it does. */
     private fun addStatements(node: ElixirAst) {
-        if (node is ElixirAst.Block) node.expressions.forEach(::addStatements) else statements += node
+        if (node is ElixirAst.Block) {
+            node.expressions.forEach(::addStatements)
+        } else {
+            statements += node
+
+            if (isCall(node, "=", 2)) addStatements((node as ElixirAst.Call).arguments!![1])
+        }
     }
 }
 
@@ -160,6 +176,25 @@ internal sealed interface Pending {
     class Attribute(val effect: org.elixir_lang.expander.Effect, val at: ElixirAst, val statement: Boolean) : Pending
 }
 
+/** Whether the entry's node is a statement of the module body. A nested module is the body's own. */
+internal fun Pending.isStatement(): Boolean =
+    when (this) {
+        is Pending.Definition -> statement
+        is Pending.Effect -> ordered
+        is Pending.Attribute -> statement
+        is Pending.Module -> true
+    }
+
+/** The entry as it is when its node is a statement of the module body. */
+internal fun Pending.asStatement(): Pending =
+    when (this) {
+        is Pending.Definition ->
+            Pending.Definition(kind, node, head, body, unnamedAt, stop, env, unnamedAt == null, true, checksClauses)
+        is Pending.Effect -> Pending.Effect(node, true, queued, apply)
+        is Pending.Attribute -> Pending.Attribute(effect, at, true)
+        is Pending.Module -> this
+    }
+
 /** [replacement] in place of what [Run.pending] gained since it had [from] entries, which a macro's own output queued. */
 internal fun Run.replacePending(from: Int, replacement: List<Pending>) {
     pending.subList(from, pending.size).clear()
@@ -205,6 +240,7 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
     var errorsFrom = run.errors.size
     val units = mutableListOf<ExpansionResult.Unit>()
     val nested = mutableListOf<ExpansionResult>()
+    val effectOpaque = mutableListOf<Expansion.Opaque>()
 
     run.pending = mutableListOf()
 
@@ -246,7 +282,10 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
                 is Pending.Effect -> {
                     ordered = ordered && pending.ordered
 
-                    pending.apply(compiling)?.let { ended(it, run) }.also { queue.addAll(0, pending.queued()) }
+                    val applied = pending.apply(compiling)
+
+                    (applied as? Expansion.Opaque)?.let(effectOpaque::add)
+                    applied?.let { ended(it, run) }.also { queue.addAll(0, pending.queued()) }
                 }
                 is Pending.Module -> {
                     errors += run.errors.subList(errorsFrom, run.errors.size)
@@ -294,13 +333,13 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
         units,
         errors,
         ended ?: if (errors.isEmpty()) Ended.Compiled else Ended.Tainted,
-        units.mapNotNull { it.expansion as? Expansion.Opaque },
+        units.mapNotNull { it.expansion as? Expansion.Opaque } + effectOpaque,
         run.consulted.subList(consultedFrom, run.consulted.size).toSet(),
         nested,
         compiling.log,
     )
 
-    run.load(result)
+    run.load(result, compiling.struct)
 
     return result
 }

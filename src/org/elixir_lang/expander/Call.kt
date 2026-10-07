@@ -443,10 +443,15 @@ private fun queueEffect(receiver: Term, name: String, node: ElixirAst.Call, valu
     if (receiver !is Term.Atom || env.function != null) return
 
     val dispatch = Dispatch(Dispatch.Kind.REMOTE_FUNCTION, receiver.name, name, values.elements.size)
-    val effect = ModuleEffects.of(dispatch, values.elements, module, run.level) ?: return
     val at = compiling.site(node)
+    val statement = compiling.isStatement(at)
 
-    run.pending += Pending.Attribute(effect, at, compiling.isStatement(at))
+    when (val change = ModuleEffects.of(dispatch, values.elements, module, run.level)) {
+        null -> Unit
+        is ModuleEffects.Change.Attributes -> run.pending += Pending.Attribute(change.effect, at, statement)
+        is ModuleEffects.Change.Definitions ->
+            run.pending += Pending.Effect(node, statement, apply = { change.apply(it, node, run.exports) })
+    }
 }
 
 /**

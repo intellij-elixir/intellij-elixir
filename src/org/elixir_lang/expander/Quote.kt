@@ -664,13 +664,9 @@ internal object Quote {
             }
         }
 
-        /** `annotate_def/2`, and before it the head that took any tuple, a guard's `when` included. */
+        /** `annotate_def/2`: `context:` on the node of [head] that [annotatedDefinitionHead] names. */
         private fun annotateDefinition(head: ElixirAst) {
-            if (QUOTED_DEF_CONTEXT_SKIPS_GUARD.isSufficient(level) && isCall(head, "when", 2)) {
-                annotateDefinition((head as ElixirAst.Call).arguments!![0])
-            } else if (head.hasMetadata()) {
-                annotated[head] = keystore(metaOf(head), "context", contextNode())
-            }
+            annotatedDefinitionHead(head, level)?.let { annotated[it] = keystore(metaOf(it), "context", contextNode()) }
         }
 
         /**
@@ -881,4 +877,17 @@ internal object Quote {
 
         return if (index < 0) meta else meta.filterIndexed { i, _ -> i != index }
     }
+
+    /**
+     * The node of a `def` [head] that `annotate_def/2` marks with `context:`: the head under a guard's `when` from
+     * [QUOTED_DEF_CONTEXT_SKIPS_GUARD], before it the first node that took any tuple, the `when` included, or `null`
+     * where that has no metadata.
+     */
+    fun annotatedDefinitionHead(head: ElixirAst, level: ElixirLanguageLevel): ElixirAst? =
+        when {
+            QUOTED_DEF_CONTEXT_SKIPS_GUARD.isSufficient(level) && isCall(head, "when", 2) ->
+                annotatedDefinitionHead((head as ElixirAst.Call).arguments!![0], level)
+            head.hasMetadata() -> head
+            else -> null
+        }
 }

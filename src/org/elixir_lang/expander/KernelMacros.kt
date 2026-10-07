@@ -92,5 +92,5 @@ internal fun kernelAlias(s: Synthetic, vararg segments: String): ElixirAst.Alias
     ElixirAst.Alias(s.meta(listOf(entry("alias", "false"))), segments.map { s.atom(it) })
 
 /** Erlang's order of atoms, by code point. */
-private fun compareCodePoints(left: String, right: String): Int =
+internal fun compareCodePoints(left: String, right: String): Int =
     Arrays.compare(left.codePoints().toArray(), right.codePoints().toArray())
