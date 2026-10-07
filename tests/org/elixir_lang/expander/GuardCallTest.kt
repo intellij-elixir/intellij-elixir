@@ -34,7 +34,10 @@ class GuardCallTest : ExpanderTestCase() {
 
     fun testAndalsoIsAGuardOperator() = assertGuard(":erlang.andalso(x, y)") { BOUND }
 
-    fun testAKernelMacroIsOpaque() = assertGuard("x and y") { "opaque imported_macro Elixir.Kernel.and/2 `x and y`" }
+    fun testAKernelMacroWithASummaryIsExpanded() = assertGuard("x and y") { BOUND }
+
+    fun testAKernelMacroWithoutASummaryIsOpaque() =
+        assertGuard("is_nil(x)") { "opaque imported_macro Elixir.Kernel.is_nil/1 `is_nil(x)`" }
 
     fun testALocalCallIsUndefined() = assertGuard("foo(x)") { "error undefined_function `foo(x)`" }
 

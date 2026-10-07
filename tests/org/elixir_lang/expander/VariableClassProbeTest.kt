@@ -20,7 +20,7 @@ class VariableClassProbeTest : ProbeTestCase() {
             .orEmpty()
             .sortedBy { it.name }
             .associate { it.name to it.readLines().drop(HEADER_LINES).joinToString("\n") }
-        val expansions = cases.mapValues { (_, body) -> probes.expand(body) }
+        val expansions = cases.mapValues { (_, body) -> probes.expand(body, PLACEHOLDER) }
         val covered = expansions.filterValues { it.outcome is Expansion.Expanded }
         val opaque = expansions.filterValues { it.outcome is Expansion.Opaque }
         val uncoveredAt = expansions.filterKeys { it !in covered && it !in opaque }.values
@@ -54,7 +54,7 @@ class VariableClassProbeTest : ProbeTestCase() {
     }
 
     fun testOwnCases() {
-        val expansions = OWN_CASES.associateWith { probes.expand(it) }
+        val expansions = OWN_CASES.associateWith { probes.expand(it, PLACEHOLDER) }
 
         assertEquals(
             "",
@@ -79,8 +79,11 @@ class VariableClassProbeTest : ProbeTestCase() {
         /** The comment lines `generate.exs` writes at the top of each case. */
         const val HEADER_LINES = 2
 
+        /** Stands for the module Elixir compiles each case body in, whose hygiene counters are `{Module, N}`. */
+        const val PLACEHOLDER = "Elixir.VariableCase"
+
         /** The covered count measured when these clauses were ported; it may only grow. */
-        const val FLOOR = 756
+        const val FLOOR = 1066
 
         val OWN_CASES = listOf(
             "()",

@@ -13,13 +13,18 @@ import java.util.UUID
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * Fails on any leg whose `elixir_rewrite` inlines, or whose Elixir and Erlang/OTP admit in a guard, other than the
- * manifests committed for its version, which [RewriteTableTest] checks the expander against.
+ * Fails on any leg whose `elixir_rewrite` inlines or rewrites, or whose Elixir and Erlang/OTP admit in a guard, other
+ * than the manifests committed for its version, which [RewriteTableTest] checks the expander against.
  */
 class RewriteManifestTest {
     @Test
     fun `inline table`() {
         LegManifest.assertMatchesLeg(RewriteManifestTest::class, INLINE, rows(INLINE_DUMP))
+    }
+
+    @Test
+    fun `rewrite table`() {
+        LegManifest.assertMatchesLeg(RewriteManifestTest::class, REWRITE, rows(REWRITE_DUMP))
     }
 
     @Test
@@ -48,6 +53,7 @@ class RewriteManifestTest {
 
     companion object {
         const val INLINE = "inline.txt"
+        const val REWRITE = "rewrite.txt"
         const val GUARD_FUNCTIONS = "guard-functions.txt"
 
         /** In each dump's module name, which must be unique to its compile. */
@@ -72,6 +78,34 @@ class RewriteManifestTest {
                     {erlang_module, erlang_name} <- [:elixir_rewrite.inline(module, name, arity)],
                     uniq: true,
                     do: {module, name, arity, erlang_module, erlang_name}
+
+              IntellijElixir.Quoter.Probe.send(__ENV__, Enum.sort(rows))
+            end
+            """.trimIndent()
+
+        /**
+         * `elixir_rewrite:rewrite/5` of a call with variable arguments, over every function and macro of the modules
+         * [INLINE_DUMP] reads, as `module name arity erlang_module erlang_name erlang_arity`, where the receiver or the
+         * name changes.
+         */
+        private val REWRITE_DUMP =
+            """
+            defmodule RewriteManifest@TOKEN@.Rewrite do
+              modules = [
+                Atom, Bitwise, Enum, Float, Function, Integer, IO, Kernel, Keyword, List, Map, Node, Port, Process,
+                String, String.Chars, System, Tuple
+              ]
+
+              rows =
+                for module <- modules,
+                    Code.ensure_loaded?(module),
+                    {name, arity} <- module.__info__(:functions) ++ module.__info__(:macros),
+                    arguments = Macro.generate_arguments(arity, __MODULE__),
+                    {{:., _, [erlang_module, erlang_name]}, _, erlang_arguments} <-
+                      [:elixir_rewrite.rewrite(module, [], name, [], arguments)],
+                    {erlang_module, erlang_name} != {module, name},
+                    uniq: true,
+                    do: {module, name, arity, erlang_module, erlang_name, length(erlang_arguments)}
 
               IntellijElixir.Quoter.Probe.send(__ENV__, Enum.sort(rows))
             end

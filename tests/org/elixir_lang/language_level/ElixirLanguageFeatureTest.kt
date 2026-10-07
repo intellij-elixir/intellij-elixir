@@ -121,6 +121,9 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             COMPILER_PARSES_COLUMNS to ("1.15.8" to "1.16.0-rc.0"),
             UNQUOTE_CALL_META_KEPT to ("1.12.3" to "1.13.0-rc.0"),
             QUOTE_IMPORTS_EVERY_ARITY to ("1.13.4" to "1.14.0-rc.0"),
+            QUOTE_IMPORTS_NON_LIST_FALLS_THROUGH to ("1.16.3" to "1.17.0-rc.0"),
+            IMPORTED_FUNCTION_NOT_REEXPANDED to ("1.17.3" to "1.18.0-rc.0"),
+            QUOTED_IMPORT_FUNCTION_TRACED to ("1.18.3" to "1.18.4"),
             QUOTE_KEEP_READS_LINE_OPTION to ("1.16.3" to "1.17.0-rc.0"),
             QUOTE_OPTIONS_EXPANDED_FIRST to ("1.16.3" to "1.17.0-rc.0"),
             QUOTED_DEF_CONTEXT_SKIPS_GUARD to ("1.15.8" to "1.16.0-rc.0"),
@@ -151,7 +154,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             RESCUE_CALL_EXPANDED_AS_MACRO to ("1.14.5" to "1.15.0-rc.0"),
             POST_MODULE_LOCAL_CHECKS_TYPED to ("1.17.3" to "1.18.0-rc.0"),
             LOCAL_CALL_CHECKED_BEFORE_ARGUMENTS to ("1.18.4" to "1.19.0-rc.0"),
-            TYPE_CHECK_SORTS_DEFINITIONS to ("1.19.5" to "1.20.0-rc.0"),
+            GUARDS_INFER_TYPES to ("1.19.5" to "1.20.0-rc.0"),
             DEFMODULE_FAST_PATH to ("1.12.3" to "1.13.0-rc.0"),
             FAST_PATH_ADDS_CONTEXT_MODULE to ("1.13.1" to "1.13.2"),
             DEFMODULE_ALIASES_THROUGH_REQUIRE to ("1.15.8" to "1.16.0-rc.0"),
@@ -173,6 +176,25 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             ON_LOAD_ALLOWS_PRIVATE to ("1.11.4" to "1.12.0-rc.0"),
             DIALYZER_REFUSES_MACROS to ("1.15.0-rc.0" to "1.15.0-rc.1"),
             GENERATED_HEADS_CHECKED to ("1.12.0-rc.0" to "1.12.0-rc.1"),
+            RETURNS_BOOLEAN_LISTS_MEMBER to ("1.20.0" to "1.20.1"),
+            ANNOTATE_CASE to ("1.17.3" to "1.18.0-rc.0"),
+            FALSE_OR_NIL_INLINE to ("1.19.5" to "1.20.0-rc.0"),
+            BOOLEAN_CHECK_ERROR_GENERATED to ("1.20.0-rc.1" to "1.20.0-rc.2"),
+            UNLESS_DIRECT_CASE to ("1.20.0-rc.1" to "1.20.0-rc.2"),
+            RAISE_ERROR_INFO to ("1.12.3" to "1.13.0-rc.0"),
+            PIPE_ONE_OPERAND to ("1.13.4" to "1.14.0-rc.0"),
+            PIPE_RIGHT_UNPIPED to ("1.14.0-rc.0" to "1.14.0-rc.1"),
+            RANGE_GUARD_STEP_COMPUTED to ("1.14.0-rc.0" to "1.14.0-rc.1"),
+            RANGE_NEW_WRAPPED_IN_IDENTITY to ("1.18.0-rc.0" to "1.18.0"),
+            RANGE_STRUCT_SYNTAX to ("1.18.4" to "1.19.0-rc.0"),
+            GENERATED_ARGUMENTS_ONE_BASED to ("1.11.4" to "1.12.0-rc.0"),
+            IN_SMALL_LITERAL_LIST to ("1.12.3" to "1.13.0-rc.0"),
+            IN_RANGE_FIELDS_ANY_ORDER to ("1.13.4" to "1.14.0-rc.0"),
+            IN_LITERAL_UNWRAPPED to ("1.18.1" to "1.18.2"),
+            IN_RANGE_LITERAL_GENERATED to ("1.19.5" to "1.20.0-rc.0"),
+            IN_LIST_LISTS_MEMBER to ("1.20.0-rc.1" to "1.20.0-rc.2"),
+            IN_ENUM_IN to ("1.20.0-rc.4" to "1.20.0-rc.5"),
+            IN_EMPTY_LISTS_MEMBER to ("1.20.0-rc.6" to "1.20.0"),
         )
 
         assertEquals(entries.filter { it.sinceElixir != null }.toSet(), boundaries.keys)
@@ -198,6 +220,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             SYSTEM_STACKTRACE_REWRITTEN to ("1.13.4" to "1.14.0-rc.0"),
             ANONYMOUS_CALL_OF_ATOM_REFUSED to ("1.17.3" to "1.18.0-rc.0"),
             CLAUSES_REFUSED_IN_CALL to ("1.17.3" to "1.18.0-rc.0"),
+            RANGE_NEW_WRAPPED_IN_IDENTITY to ("1.18.4" to "1.19.0-rc.0"),
         )
 
         assertEquals(entries.filter { it.removedInElixir != null }.toSet(), removals.keys)
@@ -213,6 +236,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
         val boundaries = mapOf(
             MAYBE_RESERVED to ("26.2.5.21" to "27.0-rc1"),
             HALF_FLOAT_SEGMENT to ("23.3.4.20" to "24.0-rc1"),
+            RAISE_ERROR_INFO to ("23.3.4.20" to "24.0-rc1"),
             UNICODE_14_GRAPHEME_CLUSTERS to ("24.3.4.17" to "25.0-rc1"),
             UNICODE_15_GRAPHEME_CLUSTERS to ("26.0-rc1" to "26.0-rc2"),
             INDIC_CONJUNCT_GRAPHEME_CLUSTERS to ("28.0-rc1" to "28.0-rc2"),

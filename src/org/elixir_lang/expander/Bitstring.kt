@@ -80,7 +80,7 @@ private fun expandSegments(
         val expansion = expandValue(value, accState, original, accEnv, run)
         if (expansion !is Expansion.Expanded) return expansion
 
-        valueError(value, metaNode, context, level, report)?.let { return it }
+        valueError(value, expansion.value, metaNode, context, level, report)?.let { return it }
 
         val shape = valueShape(value, context)
         val described = if (typed) {
@@ -94,7 +94,7 @@ private fun expandSegments(
                     accState = if (hides) specs.state.copy(read = expansion.state.read, write = expansion.state.write) else specs.state
                     accEnv = specs.env
 
-                    describeTyped(segment, shape, specs.args, context, matchSize, level, report)
+                    describeTyped(segment, shape, expansion.value, specs.args, context, matchSize, level, report)
                 }
             }
         } else {
@@ -102,7 +102,7 @@ private fun expandSegments(
             accEnv = expansion.env
             bareMeta = nextBareMeta
 
-            describeBare(metaNode, shape, context, matchSize, level, report)
+            describeBare(metaNode, shape, expansion.value, context, matchSize, level, report)
         }
 
         when (described) {
@@ -171,9 +171,13 @@ private val TO_STRING_MODULES = setOf("Elixir.Kernel", "Elixir.String.Chars")
 private fun valueShape(value: ElixirAst, context: Env.Context): ElixirAst =
     expandedShape(interpolated(value, context) ?: value)
 
-/** `invalid_literal` before 1.18, which `expand_expr/5` raises, and `unknown_match` from 1.19. */
+/**
+ * `invalid_literal` before 1.18, which `expand_expr/5` raises, and `unknown_match` from 1.19, each judged on
+ * [expanded], the segment's expanded value.
+ */
 private fun valueError(
     value: ElixirAst,
+    expanded: Term,
     metaNode: ElixirAst,
     context: Env.Context,
     level: ElixirLanguageLevel,
@@ -182,31 +186,28 @@ private fun valueError(
     if (BITSTRING_PATTERN_SEGMENT_VALIDATED.isSufficient(level)) {
         val shape = valueShape(value, context)
 
-        if (context == Env.Context.MATCH && !isMatchSegment(shape)) {
+        if (context == Env.Context.MATCH && !isMatchSegment(shape, expanded)) {
             report(ErrorSite.UNKNOWN_MATCH, if (shape.hasMetadata()) shape else metaNode)
         } else {
             null
         }
+    } else if (BITSTRING_LIST_OR_ATOM_SEGMENT_REJECTED.isSufficient(level) &&
+        interpolated(value, context) == null &&
+        (expanded is Term.List || expanded is Term.Atom)
+    ) {
+        Expansion.Error("invalid_literal", metaNode)
     } else {
-        val shape = expandedShape(value)
-
-        if (BITSTRING_LIST_OR_ATOM_SEGMENT_REJECTED.isSufficient(level) &&
-            interpolated(value, context) == null &&
-            (shape is ElixirAst.ListNode || shape is ElixirAst.Literal.Atom)
-        ) {
-            Expansion.Error("invalid_literal", metaNode)
-        } else {
-            null
-        }
+        null
     }
 
-private fun isMatchSegment(shape: ElixirAst) =
-    isVariable(shape) ||
-        isBitstring(shape) ||
-        isCall(shape, "^", 1) ||
-        shape is ElixirAst.Literal.Integer ||
-        shape is ElixirAst.Literal.Float ||
-        shape is ElixirAst.Literal.Binary
+/** `validate_expr/3`: a variable, a pin, a number or a binary, as [expanded] is, or a bitstring, as [shape] is. */
+private fun isMatchSegment(shape: ElixirAst, expanded: Term) =
+    expanded == VARIABLE_NODE ||
+        expanded == Term.Node(Term.Node.Kind.PIN) ||
+        expanded is Term.Integer ||
+        expanded is Term.NonTuple ||
+        expanded is Term.Binary ||
+        isBitstring(shape)
 
 /** `find_match/1`, before 1.19: a `=` in any call's arguments, block's expressions or `{}` tuple's elements. */
 private fun containsMatch(node: ElixirAst): Boolean {
@@ -327,13 +328,13 @@ private fun expandSpecs(spec: ElixirAst, state: ExState, original: ExState, env:
 
 /** What `Macro.expand/2` makes of a spec `validate_spec/2` doesn't know. */
 private sealed interface NamedSpec {
-    /** The integer an imported `Kernel.+/1` or `-/1` folds to, which is a size. */
+    /** The integer the spec expands to, which is a size. */
     class Size(val value: BigInteger) : NamedSpec
 
     /** The spec left as it is, which is `undefined_bittype`. */
     data object Unchanged : NamedSpec
 
-    /** An imported macro's expansion, or where expanding the spec stopped. */
+    /** Where expanding the spec stopped. */
     class Other(val expansion: Expansion) : NamedSpec
 }
 
@@ -345,75 +346,23 @@ private fun expandNamedSpec(spec: ElixirAst.Call, state: ExState, env: Env, run:
             ElixirAst.Call(spec.meta, spec.callee, emptyList())
         else -> return NamedSpec.Unchanged
     }
-    var unchanged = false
-    val leftAsItIs = {
-        unchanged = true
-        Expansion.Expanded(state, env, NODE)
-    }
-    val expansion = expandImport(
-        call,
-        state,
-        env,
-        run,
-        ambiguous = { Expansion.Unported(call) },
-        function = { receiver ->
-            importedFunction(call, receiver, env, run)
 
-            when (val folded = signed(call, receiver, state, env, run)) {
-                null -> leftAsItIs()
-                is Expansion.Expanded -> folded.takeIf { it.value is Term.Integer } ?: leftAsItIs()
-                else -> folded
+    return when (val expanded = macroExpand(call, state, env, run)) {
+        is MacroExpanded.Node -> {
+            val node = expanded.node
+
+            when {
+                !expanded.expanded -> NamedSpec.Unchanged
+                node is ElixirAst.Literal.Integer -> NamedSpec.Size(node.value)
+                node is ElixirAst.ListNode || node is ElixirAst.Tuple || node is ElixirAst.Literal ||
+                    node is ElixirAst.Call && node.callee !is ElixirAst.Literal.Atom -> NamedSpec.Unchanged
+                // Elixir unpacks the specs it expands to again.
+                else -> NamedSpec.Other(Expansion.Unported(call))
             }
-        },
-        none = leftAsItIs,
-    )
-    val size = (expansion as? Expansion.Expanded)?.value as? Term.Integer
-
-    return when {
-        unchanged -> NamedSpec.Unchanged
-        size != null -> NamedSpec.Size(size.value)
-        else -> NamedSpec.Other(expansion)
-    }
-}
-
-/**
- * `Macro.expand_once/2` of [node] as the fold of `Kernel.+/1` and `-/1` reads it: the value is the integer it folds
- * to, or a node for anything else.
- */
-private fun expandOnce(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
-    val unchanged = Expansion.Expanded(state, env, NODE)
-
-    return when {
-        node is ElixirAst.Literal.Integer -> Expansion.Expanded(state, env, Term.Integer(node.value))
-        node !is ElixirAst.Call || node.arguments == null -> unchanged
-        node.callee is ElixirAst.Literal.Atom ->
-            expandImport(
-                node,
-                state,
-                env,
-                run,
-                ambiguous = { Expansion.Unported(node) },
-                function = { receiver ->
-                    importedFunction(node, receiver, env, run)
-                    signed(node, receiver, state, env, run) ?: unchanged
-                },
-                none = { unchanged },
-            )
-        // A remote call can be a macro.
-        else -> Expansion.Unported(node)
-    }
-}
-
-/** [call], imported from [receiver], folded as `Kernel.+/1` or `-/1` of what its argument expands once to. */
-private fun signed(call: ElixirAst.Call, receiver: String, state: ExState, env: Env, run: Run): Expansion? {
-    val name = (call.callee as ElixirAst.Literal.Atom).name
-    val arg = call.arguments!!.singleOrNull()?.takeIf { receiver == KERNEL && (name == "+" || name == "-") }
-        ?: return null
-
-    return expandOnce(arg, state, env, run).thenValue { _, _, value ->
-        val folded = (value as? Term.Integer)?.let { if (name == "-") Term.Integer(it.value.negate()) else it }
-
-        Expansion.Expanded(state, env, folded ?: NODE)
+        }
+        // A call is never `__DIR__`.
+        MacroExpanded.Dir -> NamedSpec.Other(Expansion.Unported(call))
+        is MacroExpanded.Stopped -> NamedSpec.Other(expanded.expansion)
     }
 }
 
@@ -566,12 +515,12 @@ private fun interface Reporter {
 /** For a bitstring already expanded, whose errors were reported then. */
 private val ALREADY_REPORTED = Reporter { _, _ -> null }
 
-/** `expr_type/1`. */
-private fun exprType(shape: ElixirAst) =
+/** `expr_type/1` of a segment's value, from [shape] and from [value], its expanded term where one is at hand. */
+private fun exprType(shape: ElixirAst, value: Term?) =
     when {
-        shape is ElixirAst.Literal.Integer -> "integer"
-        shape is ElixirAst.Literal.Float -> "float"
-        shape is ElixirAst.Literal.Binary -> "binary"
+        shape is ElixirAst.Literal.Integer || value is Term.Integer -> "integer"
+        shape is ElixirAst.Literal.Float || value is Term.NonTuple -> "float"
+        shape is ElixirAst.Literal.Binary || value is Term.Binary -> "binary"
         isBitstring(shape) -> "bitstring"
         else -> "default"
     }
@@ -580,12 +529,13 @@ private fun exprType(shape: ElixirAst) =
 private fun describeBare(
     metaNode: ElixirAst,
     shape: ElixirAst,
+    value: Term?,
     context: Env.Context,
     matchSize: Boolean,
     level: ElixirLanguageLevel,
     report: Reporter,
 ): Described {
-    val alone = exprType(shape).takeIf { it in BINARIES }
+    val alone = exprType(shape, value).takeIf { it in BINARIES }
 
     return concat(metaNode, shape, alone, 0, context, matchSize, level, report)
 }
@@ -594,6 +544,7 @@ private fun describeBare(
 private fun describeTyped(
     segment: ElixirAst,
     shape: ElixirAst,
+    value: Term?,
     args: Map<String, SpecArg>,
     context: Env.Context,
     matchSize: Boolean,
@@ -605,7 +556,7 @@ private fun describeTyped(
     /** A site whose helper's return value `expand_specs/7` can't match. */
     fun crashed(site: ErrorSite) = ended(site) ?: Described.Unported(segment)
 
-    val exprType = exprType(shape)
+    val exprType = exprType(shape, value)
     val type = ((args["type"] as SpecArg.Literal?)?.term as OtpErlangAtom?)?.atomValue()
     val size = args["size"]
     val unit = args["unit"]
@@ -767,12 +718,12 @@ private fun describe(bitstring: ElixirAst.Call, context: Env.Context, level: Eli
             val (value, spec) = (segment as ElixirAst.Call).arguments!!
             val args = unpackSpecs(spec).filterIsInstance<Unpacked.Builtin>().associate { it.key to SpecArg.of(it.arg) }
 
-            describeTyped(segment, valueShape(value, context), args, context, matchSize, level, ALREADY_REPORTED)
+            describeTyped(segment, valueShape(value, context), null, args, context, matchSize, level, ALREADY_REPORTED)
         } else {
             val (metaNode, nextBareMeta) = bareMeta(segment, bareMeta, level)
             bareMeta = nextBareMeta
 
-            describeBare(metaNode, valueShape(segment, context), context, matchSize, level, ALREADY_REPORTED)
+            describeBare(metaNode, valueShape(segment, context), null, context, matchSize, level, ALREADY_REPORTED)
         }
 
         when (described) {

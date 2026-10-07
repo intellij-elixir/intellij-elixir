@@ -6,10 +6,21 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.lowering.inspect
 import org.elixir_lang.parser_definition.ParsingTestCase
 import org.elixir_lang.psi.ElixirFile
+import org.junit.ComparisonFailure
 
 /** A test that compiles case bodies through a [ProbeHarness] parsing them with this fixture. */
 abstract class ProbeTestCase : ParsingTestCase() {
     protected val harness = ProbeHarness { createPsiFile(getTestName(false), it) as ElixirFile }
+
+    /** Runs [comparison], printing both sides in full when they differ. */
+    protected fun printed(comparison: () -> Unit) {
+        try {
+            comparison()
+        } catch (failure: ComparisonFailure) {
+            println("expander:\n${failure.expected}\nelixir:\n${failure.actual}")
+            throw failure
+        }
+    }
 
     /** The invariant each compile keeps: none of [layout]'s modules is loaded or open, and the same names compile. */
     protected fun assertLeftNothingBehind(layout: ProbeHarness.Layout) {

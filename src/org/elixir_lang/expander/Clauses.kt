@@ -5,6 +5,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.CLAUSES_TAKE_VERSION
 import org.elixir_lang.language_level.ElixirLanguageFeature.PARALLEL_MATCH
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_CALL_EXPANDED_AS_MACRO
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
 
 /** The heads of `elixir_clauses`' functions that expand `->` clauses, which aren't clauses of `expand`. */
@@ -58,15 +59,31 @@ internal typealias HeadExpansion = (arrow: ElixirAst.Call, args: List<ElixirAst>
 internal fun expandCase(node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion {
     val (subject, opts) = node.arguments!!
 
-    return Expander.expand(subject, state, env, run).then { subjectState, subjectEnv ->
-        options(node, opts, listOf("do"), subjectState, subjectEnv) { key, value, s ->
+    return Expander.expand(subject, state, env, run).thenValue { subjectState, subjectEnv, subjectValue ->
+        val rewritten = if (isOptimizeBoolean(node) && returnsBoolean(subjectValue)) {
+            rewriteCaseClauses(opts, run.level)
+        } else {
+            opts
+        }
+
+        options(node, rewritten, listOf("do"), subjectState, subjectEnv) { key, value, s ->
             when (key) {
                 "do" -> expandClauses(node, expandHead(node, run), value, s, subjectEnv, run)
                 else -> Expansion.Error("unexpected_option", node)
             }
-        }.endConstruct(subjectEnv, run)
+        }.endConstruct(subjectEnv, run, ::clausesValueOf)
     }
 }
+
+/** Whether [node]'s metadata has `{optimize_boolean, true}`, which `Kernel` gives the `case` of `if` and `!`. */
+private fun isOptimizeBoolean(node: ElixirAst.Call): Boolean =
+    node.meta.keys.any {
+        it is Meta.Key.Entry && it.name == "optimize_boolean" && (it.value as? Meta.Value.Atom)?.name == "true"
+    }
+
+/** The value of a `case` or `cond` whose options gave [options], the values of their clauses' bodies. */
+private fun clausesValueOf(options: Term): Term =
+    clausesValue((options as Term.List).elements.flatMap { (it as Term.List).elements })
 
 /** `elixir_expand:expand/3`'s `cond`, through `elixir_clauses:'cond'/4`. */
 internal fun expandCond(node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion {
@@ -79,7 +96,7 @@ internal fun expandCond(node: ElixirAst.Call, state: ExState, env: Env, run: Run
             "do" -> expandClauses(node, expandOne(node, run), value, s, env, run)
             else -> Expansion.Error("unexpected_option", node)
         }
-    }.endConstruct(env, run)
+    }.endConstruct(env, run, ::clausesValueOf)
 }
 
 /** `elixir_expand:expand/3`'s `receive`, through `elixir_clauses:'receive'/4`. */
@@ -282,28 +299,21 @@ private fun rescue(arrow: ElixirAst, arg: ElixirAst, state: ExState, env: Env, r
     }
 
 /**
- * `Macro.expand_once/2` of a `rescue` argument: an imported macro's expansion, or `invalid_rescue_clause` at [arrow]
- * for anything it leaves as it is.
+ * `Macro.expand_once/2` of a `rescue` argument, which is expanded as a `rescue` argument again, or is
+ * `invalid_rescue_clause` at [arrow] where it is left as it is.
  */
-private fun rescueExpandedOnce(arrow: ElixirAst, arg: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
-    val call = arg as? ElixirAst.Call
-    val invalid = { Expansion.Error("invalid_rescue_clause", arrow) }
-
-    return when {
-        // A remote call's expansion needs its receiver's.
-        call != null && (call.callee as? ElixirAst.Call)?.let { isCall(it, ".", 2) } == true -> Expansion.Unported(arg)
-        call?.callee !is ElixirAst.Literal.Atom || call.arguments == null -> invalid()
-        else -> expandImport(
-            call,
-            state,
-            env,
-            run,
-            ambiguous = { Expansion.Unported(arg) },
-            function = { invalid() },
-            none = invalid,
-        )
+private fun rescueExpandedOnce(arrow: ElixirAst, arg: ElixirAst, state: ExState, env: Env, run: Run): Expansion =
+    when (val expanded = macroExpandOnce(arg, state, env, run)) {
+        is MacroExpanded.Node ->
+            if (expanded.expanded) {
+                rescue(arrow, expanded.node, state, env, run)
+            } else {
+                Expansion.Error("invalid_rescue_clause", arrow)
+            }
+        // A binary.
+        MacroExpanded.Dir -> Expansion.Error("invalid_rescue_clause", arrow)
+        is MacroExpanded.Stopped -> expanded.expansion
     }
-}
 
 /** `rescue left in right`, where [right] must expand to an atom or a list of atoms, and [left] be a variable. */
 private fun rescueIn(
@@ -355,7 +365,7 @@ internal fun expandClauses(
     return mapfold(elements, state, env) { each, s, _ -> clauseFrom(construct, head, each, s, env, run) }
 }
 
-/** [each] as a [clause] from [state], with [state]'s variables after it. */
+/** [each] as a [clause] from [state], with [state]'s variables after it; the value is its body's. */
 internal fun clauseFrom(
     construct: ElixirAst,
     head: HeadExpansion,
@@ -364,8 +374,8 @@ internal fun clauseFrom(
     env: Env,
     run: Run,
 ): Expansion =
-    clause(construct, head, each, state, env, run).then { clauseState, _ ->
-        Expansion.Expanded(clauseState.restoreVars(state), env, NODE)
+    clause(construct, head, each, state, env, run).thenValue { clauseState, _, value ->
+        Expansion.Expanded(clauseState.restoreVars(state), env, value)
     }
 
 /** `elixir_env:merge_and_check_unused_vars/3`: [before]'s variables, with everything else this state reached. */
@@ -405,13 +415,13 @@ internal fun keyOf(option: ElixirAst): String? =
 
 /**
  * The end of a `case`, `cond`, `receive`, `try` or `fn`: its clauses' state, which from 1.20 takes a version, and
- * [env], the env it returns.
+ * [env], the env it returns. Its value is [value] of what its options gave.
  */
-internal fun Expansion.endConstruct(env: Env, run: Run): Expansion =
-    then { state, _ ->
+internal fun Expansion.endConstruct(env: Env, run: Run, value: (Term) -> Term = { NODE }): Expansion =
+    thenValue { state, _, options ->
         val version = if (CLAUSES_TAKE_VERSION.isSufficient(run.level)) state.version + 1 else state.version
 
-        Expansion.Expanded(state.copy(version = version), env, NODE)
+        Expansion.Expanded(state.copy(version = version), env, value(options))
     }
 
 /** `elixir_expand:assert_no_underscore_clause_in_cond/2`, which reads only a lone `do`. */

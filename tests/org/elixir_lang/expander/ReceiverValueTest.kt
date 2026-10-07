@@ -42,7 +42,7 @@ class ReceiverValueTest : ExpanderTestCase() {
     }
 
     fun testAMacroIsNotDispatchedWithoutASummary() =
-        assertEvery("if true, do: 1", "opaque imported_macro Elixir.Kernel.if/2 `if true, do: 1` | ")
+        assertEvery("is_nil(1)", "opaque imported_macro Elixir.Kernel.is_nil/1 `is_nil(1)` | ")
 
     fun testTheModuleIsAReceiver() {
         assertInFn("__MODULE__.foo()") { "remote_function Elixir.Case.foo/0" }

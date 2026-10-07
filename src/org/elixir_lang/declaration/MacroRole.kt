@@ -52,28 +52,27 @@ data class MacroRole(val modelling: Modelling, val block: Block) {
                         "__MODULE__", "__STACKTRACE__", "__aliases__", "__block__", "__cursor__", "alias", "fn", "import",
                         "require", "super", "unquote", "unquote_splicing"
                     ),
-                MacroRole(Modelling.SUMMARY, Block.IN_PLACE) to listOf("if", "unless"),
-                // A `def*` call itself runs in place, but its block is a new function body.
-                MacroRole(Modelling.SUMMARY, Block.BOUNDARY) to
-                    listOf("def", "defimpl", "defmacro", "defmacrop", "defmodule", "defp", "defprotocol"),
-                MacroRole(Modelling.SUMMARY, Block.NOT_A_BLOCK) to
-                    listOf(
-                        "&&", "@", "alias!", "binding", "defdelegate", "defexception", "defguard", "defguardp",
-                        "defoverridable", "defstruct", "destructure", "in", "sigil_C", "sigil_D", "sigil_N", "sigil_R",
-                        "sigil_S", "sigil_T", "sigil_U", "sigil_W", "sigil_c", "sigil_r", "sigil_s", "sigil_w", "use",
-                        "var!", "|>", "||"
-                    ),
                 MacroRole(Modelling.EXPANDED, Block.NOT_A_BLOCK) to
                     listOf(
-                        "!", "..", "..//", "<>", "and", "get_and_update_in", "get_in", "is_exception", "is_nil",
-                        "is_non_struct_map", "is_struct", "match?", "or", "pop_in", "put_in", "raise", "reraise", "tap",
-                        "then", "to_char_list", "to_charlist", "to_string", "update_in"
+                        "get_and_update_in", "get_in", "is_exception", "is_nil", "is_non_struct_map", "is_struct",
+                        "match?", "pop_in", "put_in", "reraise", "tap", "then", "to_char_list", "to_charlist", "update_in"
                     ),
                 // Its expansion is whatever the `:dbg_callback` configured at compile time makes it.
                 MacroRole(Modelling.OPAQUE, Block.NOT_A_BLOCK) to listOf("dbg")
-            ).flatMap { (role, names) -> names.map { it to role } }.let { pairs ->
+            ).flatMap { (role, names) -> names.map { it to role } }.plus(summaries()).let { pairs ->
                 pairs.toMap().also { check(it.size == pairs.size) { "a name is given two roles" } }
             }
+
+        /** Each name [MacroKey] summarises in `Kernel`, once, with the block its keys share. */
+        private fun summaries(): List<Pair<String, MacroRole>> =
+            MacroKey.entries
+                .filter { it.receiver == "Elixir.Kernel" }
+                .groupBy { it.macroName }
+                .map { (name, keys) ->
+                    val block = keys.map { it.block }.distinct().single()
+
+                    name to MacroRole(Modelling.SUMMARY, block)
+                }
 
         /** The role of the `Kernel` or `Kernel.SpecialForms` macro [name], or `null` when the table does not list it. */
         fun listed(name: String): MacroRole? = BY_NAME[name]

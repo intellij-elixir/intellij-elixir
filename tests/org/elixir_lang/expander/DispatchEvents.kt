@@ -345,7 +345,8 @@ internal object DispatchEvents {
             (entry as? OtpErlangTuple)?.takeIf { it.arity() == 2 && it.elementAt(0) == OtpErlangAtom(key) }?.elementAt(1)
         }
 
-    private fun line(meta: Meta): Int? = meta.keys.filterIsInstance<Meta.Key.Location>().firstOrNull()?.position?.line
+    /** The line of [meta], from the source or from a macro output's linify, as Elixir's event has it. */
+    private fun line(meta: Meta): Int? = lineOf(meta).takeIf { it != 0 }
 
     /** The release from which Elixir traces each `@on_definition` callback it runs (`afe470466`). */
     private const val CALLBACKS_TRACED = "1.18.4"

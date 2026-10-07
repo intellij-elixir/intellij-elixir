@@ -6,7 +6,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILER_PARSES_COLU
 import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_ERRORS_CONTINUE
 import org.elixir_lang.language_level.ElixirLanguageFeature.LOCAL_CALL_CHECKED_BEFORE_ARGUMENTS
 import org.elixir_lang.language_level.ElixirLanguageFeature.POST_MODULE_LOCAL_CHECKS_TYPED
-import org.elixir_lang.language_level.ElixirLanguageFeature.TYPE_CHECK_SORTS_DEFINITIONS
+import org.elixir_lang.language_level.ElixirLanguageFeature.GUARDS_INFER_TYPES
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.unicode_util.Graphemes
 
@@ -120,7 +120,7 @@ private class Traversal<At>(
     private val calls: Map<NameArity, List<LocalCall<At>>>,
 ) {
     private val callBeforeArguments = LOCAL_CALL_CHECKED_BEFORE_ARGUMENTS.isSufficient(level)
-    private val publicAscending = TYPE_CHECK_SORTS_DEFINITIONS.isSufficient(level)
+    private val publicAscending = GUARDS_INFER_TYPES.isSufficient(level)
     private val visited = mutableSetOf<NameArity>()
     private val errors = mutableListOf<LocalError<At>>()
 

@@ -31,11 +31,11 @@ class CallExpanderTest : ExpanderTestCase() {
     fun testTheArgumentsOfAnImportedFunctionAreExpanded() =
         assertSplit("abs(y)", "1.15.0-rc.0", "error undefined_function `y`", "error undefined_var `y`")
 
-    fun testAnImportedMacroIsOpaque() =
-        assertEvery("if true, do: 1", "opaque imported_macro Elixir.Kernel.if/2 `if true, do: 1`")
+    fun testAnImportedMacroWithoutASummaryIsOpaque() =
+        assertEvery("is_nil(1)", "opaque imported_macro Elixir.Kernel.is_nil/1 `is_nil(1)`")
 
     fun testTheArgumentsOfAMacroAreNotExpanded() =
-        assertEvery("if y, do: 1", "opaque imported_macro Elixir.Kernel.if/2 `if y, do: 1`")
+        assertEvery("is_nil(y)", "opaque imported_macro Elixir.Kernel.is_nil/1 `is_nil(y)`")
 
     fun testTwoImportsOfOneNameAndArityAreAmbiguous() =
         assertEvery("import M, only: [f: 1]\nimport :x3e, only: [f: 1]\nf(1)", "error ambiguous_call `f(1)`")
@@ -54,19 +54,14 @@ class CallExpanderTest : ExpanderTestCase() {
         assertEvery("&abs/1", "expanded {} next 0")
     }
 
-    /** An interpolation in a pattern expands `Kernel.to_string/1`, a macro, unless its value is a binary. */
-    fun testAnInterpolationInAPatternIsOpaque() =
-        assertEvery("x = \"a\"\n\"#{x}\" = \"a\"", "opaque remote_macro Elixir.Kernel.to_string/1 `#{x}`")
+    /** An interpolation in a pattern expands `Kernel.to_string/1`, unless its value is a binary, to a remote call. */
+    fun testAnInterpolationInAPatternIsAnInvalidMatch() =
+        assertEvery("x = \"a\"\n\"#{x}\" = \"a\"", "error invalid_match `#{x}`")
 
     /** From 1.15 a bitstring specifier written as a name is expanded as a call of no arguments. */
     fun testABitstringSpecifierThatIsAMacro() {
-        assertSplit(
-            "<<x::binding>> = <<1>>",
-            "1.15.0-rc.0",
-            "error undefined_bittype `x::binding`",
-            "opaque imported_macro Elixir.Kernel.binding/0 `binding`",
-        )
-        assertEvery("<<x::binding()>> = <<1>>", "opaque imported_macro Elixir.Kernel.binding/0 `binding()`")
+        assertEvery("<<x::binding>> = <<1>>", "error undefined_bittype `x::binding`")
+        assertEvery("<<x::binding()>> = <<1>>", "error undefined_bittype `x::binding()`")
     }
 
     fun testABitstringSpecifierThatIsAFunctionIsAnError() =
@@ -78,15 +73,31 @@ class CallExpanderTest : ExpanderTestCase() {
         assertEvery("<<x::+8.0>> = <<1>>", "error undefined_bittype `x::+8.0`")
         assertEvery("<<x::+self()>> = <<1>>", "error undefined_bittype `x::+self()`")
         assertEvery("<<x::+(+8)>> = <<1>>", "expanded {x:0} next 1")
-        assertEvery("<<x::+binding()>> = <<1>>", "opaque imported_macro Elixir.Kernel.binding/0 `binding()`")
+        assertEvery("<<x::+binding()>> = <<1>>", "error undefined_bittype `x::+binding()`")
     }
+
+    fun testABitstringSpecifierThatIsAnAmbiguousImportIsAnError() =
+        assertEvery(
+            "import M, only: [f: 1]\nimport :x3e, only: [f: 1]\n<<x::f(1)>> = <<1>>",
+            "error ambiguous_call `f(1)`",
+        )
+
+    fun testARescueOfAnAmbiguousImportIsAnError() =
+        assertEvery(
+            "import M, only: [f: 1]\nimport :x3e, only: [f: 1]\ntry do\n1\nrescue\nf(1) -> 1\nend",
+            "error ambiguous_call `f(1)`",
+        )
+
+    /** From 1.15 `Macro.expand_once/2` leaves a remote function's call as it is. */
+    fun testARescueOfARemoteFunctionCallIsInvalid() =
+        assertLevels(
+            "try do\n1\nrescue\nInteger.parse(1) -> 1\nend",
+            LEVELS.filterNot { isBefore(it, "1.15.0-rc.0") },
+        ) { "error invalid_rescue_clause `Integer.parse(1) -> 1`" }
 
     /** Before 1.15 the call is what `_ in` reads; from 1.15 it is expanded once as a macro. */
     fun testARescueOfAMacro() =
-        assertEvery(
-            "try do\n1\nrescue\nbinding() -> 1\nend",
-            "opaque imported_macro Elixir.Kernel.binding/0 `binding()`",
-        )
+        assertSplit("try do\n1\nrescue\nbinding() -> 1\nend", "1.20.0-rc.5", "expanded {} next 0", "expanded {} next 2")
 
     // Remote calls
 
@@ -111,7 +122,7 @@ class CallExpanderTest : ExpanderTestCase() {
             "require Integer\nInteger.is_odd(1)",
             "opaque remote_macro Elixir.Integer.is_odd/1 `Integer.is_odd(1)`",
         )
-        assertEvery("Kernel.if(true, do: 1)", "opaque remote_macro Elixir.Kernel.if/2 `Kernel.if(true, do: 1)`")
+        assertEvery("Kernel.is_nil(1)", "opaque remote_macro Elixir.Kernel.is_nil/1 `Kernel.is_nil(1)`")
     }
 
     /** Before 1.12.2 the deprecation check loads the module first; until 1.13 the node's loaded modules decide. */

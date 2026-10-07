@@ -207,6 +207,15 @@ class BitstringExpanderTest : ExpanderTestCase() {
 
     fun testASizedLiteralString() = assertEvery("<<\"foo\"::size(3)>>", "error bittype_literal_string `\"foo\"::size(3)`")
 
+    fun testAValueThatExpandsToABinaryIsOne() =
+        assertEvery("<<__DIR__::binary, rest::binary>> = \"ab\"", "expanded {rest:0} next 1")
+
+    fun testASizedValueThatExpandsToABinary() =
+        assertEvery("<<__DIR__::size(8)>>", "error bittype_literal_string `__DIR__::size(8)`")
+
+    fun testAValueThatExpandsToAnIntegerIsOne() =
+        assertEvery("<<__ENV__.line::binary>>", "error bittype_mismatch `__ENV__.line::binary`")
+
     fun testASizedUtf() = assertEvery("<<x::utf8-size(8)>> = \"a\"", "error bittype_utf `x::utf8-size(8)`")
 
     fun testASignedUtf() = assertEvery("<<x::utf8-signed>> = \"a\"", "error bittype_signed `x::utf8-signed`")

@@ -12,7 +12,7 @@ internal object CallFixtures {
             "+/1 +/2 ++/2 -/1 -/2 ==/2 >/2 abs/1 elem/2 inspect/1 inspect/2 is_integer/1 is_map_key/2 max/2 node/0 " +
                 "put_elem/3 self/0"
         ),
-        macros = nameArities("and/2 binding/0 if/2 to_string/1 |>/2"),
+        macros = nameArities("and/2 binding/0 if/2 is_nil/1 to_string/1 |>/2"),
     )
 
     val EXPORTS = Exports { module ->

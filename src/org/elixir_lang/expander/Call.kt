@@ -3,7 +3,9 @@ package org.elixir_lang.expander
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.ANONYMOUS_CALL_OF_ATOM_REFUSED
 import org.elixir_lang.language_level.ElixirLanguageFeature.CLAUSES_REFUSED_IN_CALL
+import org.elixir_lang.language_level.ElixirLanguageFeature.IMPORTED_FUNCTION_NOT_REEXPANDED
 import org.elixir_lang.language_level.ElixirLanguageFeature.PARENS_MAP_LOOKUP_ATOM
+import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTED_IMPORT_FUNCTION_TRACED
 import org.elixir_lang.language_level.ElixirLanguageFeature.REMOTE_CALL_IN_PATTERN_EXPANDS_ARGUMENTS_IN_TURN
 import org.elixir_lang.language_level.ElixirLanguageFeature.SIGNED_NUMBER_REWRITTEN_EVERYWHERE
 import org.elixir_lang.language_level.ElixirLanguageFeature.SYSTEM_STACKTRACE_REWRITTEN
@@ -27,12 +29,14 @@ internal fun expandLocalCall(node: ElixirAst.Call, state: ExState, env: Env, run
 
     return expandImport(
         node,
-        state,
         env,
         run,
-        ambiguous = { Expansion.Error("ambiguous_call", node) },
-        function = { receiver ->
-            val (inlinedReceiver, inlined) = importedFunction(node, receiver, env, run)
+        macro = { dispatch -> macro(dispatch, node, state, env, run) },
+        function = { receiver, kind ->
+            // Before 1.18 the function is dispatched again as a remote call, which traces it where the arm didn't.
+            val traced = kind
+                ?: Dispatch.Kind.REMOTE_FUNCTION.takeUnless { IMPORTED_FUNCTION_NOT_REEXPANDED.isSufficient(run.level) }
+            val (inlinedReceiver, inlined) = importedFunction(node, receiver, traced, run)
 
             stacktrace(inlinedReceiver, inlined, args.size, state, env, run) ?: expandRemote(
                 Term.Atom(inlinedReceiver),
@@ -47,16 +51,22 @@ internal fun expandLocalCall(node: ElixirAst.Call, state: ExState, env: Env, run
         none = {
             if (env.function == null) Expansion.Error("undefined_function", node) else expandLocal(node, state, env, run)
         },
+        stop = { it },
         external = false,
     )
 }
 
 /**
- * `elixir_dispatch:do_expand_import/7`'s trace and record of [call] as a function imported from [receiver]: the
- * receiver and name after `inline/3`, which it reports.
+ * `elixir_dispatch:do_expand_import/7`'s trace of [call] as a function of [receiver], an event of [kind], or none when
+ * it is `null`: the receiver and name after `inline/3`, which it reports.
  */
-internal fun importedFunction(call: ElixirAst.Call, receiver: String, env: Env, run: Run): Pair<String, String> =
-    importedFunction(call, receiver, (call.callee as ElixirAst.Literal.Atom).name, call.arguments!!.size, env, run)
+internal fun importedFunction(
+    call: ElixirAst.Call,
+    receiver: String,
+    kind: Dispatch.Kind?,
+    run: Run,
+): Pair<String, String> =
+    importedFunction(call, receiver, (call.callee as ElixirAst.Literal.Atom).name, call.arguments!!.size, kind, run)
 
 /** As [importedFunction] of a call, for [node], which calls or captures [name]/[arity]. */
 internal fun importedFunction(
@@ -64,13 +74,12 @@ internal fun importedFunction(
     receiver: String,
     name: String,
     arity: Int,
-    env: Env,
+    kind: Dispatch.Kind?,
     run: Run,
 ): Pair<String, String> {
     val inlined = inline(receiver, name, arity, run.level) ?: (receiver to name)
 
-    run.observer.dispatched(node, Dispatch(Dispatch.Kind.IMPORTED_FUNCTION, inlined.first, inlined.second, arity))
-    recordImport(NameArity(name, arity), receiver, env, run)
+    kind?.let { run.observer.dispatched(node, Dispatch(it, inlined.first, inlined.second, arity)) }
 
     return inlined
 }
@@ -79,62 +88,74 @@ internal fun importedFunction(
  * `elixir_import:record/4`: inside a function, [nameArity] dispatched through an import of [receiver], another module,
  * is kept for the import-conflict check once the module's body has run.
  */
-private fun recordImport(nameArity: NameArity, receiver: String, env: Env, run: Run) {
+internal fun recordImport(nameArity: NameArity, receiver: String, env: Env, run: Run) {
     if (env.function != null && receiver != env.module) run.compiling[env.module]?.imports?.put(nameArity, receiver)
 }
 
 /**
- * `elixir_dispatch:expand_import/7` of [call], a local call or what `Macro.expand/2` reads as one: a local macro is
- * dispatched, then an imported macro, and [ambiguous], [function] with the import's module, or [none] answer the rest.
+ * `elixir_dispatch:expand_import/7` of [call], a local call or what `Macro.expand/2` reads as one: [macro] gets a quoted
+ * import's required macro, then a local macro, then an imported macro, [function] a function's module and its trace
+ * event's kind (`null` when it traces none), [none] a call nothing imports, and [stop] an error or where the port
+ * stops.
  *
  * @param external whether [call] is `Macro.expand/2`'s, which reads the module's macros wherever it is.
- *   `dispatch_import/6` reads them only inside a function, and never for the function being defined. The caller reads
- *   the macro's output, which a summary doesn't give, so a summarised macro is [Expansion.Unported] there.
+ *   `dispatch_import/6` reads them only inside a function, and never for the function being defined.
  */
-internal fun expandImport(
+internal fun <R> expandImport(
     call: ElixirAst.Call,
-    state: ExState,
     env: Env,
     run: Run,
-    ambiguous: () -> Expansion,
-    function: (receiver: String) -> Expansion,
-    none: () -> Expansion,
+    macro: (Dispatch) -> R,
+    function: (receiver: String, kind: Dispatch.Kind?) -> R,
+    none: () -> R,
+    stop: (Expansion) -> R,
     external: Boolean = true,
-): Expansion {
-    if (hasQuotedImport(call.meta)) return Expansion.Unported(call)
-
+): R {
     val name = (call.callee as ElixirAst.Literal.Atom).name
     val arity = call.arguments!!.size
     val nameArity = NameArity(name, arity)
-    val match = findImportByNameArity(name, arity, emptyList(), env)
-    val localMacro = if (match is ImportMatch.Ambiguous) null else localMacro(nameArity, env, run, external)
-    val dispatchMacro = { dispatch: Dispatch ->
-        if (external && Summaries.of(dispatch) != null) {
-            Expansion.Unported(call)
-        } else {
-            macro(dispatch, call, state, env, run)
-        }
+    val match = findImportByNameArity(call.meta, name, arity, emptyList(), env, run.level)
+
+    // A quoted import is dispatched before the locals.
+    val localMacro = when (match) {
+        is ImportMatch.Ambiguous, is ImportMatch.Quoted, ImportMatch.Unreadable -> null
+        else -> localMacro(nameArity, env, run, external)
     }
 
     if (localMacro != null) {
         val module = env.module!!
         val imported = (match as? ImportMatch.Function)?.receiver ?: (match as? ImportMatch.Macro)?.receiver
 
-        if (imported != null && imported != module) return Expansion.Error("macro_conflict", call)
+        if (imported != null && imported != module) return stop(Expansion.Error("macro_conflict", call))
 
         if (localMacro == DefinitionTable.Kind.DEFMACROP) run.compiling.getValue(module).usedPrivate += nameArity
 
-        return dispatchMacro(Dispatch(Dispatch.Kind.LOCAL_MACRO, module, name, arity))
+        return macro(Dispatch(Dispatch.Kind.LOCAL_MACRO, module, name, arity))
     }
 
     return when (match) {
-        is ImportMatch.Ambiguous -> ambiguous()
+        is ImportMatch.Ambiguous -> stop(Expansion.Error("ambiguous_call", call))
         is ImportMatch.Macro -> {
             recordImport(nameArity, match.receiver, env, run)
-            dispatchMacro(Dispatch(Dispatch.Kind.IMPORTED_MACRO, match.receiver, name, arity))
+            macro(Dispatch(Dispatch.Kind.IMPORTED_MACRO, match.receiver, name, arity))
         }
-        is ImportMatch.Function -> function(match.receiver)
+        is ImportMatch.Function -> {
+            recordImport(nameArity, match.receiver, env, run)
+            function(match.receiver, Dispatch.Kind.IMPORTED_FUNCTION)
+        }
         ImportMatch.None -> none()
+        // `expand_require(true, ...)`.
+        is ImportMatch.Quoted ->
+            when (isMacro(match.receiver, name, arity, required = true, run)) {
+                true -> macro(Dispatch(Dispatch.Kind.REMOTE_MACRO, match.receiver, name, arity))
+                false ->
+                    function(
+                        match.receiver,
+                        Dispatch.Kind.REMOTE_FUNCTION.takeIf { QUOTED_IMPORT_FUNCTION_TRACED.isSufficient(run.level) },
+                    )
+                null -> stop(Expansion.Unported(call))
+            }
+        ImportMatch.Unreadable -> stop(Expansion.Unported(call))
     }
 }
 
@@ -149,17 +170,6 @@ internal fun localMacro(nameArity: NameArity, env: Env, run: Run, external: Bool
     } else {
         null
     }
-
-/**
- * `elixir_dispatch:find_import_by_name_arity/4` of [call], a local call, in [env]; `null` inside a function, where
- * `elixir_def:local_for/5` looks for a local first, and for a quoted import, which `elixir_quote` marks a call with.
- */
-internal fun importOf(call: ElixirAst.Call, env: Env): ImportMatch? {
-    if (env.function != null) return null
-    if (hasQuotedImport(call.meta)) return null
-
-    return findImportByNameArity((call.callee as ElixirAst.Literal.Atom).name, call.arguments!!.size, emptyList(), env)
-}
 
 /**
  * `expand_local/5` inside a function: in a pattern or guard the call is an error and its arguments are expanded;
@@ -285,19 +295,46 @@ internal fun dispatchRequire(
         return function(inlinedReceiver, inlinedName)
     }
 
-    val required = receiver == env.module || isRequiredByMeta(node.meta) || receiver in env.requires
+    return expandRequire(
+        receiver,
+        name,
+        node,
+        env,
+        run,
+        macro = { dispatch -> macro(dispatch, node, state, env, run) },
+        function = { function(receiver, name) },
+        stop = { it },
+    )
+}
+
+/**
+ * `elixir_dispatch:expand_require/6` of [call], which calls [name] of the atom [receiver]: [macro] gets a required
+ * macro, [function] the rest, and [stop] an unrequired macro or a module whose exports can't be read.
+ */
+internal fun <R> expandRequire(
+    receiver: String,
+    name: String,
+    call: ElixirAst.Call,
+    env: Env,
+    run: Run,
+    macro: (Dispatch) -> R,
+    function: () -> R,
+    stop: (Expansion) -> R,
+): R {
+    val arity = call.arguments!!.size
+    val required = receiver == env.module || isRequiredByMeta(call.meta) || receiver in env.requires
 
     return when (isMacro(receiver, name, arity, required, run)) {
-        null -> Expansion.Unported(node)
+        null -> stop(Expansion.Unported(call))
         true ->
             when {
-                required -> macro(Dispatch(Dispatch.Kind.REMOTE_MACRO, receiver, name, arity), node, state, env, run)
+                required -> macro(Dispatch(Dispatch.Kind.REMOTE_MACRO, receiver, name, arity))
                 // Inside a function the deprecation check doesn't load the module first.
                 UNREQUIRED_MACRO_SEEN_ONLY_WHEN_LOADED.isSufficient(run.level) || env.function != null ->
-                    Expansion.Unported(node)
-                else -> Expansion.Error("unrequired_module", node)
+                    stop(Expansion.Unported(call))
+                else -> stop(Expansion.Error("unrequired_module", call))
             }
-        false -> function(receiver, name)
+        false -> function()
     }
 }
 
@@ -433,7 +470,7 @@ private fun rewrite(
             val arg = args.elements.singleOrNull()
             val isToString = atom == STRING_CHARS && name == "to_string" && arg is Term.Binary
 
-            Expansion.Expanded(state, env, if (isToString) arg else NODE)
+            Expansion.Expanded(state, env, if (isToString) arg else callValue(atom, name, args.elements, run.level))
         }
         Env.Context.MATCH ->
             if (atom == ERLANG && name == "++" && args.elements.size == 2) {

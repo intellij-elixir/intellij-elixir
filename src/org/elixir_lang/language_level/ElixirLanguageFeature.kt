@@ -101,7 +101,8 @@ enum class ElixirLanguageFeature(
     /**
      * `from_brackets: true` in the `Access.get/2` metadata of bracket access on an expression, `[1, 2][0]`, Elixir's
      * `bracket_expr -> access_expr bracket_arg`. The other four bracket forms follow in
-     * [FROM_BRACKETS_ON_EVERY_BRACKET_FORM].
+     * [FROM_BRACKETS_ON_EVERY_BRACKET_FORM]. `Macro.pipe/3` raises for a pipe into bracket access with `from_brackets`,
+     * and otherwise gives the call with the `.`'s arguments as its head.
      *
      * `elixir-lang/elixir@aa8e6d3fe` ("Add error message when piping into an expression ending in bracket-based
      * access", #12359), first released in v1.15.0-rc.0.
@@ -857,8 +858,8 @@ enum class ElixirLanguageFeature(
     HALF_FLOAT_SEGMENT(sinceElixir = "1.11.4", sinceOtp = "24.0-rc1"),
 
     /**
-     * A pinned `binary` or `bitstring` segment followed by another in a pattern takes its size from the pinned value.
-     * Before it, it raises `unsized_binary`.
+     * A pinned `binary` or `bitstring` segment followed by another in a pattern takes its size from the pinned value,
+     * and a pinned variable on the left of `<>` in a match is allowed. Before it, both raise.
      *
      * `elixir-lang/elixir@58b8b93ee` ("Auto infer size of matched variable in bitstrings", #13106), first released in
      * v1.16.0-rc.1.
@@ -1140,6 +1141,33 @@ enum class ElixirLanguageFeature(
     QUOTE_IMPORTS_EVERY_ARITY(sinceElixir = "1.14.0-rc.0"),
 
     /**
+     * An `imports:` in a call's meta that isn't a non-empty list is no recorded import, so the call is looked up in the
+     * env's imports. Before it, from [QUOTE_IMPORTS_EVERY_ARITY], one beside `context:` crashes the dispatch.
+     *
+     * `elixir-lang/elixir@f9263fdc5` ("Do not crash on invalid imports metadata"), first released in v1.17.0-rc.0.
+     */
+    QUOTE_IMPORTS_NON_LIST_FALLS_THROUGH(sinceElixir = "1.17.0-rc.0"),
+
+    /**
+     * An imported function is handed to the dispatch's callback as it is. Before it, it was expanded again as a remote
+     * call, which traced `remote_function`: the only trace of a function a quoted import names, until
+     * [QUOTED_IMPORT_FUNCTION_TRACED].
+     *
+     * `elixir-lang/elixir@1b6c31a0e` ("Avoid the number of duplicate traces on imports"), first released in
+     * v1.18.0-rc.0.
+     */
+    IMPORTED_FUNCTION_NOT_REEXPANDED(sinceElixir = "1.18.0-rc.0"),
+
+    /**
+     * A function a quoted import names traces `remote_function` where it is found, in the dispatch and in
+     * `Macro.expand/2`.
+     *
+     * `elixir-lang/elixir@bb8761a3c` ("Properly track imported function calls in tracer"), first released in
+     * v1.19.0-rc.0, and its backport `ef002e2b1`, first released in v1.18.4.
+     */
+    QUOTED_IMPORT_FUNCTION_TRACED(sinceElixir = "1.18.4"),
+
+    /**
      * A `quote` given `file:` keeps the `line:` option in `keep: {file, line}`: a node's own line for `line: true`,
      * and 0 by default. Before it, `file:` keeps every node's own line whatever `line:` says.
      *
@@ -1326,7 +1354,8 @@ enum class ElixirLanguageFeature(
     REMOTE_CALL_IN_PATTERN_EXPANDS_ARGUMENTS_IN_TURN(sinceElixir = "1.18.0-rc.0"),
 
     /**
-     * `Atom.to_string/1` is inlined as `:erlang.atom_to_binary/1`.
+     * `Atom.to_string/1` is inlined as `:erlang.atom_to_binary/1`. Before it, it is rewritten to
+     * `:erlang.atom_to_binary/2`.
      *
      * `elixir-lang/elixir@8c09306ee` ("Use :erlang.atom_to_binary/1", #11541), first released in v1.14.0-rc.0.
      */
@@ -1348,7 +1377,8 @@ enum class ElixirLanguageFeature(
     MAP_INTERSECT_INLINED(sinceElixir = "1.15.0-rc.0"),
 
     /**
-     * `Process.alias/0,1` and `Process.unalias/1` are inlined as `:erlang.alias/0,1` and `:erlang.unalias/1`.
+     * `Process.alias/0,1` and `Process.unalias/1` are inlined as `:erlang.alias/0,1` and `:erlang.unalias/1`, and
+     * `Process.monitor/2` is rewritten to `:erlang.monitor/3`.
      *
      * `elixir-lang/elixir@65829ef4e` ("Add Process.alias/0,1 and Process.unalias/1", #12020), first released in
      * v1.15.0-rc.0.
@@ -1356,7 +1386,8 @@ enum class ElixirLanguageFeature(
     PROCESS_ALIAS_INLINED(sinceElixir = "1.15.0-rc.0"),
 
     /**
-     * `Map.from_keys/2` is inlined as `:maps.from_keys/2`.
+     * `Map.from_keys/2` is inlined as `:maps.from_keys/2`, and `Float.to_charlist/1` and `Float.to_string/1` are
+     * rewritten to `:erlang.float_to_list/2` and `:erlang.float_to_binary/2`.
      *
      * `elixir-lang/elixir@f0fcd64f9` ("Inline more functions", #13692), first released in v1.18.0-rc.0.
      */
@@ -1365,14 +1396,17 @@ enum class ElixirLanguageFeature(
     /**
      * `String.to_atom/1` and `String.to_existing_atom/1` are inlined as `:erlang.binary_to_atom/1` and
      * `:erlang.binary_to_existing_atom/1`, and `Tuple.append/2` is no longer inlined as `:erlang.append_element/2`.
+     * Before it, the two are rewritten to `:erlang.binary_to_atom/2` and `:erlang.binary_to_existing_atom/2`.
      *
      * `elixir-lang/elixir@8e455b766` ("More type checking"), first released in v1.18.0-rc.0.
      */
     STRING_TO_ATOM_INLINED(sinceElixir = "1.18.0-rc.0"),
 
     /**
-     * In a guard, `Kernel.put_elem/3` is allowed, as `Kernel.elem/2` and `Kernel.is_map_key/2` are. Before it, it is
-     * rewritten to `:erlang.setelement/3`, which isn't a guard function, and raises `invalid_guard`.
+     * `Kernel.elem/2`, `Kernel.is_map_key/2` and `Kernel.put_elem/3` are rewritten in a guard only, where each is
+     * allowed, and the `Map`, `Tuple` and `Process.group_leader/2`, `send_after/3,4` rewrites are dropped. Before it,
+     * they are rewritten in a body as well, and in a guard `Kernel.put_elem/3` becomes `:erlang.setelement/3`, which
+     * isn't a guard function, and raises `invalid_guard`.
      *
      * `elixir-lang/elixir@87582af54` ("Preserve evaluation order when rewriting", #15389), first released in
      * v1.20.0-rc.6.
@@ -1448,12 +1482,14 @@ enum class ElixirLanguageFeature(
 
     /**
      * The type checker visits a module's public definitions in ascending name and arity. Before it, they are visited
-     * descending, as the definition table lists them.
+     * descending, as the definition table lists them. `in` joins its comparisons with `Kernel.and/2` and
+     * `Kernel.or/2`, where it used `:erlang.andalso/2` and `:erlang.orelse/2`, and its `:erlang.is_integer/1` checks
+     * are generated.
      *
      * `elixir-lang/elixir@f1bbb2cd3` ("Infer types from guards and do post-inference on stdlib", #15032), first
      * released in v1.20.0-rc.0.
      */
-    TYPE_CHECK_SORTS_DEFINITIONS(sinceElixir = "1.20.0-rc.0"),
+    GUARDS_INFER_TYPES(sinceElixir = "1.20.0-rc.0"),
 
     /**
      * A file whose top-level forms are all `defmodule Name, do: block` compiles each module directly, with no
@@ -1544,7 +1580,163 @@ enum class ElixirLanguageFeature(
      *
      * Removed by `elixir-lang/elixir@860f485bd` ("Inference of patterns", #13909), first released in v1.18.0-rc.0.
      */
-    BITSTRING_LIST_OR_ATOM_SEGMENT_REJECTED(removedInElixir = "1.18.0-rc.0");
+    BITSTRING_LIST_OR_ATOM_SEGMENT_REJECTED(removedInElixir = "1.18.0-rc.0"),
+
+    /**
+     * `elixir_utils:returns_boolean/1` holds of `lists:member/2`.
+     *
+     * `elixir-lang/elixir@a37120810` ("Tag lists member as returning boolean"), first released in v1.20.1.
+     */
+    RETURNS_BOOLEAN_LISTS_MEMBER(sinceElixir = "1.20.1"),
+
+    /**
+     * The `case` of `if`, `!`, `and` and `or` has `type_check: :expr` after `optimize_boolean: true`, and that of `&&`
+     * and `||` has it alone.
+     *
+     * `elixir-lang/elixir@c3dc6c86d` ("Detect never matching clauses and patterns", #13968), first released in
+     * v1.18.0-rc.0.
+     */
+    ANNOTATE_CASE(sinceElixir = "1.18.0-rc.0"),
+
+    /**
+     * The `false`-or-`nil` guard of `if`, `unless`, `!`, `&&` and `||` is `:erlang.orelse/2` of two `:erlang.=:=/2`,
+     * generated, where it was `Kernel.in(x, [false, nil])`; `rewrite_case_clauses` reads the variable by name.
+     *
+     * `elixir-lang/elixir@19c628ae2` ("Mark invididual guards of ||, &&, if, and unless as generated"), first released
+     * in v1.20.0-rc.0.
+     */
+    FALSE_OR_NIL_INLINE(sinceElixir = "1.20.0-rc.0"),
+
+    /**
+     * The `badbool` clause of `and` and `or` is generated.
+     *
+     * `elixir-lang/elixir@30b59edf3` ("Track types across case clauses", #15080), first released in v1.20.0-rc.2.
+     */
+    BOOLEAN_CHECK_ERROR_GENERATED(sinceElixir = "1.20.0-rc.2"),
+
+    /**
+     * `unless` gives a `case` of its own, where it gave `if` with its clauses swapped; and the `type_check` of the
+     * boolean macros' `case` is `{:case, operator}`.
+     *
+     * `elixir-lang/elixir@a2a669eb7` ("Improve error messages in many Kernel operations"), first released in
+     * v1.20.0-rc.2.
+     */
+    UNLESS_DIRECT_CASE(sinceElixir = "1.20.0-rc.2"),
+
+    /**
+     * `raise/1` gives `:erlang.error(exception, :none, error_info: %{module: Exception})`, where it gave
+     * `:erlang.error(exception)`.
+     *
+     * `elixir-lang/elixir@4b6e92833` ("Better format Elixir exceptions in Erlang", #10977), first released in
+     * v1.13.0-rc.0. Elixir checks the OTP it runs on, from 24; from v1.15.0-rc.0 Elixir requires OTP 24.
+     */
+    RAISE_ERROR_INFO(sinceElixir = "1.13.0-rc.0", sinceOtp = "24.0-rc1"),
+
+    /**
+     * `|>` pipes its left operand as written into its right, where it unpiped the left operand and the right.
+     *
+     * `elixir-lang/elixir@263fb5320` ("Do not eagerly unpipe"), first released in v1.14.0-rc.0.
+     */
+    PIPE_ONE_OPERAND(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * From [PIPE_ONE_OPERAND], `|>` pipes its left operand into each call of its right, where it piped it into its
+     * right as written.
+     *
+     * `elixir-lang/elixir@42ecc84e8` ("Expand pipelines on right-hand side of |>", #12070), first released in
+     * v1.14.0-rc.1.
+     */
+    PIPE_RIGHT_UNPIPED(sinceElixir = "1.14.0-rc.1"),
+
+    /**
+     * The step of a range without one in a guard is `:erlang.map_get(:erlang.>(first, last), %{false: 1, true: -1})`,
+     * where it was `nil`.
+     *
+     * `elixir-lang/elixir@2ab108d1c` ("Do not set step to nil in ranges"), first released in v1.14.0-rc.1.
+     */
+    RANGE_GUARD_STEP_COMPUTED(sinceElixir = "1.14.0-rc.1"),
+
+    /**
+     * A range without a step in a function body is `Function.identity(Range.new(first, last))`, where it is
+     * `Range.new(first, last)`.
+     *
+     * `elixir-lang/elixir@8e8c9a733` ("Wrap Range.new in Function.identity to avoid tail call optimization"), first
+     * released in v1.18.0, on the v1.18 branch only.
+     */
+    RANGE_NEW_WRAPPED_IN_IDENTITY(sinceElixir = "1.18.0", removedInElixir = "1.19.0-rc.0"),
+
+    /**
+     * A literal range is `%Range{}`, where it was a map with a `__struct__` key, and `in` reads either.
+     *
+     * `elixir-lang/elixir@c1c2cf8a6` ("Type checking of protocol dispatch", #14117), first released in v1.19.0-rc.0.
+     */
+    RANGE_STRUCT_SYNTAX(sinceElixir = "1.19.0-rc.0"),
+
+    /**
+     * The variables `in` binds a body list's non-literal elements to are numbered from `arg1`, where they were from
+     * `arg0`.
+     *
+     * `elixir-lang/elixir@e0ba78a76` ("Use one-based generated arguments everywhere", #10523), first released in
+     * v1.12.0-rc.0.
+     */
+    GENERATED_ARGUMENTS_ONE_BASED(sinceElixir = "1.12.0-rc.0"),
+
+    /**
+     * `in` compares a list in a body element by element only when it is written as at most 32 binaries, atoms and
+     * numbers, and is `:lists.member/2` of it as written otherwise, where every element not a literal was bound to a
+     * variable first.
+     *
+     * `elixir-lang/elixir@2ae25014c` ("Only expand the right side of in/2 in bodies for small and simple literals"),
+     * first released in v1.13.0-rc.0.
+     */
+    IN_SMALL_LITERAL_LIST(sinceElixir = "1.13.0-rc.0"),
+
+    /**
+     * `in` reads a range map's fields in any order, where `__struct__`, `first`, `last` and `step` had to come in that
+     * order. From [RANGE_STRUCT_SYNTAX] `__struct__` must come first again. The same commit raises for a map value on
+     * the right, which only a macro returning an unescaped map can give.
+     *
+     * `elixir-lang/elixir@4d35b7ce3` ("Do not assert order on struct fields"), first released in v1.14.0-rc.0.
+     */
+    IN_RANGE_FIELDS_ANY_ORDER(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * `in` in a body compares a literal left side as it is, where it bound it to a variable first.
+     *
+     * `elixir-lang/elixir@2da3300bf` ("Do not wrap literals in variable when expanding in/2"), first released in
+     * v1.18.2, from `elixir-lang/elixir@cd68d64fd` in v1.19.0-rc.0.
+     */
+    IN_LITERAL_UNWRAPPED(sinceElixir = "1.18.2"),
+
+    /**
+     * `in` over a literal range gives its outer `Kernel.and/2` generated.
+     *
+     * `elixir-lang/elixir@ad67ac0a1` ("Mark arg in range as generated", #15037), first released in v1.20.0-rc.0.
+     */
+    IN_RANGE_LITERAL_GENERATED(sinceElixir = "1.20.0-rc.0"),
+
+    /**
+     * `in` in a body is `:lists.member/2` of any non-empty list as written.
+     *
+     * `elixir-lang/elixir@34a50002f` ("Keep Kernel.in/2 as :lists.member/2 and optimize in type checker and Erlang
+     * pass"), first released in v1.20.0-rc.2.
+     */
+    IN_LIST_LISTS_MEMBER(sinceElixir = "1.20.0-rc.2"),
+
+    /**
+     * `in` in a body is `Enum.__in__(left, right)` where the right side is neither a list nor a range, where it was
+     * `Enum.member?(right, left)`.
+     *
+     * `elixir-lang/elixir@c5332235a` ("Perform all side-effect in order in in/2"), first released in v1.20.0-rc.5.
+     */
+    IN_ENUM_IN(sinceElixir = "1.20.0-rc.5"),
+
+    /**
+     * `in []` in a body is `:lists.member(left, [])`, where it was `_ = left; false`.
+     *
+     * `elixir-lang/elixir@766ece7e3` ("Inline in empty list in erlang pass", #15413), first released in v1.20.0.
+     */
+    IN_EMPTY_LISTS_MEMBER(sinceElixir = "1.20.0");
 
 
     /** The first Elixir release with this behaviour, or `null` when every supported release has it. */

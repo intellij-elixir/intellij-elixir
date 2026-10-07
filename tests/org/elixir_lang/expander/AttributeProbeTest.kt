@@ -199,24 +199,29 @@ class AttributeProbeTest : ProbeTestCase() {
         )
     }
 
-    /** A write in a `case` clause of the module body isn't a statement of it, so a later read is unknown. */
+    /** A write in a `case` clause of the module body, `if`'s included, isn't a statement of it, so a later read is unknown. */
     fun testAWriteInACaseClauseMakesLaterReadsUnknown() {
         assertAttributesMatch(
             AttributeCase(
                 "case 1 do\n  1 -> @w 1\nend\ndef r_w, do: @w\n@v 2\ndef r_v, do: @v",
                 attributes = listOf("v"),
                 unknown = setOf("r_w"),
-            )
+            ),
+            AttributeCase(
+                "@x 1\ndef r_a, do: @x\nif true, do: @w(5)\ndef r_w, do: @w",
+                attributes = listOf("x"),
+                unknown = setOf("r_w"),
+            ),
         )
     }
 
-    /** `if` is a macro the expander doesn't model yet, so the module stops there, and nothing after it is compared. */
-    fun testAModuleStopsAtIf() {
-        val body = "@x 1\ndef r_a, do: @x\nif true, do: @w(5)\ndef r_w, do: @w"
+    /** The expander doesn't run `use`'s `__using__` macro, so the module stops at `use`, and nothing after it is compared. */
+    fun testAModuleStopsAtUse() {
+        val body = "@x 1\ndef r_a, do: @x\nuse Agent\n@w 5\ndef r_w, do: @w"
         val expansion = probes.expandAll(listOf(body), hook = ProbeHarness.Hook()).cases.single()
 
         assertTrue("$body: ${expansion.outcome}", expansion.outcome is Expansion.Opaque)
-        assertEquals("if true, do: @w(5)", expansion.source((expansion.outcome as Expansion.Opaque).at))
+        assertEquals("use Agent", expansion.source((expansion.outcome as Expansion.Opaque).at))
         probes.assertMatchesElixirUpToMacro(mapOf(body to expansion))
     }
 
