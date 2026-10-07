@@ -73,7 +73,7 @@ private fun define(kind: Kind, node: ElixirAst.Call, state: ExState, env: Env, r
             }
         }
 
-        val ordered = run.compiling[env.module]?.isStatement(node) == true && unnamedAt == null
+        val statement = run.compiling[env.module]?.isStatement(node) == true
 
         run.pending += Pending.Definition(
             kind,
@@ -83,7 +83,8 @@ private fun define(kind: Kind, node: ElixirAst.Call, state: ExState, env: Env, r
             unnamedAt,
             stop,
             env,
-            ordered,
+            statement && unnamedAt == null,
+            statement,
             // `elixir_def:store_definition/5`: a head with unquotes or from a quote isn't checked for clauses.
             checksClauses = !unquotes && !hasMetaKey(extractGuards(head).first.meta, "context"),
         )
@@ -243,7 +244,7 @@ internal fun storeDefinition(definition: Pending.Definition, compiling: Compilin
     takeFile(definition, compiling)
 
     if (unnamedAt != null) {
-        compiling.table.define(null, 0, kind, node, 0, 0, definition.ordered, definition.checksClauses)
+        compiling.table.define(null, 0, kind, node, 0, 0, definition.statement, definition.checksClauses)
 
         return Owner.Definition(kind, null, 0) to Expansion.Unported(unnamedAt)
     }

@@ -91,9 +91,69 @@ class DefinitionTableTest {
     fun `an unnamed definition is listed apart`() {
         val table = DefinitionTable()
 
-        assertEquals(null, table.define(null, 1, Kind.DEFP, node(1), 1, 1, ordered = false, checksClauses = true))
+        assertEquals(null, table.define(null, 1, Kind.DEFP, node(4), 1, 1, ordered = false, checksClauses = true))
+        assertEquals(null, table.define(null, 1, Kind.DEF, node(6), 1, 1, ordered = true, checksClauses = true))
         assertEntries(table)
-        assertEquals(listOf(Kind.DEFP), table.unnamed)
+        assertEquals(
+            listOf(DefinitionTable.Unnamed(Kind.DEFP, 4, statement = false), DefinitionTable.Unnamed(Kind.DEF, 6, true)),
+            table.unnamed,
+        )
+    }
+
+    @Test
+    fun `remove takes an entry out and gives it`() {
+        val table = DefinitionTable()
+
+        define(table, "f", 1, line = 2, clauses = 3)
+        define(table, "g", 0, line = 4)
+
+        val removed = table.remove(NameArity("f", 1))
+
+        assertEquals(2, removed!!.line)
+        assertEquals(3, removed.clauses)
+        assertEntries(table, "g/0 def line 4 clauses 1")
+        assertEquals(null, table.remove(NameArity("f", 1)))
+    }
+
+    @Test
+    fun `remove takes only the arity named, not its default arities`() {
+        val table = DefinitionTable()
+
+        define(table, "f", 2, defaults = 1)
+        table.remove(NameArity("f", 2))
+
+        assertEntries(table, "f/1 def line 1 clauses 1 default unchecked")
+    }
+
+    @Test
+    fun `remove takes the default row of the entry too`() {
+        val table = DefinitionTable()
+
+        define(table, "f", 1, defaults = 1)
+        table.remove(NameArity("f", 1))
+
+        assertEquals(null, define(table, "f", 2, defaults = 1))
+    }
+
+    @Test
+    fun `a definition stored again after a remove is a first definition`() {
+        val table = DefinitionTable()
+
+        define(table, "f", 1, Kind.DEFP, line = 1)
+        table.remove(NameArity("f", 1))
+
+        assertEquals(null, define(table, "f", 1, Kind.DEF, line = 2))
+        assertEntries(table, "f/1 def line 2 clauses 1")
+    }
+
+    @Test
+    fun `a definition without its default arities keeps its defaults`() {
+        val table = DefinitionTable()
+
+        table.restore("f", 2, Kind.DEF, node(1), 1, 1, ordered = true)
+
+        assertEntries(table, "f/2 def line 1 clauses 1 defaults 1 unchecked")
+        assertEquals("duplicate_defaults", define(table, "f", 2, line = 2, defaults = 1))
     }
 
     @Test

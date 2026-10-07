@@ -28,6 +28,9 @@ internal class Compiling(body: ElixirAst, level: ElixirLanguageLevel) {
     /** Each name and arity a function body dispatched through an import of another module, to that module. */
     val imports = LinkedHashMap<NameArity, String>()
 
+    /** `Module.make_overridable/2`'s records, by the definition made overridable. */
+    val overridable = LinkedHashMap<NameArity, Overridable>()
+
     /** The attributes at the point the module body has run to. */
     val attributes = AttributeTable(level)
 
@@ -53,6 +56,11 @@ internal class Compiling(body: ElixirAst, level: ElixirLanguageLevel) {
 
     /** Whether [node] is a statement of the module body, or of a block that is one. */
     fun isStatement(node: ElixirAst): Boolean = node in statements
+
+    /** [rewrite], a macro's output in place of [call], whose statements are statements when [call] is one. */
+    fun rewrote(call: ElixirAst, rewrite: ElixirAst) {
+        if (isStatement(call)) addStatements(rewrite)
+    }
 
     /** [call] was built by [at], an `@`. */
     fun built(call: ElixirAst, at: ElixirAst) {
@@ -93,6 +101,7 @@ internal sealed interface Pending {
      * @property stop the first other fragment whose value isn't a literal
      * @property env the env at [node]
      * @property ordered whether [node] is a statement of the module body, and named
+     * @property statement whether [node] is a statement of the module body
      * @property checksClauses whether Elixir checks the definition for clauses: it has no unquotes, and its head
      *   wasn't quoted
      */
@@ -105,7 +114,23 @@ internal sealed interface Pending {
         val stop: ElixirAst?,
         val env: Env,
         val ordered: Boolean,
+        val statement: Boolean,
         val checksClauses: Boolean,
+    ) : Pending
+
+    /**
+     * What a macro does to its module's table when the body runs, at [node]'s place among the definitions.
+     *
+     * @property ordered whether [node] is a statement of the module body
+     * @property queued what runs after the effect, which depends on what it did
+     * @property apply does it, and gives `null`, or the error the body raises there, or the [Expansion.Unported] where
+     *   the effect can't be followed
+     */
+    class Effect(
+        val node: ElixirAst,
+        val ordered: Boolean,
+        val queued: () -> List<Pending> = { emptyList() },
+        val apply: (Compiling) -> Expansion?,
     ) : Pending
 
     /**
@@ -132,7 +157,13 @@ internal sealed interface Pending {
      * @property at the `@` that built the call, or the call
      * @property statement whether [at] is a statement of the module body
      */
-    class Attribute(val effect: Effect, val at: ElixirAst, val statement: Boolean) : Pending
+    class Attribute(val effect: org.elixir_lang.expander.Effect, val at: ElixirAst, val statement: Boolean) : Pending
+}
+
+/** [replacement] in place of what [Run.pending] gained since it had [from] entries, which a macro's own output queued. */
+internal fun Run.replacePending(from: Int, replacement: List<Pending>) {
+    pending.subList(from, pending.size).clear()
+    pending += replacement
 }
 
 /** Each module [run]'s expansion so far defined, compiled in turn until one raises. */
@@ -184,9 +215,10 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
 
     if (ended?.raises != true) {
         var ordered = true
+        val queue = ArrayDeque(run.pending)
 
-        for (pending in run.pending) {
-            val unitEnded = when (pending) {
+        while (queue.isNotEmpty()) {
+            val unitEnded = when (val pending = queue.removeFirst()) {
                 is Pending.Definition -> {
                     ordered = ordered && pending.ordered
 
@@ -211,6 +243,11 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
                         EffectOutcome.Stored -> null
                     }
                 }
+                is Pending.Effect -> {
+                    ordered = ordered && pending.ordered
+
+                    pending.apply(compiling)?.let { ended(it, run) }.also { queue.addAll(0, pending.queued()) }
+                }
                 is Pending.Module -> {
                     errors += run.errors.subList(errorsFrom, run.errors.size)
 
@@ -232,9 +269,14 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
             // A unit that raises ends the module body's evaluation, even after an earlier unit stopped.
             if (unitEnded?.raises == true) break
         }
+
+        if (ended == null) storeNotOverridden(compiling)?.let { ended = Ended.Raised(it) }
     }
 
     if (ended == null) ended = beforeCompile(module, compiling, (body as Expansion.Expanded).env, run)
+
+    // `eval_form/7` stores them again after the callbacks, which may have defined the other kind.
+    if (ended == null) ended = storeNotOverridden(compiling)?.let { Ended.Raised(it) }
 
     if (ended == null) {
         ended = postModule(module, compiling, tainted = run.errors.size > errorsFrom || errors.isNotEmpty(), run)

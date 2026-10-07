@@ -1725,7 +1725,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
                 (if (entry.defaults > 0) " defaults ${entry.defaults}" else "") +
                 (if (entry.default) " default" else "") +
                 (if (entry.ordered) "" else " unordered")
-        } + result.table.unnamed.map { "${it.name.lowercase()} unnamed" }
+        } + result.table.unnamed.map { "${it.kind.name.lowercase()} unnamed" }
         val units = result.units.map { unit ->
             val owner = when (val owner = unit.owner) {
                 ExpansionResult.Owner.ModuleBody -> "body"
