@@ -14,6 +14,8 @@ internal object IgnoredLogs {
     private const val TEST_DISTRIBUTION = "IntellijElixirWSLDistribution"
     private const val LOCAL_HISTORY_FLUSH = "com.intellij.history.core.ChangeListImpl.flush"
     private const val PROJECT_ENTITY_REMOVAL = "com.intellij.platform.project.ProjectEntityKt.asEntityOrNull"
+    private const val PROJECT_ENTITY_BACKEND_REMOVAL =
+        "com.intellij.platform.project.backend.BackendProjectEntitiesStorage.removeProjectEntity"
 
     private val IGNORED = listOf(
         // Headless tests have no look and feel to supply it.
@@ -57,7 +59,8 @@ internal object IgnoredLogs {
         Ignored("java.lang.NullPointerException", Regex(""), frame = LOCAL_HISTORY_FLUSH),
         Ignored("java.lang.IllegalArgumentException", Regex(""), frame = LOCAL_HISTORY_FLUSH),
         // A project disposed before a `ParsingTestCase` swaps in its mock application is removed from the kernel
-        // database afterwards, through whichever application is then installed.
+        // database afterwards, through whichever application is then installed. A mock application has no
+        // `KernelService`, so the removal can also fail with a null `getService`.
         Ignored("#fleet.kernel.Transactor", Regex("^Kernel@\\S+ change has failed"), frame = PROJECT_ENTITY_REMOVAL),
         Ignored(
             "#com.intellij.openapi.application.impl.ExceptionsKt",
@@ -65,6 +68,16 @@ internal object IgnoredLogs {
             frame = PROJECT_ENTITY_REMOVAL,
         ),
         Ignored("com.intellij.util.pico.PicoIntrospectionException", Regex(""), frame = PROJECT_ENTITY_REMOVAL),
+        Ignored(
+            "#com.intellij.openapi.application.impl.ExceptionsKt",
+            Regex("^Unhandled exception in "),
+            frame = PROJECT_ENTITY_BACKEND_REMOVAL,
+        ),
+        Ignored(
+            "java.lang.NullPointerException",
+            Regex("""^getService\(\.\.\.\) must not be null"""),
+            frame = PROJECT_ENTITY_BACKEND_REMOVAL,
+        ),
     )
 
     fun matches(category: String, message: String, t: Throwable?): Boolean = find(category, message, t) != null
