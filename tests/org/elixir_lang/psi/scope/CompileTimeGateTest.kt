@@ -117,6 +117,109 @@ class CompileTimeGateTest : PlatformTestCase() {
         "later()" to emptyList()
     )
 
+    fun testInsideListInIfResolvesNoneOfItsModulesFunctions() = assertResolves(
+        """
+        defmodule Gate do
+          if true do
+            def earlier, do: :ok
+            [earlier()]
+            [1, later()]
+          end
+          def later, do: :ok
+        end
+        """,
+        "earlier()" to emptyList(),
+        "later()" to emptyList()
+    )
+
+    fun testInsideListInUnlessResolvesNoneOfItsModulesFunctions() = assertResolves(
+        """
+        defmodule Gate do
+          unless false do
+            def earlier, do: :ok
+            [earlier()]
+            [1, later()]
+          end
+          def later, do: :ok
+        end
+        """,
+        "earlier()" to emptyList(),
+        "later()" to emptyList()
+    )
+
+    fun testInsideTupleAndMapsInIfResolvesNoneOfItsModulesFunctions() = assertResolves(
+        """
+        defmodule Gate do
+          if true do
+            {tuple()}
+            %{a: keyword_map()}
+            %{assoc() => 1}
+            %Mod{a: struct()}
+            %{m | a: updated()}
+          end
+          def tuple, do: :ok
+          def keyword_map, do: :ok
+          def assoc, do: :ok
+          def struct, do: :ok
+          def updated, do: :ok
+        end
+        """,
+        "tuple()" to emptyList(),
+        "keyword_map()" to emptyList(),
+        "assoc()" to emptyList(),
+        "struct()" to emptyList(),
+        "updated()" to emptyList()
+    )
+
+    fun testInsideNestedContainersInIfResolvesNoneOfItsModulesFunctions() = assertResolves(
+        """
+        defmodule Gate do
+          if true do
+            [{nested_list()}]
+            %{a: [nested_map()]}
+          end
+          def nested_list, do: :ok
+          def nested_map, do: :ok
+        end
+        """,
+        "nested_list()" to emptyList(),
+        "nested_map()" to emptyList()
+    )
+
+    fun testInsideKeywordIfContainerResolvesNoneOfItsModulesFunctions() = assertResolves(
+        """
+        defmodule Gate do
+          if true, do: [do_list()], else: {else_tuple()}
+          def do_list, do: :ok
+          def else_tuple, do: :ok
+        end
+        """,
+        "do_list()" to emptyList(),
+        "else_tuple()" to emptyList()
+    )
+
+    fun testInsideListInDefinitionSeesTheWholeModule() = assertResolves(
+        """
+        defmodule Gate do
+          def caller, do: [later()]
+          def later, do: :ok
+        end
+        """,
+        "later()" to listOf("gate.ex:3:3")
+    )
+
+    fun testInsideListInDefinitionUnderIfSeesTheWholeModule() = assertResolves(
+        """
+        defmodule Gate do
+          if true do
+            def caller, do: [later()]
+          end
+          def later, do: :ok
+        end
+        """,
+        "later()" to listOf("gate.ex:5:3")
+    )
+
     /** Parentheses hide a call from the module's direct children, so it is walked as a definition's body is. */
     fun testInsideParenthesesSeesTheWholeModule() = assertResolves(
         """

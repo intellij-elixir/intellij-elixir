@@ -124,6 +124,8 @@
 
 - [#4355](https://github.com/intellij-elixir/intellij-elixir/pull/4355) [@sh41](https://github.com/sh41)
   - **Go To Related from a function, `defdelegate`, `EEx.function_from_file`, `embed_template`, `embed_text`, `defexception`, `defimpl` or `defmodule` lands on its decompiled definition in a dependency's or the SDK's `.beam`.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
+- [#4354](https://github.com/intellij-elixir/intellij-elixir/pull/4354) [@mvanhorn](https://github.com/mvanhorn)
+  - **Go to Declaration on a call inside a list, map, or tuple in a module-level `if` or `unless` no longer opens a function defined later in the module.** Fixes [#4280](https://github.com/intellij-elixir/intellij-elixir/issues/4280).
 - [#4348](https://github.com/intellij-elixir/intellij-elixir/pull/4348) [@sh41](https://github.com/sh41)
   - **Quoted keyword keys, such as `"do":` and `"path":`, are read as their atoms.** Refs [#4344](https://github.com/intellij-elixir/intellij-elixir/issues/4344).
 - [#4341](https://github.com/intellij-elixir/intellij-elixir/pull/4341) [@sh41](https://github.com/sh41)
