@@ -12,7 +12,6 @@ enum class Feature {
     COMPLETION,
     FIND_USAGES_AND_RENAME,
     STRUCTURE_VIEW,
-    GO_TO_RELATED,
     HEEX_COMPONENTS
 }
 
@@ -27,6 +26,5 @@ fun sourceFor(feature: Feature): CandidateSource =
         Feature.COMPLETION,
         Feature.FIND_USAGES_AND_RENAME,
         Feature.STRUCTURE_VIEW,
-        Feature.GO_TO_RELATED,
         Feature.HEEX_COMPONENTS -> LegacyWalkSource
     }
