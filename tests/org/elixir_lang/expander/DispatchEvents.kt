@@ -198,7 +198,9 @@ internal object DispatchEvents {
         val envMap = env as OtpErlangMap
         val module = (envMap.get(OtpErlangAtom("module")) as? OtpErlangAtom)?.atomValue()
         val function = envMap.get(OtpErlangAtom("function"))?.let(::function) ?: "nil"
+        // Code a macro generates has line 0, which the expander's keys give as no line.
         val line = ((tuple.elementAt(1) as? OtpErlangList)?.let { keyword(it, "line") } as? OtpErlangLong)?.intValue()
+            ?.takeIf { it != 0 }
 
         return when (kind) {
             in REMOTE_KINDS -> Event(

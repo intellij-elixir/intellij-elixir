@@ -85,6 +85,8 @@ internal class ExpansionProbes(
      * @property tagRanges where the statement each statement probe follows is in the case body
      * @property definitions where each `def*` call is in the case body
      * @property unordered whether the comparison stops at a body Elixir may expand elsewhere
+     * @property guarded the traces made inside the call the module stops at, which Elixir makes right after its macro:
+     *   a `Kernel.Utils.defguard/2` expands its guard before it returns the template the expander doesn't follow
      */
     class CaseExpansion(
         val case: ProbeHarness.Case,
@@ -100,6 +102,7 @@ internal class ExpansionProbes(
         val definitions: List<TextRange>,
         val unordered: Boolean,
         val origin: Origin,
+        val guarded: List<String> = emptyList(),
     ) {
         val ended: Ended get() = result.ended
 
@@ -315,10 +318,18 @@ internal class ExpansionProbes(
                     ?: events.indexOfFirst { DispatchEvents.isMacro(it) && DispatchEvents.line(it) == line }
                 val prefix = if (end < 0) events + "no macro event on line $line" else events.take(end + 1)
 
-                expected.add(render(name, expansion.steps) + "\n" + (expansion.traces + macro).joinToString("\n"))
+                // A guard template expands its guard before it returns, so those events follow the macro's and end where the
+                // template it returns begins.
+                val guarded = if (end < 0 || GUARD_TEMPLATE !in macro) {
+                    emptyList()
+                } else {
+                    events.drop(end + 1).takeWhile { TEMPLATE_BEGINS !in it }
+                }
+
+                expected.add(render(name, expansion.steps) + "\n" + (expansion.traces + macro + expansion.guarded).joinToString("\n"))
                 actual.add(
                     render(name, observed, attempt.batch.probeModule, delivered(attempt, index)) + "\n" +
-                        prefix.joinToString("\n")
+                        (prefix + guarded).joinToString("\n")
                 )
             }
         }
@@ -994,10 +1005,12 @@ internal class ExpansionProbes(
             val bodyEnd = result.units.firstOrNull()?.let { leftAt[it.node] }?.let { end -> serials.count { it < end } }
                 ?: steps.size
             val unorderedRanges = units(result).filterNot { it.ordered }.map { it.node.meta.origin.shiftLeft(start) }
-            val stopped = stop != null && result.ended.let {
+            val walked = walkedStop(result)
+            val stopping = stop ?: walked
+            val stopped = stopping != null && result.ended.let {
                 it is Ended.Stopped || it is Ended.Raised || it is Ended.Crashed
             }
-            val stopAt = at(stop)?.meta?.origin?.shiftLeft(start)
+            val stopAt = at(stopping)?.meta?.origin?.shiftLeft(start)
             // A body that isn't ordered can stop before any step is taken in it.
             val unordered = (bodyEnd until steps.size).firstOrNull { index ->
                 unorderedRanges.any { it.contains(steps[index].offset) }
@@ -1006,7 +1019,7 @@ internal class ExpansionProbes(
             val outcome = when (val ended = result.ended) {
                 is Ended.Raised -> ended.error
                 is Ended.Crashed -> ended.error
-                is Ended.Stopped -> stop ?: Expansion.Unported(ended.at)
+                is Ended.Stopped -> stopping ?: Expansion.Unported(ended.at)
                 Ended.Compiled, Ended.Tainted -> result.units.first().expansion
             }
 
@@ -1022,13 +1035,67 @@ internal class ExpansionProbes(
                 statements,
                 starts,
                 if (stopped) signed.take(signedStop) else signed,
-                macro.takeIf { stopped },
+                (macro ?: walked?.let { DispatchEvents.key(it.at, it.dispatch, macroDefinedBy(result, it), bodyLine) })
+                    .takeIf { stopped },
                 shape.tagRanges,
                 shape.definitions,
                 unordered != null && unordered == cut,
                 origin,
+                guarded(walked, stopped),
             )
         }
+
+        /**
+         * The traces made after the stop, inside the call [opaque] stands for: its own expansion, not the later
+         * statements'. The first is the dispatch of the macro itself.
+         */
+        private fun guarded(opaque: Expansion.Opaque?, stopped: Boolean): List<String> {
+            if (opaque == null || !stopped || !isGuardTemplate(opaque)) return emptyList()
+
+            val call = opaque.at.meta.origin
+
+            return traces.indices.filter { it >= stopTraces && sites[it].second != null && call.contains(sites[it].first) }
+                .drop(1)
+                .map(traces::get)
+        }
+
+        private fun isGuardTemplate(opaque: Expansion.Opaque) =
+            opaque.dispatch.receiver == "Elixir.Kernel.Utils" && opaque.dispatch.name == "defguard"
+
+        /**
+         * The [Expansion.Opaque] the walk stopped the module at, when no node's expansion did: an effect's, such as a
+         * `defstruct` whose `@derive` names a protocol with a `__deriving__` macro. Elixir expands that macro when the
+         * module body runs, before the definitions the call's output stores and after the earlier ones, so the stop
+         * follows the steps before the call's statement, including those of the definitions the walk stored first,
+         * and the traces before the first of a definition from there.
+         */
+        private fun walkedStop(result: ExpansionResult): Expansion.Opaque? {
+            val ended = result.ended as? Ended.Stopped ?: return null
+            val opaque = result.opaque.firstOrNull { it.at === ended.at }?.takeIf { stop == null } ?: return null
+            val offset = opaque.at.meta.origin.startOffset - start
+
+            // The statements from the call on were probed before the walk reached it, but Elixir takes them after.
+            val (later, earlier) = steps.indices.partition { steps[it].offset >= offset }
+            val order = earlier + later
+            val reordered = order.map { steps[it] }
+            val serialised = order.map { serials[it] }
+
+            steps.clear()
+            steps.addAll(reordered)
+            serials.clear()
+            serials.addAll(serialised)
+            stopSteps = earlier.size
+            stopTraces = sites.indexOfFirst { (site, function) -> function != null && site >= opaque.at.meta.origin.startOffset }
+                .takeIf { it >= 0 } ?: traces.size
+
+            return opaque
+        }
+
+        /** The macro [opaque]'s call defines, in whose body Elixir expands the macro [opaque] stops at, if it does. */
+        private fun macroDefinedBy(result: ExpansionResult, opaque: Expansion.Opaque): NameArity? =
+            result.table.entries.entries.firstOrNull { (_, entry) ->
+                entry.kind.macro && opaque.at.meta.origin.contains(entry.at.meta.origin.startOffset)
+            }?.key
 
         /**
          * [traces] with the `@` reads `Module.compile_definition_attributes/6` makes again once each public clause
@@ -1137,6 +1204,10 @@ internal class ExpansionProbes(
             }
         }
 
+        override fun builtIn(env: Env) {
+            this.env = env
+        }
+
         override fun dispatched(node: ElixirAst, dispatch: Dispatch) {
             val recorder = recorder(node)
             val nodes = listOfNotNull(node, retraced(open.lastOrNull(), node, dispatch, level))
@@ -1213,6 +1284,12 @@ internal class ExpansionProbes(
 
     private companion object {
         const val COMPILE_ERROR = "Elixir.CompileError"
+
+        /** The macro `defguard` stops at. */
+        const val GUARD_TEMPLATE = "Elixir.Kernel.Utils.defguard/2"
+
+        /** The first event of the template `Kernel.Utils.defguard/2` returns: its `case Macro.Env.in_guard?(__CALLER__)`. */
+        const val TEMPLATE_BEGINS = "remote_function Elixir.Macro.Env.in_guard?/1"
 
         /** In a case body or preamble, the compile's token. */
         const val TOKEN = "{token}"

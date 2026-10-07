@@ -160,6 +160,7 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
      *
      * @property doc its doc's text, `:hidden` for `@doc false`, or `:none` where it has none
      * @property deprecated its `deprecated` metadata, or `nil`
+     * @property guard whether its metadata holds `guard: true`, which `@doc guard: true` puts there
      */
     data class DocEntry(
         val kind: String,
@@ -167,6 +168,7 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
         val arity: Int,
         val doc: OtpErlangObject,
         val deprecated: OtpErlangObject,
+        val guard: Boolean = false,
     )
 
     /**
@@ -459,7 +461,7 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
             |                other -> other
             |              end
             |
-            |            {kind, name, arity, text, Map.get(metadata, :deprecated)}
+            |            {kind, name, arity, text, Map.get(metadata, :deprecated), Map.get(metadata, :guard, false)}
             |          end
             |
             |        _ ->
@@ -596,14 +598,21 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
                 },
             )
 
-        /** `{:docs, module, enabled, [{kind, name, arity, doc, deprecated}] | nil}`'s last two elements. */
+        /** `{:docs, module, enabled, [{kind, name, arity, doc, deprecated, guard}] | nil}`'s last two elements. */
         fun docs(enabled: OtpErlangObject, entries: OtpErlangObject): Docs =
             Docs(
                 (enabled as OtpErlangAtom).booleanValue(),
                 (entries as? OtpErlangList)?.elements()?.map { entry ->
-                    val (kind, name, arity, doc, deprecated) = (entry as OtpErlangTuple).elements()
+                    val elements = (entry as OtpErlangTuple).elements()
 
-                    DocEntry(atom(kind), atom(name), (arity as OtpErlangLong).intValue(), doc, deprecated)
+                    DocEntry(
+                        atom(elements[0]),
+                        atom(elements[1]),
+                        (elements[2] as OtpErlangLong).intValue(),
+                        elements[3],
+                        elements[4],
+                        elements[5] == OtpErlangAtom("true"),
+                    )
                 },
             )
 
