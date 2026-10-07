@@ -62,7 +62,13 @@ internal fun expandQuoted(
 ): Expansion {
     val counter = run.counters.next(env.module)
 
-    return Expander.expand(linifyWithContextCounter(lineOf(call.meta), receiver, counter, output), state, env, run)
+    val linified = linifyWithContextCounter(lineOf(call.meta), receiver, counter, output)
+    val expansion = Expander.expand(linified, state, env, run)
+
+    // The call is the bitstring its output expanded to, for the segment of a bitstring that holds the call.
+    run.bitstrings[expandedShape(linified)]?.let { run.bitstrings[call] = it }
+
+    return expansion
 }
 
 /**

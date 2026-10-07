@@ -106,6 +106,16 @@ class ExpansionErrorProbeTest : ProbeTestCase() {
             Case("_ = <<__ENV__.line::binary>>"),
             Case("_ = <<__DIR__::size(8)>>"),
             Case("b = \"ab\"\n_ = case b do\n  <<__DIR__::binary, rest::binary>> -> rest\n  _ -> b\nend"),
+            Case(
+                "b = \"ab\"\n_ = case b do\n  <<(<<\"x\", __DIR__::binary>>)::binary, rest::binary>> -> rest\n  _ -> b\nend"
+            ),
+            Case("b = \"ab\"\n_ = case b do\n  (\"x\" <> __DIR__) <> rest -> rest\n  _ -> b\nend"),
+            Case(
+                "b = \"ab\"\n_ = case b do\n  <<(<<__DIR__::binary, x::binary>>)::binary, rest::binary>> -> rest\n  _ -> b\nend"
+            ),
+            Case("b = \"ab\"\n_ = case b do\n  <<(\"x\" <> __DIR__)::binary, rest::binary>> -> rest\n  _ -> b\nend"),
+            Case("x = \"b\"\n_ = <<(\"a\" <> x)::size(16)>>"),
+            Case("x = \"b\"\n_ = <<\"a#{x}\"::size(16)>>"),
             Case("b = <<255, 1>>\n_ = case b do\n  <<-1, rest::binary>> -> rest\n  _ -> b\nend"),
             Case("<<-1::binary>> = <<1>>"),
             Case("<<-1.0::binary>> = <<1>>"),

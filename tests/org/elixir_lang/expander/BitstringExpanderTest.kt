@@ -119,6 +119,19 @@ class BitstringExpanderTest : ExpanderTestCase() {
     fun testAnUnsizedBinaryAtTheEndOfANestedBitstring() =
         assertEvery("<<(<<x::binary>>), y>> = \"ab\"", "error unsized_binary `x::binary`")
 
+    /** `is_binary` is asked of the part as expanded, and `__DIR__` expands to a binary. */
+    fun testAnUnsizedNestedBinaryThatExpandsToABinaryIsOne() =
+        assertEvery(
+            "<<(<<\"x\", __DIR__::binary>>)::binary, rest::binary>> = \"xy\"",
+            "expanded {rest:0} next 1",
+        )
+
+    fun testAnUnsizedNestedBinaryThatIsAVariableStillRaisesAfterOneThatExpandsToABinary() =
+        assertEvery(
+            "<<(<<__DIR__::binary, x::binary>>)::binary, rest::binary>> = \"xy\"",
+            "error unsized_binary `x::binary`",
+        )
+
     fun testAPinnedBinaryInfersItsSizeFrom1_16() =
         assertSplit(
             "x = \"cd\"; <<^x::binary, rest::binary>> = \"cdef\"",

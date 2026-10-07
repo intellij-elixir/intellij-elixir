@@ -7,6 +7,7 @@ import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
+import java.util.IdentityHashMap
 
 /**
  * Elixir's expander (`elixir_expand`), ported clause for clause, over [ElixirAst]. It holds no PSI and takes no lock.
@@ -173,6 +174,9 @@ internal class Run(
             else -> ModuleExports.Absent
         }
     }
+
+    /** What each bitstring expanded builds, by node, for the bitstring that nests it. */
+    val bitstrings = IdentityHashMap<ElixirAst, BitstringParts>()
 
     /** The errors Elixir reported and carried on after, in its order. No state restore takes them back. */
     val errors = mutableListOf<Reported>()
