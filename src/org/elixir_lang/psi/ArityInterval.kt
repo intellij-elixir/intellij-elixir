@@ -116,6 +116,15 @@ fun ArityInterval.arityKnowledge(): ArityKnowledge =
         else -> ArityKnowledge.Range(minimum, maximum)
     }
 
+/** The inverse of [arityKnowledge], or `null` for [ArityKnowledge.Unknown], whose arities are not yet knowable. */
+fun ArityKnowledge.arityInterval(): ArityInterval? =
+    when (this) {
+        is ArityKnowledge.Exact -> ArityInterval(arity, arity)
+        is ArityKnowledge.Range -> ArityInterval(minimum, maximum)
+        is ArityKnowledge.Open -> ArityInterval(minimum)
+        ArityKnowledge.Unknown -> null
+    }
+
 /**
  * Whether the given element presents a default argument (with `\\` in it.
  *

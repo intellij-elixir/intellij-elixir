@@ -8,34 +8,31 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.ResolveState
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.stubs.StubIndex
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.psi.Module as BeamModule
-import org.elixir_lang.psi.CallDefinitionClause.nameArityInterval
+import org.elixir_lang.declaration.Declaration
+import org.elixir_lang.declaration.Form
+import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.Definition
 import org.elixir_lang.psi.Modular
 import org.elixir_lang.psi.NamedElement
+import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.StubBased
 import org.elixir_lang.psi.definition
+import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
+import org.elixir_lang.psi.scope.call_definition_clause.Declarations
 import org.elixir_lang.psi.stub.index.AllName
+import org.elixir_lang.reference.resolver.narrowedScope
 
 /**
- * Go To Related from source to decompiled version of the same function
+ * Go To Related from source to the decompiled version of what a declaring call declares
  */
 class Provider : GotoRelatedProvider() {
     override tailrec fun getItems(psiElement: PsiElement): List<GotoRelatedItem> {
-        val definitionItems = if (psiElement is Call) {
-            val definition = definition(psiElement)
+        val items = (psiElement as? Call)?.let { items(it) }
 
-            if (definition != null) {
-                definitionItems(definition, psiElement)
-            } else {
-                null
-            }
-        } else {
-            null
-        }
-
-        return if (definitionItems == null) {
+        return if (items == null) {
             val parent = psiElement.parent
 
             if (parent != null && parent !is PsiFile) {
@@ -44,56 +41,72 @@ class Provider : GotoRelatedProvider() {
                 emptyList()
             }
         } else {
-            definitionItems
+            items
         }
     }
 
-    private fun definitionItems(definition: Definition, definer: Call): List<GotoRelatedItem> =
-        definitionDecompiledSet(definition, definer).map { Item(it) }
+    /** `null` when [call] declares nothing, so the climb goes on. */
+    @RequiresReadLock
+    private fun items(call: Call): List<GotoRelatedItem>? {
+        val form = DeclaringForm.shapedForm(call)
 
-    private fun definitionDecompiledSet(definition: Definition, definer: Call): Set<Call> =
-            if (definition.type == Definition.Type.CALLABLE) {
-                callableDefinerToDecompiledSet(definer)
-            } else {
-                modularDefinerToDecompiledSet(definer)
-            }
+        val decompiledSet = when {
+            form != null -> declaredDecompiledSet(form, call)
+            definition(call)?.type == Definition.Type.MODULAR -> modularDefinerToDecompiledSet(call)
+            else -> return null
+        }
 
-    private fun callableDefinerToDecompiledSet(definer: Call) =
-            callableDefinerToModularDefiner(definer)
-                    ?.let { modularDefiner ->
-                        nameArityInterval(definer, ResolveState.initial())?.let { nameArityRange ->
-                            modularDefinerToDecompiledSet(modularDefiner)
-                                    .flatMap { decompiledModularDefiner ->
-                                        Modular
-                                                .callDefinitionClauseCallSequence(decompiledModularDefiner)
-                                                .mapNotNull { decompiledDefiner ->
-                                                    nameArityInterval(decompiledDefiner, ResolveState.initial())?.let { decompiledNameArityRange ->
-                                                        if (nameArityRange.name == decompiledNameArityRange.name &&
-                                                                nameArityRange.arityInterval.overlaps(decompiledNameArityRange.arityInterval)) {
-                                                            decompiledDefiner
-                                                        } else {
-                                                            null
-                                                        }
-                                                    }
-                                                }.asIterable()
-                                    }
-                                    .toSet()
+        return decompiledSet.map { Item(it) }
+    }
+
+    @RequiresReadLock
+    private fun declaredDecompiledSet(form: Form, call: Call): Set<Call> =
+        when (form) {
+            Form.CLAUSE,
+            Form.DELEGATION,
+            Form.EXCEPTION,
+            Form.EEX_FUNCTION_FROM,
+            Form.GENERATOR_EMBED -> declaredFunctionsToDecompiledSet(form, call)
+            Form.CALLBACK -> emptySet()
+        }
+
+    @RequiresReadLock
+    private fun declaredFunctionsToDecompiledSet(form: Form, call: Call): Set<Call> {
+        val modularDefiner = CallDefinitionClause.enclosingModularMacroCall(call)
+            ?.takeIf { definition(it)?.type == Definition.Type.MODULAR }
+            ?: return emptySet()
+        val declared = declarations(form, call)
+
+        return modularDefinerToDecompiledSet(modularDefiner)
+            .flatMap { decompiledModularDefiner ->
+                Modular
+                    .callDefinitionClauseCallSequence(decompiledModularDefiner)
+                    .filter { decompiledDefiner ->
+                        declarations(Form.CLAUSE, decompiledDefiner).any { decompiled ->
+                            val decompiledArity = decompiled.arity.arityInterval()
+
+                            declared.any { declaration ->
+                                val declaredArity = declaration.arity.arityInterval()
+
+                                // An arity not yet knowable matches by name alone.
+                                declaration.name == decompiled.name &&
+                                    (declaredArity == null || decompiledArity == null || declaredArity.overlaps(decompiledArity))
+                            }
                         }
-                    } ?: emptySet()
-
-    private tailrec fun callableDefinerToModularDefiner(ancestor: PsiElement): Call? {
-        return if (ancestor is Call && definition(ancestor)?.type == Definition.Type.MODULAR) {
-            ancestor
-        } else if (ancestor is PsiFile) {
-            null
-        } else {
-            callableDefinerToModularDefiner(ancestor.parent)
-        }
+                    }
+                    .asIterable()
+            }
+            .toSet()
     }
 
+    @RequiresReadLock
+    private fun declarations(form: Form, call: Call): List<Declaration> =
+        Declarations.of(form, call, ResolveState.initial()).mapNotNull { it.declaration }
+
+    @RequiresReadLock
     private fun modularDefinerToDecompiledSet(modularDefiner: Call): Set<Call> {
         val project = modularDefiner.project
-        val scope = GlobalSearchScope.projectScope(project)
+        val scope = narrowedScope(modularDefiner, project)
 
         return if (modularDefiner is StubBased<*>) {
             modularDefiner
