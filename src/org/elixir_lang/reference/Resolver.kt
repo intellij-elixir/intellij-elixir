@@ -28,15 +28,6 @@ object Resolver {
         return sameModuleResolveResultList
     }
 
-    /**
-     * Applies the same source-over-decompiled and same-module preference logic as [preferred],
-     * but operates on a raw list of [PsiElement]s rather than [ResolveResult]s.
-     */
-    fun <T : PsiElement> preferredElements(elementInModule: PsiElement, elementList: List<T>): List<T> {
-        val sourcePreferredList = preferSource(elementList)
-        return preferUnderSameModule(elementInModule, sourcePreferredList)
-    }
-
     private fun <T : ResolveResult> preferIsValidResult(
         incompleteCode: Boolean,
         resolveResultList: List<T>
@@ -51,9 +42,6 @@ object Resolver {
 
     fun <T : ResolveResult> preferElementUnderSameModule(element: PsiElement, resolveResultList: List<T>): List<T> =
         preferUnderSameModule(element, resolveResultList, ResolveResult::getElement)
-
-    fun <T : PsiElement> preferUnderSameModule(elementInModule: PsiElement, elementList: List<T>): List<T> =
-        preferUnderSameModule(elementInModule, elementList) { it }
 
     private fun <T, U : PsiElement> preferUnderSameModule(
         elementInModule: PsiElement,

@@ -49,8 +49,7 @@ fun callDefinitionClauseLookupElements(
 
 /**
  * The remote-completion [LookupElement]s offered by the set of [modulars] a modular name resolved to
- * (via [org.elixir_lang.psi.impl.maybeModularNameToModulars]). Source modules ([Call]) are preferred
- * over BEAM-decompiled stubs ([BeamModule]) so a module available in both forms is not offered twice.
+ * (via [org.elixir_lang.psi.impl.maybeModularNameToModulars]).
  *
  * @param arity when not `null`, only names with a definition of that arity are offered, as a capture `&Mod.name/arity`
  *   needs.
@@ -95,12 +94,8 @@ private class Offer(val name: String, val element: PsiElement, val form: Form?) 
     }
 }
 
-private fun offers(modulars: Collection<PsiElement>, arity: Arity? = null): List<Offer> {
-    val sourceModulars = modulars.filterIsInstance<Call>()
-    val effectiveModulars = if (sourceModulars.isNotEmpty()) sourceModulars else modulars
-
-    return effectiveModulars.flatMap { offers(it, arity) }
-}
+private fun offers(modulars: Collection<PsiElement>, arity: Arity? = null): List<Offer> =
+    modulars.flatMap { offers(it, arity) }
 
 private fun offers(scope: PsiElement, arity: Arity? = null): List<Offer> = when (scope) {
     is Call -> offers(scope, arity)

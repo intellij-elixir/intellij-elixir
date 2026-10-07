@@ -1,0 +1,5 @@
+# Compiled into ebin/Elixir.Proto.beam with `cp proto_old.ex.txt proto_old.ex && elixirc -o ebin proto_old.ex && rm proto_old.ex`.
+# `Proto` as the project's `lib/proto.ex` also defines it, so a compiled copy of the protocol sits beside its source.
+defprotocol Proto do
+  def p(t)
+end

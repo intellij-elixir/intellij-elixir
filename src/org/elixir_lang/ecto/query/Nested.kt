@@ -3,18 +3,14 @@ package org.elixir_lang.ecto.query
 import com.intellij.openapi.util.Key
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
-import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.psi.stubs.StubIndex
 import org.elixir_lang.ArityRange
 import org.elixir_lang.declaration.Reach
-import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.scope.CallDefinitionClause
 import org.elixir_lang.psi.scope.WhileIn
 import org.elixir_lang.psi.scope.reachedThrough
-import org.elixir_lang.psi.stub.index.ModularName
-import org.elixir_lang.reference.Resolver
+import org.elixir_lang.reference.resolver.Module as ModuleResolver
 
 open class Nested(val name: String, private val arityRangesByName: Map<String, ArityRange>) {
     fun `is`(call: Call, state: ResolveState): Boolean =
@@ -93,28 +89,10 @@ open class Nested(val name: String, private val arityRangesByName: Map<String, A
         }
     }
 
-    private fun modulars(call: Call): List<Call> {
-        val project = call.project
-        val globalSearchScope = GlobalSearchScope.allScope(project)
-        val modulars = mutableListOf<Call>()
-
-        StubIndex
-                .getInstance()
-                .processElements(
-                        ModularName.KEY,
-                        name,
-                        project,
-                        globalSearchScope,
-                        NamedElement::class.java) { namedElement ->
-                    if (namedElement is Call) {
-                        modulars.add(namedElement)
-                    }
-
-                    true
-                }
-
-        return Resolver.preferredElements(call, modulars)
-    }
+    private fun modulars(call: Call): List<Call> =
+            ModuleResolver
+                    .resolvePreferred(call, name, incompleteCode = false, inScope = false)
+                    .mapNotNull { it.element as? Call }
 
     private val MODULARS_BY_NAME = Key<Map<String, List<Call>>>("MODULARS_BY_NAME")
 }

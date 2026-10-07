@@ -3,16 +3,13 @@ package org.elixir_lang.documentation
 import com.intellij.codeInsight.documentation.DocumentationManagerProtocol
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
-import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.psi.stubs.StubIndex
 import org.elixir_lang.Module
 import org.elixir_lang.psi.ElementFactory
 import org.elixir_lang.psi.ElixirAtom
-import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.call.name.Module.ELIXIR_PREFIX
 import org.elixir_lang.psi.impl.indexName
 import org.elixir_lang.psi.impl.stripAccessExpression
-import org.elixir_lang.psi.stub.index.ModularName
+import org.elixir_lang.reference.resolver.Module as ModuleResolver
 import org.intellij.markdown.IElementType
 import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.ast.ASTNode
@@ -31,7 +28,9 @@ import java.util.regex.Pattern
  * ([CodeBlockHtmlProvider], [CodeFenceHtmlProvider]) and augments `CODE_SPAN`
  * with hyperlink resolution for module and function references.
  */
-class MarkdownFlavourDescriptor(private val project: Project) : GFMFlavourDescriptor() {
+class MarkdownFlavourDescriptor(private val element: PsiElement) : GFMFlavourDescriptor() {
+    private val project: Project = element.project
+
     fun renderGenericCode(
         gfmHtmlGeneratingProvider: GeneratingProvider?,
         visitor: HtmlGenerator.HtmlGeneratingVisitor,
@@ -81,7 +80,7 @@ class MarkdownFlavourDescriptor(private val project: Project) : GFMFlavourDescri
 
                                             val functionCount =
                                                 module
-                                                    .let { modulars(project, it) }
+                                                    .let { modulars(element, it) }
                                                     .flatMap { modular ->
                                                         org.elixir_lang.psi.scope.call_definition_clause.MultiResolve.resolveResults(
                                                             relative,
@@ -97,7 +96,7 @@ class MarkdownFlavourDescriptor(private val project: Project) : GFMFlavourDescri
                                             true
                                         }
                                     } else {
-                                        modulars(project, name).isNotEmpty()
+                                        modulars(element, name).isNotEmpty()
                                     }
 
                                     if (link) {
@@ -123,7 +122,7 @@ class MarkdownFlavourDescriptor(private val project: Project) : GFMFlavourDescri
                                                 val module = moduleRelativeArityMatcher.group("module")
 
                                                 val link = if (module != null) {
-                                                    modulars(project, name).isNotEmpty()
+                                                    modulars(element, module).isNotEmpty()
                                                 } else {
                                                     true
 
@@ -159,20 +158,15 @@ class MarkdownFlavourDescriptor(private val project: Project) : GFMFlavourDescri
         val MODULE_RELATIVE_ARITY_PATTERN: Pattern =
             Pattern.compile("((?<module>.+)\\.)?(?<relative>.+)/(?<arity>\\d+)")
 
-        fun modulars(project: Project, name: String): Collection<PsiElement> {
-            val globalSearchScope = GlobalSearchScope.allScope(project)
-            val indexName = indexName(project, name) ?: return emptyList()
-
-            return StubIndex
-                .getElements(
-                    ModularName.KEY,
-                    indexName,
-                    project,
-                    globalSearchScope,
-                    null,
-                    NamedElement::class.java
-                )
-        }
+        /** The modulars a link's [name] names, as they are named from [element]. */
+        fun modulars(element: PsiElement, name: String): List<PsiElement> =
+            indexName(element.project, name)
+                ?.let { indexName ->
+                    ModuleResolver
+                        .resolvePreferred(element, indexName, incompleteCode = false, inScope = false)
+                        .map { it.element }
+                }
+                .orEmpty()
 
         /**
          * A module named with an atom is indexed by the atom's value, however the link quotes it; `null` when the atom

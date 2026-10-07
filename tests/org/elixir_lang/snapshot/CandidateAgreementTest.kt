@@ -1,15 +1,9 @@
 package org.elixir_lang.snapshot
 
-import com.intellij.openapi.application.WriteAction
-import com.intellij.openapi.roots.ModuleRootModificationUtil
-import com.intellij.openapi.roots.libraries.LibraryTablesRegistrar
-import com.intellij.openapi.vfs.LocalFileSystem
-import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiRecursiveElementWalkingVisitor
 import com.intellij.psi.PsiReferenceService
 import com.intellij.psi.PsiReferenceService.Hints.NO_HINTS
-import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.declaration.Applicability
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Found
@@ -19,14 +13,14 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
 import org.elixir_lang.reference.Resolver
 import org.elixir_lang.reference.resolver.Callable
-import java.io.File
 
 /**
  * How the candidate list at every use relates to `multiResolve`, in both `incompleteCode` modes:
  * 1. `multiResolve` is the walk narrowed by `Resolver.preferred` and expanded with the paths it crossed;
  * 2. every `multiResolve` target is a candidate, a path, a variable, a prefix match, or reached through a
  *    prefix-matched `defdelegate` head;
- * 3. every candidate is a `multiResolve` target, or was dropped by a named `Resolver.preferred` rule;
+ * 3. every candidate is a `multiResolve` target, or was dropped by the valid or same-module rule of
+ *    `Resolver.preferred`; the source rule never drops one, since the module entry already prefers source;
  * 4. the valid candidates are the valid targets that are neither paths nor variables, but for those dropped as in 3.
  */
 class CandidateAgreementTest : SnapshotTestCase() {
@@ -38,29 +32,11 @@ class CandidateAgreementTest : SnapshotTestCase() {
         assertAgreement("snapshot/inputs")
     }
 
-    /** `two/2` beside `two/1`, and a source `:queue` beside its `.beam`, so that both preferences drop candidates. */
+    /** `two/2` beside `two/1`, so that the valid preference drops a candidate. */
     fun testPreferences() {
-        val directory = File("$testDataPath/documentation/erlang_atom_qualifier_hover").absoluteFile
-        VfsRootAccess.allowRootAccess(testRootDisposable, directory.path)
-        val root = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(directory)!!
-        BeamLibraryFixture.addLibrary(project, myFixture.module, LIBRARY, listOf(root))
+        val dropped = assertAgreement("declaration/candidate_source/agreement")
 
-        try {
-            val dropped = assertAgreement("declaration/candidate_source/agreement")
-
-            assertTrue("prefer valid dropped a candidate: $dropped", PREFER_VALID in dropped)
-            assertTrue("prefer source dropped a candidate: $dropped", PREFER_SOURCE in dropped)
-        } finally {
-            WriteAction.runAndWait<Throwable> {
-                val table = LibraryTablesRegistrar.getInstance().getLibraryTable(project)
-                table.getLibraryByName(LIBRARY)?.let { library ->
-                    ModuleRootModificationUtil.updateModel(myFixture.module) { model ->
-                        model.findLibraryOrderEntry(library)?.let(model::removeOrderEntry)
-                    }
-                    table.removeLibrary(library)
-                }
-            }
-        }
+        assertTrue("prefer valid dropped a candidate: $dropped", PREFER_VALID in dropped)
     }
 
     /** @return the rules that dropped a candidate. */
@@ -144,6 +120,9 @@ class CandidateAgreementTest : SnapshotTestCase() {
 
             if (rule == null) {
                 disagreements += "candidate ${candidate.element.text.lines().first()} is not in multiResolve and no rule dropped it"
+            } else if (rule == PREFER_SOURCE) {
+                disagreements += "candidate ${candidate.element.text.lines().first()} was dropped by the source stage, " +
+                    "so the walk reached a compiled copy of a module its entry would have left out"
             } else {
                 dropped += rule
                 droppedFound += candidate
@@ -182,7 +161,6 @@ class CandidateAgreementTest : SnapshotTestCase() {
             preferred.any { target in it.visitedElementSet }
 
     private companion object {
-        const val LIBRARY = "candidate_agreement_queue"
         const val PREFER_VALID = "prefer valid"
         const val PREFER_SOURCE = "prefer source"
         const val PREFER_SAME_MODULE = "prefer same module"

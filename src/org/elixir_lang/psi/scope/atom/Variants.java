@@ -8,11 +8,10 @@ import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiElement;
-import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.stubs.StubIndex;
 import org.elixir_lang.Module;
-import org.elixir_lang.psi.NamedElement;
 import org.elixir_lang.psi.scope.Atom;
+import org.elixir_lang.psi.scope.VisitedElementSetResolveResult;
 import org.elixir_lang.psi.stub.index.ModularName;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
@@ -32,7 +31,6 @@ public class Variants extends Atom {
         /* getAllKeys is not the actual keys in the actual project.  They need to be checked.
            See https://intellij-support.jetbrains.com/hc/en-us/community/posts/207930789-StubIndex-persisting-between-test-runs-leading-to-incorrect-completions */
         Collection<String> indexedNameCollection = StubIndex.getInstance().getAllKeys(ModularName.KEY, project);
-        GlobalSearchScope scope = GlobalSearchScope.allScope(project);
 
         String prefix = prefix(entrance);
         InsertHandler<LookupElement> insertHandler =
@@ -46,16 +44,9 @@ public class Variants extends Atom {
                 continue;
             }
 
-            Collection<NamedElement> atomNamedElementCollection = StubIndex.getElements(
-                    ModularName.KEY,
-                    atomName,
-                    project,
-                    scope,
-                    NamedElement.class
-            );
-
-            for (NamedElement atomNamedElement : atomNamedElementCollection) {
-                PsiElement navigationElement = atomNamedElement.getNavigationElement();
+            for (VisitedElementSetResolveResult resolveResult :
+                    org.elixir_lang.reference.resolver.Module.INSTANCE.resolvePreferred(entrance, atomName, false, false)) {
+                PsiElement navigationElement = resolveResult.getElement().getNavigationElement();
                 lookupElementList.add(
                         LookupElementBuilder
                                 .createWithSmartPointer(Module.inspect(atomName), navigationElement)

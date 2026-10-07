@@ -6,20 +6,17 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
-import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.psi.stubs.StubIndex
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.FunctionArityKeywordPair
 import org.elixir_lang.model.psi.callback.BehaviourMembership
 import org.elixir_lang.model.psi.callback.Callback
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
-import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.QuotableKeywordPair
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
-import org.elixir_lang.psi.stub.index.ModularName
+import org.elixir_lang.reference.resolver.Module as ModuleResolver
 import org.elixir_lang.structure_view.element.Callback as CallbackElement
 
 /**
@@ -88,10 +85,9 @@ class FunctionArityKeywordPairReference(
         val behaviourNames = defoverridableBehaviourNames(occurrence.hostCall)
         if (behaviourNames.isEmpty()) return emptyList()
 
-        val scope = GlobalSearchScope.allScope(host.project)
         val callbacks = mutableListOf<Symbol>()
         for (name in behaviourNames) {
-            for (behaviourModule in StubIndex.getElements(ModularName.KEY, name, host.project, scope, NamedElement::class.java)) {
+            for (behaviourModule in ModuleResolver.resolvePreferred(host, name, incompleteCode = false, inScope = false).map { it.element }) {
                 ProgressManager.checkCanceled()
                 if (behaviourModule !is Call) continue
                 CallDefinitionClause.modularChildCalls(behaviourModule)

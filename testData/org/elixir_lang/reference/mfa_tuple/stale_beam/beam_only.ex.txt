@@ -1,0 +1,5 @@
+# Compiled into ebin/Elixir.BeamOnly.beam with `cp beam_only.ex.txt beam_only.ex && elixirc -o ebin beam_only.ex && rm beam_only.ex`.
+# A module the project has no source for, so its compiled copy is the only one.
+defmodule BeamOnly do
+  def only(x), do: x
+end

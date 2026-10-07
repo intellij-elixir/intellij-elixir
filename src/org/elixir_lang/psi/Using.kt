@@ -3,8 +3,6 @@ package org.elixir_lang.psi
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.ResolveState
-import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.psi.stubs.StubIndex
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
@@ -22,7 +20,7 @@ import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.operation.Match
 import org.elixir_lang.psi.scope.Recording
 import org.elixir_lang.psi.scope.WhileIn.whileIn
-import org.elixir_lang.psi.stub.index.ModularName
+import org.elixir_lang.reference.resolver.Module as ModuleResolver
 import org.elixir_lang.util.AccumulatorContinue
 
 object Using {
@@ -351,16 +349,10 @@ object Using {
      */
     @RequiresReadLock
     fun exUnitCaseDefiners(context: PsiElement): Sequence<PsiElement> =
-        StubIndex
-            .getElements(
-                ModularName.KEY,
-                EXUNIT_CASE,
-                context.project,
-                GlobalSearchScope.allScope(context.project),
-                NamedElement::class.java
-            )
+        ModuleResolver
+            .resolvePreferred(context, EXUNIT_CASE, incompleteCode = false, inScope = false)
             .asSequence()
-            .flatMap { definers(it) }
+            .flatMap { definers(it.element) }
 
     private const val EXUNIT_CASE = "ExUnit.Case"
     private const val EXUNIT_CASE_TEMPLATE = "ExUnit.CaseTemplate"
