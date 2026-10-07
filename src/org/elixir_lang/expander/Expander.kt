@@ -124,7 +124,7 @@ object Expander {
         ProgressManager.checkCanceled()
         // A built node shares its source node's origin, so an observer would take it for that node.
         val observed = !ast.meta.built
-        if (observed) run.observer.entering(ast, state, env)
+        if (observed) run.observer.entering(ast, state, env) else run.observer.builtIn(env)
 
         val expansion = body()
 

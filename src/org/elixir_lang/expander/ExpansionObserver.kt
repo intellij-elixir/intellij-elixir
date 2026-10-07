@@ -4,10 +4,14 @@ import org.elixir_lang.lowering.ElixirAst
 
 /**
  * Told of each node [Expander] reaches, before any clause runs, and as it is left. A node the expander built
- * ([org.elixir_lang.lowering.Meta.built]) is neither entered nor left, but its dispatches are reported.
+ * ([org.elixir_lang.lowering.Meta.built]) is neither entered nor left, but its env is reported by [builtIn] and its
+ * dispatches are reported.
  */
 fun interface ExpansionObserver {
     fun entering(node: ElixirAst, state: ExState, env: Env)
+
+    /** A node the expander built is reached in [env], which its dispatches are in. */
+    fun builtIn(env: Env) {}
 
     /** [node]'s [expansion], as [Expander.expand] returns it. */
     fun left(node: ElixirAst, expansion: Expansion) {}
