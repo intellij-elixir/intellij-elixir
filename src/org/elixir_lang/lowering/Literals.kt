@@ -1,20 +1,15 @@
 package org.elixir_lang.lowering
 
-import com.ericsson.otp.erlang.OtpExternal
 import com.intellij.lang.ASTNode
 import com.intellij.psi.PsiElement
-import com.intellij.psi.tree.IElementType
 import org.elixir_lang.language_level.ElixirLanguageFeature.ASSOC_ON_MAP_KEY
 import org.elixir_lang.language_level.ElixirLanguageFeature.DELIMITER_OF_SINGLE_QUOTED_ATOM
 import org.elixir_lang.language_level.ElixirLanguageFeature.DELIMITER_ON_QUOTED_ATOM
 import org.elixir_lang.language_level.ElixirLanguageFeature.DELIMITER_ON_QUOTED_KEYWORD_KEY
-import org.elixir_lang.language_level.ElixirLanguageFeature.EMPTY_LEADING_HEREDOC_SEGMENT
-import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_NEWLINE_KEPT_IN_EXTRACTED_BUFFER
 import org.elixir_lang.language_level.ElixirLanguageFeature.FROM_INTERPOLATION
 import org.elixir_lang.language_level.ElixirLanguageFeature.INDENTATION_ON_HEREDOC
 import org.elixir_lang.language_level.ElixirLanguageFeature.LAST_ON_ALIAS
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_COLUMN_AT_PERCENT
-import org.elixir_lang.language_level.ElixirLanguageFeature.UNESCAPED_SIGIL_HEREDOC_TERMINATOR
 import org.elixir_lang.psi.Digits
 import org.elixir_lang.psi.ElixirAccessExpression
 import org.elixir_lang.psi.ElixirAlias
@@ -27,10 +22,8 @@ import org.elixir_lang.psi.ElixirCharToken
 import org.elixir_lang.psi.ElixirContainerAssociationOperation
 import org.elixir_lang.psi.ElixirDecimalFloat
 import org.elixir_lang.psi.ElixirEmptyParentheses
-import org.elixir_lang.psi.ElixirEscapedCharacter
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.ElixirHeredoc
-import org.elixir_lang.psi.ElixirInterpolation
 import org.elixir_lang.psi.ElixirKeywordKey
 import org.elixir_lang.psi.ElixirKeywordPair
 import org.elixir_lang.psi.ElixirKeywords
@@ -39,14 +32,12 @@ import org.elixir_lang.psi.ElixirList
 import org.elixir_lang.psi.ElixirMapArguments
 import org.elixir_lang.psi.ElixirMapOperation
 import org.elixir_lang.psi.ElixirMapUpdateArguments
-import org.elixir_lang.psi.ElixirQuoteHexadecimalEscapeSequence
 import org.elixir_lang.psi.ElixirSigilModifiers
 import org.elixir_lang.psi.ElixirStructOperation
 import org.elixir_lang.psi.ElixirTuple
 import org.elixir_lang.psi.ElixirTypes
 import org.elixir_lang.psi.EscapeSequence
 import org.elixir_lang.psi.HeredocLiteral
-import org.elixir_lang.psi.Interpolated
 import org.elixir_lang.psi.Operator
 import org.elixir_lang.psi.QualifiedAlias
 import org.elixir_lang.psi.Sigil
@@ -56,7 +47,6 @@ import org.elixir_lang.psi.WholeNumber
 import org.elixir_lang.psi.impl.inBase
 import org.elixir_lang.psi.impl.operatorTokenNode
 import org.elixir_lang.psi.impl.textToString
-import java.io.ByteArrayOutputStream
 import java.math.BigInteger
 
 /** Literals and containers: numbers, atoms, aliases, strings, charlists, sigils, heredocs and the containers. */
@@ -67,7 +57,7 @@ internal fun Lowering.literal(element: PsiElement): ElixirAst =
         is ElixirAlias -> alias(element)
         is QualifiedAlias -> qualifiedAlias(element)
         is ElixirAtom -> atom(element)
-        is ElixirAtomKeyword -> ElixirAst.Literal.Atom(meta(element), element.text)
+        is ElixirAtomKeyword -> named(element)
         is ElixirCharToken -> charToken(element)
         is ElixirDecimalFloat -> decimalFloat(element)
         is WholeNumber -> wholeNumber(element)
@@ -147,7 +137,7 @@ private fun Lowering.charToken(charToken: ElixirCharToken): ElixirAst {
 // Atoms and aliases
 
 private fun Lowering.atom(atom: ElixirAtom): ElixirAst {
-    val line = atom.line ?: return writtenAtom(atom, identifier(atom.node.lastChildNode.text))
+    val line = atom.line ?: return named(atom)
     val delimiter =
         if (line.isCharList && isAvailable(DELIMITER_OF_SINGLE_QUOTED_ATOM)) "'" else "\""
 
@@ -192,138 +182,6 @@ private fun Lowering.last(offset: Int): Meta.Key? =
     Meta.Key.Entry("last", Meta.Value.Keywords(listOf(location(offset))), tokenMetadata = true)
         .takeIf { isAvailable(LAST_ON_ALIAS) }
 
-// Quoted text
-
-/** A string, charlist or quoted atom's text: the parts between its interpolations, and the interpolations. */
-private sealed class Part {
-    class Text(val codePoints: List<Int>) : Part()
-    class Interpolation(val interpolation: ElixirInterpolation) : Part()
-}
-
-/** What quoted text holds: nothing, only text, or interpolations. */
-private sealed class Content {
-    object Empty : Content()
-    class Literal(val codePoints: List<Int>) : Content()
-    class Interpolated(val parts: List<Part>) : Content()
-}
-
-/** A node of quoted text, or text standing for one, as a heredoc's lines give it. */
-private class Piece(val elementType: IElementType, val text: String, val node: ASTNode?)
-
-/**
- * Added to a byte to carry it through a code point list, as `\xHH` escapes a byte rather than a code point. Past what
- * six hex digits can escape, so not even an invalid `\u{110000}` collides with it.
- */
-private const val RAW_BYTE_OFFSET = 0x1000000
-
-/** [parent]'s text as Elixir's tokenizer extracts it, or `null` when a node is one it cannot extract. */
-private fun Lowering.content(parent: PsiElement, pieces: List<Piece>): Content? {
-    if (pieces.isEmpty()) return Content.Empty
-
-    val parts = mutableListOf<Part>()
-    var buffer: MutableList<Int>? = null
-    val keepsEmptyBuffer = isAvailable(ESCAPED_NEWLINE_KEPT_IN_EXTRACTED_BUFFER)
-
-    fun buffer(): MutableList<Int> = buffer ?: mutableListOf<Int>().also { buffer = it }
-
-    for (piece in pieces) {
-        when (piece.elementType) {
-            ElixirTypes.FRAGMENT, ElixirTypes.EOL -> buffer().addAll(codePoints(piece.text))
-            ElixirTypes.ESCAPED_CHARACTER ->
-                if (parent is Sigil) {
-                    val text = piece.text
-                    val terminator = (parent as? SigilLine)?.terminator()
-
-                    buffer().addAll(codePoints(if (terminator != null && text == "\\$terminator") "$terminator" else text))
-                } else {
-                    buffer().add((piece.node?.psi as? ElixirEscapedCharacter ?: return null).codePoint())
-                }
-            ElixirTypes.ESCAPED_EOL ->
-                buffer().apply {
-                    if (parent is Sigil && (parent !is Interpolated || keepsEmptyBuffer)) addAll(listOf('\\'.code, '\n'.code))
-                }
-            ElixirTypes.ESCAPED_HEREDOC_TERMINATOR, ElixirTypes.ESCAPED_LINE_TERMINATOR ->
-                buffer().addAll(
-                    codePoints(
-                        if (parent is SigilHeredocLiteral && !isAvailable(UNESCAPED_SIGIL_HEREDOC_TERMINATOR)) {
-                            piece.text
-                        } else {
-                            piece.node?.psi?.lastChild?.text ?: return null
-                        }
-                    )
-                )
-            ElixirTypes.HEXADECIMAL_ESCAPE_PREFIX -> buffer().addAll(codePoints(piece.text))
-            ElixirTypes.INTERPOLATION -> {
-                buffer?.let { if (it.isNotEmpty() || keepsEmptyBuffer) parts.add(Part.Text(it)) }
-                buffer = null
-
-                if (parent is HeredocLiteral && parts.isEmpty() && isAvailable(EMPTY_LEADING_HEREDOC_SEGMENT)) {
-                    parts.add(Part.Text(emptyList()))
-                }
-
-                parts.add(Part.Interpolation(piece.node?.psi as? ElixirInterpolation ?: return null))
-            }
-            ElixirTypes.QUOTE_HEXADECIMAL_ESCAPE_SEQUENCE, ElixirTypes.SIGIL_HEXADECIMAL_ESCAPE_SEQUENCE -> {
-                val sequence = piece.node?.psi
-                val byte = (sequence as? ElixirQuoteHexadecimalEscapeSequence)?.let { escapedByte(it) }
-
-                when {
-                    byte != null -> buffer().add(RAW_BYTE_OFFSET + byte)
-                    parent is Sigil -> buffer().addAll(codePoints(piece.text))
-                    else ->
-                        buffer().add(
-                            (sequence as? EscapeSequence ?: return null).codePoint()
-                                .takeIf { it <= Character.MAX_CODE_POINT && it !in SURROGATES } ?: return null
-                        )
-                }
-            }
-            else -> return null
-        }
-    }
-
-    val text = buffer
-
-    return if (text != null && parts.isEmpty()) {
-        Content.Literal(text)
-    } else {
-        if (text != null && (text.isNotEmpty() || keepsEmptyBuffer)) parts.add(Part.Text(text))
-
-        Content.Interpolated(parts)
-    }
-}
-
-/**
- * `unescape_hex` appends one byte, so `"\xC3\xA9"` is `"é"`; Elixir 1.11's deprecated `\xH` and `\x{H*}` are code
- * points.
- */
-private fun escapedByte(sequence: ElixirQuoteHexadecimalEscapeSequence): Int? {
-    if (sequence.hexadecimalEscapePrefix.text != "\\x") return null
-    val digits = sequence.openHexadecimalEscapeSequence?.text?.takeIf { it.length == 2 } ?: return null
-
-    return digits.toInt(16).takeIf { it >= 0x80 }
-}
-
-private fun codePoints(text: String): List<Int> = text.codePoints().toArray().toList()
-
-private fun utf8(codePoints: List<Int>): ByteArray {
-    val bytes = ByteArrayOutputStream()
-    val pending = StringBuilder()
-
-    for (codePoint in codePoints) {
-        if (codePoint >= RAW_BYTE_OFFSET) {
-            bytes.write(pending.toString().toByteArray(Charsets.UTF_8))
-            pending.setLength(0)
-            bytes.write(codePoint - RAW_BYTE_OFFSET)
-        } else {
-            pending.appendCodePoint(codePoint)
-        }
-    }
-
-    bytes.write(pending.toString().toByteArray(Charsets.UTF_8))
-
-    return bytes.toByteArray()
-}
-
 /** A charlist's code points: Elixir decodes its escaped bytes as UTF-8. */
 private fun charListCodePoints(codePoints: List<Int>): List<Int> =
     if (codePoints.any { it >= RAW_BYTE_OFFSET }) {
@@ -367,7 +225,6 @@ private fun heredocPieces(heredoc: HeredocLiteral): List<Piece> {
     }
 }
 
-private fun List<ASTNode>.pieces(): List<Piece> = map { Piece(it.elementType, it.text, it) }
 
 @JvmName("quoteNodes")
 private fun Lowering.quote(element: PsiElement, isCharList: Boolean, delimiter: String, nodes: List<ASTNode>): ElixirAst =
@@ -375,7 +232,7 @@ private fun Lowering.quote(element: PsiElement, isCharList: Boolean, delimiter: 
 
 /** A string or charlist, line or heredoc. */
 private fun Lowering.quote(element: PsiElement, isCharList: Boolean, doubleQuote: String, pieces: List<Piece>): ElixirAst {
-    val content = content(element, pieces) ?: return broken(element)
+    val content = content(element, pieces, languageLevel) ?: return broken(element)
     val delimiter = if (isCharList) doubleQuote.replace('"', '\'') else doubleQuote
     val indentation = (element as? HeredocLiteral)
         ?.takeIf { isAvailable(INDENTATION_ON_HEREDOC) }
@@ -404,12 +261,10 @@ private fun Lowering.quote(element: PsiElement, isCharList: Boolean, doubleQuote
 
 /** A quoted atom or keyword key, whose text becomes the atom's name, `:erlang.binary_to_atom` when interpolated. */
 internal fun Lowering.quotedAtom(element: PsiElement, line: ElixirLine, keys: List<Meta.Key?>): ElixirAst {
-    val content = content(line, line.lineBody?.node?.getChildren(null)?.toList().orEmpty().pieces())
-        ?: return broken(element)
+    val content = content(line, line.pieces(), languageLevel) ?: return broken(element)
 
     return when (content) {
-        is Content.Empty -> ElixirAst.Literal.Atom(meta(element), "")
-        is Content.Literal -> writtenAtom(element, String(utf8(content.codePoints), Charsets.UTF_8))
+        is Content.Empty, is Content.Literal -> named(element, AtomName.literal(content))
         is Content.Interpolated ->
             remoteCall(
                 element,
@@ -467,7 +322,7 @@ private fun Lowering.sigil(sigil: Sigil): ElixirAst {
         is SigilLine -> sigil.body.node.getChildren(null).toList().pieces()
         else -> return broken(sigil)
     }
-    val content = content(sigil, pieces) ?: return broken(sigil)
+    val content = content(sigil, pieces, languageLevel) ?: return broken(sigil)
     val parts = when (content) {
         is Content.Empty -> listOf(binary(sigil, ""))
         is Content.Literal -> listOf(binary(sigil, content.codePoints))
@@ -505,7 +360,7 @@ private fun Lowering.keywordPair(keywordPair: ElixirKeywordPair): ElixirAst =
     ElixirAst.Tuple(meta(keywordPair), listOf(keywordKey(keywordPair.keywordKey), lower(keywordPair.keywordValue)))
 
 private fun Lowering.keywordKey(keywordKey: ElixirKeywordKey): ElixirAst {
-    val line = keywordKey.line ?: return writtenAtom(keywordKey, identifier(keywordKey.text))
+    val line = keywordKey.line ?: return named(keywordKey)
 
     return quotedAtom(
         keywordKey,
@@ -621,14 +476,15 @@ private fun Lowering.atom(element: PsiElement, name: String): ElixirAst = Elixir
 
 /** The atom [element] writes as [name], broken when [name] is longer than an atom may be, as Elixir refuses it. */
 internal fun Lowering.writtenAtom(element: PsiElement, name: String): ElixirAst =
-    if (name.codePointCount(0, name.length) <= OtpExternal.maxAtomLength) {
+    if (fitsAnAtom(name)) {
         ElixirAst.Literal.Atom(meta(element), name)
     } else {
         broken(element)
     }
 
-/** Code points Elixir refuses in an escape, as UTF-8 cannot encode them. */
-private val SURROGATES = Character.MIN_SURROGATE.code..Character.MAX_SURROGATE.code
+/** The atom [element] names, as [AtomName] gives [name]; broken when it names none. */
+internal fun Lowering.named(element: PsiElement, name: String? = AtomName.of(element, languageLevel)): ElixirAst =
+    name?.let { ElixirAst.Literal.Atom(meta(element), it) } ?: broken(element)
 
 private fun Lowering.dot(element: PsiElement, module: String, function: String): ElixirAst =
     ElixirAst.Call(

@@ -191,8 +191,6 @@ class Lowering private constructor(
     internal fun tokenMetadata(name: String, value: Int): Meta.Key =
         Meta.Key.Entry(name, Meta.Value.Integer(value.toLong()), tokenMetadata = true)
 
-    internal fun identifier(text: String): String = identifierAtomName(text) { languageLevel }
-
     /** Where [decorate] puts a parent's keys among a child's own. */
     internal enum class Placement {
         /** Before them, as a parent adds `end_of_expression`, `parens` or `assoc`. */

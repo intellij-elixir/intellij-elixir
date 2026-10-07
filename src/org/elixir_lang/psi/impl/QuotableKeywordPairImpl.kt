@@ -3,7 +3,7 @@ package org.elixir_lang.psi.impl
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Macro.KEYWORD_BLOCK_KEYWORDS
-import org.elixir_lang.lowering.ElementLowering
+import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.psi.ElixirKeywordPair
 import org.elixir_lang.psi.ElixirNoParenthesesKeywordPair
 import org.elixir_lang.psi.Quotable
@@ -14,7 +14,7 @@ import org.elixir_lang.psi.QuotableKeywordPair
 fun QuotableKeywordPair.hasKeywordKey(keywordKeyText: String): Boolean {
     ThreadingAssertions.assertReadAccess()
 
-    return keywordKey.let { it.text == keywordKeyText || ElementLowering.atomName(it) == keywordKeyText }
+    return keywordKey.let { it.text == keywordKeyText || AtomName.of(it) == keywordKeyText }
 }
 
 /**
@@ -36,7 +36,7 @@ fun QuotableKeywordPair.keywordAtom(): String? {
 
     val text = keywordKey.text
 
-    return if (text in KEYWORD_BLOCK_KEYWORDS) text else ElementLowering.atomName(keywordKey)
+    return if (text in KEYWORD_BLOCK_KEYWORDS) text else AtomName.of(keywordKey)
 }
 
 object QuotableKeywordPairImpl {

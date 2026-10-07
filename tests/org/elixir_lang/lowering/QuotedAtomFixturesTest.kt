@@ -43,7 +43,7 @@ class QuotedAtomFixturesTest : ParsingTestCase() {
 
         ReadAction.computeBlocking<Unit, Throwable> {
             val atom = PsiTreeUtil.findChildOfType(file, ElixirAtom::class.java)!!
-            assertNull(ElementLowering.atomName(atom))
+            assertNull(AtomName.of(atom))
             assertNull(quotedAtomValue(atom))
         }
     }

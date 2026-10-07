@@ -8,7 +8,7 @@ import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Macro
 import org.elixir_lang.Module.NO_VALUE
-import org.elixir_lang.lowering.ElementLowering
+import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirAtomKeyword
 import org.elixir_lang.psi.Quotable
@@ -24,7 +24,7 @@ import org.elixir_lang.structure_view.element.CallDefinitionHead
 fun quotedAtomValue(quotable: Quotable): String? {
     ThreadingAssertions.assertReadAccess()
 
-    return ElementLowering.atomName(quotable)
+    return AtomName.of(quotable)
 }
 
 /**
