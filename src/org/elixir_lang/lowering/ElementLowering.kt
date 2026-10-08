@@ -50,11 +50,6 @@ object ElementLowering {
     @JvmStatic
     fun quote(element: Quotable): OtpErlangObject = lower(element).toOtp()
 
-    /** The atom [element] lowers to, or `null` when it lowers to anything else. */
-    @RequiresReadLock
-    @JvmStatic
-    fun atomName(element: PsiElement): String? = (lower(element) as? ElixirAst.Literal.Atom)?.name
-
     /** A stub build can lower while the file's tree loads from its stubs, and asking the file for its tree then loads it again. */
     private fun root(element: PsiElement): ASTNode = generateSequence(element.node) { it.treeParent }.last()
 

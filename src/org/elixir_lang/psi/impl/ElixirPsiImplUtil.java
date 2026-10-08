@@ -349,16 +349,23 @@ public class ElixirPsiImplUtil {
         return org.elixir_lang.psi.operation.not_in.Normalized.leftOperand(notIn);
     }
 
-    @Contract(pure = true)
+    @RequiresReadLock
     @NotNull
     public static String moduleAttributeName(@NotNull final AtOperation atNonNumericOperation) {
-        return atNonNumericOperation.getText();
+        String atom = QuotedAtomKt.moduleAttributeAtom(atNonNumericOperation);
+
+        // no name, as in `@[1]`, or a name too long for an atom, keeps its text
+        return atom != null ? "@" + atom : atNonNumericOperation.getText();
     }
 
-    @Contract(pure = true)
+    @RequiresReadLock
     @NotNull
     public static String moduleAttributeName(@NotNull final AtUnqualifiedNoParenthesesCall atUnqualifiedNoParenthesesCall) {
-        return atUnqualifiedNoParenthesesCall.getAtIdentifier().getText();
+        ElixirAtIdentifier atIdentifier = atUnqualifiedNoParenthesesCall.getAtIdentifier();
+        String atom = QuotedAtomKt.moduleAttributeAtom(atIdentifier);
+
+        // a name too long for an atom keeps its text
+        return atom != null ? "@" + atom : atIdentifier.getText();
     }
 
     @Contract(pure = true, value = "_ -> null")

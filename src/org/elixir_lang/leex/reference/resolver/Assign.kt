@@ -13,6 +13,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.StubBased
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.childExpressionsFoldWhile
+import org.elixir_lang.psi.impl.quotedAtomValue
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.operation.*
 import org.elixir_lang.psi.stub.index.AllName
@@ -330,17 +331,13 @@ object Assign : ResolveCache.PolyVariantResolver<ReferenceAssign> {
             )
 
             is ElixirKeywordKey -> {
-                if (expression.line == null) {
-                    val resolvedName = expression.text
-                    val assignName = assign.name
+                val resolvedName = quotedAtomValue(expression)
+                val assignName = assign.name
 
-                    if (resolvedName.startsWith(assignName)) {
-                        val validResult = resolvedName == assignName
+                if (resolvedName != null && resolvedName.startsWith(assignName)) {
+                    val validResult = resolvedName == assignName
 
-                        initial + listOf(PsiElementResolveResult(expression, validResult))
-                    } else {
-                        null
-                    }
+                    initial + listOf(PsiElementResolveResult(expression, validResult))
                 } else {
                     null
                 } ?: initial
@@ -385,19 +382,17 @@ object Assign : ResolveCache.PolyVariantResolver<ReferenceAssign> {
                 initial
             )
 
-            is ElixirAtom -> if (expression.line == null) {
-                val resolvedName = expression.node.lastChildNode.text
+            is ElixirAtom -> {
+                val resolvedName = quotedAtomValue(expression)
                 val assignName = assign.name
 
-                if (resolvedName.startsWith(assignName)) {
+                if (resolvedName != null && resolvedName.startsWith(assignName)) {
                     val validResult = resolvedName == assignName
                     initial + listOf(PsiElementResolveResult(expression, validResult))
                 } else {
                     null
-                }
-            } else {
-                null
-            } ?: initial
+                } ?: initial
+            }
 
             // A key that is not an atom names no assign
             else -> initial
@@ -460,17 +455,13 @@ object Assign : ResolveCache.PolyVariantResolver<ReferenceAssign> {
 
             is QuotableKeywordPair -> resolveInLiveComponentAssigns(assign, incompleteCode, assigns.keywordKey)
             is ElixirKeywordKey -> {
-                if (assigns.line == null) {
-                    val resolvedName = assigns.text
-                    val assignName = assign.name
+                val resolvedName = quotedAtomValue(assigns)
+                val assignName = assign.name
 
-                    if (resolvedName.startsWith(assignName)) {
-                        val validResult = resolvedName == assignName
+                if (resolvedName != null && resolvedName.startsWith(assignName)) {
+                    val validResult = resolvedName == assignName
 
-                        listOf(PsiElementResolveResult(assigns, validResult))
-                    } else {
-                        null
-                    }
+                    listOf(PsiElementResolveResult(assigns, validResult))
                 } else {
                     null
                 } ?: emptyList()
@@ -836,19 +827,15 @@ object Assign : ResolveCache.PolyVariantResolver<ReferenceAssign> {
 
             is QuotableKeywordPair -> resolveMyself(assign, incompleteCode, expression.keywordKey, initial)
             is ElixirKeywordKey -> {
-                if (expression.line == null) {
-                    val resolvedName = expression.text
-                    val assignName = assign.name
+                val resolvedName = quotedAtomValue(expression)
+                val assignName = assign.name
 
-                    if (resolvedName.startsWith(assignName)) {
-                        val validResult = resolvedName == assignName
+                if (resolvedName != null && resolvedName.startsWith(assignName)) {
+                    val validResult = resolvedName == assignName
 
-                        val accumulator = initial + listOf(PsiElementResolveResult(expression, validResult))
+                    val accumulator = initial + listOf(PsiElementResolveResult(expression, validResult))
 
-                        AccumulatorContinue(accumulator, !validResult)
-                    } else {
-                        null
-                    }
+                    AccumulatorContinue(accumulator, !validResult)
                 } else {
                     null
                 } ?: AccumulatorContinue(initial, true)

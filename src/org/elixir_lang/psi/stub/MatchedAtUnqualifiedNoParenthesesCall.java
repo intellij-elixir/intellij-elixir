@@ -21,6 +21,7 @@ public class MatchedAtUnqualifiedNoParenthesesCall extends Stub<ElixirMatchedAtU
             boolean hasDoBlockOrKeyword,
             @NotNull String name,
             @NotNull Set<String> canonicalNameSet,
+            @Nullable Definition definition,
             @Nullable String implementedProtocolName
     ) {
         super(
@@ -32,7 +33,7 @@ public class MatchedAtUnqualifiedNoParenthesesCall extends Stub<ElixirMatchedAtU
                 hasDoBlockOrKeyword,
                 name,
                 canonicalNameSet,
-                Definition.MODULE_ATTRIBUTE,
+                definition,
                 implementedProtocolName
         );
     }

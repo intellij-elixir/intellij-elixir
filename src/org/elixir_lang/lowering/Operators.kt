@@ -29,7 +29,7 @@ internal fun Lowering.operator(element: PsiElement): ElixirAst =
     when (element) {
         is ElixirNullaryRangeOperation -> ElixirAst.Call(meta(element, location(element)), atom(element, ".."), emptyList())
         is ElixirSteppedRangeKeywordCall -> steppedRangeKeywordCall(element)
-        is Operator -> atom(element, element.operatorTokenNode().text)
+        is Operator -> named(element)
         is NotIn -> notIn(element)
         is In -> `in`(element)
         is Ternary -> ternary(element)

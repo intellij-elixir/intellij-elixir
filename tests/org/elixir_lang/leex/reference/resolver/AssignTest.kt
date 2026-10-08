@@ -5,6 +5,9 @@ import com.intellij.psi.ResolveResult
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
+import org.elixir_lang.language_level.elixir
 import org.elixir_lang.psi.AtOperation
 
 /**
@@ -92,6 +95,44 @@ class AssignTest : PlatformTestCase() {
         )
 
         resolveSilently("myself")
+    }
+
+    fun testKeywordKeyResolves() = assertAssigns("assign(socket, count: 1)", "count")
+    fun testQuotedKeywordKeyIsTheAssignedName() = assertAssigns("assign(socket, \"count\": 1)", "count")
+    fun testQuotedAtomIsTheAssignedName() = assertAssigns("assign(socket, :\"count\", 1)", "count")
+    fun testEscapedQuotedAtomIsTheAssignedName() = assertAssigns("assign(socket, :\"cou\\x6et\", 1)", "count")
+
+    fun testMicroSignKeywordKeyFrom1_14() = assertAssigns("assign(socket, µ: 1)", "µ", elixir("1.14.0"))
+    fun testMicroSignKeywordKeyBefore1_14() = assertAssigns("assign(socket, µ: 1)", "µ", elixir("1.13.0"))
+    fun testMicroSignAtomFrom1_14() = assertAssigns("assign(socket, :µ, 1)", "µ", elixir("1.14.0"))
+    fun testMicroSignAtomBefore1_14() = assertAssigns("assign(socket, :µ, 1)", "µ", elixir("1.13.0"))
+
+    override fun tearDown() {
+        try {
+            ElixirLanguageLevelResolver.overrideLanguageLevel(project, null)
+        } catch (e: Throwable) {
+            addSuppressedException(e)
+        } finally {
+            super.tearDown()
+        }
+    }
+
+    private fun assertAssigns(assignment: String, assign: String, languageLevel: ElixirLanguageLevel? = null) {
+        ElixirLanguageLevelResolver.overrideLanguageLevel(project, languageLevel)
+        myFixture.addFileToProject(
+            "lib/app_web/live/count_live.ex",
+            "defmodule CountLive do\n  def mount(_params, _session, socket) do\n    $assignment\n  end\nend\n"
+        )
+        val template = myFixture.addFileToProject("lib/app_web/live/count_live.html.leex", "<%= @$assign %>")
+        myFixture.configureFromExistingVirtualFile(template.virtualFile)
+        val elixirRoot = myFixture.file.viewProvider.allFiles.first { it.language.id == "Elixir" }
+        val atOperation = PsiTreeUtil.findChildOfType(elixirRoot, AtOperation::class.java)!!
+        val reference = atOperation.reference as PsiPolyVariantReference
+
+        assertTrue(
+            "@$assign should resolve to the name assigned by `$assignment`",
+            reference.multiResolve(false).any(ResolveResult::isValidResult)
+        )
     }
 
     private fun addPhoenixFunction(definition: String) {

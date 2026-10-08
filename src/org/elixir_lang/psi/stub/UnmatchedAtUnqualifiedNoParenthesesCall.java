@@ -27,6 +27,7 @@ public class UnmatchedAtUnqualifiedNoParenthesesCall extends Stub<ElixirUnmatche
             boolean hasDoBlockOrKeyword,
             @NotNull String name,
             @NotNull Set<String> canonicalNameSet,
+            @Nullable Definition definition,
             @Nullable String implementedProtocolName
     ) {
         super(
@@ -38,7 +39,7 @@ public class UnmatchedAtUnqualifiedNoParenthesesCall extends Stub<ElixirUnmatche
                 hasDoBlockOrKeyword,
                 name,
                 canonicalNameSet,
-                Definition.MODULE_ATTRIBUTE,
+                definition,
                 implementedProtocolName
         );
     }

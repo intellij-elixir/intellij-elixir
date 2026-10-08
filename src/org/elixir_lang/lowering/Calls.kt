@@ -10,18 +10,15 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.CLOSING_ON_EMPTY_MUL
 import org.elixir_lang.language_level.ElixirLanguageFeature.DELIMITER_ON_QUOTED_REMOTE_CALL
 import org.elixir_lang.language_level.ElixirLanguageFeature.ELLIPSIS_NULLARY_CALL
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_NEWLINE_AS_SPACE
-import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_NEWLINE_KEPT_IN_EXTRACTED_BUFFER
 import org.elixir_lang.language_level.ElixirLanguageFeature.FROM_BRACKETS_ON_BRACKETED_EXPRESSION
 import org.elixir_lang.language_level.ElixirLanguageFeature.FROM_BRACKETS_ON_EVERY_BRACKET_FORM
 import org.elixir_lang.language_level.ElixirLanguageFeature.NESTED_PARENTHESES_DROP_INNER_METADATA
 import org.elixir_lang.language_level.ElixirLanguageFeature.REMOTE_CALL_ON_NAME_LINE
-import org.elixir_lang.language_level.ElixirLanguageFeature.UNESCAPED_QUOTED_REMOTE_CALL_NAME
 import org.elixir_lang.psi.AtOperation
 import org.elixir_lang.psi.AtUnqualifiedBracketOperation
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.BracketOperation
 import org.elixir_lang.psi.DotCall
-import org.elixir_lang.psi.ElixirAtomKeyword
 import org.elixir_lang.psi.ElixirBlockIdentifier
 import org.elixir_lang.psi.ElixirBlockItem
 import org.elixir_lang.psi.ElixirBracketArguments
@@ -108,7 +105,7 @@ internal fun Lowering.call(element: PsiElement): ElixirAst =
             ElixirAst.Tuple(meta(element), listOf(lower(element.keywordKey), lower(element.keywordValue)))
         is ElixirNoParenthesesManyStrictNoParenthesesExpression ->
             element.children.singleOrNull()?.let { lower(it) } ?: broken(element)
-        is ElixirIdentifier -> writtenAtom(element, identifier(element.text))
+        is ElixirIdentifier -> named(element)
         is ElixirRelativeIdentifier -> relativeIdentifier(element) ?: broken(element)
         is ElixirVariable -> nameAlone(element, element)
         is ElixirBlockItem -> blockItem(element)
@@ -262,7 +259,7 @@ internal fun Lowering.variable(identifier: PsiElement): ElixirAst =
     ElixirAst.Call(meta(identifier, location(identifier)), localCallee(identifier), null)
 
 private fun Lowering.localCallee(identifier: PsiElement): ElixirAst =
-    writtenAtom(identifier, identifier(identifier.text))
+    named(identifier, AtomName.unquoted(identifier.text, languageLevel))
 
 private val LINE_CONTINUATION = Regex("\\\\\r?\n")
 
@@ -342,50 +339,11 @@ private fun Lowering.remote(call: PsiElement): Remote? {
  * tokenizer rejects in a name.
  */
 private fun Lowering.relativeIdentifier(relativeIdentifier: ElixirRelativeIdentifier): ElixirAst? =
-    when (val child = relativeIdentifier.children.singleOrNull()) {
-        null ->
-            writtenAtom(relativeIdentifier, identifier(relativeIdentifier.node.firstChildNode.text))
-        is ElixirLine ->
-            if (child.lineBody?.interpolationList.orEmpty().isNotEmpty()) {
-                null
-            } else if (isAvailable(UNESCAPED_QUOTED_REMOTE_CALL_NAME)) {
-                quotedAtom(relativeIdentifier, child, emptyList()) as? ElixirAst.Literal.Atom
-            } else {
-                writtenAtom(
-                    relativeIdentifier,
-                    literalQuotedRemoteCallName(child, isAvailable(ESCAPED_NEWLINE_KEPT_IN_EXTRACTED_BUFFER))
-                )
-            }
-        is ElixirAtomKeyword -> ElixirAst.Literal.Atom(meta(relativeIdentifier), child.text)
-        else -> null
+    when (val name = AtomName.remoteCallName(relativeIdentifier, languageLevel)) {
+        is RemoteCallName.Named -> named(relativeIdentifier, name.atom)
+        RemoteCallName.Broken -> broken(relativeIdentifier)
+        RemoteCallName.NoCall -> null
     }
-
-/**
- * A quoted remote call's name as Elixir 1.17 and earlier kept it: `extract` without unescaping, which still drops the
- * `\` before the terminator, and before 1.12 a `\` ending a line with its newline, but keeps every other escape as
- * written.
- */
-private fun literalQuotedRemoteCallName(line: ElixirLine, keepsLineContinuation: Boolean): String {
-    val text = line.lineBody?.text.orEmpty()
-    val terminator = if (line.isCharList) '\'' else '"'
-    val name = StringBuilder()
-    var index = 0
-
-    while (index < text.length) {
-        if (text[index] == '\\' && index + 1 < text.length) {
-            if (keepsLineContinuation || text[index + 1] != '\n') {
-                if (text[index + 1] != terminator) name.append('\\')
-                name.append(text[index + 1])
-            }
-            index += 2
-        } else {
-            name.append(text[index])
-            index += 1
-        }
-    }
-
-    return name.toString()
-}
 
 private fun Lowering.dotCallee(
     range: TextRange,
