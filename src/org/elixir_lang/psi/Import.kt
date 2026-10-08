@@ -631,6 +631,23 @@ object Import {
     internal fun importedCapabilities(definition: BeamCallDefinition): Capabilities? =
         definition.capabilities.takeIf { it.public && !definition.isCompilerAdded }
 
+    /** Whether an `import` of [child]'s module brings [child] in: a public definition clause, or a delegation. */
+    @RequiresReadLock
+    internal fun imports(child: Call): Boolean = export(child, ResolveState.initial()) != null
+
+    /** Whether an `import` of [definition]'s module brings it in. */
+    @RequiresReadLock
+    internal fun imports(definition: BeamCallDefinition): Boolean = export(definition) != null
+
+    /** The definitions of [modular] that an `import` of it brings in, unmapped. */
+    @RequiresReadLock
+    internal fun importedDefinitions(modular: PsiElement): List<PsiElement> =
+        when (modular) {
+            is Call -> CallDefinitionClause.modularChildCalls(modular).filter { imports(it) }
+            is BeamModule -> modular.callDefinitions().filter { imports(it) }
+            else -> emptyList()
+        }
+
     private fun exports(modular: PsiNamedElement): List<Export> =
         when (modular) {
             is Call -> CallDefinitionClause.modularChildCalls(modular).mapNotNull { export(it, ResolveState.initial()) }
@@ -663,7 +680,8 @@ object Import {
      * @return `defmodule`, `defimpl`, or `defprotocol` imported by `importCall`.  It can be
      * `null` if Alias passed to `importCall` cannot be resolved.
      */
-    private fun modulars(importCall: Call): Set<PsiNamedElement> =
+    @RequiresReadLock
+    internal fun modulars(importCall: Call): Set<PsiNamedElement> =
         importCall
             .finalArguments()
             ?.firstOrNull()

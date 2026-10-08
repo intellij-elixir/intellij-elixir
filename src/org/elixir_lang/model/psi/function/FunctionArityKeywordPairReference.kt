@@ -6,17 +6,19 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
+import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.FunctionArityKeywordPair
 import org.elixir_lang.model.psi.callback.BehaviourMembership
 import org.elixir_lang.model.psi.callback.Callback
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.Import
 import org.elixir_lang.psi.QuotableKeywordPair
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.reference.resolver.Module as ModuleResolver
+import org.elixir_lang.structure_view.element.Delegation
+import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.structure_view.element.Callback as CallbackElement
 
 /**
@@ -52,33 +54,17 @@ class FunctionArityKeywordPairReference(
     }
 
     @RequiresReadLock
-    private fun resolveFunctions(occurrence: FunctionArityKeywordPair.Occurrence): Collection<Symbol> {
-        val modulars: Collection<Call> = when (occurrence.host) {
-            FunctionArityKeywordPair.Host.COMPILE_INLINE,
-            FunctionArityKeywordPair.Host.DIALYZER ->
-                listOfNotNull(CallDefinitionClause.enclosingModularMacroCall(occurrence.hostCall))
+    private fun resolveFunctions(occurrence: FunctionArityKeywordPair.Occurrence): Collection<Symbol> =
+        when (val definitions = definitions(occurrence)) {
+            is Definitions.Found ->
+                definitions.definitions
+                    .mapNotNull { definitionClause(it) }
+                    .flatMap { FunctionSymbol.fromClause(it) }
+                    .filter { it.name == occurrence.name && it.arity == occurrence.arity }
 
-            FunctionArityKeywordPair.Host.IMPORT_ONLY,
-            FunctionArityKeywordPair.Host.IMPORT_EXCEPT ->
-                occurrence.hostCall
-                    .finalArguments()
-                    ?.firstOrNull()
-                    ?.maybeModularNameToModulars(maxScope = occurrence.hostCall.parent, useCall = null, incompleteCode = false)
-                    ?.filterIsInstance<Call>()
-                    ?: emptyList()
-
-            FunctionArityKeywordPair.Host.DEFOVERRIDABLE -> emptyList()
+            Definitions.UnresolvedModule,
+            Definitions.Callbacks -> emptyList()
         }
-
-        return modulars.flatMap { modular ->
-            CallDefinitionClause.modularChildCalls(modular)
-                .asSequence()
-                .filter { CallDefinitionClause.`is`(it) }
-                .flatMap { FunctionSymbol.fromClause(it) }
-                .filter { it.name == occurrence.name && it.arity == occurrence.arity }
-                .toList()
-        }
-    }
 
     @RequiresReadLock
     private fun resolveCallbacks(occurrence: FunctionArityKeywordPair.Occurrence): Collection<Symbol> {
@@ -132,6 +118,54 @@ class FunctionArityKeywordPairReference(
             CallDefinitionClause.enclosingModularMacroCall(hostCall)
                 ?.let { BehaviourMembership.namesImplementedBy(it) }
                 ?: emptySet()
+        }
+    }
+
+    /** What the key of an [FunctionArityKeywordPair.Occurrence] can name, before its name and arity. */
+    sealed interface Definitions {
+        /**
+         * What the key can name, possibly nothing: source clauses and delegations, or a `.beam` module's
+         * [BeamCallDefinition]s, unmapped.
+         */
+        data class Found(val definitions: List<PsiElement>) : Definitions
+
+        /** An `import` whose module is not found. */
+        data object UnresolvedModule : Definitions
+
+        /** A `defoverridable` key, which names callbacks, not definitions. */
+        data object Callbacks : Definitions
+    }
+
+    companion object {
+        /**
+         * The one function that decides what a key can name. At `import`'s `only:` and `except:` that is what the
+         * import brings in ([Import.imports]), so a private definition names nothing, in source and in a `.beam`
+         * alike; at `@compile inline:` and `@dialyzer` it is every definition of the enclosing module, private ones
+         * included.
+         */
+        @RequiresReadLock
+        fun definitions(occurrence: FunctionArityKeywordPair.Occurrence): Definitions {
+            ThreadingAssertions.assertReadAccess()
+
+            return when (occurrence.host) {
+                FunctionArityKeywordPair.Host.COMPILE_INLINE,
+                FunctionArityKeywordPair.Host.DIALYZER ->
+                    Definitions.Found(
+                        CallDefinitionClause.enclosingModularMacroCall(occurrence.hostCall)
+                            ?.let { CallDefinitionClause.modularChildCalls(it) }
+                            .orEmpty()
+                            .filter { CallDefinitionClause.`is`(it) || Delegation.`is`(it) }
+                    )
+
+                FunctionArityKeywordPair.Host.IMPORT_ONLY,
+                FunctionArityKeywordPair.Host.IMPORT_EXCEPT ->
+                    Import.modulars(occurrence.hostCall)
+                        .takeIf { it.isNotEmpty() }
+                        ?.let { modulars -> Definitions.Found(modulars.flatMap { Import.importedDefinitions(it) }) }
+                        ?: Definitions.UnresolvedModule
+
+                FunctionArityKeywordPair.Host.DEFOVERRIDABLE -> Definitions.Callbacks
+            }
         }
     }
 }

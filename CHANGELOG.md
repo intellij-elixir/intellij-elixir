@@ -122,6 +122,8 @@
 
 ### Bug Fixes
 
+- [#4372](https://github.com/intellij-elixir/intellij-elixir/pull/4372) [@sh41](https://github.com/sh41)
+  - **A function named in an `import` `only:` or `except:` list no longer resolves to a private definition, and resolves in a module that exists only as a compiled `.beam`.** Refs [#4343](https://github.com/intellij-elixir/intellij-elixir/issues/4343).
 - [#4365](https://github.com/intellij-elixir/intellij-elixir/pull/4365) [@sh41](https://github.com/sh41)
   - **Rename refuses a declaration in the Elixir SDK's sources or a dependency's sources, which the project does not own.** Refs [#4359](https://github.com/intellij-elixir/intellij-elixir/issues/4359).
   - **Renaming a module declared as an atom, such as `defmodule :"Elixir.A.B"`, or with an `Elixir.` head, keeps that spelling at the declaration and at its uses, and refuses a new name that is not a module name.** Refs [#4359](https://github.com/intellij-elixir/intellij-elixir/issues/4359).
