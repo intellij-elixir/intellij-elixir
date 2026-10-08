@@ -159,19 +159,18 @@ public abstract class ParsingTestCase extends com.intellij.testFramework.Parsing
 
     /**
      * As {@link #assertParsedAndQuotedCorrectlyBefore}, where the releases from {@code languageLevel} reject by raising
-     * {@code expectedException} until {@code errorLanguageLevel}, and by answering an error tuple from it.
+     * {@code MatchError} until {@code errorLanguageLevel}, and by answering an error tuple from it. The tree is not
+     * checked.
      */
     protected void assertParsedAndQuotedCorrectlyBeforeOrRaise(
             ElixirLanguageLevel languageLevel,
-            ElixirLanguageLevel errorLanguageLevel,
-            String expectedException,
-            boolean checkResult
+            ElixirLanguageLevel errorLanguageLevel
     ) {
-        doTest(checkResult);
+        doTest(false);
 
         if (ElixirLanguageLevelResolver.languageLevelFor(myFile).getElixir()
                 .compareTo(languageLevel.getElixir()) >= 0) {
-            assertQuotedAroundErrorOrRaise(errorLanguageLevel, expectedException);
+            assertQuotedAroundErrorOrRaise(errorLanguageLevel, "Elixir.MatchError");
         } else {
             assertWithoutLocalError();
             assertQuotedCorrectly();
