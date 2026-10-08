@@ -46,4 +46,18 @@ object BeamLibraryFixture {
             ModuleRootModificationUtil.addDependency(module, library)
         }
     }
+
+    /** Removes [libraryName] from [module]'s dependencies and from the project library table, in one write action. */
+    fun removeLibrary(project: Project, module: Module, libraryName: String) {
+        WriteAction.runAndWait<Throwable> {
+            val libraryTable = LibraryTablesRegistrar.getInstance().getLibraryTable(project)
+            val library = libraryTable.getLibraryByName(libraryName) ?: return@runAndWait
+
+            ModuleRootModificationUtil.removeDependency(module, library)
+
+            val tableModel = libraryTable.modifiableModel
+            tableModel.removeLibrary(library)
+            tableModel.commit()
+        }
+    }
 }

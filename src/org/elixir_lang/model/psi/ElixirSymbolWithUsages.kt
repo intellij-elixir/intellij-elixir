@@ -1,8 +1,10 @@
 package org.elixir_lang.model.psi
 
+import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiCompiledFile
 import com.intellij.psi.PsiFile
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 
 /**
  * An [ElixirSymbol] that can be searched for. [ElixirSymbolUsageSearcher] dispatches on this type.
@@ -23,4 +25,26 @@ interface ElixirSymbolWithUsages : ElixirSymbol {
      */
     val compiledFile: PsiCompiledFile?
         get() = file as? PsiCompiledFile ?: file.originalFile as? PsiCompiledFile
+
+    /**
+     * What a rename writes over [range] for a new name when that is not the new name itself, or `null`. It is read
+     * only by a rename, and must be a pure string transformation: the platform may run it on the EDT.
+     */
+    @get:RequiresReadLock
+    val declarationTextByName: ((String) -> String)?
+        get() = null
+
+    /**
+     * Whether [file] is in a library or SDK and not under a content root, so the project does not own it: an SDK's
+     * sources, a dependency under an excluded `deps/`, a `path:` dependency outside the project. A file with no
+     * [com.intellij.openapi.vfs.VirtualFile] is not.
+     */
+    @get:RequiresReadLock
+    val declaredInLibrary: Boolean
+        get() {
+            val virtualFile = file.originalFile.virtualFile ?: return false
+            val index = ProjectFileIndex.getInstance(file.project)
+
+            return index.isInLibrary(virtualFile) && !index.isInContent(virtualFile)
+        }
 }

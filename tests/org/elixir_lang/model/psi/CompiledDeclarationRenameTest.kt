@@ -2,6 +2,7 @@ package org.elixir_lang.model.psi
 
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
+import com.intellij.testFramework.common.runAll
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.code_insight.renameTargetsAtCaret
@@ -53,9 +54,16 @@ class CompiledDeclarationRenameTest : PlatformTestCase() {
             assertTrue(
                 "Renaming $target, declared in compiled code, should be refused, but " +
                     (failure?.let { "failed with $it" } ?: "renamed it"),
-                generateSequence(failure) { it.cause }.any { it.message.orEmpty().contains("cannot be renamed") }
+                generateSequence(failure) { it.cause }.any { it.message.orEmpty().contains("declared in compiled code") }
             )
         }
+    }
+
+    override fun tearDown() {
+        runAll(
+            { BeamLibraryFixture.removeLibrary(project, myFixture.module, LIBRARY_NAME) },
+            { super.tearDown() },
+        )
     }
 
     override fun setUp() {
@@ -66,6 +74,10 @@ class CompiledDeclarationRenameTest : PlatformTestCase() {
         ).map { File(it).absolutePath }
         beamDirs.forEach { VfsRootAccess.allowRootAccess(myFixture.testRootDisposable, it) }
         val beamDirVfs = beamDirs.map { LocalFileSystem.getInstance().refreshAndFindFileByIoFile(File(it))!! }
-        BeamLibraryFixture.addLibrary(project, myFixture.module, "compiled_declaration_rename_test_lib", beamDirVfs)
+        BeamLibraryFixture.addLibrary(project, myFixture.module, LIBRARY_NAME, beamDirVfs)
+    }
+
+    private companion object {
+        const val LIBRARY_NAME = "compiled_declaration_rename_test_lib"
     }
 }

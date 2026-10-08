@@ -13,6 +13,7 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.SmartPointerManager
 import com.intellij.psi.search.SearchScope
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.model.psi.ElixirRenameTarget
 import org.elixir_lang.psi.Module
 import org.elixir_lang.psi.Protocol
@@ -32,10 +33,26 @@ class ModuleSymbol(
     override val file: PsiFile,
     override val range: TextRange,
     val moduleName: String,
-    /** The name as the declaration writes it, which a rename replaces: `Inner` for `A.Inner`. */
+    /**
+     * The name as the declaration writes it, which a rename replaces: `Inner` for `A.Inner`. A declaration written
+     * as an atom with an alias spelling seeds that spelling: `A.B` for `:"Elixir.A.B"`.
+     */
     override val targetName: String = moduleName
 ) : ElixirRenameTarget, NavigationTarget, SearchTarget {
     override val searchText: String get() = moduleName.substringAfterLast('.')
+
+    override val declarationTextByName: ((String) -> String)?
+        get() = textAt(file.viewProvider.contents.subSequence(range.startOffset, range.endOffset).toString(), null)
+
+    override fun newNameRefusal(newName: String): String? {
+        val accepted = when {
+            isAlias(targetName) -> isAlias(newName)
+            targetName.startsWith(":") -> isAlias(newName) || isAtomLiteral(newName)
+            else -> true
+        }
+
+        return if (accepted) null else "$newName is not a module name"
+    }
 
     override fun createPointer(): Pointer<out ModuleSymbol> {
         val moduleName = this.moduleName
@@ -98,10 +115,15 @@ class ModuleSymbol(
         fun fromModular(call: Call): ModuleSymbol? {
             if (!isDeclaration(call)) return null
             val nameElement = moduleNameElement(call) ?: return null
-            val targetName = moduleNameText(call)?.removeElixirPrefix() ?: return null
+            val written = moduleNameText(call) ?: return null
             val moduleName = CanonicallyNamedImpl.canonicalName(SyntacticCall.of(call))
                 ?.takeUnless { org.elixir_lang.Module.atom(it) == null }
-                ?: targetName
+                ?: written.removeElixirPrefix()
+            val targetName = if (written.startsWith(":")) {
+                org.elixir_lang.Module.inspect(moduleName).takeIf(::isAlias) ?: written
+            } else {
+                written.removeElixirPrefix()
+            }
 
             // For a `defmodule` in a decompiled `.beam` mirror, containingFile is the in-memory mirror;
             // originalFile is the navigable compiled `.beam` whose editor shows the decompiled text at
@@ -142,6 +164,41 @@ class ModuleSymbol(
         }
 
         private fun String.removeElixirPrefix(): String =
-            if (startsWith("Elixir.")) removePrefix("Elixir.") else this
+            if (startsWith(ELIXIR_HEAD)) removePrefix(ELIXIR_HEAD) else this
+
+        private const val ELIXIR_HEAD = "Elixir."
+
+        /** Whether `Elixir.` and [name] make an alias. */
+        private fun isAlias(name: String): Boolean = InspectAtom.classify("$ELIXIR_HEAD$name") == InspectAtom.Class.ALIAS
+
+        /** Whether [name] is `:` and an atom, written as `inspect` writes an atom that is not an alias. */
+        private fun isAtomLiteral(name: String): Boolean =
+            name.startsWith(":") && InspectAtom.literal(name.substring(1)) == name
+
+        /** [name] with the one `Elixir.` head that makes an alias absolute. */
+        private fun absolute(name: String): String = if (name.startsWith(ELIXIR_HEAD)) name else "$ELIXIR_HEAD$name"
+
+        /**
+         * The text a rename writes, for a new name, at a place that writes this module's name as [written], or `null`
+         * where the new name goes in as typed. [current] is what the usage query makes of the place relative to the
+         * qualifier around it, or `null`.
+         *
+         * A new name that starts with `Elixir.` is absolute, so it is written as typed wherever the whole name is
+         * written. A place written absolutely stays absolute, and an atom declaration stays an atom: given an alias,
+         * it is written as the atom of the alias's absolute form.
+         */
+        fun textAt(written: String, current: ((String) -> String)?): ((String) -> String)? =
+            when {
+                written.startsWith(":") -> { newName ->
+                    if (newName.startsWith(":")) newName else ":\"${InspectAtom.escape(absolute(newName))}\""
+                }
+
+                written.startsWith(ELIXIR_HEAD) -> { newName ->
+                    if (newName.startsWith(ELIXIR_HEAD)) newName else absolute(current?.invoke(newName) ?: newName)
+                }
+
+                current != null -> { newName -> if (newName.startsWith(ELIXIR_HEAD)) newName else current(newName) }
+                else -> null
+            }
     }
 }
