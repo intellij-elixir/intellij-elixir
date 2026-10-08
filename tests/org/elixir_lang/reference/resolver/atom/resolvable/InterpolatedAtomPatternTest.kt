@@ -64,6 +64,44 @@ class InterpolatedAtomPatternTest : PlatformTestCase() {
         )
     }
 
+    fun testAnIncompleteSequenceBeforeAnInterpolationIsFinishedByIt() {
+        assertEquals(
+            setOf("defmodule :\"aéb\" do\nend"),
+            resolve(
+                """
+                defmodule :"aéb" do
+                end
+
+                defmodule :"béb" do
+                end
+
+                defmodule User do
+                  def f(x), do: :"a\xC3#{x}"
+                end
+                """
+            )
+        )
+    }
+
+    fun testAContinuationByteAfterAnInterpolationIsStartedByIt() {
+        assertEquals(
+            setOf("defmodule :\"éz\" do\nend"),
+            resolve(
+                """
+                defmodule :"éz" do
+                end
+
+                defmodule :"éy" do
+                end
+
+                defmodule User do
+                  def f(x), do: :"#{x}\xA9z"
+                end
+                """
+            )
+        )
+    }
+
     fun testAnEscapeBelowTheByteRangeIsACodePoint() {
         assertEquals(
             setOf("defmodule :Abc do\nend"),

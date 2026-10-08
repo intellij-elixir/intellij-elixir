@@ -10,8 +10,9 @@ import java.io.ByteArrayOutputStream
 
 /**
  * The names an interpolated [atom] can have, from the `:erlang.binary_to_atom(<<...>>, :utf8)` it lowers to: each text
- * part's bytes as [AtomName.text] reads them, each interpolation anything. `null` when a part's bytes are not UTF-8, as
- * Elixir raises there, and when the atom lowers to anything else.
+ * part's bytes as [AtomName.text] reads them, each interpolation anything, and a UTF-8 character split by an
+ * interpolation left to it. `null` when a part's bytes are not UTF-8, as Elixir raises there, and when the atom lowers
+ * to anything else.
  */
 @RequiresReadLock
 fun interpolatedAtomPattern(atom: ElixirAtom): Pattern? {
@@ -21,8 +22,10 @@ fun interpolatedAtomPattern(atom: ElixirAtom): Pattern? {
     val regex = StringBuilder()
     val bytes = ByteArrayOutputStream()
 
-    fun flush(): Boolean {
-        val text = AtomName.text(bytes.toByteArray()) ?: return false
+    var afterInterpolation = false
+
+    fun flush(beforeInterpolation: Boolean): Boolean {
+        val text = AtomName.text(bytes.toByteArray(), afterInterpolation, beforeInterpolation) ?: return false
 
         bytes.reset()
         if (text.isNotEmpty()) regex.append(java.util.regex.Pattern.quote(text))
@@ -36,10 +39,11 @@ fun interpolatedAtomPattern(atom: ElixirAtom): Pattern? {
         if (part is ElixirAst.Literal.Binary) {
             bytes.write(part.bytes)
         } else {
-            if (!flush()) return null
+            if (!flush(beforeInterpolation = true)) return null
             regex.append(".*")
+            afterInterpolation = true
         }
     }
 
-    return if (flush()) Pattern(regex.toString()) else null
+    return if (flush(beforeInterpolation = false)) Pattern(regex.toString()) else null
 }

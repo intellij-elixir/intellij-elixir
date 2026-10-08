@@ -34,7 +34,7 @@ import org.elixir_lang.psi.impl.identifierName
 import org.elixir_lang.psi.impl.operatorTokenNode
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
-import java.nio.charset.CharacterCodingException
+import java.nio.CharBuffer
 import java.nio.charset.CodingErrorAction
 
 /**
@@ -136,17 +136,25 @@ object AtomName {
             is Content.Interpolated -> null
         }
 
-    /** The text [bytes] spell, or `null` when they are not UTF-8, as Elixir names no atom for them. */
-    internal fun text(bytes: ByteArray): String? =
-        try {
-            Charsets.UTF_8.newDecoder()
-                .onMalformedInput(CodingErrorAction.REPORT)
-                .onUnmappableCharacter(CodingErrorAction.REPORT)
-                .decode(ByteBuffer.wrap(bytes))
-                .toString()
-        } catch (_: CharacterCodingException) {
-            null
-        }
+    /**
+     * The text [bytes] spell, or `null` when they are not UTF-8, as Elixir names no atom for them. [startsInside] says
+     * an interpolation ends just before the first byte, so the continuation bytes it opens with finish that
+     * interpolation's character and are not read here. [endsInside] says an interpolation follows, so a sequence the
+     * bytes leave incomplete is finished by it.
+     */
+    internal fun text(bytes: ByteArray, startsInside: Boolean = false, endsInside: Boolean = false): String? {
+        val first = if (startsInside) bytes.asSequence().take(3).takeWhile(::isContinuation).count() else 0
+        val input = ByteBuffer.wrap(bytes, first, bytes.size - first)
+        val output = CharBuffer.allocate(bytes.size)
+        val result = Charsets.UTF_8.newDecoder()
+            .onMalformedInput(CodingErrorAction.REPORT)
+            .onUnmappableCharacter(CodingErrorAction.REPORT)
+            .decode(input, output, !endsInside)
+
+        return if (result.isError) null else output.flip().toString()
+    }
+
+    private fun isContinuation(byte: Byte): Boolean = byte.toInt() and 0xC0 == 0x80
 
     private fun quoted(line: ElixirLine, languageLevel: ElixirLanguageLevel): String? =
         content(line, line.pieces(), languageLevel)?.let(::literal)
