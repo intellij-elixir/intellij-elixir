@@ -56,8 +56,15 @@ public class ElixirParserUtil extends GeneratedParserUtilBase {
             ElixirTypes.TUPLE
     };
 
+    /** Set by {@link TwoPassParser} for the pass that records no expected tokens. */
+    static final Key<Boolean> FAST_PASS = Key.create("ELIXIR_PARSE_FAST_PASS");
+    /** The message of an error the fast pass leaves in its tree; {@link TwoPassParser} reparses, so no user sees it. */
+    private static final String FAST_PASS_ERROR = "error before the recording pass";
+
     private static final class ElixirErrorState extends ErrorState {
         final GroupFailures failures = new GroupFailures();
+        /** No expected tokens are recorded, so no error can be described: {@link TwoPassParser}'s first pass. */
+        boolean fast;
     }
 
     /** Hides the base method: the generated parser's builder has to carry {@link ElixirErrorState}. */
@@ -69,14 +76,171 @@ public class ElixirParserUtil extends GeneratedParserUtilBase {
                                             PsiBuilder builder,
                                             PsiParser parser,
                                             TokenSet[] extendsSets) {
-        ErrorState state = new ElixirErrorState();
+        ElixirErrorState state = new ElixirErrorState();
         ErrorState.initState(state, builder, root, extendsSets);
+        state.fast = builder.getUserData(FAST_PASS) == Boolean.TRUE;
 
         return new Builder(builder, state, parser);
     }
 
+    private static ElixirErrorState state(PsiBuilder builder) {
+        return (ElixirErrorState) ErrorState.get(builder);
+    }
+
     private static GroupFailures failures(PsiBuilder builder) {
-        return ((ElixirErrorState) ErrorState.get(builder)).failures;
+        return state(builder).failures;
+    }
+
+    /*
+     * The fast pass. Each method hides the base one the generated parser calls; the base records a variant, the token
+     * or rule it expected here, on every call, hit or miss. Without variants the base cannot describe an error, and
+     * reports none from `report_error_` or a pinned section that fails, so those record that the pass met an error
+     * instead and TwoPassParser parses again recording.
+     */
+
+    public static boolean consumeToken(PsiBuilder builder, IElementType token) {
+        return state(builder).fast ?
+                consumeTokenFast(builder, token) :
+                GeneratedParserUtilBase.consumeToken(builder, token);
+    }
+
+    /**
+     * A rule's first check. An unnamed group's would record every token it lists as expected, several only by their
+     * type's name, so the recording pass skips it, as the base does while completing, and the group's rules record
+     * what they expected.
+     */
+    // the generated parser calls it as `if (!nextTokenIs(...)) return false;` and the name is the base's
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
+    public static boolean nextTokenIs(PsiBuilder builder, String frameName, IElementType... tokens) {
+        if (state(builder).fast) {
+            return nextTokenIsFast(builder, tokens);
+        }
+
+        return frameName.isEmpty() || GeneratedParserUtilBase.nextTokenIs(builder, frameName, tokens);
+    }
+
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
+    public static boolean nextTokenIs(PsiBuilder builder, IElementType token) {
+        return state(builder).fast ?
+                nextTokenIsFast(builder, token) :
+                GeneratedParserUtilBase.nextTokenIs(builder, token);
+    }
+
+    public static void addVariant(PsiBuilder builder, String text) {
+        if (!state(builder).fast) {
+            GeneratedParserUtilBase.addVariant(builder, text);
+        }
+    }
+
+    public static boolean consumeTokens(PsiBuilder builder, int pin, IElementType... tokens) {
+        ElixirErrorState state = state(builder);
+
+        return state.fast ?
+                consumeTokensFast(builder, state, pin, tokens) :
+                GeneratedParserUtilBase.consumeTokens(builder, pin, tokens);
+    }
+
+    public static boolean consumeTokensSmart(PsiBuilder builder, int pin, IElementType... tokens) {
+        ElixirErrorState state = state(builder);
+
+        return state.fast ?
+                consumeTokensFast(builder, state, pin, tokens) :
+                GeneratedParserUtilBase.consumeTokensSmart(builder, pin, tokens);
+    }
+
+    public static boolean parseTokens(PsiBuilder builder, int pin, IElementType... tokens) {
+        ElixirErrorState state = state(builder);
+
+        if (!state.fast) {
+            return GeneratedParserUtilBase.parseTokens(builder, pin, tokens);
+        }
+
+        PsiBuilder.Marker marker = builder.mark();
+        boolean result = consumeTokensFast(builder, state, pin, tokens);
+
+        if (result) {
+            marker.drop();
+        } else {
+            marker.rollbackTo();
+        }
+
+        return result;
+    }
+
+    /** The base's loop without variants: a token missing after the pin is an error. */
+    private static boolean consumeTokensFast(PsiBuilder builder,
+                                             ElixirErrorState state,
+                                             int pin,
+                                             IElementType... tokens) {
+        boolean result = true;
+        boolean pinned = false;
+
+        for (int index = 0; index < tokens.length; index++) {
+            if (pin > 0 && index == pin) {
+                pinned = result;
+            }
+
+            if ((result || pinned) && !consumeTokenFast(builder, tokens[index])) {
+                result = false;
+
+                if (pin < 0 || pinned) {
+                    errorSeen(builder);
+                }
+            }
+        }
+
+        return pinned || result;
+    }
+
+    public static boolean report_error_(PsiBuilder builder, boolean result) {
+        ElixirErrorState state = state(builder);
+
+        if (!state.fast) {
+            return GeneratedParserUtilBase.report_error_(builder, result);
+        }
+
+        if (!result) {
+            errorSeen(builder);
+        }
+
+        return result;
+    }
+
+    public static void exit_section_(PsiBuilder builder,
+                                     int level,
+                                     PsiBuilder.Marker marker,
+                                     boolean result,
+                                     boolean pinned,
+                                     @Nullable Parser eatMore) {
+        exit_section_(builder, level, marker, null, result, pinned, eatMore);
+    }
+
+    /**
+     * A pinned section that fails is an error the base describes from its variants, so the fast pass marks it here.
+     * A section with `recoverWhile` that fails is not one: on valid source `expression` fails at every closing token.
+     */
+    public static void exit_section_(PsiBuilder builder,
+                                     int level,
+                                     PsiBuilder.Marker marker,
+                                     @Nullable IElementType elementType,
+                                     boolean result,
+                                     boolean pinned,
+                                     @Nullable Parser eatMore) {
+        ElixirErrorState state = state(builder);
+
+        if (state.fast && !result && pinned) {
+            errorSeen(builder);
+        }
+
+        GeneratedParserUtilBase.exit_section_(builder, level, marker, elementType, result, pinned, eatMore);
+    }
+
+    /**
+     * Marks an error the fast pass cannot describe with an error element, not a flag: an enclosing section that rolls
+     * back removes it, as it removes the recording pass's error.
+     */
+    private static void errorSeen(PsiBuilder builder) {
+        builder.error(FAST_PASS_ERROR);
     }
 
     /**
@@ -282,11 +446,16 @@ public class ElixirParserUtil extends GeneratedParserUtilBase {
             ElixirTypes.INVALID_OCTAL_DIGITS
     );
 
+    /** The remapper {@link TwoPassParser} installs for the builder's {@link #LANGUAGE_LEVEL}; without one, nothing is remapped. */
+    static @Nullable WordAfterNumber remapper(@NotNull PsiBuilder builder) {
+        ElixirLanguageLevel languageLevel = builder.getUserData(LANGUAGE_LEVEL);
+
+        return languageLevel == null ? null : new WordAfterNumber(languageLevel);
+    }
+
     /**
      * The token at {@code steps} as the builder will see it. The remapper rewrites a token only once the builder
      * reaches it, so ahead of it {@link PsiBuilder#rawLookup} still shows invalid digits where it will show a keyword.
-     * {@code File.doParseContents} installs the remapper with the {@link #LANGUAGE_LEVEL}; without one nothing is
-     * remapped.
      */
     private static @Nullable IElementType remapped(@NotNull PsiBuilder builder, int steps) {
         IElementType tokenType = builder.rawLookup(steps);
@@ -295,11 +464,11 @@ public class ElixirParserUtil extends GeneratedParserUtilBase {
             return tokenType;
         }
 
-        ElixirLanguageLevel languageLevel = builder.getUserData(LANGUAGE_LEVEL);
+        WordAfterNumber remapper = remapper(builder);
 
-        return languageLevel == null
+        return remapper == null
                 ? tokenType
-                : new WordAfterNumber(languageLevel).filter(
+                : remapper.filter(
                         tokenType,
                         builder.rawTokenTypeStart(steps),
                         builder.rawTokenTypeStart(steps + 1),

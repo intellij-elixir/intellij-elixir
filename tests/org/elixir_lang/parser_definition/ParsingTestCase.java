@@ -56,10 +56,12 @@ public abstract class ParsingTestCase extends com.intellij.testFramework.Parsing
         super.setUp();
         ElixirAstFactoryCache.clearElixirAstFactory(getTestRootDisposable());
 
-        ElixirLanguageLevelResolver.overrideLanguageLevel(
-                getProject(),
-                ElixirLanguageLevel.of(System.getenv("ELIXIR_VERSION"), System.getenv("ERLANG_VERSION"))
-        );
+        ElixirLanguageLevelResolver.overrideLanguageLevel(getProject(), buildLanguageLevel());
+    }
+
+    /** The language level of the Elixir and OTP the build resolved, which every test in this hierarchy parses in. */
+    protected static ElixirLanguageLevel buildLanguageLevel() {
+        return ElixirLanguageLevel.of(System.getenv("ELIXIR_VERSION"), System.getenv("ERLANG_VERSION"));
     }
 
     protected void assertParsedAndQuotedAroundError() {

@@ -12,7 +12,6 @@ import com.intellij.psi.stubs.StubOutputStream;
 import com.intellij.psi.tree.IStubFileElementType;
 import org.elixir_lang.ElixirLanguage;
 import org.elixir_lang.parser.ElixirParserUtil;
-import org.elixir_lang.parser.WordAfterNumber;
 import org.elixir_lang.psi.ElixirFile;
 import org.elixir_lang.language_level.ElixirLanguageLevel;
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver;
@@ -78,7 +77,6 @@ public class File extends IStubFileElementType<org.elixir_lang.psi.stub.File> {
            one project can hold modules pointed at different Elixir SDKs. */
         ElixirLanguageLevel languageLevel = ElixirLanguageLevelResolver.languageLevelFor(psi);
         builder.putUserData(ElixirParserUtil.LANGUAGE_LEVEL, languageLevel);
-        builder.setTokenTypeRemapper(new WordAfterNumber(languageLevel));
         PsiParser parser = LanguageParserDefinitions.INSTANCE.forLanguage(languageForParser).createParser(project);
         ASTNode node = parser.parse(this, builder);
         return node.getFirstChildNode();
