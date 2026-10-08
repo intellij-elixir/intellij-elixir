@@ -35,15 +35,7 @@ object Quoter {
      */
     private const val TIMEOUT_IN_MILLISECONDS = 10_000
 
-    /**
-     * A daemon that dies mid-run cannot be caught by [assertAvailable], which reads a marker written
-     * before the run, so every remaining quoting test would wait the full timeout - about 1,900 of
-     * them, which at this budget exceeds the CI job's own limit and reports nothing useful. Failing
-     * after a few consecutive silences keeps that loud.
-     */
-    private const val CONSECUTIVE_TIMEOUTS_BEFORE_GIVING_UP = 3
-
-    private var consecutiveTimeouts = 0
+    private val silences = QuoterSilences()
 
     /** Escape hatch back to dumping both quoted forms in full; see [assertQuotedCorrectly]. */
     private const val FULL_DUMP_PROPERTY = "elixir.quoter.fullDump"
@@ -176,15 +168,13 @@ object Quoter {
     @Contract("null -> fail")
     private fun assertMessageReceived(message: OtpErlangObject?) {
         if (message != null) {
-            consecutiveTimeouts = 0
+            silences.answered()
             return
         }
 
-        consecutiveTimeouts++
-
-        if (consecutiveTimeouts >= CONSECUTIVE_TIMEOUTS_BEFORE_GIVING_UP) {
+        if (silences.silent()) {
             throw AssertionError(
-                "${quoterPreamble("stopped answering")}: $consecutiveTimeouts quotes in a row timed out after " +
+                "${quoterPreamble("stopped answering")}: ${silences.count} quotes in a row timed out after " +
                     "${TIMEOUT_IN_MILLISECONDS}ms. This test needs the reference quoter; the rest of the suite does not."
             )
         }
