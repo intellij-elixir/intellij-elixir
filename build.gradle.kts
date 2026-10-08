@@ -122,7 +122,7 @@ val expectedVersionSource: String =
 val elixirVersion: String = versionWithoutBuildTag(expectedElixirVersion.getOrElse("unresolved"))
 
 val quoterRepo: String = providers.gradleProperty("quoterRepo").getOrElse("intellij-elixir/intellij-elixir-quoter")
-val quoterRef: String = providers.gradleProperty("quoterRef").getOrElse("v3.2.0")
+val quoterRef: String = providers.gradleProperty("quoterRef").getOrElse("v3.2.1")
 // Cache namespace for the quoter, derived from the ref ('/' is illegal in a path segment). Keeps
 // each repo/ref's downloaded zip, build dir, and daemon tmp dir separate, so switching source
 // never reuses another's artifacts.
