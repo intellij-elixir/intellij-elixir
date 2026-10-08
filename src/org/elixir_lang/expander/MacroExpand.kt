@@ -42,7 +42,7 @@ internal fun macroExpandOnce(node: ElixirAst, state: ExState, env: Env, run: Run
 
     return when {
         node is ElixirAst.Alias -> expandAlias(node, state, env, run)
-        node is ElixirAst.Placeholder -> MacroExpanded.Stopped(Expansion.Unported(node))
+        node is ElixirAst.Placeholder && node.stopsExpansion -> MacroExpanded.Stopped(Expansion.Unported(node))
         node !is ElixirAst.Call -> unchanged
         isVariable(node) ->
             when ((node.callee as ElixirAst.Literal.Atom).name) {

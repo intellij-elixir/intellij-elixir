@@ -2,16 +2,18 @@ package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangList
 import org.elixir_lang.NameArity
+import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_IN_VM_ORDER
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import java.io.File
 
 /**
- * `Macro.expand_once/2` of each `Kernel` macro the expander builds the output of, on every leg, against what each
- * leg's Elixir gives (`kernel_summary_output/<leg>/A.txt`, from `generate.exs` beside it). Both sides print the quoted
- * term the same way: `line` and `column` dropped, the counter written `:N`, then every node's other metadata.
+ * `Macro.expand_once/2` of `use` and each `Kernel` sigil on every leg, against what that leg's Elixir and Erlang/OTP
+ * give (`sigil_output/<leg>/A.txt`, from `generate.exs` beside it): the quoted term printed as
+ * [KernelSummaryOutputTest] prints it, a `Regex` as [OutputFixture] says, or the error the macro raises. A leg runs
+ * its Elixir on the OTP its first line names; a directory suffix `-otp-<major>` tells legs of one Elixir apart.
  */
-class KernelSummaryOutputTest : ExpanderTestCase() {
+class SigilOutputTest : ExpanderTestCase() {
     override fun tearDown() {
         try {
             ElixirLanguageLevelResolver.overrideLanguageLevel(project, null)
@@ -22,63 +24,36 @@ class KernelSummaryOutputTest : ExpanderTestCase() {
         }
     }
 
-    fun testIf() = assertFamily("if")
+    fun testUse() = assertFamily("use")
 
-    fun testUnless() = assertFamily("unless")
+    fun testSigilUpperS() = assertFamily("sigil_S")
 
-    fun testAndAnd() = assertFamily("and_and")
+    fun testSigilLowerS() = assertFamily("sigil_s")
 
-    fun testOrOr() = assertFamily("or_or")
+    fun testSigilUpperC() = assertFamily("sigil_C")
 
-    fun testNot() = assertFamily("not")
+    fun testSigilLowerC() = assertFamily("sigil_c")
 
-    fun testOr() = assertFamily("or")
+    fun testSigilUpperR() = assertFamily("sigil_R")
 
-    fun testAnd() = assertFamily("and")
+    fun testSigilLowerR() = assertFamily("sigil_r")
 
-    fun testPipe() = assertFamily("pipe")
+    fun testSigilUpperD() = assertFamily("sigil_D")
 
-    /** On 1.14.0-rc.0, which no leg runs, `|>` pipes into its right operand as written, so a pipe there raises. */
-    fun testPipeIntoAPipeBeforeItIsUnpiped() =
-        assertEquals(
-            "ERROR pipe_operator_arity",
-            actual(ElixirLanguageLevel.of("1.14.0-rc.0"), OutputFixture.Case("pipe_right", "x |> (f(1) |> g())", Env.Context.NONE, "")),
-        )
+    fun testSigilUpperT() = assertFamily("sigil_T")
 
-    fun testIn() = assertFamily("in")
+    fun testSigilUpperN() = assertFamily("sigil_N")
 
-    fun testConcat() = assertFamily("concat")
+    fun testSigilUpperU() = assertFamily("sigil_U")
 
-    fun testToString() = assertFamily("to_string")
+    fun testSigilLowerW() = assertFamily("sigil_w")
 
-    fun testRaise() = assertFamily("raise")
-
-    /** On 1.13 before Erlang/OTP 24, which no leg runs, `raise` gives what 1.12.3 gives. */
-    fun testRaiseBeforeOtp24() {
-        val level = ElixirLanguageLevel.of("1.13.4", "23")
-        val compared = cases("1.12.3").filter { family(it.label) == "raise" }.map { case ->
-            val header = "## 1.13.4 on OTP 23 ${case.label}: ${case.source}\n"
-
-            header + case.expected to header + actual(level, case)
-        }
-
-        assertEquals(compared.joinToString("\n") { it.first }, compared.joinToString("\n") { it.second })
-    }
-
-    fun testBinding() = assertFamily("binding")
-
-    fun testDestructure() = assertFamily("destructure")
-
-    fun testRange() = assertFamily("range")
-
-    fun testStepRange() = assertFamily("step")
-
-    fun testFullRange() = assertFamily("full_range")
+    fun testSigilUpperW() = assertFamily("sigil_W")
 
     fun testEveryCaseIsInAFamily() =
         assertEquals(
             emptyList<String>(),
-            LEGS.flatMap { leg -> cases(leg).map { it.label } }.distinct().filter { family(it) == null },
+            LEGS.flatMap { leg -> cases(leg).map { it.label } }.distinct().filter { family(it) !in FAMILIES },
         )
 
     /** Every case of [family] on every leg, compared as one text so a run shows each case that differs. */
@@ -86,8 +61,10 @@ class KernelSummaryOutputTest : ExpanderTestCase() {
         val compared = LEGS.flatMap { leg ->
             cases(leg).filter { family(it.label) == family && it.expected != OutputFixture.SKIP }.map { case ->
                 val header = "## $leg ${case.label}: ${case.source}\n"
+                val level = level(leg)
+                val expected = if (keysAreTheVMs(level)) sortedKeys(case.expected) else case.expected
 
-                header + case.expected to header + actual(ElixirLanguageLevel.of(leg), case)
+                header + expected to header + actual(level, case)
             }
         }
 
@@ -99,7 +76,6 @@ class KernelSummaryOutputTest : ExpanderTestCase() {
     private fun actual(level: ElixirLanguageLevel, case: OutputFixture.Case): String {
         val env = Env.empty(level, KERNEL_IMPORTS).copy(context = case.context)
         val state = ExState.empty(level).copy(read = mapOf(Variable("x", Variable.NIL) to 0, Variable("y", Variable.NIL) to 1), version = 2)
-
         val run = Run(level, ExpansionObserver.NONE, NO_EXPORTS, NO_STRUCTS)
 
         // Parsed as [level]'s Elixir parses it, whichever leg runs the test.
@@ -131,33 +107,43 @@ class KernelSummaryOutputTest : ExpanderTestCase() {
     }
 
     private companion object {
-        val ROOT = File("testData/org/elixir_lang/expander/kernel_summary_output")
+        val ROOT = File("testData/org/elixir_lang/expander/sigil_output")
 
         val LEGS: List<String> =
             ROOT.listFiles { file -> file.isDirectory }!!
                 .map { it.name }
-                .sortedBy { ElixirLanguageLevel.of(it).elixir }
+                .sortedWith(compareBy({ ElixirLanguageLevel.of(it.substringBefore("-otp-")).elixir }, { it }))
 
         /** The macros the cases call, at every leg; a case calling a name a leg lacks is `SKIP` there. */
         val KERNEL_IMPORTS = KernelImports(
-            functions = listOf(NameArity("+", 1), NameArity("-", 1)),
-            macros = listOf(
-                NameArity("!", 1), NameArity("&&", 2), NameArity("..", 0), NameArity("..", 2), NameArity("..//", 3),
-                NameArity("<>", 2), NameArity("and", 2), NameArity("binding", 0), NameArity("binding", 1),
-                NameArity("destructure", 2), NameArity("if", 2), NameArity("in", 2), NameArity("or", 2),
-                NameArity("raise", 1), NameArity("raise", 2), NameArity("to_string", 1), NameArity("unless", 2),
-                NameArity("|>", 2), NameArity("||", 2),
-            ).sortedWith(compareBy({ it.name }, { it.arity })),
+            functions = emptyList(),
+            macros = (
+                listOf(NameArity("use", 1), NameArity("use", 2)) +
+                    "CDNRSTUWcrsw".map { NameArity("sigil_$it", 2) }
+                ).sortedWith(compareBy({ it.name }, { it.arity })),
         )
 
-        /** The families, longest first where one name starts another. */
-        val FAMILIES = listOf(
-            "and_and", "or_or", "if", "unless", "not", "or", "and", "pipe", "in", "concat", "to_string", "raise",
-            "binding", "destructure", "range", "step", "full_range",
-        )
+        val FAMILIES = setOf("use") +
+            "CDNRSTUWcrsw".map { "sigil_$it" }
 
-        fun family(label: String): String? = FAMILIES.firstOrNull { Regex("^$it(_|\\d|$)").containsMatchIn(label) }
+        /** `use` or `sigil_<letter>`, the first words of a case's label. */
+        fun family(label: String): String = label.split('_').take(if (label.startsWith("use_")) 1 else 2).joinToString("_")
 
         fun cases(leg: String): List<OutputFixture.Case> = OutputFixture.cases(File(ROOT, "$leg/A.txt"))
+
+        private val KEYS = Regex("""keys: \[([^\]]*)]""")
+
+        /** A `Regex`'s keys are in the atoms' index order there, which the expander can't know, so they are compared sorted. */
+        fun keysAreTheVMs(level: ElixirLanguageLevel): Boolean = ESCAPED_MAP_IN_VM_ORDER.isSufficient(level)
+
+        fun sortedKeys(text: String): String =
+            KEYS.replace(text) { match -> "keys: [" + match.groupValues[1].split(", ").sorted().joinToString(", ") + "]" }
+
+        /** The leg's Elixir, on the Erlang/OTP its fixture's first line names. */
+        fun level(leg: String): ElixirLanguageLevel {
+            val otp = Regex("""OTP ([\d.]+)""").find(File(ROOT, "$leg/A.txt").useLines { it.first() })!!.groupValues[1]
+
+            return ElixirLanguageLevel.of(leg.substringBefore("-otp-"), otp)
+        }
     }
 }

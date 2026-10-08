@@ -259,16 +259,13 @@ internal class StructOutput(
 
     private fun structReadUtils(): ElixirAst = utils.imported("@", listOf(utils.localVariable("__struct__")), listOf(1 to KERNEL))
 
-    /** The struct as `elixir_quote:escape/3` gives it: a map, its keys in term order. */
     private fun struct(entries: List<Pair<String, ElixirAst>>): ElixirAst {
         val defaults = LinkedHashMap<String, ElixirAst>()
 
         defaults["__struct__"] = s.atom(module)
         for ((key, value) in entries) defaults[key] = value
 
-        val pairs = defaults.entries.sortedWith { a, b -> compareCodePoints(a.key, b.key) }
-
-        return s.call("%{}", pairs.map { s.tuple(s.atom(it.key), it.value) })
+        return s.escapedMap(defaults.entries.map { it.key to it.value })
     }
 
     /** [definition] with each `unquote` of a name in [fragments] replaced by that name's AST. */

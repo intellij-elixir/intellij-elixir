@@ -621,7 +621,7 @@ internal object Quote {
                 node is ElixirAst.Alias -> namedTuple(node, "__aliases__", metaOf(node), node.segments)
                 node is ElixirAst.Block -> namedTuple(node, "__block__", metaOf(node), node.expressions)
                 node is ElixirAst.Tuple -> namedTuple(node, "{}", metaOf(node), node.elements)
-                node is ElixirAst.Placeholder -> throw Stop(Expansion.Unported(node))
+                node is ElixirAst.Placeholder -> if (node.stopsExpansion) throw Stop(Expansion.Unported(node)) else node
                 node is ElixirAst.Call -> {
                     val args = node.arguments ?: error("a call whose callee isn't an atom always has arguments")
                     val meta = if (escape) metaOf(node) else annotate(node.callee, metaOf(node), args)

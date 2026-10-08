@@ -1158,6 +1158,9 @@ internal class ExpansionProbes(
         /** The nodes entered and not yet left, innermost last. */
         private val open = ArrayDeque<ElixirAst>()
 
+        /** The capture of a remote function whose dispatch comes next. */
+        private var capturing: ElixirAst? = null
+
         private fun step(tag: Tag, state: ExState, env: Env, offset: Int) =
             Step(tag, state.read, env, state.stacktrace, state.caller, offset, counters.count(env.module))
 
@@ -1208,9 +1211,15 @@ internal class ExpansionProbes(
             this.env = env
         }
 
+        override fun capturing(capture: ElixirAst) {
+            capturing = capture
+        }
+
         override fun dispatched(node: ElixirAst, dispatch: Dispatch) {
             val recorder = recorder(node)
-            val nodes = listOfNotNull(node, retraced(open.lastOrNull(), node, dispatch, level))
+            val nodes = listOfNotNull(node, retraced(capturing, node, dispatch, level))
+
+            capturing = null
 
             if (recorder != null) {
                 nodes.forEach {

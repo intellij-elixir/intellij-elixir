@@ -597,6 +597,8 @@
 
 ### Threading / Platform Hygiene
 
+- [#4388](https://github.com/intellij-elixir/intellij-elixir/pull/4388) [@sh41](https://github.com/sh41)
+  - **The expander expands `use` and the sigils as each Elixir and OTP release does, and reports calls to a deprecated function or macro of a module the file defines; nothing uses it yet.** Fixes [#4380](https://github.com/intellij-elixir/intellij-elixir/issues/4380).
 - [#4374](https://github.com/intellij-elixir/intellij-elixir/pull/4374) [@sh41](https://github.com/sh41)
   - **The expander answers `defoverridable` and definitions as Elixir does where they may not run, after a replacement, and for `__struct__`; nothing uses it yet.** Fixes [#4370](https://github.com/intellij-elixir/intellij-elixir/issues/4370).
 - [#4368](https://github.com/intellij-elixir/intellij-elixir/pull/4368) [@sh41](https://github.com/sh41)

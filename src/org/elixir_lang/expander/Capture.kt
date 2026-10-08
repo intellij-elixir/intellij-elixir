@@ -88,7 +88,7 @@ private fun capture(amp: ElixirAst.Call, arg: ElixirAst, state: ExState, env: En
         arg is ElixirAst.Tuple -> captureImport(amp, amp, arg, "{}", arg.elements, state, env, run)
         arg is ElixirAst.ListNode -> captureExpr(amp, arg, arguments(arg.elements), state, env, run)
         arg is ElixirAst.Literal.Integer -> Expansion.Error("capture_arg_outside_of_capture", amp)
-        arg is ElixirAst.Placeholder -> Expansion.Unported(arg)
+        arg is ElixirAst.Placeholder && arg.stopsExpansion -> Expansion.Unported(arg)
         else -> Expansion.Error("invalid_args_for_capture", amp)
     }
 }
@@ -234,6 +234,7 @@ private fun requireFunction(
 
     val (inlinedReceiver, inlinedName) = inline(receiver, name, arity, run.level) ?: (receiver to name)
 
+    run.observer.capturing(amp)
     run.observer.dispatched(call, Dispatch(Dispatch.Kind.REMOTE_FUNCTION, inlinedReceiver, inlinedName, arity))
 
     return Expansion.Expanded(state, env, NODE)

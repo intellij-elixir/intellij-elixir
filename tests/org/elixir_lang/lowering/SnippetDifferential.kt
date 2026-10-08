@@ -77,6 +77,6 @@ internal fun ElixirAst.hasUnlowered(): Boolean =
     placeholders().any {
         when (it.reason) {
             is ElixirAst.Placeholder.Reason.Unlowered -> true
-            ElixirAst.Placeholder.Reason.Error -> false
+            ElixirAst.Placeholder.Reason.Error, ElixirAst.Placeholder.Reason.Compiled -> false
         }
     }

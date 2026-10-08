@@ -69,7 +69,13 @@ sealed class ElixirAst {
 
             /** Broken code: an error element the parser recovered from, or a shape Elixir's parser rejects. */
             object Error : Reason()
+
+            /** A value only a compiler can build, such as the bytes PCRE compiles a regular expression to. */
+            object Compiled : Reason()
         }
+
+        /** Whether an expansion cannot go on past this node. A [Reason.Compiled] node is a value, so it never stops one. */
+        val stopsExpansion: Boolean get() = reason !is Reason.Compiled
     }
 
     /** Whether Elixir gives this node metadata of its own, which a parent can add keys to. */

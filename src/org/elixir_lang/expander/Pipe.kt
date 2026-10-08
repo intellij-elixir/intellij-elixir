@@ -39,7 +39,8 @@ private fun pipe(expr: ElixirAst, call: ElixirAst, level: ElixirLanguageLevel): 
     when (call) {
         is ElixirAst.Call -> pipeCall(expr, call, level)
         is ElixirAst.Block -> Summary.Output.Built(ElixirAst.Block(call.meta, listOf(expr) + call.expressions))
-        is ElixirAst.Placeholder -> Summary.Output.Unported(call)
+        is ElixirAst.Placeholder ->
+            if (call.stopsExpansion) Summary.Output.Unported(call) else Summary.Output.Raised("pipe_bad_target")
         is ElixirAst.Alias, is ElixirAst.Tuple, is ElixirAst.Literal, is ElixirAst.ListNode ->
             Summary.Output.Raised("pipe_bad_target")
     }

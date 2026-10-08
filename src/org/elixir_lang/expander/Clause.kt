@@ -626,10 +626,10 @@ internal enum class Clause(vararg val heads: Head) {
 
     LITERAL(expandHead("V1 when is_number(V1); is_atom(V1); is_binary(V1)")) {
         override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
-            node is ElixirAst.Literal
+            node is ElixirAst.Literal || node is ElixirAst.Placeholder && !node.stopsExpansion
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            Expansion.Expanded(state, env, literalValue(node as ElixirAst.Literal))
+            Expansion.Expanded(state, env, if (node is ElixirAst.Literal) literalValue(node) else NODE)
     };
 
     abstract fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel): Boolean
@@ -661,7 +661,7 @@ private fun expandDirective(directive: Directive, node: ElixirAst, state: ExStat
 }
 
 /** `{{'.', _, [Base, '{}']}, _, Refs}`. */
-private fun isMultiAlias(node: ElixirAst?): Boolean =
+internal fun isMultiAlias(node: ElixirAst?): Boolean =
     node is ElixirAst.Call && node.arguments != null && (node.callee as? ElixirAst.Call)?.let { dot ->
         isCall(dot, ".", 2) && (dot.arguments!![1] as? ElixirAst.Literal.Atom)?.name == "{}"
     } == true

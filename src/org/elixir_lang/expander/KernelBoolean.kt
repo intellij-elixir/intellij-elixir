@@ -209,7 +209,7 @@ private fun doElse(node: ElixirAst.Call, clauses: ElixirAst): Pair<ElixirAst, El
 }
 
 /** `assert_no_match_or_guard_scope/2`: the raise in a match or a guard, or `null` elsewhere. */
-private fun assertNoMatchOrGuardScope(env: Env): Summary.Output? =
+internal fun assertNoMatchOrGuardScope(env: Env): Summary.Output? =
     when (env.context) {
         Env.Context.MATCH -> Summary.Output.Raised("kernel_invalid_match")
         Env.Context.GUARD -> Summary.Output.Raised("kernel_invalid_guard")

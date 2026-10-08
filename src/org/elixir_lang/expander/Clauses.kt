@@ -280,7 +280,7 @@ private fun rescue(arrow: ElixirAst, arg: ElixirAst, state: ExState, env: Env, r
                 rescueIn(arrow, arg, left, right, state, env, run)
             }
         }
-        arg is ElixirAst.Placeholder -> Expansion.Unported(arg)
+        arg is ElixirAst.Placeholder && arg.stopsExpansion -> Expansion.Unported(arg)
         // Elixir's `{_, _, _}` shape: a call, a block, or a tuple not of two.
         (arg is ElixirAst.Call || arg is ElixirAst.Block || arg is ElixirAst.Tuple && arg.elements.size != 2) &&
             RESCUE_CALL_EXPANDED_AS_MACRO.isSufficient(run.level) -> rescueExpandedOnce(arrow, arg, state, env, run)

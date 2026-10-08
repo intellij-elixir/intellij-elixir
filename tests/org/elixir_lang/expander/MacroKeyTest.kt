@@ -96,6 +96,11 @@ class MacroKeyTest {
                 MacroKey.BINDING_0, MacroKey.BINDING_1, MacroKey.DESTRUCTURE, MacroKey.RANGE, MacroKey.STEP_RANGE,
                 MacroKey.FULL_RANGE,
             ),
+            "use and the sigils" to listOf(
+                MacroKey.USE_1, MacroKey.USE_2, MacroKey.SIGIL_C_UPPER, MacroKey.SIGIL_D, MacroKey.SIGIL_N,
+                MacroKey.SIGIL_R_UPPER, MacroKey.SIGIL_S_UPPER, MacroKey.SIGIL_T, MacroKey.SIGIL_U,
+                MacroKey.SIGIL_W_UPPER, MacroKey.SIGIL_C, MacroKey.SIGIL_R, MacroKey.SIGIL_S, MacroKey.SIGIL_W,
+            ),
         )
     }
 }

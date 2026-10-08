@@ -1,0 +1,474 @@
+# Macro.expand_once/2, Elixir 1.16.3, OTP 26.2.5.21
+## use_alias: use Foo
+{:__block__, [], [{:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir.Foo"]}, {{:".", [], [:"Elixir.Foo", :__using__]}, [], [[]]}]}]}
+meta: [{:context, :"Elixir.Kernel"}, {:counter, :N}]
+## use_alias_opts: use Foo, a: 1
+{:__block__, [], [{:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir.Foo"]}, {{:".", [], [:"Elixir.Foo", :__using__]}, [], [[{:a, 1}]]}]}]}
+meta: [{:context, :"Elixir.Kernel"}, {:counter, :N}]
+## use_atom: use :foo
+{:__block__, [], [{:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:foo]}, {{:".", [], [:foo, :__using__]}, [], [[]]}]}]}
+meta: [{:context, :"Elixir.Kernel"}, {:counter, :N}]
+## use_erlang_atom_opts: use :foo, [1, 2]
+{:__block__, [], [{:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:foo]}, {{:".", [], [:foo, :__using__]}, [], [[1, 2]]}]}]}
+meta: [{:context, :"Elixir.Kernel"}, {:counter, :N}]
+## use_nested_alias: use Foo.Bar
+{:__block__, [], [{:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir.Foo.Bar"]}, {{:".", [], [:"Elixir.Foo.Bar", :__using__]}, [], [[]]}]}]}
+meta: [{:context, :"Elixir.Kernel"}, {:counter, :N}]
+## use_multi: use Foo.{A, B}
+{:__block__, [], [{:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir.Foo.A"]}, {{:".", [], [:"Elixir.Foo.A", :__using__]}, [], [[]]}]}, {:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir.Foo.B"]}, {{:".", [], [:"Elixir.Foo.B", :__using__]}, [], [[]]}]}]}
+meta: [{:context, :"Elixir.Kernel"}, {:counter, :N}]
+## use_multi_opts: use Foo.{A, B}, x
+{:__block__, [], [{:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir.Foo.A"]}, {{:".", [], [:"Elixir.Foo.A", :__using__]}, [], [{:x, [], :nil}]}]}, {:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir.Foo.B"]}, {{:".", [], [:"Elixir.Foo.B", :__using__]}, [], [{:x, [], :nil}]}]}]}
+meta: [{:context, :"Elixir.Kernel"}, {:counter, :N}]
+## use_multi_atom: use Foo.{:a, :b}
+{:__block__, [], [{:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir.Foo.a"]}, {{:".", [], [:"Elixir.Foo.a", :__using__]}, [], [[]]}]}, {:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir.Foo.b"]}, {{:".", [], [:"Elixir.Foo.b", :__using__]}, [], [[]]}]}]}
+meta: [{:context, :"Elixir.Kernel"}, {:counter, :N}]
+## use_multi_other: use Foo.{A, x}
+RAISE :"Elixir.ArgumentError" "invalid arguments for use, expected a compile time atom or alias, got: Foo.{A, x}"
+## use_multi_nested: use Foo.{A.B, C}
+{:__block__, [], [{:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir.Foo.A.B"]}, {{:".", [], [:"Elixir.Foo.A.B", :__using__]}, [], [[]]}]}, {:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir.Foo.C"]}, {{:".", [], [:"Elixir.Foo.C", :__using__]}, [], [[]]}]}]}
+meta: [{:context, :"Elixir.Kernel"}, {:counter, :N}]
+## use_multi_single: use Foo.{A}
+{:__block__, [], [{:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir.Foo.A"]}, {{:".", [], [:"Elixir.Foo.A", :__using__]}, [], [[]]}]}]}
+meta: [{:context, :"Elixir.Kernel"}, {:counter, :N}]
+## use_multi_module_base: use __MODULE__.{A, B}
+{:__block__, [], [{:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir.A"]}, {{:".", [], [:"Elixir.A", :__using__]}, [], [[]]}]}, {:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir.B"]}, {{:".", [], [:"Elixir.B", :__using__]}, [], [[]]}]}]}
+meta: [{:context, :"Elixir.Kernel"}, {:counter, :N}]
+## use_module: use __MODULE__
+{:__block__, [], [{:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:nil]}, {{:".", [], [:nil, :__using__]}, [], [[]]}]}]}
+meta: [{:context, :"Elixir.Kernel"}, {:counter, :N}]
+## use_var: use x
+RAISE :"Elixir.ArgumentError" "invalid arguments for use, expected a compile time atom or alias, got: x"
+## use_integer: use 1
+RAISE :"Elixir.ArgumentError" "invalid arguments for use, expected a compile time atom or alias, got: 1"
+## use_call: use f()
+RAISE :"Elixir.ArgumentError" "invalid arguments for use, expected a compile time atom or alias, got: f()"
+## use_dir: use __DIR__
+RAISE :"Elixir.ArgumentError" "invalid arguments for use, expected a compile time atom or alias, got: __DIR__"
+## sigil_S_text: ~S(a\nb#{c})
+"a\\nb#{c}"
+meta: []
+## sigil_S_empty: ~S()
+""
+meta: []
+## sigil_S_modifier: ~S(a)x
+RAISE :"Elixir.FunctionClauseError" "no function clause matching in Kernel.sigil_S/2"
+## sigil_S_call: sigil_S(x, [])
+RAISE :"Elixir.FunctionClauseError" "no function clause matching in Kernel.sigil_S/2"
+## sigil_S_call_modifier: sigil_S(<<"a">>, 'x')
+RAISE :"Elixir.FunctionClauseError" "no function clause matching in Kernel.sigil_S/2"
+## sigil_s_text: ~s(a\nb)
+"a\x0Ab"
+meta: []
+## sigil_s_empty: ~s()
+""
+meta: []
+## sigil_s_interp: ~s(a#{x}b)
+{:"<<>>", [], ["a", {:"::", [], [{{:".", [], [:"Elixir.Kernel", :to_string]}, [{:from_interpolation, :true}], [{:x, [], :nil}]}, {:binary, [], :nil}]}, "b"]}
+meta: [{:from_interpolation, :true}]
+## sigil_s_interp_escape: ~s(a\n#{x}\tb)
+{:"<<>>", [], ["a\x0A", {:"::", [], [{{:".", [], [:"Elixir.Kernel", :to_string]}, [{:from_interpolation, :true}], [{:x, [], :nil}]}, {:binary, [], :nil}]}, "\x09b"]}
+meta: [{:from_interpolation, :true}]
+## sigil_s_escaped_interp: ~s(a\#{x})
+"a#{x}"
+meta: []
+## sigil_s_modifier: ~s(a)x
+RAISE :"Elixir.FunctionClauseError" "no function clause matching in Kernel.sigil_s/2"
+## sigil_s_call: sigil_s(x, [])
+RAISE :"Elixir.FunctionClauseError" "no function clause matching in Kernel.sigil_s/2"
+## sigil_s_call_line_continuation: sigil_s(<<"a\\\nb">>, [])
+"ab"
+meta: []
+## sigil_s_call_crlf_continuation: sigil_s(<<"a\\\r\nb">>, [])
+"ab"
+meta: []
+## sigil_s_escapes: ~s(\0\a\b\d\e\f\n\r\s\t\v\q)
+"\x00\x07\x08\x7F\x1B\x0C\x0A\x0D \x09\x0Bq"
+meta: []
+## sigil_s_hex: ~s(\x41\xfF)
+"A\xFF"
+meta: []
+## sigil_s_unicode: ~s(\u0041\u{1F600}\u{41})
+"A\xF0\x9F\x98\x80A"
+meta: []
+## sigil_s_heredoc: ~s"""⏎  a⏎   b⏎  """
+"a\x0A b\x0A"
+meta: []
+## sigil_s_heredoc_interp: ~s"""⏎  a#{x}⏎  """
+{:"<<>>", [{:indentation, 2}], ["a", {:"::", [], [{{:".", [], [:"Elixir.Kernel", :to_string]}, [{:from_interpolation, :true}], [{:x, [], :nil}]}, {:binary, [], :nil}]}, "\x0A"]}
+meta: [{:from_interpolation, :true}, {:indentation, 2}]
+## sigil_S_heredoc: ~S"""⏎  a#{x}⏎  """
+"a#{x}\x0A"
+meta: []
+## sigil_c_heredoc_interp: ~c"""⏎  a#{x}⏎  """
+{{:".", [], [{:__aliases__, [{:counter, :N}, {:alias, :false}], [:List]}, :to_charlist]}, [], [["a", {{:".", [], [:"Elixir.Kernel", :to_string]}, [{:from_interpolation, :true}], [{:x, [], :nil}]}, "\x0A"]]}
+meta: [{:alias, :false}, {:counter, :N}, {:from_interpolation, :true}]
+## sigil_w_heredoc_interp: ~w"""⏎  a #{x}⏎  """
+{{:".", [], [{:__aliases__, [{:counter, :N}, {:alias, :false}], [:String]}, :split]}, [], [{:"<<>>", [{:indentation, 2}], ["a ", {:"::", [], [{{:".", [], [:"Elixir.Kernel", :to_string]}, [{:from_interpolation, :true}], [{:x, [], :nil}]}, {:binary, [], :nil}]}, "\x0A"]}]}
+meta: [{:alias, :false}, {:counter, :N}, {:from_interpolation, :true}, {:indentation, 2}]
+## sigil_s_line_continuation: ~s(a\⏎b)
+"ab"
+meta: []
+## sigil_s_interp_line_continuation: ~s(a\⏎#{x})
+{:"<<>>", [], ["a", {:"::", [], [{{:".", [], [:"Elixir.Kernel", :to_string]}, [{:from_interpolation, :true}], [{:x, [], :nil}]}, {:binary, [], :nil}]}]}
+meta: [{:from_interpolation, :true}]
+## sigil_s_bad_hex: ~s(\xZZ)
+RAISE :"Elixir.ArgumentError" "invalid hex escape character, expected \\xHH where H is a hexadecimal digit"
+## sigil_s_short_hex: ~s(\x1)
+"\x01"
+meta: []
+## sigil_s_braced_hex: ~s(\x{41})
+"A"
+meta: []
+## sigil_s_interp_bad_hex: ~s(\xZZ#{x})
+RAISE :"Elixir.ArgumentError" "invalid hex escape character, expected \\xHH where H is a hexadecimal digit"
+## sigil_s_interp_short_hex: ~s(\x1#{x})
+{:"<<>>", [], ["\x01", {:"::", [], [{{:".", [], [:"Elixir.Kernel", :to_string]}, [{:from_interpolation, :true}], [{:x, [], :nil}]}, {:binary, [], :nil}]}]}
+meta: [{:from_interpolation, :true}]
+## sigil_s_bad_unicode: ~s(\uZZ)
+RAISE :"Elixir.ArgumentError" "invalid Unicode escape character, expected \\uHHHH or \\u{H*} where H is a hexadecimal digit"
+## sigil_s_surrogate: ~s(\u{D800})
+RAISE :"Elixir.ArgumentError" "invalid or reserved Unicode code point \\u{D800}"
+## sigil_s_interp_bad_unicode: ~s(\uZZ#{x})
+RAISE :"Elixir.ArgumentError" "invalid Unicode escape character, expected \\uHHHH or \\u{H*} where H is a hexadecimal digit"
+## sigil_C_text: ~C(a\nb#{c})
+[97, 92, 110, 98, 35, 123, 99, 125]
+meta: []
+## sigil_C_empty: ~C()
+[]
+meta: []
+## sigil_C_unicode: ~C(héllo)
+[104, 233, 108, 108, 111]
+meta: []
+## sigil_C_modifier: ~C(a)x
+RAISE :"Elixir.FunctionClauseError" "no function clause matching in Kernel.sigil_C/2"
+## sigil_C_call: sigil_C(x, [])
+RAISE :"Elixir.FunctionClauseError" "no function clause matching in Kernel.sigil_C/2"
+## sigil_c_text: ~c(a\nb)
+[97, 10, 98]
+meta: []
+## sigil_c_empty: ~c()
+[]
+meta: []
+## sigil_c_unicode: ~c(héllo)
+[104, 233, 108, 108, 111]
+meta: []
+## sigil_c_interp: ~c(a#{x})
+{{:".", [], [{:__aliases__, [{:counter, :N}, {:alias, :false}], [:List]}, :to_charlist]}, [], [["a", {{:".", [], [:"Elixir.Kernel", :to_string]}, [{:from_interpolation, :true}], [{:x, [], :nil}]}]]}
+meta: [{:alias, :false}, {:counter, :N}, {:from_interpolation, :true}]
+## sigil_c_interp_escape: ~c(a\n#{x}\tb)
+{{:".", [], [{:__aliases__, [{:counter, :N}, {:alias, :false}], [:List]}, :to_charlist]}, [], [["a\x0A", {{:".", [], [:"Elixir.Kernel", :to_string]}, [{:from_interpolation, :true}], [{:x, [], :nil}]}, "\x09b"]]}
+meta: [{:alias, :false}, {:counter, :N}, {:from_interpolation, :true}]
+## sigil_c_modifier: ~c(a)x
+RAISE :"Elixir.FunctionClauseError" "no function clause matching in Kernel.sigil_c/2"
+## sigil_c_interp_modifier: ~c(a#{x})x
+RAISE :"Elixir.FunctionClauseError" "no function clause matching in Kernel.sigil_c/2"
+## sigil_c_call: sigil_c(x, [])
+RAISE :"Elixir.FunctionClauseError" "no function clause matching in Kernel.sigil_c/2"
+## sigil_c_call_line_continuation: sigil_c(<<"a\\\nb">>, [])
+[97, 98]
+meta: []
+## sigil_c_bad_hex: ~c(\xZZ)
+RAISE :"Elixir.ArgumentError" "invalid hex escape character, expected \\xHH where H is a hexadecimal digit"
+## sigil_r_plain: ~r/a+/
+{:"%{}", [], REGEX{source: "a+", opts: "", pattern: :escaped, keys: [:__struct__, :opts, :re_pattern, :re_version, :source]}}
+meta: []
+## sigil_r_empty: ~r//
+{:"%{}", [], REGEX{source: "", opts: "", pattern: :escaped, keys: [:__struct__, :opts, :re_pattern, :re_version, :source]}}
+meta: []
+## sigil_r_opts: ~r/a/i
+{:"%{}", [], REGEX{source: "a", opts: "i", pattern: :escaped, keys: [:__struct__, :opts, :re_pattern, :re_version, :source]}}
+meta: []
+## sigil_r_all_opts: ~r/a/iumxfU
+{:"%{}", [], REGEX{source: "a", opts: "iumxfU", pattern: :escaped, keys: [:__struct__, :opts, :re_pattern, :re_version, :source]}}
+meta: []
+## sigil_r_modifier_r: ~r/a/r
+{:"%{}", [], REGEX{source: "a", opts: "r", pattern: :escaped, keys: [:__struct__, :opts, :re_pattern, :re_version, :source]}}
+meta: []
+## sigil_r_dotall: ~r/a/s
+{:"%{}", [], REGEX{source: "a", opts: "s", pattern: :escaped, keys: [:__struct__, :opts, :re_pattern, :re_version, :source]}}
+meta: []
+## sigil_r_bad_modifier: ~r/a/k
+RAISE :"Elixir.Regex.CompileError" "invalid_option at position k"
+## sigil_r_interp: ~r/a#{x}/
+{{:".", [], [{:__aliases__, [{:counter, :N}, {:alias, :false}], [:Regex]}, :compile!]}, [], [{:"<<>>", [], ["a", {:"::", [], [{{:".", [], [:"Elixir.Kernel", :to_string]}, [{:from_interpolation, :true}], [{:x, [], :nil}]}, {:binary, [], :nil}]}]}, ""]}
+meta: [{:alias, :false}, {:counter, :N}, {:from_interpolation, :true}]
+## sigil_r_interp_opts: ~r/a#{x}/i
+{{:".", [], [{:__aliases__, [{:counter, :N}, {:alias, :false}], [:Regex]}, :compile!]}, [], [{:"<<>>", [], ["a", {:"::", [], [{{:".", [], [:"Elixir.Kernel", :to_string]}, [{:from_interpolation, :true}], [{:x, [], :nil}]}, {:binary, [], :nil}]}]}, "i"]}
+meta: [{:alias, :false}, {:counter, :N}, {:from_interpolation, :true}]
+## sigil_r_interp_bad_modifier: ~r/a#{x}/k
+{{:".", [], [{:__aliases__, [{:counter, :N}, {:alias, :false}], [:Regex]}, :compile!]}, [], [{:"<<>>", [], ["a", {:"::", [], [{{:".", [], [:"Elixir.Kernel", :to_string]}, [{:from_interpolation, :true}], [{:x, [], :nil}]}, {:binary, [], :nil}]}]}, "k"]}
+meta: [{:alias, :false}, {:counter, :N}, {:from_interpolation, :true}]
+## sigil_r_newline_escape: ~r/a\nb/
+{:"%{}", [], REGEX{source: "a\\nb", opts: "", pattern: :escaped, keys: [:__struct__, :opts, :re_pattern, :re_version, :source]}}
+meta: []
+## sigil_r_escape_tab: ~r/a\tb/
+{:"%{}", [], REGEX{source: "a\\tb", opts: "", pattern: :escaped, keys: [:__struct__, :opts, :re_pattern, :re_version, :source]}}
+meta: []
+## sigil_r_escape_tab_interp: ~r/a#{x}\tb/
+{{:".", [], [{:__aliases__, [{:counter, :N}, {:alias, :false}], [:Regex]}, :compile!]}, [], [{:"<<>>", [], ["a", {:"::", [], [{{:".", [], [:"Elixir.Kernel", :to_string]}, [{:from_interpolation, :true}], [{:x, [], :nil}]}, {:binary, [], :nil}]}, "\\tb"]}, ""]}
+meta: [{:alias, :false}, {:counter, :N}, {:from_interpolation, :true}]
+## sigil_r_escape_controls: ~r/\a\f\r\v\d/
+{:"%{}", [], REGEX{source: "\\a\\f\\r\\v\\d", opts: "", pattern: :escaped, keys: [:__struct__, :opts, :re_pattern, :re_version, :source]}}
+meta: []
+## sigil_r_hex: ~r/\x41/
+{:"%{}", [], REGEX{source: "\\x41", opts: "", pattern: :escaped, keys: [:__struct__, :opts, :re_pattern, :re_version, :source]}}
+meta: []
+## sigil_r_line_continuation: ~r/a\⏎b/
+{:"%{}", [], REGEX{source: "ab", opts: "", pattern: :escaped, keys: [:__struct__, :opts, :re_pattern, :re_version, :source]}}
+meta: []
+## sigil_r_escaped_delimiter: ~r/a\/b/
+{:"%{}", [], REGEX{source: "a/b", opts: "", pattern: :escaped, keys: [:__struct__, :opts, :re_pattern, :re_version, :source]}}
+meta: []
+## sigil_r_match (match): ~r/a/
+{:"%{}", [], REGEX{source: "a", opts: "", pattern: :escaped, keys: [:__struct__, :opts, :re_pattern, :re_version, :source]}}
+meta: []
+## sigil_r_guard (guard): ~r/a/
+{:"%{}", [], REGEX{source: "a", opts: "", pattern: :escaped, keys: [:__struct__, :opts, :re_pattern, :re_version, :source]}}
+meta: []
+## sigil_r_interp_match (match): ~r/a#{x}/
+{{:".", [], [{:__aliases__, [{:counter, :N}, {:alias, :false}], [:Regex]}, :compile!]}, [], [{:"<<>>", [], ["a", {:"::", [], [{{:".", [], [:"Elixir.Kernel", :to_string]}, [{:from_interpolation, :true}], [{:x, [], :nil}]}, {:binary, [], :nil}]}]}, ""]}
+meta: [{:alias, :false}, {:counter, :N}, {:from_interpolation, :true}]
+## sigil_r_call: sigil_r(x, [])
+RAISE :"Elixir.FunctionClauseError" "no function clause matching in Kernel.sigil_r/2"
+## sigil_r_call_line_continuation: sigil_r(<<"a\\\nb">>, [])
+{:"%{}", [], REGEX{source: "ab", opts: "", pattern: :escaped, keys: [:__struct__, :opts, :re_pattern, :re_version, :source]}}
+meta: []
+## sigil_r_call_crlf_continuation: sigil_r(<<"a\\\r\nb">>, [])
+{:"%{}", [], REGEX{source: "ab", opts: "", pattern: :escaped, keys: [:__struct__, :opts, :re_pattern, :re_version, :source]}}
+meta: []
+## sigil_R_plain: ~R/a+/
+{:"%{}", [], REGEX{source: "a+", opts: "", pattern: :escaped, keys: [:__struct__, :opts, :re_pattern, :re_version, :source]}}
+meta: []
+## sigil_R_opts: ~R/a/i
+{:"%{}", [], REGEX{source: "a", opts: "i", pattern: :escaped, keys: [:__struct__, :opts, :re_pattern, :re_version, :source]}}
+meta: []
+## sigil_R_escape_tab: ~R/a\tb/
+{:"%{}", [], REGEX{source: "a\\tb", opts: "", pattern: :escaped, keys: [:__struct__, :opts, :re_pattern, :re_version, :source]}}
+meta: []
+## sigil_R_bad_modifier: ~R/a/k
+RAISE :"Elixir.Regex.CompileError" "invalid_option at position k"
+## sigil_R_match (match): ~R/a/
+{:"%{}", [], REGEX{source: "a", opts: "", pattern: :escaped, keys: [:__struct__, :opts, :re_pattern, :re_version, :source]}}
+meta: []
+## sigil_R_call: sigil_R(x, [])
+RAISE :"Elixir.FunctionClauseError" "no function clause matching in Kernel.sigil_R/2"
+## sigil_D_iso: ~D[2015-01-13]
+{:"%{}", [], [{:__struct__, :"Elixir.Date"}, {:calendar, :"Elixir.Calendar.ISO"}, {:year, 2015}, {:month, 1}, {:day, 13}]}
+meta: []
+## sigil_D_explicit_iso: ~D[2015-01-13 Calendar.ISO]
+{:"%{}", [], [{:__struct__, :"Elixir.Date"}, {:calendar, :"Elixir.Calendar.ISO"}, {:year, 2015}, {:month, 1}, {:day, 13}]}
+meta: []
+## sigil_D_lowercase_tail: ~D[2015-01-13 iso]
+RAISE :"Elixir.ArgumentError" "cannot parse \"2015-01-13 iso\" as Date for Calendar.ISO, reason: :invalid_format"
+## sigil_D_invalid: ~D[2015-13-45]
+RAISE :"Elixir.ArgumentError" "cannot parse \"2015-13-45\" as Date for Calendar.ISO, reason: :invalid_date"
+## sigil_D_modifier: ~D[2015-01-13]x
+RAISE :"Elixir.FunctionClauseError" "no function clause matching in Kernel.sigil_D/2"
+## sigil_D_call: sigil_D(x, [])
+RAISE :"Elixir.FunctionClauseError" "no function clause matching in Kernel.sigil_D/2"
+## sigil_T_hms: ~T[13:00:07]
+{:"%{}", [], [{:__struct__, :"Elixir.Time"}, {:calendar, :"Elixir.Calendar.ISO"}, {:hour, 13}, {:minute, 0}, {:second, 7}, {:microsecond, {0, 0}}]}
+meta: []
+## sigil_T_micro: ~T[13:00:07.123]
+{:"%{}", [], [{:__struct__, :"Elixir.Time"}, {:calendar, :"Elixir.Calendar.ISO"}, {:hour, 13}, {:minute, 0}, {:second, 7}, {:microsecond, {123000, 3}}]}
+meta: []
+## sigil_T_explicit_iso: ~T[13:00:07 Calendar.ISO]
+{:"%{}", [], [{:__struct__, :"Elixir.Time"}, {:calendar, :"Elixir.Calendar.ISO"}, {:hour, 13}, {:minute, 0}, {:second, 7}, {:microsecond, {0, 0}}]}
+meta: []
+## sigil_T_invalid: ~T[25:00:07]
+RAISE :"Elixir.ArgumentError" "cannot parse \"25:00:07\" as Time for Calendar.ISO, reason: :invalid_time"
+## sigil_T_modifier: ~T[13:00:07]x
+RAISE :"Elixir.FunctionClauseError" "no function clause matching in Kernel.sigil_T/2"
+## sigil_N_space: ~N[2015-01-13 13:00:07]
+{:"%{}", [], [{:__struct__, :"Elixir.NaiveDateTime"}, {:calendar, :"Elixir.Calendar.ISO"}, {:year, 2015}, {:month, 1}, {:day, 13}, {:hour, 13}, {:minute, 0}, {:second, 7}, {:microsecond, {0, 0}}]}
+meta: []
+## sigil_N_t: ~N[2015-01-13T13:00:07.123]
+{:"%{}", [], [{:__struct__, :"Elixir.NaiveDateTime"}, {:calendar, :"Elixir.Calendar.ISO"}, {:year, 2015}, {:month, 1}, {:day, 13}, {:hour, 13}, {:minute, 0}, {:second, 7}, {:microsecond, {123000, 3}}]}
+meta: []
+## sigil_N_explicit_iso: ~N[2015-01-13 13:00:07 Calendar.ISO]
+{:"%{}", [], [{:__struct__, :"Elixir.NaiveDateTime"}, {:calendar, :"Elixir.Calendar.ISO"}, {:year, 2015}, {:month, 1}, {:day, 13}, {:hour, 13}, {:minute, 0}, {:second, 7}, {:microsecond, {0, 0}}]}
+meta: []
+## sigil_N_invalid: ~N[2015-01-13]
+RAISE :"Elixir.ArgumentError" "cannot parse \"2015-01-13\" as NaiveDateTime for Calendar.ISO, reason: :invalid_format"
+## sigil_N_modifier: ~N[2015-01-13 13:00:07]x
+RAISE :"Elixir.FunctionClauseError" "no function clause matching in Kernel.sigil_N/2"
+## sigil_U_z: ~U[2015-01-13 13:00:07Z]
+{:"%{}", [], [{:__struct__, :"Elixir.DateTime"}, {:calendar, :"Elixir.Calendar.ISO"}, {:year, 2015}, {:month, 1}, {:day, 13}, {:hour, 13}, {:minute, 0}, {:second, 7}, {:microsecond, {0, 0}}, {:time_zone, "Etc/UTC"}, {:zone_abbr, "UTC"}, {:utc_offset, 0}, {:std_offset, 0}]}
+meta: []
+## sigil_U_zero_offset: ~U[2015-01-13T13:00:07.123+00:00]
+{:"%{}", [], [{:__struct__, :"Elixir.DateTime"}, {:calendar, :"Elixir.Calendar.ISO"}, {:year, 2015}, {:month, 1}, {:day, 13}, {:hour, 13}, {:minute, 0}, {:second, 7}, {:microsecond, {123000, 3}}, {:time_zone, "Etc/UTC"}, {:zone_abbr, "UTC"}, {:utc_offset, 0}, {:std_offset, 0}]}
+meta: []
+## sigil_U_offset: ~U[2015-01-13 13:00:07+01:00]
+RAISE :"Elixir.ArgumentError" "cannot parse \"2015-01-13 13:00:07+01:00\" as UTC DateTime for Calendar.ISO, reason: :non_utc_offset"
+## sigil_U_offset_before_first_day: ~U[-9999-01-01 00:00:00+01:00]
+RAISE :"Elixir.FunctionClauseError" "no function clause matching in Calendar.ISO.date_from_iso_days/1"
+## sigil_U_offset_after_last_day: ~U[9999-12-31 23:00:00-01:00]
+RAISE :"Elixir.FunctionClauseError" "no function clause matching in Calendar.ISO.date_from_iso_days/1"
+## sigil_U_offset_within_last_day: ~U[9999-12-31 22:00:00-01:00]
+RAISE :"Elixir.ArgumentError" "cannot parse \"9999-12-31 22:00:00-01:00\" as UTC DateTime for Calendar.ISO, reason: :non_utc_offset"
+## sigil_U_offset_onto_last_day: ~U[9999-12-30 23:00:00-01:00]
+RAISE :"Elixir.ArgumentError" "cannot parse \"9999-12-30 23:00:00-01:00\" as UTC DateTime for Calendar.ISO, reason: :non_utc_offset"
+## sigil_U_offset_onto_first_day: ~U[-9999-01-02 00:00:00+01:00]
+RAISE :"Elixir.ArgumentError" "cannot parse \"-9999-01-02 00:00:00+01:00\" as UTC DateTime for Calendar.ISO, reason: :non_utc_offset"
+## sigil_U_invalid: ~U[2015-01-13]
+RAISE :"Elixir.ArgumentError" "cannot parse \"2015-01-13\" as UTC DateTime for Calendar.ISO, reason: :invalid_format"
+## sigil_U_explicit_iso: ~U[2015-01-13 13:00:07Z Calendar.ISO]
+{:"%{}", [], [{:__struct__, :"Elixir.DateTime"}, {:calendar, :"Elixir.Calendar.ISO"}, {:year, 2015}, {:month, 1}, {:day, 13}, {:hour, 13}, {:minute, 0}, {:second, 7}, {:microsecond, {0, 0}}, {:time_zone, "Etc/UTC"}, {:zone_abbr, "UTC"}, {:utc_offset, 0}, {:std_offset, 0}]}
+meta: []
+## sigil_U_modifier: ~U[2015-01-13 13:00:07Z]x
+RAISE :"Elixir.FunctionClauseError" "no function clause matching in Kernel.sigil_U/2"
+## sigil_D_basic: ~D[20150113]
+RAISE :"Elixir.ArgumentError" "cannot parse \"20150113\" as Date for Calendar.ISO, reason: :invalid_format"
+## sigil_D_negative_year: ~D[-0001-01-01]
+{:"%{}", [], [{:__struct__, :"Elixir.Date"}, {:calendar, :"Elixir.Calendar.ISO"}, {:year, -1}, {:month, 1}, {:day, 1}]}
+meta: []
+## sigil_D_positive_year: ~D[+2015-01-13]
+{:"%{}", [], [{:__struct__, :"Elixir.Date"}, {:calendar, :"Elixir.Calendar.ISO"}, {:year, 2015}, {:month, 1}, {:day, 13}]}
+meta: []
+## sigil_D_leap_day: ~D[2016-02-29]
+{:"%{}", [], [{:__struct__, :"Elixir.Date"}, {:calendar, :"Elixir.Calendar.ISO"}, {:year, 2016}, {:month, 2}, {:day, 29}]}
+meta: []
+## sigil_D_not_leap_day: ~D[2015-02-29]
+RAISE :"Elixir.ArgumentError" "cannot parse \"2015-02-29\" as Date for Calendar.ISO, reason: :invalid_date"
+## sigil_D_empty: ~D[]
+RAISE :"Elixir.ArgumentError" "cannot parse \"\" as Date for Calendar.ISO, reason: :invalid_format"
+## sigil_D_two_spaces: ~D[2015-01-13  Calendar.ISO]
+RAISE :"Elixir.ArgumentError" "cannot parse \"2015-01-13 \" as Date for Calendar.ISO, reason: :invalid_format"
+## sigil_D_time_tail: ~D[2015-01-13 13:00:07]
+RAISE :"Elixir.ArgumentError" "cannot parse \"2015-01-13 13:00:07\" as Date for Calendar.ISO, reason: :invalid_format"
+## sigil_T_basic: ~T[130007]
+RAISE :"Elixir.ArgumentError" "cannot parse \"130007\" as Time for Calendar.ISO, reason: :invalid_format"
+## sigil_T_t_prefix: ~T[T13:00:07]
+{:"%{}", [], [{:__struct__, :"Elixir.Time"}, {:calendar, :"Elixir.Calendar.ISO"}, {:hour, 13}, {:minute, 0}, {:second, 7}, {:microsecond, {0, 0}}]}
+meta: []
+## sigil_T_z: ~T[13:00:07Z]
+{:"%{}", [], [{:__struct__, :"Elixir.Time"}, {:calendar, :"Elixir.Calendar.ISO"}, {:hour, 13}, {:minute, 0}, {:second, 7}, {:microsecond, {0, 0}}]}
+meta: []
+## sigil_T_offset: ~T[13:00:07+01:00]
+{:"%{}", [], [{:__struct__, :"Elixir.Time"}, {:calendar, :"Elixir.Calendar.ISO"}, {:hour, 13}, {:minute, 0}, {:second, 7}, {:microsecond, {0, 0}}]}
+meta: []
+## sigil_T_long_fraction: ~T[13:00:07.1234567]
+{:"%{}", [], [{:__struct__, :"Elixir.Time"}, {:calendar, :"Elixir.Calendar.ISO"}, {:hour, 13}, {:minute, 0}, {:second, 7}, {:microsecond, {123456, 6}}]}
+meta: []
+## sigil_T_comma_fraction: ~T[13:00:07,5]
+{:"%{}", [], [{:__struct__, :"Elixir.Time"}, {:calendar, :"Elixir.Calendar.ISO"}, {:hour, 13}, {:minute, 0}, {:second, 7}, {:microsecond, {500000, 1}}]}
+meta: []
+## sigil_T_empty_fraction: ~T[13:00:07.]
+RAISE :"Elixir.ArgumentError" "cannot parse \"13:00:07.\" as Time for Calendar.ISO, reason: :invalid_format"
+## sigil_T_hour_24: ~T[24:00:00]
+RAISE :"Elixir.ArgumentError" "cannot parse \"24:00:00\" as Time for Calendar.ISO, reason: :invalid_time"
+## sigil_T_second_60: ~T[13:00:60]
+RAISE :"Elixir.ArgumentError" "cannot parse \"13:00:60\" as Time for Calendar.ISO, reason: :invalid_time"
+## sigil_N_offset: ~N[2015-01-13 13:00:07-02:30]
+{:"%{}", [], [{:__struct__, :"Elixir.NaiveDateTime"}, {:calendar, :"Elixir.Calendar.ISO"}, {:year, 2015}, {:month, 1}, {:day, 13}, {:hour, 13}, {:minute, 0}, {:second, 7}, {:microsecond, {0, 0}}]}
+meta: []
+## sigil_N_z: ~N[2015-01-13T13:00:07Z]
+{:"%{}", [], [{:__struct__, :"Elixir.NaiveDateTime"}, {:calendar, :"Elixir.Calendar.ISO"}, {:year, 2015}, {:month, 1}, {:day, 13}, {:hour, 13}, {:minute, 0}, {:second, 7}, {:microsecond, {0, 0}}]}
+meta: []
+## sigil_N_basic: ~N[20150113 130007]
+RAISE :"Elixir.ArgumentError" "cannot parse \"20150113 130007\" as NaiveDateTime for Calendar.ISO, reason: :invalid_format"
+## sigil_N_invalid_date: ~N[2015-02-30 13:00:07]
+RAISE :"Elixir.ArgumentError" "cannot parse \"2015-02-30 13:00:07\" as NaiveDateTime for Calendar.ISO, reason: :invalid_date"
+## sigil_N_invalid_time: ~N[2015-01-13 25:00:07]
+RAISE :"Elixir.ArgumentError" "cannot parse \"2015-01-13 25:00:07\" as NaiveDateTime for Calendar.ISO, reason: :invalid_time"
+## sigil_U_missing_offset: ~U[2015-01-13 13:00:07]
+RAISE :"Elixir.ArgumentError" "cannot parse \"2015-01-13 13:00:07\" as UTC DateTime for Calendar.ISO, reason: :missing_offset"
+## sigil_U_minus_zero: ~U[2015-01-13 13:00:07-00:00]
+RAISE :"Elixir.ArgumentError" "cannot parse \"2015-01-13 13:00:07-00:00\" as UTC DateTime for Calendar.ISO, reason: :invalid_format"
+## sigil_U_short_zero_offset: ~U[2015-01-13 13:00:07+00]
+{:"%{}", [], [{:__struct__, :"Elixir.DateTime"}, {:calendar, :"Elixir.Calendar.ISO"}, {:year, 2015}, {:month, 1}, {:day, 13}, {:hour, 13}, {:minute, 0}, {:second, 7}, {:microsecond, {0, 0}}, {:time_zone, "Etc/UTC"}, {:zone_abbr, "UTC"}, {:utc_offset, 0}, {:std_offset, 0}]}
+meta: []
+## sigil_U_compact_zero_offset: ~U[2015-01-13 13:00:07+0000]
+{:"%{}", [], [{:__struct__, :"Elixir.DateTime"}, {:calendar, :"Elixir.Calendar.ISO"}, {:year, 2015}, {:month, 1}, {:day, 13}, {:hour, 13}, {:minute, 0}, {:second, 7}, {:microsecond, {0, 0}}, {:time_zone, "Etc/UTC"}, {:zone_abbr, "UTC"}, {:utc_offset, 0}, {:std_offset, 0}]}
+meta: []
+## sigil_U_invalid_date: ~U[2015-02-30 13:00:07Z]
+RAISE :"Elixir.ArgumentError" "cannot parse \"2015-02-30 13:00:07Z\" as UTC DateTime for Calendar.ISO, reason: :invalid_date"
+## sigil_U_invalid_time: ~U[2015-01-13 25:00:07Z]
+RAISE :"Elixir.ArgumentError" "cannot parse \"2015-01-13 25:00:07Z\" as UTC DateTime for Calendar.ISO, reason: :invalid_time"
+## sigil_U_invalid_offset: ~U[2015-01-13 13:00:07+25:00]
+RAISE :"Elixir.ArgumentError" "cannot parse \"2015-01-13 13:00:07+25:00\" as UTC DateTime for Calendar.ISO, reason: :invalid_format"
+## sigil_w_plain: ~w(a b)
+["a", "b"]
+meta: []
+## sigil_w_empty: ~w()
+[]
+meta: []
+## sigil_w_blank: ~w(  )
+[]
+meta: []
+## sigil_w_s: ~w(a b)s
+["a", "b"]
+meta: []
+## sigil_w_a: ~w(a b)a
+[:a, :b]
+meta: []
+## sigil_w_c: ~w(a b)c
+[[97], [98]]
+meta: []
+## sigil_w_escape: ~w(a\nb c\sd)
+["a", "b", "c", "d"]
+meta: []
+## sigil_w_line_continuation: ~w(a\⏎b)
+["ab"]
+meta: []
+## sigil_w_newline: ~w(a⏎b)
+["a", "b"]
+meta: []
+## sigil_w_trailing_comma: ~w(a, b)
+["a,", "b"]
+meta: []
+## sigil_w_interp: ~w(a #{x})
+{{:".", [], [{:__aliases__, [{:counter, :N}, {:alias, :false}], [:String]}, :split]}, [], [{:"<<>>", [], ["a ", {:"::", [], [{{:".", [], [:"Elixir.Kernel", :to_string]}, [{:from_interpolation, :true}], [{:x, [], :nil}]}, {:binary, [], :nil}]}]}]}
+meta: [{:alias, :false}, {:counter, :N}, {:from_interpolation, :true}]
+## sigil_w_interp_a: ~w(a #{x})a
+{{:".", [], [:lists, :map]}, [], [{:"&", [], [{:"/", [{:context, :"Elixir.Kernel"}, {:imports, [{2, :"Elixir.Kernel"}]}], [{{:".", [], [{:__aliases__, [{:counter, :N}, {:alias, :false}], [:String]}, :to_atom]}, [{:no_parens, :true}], []}, 1]}]}, {{:".", [], [{:__aliases__, [{:counter, :N}, {:alias, :false}], [:String]}, :split]}, [], [{:"<<>>", [], ["a ", {:"::", [], [{{:".", [], [:"Elixir.Kernel", :to_string]}, [{:from_interpolation, :true}], [{:x, [], :nil}]}, {:binary, [], :nil}]}]}]}]}
+meta: [{:alias, :false}, {:context, :"Elixir.Kernel"}, {:counter, :N}, {:from_interpolation, :true}, {:imports, :list}, {:no_parens, :true}]
+## sigil_w_interp_c: ~w(a #{x})c
+{{:".", [], [:lists, :map]}, [], [{:"&", [], [{:"/", [{:context, :"Elixir.Kernel"}, {:imports, [{2, :"Elixir.Kernel"}]}], [{{:".", [], [{:__aliases__, [{:counter, :N}, {:alias, :false}], [:String]}, :to_charlist]}, [{:no_parens, :true}], []}, 1]}]}, {{:".", [], [{:__aliases__, [{:counter, :N}, {:alias, :false}], [:String]}, :split]}, [], [{:"<<>>", [], ["a ", {:"::", [], [{{:".", [], [:"Elixir.Kernel", :to_string]}, [{:from_interpolation, :true}], [{:x, [], :nil}]}, {:binary, [], :nil}]}]}]}]}
+meta: [{:alias, :false}, {:context, :"Elixir.Kernel"}, {:counter, :N}, {:from_interpolation, :true}, {:imports, :list}, {:no_parens, :true}]
+## sigil_w_interp_s: ~w(a #{x})s
+{{:".", [], [{:__aliases__, [{:counter, :N}, {:alias, :false}], [:String]}, :split]}, [], [{:"<<>>", [], ["a ", {:"::", [], [{{:".", [], [:"Elixir.Kernel", :to_string]}, [{:from_interpolation, :true}], [{:x, [], :nil}]}, {:binary, [], :nil}]}]}]}
+meta: [{:alias, :false}, {:counter, :N}, {:from_interpolation, :true}]
+## sigil_w_bad_modifier: ~w(a b)x
+RAISE :"Elixir.ArgumentError" "modifier must be one of: s, a, c"
+## sigil_w_two_modifiers: ~w(a b)sa
+RAISE :"Elixir.ArgumentError" "modifier must be one of: s, a, c"
+## sigil_w_interp_bad_modifier: ~w(a #{x})x
+RAISE :"Elixir.ArgumentError" "modifier must be one of: s, a, c"
+## sigil_w_call: sigil_w(x, [])
+RAISE :"Elixir.FunctionClauseError" "no function clause matching in Kernel.sigil_w/2"
+## sigil_w_call_line_continuation: sigil_w(<<"a\\\nb">>, [])
+["ab"]
+meta: []
+## sigil_w_call_modifier: sigil_w(<<"a">>, x)
+RAISE :"Elixir.ArgumentError" "modifier must be one of: s, a, c"
+## sigil_w_call_large_modifier: sigil_w(<<"a b">>, [65633])
+RAISE :"Elixir.ArgumentError" "modifier must be one of: s, a, c"
+## sigil_W_plain: ~W(a b)
+["a", "b"]
+meta: []
+## sigil_W_empty: ~W()
+[]
+meta: []
+## sigil_W_s: ~W(a b)s
+["a", "b"]
+meta: []
+## sigil_W_a: ~W(a b)a
+[:a, :b]
+meta: []
+## sigil_W_c: ~W(a b)c
+[[97], [98]]
+meta: []
+## sigil_W_text: ~W(a\nb #{c})
+["a\\nb", "#{c}"]
+meta: []
+## sigil_W_trailing_comma: ~W(a, b)
+["a,", "b"]
+meta: []
+## sigil_W_bad_modifier: ~W(a b)x
+RAISE :"Elixir.ArgumentError" "modifier must be one of: s, a, c"
+## sigil_W_call: sigil_W(x, [])
+RAISE :"Elixir.FunctionClauseError" "no function clause matching in Kernel.sigil_W/2"
+## sigil_W_call_large_modifier: sigil_W(<<"a b">>, [65633])
+RAISE :"Elixir.ArgumentError" "modifier must be one of: s, a, c"

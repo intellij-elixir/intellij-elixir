@@ -110,7 +110,7 @@ class AttributeEventProbeTest : ProbeTestCase() {
             """.trimIndent(),
         )
 
-        /** Two attributes whose values are macros the expander doesn't expand yet. */
-        val OPAQUE_VALUES = listOf("@s ~w(a b)\n@i if(true, do: 1)")
+        /** An attribute whose value is a macro the expander doesn't expand yet. */
+        val OPAQUE_VALUES = listOf("@m match?(1, 1)")
     }
 }

@@ -106,10 +106,21 @@ internal object Summaries {
             MacroKey.DEFSTRUCT -> DEFSTRUCT
             MacroKey.BOOTSTRAP_DEF -> BOOTSTRAP_DEF
             MacroKey.DEFEXCEPTION -> DEFEXCEPTION
+            MacroKey.USE_1, MacroKey.USE_2 -> USE
+            MacroKey.SIGIL_S_UPPER -> SIGIL_S_UPPER
+            MacroKey.SIGIL_S -> SIGIL_S
+            MacroKey.SIGIL_C_UPPER -> SIGIL_C_UPPER
+            MacroKey.SIGIL_C -> SIGIL_C
+            MacroKey.SIGIL_W_UPPER -> SIGIL_W_UPPER
+            MacroKey.SIGIL_W -> SIGIL_W
+            MacroKey.SIGIL_R_UPPER -> SIGIL_R_UPPER
+            MacroKey.SIGIL_R -> SIGIL_R
+            MacroKey.SIGIL_D -> SIGIL_D
+            MacroKey.SIGIL_T -> SIGIL_T
+            MacroKey.SIGIL_N -> SIGIL_N
+            MacroKey.SIGIL_U -> SIGIL_U
             MacroKey.DEFDELEGATE, MacroKey.DEFPROTOCOL, MacroKey.DEFIMPL_2, MacroKey.DEFIMPL_3,
-            MacroKey.USE_1, MacroKey.USE_2, MacroKey.SIGIL_C_UPPER, MacroKey.SIGIL_D, MacroKey.SIGIL_N,
-            MacroKey.SIGIL_R_UPPER, MacroKey.SIGIL_S_UPPER, MacroKey.SIGIL_T, MacroKey.SIGIL_U, MacroKey.SIGIL_W_UPPER,
-            MacroKey.SIGIL_C, MacroKey.SIGIL_R, MacroKey.SIGIL_S, MacroKey.SIGIL_W, MacroKey.PROTOCOL_DEF -> null
+            MacroKey.PROTOCOL_DEF -> null
         }
 }
 
