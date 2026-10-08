@@ -11,6 +11,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.language_level.elixir
+import org.elixir_lang.parser.WordAfterNumber
 import org.elixir_lang.psi.ElixirTypes
 
 /**
@@ -71,6 +72,22 @@ class WordAfterNumberTest : LightTestCase() {
             val type = parse(languageLevel, source).findElementAt(offset(source, "not"))?.node?.elementType
 
             assertEquals("type of not in $source on $languageLevel", WORDS.getValue("not"), type)
+        }
+    }
+
+    /** Only the lexer's invalid-digit tokens are candidates, whatever text follows a digit. */
+    fun testOtherTokenTypesAreNeverRemapped() {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
+            val remapper = WordAfterNumber(languageLevel)
+
+            for ((source, word) in DECIMAL + BASED) {
+                val start = offset(source, word)
+                val end = start + word.length
+
+                for (type in listOf(ElixirTypes.IDENTIFIER_TOKEN, ElixirTypes.DECIMAL_DIGITS, ElixirTypes.DO)) {
+                    assertSame("$type for $word in $source", type, remapper.filter(type, start, end, source))
+                }
+            }
         }
     }
 

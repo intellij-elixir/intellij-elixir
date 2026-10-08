@@ -12,7 +12,7 @@ import org.elixir_lang.language_level.ElixirLanguageLevel
  */
 class WordAfterNumber(private val languageLevel: ElixirLanguageLevel) : ITokenTypeRemapper {
     override fun filter(source: IElementType, start: Int, end: Int, text: CharSequence): IElementType {
-        val isDigit = DIGITS[source] ?: return source
+        val isDigit = digitTest(source) ?: return source
         if (
             source == ElixirTypes.INVALID_DECIMAL_DIGITS &&
             !DECIMAL_NUMBER_ENDS_BEFORE_WORD.isSufficient(languageLevel)
@@ -36,12 +36,14 @@ class WordAfterNumber(private val languageLevel: ElixirLanguageLevel) : ITokenTy
     }
 
     private companion object {
-        val DIGITS: Map<IElementType, (Char) -> Boolean> = mapOf(
-            ElixirTypes.INVALID_BINARY_DIGITS to ::isBinaryDigit,
-            ElixirTypes.INVALID_DECIMAL_DIGITS to ::isDecimalDigit,
-            ElixirTypes.INVALID_HEXADECIMAL_DIGITS to ::isHexadecimalDigit,
-            ElixirTypes.INVALID_OCTAL_DIGITS to ::isOctalDigit,
-        )
+        fun digitTest(type: IElementType): ((Char) -> Boolean)? =
+            when (type) {
+                ElixirTypes.INVALID_BINARY_DIGITS -> ::isBinaryDigit
+                ElixirTypes.INVALID_DECIMAL_DIGITS -> ::isDecimalDigit
+                ElixirTypes.INVALID_HEXADECIMAL_DIGITS -> ::isHexadecimalDigit
+                ElixirTypes.INVALID_OCTAL_DIGITS -> ::isOctalDigit
+                else -> null
+            }
 
         val WORDS: Map<String, IElementType> = mapOf(
             "after" to ElixirTypes.AFTER,
