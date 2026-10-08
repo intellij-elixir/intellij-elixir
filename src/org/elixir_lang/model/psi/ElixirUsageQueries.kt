@@ -6,8 +6,6 @@ import com.intellij.injected.editor.VirtualFileWindow
 import com.intellij.lang.html.HTMLLanguage
 import com.intellij.model.Pointer
 import com.intellij.model.psi.PsiSymbolReferenceService
-import com.intellij.model.search.LeafOccurrence
-import com.intellij.model.search.LeafOccurrenceMapper
 import com.intellij.model.search.SearchContext
 import com.intellij.model.search.SearchService
 import com.intellij.openapi.application.ReadAction
@@ -51,6 +49,8 @@ import org.elixir_lang.model.psi.type.TypeSymbol
 import org.elixir_lang.model.psi.type.TypeVariableSymbol
 import org.elixir_lang.model.psi.variable.VariableReference
 import org.elixir_lang.model.psi.variable.VariableSymbol
+import org.elixir_lang.model.psi.words.WordOccurrenceMapper
+import org.elixir_lang.model.psi.words.buildQueryFromLeaves
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.*
@@ -211,7 +211,7 @@ internal object ElixirUsageQueries {
                 .caseSensitive(true) // Elixir function/macro names are case-sensitive
                 .inContexts(SearchContext.inCode())
                 .inScope(searchScope)
-                .buildQuery(ImplementationMapper(callback.createPointer()))
+                .buildQueryFromLeaves(ImplementationMapper(callback.createPointer()))
         }
 
     private fun protocolCallSiteQuery(
@@ -225,7 +225,7 @@ internal object ElixirUsageQueries {
                 .caseSensitive(true)
                 .inContexts(SearchContext.inCode())
                 .inScope(searchScope)
-                .buildQuery(ProtocolCallSiteMapper(pf.createPointer()))
+                .buildQueryFromLeaves(ProtocolCallSiteMapper(pf.createPointer()))
         }
 
     private fun protocolImplementationQuery(
@@ -239,20 +239,18 @@ internal object ElixirUsageQueries {
                 .caseSensitive(true)
                 .inContexts(SearchContext.inCode())
                 .inScope(searchScope)
-                .buildQuery(ProtocolImplementationMapper(pf.createPointer()))
+                .buildQueryFromLeaves(ProtocolImplementationMapper(pf.createPointer()))
         }
 
     /**
      * Maps each occurrence of the callback name to an implementing definition clause, if any.
-     * The search framework invokes [mapOccurrence] under a read action.
      */
     private class ImplementationMapper(
         private val callbackPointer: Pointer<out Callback>
-    ) : LeafOccurrenceMapper<PsiUsage> {
+    ) : WordOccurrenceMapper<PsiUsage> {
         @RequiresReadLock
-        override fun mapOccurrence(occurrence: LeafOccurrence): Collection<PsiUsage> {
+        override fun map(leaf: PsiElement, offsetInLeaf: Int): Collection<PsiUsage> {
             val callback = callbackPointer.dereference() ?: return emptyList()
-            val (_, leaf, _) = occurrence
 
             // A `defoverridable name: arity` entry that names this callback (resolved through the
             // behaviour in scope) - keeps the overridable entry renaming with the callback.
@@ -340,15 +338,14 @@ internal object ElixirUsageQueries {
     /**
      * Maps each occurrence of a protocol function name to a **call site** that dispatches to it, if any.
      * A call site is a qualified call `Protocol.function(args)` (of matching name/arity) whose resolved
-     * module is the protocol. The search framework invokes [mapOccurrence] under a read action.
+     * module is the protocol.
      */
     private class ProtocolCallSiteMapper(
         private val protocolFunctionPointer: Pointer<out ProtocolFunction>
-    ) : LeafOccurrenceMapper<PsiUsage> {
+    ) : WordOccurrenceMapper<PsiUsage> {
         @RequiresReadLock
-        override fun mapOccurrence(occurrence: LeafOccurrence): Collection<PsiUsage> {
+        override fun map(leaf: PsiElement, offsetInLeaf: Int): Collection<PsiUsage> {
             val protocolFunction = protocolFunctionPointer.dereference() ?: return emptyList()
-            val (_, leaf, _) = occurrence
 
             // Nearest enclosing call. A call site is an invocation, not a definition clause.
             val call = leaf.enclosingCalls().firstOrNull() ?: return emptyList()
@@ -378,16 +375,14 @@ internal object ElixirUsageQueries {
      * Maps each occurrence of a protocol function name to an implementing `def`/`defmacro` clause
      * inside a `defimpl` of the same protocol, if any. Unlike Find Usages (where implementations are
      * reached via "Go To Implementation"), rename MUST update every `defimpl` clause so the protocol
-     * member and all its concrete implementations stay in sync. The search framework invokes
-     * [mapOccurrence] under a read action.
+     * member and all its concrete implementations stay in sync.
      */
     private class ProtocolImplementationMapper(
         private val protocolFunctionPointer: Pointer<out ProtocolFunction>
-    ) : LeafOccurrenceMapper<PsiUsage> {
+    ) : WordOccurrenceMapper<PsiUsage> {
         @RequiresReadLock
-        override fun mapOccurrence(occurrence: LeafOccurrence): Collection<PsiUsage> {
+        override fun map(leaf: PsiElement, offsetInLeaf: Int): Collection<PsiUsage> {
             val protocolFunction = protocolFunctionPointer.dereference() ?: return emptyList()
-            val (_, leaf, _) = occurrence
 
             // Nearest enclosing call-definition clause (def/defmacro).
             val defClause = leaf.enclosingCalls().firstOrNull { CallDefinitionClause.`is`(it) } ?: return emptyList()
@@ -442,7 +437,7 @@ internal object ElixirUsageQueries {
                 .inContexts(SearchContext.inCode())
                 .inScope(searchScope)
                 .includeInjections()
-                .buildQuery(FunctionCallSiteMapper(symbol.createPointer()))
+                .buildQueryFromLeaves(FunctionCallSiteMapper(symbol.createPointer()))
         }
 
     private fun typeUsageQuery(
@@ -455,7 +450,7 @@ internal object ElixirUsageQueries {
             .caseSensitive(true)
             .inContexts(SearchContext.inCode())
             .inScope(searchScope)
-            .buildQuery(TypeUsageMapper(symbol.createPointer()))
+            .buildQueryFromLeaves(TypeUsageMapper(symbol.createPointer()))
 
     private fun typeVariableUsageQuery(
         project: Project,
@@ -467,7 +462,7 @@ internal object ElixirUsageQueries {
             .caseSensitive(true)
             .inContexts(SearchContext.inCode())
             .inScope(symbol.maximalSearchScope?.intersectWith(searchScope) ?: searchScope)
-            .buildQuery(TypeVariableUsageMapper(symbol.createPointer()))
+            .buildQueryFromLeaves(TypeVariableUsageMapper(symbol.createPointer()))
 
     private fun variableUsageQuery(
         project: Project,
@@ -478,7 +473,7 @@ internal object ElixirUsageQueries {
             .caseSensitive(true)
             .inContexts(SearchContext.inCode())
             .inScope(symbol.maximalSearchScope?.intersectWith(searchScope) ?: searchScope)
-            .buildQuery(VariableUsageMapper(symbol.createPointer()))
+            .buildQueryFromLeaves(VariableUsageMapper(symbol.createPointer()))
 
     private fun moduleAttributeReadUsageQuery(
         project: Project,
@@ -490,7 +485,7 @@ internal object ElixirUsageQueries {
             .caseSensitive(true)
             .inContexts(SearchContext.inCode())
             .inScope(symbol.maximalSearchScope?.intersectWith(searchScope) ?: searchScope)
-            .buildQuery(ModuleAttributeReadUsageMapper(symbol.createPointer()))
+            .buildQueryFromLeaves(ModuleAttributeReadUsageMapper(symbol.createPointer()))
 
     private fun moduleAttributeWriteUsageQuery(
         symbol: ModuleAttributeSymbol,
@@ -516,16 +511,15 @@ internal object ElixirUsageQueries {
                 .caseSensitive(true)
                 .inContexts(SearchContext.inCode())
                 .inScope(searchScope)
-                .buildQuery(ModuleUsageMapper(symbol.createPointer()))
+                .buildQueryFromLeaves(ModuleUsageMapper(symbol.createPointer()))
         }
 
     private class ModuleUsageMapper(
         private val symbolPointer: Pointer<out ModuleSymbol>
-    ) : LeafOccurrenceMapper<PsiUsage> {
+    ) : WordOccurrenceMapper<PsiUsage> {
         @RequiresReadLock
-        override fun mapOccurrence(occurrence: LeafOccurrence): Collection<PsiUsage> {
+        override fun map(leaf: PsiElement, offsetInLeaf: Int): Collection<PsiUsage> {
             val symbol = symbolPointer.dereference() ?: return emptyList()
-            val (_, leaf, _) = occurrence
 
             // Walk up to the outermost QualifiableAlias containing this leaf.
             val alias = generateSequence(leaf) { it.parent }
@@ -654,7 +648,7 @@ internal object ElixirUsageQueries {
                 .caseSensitive(true)
                 .inContexts(SearchContext.inCode())
                 .inScope(searchScope)
-                .buildQuery(FunctionDeclarationFamilyMapper(symbol.createPointer()))
+                .buildQueryFromLeaves(FunctionDeclarationFamilyMapper(symbol.createPointer()))
         }
 
     /**
@@ -685,11 +679,10 @@ internal object ElixirUsageQueries {
      */
     private class FunctionDeclarationFamilyMapper(
         private val symbolPointer: Pointer<out FunctionSymbol>
-    ) : LeafOccurrenceMapper<PsiUsage> {
+    ) : WordOccurrenceMapper<PsiUsage> {
         @RequiresReadLock
-        override fun mapOccurrence(occurrence: LeafOccurrence): Collection<PsiUsage> {
+        override fun map(leaf: PsiElement, offsetInLeaf: Int): Collection<PsiUsage> {
             val symbol = symbolPointer.dereference() ?: return emptyList()
-            val (_, leaf, _) = occurrence
 
             val defClause = leaf.enclosingCalls().firstOrNull { CallDefinitionClause.`is`(it) } ?: return emptyList()
             val nameIdentifier = CallDefinitionClause.nameIdentifier(defClause) ?: return emptyList()
@@ -721,11 +714,10 @@ internal object ElixirUsageQueries {
      */
     private class FunctionCallSiteMapper(
         private val symbolPointer: Pointer<out FunctionSymbol>
-    ) : LeafOccurrenceMapper<PsiUsage> {
+    ) : WordOccurrenceMapper<PsiUsage> {
         @RequiresReadLock
-        override fun mapOccurrence(occurrence: LeafOccurrence): Collection<PsiUsage> {
+        override fun map(leaf: PsiElement, offsetInLeaf: Int): Collection<PsiUsage> {
             val symbol = symbolPointer.dereference() ?: return emptyList()
-            val (_, leaf, offsetInLeaf) = occurrence
 
             atomUsage(leaf, symbol)?.let { return listOf(it) }
 
@@ -783,7 +775,7 @@ internal object ElixirUsageQueries {
          * resolves to [symbol], else `null`. The word search hands back a leaf from the fragment's
          * HEEx root, which has no [Call] structure, so the call is found by offset in the Elixir
          * root instead. A top-level `.heex` file is excluded: its Elixir-root occurrence already
-         * reaches the ordinary walk in [mapOccurrence], and its other roots' occurrences would
+         * reaches the ordinary walk in [map], and its other roots' occurrences would
          * duplicate it.
          */
         @RequiresReadLock
@@ -968,11 +960,10 @@ internal object ElixirUsageQueries {
 
     private class TypeUsageMapper(
         private val symbolPointer: Pointer<out TypeSymbol>
-    ) : LeafOccurrenceMapper<PsiUsage> {
+    ) : WordOccurrenceMapper<PsiUsage> {
         @RequiresReadLock
-        override fun mapOccurrence(occurrence: LeafOccurrence): Collection<PsiUsage> {
+        override fun map(leaf: PsiElement, offsetInLeaf: Int): Collection<PsiUsage> {
             val symbol = symbolPointer.dereference() ?: return emptyList()
-            val (_, leaf, _) = occurrence
             val call = leaf.enclosingCalls().firstOrNull() ?: return emptyList()
             // Type usages are only valid inside type/spec syntax, never in executable code
             // (for example, variable bindings in function heads).
@@ -998,11 +989,10 @@ internal object ElixirUsageQueries {
 
     private class TypeVariableUsageMapper(
         private val symbolPointer: Pointer<out TypeVariableSymbol>
-    ) : LeafOccurrenceMapper<PsiUsage> {
+    ) : WordOccurrenceMapper<PsiUsage> {
         @RequiresReadLock
-        override fun mapOccurrence(occurrence: LeafOccurrence): Collection<PsiUsage> {
+        override fun map(leaf: PsiElement, offsetInLeaf: Int): Collection<PsiUsage> {
             val symbol = symbolPointer.dereference() ?: return emptyList()
-            val (_, leaf, _) = occurrence
             // The search scope is the single enclosing `@type`/`@spec` attribute, so any same-named
             // occurrence here is either this variable's declaration or one of its usages.
             val call = generateSequence(leaf) { it.parent }
@@ -1037,12 +1027,11 @@ internal object ElixirUsageQueries {
 
     private class VariableUsageMapper(
         private val symbolPointer: Pointer<out VariableSymbol>
-    ) : LeafOccurrenceMapper<PsiUsage> {
+    ) : WordOccurrenceMapper<PsiUsage> {
         @RequiresReadLock
-        override fun mapOccurrence(occurrence: LeafOccurrence): Collection<PsiUsage> {
+        override fun map(leaf: PsiElement, offsetInLeaf: Int): Collection<PsiUsage> {
             val symbol = symbolPointer.dereference() ?: return emptyList()
             val symbolChainRoot = symbol.chainRootSymbol() ?: return emptyList()
-            val (_, leaf, _) = occurrence
             for (candidate in generateSequence(leaf) { it.parent }.takeWhile { it !is PsiFile }) {
                 ProgressManager.checkCanceled()
                 if (VariableSymbol.variableName(candidate) != symbol.name) continue
@@ -1095,11 +1084,10 @@ internal object ElixirUsageQueries {
 
     private class ModuleAttributeReadUsageMapper(
         private val symbolPointer: Pointer<out ModuleAttributeSymbol>
-    ) : LeafOccurrenceMapper<PsiUsage> {
+    ) : WordOccurrenceMapper<PsiUsage> {
         @RequiresReadLock
-        override fun mapOccurrence(occurrence: LeafOccurrence): Collection<PsiUsage> {
+        override fun map(leaf: PsiElement, offsetInLeaf: Int): Collection<PsiUsage> {
             val symbol = symbolPointer.dereference() ?: return emptyList()
-            val (_, leaf, _) = occurrence
 
             for (candidate in generateSequence(leaf) { it.parent }.takeWhile { it !is PsiFile }) {
                 ProgressManager.checkCanceled()
