@@ -64,6 +64,7 @@ import versioning.GitSourceIdValueSource
 import versioning.PluginVersion
 import versioning.VersionFetcher
 import java.text.SimpleDateFormat
+import java.time.Duration
 import java.util.*
 
 // Uses the Version Catalog defined in gradle/libs.versions.toml
@@ -1119,6 +1120,9 @@ tasks.named<Test>("test") {
     // output.
     dependsOn("prepareTestSandbox", resolveElixirErlangSdks, startQuoter)
     usesService(quoterService)
+    // Backstop for local runs, which have no step limit of CI's: a full run took 5m54s locally on 9 forks,
+    // and a stuck test fork otherwise runs until someone notices.
+    timeout.set(Duration.ofMinutes(45))
     // Keeps the other bundled plugins' platform noise out of the tests. The list also keeps IJent out; see
     // `testLoadedPlugins` in gradle.properties.
     systemProperty("idea.load.plugins.id", providers.gradleProperty("testLoadedPlugins").get())

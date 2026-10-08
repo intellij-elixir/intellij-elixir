@@ -72,9 +72,12 @@ class WindowsQuoterPlatform(private val startEpmd: Boolean = true) : QuoterPlatf
 
         logger.debug("Environment: ${pb.environment().filterKeys { it.startsWith("RELEASE_") }}")
 
+        var spawned: Process? = null
+
         try {
             // Start the process
             val process = pb.start()
+            spawned = process
 
             // Consume output streams in background threads to prevent blocking
             // This is critical - if we don't consume the streams, the process will block when buffers fill
@@ -113,6 +116,9 @@ class WindowsQuoterPlatform(private val startEpmd: Boolean = true) : QuoterPlatf
 
         } catch (e: Exception) {
             logger.error("Failed to start Windows daemon: ${e.message}")
+            // The caller never receives the handle of a start that fails after spawning, and the bounded
+            // start interrupts the sleep above, so nothing else can end this process.
+            spawned?.destroyForcibly()
             throw e
         }
     }

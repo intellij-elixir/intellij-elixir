@@ -12,6 +12,10 @@ import org.gradle.api.services.BuildService
 import org.gradle.api.services.BuildServiceParameters
 import org.gradle.process.ExecOperations
 import java.io.File
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.FutureTask
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import javax.inject.Inject
 
 /**
@@ -88,28 +92,46 @@ abstract class QuoterService : BuildService<QuoterService.Params>, AutoCloseable
         val releaseTmp = parameters.tmpDir.orNull?.asFile
         val nodeName = parameters.nodeName.getOrElse(DEFAULT_QUOTER_NODE_NAME)
         val maxAttempts = 20
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(START_SECONDS)
 
         logPlatformDetection(logger)
         logger.lifecycle("Starting Quoter daemon: ${executable.absolutePath} as $nodeName")
 
-        replaceNodeAnsweringToName(executable, releaseTmp, nodeName)
+        replaceNodeAnsweringToName(executable, releaseTmp, nodeName, deadline)
 
-        // Start the daemon (platform-specific)
-        process = quoterPlatform.startDaemon(execOps, executable, releaseTmp, nodeName, logger)
+        // close() only stops the daemon once `started` is true, which a failed start never reaches, so a
+        // node left running here would hold the distributed node name and make every later start fail
+        // with "name ... in use by another Erlang node". That includes a start command cut off at its
+        // limit, which may already have launched the node.
+        try {
+            // Start the daemon (platform-specific)
+            process = bounded("The Quoter start command", deadline) {
+                quoterPlatform.startDaemon(execOps, executable, releaseTmp, nodeName, logger)
+            }
 
+            awaitReady(executable, releaseTmp, nodeName, maxAttempts, deadline)
+        } catch (exception: Exception) {
+            logger.warn("Quoter daemon did not start cleanly; stopping the spawned process to avoid a leak.")
+            stopAfterFailedStart(executable, releaseTmp, nodeName)
+            throw exception
+        }
+    }
+
+    /** Waits for the daemon to answer, then checks it is of the leg's Elixir. */
+    private fun awaitReady(executable: File, releaseTmp: File?, nodeName: String, maxAttempts: Int, deadline: Long) {
         // Wait for daemon to be ready (both platforms use RPC 'pid' command)
         logger.lifecycle("Waiting for Quoter daemon to be ready...")
 
         repeat(maxAttempts) { attempt ->
             Thread.sleep(1000)
 
-            val (isRunning, pidOutput) = quoterPlatform.checkStatus(
-                execOps, executable, releaseTmp, nodeName, process, logger
-            )
+            val (isRunning, pidOutput) = bounded("Asking the Quoter daemon for its PID", deadline) {
+                quoterPlatform.checkStatus(execOps, executable, releaseTmp, nodeName, process, logger)
+            }
 
             if (isRunning) {
                 logger.lifecycle("Quoter daemon is UP! (PID: ${pidOutput.trim()})")
-                requireExpectedElixir(executable, releaseTmp, nodeName)
+                requireExpectedElixir(executable, releaseTmp, nodeName, deadline)
                 return
             }
 
@@ -118,29 +140,20 @@ abstract class QuoterService : BuildService<QuoterService.Params>, AutoCloseable
             }
         }
 
-        // The daemon was spawned but never became ready. close() only stops the daemon once
-        // `started` is true (which we never reach), so stop the spawned process here - otherwise it
-        // leaks and holds the distributed node name, making every subsequent start fail with
-        // "name ... in use by another Erlang node".
-        logger.warn("Quoter daemon did not become ready; stopping the spawned process to avoid a leak.")
-        quoterPlatform.stopDaemon(execOps, executable, releaseTmp, nodeName, process, logger)
-        process = null
-
         throw RuntimeException("Quoter daemon failed to start after $maxAttempts attempts.")
     }
 
     /** A node of another leg's Elixir would answer every quote, with the wrong parser. */
-    private fun requireExpectedElixir(executable: File, releaseTmp: File?, nodeName: String) {
+    private fun requireExpectedElixir(executable: File, releaseTmp: File?, nodeName: String, deadline: Long) {
         val expected = parameters.elixirVersion.orNull ?: return
-        val (read, output) = quoterPlatform.readElixirVersion(execOps, executable, releaseTmp, nodeName, process, logger)
+        val (read, output) = bounded("Reading the Quoter daemon's Elixir version", deadline) {
+            quoterPlatform.readElixirVersion(execOps, executable, releaseTmp, nodeName, process, logger)
+        }
 
         if (read && isCompatibleVersion(expected, output)) {
             logger.lifecycle("Quoter daemon runs Elixir $output")
             return
         }
-
-        quoterPlatform.stopDaemon(execOps, executable, releaseTmp, nodeName, process, logger)
-        process = null
 
         throw RuntimeException(
             if (read) {
@@ -154,26 +167,80 @@ abstract class QuoterService : BuildService<QuoterService.Params>, AutoCloseable
     /**
      * A second node started under a name that is held exits 0 and dies, leaving the first answering, so
      * whatever answers to [nodeName] before this start is a node from an earlier run - possibly stuck,
-     * possibly another leg's Elixir. Halts it and waits until it stops answering.
+     * possibly another leg's Elixir. Halts it and waits until it stops answering. A node that does not
+     * answer the PID question in time is taken as answering: it holds the name just the same.
      */
-    private fun replaceNodeAnsweringToName(executable: File, releaseTmp: File?, nodeName: String) {
-        val (answering, pid) = quoterPlatform.checkStatus(execOps, executable, releaseTmp, nodeName, null, logger)
+    private fun replaceNodeAnsweringToName(executable: File, releaseTmp: File?, nodeName: String, deadline: Long) {
+        val (answering, pid) = answers(executable, releaseTmp, nodeName, deadline)
 
         if (!answering) return
 
         logger.lifecycle("A Quoter node already answers to $nodeName (PID: ${pid.trim()}); replacing it")
-        quoterPlatform.stopDaemon(execOps, executable, releaseTmp, nodeName, null, logger)
+        bounded("Halting the Quoter node", deadline) {
+            quoterPlatform.stopDaemon(execOps, executable, releaseTmp, nodeName, null, logger)
+        }
 
         repeat(MAX_STOP_POLLS) {
             Thread.sleep(1000)
 
-            if (!quoterPlatform.checkStatus(execOps, executable, releaseTmp, nodeName, null, logger).first) return
+            if (!answers(executable, releaseTmp, nodeName, deadline).first) return
         }
 
         throw RuntimeException(
             "The Quoter node answering to $nodeName (PID: ${pid.trim()}) still answers $MAX_STOP_POLLS seconds " +
                 "after being halted; stop it by hand."
         )
+    }
+
+    private fun answers(executable: File, releaseTmp: File?, nodeName: String, deadline: Long): Pair<Boolean, String> = try {
+        bounded("Asking the Quoter node for its PID", deadline) {
+            quoterPlatform.checkStatus(execOps, executable, releaseTmp, nodeName, null, logger)
+        }
+    } catch (exception: QuoterCallTimeout) {
+        Pair(true, "no reply")
+    }
+
+    /** Best effort, on its own short deadline: the start's own may be spent. */
+    private fun stopAfterFailedStart(executable: File, releaseTmp: File?, nodeName: String) {
+        try {
+            bounded("Halting the Quoter node", System.nanoTime() + TimeUnit.SECONDS.toNanos(CALL_SECONDS)) {
+                quoterPlatform.stopDaemon(execOps, executable, releaseTmp, nodeName, process, logger)
+            }
+        } catch (exception: Exception) {
+            logger.warn("Could not halt the Quoter node: ${exception.message}")
+        }
+
+        // The Windows stop can fail or be interrupted without reaching its own destroy of the handle, and
+        // `started` stays false, so close() will not stop this node either.
+        process?.takeIf { it.isAlive }?.destroyForcibly()
+        process = null
+    }
+
+    private class QuoterCallTimeout(message: String) : RuntimeException(message)
+
+    /**
+     * Runs one release-script call on its own thread and gives up after [CALL_SECONDS], or at [deadline]
+     * if that is sooner. A hung call then ends in an ordinary exception, which `StartQuoterTask` records
+     * as the quoter being unavailable, instead of holding the build until Gradle's task limit fails it.
+     * Interrupting the thread ends the process it waits on.
+     */
+    private fun <T> bounded(what: String, deadline: Long, call: () -> T): T {
+        val remaining = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime())
+        val limit = minOf(TimeUnit.SECONDS.toMillis(CALL_SECONDS), remaining)
+
+        if (limit <= 0) throw QuoterCallTimeout("$what: the Quoter start ran out of its $START_SECONDS seconds")
+
+        val task = FutureTask(call)
+        Thread(task, "quoter-release-script").apply { isDaemon = true }.start()
+
+        try {
+            return task.get(limit, TimeUnit.MILLISECONDS)
+        } catch (exception: TimeoutException) {
+            task.cancel(true)
+            throw QuoterCallTimeout("$what did not finish within ${limit / 1000} seconds")
+        } catch (exception: ExecutionException) {
+            throw exception.cause ?: exception
+        }
     }
 
     /**
@@ -202,6 +269,12 @@ abstract class QuoterService : BuildService<QuoterService.Params>, AutoCloseable
 
     private companion object {
         const val MAX_STOP_POLLS = 10
+
+        /** One release-script call answers in about a second; a call past this is stuck. */
+        const val CALL_SECONDS = 30L
+
+        /** The whole start, well inside the 5 minutes Gradle gives `startQuoter` as a last backstop. */
+        const val START_SECONDS = 150L
     }
 
     override fun close() {
