@@ -97,6 +97,23 @@ class AssignTest : PlatformTestCase() {
         resolveSilently("myself")
     }
 
+    fun testInnerContentPutIntoAssigns() = assertInnerContentPut("assigns[:inner_content]")
+    fun testInnerContentPutIntoAssignsAsAQuotedAtom() = assertInnerContentPut("assigns[:\"inner_content\"]")
+    fun testInnerContentPutIntoAssignsAsAnEscapedAtom() = assertInnerContentPut("assigns[:\"inner_cont\\x65nt\"]")
+    fun testInnerContentPutIntoAssignsWithSpaces() = assertInnerContentPut("assigns[ :inner_content ]")
+
+    fun testAnotherAssignPutIntoAssignsIsNotInnerContent() {
+        addPhoenixFunction(
+            """
+            def to_rendered(content, view) do
+              put_in(assigns[:"other"], 1)
+            end
+            """.trimIndent()
+        )
+
+        assertFalse(resolveSilently("inner_content").any(ResolveResult::isValidResult))
+    }
+
     fun testKeywordKeyResolves() = assertAssigns("assign(socket, count: 1)", "count")
     fun testQuotedKeywordKeyIsTheAssignedName() = assertAssigns("assign(socket, \"count\": 1)", "count")
     fun testQuotedAtomIsTheAssignedName() = assertAssigns("assign(socket, :\"count\", 1)", "count")
@@ -132,6 +149,21 @@ class AssignTest : PlatformTestCase() {
         assertTrue(
             "@$assign should resolve to the name assigned by `$assignment`",
             reference.multiResolve(false).any(ResolveResult::isValidResult)
+        )
+    }
+
+    private fun assertInnerContentPut(path: String) {
+        addPhoenixFunction(
+            """
+            def to_rendered(content, view) do
+              put_in($path, content)
+            end
+            """.trimIndent()
+        )
+
+        assertTrue(
+            "@inner_content should resolve to the `put_in($path, ...)` that sets it",
+            resolveSilently("inner_content").any(ResolveResult::isValidResult)
         )
     }
 

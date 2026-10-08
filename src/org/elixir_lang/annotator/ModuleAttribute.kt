@@ -11,6 +11,7 @@ import com.intellij.psi.tree.TokenSet
 import org.elixir_lang.ElixirSyntaxHighlighter
 import org.elixir_lang.eex.Language
 import org.elixir_lang.errorreport.Logger
+import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.CallDefinitionClause.`is`
 import org.elixir_lang.psi.ModuleAttribute.isCallbackName
@@ -152,10 +153,8 @@ internal class ModuleAttribute : Annotator, DumbAware {
 
             greatGrandChildren.singleOrNull()?.let { greatGrandChild ->
                 when (greatGrandChild) {
-                    is ElixirAtomKeyword -> {
-                        val text = greatGrandChild.text
-
-                        if (text == "false") {
+                    is ElixirAtomKeyword, is ElixirAtom -> {
+                        if (AtomName.of(greatGrandChild) == "false") {
                             holder
                                 .newAnnotation(
                                     HighlightSeverity.WEAK_WARNING,
@@ -1441,7 +1440,7 @@ internal class ModuleAttribute : Annotator, DumbAware {
                 val strippedSecondChild = children[1].stripAccessExpression()
                 if (strippedSecondChild is ElixirList) {
                     val strippedThirdChild = children[2].stripAccessExpression()
-                    if (strippedThirdChild is ElixirAtomKeyword && strippedThirdChild.getText() == "nil") {
+                    if (AtomName.of(strippedThirdChild) == "nil") {
                         typeParameterNameSet = setOf(firstChild.getText())
                     }
                 }

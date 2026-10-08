@@ -33,6 +33,9 @@ import org.elixir_lang.psi.SigilLine
 import org.elixir_lang.psi.impl.identifierName
 import org.elixir_lang.psi.impl.operatorTokenNode
 import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
+import java.nio.charset.CharacterCodingException
+import java.nio.charset.CodingErrorAction
 
 /**
  * The atom a name written in source is, from its PSI and the language level alone. The lowering builds each name's atom
@@ -129,8 +132,20 @@ object AtomName {
     internal fun literal(content: Content): String? =
         when (content) {
             is Content.Empty -> ""
-            is Content.Literal -> String(utf8(content.codePoints), Charsets.UTF_8).takeIf(::fitsAnAtom)
+            is Content.Literal -> text(utf8(content.codePoints))?.takeIf(::fitsAnAtom)
             is Content.Interpolated -> null
+        }
+
+    /** The text [bytes] spell, or `null` when they are not UTF-8, as Elixir names no atom for them. */
+    internal fun text(bytes: ByteArray): String? =
+        try {
+            Charsets.UTF_8.newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT)
+                .decode(ByteBuffer.wrap(bytes))
+                .toString()
+        } catch (_: CharacterCodingException) {
+            null
         }
 
     private fun quoted(line: ElixirLine, languageLevel: ElixirLanguageLevel): String? =

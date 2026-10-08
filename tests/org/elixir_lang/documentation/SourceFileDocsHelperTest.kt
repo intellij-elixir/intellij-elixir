@@ -4,6 +4,8 @@ import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.ElixirFileType
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
+import org.elixir_lang.psi.Module
+import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.identifierName
 
 /**
@@ -84,6 +86,36 @@ class SourceFileDocsHelperTest : PlatformTestCase() {
 
         assertEquals("HeredocTypeDoc", typeDocumentation.module)
         assertEquals("The result of an operation.\n", typeDocumentation.typedoc)
+    }
+
+    /** `@moduledoc false` hides the module, however `false` is written: `:false` and `:"false"` are the atom `false`. */
+    fun testLastModuleDocWrittenAsAnAtomHidesTheModule() {
+        for (hidden in listOf("false", ":false", ":\"false\"", "nil", ":nil", ":\"nil\"")) {
+            myFixture.configureByText(
+                ElixirFileType.INSTANCE,
+                "defmodule Hidden do\n  @moduledoc \"x\"\n  @moduledoc $hidden\nend\n"
+            )
+
+            val module = PsiTreeUtil.findChildrenOfType(myFixture.file, Call::class.java).single { Module.`is`(it) }
+
+            assertNull("`@moduledoc $hidden` hides the module", SourceFileDocsHelper.fetchDocs(module))
+        }
+    }
+
+    fun testEarlierModuleDocIsShownWhenTheLastIsNotHidden() {
+        for (shown in listOf("\"y\"", ":true", ":\"true\"")) {
+            myFixture.configureByText(
+                ElixirFileType.INSTANCE,
+                "defmodule Shown do\n  @moduledoc \"x\"\n  @moduledoc $shown\nend\n"
+            )
+
+            val module = PsiTreeUtil.findChildrenOfType(myFixture.file, Call::class.java).single { Module.`is`(it) }
+
+            assertNotNull(
+                "`@moduledoc $shown` does not hide the module",
+                SourceFileDocsHelper.fetchDocs(module)
+            )
+        }
     }
 
     private fun fetchDocsForModuleAttribute(code: String, attributeName: String): FetchedDocs? {

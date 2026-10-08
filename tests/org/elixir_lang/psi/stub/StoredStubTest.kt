@@ -273,6 +273,21 @@ class StoredStubTest : PlatformTestCase() {
         "MODULE_ATTRIBUTE @c Module.put_attribute/3 - [@c] -",
     )
 
+    fun testQuotedDeclarationsWithQuotedAtoms() = assertStored(
+        "defmodule U do\n" +
+            "  defmacro __using__(_) do\n" +
+            "    quote do\n" +
+            "      Module.register_attribute(__MODULE__, :\"b\", [])\n" +
+            "      Module.put_attribute(__MODULE__, :\"c\", 1)\n" +
+            "    end\n" +
+            "  end\n" +
+            "end\n",
+        "MODULE U Kernel.defmodule/2 do [U] -",
+        "PUBLIC_MACRO __using__ Kernel.defmacro/2 do [__using__] -",
+        "MODULE_ATTRIBUTE @b Module.register_attribute/3 - [@b] -",
+        "MODULE_ATTRIBUTE @c Module.put_attribute/3 - [@c] -",
+    )
+
     fun testModuleNamedWithAnElixirPrefixedAlias() = assertStored(
         "defmodule Elixir.Foo do\nend\n",
         "MODULE Foo Kernel.defmodule/2 do [Foo] -",

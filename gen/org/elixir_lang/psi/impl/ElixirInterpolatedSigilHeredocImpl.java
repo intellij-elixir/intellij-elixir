@@ -50,33 +50,6 @@ public class ElixirInterpolatedSigilHeredocImpl extends ASTWrapperPsiElement imp
   }
 
   @Override
-  public @NotNull List<Integer> addEscapedCharacterCodePoints(@Nullable List<Integer> codePointList, @NotNull ASTNode child) {
-    return ElixirPsiImplUtil.addEscapedCharacterCodePoints(this, codePointList, child);
-  }
-
-  @Override
-  @RequiresReadLock
-  public @NotNull List<Integer> addEscapedEOL(@Nullable List<Integer> maybeCodePointList, @NotNull ASTNode child) {
-    return ElixirPsiImplUtil.addEscapedEOL(this, maybeCodePointList, child);
-  }
-
-  @Override
-  @RequiresReadLock
-  public @NotNull List<Integer> addEscapedTerminator(@Nullable List<Integer> maybeCodePointList, @NotNull ASTNode child) {
-    return ElixirPsiImplUtil.addEscapedTerminator(this, maybeCodePointList, child);
-  }
-
-  @Override
-  public @NotNull List<Integer> addFragmentCodePoints(@Nullable List<Integer> codePointList, @NotNull ASTNode child) {
-    return ElixirPsiImplUtil.addFragmentCodePoints(this, codePointList, child);
-  }
-
-  @Override
-  public @NotNull List<Integer> addHexadecimalEscapeSequenceCodePoints(@Nullable List<Integer> codePointList, @NotNull ASTNode child) {
-    return ElixirPsiImplUtil.addHexadecimalEscapeSequenceCodePoints(this, codePointList, child);
-  }
-
-  @Override
   public @NotNull LiteralTextEscaper<? extends PsiLanguageInjectionHost> createLiteralTextEscaper() {
     return ElixirPsiImplUtil.createLiteralTextEscaper(this);
   }

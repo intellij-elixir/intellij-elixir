@@ -6,7 +6,10 @@ import com.intellij.psi.impl.source.resolve.ResolveCache
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.psi.stubs.StubIndex
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.leex.reference.Assign
+import org.elixir_lang.lowering.ElementLowering
+import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.Modular.callDefinitionClauseCallFoldWhile
 import org.elixir_lang.psi.call.Call
@@ -529,6 +532,21 @@ object Assign : ResolveCache.PolyVariantResolver<ReferenceAssign> {
         return AccumulatorContinue(accumulator, `continue`)
     }
 
+    /** `assigns[:inner_content]` however it is written, which lowers to `Access.get(assigns, :inner_content)`. */
+    @RequiresReadLock
+    private fun isInnerContentAccess(path: PsiElement): Boolean {
+        val access = ElementLowering.lower(path) as? ElixirAst.Call ?: return false
+        val get = access.callee as? ElixirAst.Call ?: return false
+        val (container, key) = access.arguments?.takeIf { it.size == 2 } ?: return false
+
+        return atomName(get.callee) == "." &&
+            get.arguments?.map(::atomName) == listOf("Elixir.Access", "get") &&
+            container is ElixirAst.Call && container.arguments == null && atomName(container.callee) == "assigns" &&
+            atomName(key) == INNER_CONTENT
+    }
+
+    private fun atomName(ast: ElixirAst): String? = (ast as? ElixirAst.Literal.Atom)?.name
+
     private const val INNER_CONTENT = "inner_content"
     private const val LIVE_ACTION = "live_action"
     private const val MYSELF = "myself"
@@ -602,7 +620,7 @@ object Assign : ResolveCache.PolyVariantResolver<ReferenceAssign> {
                         expression.finalArguments()?.let { arguments ->
                             val path = arguments[0]
 
-                            if (path.textMatches("assigns[:${INNER_CONTENT}]")) {
+                            if (isInnerContentAccess(path)) {
                                 val validResult = INNER_CONTENT == assign.name
                                 val accumulator = initial + listOf(PsiElementResolveResult(path, validResult))
 

@@ -2,6 +2,7 @@ package org.elixir_lang.documentation
 
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
+import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
@@ -100,7 +101,7 @@ object SourceFileDocsHelper {
                 .filterIsInstance<AtUnqualifiedNoParenthesesCall<*>>()
                 .filter { it.atIdentifier.identifierName() == "moduledoc" }
                 .mapNotNull { it.moduleAttributeValue() }
-                .firstOrNull { it.text == "false" || it.text == "nil" || it.documentationMarkdownText() != null }
+                .firstOrNull { AtomName.of(it) in HIDDEN_DOCUMENTATION || it.documentationMarkdownText() != null }
                 ?.documentationMarkdownText()
 
             if (!moduleDoc.isNullOrEmpty()) {
@@ -175,4 +176,6 @@ object SourceFileDocsHelper {
     @RequiresReadLock
     private fun moduleName(modular: PsiElement): String =
         (modular as? CanonicallyNamed)?.canonicalName()?.let { org.elixir_lang.Module.inspect(it) }.orEmpty()
+
+    private val HIDDEN_DOCUMENTATION = setOf("false", "nil")
 }

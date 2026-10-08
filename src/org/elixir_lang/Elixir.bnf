@@ -332,11 +332,6 @@
 
   // Sigil Heredoc
   methods("(interpolated|literal)SigilHeredoc") = [
-    addEscapedCharacterCodePoints
-    addEscapedEOL
-    addEscapedTerminator
-    addFragmentCodePoints
-    addHexadecimalEscapeSequenceCodePoints
     createLiteralTextEscaper
     getHeredocLineList
     indentation
@@ -349,11 +344,6 @@
 
   // Sigil Line
   methods("(interpolated|literal)SigilLine") = [
-    addEscapedCharacterCodePoints
-    addEscapedEOL
-    addEscapedTerminator
-    addFragmentCodePoints
-    addHexadecimalEscapeSequenceCodePoints
     createLiteralTextEscaper
     getBody
     indentation
@@ -700,11 +690,6 @@ heredoc ::= HEREDOC_PROMOTER heredocOpening
                 "org.elixir_lang.psi.Quote"
               ]
               methods = [
-                  addEscapedCharacterCodePoints
-                  addEscapedEOL
-                  addEscapedTerminator
-                  addFragmentCodePoints
-                  addHexadecimalEscapeSequenceCodePoints
                   createLiteralTextEscaper
                   isCharList
                   isValidHost
@@ -820,11 +805,6 @@ line ::= LINE_PROMOTER lineBody LINE_TERMINATOR
              "org.elixir_lang.psi.Quote"
            ]
            methods = [
-             addEscapedCharacterCodePoints
-             addEscapedEOL
-             addEscapedTerminator
-             addFragmentCodePoints
-             addHexadecimalEscapeSequenceCodePoints
              createLiteralTextEscaper
              getBody
              isCharList
