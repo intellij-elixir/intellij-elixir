@@ -318,6 +318,7 @@ internal object ElixirUsageQueries {
 
             val matches = PsiSymbolReferenceService.getService()
                 .getReferences(occurrence.hostCall)
+                .asSequence()
                 .filterIsInstance<FunctionArityKeywordPairReference>()
                 .filter { it.absoluteRange.containsOffset(leaf.textRange.startOffset) }
                 .flatMap { it.resolveReference() }
@@ -763,6 +764,7 @@ internal object ElixirUsageQueries {
                 true
             } else {
                 Callable(call).multiResolve(false)
+                    .asSequence()
                     .filter { it.isValidResult }
                     .mapNotNull { it.element as? Call }
                     .filter { CallDefinitionClause.`is`(it) }
@@ -870,6 +872,7 @@ internal object ElixirUsageQueries {
             if (reference.arity != symbol.arity) return null
 
             val matches = reference.multiResolve(false)
+                .asSequence()
                 .filter { it.isValidResult }
                 .mapNotNull { it.element as? Call }
                 .filter { CallDefinitionClause.`is`(it) }
@@ -913,6 +916,7 @@ internal object ElixirUsageQueries {
 
             val matches = PsiSymbolReferenceService.getService()
                 .getReferences(occurrence.hostCall)
+                .asSequence()
                 .filterIsInstance<FunctionArityKeywordPairReference>()
                 .filter { it.absoluteRange.containsOffset(leaf.textRange.startOffset) }
                 .flatMap { it.resolveReference() }
@@ -1123,7 +1127,7 @@ internal object ElixirUsageQueries {
         private val symbolPointer: Pointer<out ModuleAttributeSymbol>
     ) : AbstractQuery<PsiUsage>() {
         override fun processResults(consumer: Processor<in PsiUsage>): Boolean =
-            ReadAction.nonBlocking(JCallable<Boolean> {
+            ReadAction.nonBlocking(JCallable {
                 val symbol = symbolPointer.dereference() ?: return@JCallable true
                 val declaration = generateSequence(symbol.file.findElementAt(symbol.range.startOffset)) { it.parent }
                     .filterIsInstance<AtUnqualifiedNoParenthesesCall<*>>()
