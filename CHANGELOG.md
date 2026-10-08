@@ -125,6 +125,8 @@
 
 ### Bug Fixes
 
+- [#PR-TBD](https://github.com/intellij-elixir/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)
+  - **Names written as quoted atoms, such as `:"acc"` in `Module.register_attribute`, `for: :"lower"` in `defimpl` and `optional: :true` in `mix.exs`, are read as the atoms they are.** Refs [#4379](https://github.com/intellij-elixir/intellij-elixir/issues/4379).
 - [#4372](https://github.com/intellij-elixir/intellij-elixir/pull/4372) [@sh41](https://github.com/sh41)
   - **A function named in an `import` `only:` or `except:` list no longer resolves to a private definition, and resolves in a module that exists only as a compiled `.beam`.** Refs [#4343](https://github.com/intellij-elixir/intellij-elixir/issues/4343).
 - [#4365](https://github.com/intellij-elixir/intellij-elixir/pull/4365) [@sh41](https://github.com/sh41)

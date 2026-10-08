@@ -14,6 +14,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.DEF
 import org.elixir_lang.psi.call.name.Function.DEFP
 import org.elixir_lang.psi.impl.call.finalArguments
+import org.elixir_lang.psi.impl.quotedAtomValue
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.structure_view.element.CallDefinitionClause.Companion.enclosingModular
 import org.elixir_lang.structure_view.element.modular.Modular
@@ -51,7 +52,7 @@ class EExFunctionFrom(val modular: Modular, val call: Call) : StructureViewTreeE
     override fun getChildren(): Array<TreeElement> = arrayOf(EExFunctionFromHead(this))
 
     private val declaredName: String by lazy {
-        call.finalArguments()?.get(1)?.stripAccessExpression()?.let { it as? ElixirAtom }?.node?.lastChildNode?.text
+        call.finalArguments()?.get(1)?.stripAccessExpression()?.let { it as? ElixirAtom }?.let(::quotedAtomValue)
             ?: "unknown_name"
     }
 
@@ -73,7 +74,7 @@ class EExFunctionFrom(val modular: Modular, val call: Call) : StructureViewTreeE
 
     override fun visibility(): Visibility? =
         call.finalArguments()?.get(0)?.stripAccessExpression()
-            ?.let { it as? ElixirAtom }?.node?.lastChildNode?.text?.let { macro ->
+            ?.let { it as? ElixirAtom }?.let(::quotedAtomValue)?.let { macro ->
             when (macro) {
                 DEF -> Visibility.PUBLIC
                 DEFP -> Visibility.PRIVATE

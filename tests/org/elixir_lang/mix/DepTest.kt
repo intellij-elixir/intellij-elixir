@@ -234,7 +234,6 @@ class DepTest : PlatformTestCase() {
      */
     fun testUnreadableOnlyValuesKeepTheDep() {
         val unreadable = listOf(
-            "only: :\"prod\"",
             "only: true",
             "only: @envs",
             "only: Mix.env()",
@@ -246,6 +245,34 @@ class DepTest : PlatformTestCase() {
 
             assertEquals("`$option` cannot be read, so the dep must be kept", "deps/d", deps.single()?.path)
         }
+    }
+
+    /** A quoted atom is the atom it quotes to, so these read as `:test` and `:prod` and gate the dep as the unquoted forms do. */
+    fun testQuotedOnlyValuesAreReadAsTheirAtoms() {
+        val (testOnly, _) = depsFrom("{:d, \"~> 1.0\", only: :\"test\"}", isDependency = true)
+        val (testOnlyInList, _) = depsFrom("{:d, \"~> 1.0\", only: [:\"te\\x73t\"]}", isDependency = true)
+        val (prodAndTest, _) = depsFrom("{:d, \"~> 1.0\", only: [:\"test\", :\"prod\"]}", isDependency = true)
+
+        assertNull("`only: :\"test\"` excludes :prod", testOnly.single())
+        assertNull("`only: [:\"te\\x73t\"]` excludes :prod", testOnlyInList.single())
+        assertEquals("deps/d", prodAndTest.single()?.path)
+    }
+
+    fun testQuotedTrueIsTrue() {
+        val (optional, _) = depsFrom("{:d, \"~> 1.0\", optional: :true}", isDependency = true)
+        val (quotedOptional, _) = depsFrom("{:d, \"~> 1.0\", optional: :\"true\"}", isDependency = true)
+
+        assertNull("`optional: :true` is `optional: true`", optional.single())
+        assertNull("`optional: :\"true\"` is `optional: true`", quotedOptional.single())
+    }
+
+    /** `{:"my\x2Ddep", ...}` is `:"my-dep"`. */
+    fun testEscapeInAQuotedNameIsDecoded() {
+        val (deps, errorTitles) = depsFrom("{:\"my\\x2Ddep\", \"~> 1.0\"}")
+
+        assertEmpty(errorTitles)
+        assertEquals("my-dep", deps.single()?.application)
+        assertEquals("deps/my-dep", deps.single()?.path)
     }
 
     // ---------------------------------------------------------------------

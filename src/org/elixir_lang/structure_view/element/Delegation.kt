@@ -6,6 +6,7 @@ import com.intellij.psi.ElementDescriptionLocation
 import com.intellij.psi.PsiElement
 import com.intellij.usageView.UsageViewTypeLocation
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.navigation.item_presentation.Delegation
 import org.elixir_lang.navigation.item_presentation.Parent
 import org.elixir_lang.psi.ElixirAccessExpression
@@ -32,7 +33,7 @@ class Delegation(private val modular: Modular, call: Call) : Element<Call?>(call
     @RequiresReadLock
     fun appendFirst(): Boolean =
         navigationItem!!.keywordArgument("append_first")?.let { keywordValue ->
-            keywordValue.text == "true"
+            AtomName.of(keywordValue) == "true"
         } ?: false
 
     /**

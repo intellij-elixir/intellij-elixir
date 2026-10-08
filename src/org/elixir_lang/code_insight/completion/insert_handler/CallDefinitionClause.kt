@@ -22,6 +22,7 @@ import org.elixir_lang.psi.isDefaultArgument
 import org.elixir_lang.psi.Exception as ElixirException
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
+import org.elixir_lang.psi.impl.quotedAtomValue
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.operation.InMatch
 import org.elixir_lang.psi.operation.Type
@@ -192,7 +193,7 @@ class CallDefinitionClause private constructor(private val arity: Arity?) : Inse
                 (arguments[3].stripAccessExpression() as? ElixirList)
                     ?.children
                     ?.mapNotNull { child ->
-                        child.stripAccessExpression().let { it as? ElixirAtom }?.node?.lastChildNode?.text
+                        child.stripAccessExpression().let { it as? ElixirAtom }?.let(::quotedAtomValue)
                     }
             } else {
                 emptyList()

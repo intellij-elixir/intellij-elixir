@@ -4,7 +4,9 @@ import org.elixir_lang.junit.LightTestCase
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.structure_view.element.Delegation.Companion.callDefinitionHeadCallList
+import com.intellij.ide.structureView.StructureViewTreeElement
 import com.intellij.psi.util.PsiTreeUtil
+import org.elixir_lang.structure_view.Model
 
 // If Delegation.is accepts a call, reading its head list must not throw - callDefinitionHeadCallList()
 // is also on the variable-resolution path, not just the structure view.
@@ -51,5 +53,39 @@ class DelegationShapeTest : LightTestCase() {
             emptyList<String>(),
             failures,
         )
+    }
+
+    /** `append_first: :true` and `:"true"` are `append_first: true`: the atom is the same. */
+    fun testAppendFirstIsReadFromTheAtomItQuotesTo() {
+        val expected = listOf(
+            "true" to true,
+            ":true" to true,
+            ":\"true\"" to true,
+            ":\"tru\\x65\"" to true,
+            "false" to false,
+            ":false" to false,
+            ":\"false\"" to false,
+            "nil" to false,
+        )
+
+        val actual = expected.map { (value, _) ->
+            myFixture.configureByText("append_first.ex", "defmodule A do\n  defdelegate foo(a), to: B, append_first: $value\nend\n")
+
+            val delegations = mutableListOf<Delegation>()
+
+            fun walk(element: StructureViewTreeElement) {
+                if (element is Delegation) delegations.add(element)
+
+                for (child in element.children) {
+                    if (child is StructureViewTreeElement) walk(child)
+                }
+            }
+
+            walk(Model(myFixture.file as ElixirFile, null).root)
+
+            value to delegations.single().appendFirst()
+        }
+
+        assertEquals(expected, actual)
     }
 }

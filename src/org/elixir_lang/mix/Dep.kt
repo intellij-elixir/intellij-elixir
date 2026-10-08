@@ -3,9 +3,11 @@ package org.elixir_lang.mix
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import org.elixir_lang.errorreport.Logger
+import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.keywordAtom
+import org.elixir_lang.psi.impl.quotedAtomValue
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.impl.stripAccessExpressions
 import org.elixir_lang.sdk.wsl.wslCompat
@@ -155,7 +157,7 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
          *
          * Unreadable means unrestricted. Dropping a dep that is physically present costs resolution
          * and completion, while keeping one Mix never fetches costs an empty placeholder library -
-         * so every shape this cannot parse, including a quoted atom, keeps the dep.
+         * so every shape this cannot parse keeps the dep.
          */
         private fun environments(keywordValue: Quotable): List<String>? =
             when (keywordValue) {
@@ -168,7 +170,7 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
             }
 
         private fun isTrue(keywordValue: Quotable): Boolean =
-            keywordValue is ElixirAtomKeyword && keywordValue.text == "true"
+            AtomName.of(keywordValue) == "true"
 
         private fun stringBody(keywordValue: Quotable): String? =
             (keywordValue as? ElixirLine)?.body?.text
@@ -198,12 +200,7 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
                 else -> null
             }
 
-        private fun name(atom: ElixirAtom): String =
-            atom.line?.let { name(it) }
-                ?: atom.node.lastChildNode.text
-
-        // A quoted atom, `:"my-dep"`, names the dep by its string body
-        private fun name(line: ElixirLine): String? = line.body?.text
+        private fun name(atom: ElixirAtom): String? = quotedAtomValue(atom)
 
         private fun putPath(dep: Dep, keywordValue: Quotable): Dep {
             return when (val strippedKeywordValue = keywordValue.stripAccessExpression()) {

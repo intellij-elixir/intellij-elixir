@@ -229,6 +229,39 @@ class CallDefinitionClauseTest : PlatformTestCase() {
         )
     }
 
+    fun testLocalEExFunctionFromInsertsQuotedArgumentNamesWithoutTheirQuotes() {
+        myFixture.configureByText(
+            "test.ex",
+            """
+                defmodule EEx do
+                  defmacro function_from_string(kind, name, source, args \\ [], options \\ []) do
+                    quote do
+                      unquote(kind)
+                      unquote(name)
+                    end
+                  end
+                end
+
+                defmodule Test do
+                  require EEx
+
+                  EEx.function_from_string(:def, :quoted_sample, "<%= a %><%= b %>", [:"a", :"b"])
+
+                  def run do
+                    quoted_sa<caret>
+                  end
+                end
+            """.trimIndent()
+        )
+
+        myFixture.completeSoleCandidateAtCaret()
+
+        assertTrue(
+            "Expected `quoted_sample(a, b)`; got:\n${myFixture.file.text}",
+            myFixture.file.text.contains("quoted_sample(a, b)")
+        )
+    }
+
     /* defexception's exception/1 and message/1 hooks, local (Variants.executeOnException). Fixed,
        hardcoded parameter names - the same ones the completion renderer's tail text already shows. */
 

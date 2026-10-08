@@ -28,12 +28,7 @@ object PsiNamedElementImpl {
 
     @RequiresReadLock
     @JvmStatic
-    fun getName(atom: ElixirAtom): String? =
-        if (atom.line == null) {
-            atom.node.lastChildNode.text
-        } else {
-            null
-        }
+    fun getName(atom: ElixirAtom): String? = quotedAtomValue(atom)
 
     @RequiresReadLock
     @Contract(pure = true)
