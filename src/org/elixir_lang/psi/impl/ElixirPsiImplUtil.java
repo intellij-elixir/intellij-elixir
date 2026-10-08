@@ -361,7 +361,12 @@ public class ElixirPsiImplUtil {
     @RequiresReadLock
     @NotNull
     public static String moduleAttributeName(@NotNull final AtUnqualifiedNoParenthesesCall atUnqualifiedNoParenthesesCall) {
-        ElixirAtIdentifier atIdentifier = atUnqualifiedNoParenthesesCall.getAtIdentifier();
+        return moduleAttributeName(atUnqualifiedNoParenthesesCall.getAtIdentifier());
+    }
+
+    @RequiresReadLock
+    @NotNull
+    public static String moduleAttributeName(@NotNull final ElixirAtIdentifier atIdentifier) {
         String atom = QuotedAtomKt.moduleAttributeAtom(atIdentifier);
 
         // a name too long for an atom keeps its text

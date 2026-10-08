@@ -175,7 +175,7 @@ private class PsiBacked(val call: Call) : SyntacticCall {
         (call as? NamedElement)
             ?.nameIdentifier
             ?.let { nameIdentifier ->
-                definitionHeadAtomValue(nameIdentifier) ?: PsiNamedElementImpl.unquoteName(call, nameIdentifier.text)
+                definitionHeadAtomValue(nameIdentifier) ?: PsiNamedElementImpl.unquoteName(call, PsiNamedElementImpl.identifierAtom(nameIdentifier))
             }
 
     /**

@@ -12,8 +12,8 @@ import org.elixir_lang.ElixirSyntaxHighlighter
 import org.elixir_lang.eex.Language
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.lowering.AtomName
+import org.elixir_lang.model.psi.type.TypeVariableSymbol
 import org.elixir_lang.psi.*
-import org.elixir_lang.psi.CallDefinitionClause.`is`
 import org.elixir_lang.psi.ModuleAttribute.isCallbackName
 import org.elixir_lang.psi.ModuleAttribute.isDocumentationName
 import org.elixir_lang.psi.ModuleAttribute.isSpecificationName
@@ -395,7 +395,7 @@ internal class ModuleAttribute : Annotator, DumbAware {
         annotationHolder: AnnotationHolder,
         typeTextAttributesKey: TextAttributesKey,
     ) {
-        val name = psiElement.text
+        val name = typeParameterName(psiElement)
 
         val textAttributesKey = if (typeParameterNameSet.contains(name)) {
             ElixirSyntaxHighlighter.TYPE_PARAMETER
@@ -665,7 +665,7 @@ internal class ModuleAttribute : Annotator, DumbAware {
     ) {
         val keywordKey: PsiElement = quotableKeywordPair.keywordKey
 
-        if (typeParameterNameSet.contains(keywordKey.text)) {
+        if (typeParameterNameSet.contains(typeParameterName(keywordKey))) {
             Highlighter.highlight(annotationHolder, keywordKey.textRange, ElixirSyntaxHighlighter.TYPE_PARAMETER)
         } else {
             highlightTypesAndTypeParameterUsages(
@@ -695,7 +695,7 @@ internal class ModuleAttribute : Annotator, DumbAware {
         typeTextAttributesKey: TextAttributesKey,
     ) {
         type.leftOperand()?.let {
-            if (typeParameterNameSet.contains(it.text)) {
+            if (typeParameterNameSet.contains(typeParameterName(it))) {
                 Highlighter.highlight(annotationHolder, it.textRange, ElixirSyntaxHighlighter.TYPE_PARAMETER)
             } else {
                 highlightTypesAndTypeParameterUsages(
@@ -1019,7 +1019,7 @@ internal class ModuleAttribute : Annotator, DumbAware {
             is UnqualifiedNoArgumentsCall<*>,
             -> {
                 // highlight entire element
-                val name = psiElement.text
+                val name = typeParameterName(psiElement)
                 val textAttributesKey: TextAttributesKey = if (typeParameterNameSet.contains(name)) {
                     ElixirSyntaxHighlighter.TYPE_PARAMETER
                 } else {
@@ -1355,11 +1355,15 @@ internal class ModuleAttribute : Annotator, DumbAware {
         }
     }
 
+    /** The atom [element] names, so a parameter written `µ` and one written `μ` are one. */
+    private fun typeParameterName(element: PsiElement): String =
+        TypeVariableSymbol.variableName(element) ?: element.text
+
     private fun specificationTypeParameterNameSet(keywordPair: ElixirKeywordPair): Set<String?> =
-        setOf(keywordPair.keywordKey.text)
+        setOf(typeParameterName(keywordPair.keywordKey))
 
     private fun specificationTypeParameterNameSet(noParenthesesKeywordPair: ElixirNoParenthesesKeywordPair): Set<String?> =
-        setOf(noParenthesesKeywordPair.keywordKey.text)
+        setOf(typeParameterName(noParenthesesKeywordPair.keywordKey))
 
     /**
      * A type operator is an error, keyword pairs should be used for `when type: definition` for expression-local types,
@@ -1367,7 +1371,7 @@ internal class ModuleAttribute : Annotator, DumbAware {
      */
     private fun specificationTypeParameterNameSet(type: Type): Set<String?> =
         type.leftOperand()?.let {
-            setOf(it.text)
+            setOf(typeParameterName(it))
         } ?: let {
             error("Type does not have a left operand", type)
             emptySet<String>()
@@ -1441,7 +1445,7 @@ internal class ModuleAttribute : Annotator, DumbAware {
                 if (strippedSecondChild is ElixirList) {
                     val strippedThirdChild = children[2].stripAccessExpression()
                     if (AtomName.of(strippedThirdChild) == "nil") {
-                        typeParameterNameSet = setOf(firstChild.getText())
+                        typeParameterNameSet = setOf(typeParameterName(firstChild))
                     }
                 }
             }
@@ -1475,7 +1479,7 @@ internal class ModuleAttribute : Annotator, DumbAware {
 
             is ElixirUnmatchedTypeOperation -> typeTypeParameterNameSet(psiElement)
             is ElixirUnmatchedUnqualifiedNoArgumentsCall -> {
-                setOf(psiElement.getText())
+                setOf(typeParameterName(psiElement))
             }
 
             /* A qualified call names a type in another module, so it declares no type parameter of its own.

@@ -22,7 +22,7 @@ import org.elixir_lang.psi.ElixirAtIdentifier
 import org.elixir_lang.psi.ModuleAttribute
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.declarations.UseScopeImpl
-import org.elixir_lang.psi.impl.identifierName
+import org.elixir_lang.psi.impl.ElixirPsiImplUtil
 import org.elixir_lang.psi.impl.identifierTextRange
 import java.util.*
 
@@ -104,7 +104,7 @@ class ModuleAttributeSymbol(
             if (!ModuleAttribute.isDeclaration(call)) return null
             val atIdentifier = call.atIdentifier
             if (ModuleAttribute.isNonReferencing(atIdentifier)) return null
-            val name = atIdentifier.identifierName()
+            val name = ElixirPsiImplUtil.moduleAttributeName(atIdentifier).removePrefix("@")
             // An attribute declared inside a `quote` block is enclosed by the `quote` call, which is
             // not a modular and has no name, so walk outward until one that does name a module is
             // found. Without this the declaration resolves but no symbol is ever built for it.

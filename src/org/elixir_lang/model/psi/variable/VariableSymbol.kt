@@ -27,6 +27,7 @@ import org.elixir_lang.psi.UnaryOperation
 import org.elixir_lang.psi.UnqualifiedBracketOperation
 import org.elixir_lang.psi.UnqualifiedNoArgumentsCall
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.impl.PsiNamedElementImpl
 import org.elixir_lang.psi.impl.declarations.UseScopeImpl
 import org.elixir_lang.psi.call.name.Function
 import org.elixir_lang.psi.call.name.Module
@@ -301,7 +302,7 @@ class VariableSymbol(
             when (element) {
                 is Call -> element.functionName()
                 is ElixirVariable -> element.name
-                is UnqualifiedBracketOperation -> element.identifier.text
+                is UnqualifiedBracketOperation -> PsiNamedElementImpl.identifierAtom(element.identifier)
                 else -> null
             }
 

@@ -3,9 +3,11 @@ package org.elixir_lang.psi.scope.variable
 import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.codeInsight.lookup.LookupElementBuilder
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiNameIdentifierOwner
 import com.intellij.psi.PsiNamedElement
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
+import org.elixir_lang.model.psi.ElixirUsageQueries
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil
 import org.elixir_lang.psi.impl.ProcessDeclarationsImpl.DECLARING_SCOPE
 import org.elixir_lang.psi.putInitialVisitedElement
@@ -33,9 +35,12 @@ class Variants : Variable() {
             // must appear once. `treeWalkUp` visits the nearest (innermost/shadowing) binding first,
             // so `computeIfAbsent` keeps that one as the navigation target.
             lookupElementByName.computeIfAbsent(name) {
+                val written = (declaration as? PsiNameIdentifierOwner)?.nameIdentifier?.text ?: name
+
                 LookupElementBuilder
-                        .createWithSmartPointer(name, declaration)
-                        .withRenderer(org.elixir_lang.code_insight.lookup.element_renderer.Variable(name))
+                        .createWithSmartPointer(written, declaration)
+                        .withLookupStrings(ElixirUsageQueries.lookupStrings(name, declaration))
+                        .withRenderer(org.elixir_lang.code_insight.lookup.element_renderer.Variable(written))
             }
         }
 

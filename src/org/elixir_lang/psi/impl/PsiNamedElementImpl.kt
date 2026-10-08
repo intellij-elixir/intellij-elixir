@@ -5,6 +5,7 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.IncorrectOperationException
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Name
+import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.module.PutAttribute
 import org.elixir_lang.module.RegisterAttribute
 import org.elixir_lang.psi.*
@@ -37,8 +38,20 @@ object PsiNamedElementImpl {
         if (namedElement is Call) {
             name(SyntacticCall.of(namedElement))
         } else {
-            namedElement.nameIdentifier?.let { unquoteName(namedElement, it.text) }
+            namedElement.nameIdentifier?.let { unquoteName(namedElement, identifierAtom(it)) }
+                // a quoted key has no name identifier (renaming it is not supported), but it is named by its atom
+                ?: (namedElement as? ElixirKeywordKey)?.let { AtomName.of(it) }
         }
+
+    /** The atom [nameIdentifier] quotes to, led by the `@` of an attribute, or its text when it quotes to none. */
+    @RequiresReadLock
+    @JvmStatic
+    fun identifierAtom(nameIdentifier: PsiElement): String =
+        if (nameIdentifier is ElixirAtIdentifier) {
+            ElixirPsiImplUtil.moduleAttributeName(nameIdentifier)
+        } else {
+            AtomName.of(nameIdentifier)
+        } ?: nameIdentifier.text
 
     @RequiresReadLock
     @Contract(pure = true)

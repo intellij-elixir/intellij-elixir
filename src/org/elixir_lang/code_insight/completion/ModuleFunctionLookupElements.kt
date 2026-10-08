@@ -13,6 +13,7 @@ import org.elixir_lang.code_insight.preferFunctionHeads
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Visible
+import org.elixir_lang.model.psi.ElixirUsageQueries
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.code_insight.lookup.element_renderer.CallDefinitionClause as CallDefinitionClauseRenderer
 import com.intellij.psi.ResolveState
@@ -75,6 +76,7 @@ private class Offer(val name: String, val element: PsiElement, val form: Form?) 
         if (form == Form.DELEGATION) {
             LookupElementBuilder
                 .createWithSmartPointer(name, element.inOriginalFile())
+                .withLookupStrings(ElixirUsageQueries.lookupStrings(name, element.inOriginalFile()))
                 .withRenderer(DelegationRenderer(name))
                 .withInsertHandler(insertHandler)
         } else {
@@ -158,6 +160,7 @@ private fun offers(moduleImpl: BeamModule, arity: Arity?): List<Offer> =
 private fun lookupElement(name: String, element: PsiElement, insertHandler: QualifiedName): LookupElement =
     LookupElementBuilder
         .createWithSmartPointer(name, element.inOriginalFile())
+        .withLookupStrings(ElixirUsageQueries.lookupStrings(name, element.inOriginalFile()))
         .withRenderer(CallDefinitionClauseRenderer(name))
         .withInsertHandler(insertHandler)
 

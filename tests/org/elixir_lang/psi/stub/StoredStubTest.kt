@@ -369,6 +369,23 @@ class StoredStubTest : PlatformTestCase() {
         }
     }
 
+    fun testDefinitionByAQuotedName() = assertStored(
+        "defmodule D do\n  Kernel.\"def\"(g(a), do: a)\n  Kernel.def(h(a), do: a)\nend\n",
+        "MODULE D Kernel.defmodule/2 do [D] -",
+        "PUBLIC_FUNCTION g Kernel.def/2 do [g] -",
+        "PUBLIC_FUNCTION h Kernel.def/2 do [h] -",
+    )
+
+    fun testModuleByAQuotedName() = assertStoredAlike(
+        "defmodule D do\n  Kernel.\"defmodule\" Inner do\n    def f, do: 1\n  end\nend\n",
+        "defmodule D do\n  Kernel.defmodule Inner do\n    def f, do: 1\n  end\nend\n",
+    )
+
+    fun testDefinitionByACharListName() = assertStoredAlike(
+        "defmodule D do\n  Kernel.'def'(g(a), do: a)\nend\n",
+        "defmodule D do\n  Kernel.def(g(a), do: a)\nend\n",
+    )
+
     fun testModuleWithNoValueAndModuleNamedByTheNoValueSpellingDoNotShareAKey() =
         assertNoSharedKey("defmodule :\"#{x}\" do\nend\n", "defmodule :\"Elixir.?\" do\nend\n")
 
@@ -489,6 +506,15 @@ class StoredStubTest : PlatformTestCase() {
         assertEquals(expected.joinToString("\n"), stubbics(root).joinToString("\n") { render(it) })
     }
 
+    /** The stubs of [source] are those of [unquoted], which spells the same calls without quoting a callee. */
+    private fun assertStoredAlike(source: String, unquoted: String) {
+        val stored = stubbics(File.INSTANCE.builder.buildStubTree(myFixture.configureByText("stored.ex", source)))
+        val expected = stubbics(File.INSTANCE.builder.buildStubTree(myFixture.configureByText("unquoted.ex", unquoted)))
+
+        assertEquals(expected.joinToString("\n") { render(it) }, stored.joinToString("\n") { render(it) })
+        assertTrue(expected.isNotEmpty())
+    }
+
     private fun stubbics(stub: StubElement<*>): List<Stubbic> =
         stub.childrenStubs.flatMap { child -> listOfNotNull(child as? Stubbic) + stubbics(child) }
 
@@ -503,7 +529,7 @@ class StoredStubTest : PlatformTestCase() {
         ).joinToString(" ")
 
     private companion object {
-        const val DECOMPOSED = "café"
-        const val PRECOMPOSED = "café"
+        const val DECOMPOSED = "cafe\u0301"
+        const val PRECOMPOSED = "caf\u00e9"
     }
 }
