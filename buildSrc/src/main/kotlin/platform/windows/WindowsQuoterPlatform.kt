@@ -72,9 +72,12 @@ class WindowsQuoterPlatform(private val startEpmd: Boolean = true) : QuoterPlatf
 
         logger.debug("Environment: ${pb.environment().filterKeys { it.startsWith("RELEASE_") }}")
 
+        var spawned: Process? = null
+
         try {
             // Start the process
             val process = pb.start()
+            spawned = process
 
             // Consume output streams in background threads to prevent blocking
             // This is critical - if we don't consume the streams, the process will block when buffers fill
@@ -113,6 +116,9 @@ class WindowsQuoterPlatform(private val startEpmd: Boolean = true) : QuoterPlatf
 
         } catch (e: Exception) {
             logger.error("Failed to start Windows daemon: ${e.message}")
+            // The caller never receives the handle of a start that fails after spawning, and the bounded
+            // start interrupts the sleep above, so nothing else can end this process.
+            spawned?.destroyForcibly()
             throw e
         }
     }
@@ -164,6 +170,32 @@ class WindowsQuoterPlatform(private val startEpmd: Boolean = true) : QuoterPlatf
 
         logger.debug("Invalid PID output after cleaning: '$cleanedOutput'")
         return Pair(false, "")
+    }
+
+    override fun readElixirVersion(
+        execOps: ExecOperations,
+        executable: File,
+        releaseTmp: File?,
+        releaseName: String,
+        process: Process?,
+        logger: Logger
+    ): Pair<Boolean, String> {
+        val output = ByteArrayOutputStream()
+        val errors = ByteArrayOutputStream()
+        val result = execOps.exec {
+            commandLine(toWindowsExecutable(executable).absolutePath, "rpc", "IO.puts(System.version())")
+            environment(getReleaseEnvironment(releaseTmp, releaseName, startEpmd))
+            standardOutput = output
+            errorOutput = errors
+            isIgnoreExitValue = true
+        }
+
+        if (result.exitValue != 0) {
+            return Pair(false, "exit ${result.exitValue}: ${errors.toString().trim()}")
+        }
+
+        val version = cleanStdout(output.toString(), errors.toString()).lines().lastOrNull { it.isNotEmpty() }
+        return if (version == null) Pair(false, "no output") else Pair(true, version)
     }
 
     override fun stopDaemon(

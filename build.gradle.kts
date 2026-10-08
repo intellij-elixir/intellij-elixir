@@ -64,6 +64,7 @@ import versioning.GitSourceIdValueSource
 import versioning.PluginVersion
 import versioning.VersionFetcher
 import java.text.SimpleDateFormat
+import java.time.Duration
 import java.util.*
 
 // Uses the Version Catalog defined in gradle/libs.versions.toml
@@ -183,8 +184,8 @@ val elixirPath: Directory = cachePath.dir("elixir-$elixirVersion")
 // rejects a chunk layout built by a different OTP - applies here unchanged. Keyed on Elixir alone,
 // 1.13.4/24.3.4.6 and 1.13.4/25.3.2.21 shared one tree and overwrote each other's build, while their
 // hex/rebar sat in correctly separated pair directories.
-val quoterUnzippedPath: Directory =
-    cachePath.dir("${pairToken(elixirVersion, expectedOtpVersion.getOrElse("unresolved"))}-quoter-$quoterRefSlug")
+val quoterPairToken: String = pairToken(elixirVersion, expectedOtpVersion.getOrElse("unresolved"))
+val quoterUnzippedPath: Directory = cachePath.dir("$quoterPairToken-quoter-$quoterRefSlug")
 // MIX_ENV for both quoter mix tasks AND the launcher path below - one value, so the directory the build
 // looks in is the one mix wrote. Read through `providers` rather than System.getenv so the
 // configuration cache treats it as an input and re-resolves when it changes. Defaults to prod; see
@@ -200,7 +201,9 @@ val quoterAvailabilityFile: RegularFile = quoterUnzippedPath.file("quoter-availa
 val quoterStartedFile: RegularFile = quoterUnzippedPath.file("quoter-started.properties")
 // Opts back in to a hard failure at releaseQuoter, for debugging the quoter itself.
 val quoterRequired: Boolean = providers.gradleProperty("quoterRequired").getOrElse("false").toBoolean()
-val quoterTmpPath: Directory = cachePath.dir("quoter_tmp_$quoterRefSlug")
+// Keyed on the pair like the release it serves: a node left behind by another leg keeps its pipe and
+// log here, and the next leg in this checkout must not read or write them.
+val quoterTmpPath: Directory = cachePath.dir("quoter_tmp_$quoterPairToken-$quoterRefSlug")
 // Distributed Erlang node names for the quoter daemon and for the test JVM that talks to it. Erlang
 // registers a node by name with the machine-wide epmd, and epmd allows exactly one node per name - so
 // with a fixed name a second checkout starting its own quoter gets "the name quoter@127.0.0.1
@@ -986,11 +989,14 @@ val sdkPropertiesFile: Provider<RegularFile> = layout.buildDirectory.file("elixi
 // sdkProperties is only for epmd's sake: started from the SDK, the machine-wide daemon stays out of
 // cache/, where a leftover pins the checkout against deletion. See quoter.Epmd.
 // See: https://docs.gradle.org/current/userguide/build_services.html
+// The service parameter below is also called elixirVersion, which would shadow the script's own.
+val legElixirVersion: String = elixirVersion
 val quoterService: Provider<QuoterService> = gradle.sharedServices.registerIfAbsent("quoter", QuoterService::class) {
     parameters {
         executable.set(quoterExe)
         tmpDir.set(quoterTmpPath)
         nodeName.set(quoterNodeName)
+        elixirVersion.set(legElixirVersion)
         sdkProperties.set(sdkPropertiesFile)
     }
 }
@@ -1114,6 +1120,9 @@ tasks.named<Test>("test") {
     // output.
     dependsOn("prepareTestSandbox", resolveElixirErlangSdks, startQuoter)
     usesService(quoterService)
+    // Backstop for local runs, which have no step limit of CI's: a full run took 5m54s locally on 9 forks,
+    // and a stuck test fork otherwise runs until someone notices.
+    timeout.set(Duration.ofMinutes(45))
     // Keeps the other bundled plugins' platform noise out of the tests. The list also keeps IJent out; see
     // `testLoadedPlugins` in gradle.properties.
     systemProperty("idea.load.plugins.id", providers.gradleProperty("testLoadedPlugins").get())

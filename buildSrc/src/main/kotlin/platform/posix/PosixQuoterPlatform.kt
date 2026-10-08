@@ -71,6 +71,32 @@ class PosixQuoterPlatform(private val startEpmd: Boolean = true) : QuoterPlatfor
         return Pair(result.exitValue == 0, output)
     }
 
+    override fun readElixirVersion(
+        execOps: ExecOperations,
+        executable: File,
+        releaseTmp: File?,
+        releaseName: String,
+        process: Process?,
+        logger: Logger
+    ): Pair<Boolean, String> {
+        val output = ByteArrayOutputStream()
+        val errors = ByteArrayOutputStream()
+        val result = execOps.exec {
+            commandLine(executable.absolutePath, "rpc", "IO.puts(System.version())")
+            environment(getReleaseEnvironment(releaseTmp, releaseName, startEpmd))
+            standardOutput = output
+            errorOutput = errors
+            isIgnoreExitValue = true
+        }
+
+        if (result.exitValue != 0) {
+            return Pair(false, "exit ${result.exitValue}: ${errors.toString().trim()}")
+        }
+
+        val version = output.toString().lines().map { it.trim() }.lastOrNull { it.isNotEmpty() }
+        return if (version == null) Pair(false, "no output") else Pair(true, version)
+    }
+
     override fun stopDaemon(
         execOps: ExecOperations,
         executable: File,
@@ -81,19 +107,23 @@ class PosixQuoterPlatform(private val startEpmd: Boolean = true) : QuoterPlatfor
     ) {
         logger.lifecycle("Stopping Quoter daemon (POSIX)...")
 
+        // `quoter stop` is `System.stop()`, an orderly shutdown that ends in a halt which flushes, and a
+        // flush waits on outstanding output and on every port: a node whose standard error is stuck never
+        // finishes it. The halt below skips the flush, so the rpc never gets a reply and exits nonzero, with
+        // a reason that differs by release (`:noconnection`, `:nodedown`).
         val stopOutput = ByteArrayOutputStream()
         val result = execOps.exec {
-            commandLine(executable.absolutePath, "stop")
+            commandLine(executable.absolutePath, "rpc", ":erlang.halt(0, flush: false)")
             environment(getReleaseEnvironment(releaseTmp, releaseName, startEpmd))
             standardOutput = stopOutput
             errorOutput = stopOutput
             isIgnoreExitValue = true
         }
 
-        if (result.exitValue == 0) {
-            logger.lifecycle("Quoter daemon stopped gracefully")
+        if (result.exitValue != 0) {
+            logger.lifecycle("Quoter daemon halted, or was not running (${stopOutput.toString().trim()})")
         } else {
-            logger.lifecycle("Quoter daemon was not running")
+            logger.lifecycle("Quoter daemon answered the halt: ${stopOutput.toString().trim()}")
         }
     }
 }

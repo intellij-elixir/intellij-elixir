@@ -13,10 +13,13 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.REMOTE_CALL_ON_NAME_
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ParserOptions
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.measureTime
 
 /** The quoter's calls for parser options and traced compiles, on the Elixir of the leg running them. */
 class QuoterProtocol3Test {
@@ -65,6 +68,24 @@ class QuoterProtocol3Test {
 
         assertEquals("compile did not succeed: ${probed.diagnostics}", atom("ok"), probed.status)
         assertEquals(listOf(atom("false")), probed.messages)
+    }
+
+    /** The quoter answers a missed deadline with status `:timeout`; the client must treat that as silence. */
+    @Test
+    fun `a compile that outlives its timeout fails the test`() {
+        val elapsed = measureTime {
+            val error = assertThrows(AssertionError::class.java) {
+                Quoter.compile("Process.sleep(5_000)", 200.milliseconds)
+            }
+
+            assertTrue("failure does not name the timeout: ${error.message}", error.message.orEmpty().contains("timeout"))
+        }
+
+        assertTrue("the failure took $elapsed", elapsed < 10.seconds)
+
+        val answered = Quoter.compile(":ok", COMPILE_TIMEOUT)
+
+        assertEquals("compile did not succeed: ${answered.diagnostics}", atom("ok"), answered.status)
     }
 
     private fun expectedColumnsAndTokenMetadata(): OtpErlangObject {

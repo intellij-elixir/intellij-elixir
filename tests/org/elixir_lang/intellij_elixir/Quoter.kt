@@ -35,15 +35,7 @@ object Quoter {
      */
     private const val TIMEOUT_IN_MILLISECONDS = 10_000
 
-    /**
-     * A daemon that dies mid-run cannot be caught by [assertAvailable], which reads a marker written
-     * before the run, so every remaining quoting test would wait the full timeout - about 1,900 of
-     * them, which at this budget exceeds the CI job's own limit and reports nothing useful. Failing
-     * after a few consecutive silences keeps that loud.
-     */
-    private const val CONSECUTIVE_TIMEOUTS_BEFORE_GIVING_UP = 3
-
-    private var consecutiveTimeouts = 0
+    private val silences = QuoterSilences()
 
     /** Escape hatch back to dumping both quoted forms in full; see [assertQuotedCorrectly]. */
     private const val FULL_DUMP_PROPERTY = "elixir.quoter.fullDump"
@@ -161,7 +153,13 @@ object Quoter {
      */
     private fun daemonDied(e: OtpErlangExit): Nothing {
         val raised = e.raisedException()
-            ?: throw AssertionError("${quoterPreamble("died")}: ${e.reason()}\nThis test needs the reference quoter; the rest of the suite does not.", e)
+            ?: run {
+                // No reply ever reached the caller to count, so a node that does not answer the PID lookup is
+                // as silent as one that sends nothing.
+                silences.silent()
+
+                throw AssertionError("${quoterPreamble("died")}: ${e.reason()}\nThis test needs the reference quoter; the rest of the suite does not.", e)
+            }
 
         throw AssertionError("${quoterPreamble("died")} with $raised; if that is an exception, quoterRef predates the rescue: ${e.reason()}\nThis test needs the reference quoter; the rest of the suite does not.", e)
     }
@@ -173,26 +171,35 @@ object Quoter {
         return "Quoter daemon $state for Elixir $elixirVersion / OTP $otpVersion"
     }
 
+    /**
+     * The one place a reply is classified: an answer ends the run of silences and no reply counts as
+     * one, naming the daemon as gone once [QuoterSilences.LIMIT] are in a row. Says whether it was heard.
+     */
+    private fun heard(message: OtpErlangObject?, noReply: String = noMessage()): Boolean {
+        if (message != null) {
+            silences.answered()
+            return true
+        }
+
+        if (silences.silent()) throw stoppedAnswering(noReply)
+
+        return false
+    }
+
+    /** For a reply already classified by [quote], which counts it. */
     @Contract("null -> fail")
     private fun assertMessageReceived(message: OtpErlangObject?) {
-        if (message != null) {
-            consecutiveTimeouts = 0
-            return
-        }
-
-        consecutiveTimeouts++
-
-        if (consecutiveTimeouts >= CONSECUTIVE_TIMEOUTS_BEFORE_GIVING_UP) {
-            throw AssertionError(
-                "${quoterPreamble("stopped answering")}: $consecutiveTimeouts quotes in a row timed out after " +
-                    "${TIMEOUT_IN_MILLISECONDS}ms. This test needs the reference quoter; the rest of the suite does not."
-            )
-        }
-
-        throw AssertionError(
-            "did not receive message from $REMOTE_NAME@${IntellijElixir.REMOTE_NODE} within ${TIMEOUT_IN_MILLISECONDS}ms.  Make sure it is running"
-        )
+        if (message == null) throw AssertionError(noMessage())
     }
+
+    private fun noMessage() =
+        "did not receive message from $REMOTE_NAME@${IntellijElixir.REMOTE_NODE} within ${TIMEOUT_IN_MILLISECONDS}ms.  Make sure it is running"
+
+    private fun stoppedAnswering(last: String?) = AssertionError(
+        "${quoterPreamble("stopped answering")}: ${silences.count} calls in a row went unanswered or " +
+            "missed their deadline${last?.let { ", the last: $it" }.orEmpty()}. " +
+            "This test needs the reference quoter; the rest of the suite does not."
+    )
 
     @JvmStatic
     fun assertQuotedCorrectly(file: PsiFile) {
@@ -457,7 +464,8 @@ object Quoter {
         }.joinToString("\n")
     }
 
-    fun quote(code: String): OtpErlangTuple? = send(elixirString(code), TIMEOUT_IN_MILLISECONDS) as OtpErlangTuple?
+    fun quote(code: String): OtpErlangTuple? =
+        (send(elixirString(code), TIMEOUT_IN_MILLISECONDS) as OtpErlangTuple?).also { heard(it) }
 
     /**
      * `Code.string_to_quoted(code, options)` on the quoter's Elixir: `{:ok, quoted, diagnostics}`,
@@ -483,8 +491,8 @@ object Quoter {
     }
 
     /**
-     * What compiling [code] on the quoter's node produced. [status] is `:ok`, `{:error, reason}`,
-     * `{:raise, kind, message}` or `:timeout`; the lists are in arrival order.
+     * What compiling [code] on the quoter's node produced. [status] is `:ok`, `{:error, reason}` or
+     * `{:raise, kind, message}`; the lists are in arrival order.
      */
     class Compiled(
         val status: OtpErlangObject,
@@ -494,7 +502,10 @@ object Quoter {
         val diagnostics: List<OtpErlangObject>
     )
 
-    /** Compiles [code] on the quoter's node, where [timeout] bounds the compile itself. */
+    /**
+     * Compiles [code] on the quoter's node, where [timeout] bounds the compile itself. A compile that misses
+     * it fails the test, like a quoter that does not answer.
+     */
     fun compile(code: String, timeout: Duration): Compiled {
         assertProtocol(3, "compiling")
 
@@ -506,7 +517,14 @@ object Quoter {
                 OtpErlangList(arrayOf(keyword("timeout", OtpErlangLong(timeoutInMilliseconds.toLong()))))
             )
         )
-        val reply = received(call(request, timeoutInMilliseconds + TIMEOUT_IN_MILLISECONDS)) as OtpErlangTuple
+        val message = call(request, timeoutInMilliseconds + TIMEOUT_IN_MILLISECONDS)
+
+        // A `:timeout` reply is a silence like no reply, so it is classified as one.
+        val timedOut = (message as? OtpErlangTuple)?.elementAt(0) == OtpErlangAtom("timeout")
+        val reply = received(
+            message.takeUnless { timedOut },
+            if (timedOut) "compile answered :timeout after ${timeoutInMilliseconds}ms" else noMessage()
+        ) as OtpErlangTuple
 
         return Compiled(
             reply.elementAt(0),
@@ -538,8 +556,8 @@ object Quoter {
         }
     }
 
-    private fun received(message: OtpErlangObject?): OtpErlangObject {
-        assertMessageReceived(message)
+    private fun received(message: OtpErlangObject?, noReply: String = noMessage()): OtpErlangObject {
+        if (!heard(message, noReply)) throw AssertionError(noReply)
 
         return message!!
     }
@@ -553,7 +571,10 @@ object Quoter {
 
     private fun send(request: OtpErlangObject, timeoutInMilliseconds: Int): OtpErlangObject? {
         assertAvailable()
-        return call(callerMbox, callerNode, REMOTE_NAME, IntellijElixir.REMOTE_NODE, request, timeoutInMilliseconds)
+
+        return silences.guard({ throw stoppedAnswering(null) }) {
+            call(callerMbox, callerNode, REMOTE_NAME, IntellijElixir.REMOTE_NODE, request, timeoutInMilliseconds)
+        }
     }
 
     private fun keyword(key: String, value: OtpErlangObject) = OtpErlangTuple(arrayOf(OtpErlangAtom(key), value))
