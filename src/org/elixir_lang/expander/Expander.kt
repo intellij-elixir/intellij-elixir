@@ -1,7 +1,6 @@
 package org.elixir_lang.expander
 
 import com.intellij.openapi.progress.ProgressManager
-import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAST_PATH_ADDS_CONTEXT_MODULE
 import org.elixir_lang.language_level.ElixirLanguageLevel
@@ -193,9 +192,9 @@ internal class Run(
         return recorded(inProgress.struct, inProgress.table)
     }
 
-    /** The [struct] a module's `defstruct` recorded, or where it recorded none, `Unreadable` if [table] defines `__struct__/1` itself. */
+    /** The [struct] a module's `defstruct` recorded, or where it recorded none, `Unreadable` if [table] defines what builds the struct itself. */
     private fun recorded(struct: ModuleStruct?, table: DefinitionTable): ModuleStruct =
-        struct ?: if (table[NameArity("__struct__", 1)] != null) ModuleStruct.Unreadable else ModuleStruct.Absent
+        struct ?: if (table.entries.keys.any(::buildsStruct)) ModuleStruct.Unreadable else ModuleStruct.Absent
 
     /** [result]'s module loaded, with the [struct] its `defstruct` recorded, as Elixir loads a module once it compiles. */
     fun load(result: ExpansionResult, struct: ModuleStruct?) {

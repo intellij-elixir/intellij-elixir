@@ -41,6 +41,11 @@ internal fun makeOverridable(compiling: Compiling, nameArity: NameArity): Overri
 
     compiling.overridable[nameArity] = Overridable((previous?.count ?: 0) + 1, entry, calls)
 
+    // The generated `__struct__` is no longer what builds the struct, and what replaces it isn't followed.
+    if (buildsStruct(nameArity) && compiling.struct is ModuleStruct.Present) {
+        compiling.struct = ModuleStruct.Unreadable
+    }
+
     return Overriding.RECORDED
 }
 
