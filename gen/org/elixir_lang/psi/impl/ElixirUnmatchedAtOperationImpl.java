@@ -48,6 +48,7 @@ public class ElixirUnmatchedAtOperationImpl extends ElixirUnmatchedExpressionImp
   }
 
   @Override
+  @RequiresReadLock
   public @NotNull String moduleAttributeName() {
     return ElixirPsiImplUtil.moduleAttributeName(this);
   }
