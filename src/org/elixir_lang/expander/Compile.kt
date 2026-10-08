@@ -269,7 +269,8 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
                 is Pending.Definition -> {
                     ordered = ordered && pending.ordered
 
-                    val (owner, expansion) = storeDefinition(pending, compiling, run)
+                    val (owner, stored) = storeDefinition(pending, compiling, run)
+                    val expansion = certain(stored, ordered, pending.node)
 
                     compiling.storedReads(owner)
 

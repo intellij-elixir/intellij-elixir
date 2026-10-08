@@ -1,6 +1,7 @@
 package org.elixir_lang.expander
 
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFAULT_ARGUMENTS_THREAD_STATE
+import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_ERRORS_CONTINUE
 import org.elixir_lang.psi.ElixirFile
 
 /**
@@ -18,6 +19,26 @@ class ContinuingErrorProbeTest : ProbeTestCase() {
 
     fun testErrorsInDefinitions() {
         assertMatchesElixir(DEFINITIONS)
+    }
+
+    /**
+     * A definition in an `fn` may not run. Up to 1.14 its error raises, and the expander cannot tell that the `fn` is
+     * called, so the module stops there; from 1.15 the error is reported and the body expanded on, which it compares.
+     */
+    fun testErrorsInADefinitionThatMayNotRun() {
+        if (FUNCTION_ERRORS_CONTINUE.isSufficient(legLevel())) {
+            assertMatchesElixir(IN_A_FUNCTION)
+        } else {
+            assertEquals(
+                IN_A_FUNCTION.joinToString("\n") { "$it: stopped `def g, do: __STACKTRACE__`" },
+                IN_A_FUNCTION.joinToString("\n") { code ->
+                    val expansion = probes.expand(code)
+                    val at = (expansion.ended as? ExpansionResult.Ended.Stopped)?.at
+
+                    "$code: " + (at?.let { "stopped `${expansion.source(it)}`" } ?: expansion.ended.toString())
+                },
+            )
+        }
     }
 
     fun testLocalCallChecks() {
@@ -107,12 +128,16 @@ class ContinuingErrorProbeTest : ProbeTestCase() {
             "def f do\n  __STACKTRACE__\nend\ndef g do\n  __STACKTRACE__\nend",
             "def f, do: __STACKTRACE__\n__STACKTRACE__",
             "def f(a) do\n  b = __STACKTRACE__\n  {a, b, undefined_q}\nend\ndef g, do: :ok",
-            // `g` is defined inside an `fn`, so its body may be expanded elsewhere in Elixir's order.
-            "later = fn -> def g, do: __STACKTRACE__ end\ndef f, do: __CALLER__\nlater.()",
+            // `f` is a statement with nothing before it, so its error raises before the `fn` is reached.
             "def f, do: __CALLER__\nlater = fn -> def g, do: __STACKTRACE__ end\nlater.()",
-            "later = fn -> def g, do: __STACKTRACE__ end\ndef f, do: :ok\nlater.()",
             "def f(1, 2)\ndef f(a, b), do: {a, b}",
             "def g(1) when true\ndef g(a), do: a",
+        )
+
+        /** `g` is defined inside an `fn`, so its body may be expanded elsewhere in Elixir's order. */
+        val IN_A_FUNCTION = listOf(
+            "later = fn -> def g, do: __STACKTRACE__ end\ndef f, do: __CALLER__\nlater.()",
+            "later = fn -> def g, do: __STACKTRACE__ end\ndef f, do: :ok\nlater.()",
         )
 
         val LOCAL_CALLS = listOf(
