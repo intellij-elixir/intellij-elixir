@@ -4,6 +4,7 @@ import com.intellij.openapi.util.Key
 import com.intellij.psi.*
 import com.intellij.psi.scope.PsiScopeProcessor
 import com.intellij.psi.util.PsiTreeUtil
+import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallDefinitionClause.head
@@ -14,9 +15,9 @@ import org.elixir_lang.psi.ex_unit.Assertions
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil
 import org.elixir_lang.psi.impl.ProcessDeclarationsImpl.DECLARING_SCOPE
 import org.elixir_lang.psi.impl.ProcessDeclarationsImpl.isDeclaringScope
+import org.elixir_lang.psi.impl.call.body
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.call.keywordArgument
-import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.operation.*
 import org.elixir_lang.psi.operation.Normalized.operatorIndex
 import org.elixir_lang.psi.operation.Type
@@ -430,17 +431,44 @@ abstract class Variable : PsiScopeProcessor {
             } ?: true
 
     private fun executeOnBindQuoted(quote: Call, state: ResolveState): Boolean =
-            quote
-                    .keywordArgument("bind_quoted")?.let { it as? ElixirAccessExpression }
-                    ?.stripAccessExpression()
-                    ?.let { it as? ElixirList }
-                    ?.children?.singleOrNull()
-                    ?.let { it as? ElixirKeywords }
-                    ?.keywordPairList?.let { keywordPairList ->
-                        whileIn(keywordPairList) { keywordPair ->
-                            executeOnVariable(keywordPair.keywordKey, state)
-                        }
-                    } ?: true
+            // The values, and an `unquote` that is on, run where the `quote` is: the keys are variables in its body only.
+            if (state.get(ElixirPsiImplUtil.ENTRANCE)?.let { !isBoundBy(quote, it) } == true) {
+                true
+            } else {
+                quote
+                        .keywordArgument("bind_quoted")
+                        ?.let { it as? ElixirList }
+                        ?.children?.singleOrNull()
+                        ?.let { it as? ElixirKeywords }
+                        ?.keywordPairList?.let { keywordPairList ->
+                            // the last of two keys of one name is the binding a read gets
+                            whileIn(keywordPairList.asReversed()) { keywordPair ->
+                                executeOnVariable(keywordPair.keywordKey, state)
+                            }
+                        } ?: true
+            }
+
+    /**
+     * `bind_quoted:` turns `unquote` off unless the quote asks for it with `unquote: true`, and a nested `quote` leaves
+     * its `unquote` as code, which runs in the body.
+     */
+    private fun isBoundBy(quote: Call, entrance: PsiElement): Boolean =
+            PsiTreeUtil.isAncestor(quote.body(), entrance, false) &&
+                    !(quote.keywordArgument("unquote")?.let { AtomName.of(it) } == "true" && isInUnquote(quote, entrance))
+
+    /**
+     * Whether [entrance] is inside the expression an `unquote` of [quote] unquotes, which runs where the `quote` is:
+     * the receiver and the arguments of `Left.unquote(x)(y)` stay quoted. One inside a nested `quote` belongs to that.
+     */
+    private fun isInUnquote(quote: Call, entrance: PsiElement): Boolean {
+        val enclosing = generateSequence(entrance) { it.parent }.takeWhile { it != quote }.toList()
+
+        return enclosing
+                .drop(enclosing.indexOfLast { it is Call && QuoteMacro.`is`(it) } + 1)
+                .any { call ->
+                    call is Call && Unquote.unquotedArgument(call)?.let { PsiTreeUtil.isAncestor(it, entrance, false) } == true
+                }
+    }
 
     private fun executeOnOnlyChild(quote: Call, state: ResolveState): Boolean =
             quote

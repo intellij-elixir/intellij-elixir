@@ -125,6 +125,8 @@
 
 ### Bug Fixes
 
+- [#4389](https://github.com/intellij-elixir/intellij-elixir/pull/4389) [@sh41](https://github.com/sh41)
+  - **A variable bound by `quote bind_quoted:` is found by a read in the quote's body and offered by completion.**
 - [#4384](https://github.com/intellij-elixir/intellij-elixir/pull/4384) [@sh41](https://github.com/sh41)
   - **A `defimpl` for `:"Elixir.String"` is the implementation `P.String`, a dependency named by an interpolated atom keeps its `path:`, completion of an `EEx.function_from_*` function keeps an argument whose name is unknown, and an interpolated atom resolves when the interpolation splits a UTF-8 character.** Refs [#4379](https://github.com/intellij-elixir/intellij-elixir/issues/4379).
 - [#4382](https://github.com/intellij-elixir/intellij-elixir/pull/4382) [@sh41](https://github.com/sh41)

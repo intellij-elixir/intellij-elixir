@@ -7,6 +7,7 @@ import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.UNQUOTE
+import org.elixir_lang.psi.call.name.Function.UNQUOTE_SPLICING
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.call.finalArguments
@@ -33,6 +34,15 @@ object Unquote {
     }
 
     fun `is`(call: Call): Boolean = call.isCalling(KERNEL, UNQUOTE)
+
+    /** The one argument [call] unquotes: `x` of `unquote(x)`, `unquote_splicing(x)` or `Left.unquote(x)(rest)`, but not `rest`. */
+    @RequiresReadLock
+    fun unquotedArgument(call: Call): PsiElement? =
+            call.primaryArguments()?.singleOrNull()?.takeIf {
+                `is`(call) ||
+                        call.isCalling(KERNEL, UNQUOTE_SPLICING) ||
+                        (call is Qualified && isQualified(call))
+            }
 
     @RequiresReadLock
     fun isQualified(qualified: Qualified): Boolean =
