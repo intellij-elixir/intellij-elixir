@@ -239,7 +239,7 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
 
     nameError(name, module.isAtom, run)?.let { kind ->
         return ExpansionResult(
-            name, compiling.table, emptyList(), emptyList(), Ended.Raised(Expansion.Error(kind, module.node)),
+            name, compiling.table, emptyList(), emptyList(), emptyList(), Ended.Raised(Expansion.Error(kind, module.node)),
             emptyList(), emptySet(), emptyList(), AttributeLog.EMPTY,
         )
     }
@@ -249,6 +249,8 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
     val consultedFrom = run.consulted.size
     val errors = mutableListOf<Reported>()
     var errorsFrom = run.errors.size
+    val warnings = mutableListOf<Warning>()
+    var warningsFrom = run.warnings.size
     val units = mutableListOf<ExpansionResult.Unit>()
     val nested = mutableListOf<ExpansionResult>()
     val effectOpaque = mutableListOf<Expansion.Opaque>()
@@ -301,10 +303,12 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
                 }
                 is Pending.Module -> {
                     errors += run.errors.subList(errorsFrom, run.errors.size)
+                    warnings += run.warnings.subList(warningsFrom, run.warnings.size)
 
                     val result = compileModule(pending, run)
 
                     errorsFrom = run.errors.size
+                    warningsFrom = run.warnings.size
                     nested += result
                     when (val inner = result.ended) {
                         Ended.Compiled -> null
@@ -334,6 +338,7 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
     }
 
     errors += run.errors.subList(errorsFrom, run.errors.size)
+    warnings += run.warnings.subList(warningsFrom, run.warnings.size)
 
     run.pending = enclosingPending
 
@@ -344,6 +349,7 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
         compiling.table,
         units,
         errors,
+        warnings,
         ended ?: if (errors.isEmpty()) Ended.Compiled else Ended.Tainted,
         units.mapNotNull { it.expansion as? Expansion.Opaque } + effectOpaque,
         run.consulted.subList(consultedFrom, run.consulted.size).toSet(),

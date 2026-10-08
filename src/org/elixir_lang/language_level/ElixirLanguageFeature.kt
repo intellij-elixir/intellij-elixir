@@ -1930,7 +1930,33 @@ enum class ElixirLanguageFeature(
      *
      * `elixir-lang/elixir@6af4565de` ("Improve Calendar.ISO documentation", #10689), first released in v1.12.0-rc.0.
      */
-    ISO_PARSES_SIGNED_YEAR(sinceElixir = "1.12.0-rc.0");
+    ISO_PARSES_SIGNED_YEAR(sinceElixir = "1.12.0-rc.0"),
+
+    /**
+     * `Application.get_env/2,3`, `fetch_env/2` and `fetch_env!/2` in a module body warn that `compile_env` is meant. Before
+     * it, `Application` has no check of its own.
+     *
+     * `elixir-lang/elixir@f0b81e820` ("Deprecate features pending for v1.14"), first released in v1.14.0-rc.0.
+     */
+    APPLICATION_ENV_IN_BODY(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * `Macro.expand/2` and `Macro.expand_once/2` check a remote function they expand for a deprecation, as the remote
+     * call they stand for does. From it they check only the macros they expand, in `Macro.Env`.
+     *
+     * `elixir-lang/elixir@097eee9d5` ("Add Macro.Env.expand_import/5 and Macro.Env.expand_require/6", #13421), first
+     * released in v1.17.0-rc.0.
+     */
+    MACRO_EXPAND_CHECKS_REMOTE_FUNCTION_DEPRECATION(removedInElixir = "1.17.0-rc.0"),
+
+    /**
+     * A call of a macro the module defines itself checks it for a deprecation, as a call of an imported or remote
+     * macro does. Before it, `expand_import` answered a local macro without the check.
+     *
+     * `elixir-lang/elixir@097eee9d5` ("Add Macro.Env.expand_import/5 and Macro.Env.expand_require/6", #13421), first
+     * released in v1.17.0-rc.0.
+     */
+    LOCAL_MACRO_CHECKED_FOR_DEPRECATION(sinceElixir = "1.17.0-rc.0");
 
 
     /** The first Elixir release with this behaviour, or `null` when every supported release has it. */

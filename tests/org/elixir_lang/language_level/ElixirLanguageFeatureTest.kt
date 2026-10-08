@@ -215,6 +215,8 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             ISO_DATE_UNBOUNDED to ("1.16.3" to "1.17.0-rc.0"),
             CALENDAR_SIGIL_STRUCT_SYNTAX to ("1.17.3" to "1.18.0-rc.0"),
             ISO_PARSES_SIGNED_YEAR to ("1.11.4" to "1.12.0-rc.0"),
+            APPLICATION_ENV_IN_BODY to ("1.13.4" to "1.14.0-rc.0"),
+            LOCAL_MACRO_CHECKED_FOR_DEPRECATION to ("1.16.3" to "1.17.0-rc.0"),
         )
 
         assertEquals(entries.filter { it.sinceElixir != null }.toSet(), boundaries.keys)
@@ -242,6 +244,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             CLAUSES_REFUSED_IN_CALL to ("1.17.3" to "1.18.0-rc.0"),
             RANGE_NEW_WRAPPED_IN_IDENTITY to ("1.18.4" to "1.19.0-rc.0"),
             RE_VERSION_IN_REGEX to ("1.18.4" to "1.19.0-rc.0"),
+            MACRO_EXPAND_CHECKS_REMOTE_FUNCTION_DEPRECATION to ("1.16.3" to "1.17.0-rc.0"),
             REGEX_COMPILED_AT_RUN_TIME_ON_OTP_28 to ("1.19.0-rc.0" to "1.19.0-rc.1"),
             ESCAPED_MAP_IN_VM_ORDER to ("1.14.5" to "1.15.0-rc.1"),
         )

@@ -134,6 +134,7 @@ private fun importFunction(
         is ImportMatch.Function -> {
             importedFunction(call, match.receiver, name, arity, Dispatch.Kind.IMPORTED_FUNCTION, run)
             recordImport(NameArity(name, arity), match.receiver, env, run)
+            checkDeprecated(CalledKind.FUNCTION, call, match.receiver, name, arity, env, run)
 
             Expansion.Expanded(state, env, NODE)
         }
@@ -231,6 +232,8 @@ private fun requireFunction(
         true -> return if (required) null else Expansion.Unported(amp)
         false -> Unit
     }
+
+    checkDeprecated(CalledKind.FUNCTION, call, receiver, name, arity, env, run)
 
     val (inlinedReceiver, inlinedName) = inline(receiver, name, arity, run.level) ?: (receiver to name)
 

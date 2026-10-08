@@ -126,14 +126,17 @@ internal object Summaries {
 
 /**
  * A call of a macro, which [node] dispatches as [dispatch]: its summary's expansion, or [Expansion.Opaque] where the
- * macro has none. The observer is told of the dispatch only when it is modelled.
+ * macro has none, after the check for a deprecation. The observer is told of the dispatch only when it is modelled.
  */
-internal fun macro(dispatch: Dispatch, node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion =
-    summarised(dispatch, node, opaque = { it }) { summary ->
+internal fun macro(dispatch: Dispatch, node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion {
+    checkDeprecated(dispatch, node, env, run)
+
+    return summarised(dispatch, node, opaque = { it }) { summary ->
         run.observer.dispatched(node, dispatch)
 
         summary.expand(dispatch, node, state, env, run)
     }
+}
 
 /** [summarised] of [dispatch]'s summary, or [opaque] of the [Expansion.Opaque] a call [node] gives where it has none. */
 internal inline fun <T> summarised(
