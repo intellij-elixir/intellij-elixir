@@ -57,7 +57,7 @@ class PipeLocationTest : PlatformTestCase() {
 
         assertTrue(
             "No quoter_tmp_* directory found in cache/. " +
-                "Expected RELEASE_TMP to create cache/quoter_tmp_<version>/",
+                "Expected RELEASE_TMP to create cache/quoter_tmp_<pair>-<quoter ref>/",
             quoterTmpDirs.isNotEmpty()
         )
 
