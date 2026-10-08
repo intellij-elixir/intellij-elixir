@@ -5,6 +5,7 @@ import org.elixir_lang.expander.ExpansionResult.Ended
 import org.elixir_lang.expander.ExpansionResult.Owner
 import org.elixir_lang.language_level.ElixirLanguageFeature.BOOLEAN_AND_NIL_MODULES_RESERVED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_NAME_REJECTS_SLASHES
+import org.elixir_lang.language_level.ElixirLanguageFeature.POST_MODULE_LOCAL_CHECKS_TYPED
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
@@ -21,6 +22,16 @@ internal class Compiling(body: ElixirAst, level: ElixirLanguageLevel) {
 
     /** Each definition's local calls, in expansion order. */
     val calls = LinkedHashMap<NameArity, MutableList<LocalCall<ElixirAst>>>()
+
+    /**
+     * The calls a hidden definition's body brought back under the name it was made overridable as, which stay when that
+     * name is made overridable again where its checks visit the hidden definition's own body, and go otherwise.
+     */
+    val hiddenCalls: MutableSet<LocalCall<ElixirAst>> =
+        Collections.newSetFromMap(IdentityHashMap())
+
+    /** Whether a hidden definition's body is checked as the definition it was stored as. */
+    val checksHiddenBodies = POST_MODULE_LOCAL_CHECKS_TYPED.isSufficient(level)
 
     /** The private macros dispatched as local macros, in the order they were first dispatched. */
     val usedPrivate = LinkedHashSet<NameArity>()
