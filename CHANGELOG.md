@@ -674,6 +674,8 @@
 
 ### Build / CI
 
+- [#4373](https://github.com/intellij-elixir/intellij-elixir/pull/4373) [@sh41](https://github.com/sh41)
+  - **A quoter that stops finishing compiles now fails the remaining quoter tests of each test process after three deadlines instead of running for hours, and a leftover quoter from an earlier run is replaced rather than reused.** Fixes [#4367](https://github.com/intellij-elixir/intellij-elixir/issues/4367).
 - [#4356](https://github.com/intellij-elixir/intellij-elixir/pull/4356) [@sh41](https://github.com/sh41)
   - **The unexpected-log check no longer fails a test run, after every test has passed, on a platform error from a project removed through a mock application.** Seen on PR #4354 in the Elixir 1.14.5 job.
 - [#4351](https://github.com/intellij-elixir/intellij-elixir/pull/4351) [@sh41](https://github.com/sh41)
