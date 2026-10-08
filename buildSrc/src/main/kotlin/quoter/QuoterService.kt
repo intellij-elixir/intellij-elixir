@@ -2,6 +2,7 @@ package quoter
 
 import platform.detectPlatform
 import platform.logPlatformDetection
+import sdk.isCompatibleVersion
 import sdk.readPropertiesFile
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
@@ -38,6 +39,12 @@ abstract class QuoterService : BuildService<QuoterService.Params>, AutoCloseable
          * so two worktrees can run tests at the same time - see [quoter.DEFAULT_QUOTER_NODE_NAME].
          */
         val nodeName: Property<String>
+
+        /**
+         * The Elixir the leg under test expects. The started node must report it, so a node that is not
+         * of this leg is never mistaken for one. Optional: unset, the node's version is not checked.
+         */
+        val elixirVersion: Property<String>
 
         /**
          * Read for `erlang.sdk.path`, so epmd starts from the SDK rather than the release's bundled
@@ -102,6 +109,7 @@ abstract class QuoterService : BuildService<QuoterService.Params>, AutoCloseable
 
             if (isRunning) {
                 logger.lifecycle("Quoter daemon is UP! (PID: ${pidOutput.trim()})")
+                requireExpectedElixir(executable, releaseTmp, nodeName)
                 return
             }
 
@@ -119,6 +127,28 @@ abstract class QuoterService : BuildService<QuoterService.Params>, AutoCloseable
         process = null
 
         throw RuntimeException("Quoter daemon failed to start after $maxAttempts attempts.")
+    }
+
+    /** A node of another leg's Elixir would answer every quote, with the wrong parser. */
+    private fun requireExpectedElixir(executable: File, releaseTmp: File?, nodeName: String) {
+        val expected = parameters.elixirVersion.orNull ?: return
+        val (read, output) = quoterPlatform.readElixirVersion(execOps, executable, releaseTmp, nodeName, process, logger)
+
+        if (read && isCompatibleVersion(expected, output)) {
+            logger.lifecycle("Quoter daemon runs Elixir $output")
+            return
+        }
+
+        quoterPlatform.stopDaemon(execOps, executable, releaseTmp, nodeName, process, logger)
+        process = null
+
+        throw RuntimeException(
+            if (read) {
+                "Quoter daemon reports Elixir $output, but this leg expects Elixir $expected."
+            } else {
+                "Could not read the Elixir version of the Quoter daemon, which this leg expects to be $expected: $output"
+            }
+        )
     }
 
     /**

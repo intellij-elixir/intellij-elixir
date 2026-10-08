@@ -47,6 +47,24 @@ interface QuoterPlatform {
     ): Pair<Boolean, String>
 
     /**
+     * Asks the running node for `System.version()`, the Elixir it is actually executing.
+     * @param execOps Gradle exec operations
+     * @param executable Path to the quoter executable
+     * @param releaseTmp Optional temporary directory
+     * @param process Process handle from startDaemon (Windows only)
+     * @param logger Logger for output
+     * @return Pair of (read, output): the version when read, else what the failed call printed
+     */
+    fun readElixirVersion(
+        execOps: ExecOperations,
+        executable: File,
+        releaseTmp: File?,
+        releaseName: String,
+        process: Process?,
+        logger: Logger
+    ): Pair<Boolean, String>
+
+    /**
      * Stops the daemon, or any node answering to [releaseName] when [process] is null.
      * @param execOps Gradle exec operations
      * @param executable Path to the quoter executable

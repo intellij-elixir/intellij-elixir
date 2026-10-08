@@ -71,6 +71,32 @@ class PosixQuoterPlatform(private val startEpmd: Boolean = true) : QuoterPlatfor
         return Pair(result.exitValue == 0, output)
     }
 
+    override fun readElixirVersion(
+        execOps: ExecOperations,
+        executable: File,
+        releaseTmp: File?,
+        releaseName: String,
+        process: Process?,
+        logger: Logger
+    ): Pair<Boolean, String> {
+        val output = ByteArrayOutputStream()
+        val errors = ByteArrayOutputStream()
+        val result = execOps.exec {
+            commandLine(executable.absolutePath, "rpc", "IO.puts(System.version())")
+            environment(getReleaseEnvironment(releaseTmp, releaseName, startEpmd))
+            standardOutput = output
+            errorOutput = errors
+            isIgnoreExitValue = true
+        }
+
+        if (result.exitValue != 0) {
+            return Pair(false, "exit ${result.exitValue}: ${errors.toString().trim()}")
+        }
+
+        val version = output.toString().lines().map { it.trim() }.lastOrNull { it.isNotEmpty() }
+        return if (version == null) Pair(false, "no output") else Pair(true, version)
+    }
+
     override fun stopDaemon(
         execOps: ExecOperations,
         executable: File,

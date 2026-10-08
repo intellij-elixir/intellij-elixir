@@ -988,11 +988,14 @@ val sdkPropertiesFile: Provider<RegularFile> = layout.buildDirectory.file("elixi
 // sdkProperties is only for epmd's sake: started from the SDK, the machine-wide daemon stays out of
 // cache/, where a leftover pins the checkout against deletion. See quoter.Epmd.
 // See: https://docs.gradle.org/current/userguide/build_services.html
+// The service parameter below is also called elixirVersion, which would shadow the script's own.
+val legElixirVersion: String = elixirVersion
 val quoterService: Provider<QuoterService> = gradle.sharedServices.registerIfAbsent("quoter", QuoterService::class) {
     parameters {
         executable.set(quoterExe)
         tmpDir.set(quoterTmpPath)
         nodeName.set(quoterNodeName)
+        elixirVersion.set(legElixirVersion)
         sdkProperties.set(sdkPropertiesFile)
     }
 }
