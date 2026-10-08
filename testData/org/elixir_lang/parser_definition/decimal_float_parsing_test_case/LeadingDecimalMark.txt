@@ -1,4 +1,4 @@
 Elixir File(0,2)
-  PsiErrorElement:'.' unexpected(0,1)
+  PsiErrorElement:'%', '&', '(', '-', '..', '//', '0', '0-9', ':', <<, <eex>, <end of expression>, '?', '@', A-Z, a-z, ADDITION_OPERATOR, Alias, Heredoc Promoter (""", '''), NEGATE_OPERATOR, NUMBER_OR_BADARITH_OPERATOR, '[', false, fn, identifier, nil, not, true, '{', '{, [, <, ", /, (, |, '', '~', '~~~, ! or ^' expected, got '.'(0,1)
     PsiElement(.)('.')(0,1)
   PsiElement(0-9)('0')(1,2)
