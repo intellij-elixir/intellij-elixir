@@ -10,6 +10,9 @@ class QuoterSilences {
     var count = 0
         private set
 
+    val refusing: Boolean
+        get() = count >= LIMIT
+
     /** An answer of any kind ends the run of silences. */
     fun answered() {
         count = 0
@@ -19,7 +22,14 @@ class QuoterSilences {
     fun silent(): Boolean {
         count++
 
-        return count >= LIMIT
+        return refusing
+    }
+
+    /** Runs [call], unless the run of silences is already at [LIMIT], when [refuse] fails instead and [call] is never made. */
+    fun <T> guard(refuse: () -> Nothing, call: () -> T): T {
+        if (refusing) refuse()
+
+        return call()
     }
 
     companion object {
