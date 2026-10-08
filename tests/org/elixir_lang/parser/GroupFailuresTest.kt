@@ -99,6 +99,28 @@ class GroupFailuresTest : ParsingTestCase() {
         assertFalse(ElixirParserUtil.recursion_guard_(builder, STATEMENT_LIST_LEVEL + 1, "expression"))
     }
 
+    fun testFailuresBelongToTheirOwnParse() {
+        val first = builder()
+        val second = builder()
+        fail(first, LEVEL)
+
+        assertTrue(guard(second, LEVEL))
+        exitGroup(second, true)
+        assertFalse(guard(first, LEVEL))
+        assertTrue(guard(second, LEVEL))
+    }
+
+    fun testRecursionLimitsBelongToTheirOwnParse() {
+        val first = builder(statementListAndTokens())
+        val second = builder(statementListAndTokens())
+        assertTrue(ElixirParserUtil.recursion_guard_(first, STATEMENT_LIST_LEVEL, "expressionList"))
+        reachRecursionLimitAt(first, ElixirParserUtil.LIMIT_TOKENS_BEFORE_ABORT)
+
+        assertTrue(ElixirParserUtil.recursion_guard_(second, STATEMENT_LIST_LEVEL, "expressionList"))
+        assertTrue(ElixirParserUtil.recursion_guard_(second, STATEMENT_LIST_LEVEL + 1, "expression"))
+        assertFalse(ElixirParserUtil.recursion_guard_(first, STATEMENT_LIST_LEVEL + 1, "expression"))
+    }
+
     fun testSuccessesAreNotCounted() {
         val builder = builder()
         exit(builder, LEVEL, true)
@@ -107,7 +129,7 @@ class GroupFailuresTest : ParsingTestCase() {
     }
 
     private fun builder(text: String = "(1)"): PsiBuilder =
-        GeneratedParserUtilBase.adapt_builder_(
+        ElixirParserUtil.adapt_builder_(
             ElixirTypes.PARENTHETICAL_STAB,
             PsiBuilderFactory.getInstance().createBuilder(ElixirParserDefinition(), ElixirLexer(), text),
             ElixirParser()

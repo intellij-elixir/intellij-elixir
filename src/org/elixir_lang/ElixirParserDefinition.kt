@@ -11,7 +11,7 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.TokenType
 import com.intellij.psi.tree.IFileElementType
 import com.intellij.psi.tree.TokenSet
-import org.elixir_lang.parser.ElixirParser
+import org.elixir_lang.parser.TwoPassParser
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.ElixirTypes
 
@@ -19,7 +19,7 @@ class ElixirParserDefinition : ParserDefinition {
     override fun createElement(node: ASTNode): PsiElement = ElixirTypes.Factory.createElement(node)
     override fun createFile(viewProvider: FileViewProvider): PsiFile = ElixirFile(viewProvider)
     override fun createLexer(project: Project): Lexer = ElixirLexer(project)
-    override fun createParser(project: Project): PsiParser = ElixirParser()
+    override fun createParser(project: Project): PsiParser = TwoPassParser()
     override fun getCommentTokens(): TokenSet = COMMENTS
     override fun getFileNodeType(): IFileElementType = org.elixir_lang.psi.stub.type.File.INSTANCE
     override fun getStringLiteralElements(): TokenSet = STRING_LITERALS

@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4371](https://github.com/intellij-elixir/intellij-elixir/pull/4371) [@sh41](https://github.com/sh41)
+  - **Elixir files parse in about half the time.** Refs [#4363](https://github.com/intellij-elixir/intellij-elixir/issues/4363).
+
 - [#4295](https://github.com/intellij-elixir/intellij-elixir/pull/4295) [@sh41](https://github.com/sh41)
   - **Highlighting and Go to Definition in large modules, including decompiled `.beam` files, no longer slow
     down as the module grows.**

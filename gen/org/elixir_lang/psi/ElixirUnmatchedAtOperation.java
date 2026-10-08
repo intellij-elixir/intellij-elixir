@@ -18,6 +18,7 @@ public interface ElixirUnmatchedAtOperation extends ElixirUnmatchedExpression, A
 
   @Nullable PsiReference getReference();
 
+  @RequiresReadLock
   @NotNull String moduleAttributeName();
 
   @Nullable Quotable operand();

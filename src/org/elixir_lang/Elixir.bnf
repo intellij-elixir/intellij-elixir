@@ -1,6 +1,9 @@
 {
   parserClass="org.elixir_lang.parser.ElixirParser"
   parserUtilClass="org.elixir_lang.parser.ElixirParserUtil"
+  // A rule that can begin with an external predicate has no FIRST set, so no first check: a predicate follows a
+  // `&(TOKEN | ...)` look-ahead of the tokens it tests, which changes no parse.
+  generateFirstCheck=100
 
   extends="com.intellij.extapi.psi.ASTWrapperPsiElement"
   // direct children of matchedExpression
@@ -1234,8 +1237,8 @@ matchedTwoOperation ::= matchedExpression twoInfixOperator matchedExpression
 
 /* Unlike other binary operation, additionOperations cannot begin with EOLs: if there are EOLs, then the +/- is
    interpreted as unaryOperation. */
-additionInfixOperator ::= !<<escapedNewlineSwapsDualOperator>> (ADDITION_OPERATOR | SUBTRACTION_OPERATOR) |
-                          <<escapedNewlineSwapsDualOperator>> (NEGATE_OPERATOR | NUMBER_OR_BADARITH_OPERATOR)
+additionInfixOperator ::= &(ADDITION_OPERATOR | SUBTRACTION_OPERATOR) !<<escapedNewlineSwapsDualOperator>> (ADDITION_OPERATOR | SUBTRACTION_OPERATOR) |
+                          &(NEGATE_OPERATOR | NUMBER_OR_BADARITH_OPERATOR) <<escapedNewlineSwapsDualOperator>> (NEGATE_OPERATOR | NUMBER_OR_BADARITH_OPERATOR)
                           {
                             implements = "org.elixir_lang.psi.Operator"
                             methods = [
@@ -1285,8 +1288,8 @@ powerInfixOperator ::= POWER_OPERATOR
 matchedPowerOperation ::= matchedExpression powerInfixOperator matchedExpression
 
 // A prefix `//` quotes as `(/)/operand`, so `&//2` captures division.
-unaryPrefixOperator ::= !<<escapedNewlineSwapsDualOperator>> (NEGATE_OPERATOR | NUMBER_OR_BADARITH_OPERATOR) eolStar |
-                        <<escapedNewlineSwapsDualOperator>> (ADDITION_OPERATOR | SUBTRACTION_OPERATOR) |
+unaryPrefixOperator ::= &(NEGATE_OPERATOR | NUMBER_OR_BADARITH_OPERATOR) !<<escapedNewlineSwapsDualOperator>> (NEGATE_OPERATOR | NUMBER_OR_BADARITH_OPERATOR) eolStar |
+                        &(ADDITION_OPERATOR | SUBTRACTION_OPERATOR) <<escapedNewlineSwapsDualOperator>> (ADDITION_OPERATOR | SUBTRACTION_OPERATOR) |
                         (TERNARY_OPERATOR | UNARY_OPERATOR) eolStar |
                         NOT_OPERATOR !IN_OPERATOR
                         {
@@ -2043,7 +2046,7 @@ nullaryRangeOperation ::= RANGE_OPERATOR !(KEYWORD_PAIR_COLON | DIVISION_OPERATO
                           { implements = "org.elixir_lang.psi.Quotable" methods = [quote] }
 
 // Before Elixir 1.12.0 an operator followed by `/` is an identifier, so `..//: 1` is the call `..(/([/: 1]))`.
-steppedRangeKeywordCall ::= !<<stepOperator>> RANGE_OPERATOR DIVISION_OPERATOR noParenthesesKeywords
+steppedRangeKeywordCall ::= RANGE_OPERATOR !<<stepOperator>> DIVISION_OPERATOR noParenthesesKeywords
                             { implements = "org.elixir_lang.psi.Quotable" methods = [quote] }
 
 // See eexFile in EEx.bnf

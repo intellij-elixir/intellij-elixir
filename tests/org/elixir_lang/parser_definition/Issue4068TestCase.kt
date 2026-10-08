@@ -1,6 +1,5 @@
 package org.elixir_lang.parser_definition
 
-import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.language_level.elixir
 
 class Issue4068TestCase : ParsingTestCase() {
@@ -118,16 +117,16 @@ class Issue4068TestCase : ParsingTestCase() {
     fun testCaptureQuotedRemoteCallNameEscape() = assertParsedAndQuotedCorrectly(false)
     fun testCaptureParenthesesQuotedRemoteCallNameEscape() = assertParsedAndQuotedCorrectly(false)
     fun testQuotedRemoteCallNameInvalidEscape() =
-        assertParsedAndQuotedCorrectlyBeforeOrRaise(elixir("1.18.0"), elixir("1.19.0"), "Elixir.MatchError", false)
+        assertParsedAndQuotedCorrectlyBeforeOrRaise(elixir("1.18.0"), elixir("1.19.0"))
     fun testQuotedRemoteCallNameInvalidUnicodeEscape() =
-        assertParsedAndQuotedCorrectlyBeforeOrRaise(elixir("1.18.0"), elixir("1.19.0"), "Elixir.MatchError", false)
+        assertParsedAndQuotedCorrectlyBeforeOrRaise(elixir("1.18.0"), elixir("1.19.0"))
     fun testQuotedRemoteCallNameInvalidBracedEscape() =
-        assertParsedAndQuotedCorrectlyBeforeOrRaise(elixir("1.18.0"), elixir("1.19.0"), "Elixir.MatchError", false)
+        assertParsedAndQuotedCorrectlyBeforeOrRaise(elixir("1.18.0"), elixir("1.19.0"))
     fun testInvalidHexadecimalEscapeString() = assertParsedAndQuotedAroundError(false)
     fun testQuotedRemoteCallNameInvalidCodePoint() =
-        assertParsedAndQuotedCorrectlyBeforeOrRaise(elixir("1.18.0"), elixir("1.19.0"), "Elixir.MatchError", false)
+        assertParsedAndQuotedCorrectlyBeforeOrRaise(elixir("1.18.0"), elixir("1.19.0"))
     fun testQuotedRemoteCallNameSurrogate() =
-        assertParsedAndQuotedCorrectlyBeforeOrRaise(elixir("1.18.0"), elixir("1.19.0"), "Elixir.MatchError", false)
+        assertParsedAndQuotedCorrectlyBeforeOrRaise(elixir("1.18.0"), elixir("1.19.0"))
 
     fun testEscapedLineSeparator() = assertParsedAndQuotedCorrectlyBefore(elixir("1.20.0"), false)
     fun testEscapedLineSeparatorLiteralSigil() = assertParsedAndQuotedCorrectlyBefore(elixir("1.20.0"), false)
