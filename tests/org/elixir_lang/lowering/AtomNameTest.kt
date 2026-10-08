@@ -1,6 +1,8 @@
 package org.elixir_lang.lowering
 
 import com.intellij.psi.PsiElement
+import com.intellij.psi.impl.source.tree.CompositeElement
+import com.intellij.psi.tree.IElementType
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.language_level.ElixirLanguageLevel
@@ -13,6 +15,10 @@ import org.elixir_lang.psi.ElixirAtomKeyword
 import org.elixir_lang.psi.ElixirIdentifier
 import org.elixir_lang.psi.ElixirKeywordKey
 import org.elixir_lang.psi.ElixirRelativeIdentifier
+import org.elixir_lang.psi.ElixirTypes
+import org.elixir_lang.psi.ElixirVariable
+import org.elixir_lang.psi.Operator
+import java.lang.reflect.Modifier
 
 /** [AtomName] gives each name the atom its full lowering builds, without lowering. */
 class AtomNameTest : PlatformTestCase() {
@@ -86,6 +92,36 @@ class AtomNameTest : PlatformTestCase() {
 
     fun testOverlongAttributeName() {
         assertName("@" + "a".repeat(256) + " 1", ElixirAtIdentifier::class.java, null)
+    }
+
+    /** A new operator rule fails here until [AtomName] names it. */
+    fun testEveryOperatorElementTypeIsNamed() {
+        val operatorTypes = ElixirTypes::class.java.fields
+            .filter { Modifier.isStatic(it.modifiers) && IElementType::class.java.isAssignableFrom(it.type) }
+            .map { it.get(null) as IElementType }
+            .filter { type ->
+                try {
+                    ElixirTypes.Factory.createElement(CompositeElement(type)) is Operator
+                } catch (_: AssertionError) {
+                    false
+                }
+            }
+
+        assertFalse("no operator element type found", operatorTypes.isEmpty())
+        assertEquals(
+            "operator element types AtomName does not name",
+            emptyList<IElementType>(),
+            operatorTypes.filterNot { AtomName.NAMED.contains(it) }
+        )
+    }
+
+    /** `%x{}` names its struct with a variable, which is a name like any other. */
+    fun testStructVariableName() {
+        myFixture.configureByText("atom_name.ex", "%x{}")
+        val element = PsiTreeUtil.findChildOfType(myFixture.file, ElixirVariable::class.java)
+
+        assertNotNull("no ElixirVariable in `%x{}`", element)
+        assertEquals("AtomName of `%x{}`", "x", AtomName.of(element!!))
     }
 
     private fun assertLoweringsName(
