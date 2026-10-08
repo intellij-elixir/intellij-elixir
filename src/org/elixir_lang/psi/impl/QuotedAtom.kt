@@ -33,6 +33,12 @@ fun quotedAtomValue(quotable: Quotable): String? {
 }
 
 /**
+ * The text [atom] is written as, its quotes kept. It is the name an atom that quotes to no value, as an interpolated one,
+ * keeps in place of [quotedAtomValue].
+ */
+fun writtenAtomText(atom: ElixirAtom): String = atom.node.lastChildNode.text
+
+/**
  * The module [element] names, read without expansion. An atom, or an alias headed by `Elixir`, names its module outright
  * ([ModuleName.absolute]) by its [org.elixir_lang.Module.indexName]. Any other alias joins its segments, with a
  * `__MODULE__` head kept for expansion and any other head that is not an alias as [NO_VALUE]. `null` when [element]

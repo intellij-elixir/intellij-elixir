@@ -10,6 +10,7 @@ import org.elixir_lang.psi.impl.keywordAtom
 import org.elixir_lang.psi.impl.quotedAtomValue
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.impl.stripAccessExpressions
+import org.elixir_lang.psi.impl.writtenAtomText
 import org.elixir_lang.sdk.wsl.wslCompat
 
 /**
@@ -200,7 +201,8 @@ data class Dep(val application: String, val path: String, val type: Type = Type.
                 else -> null
             }
 
-        private fun name(atom: ElixirAtom): String? = quotedAtomValue(atom)
+        // A name only known when the code runs keeps its written text, as Mix still reads the dep's `path:`.
+        private fun name(atom: ElixirAtom): String = quotedAtomValue(atom) ?: writtenAtomText(atom)
 
         private fun putPath(dep: Dep, keywordValue: Quotable): Dep {
             return when (val strippedKeywordValue = keywordValue.stripAccessExpression()) {
