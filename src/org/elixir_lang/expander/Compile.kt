@@ -282,7 +282,7 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
                 is Pending.Effect -> {
                     ordered = ordered && pending.ordered
 
-                    val applied = pending.apply(compiling)
+                    val applied = pending.apply(compiling)?.let { certain(it, ordered, pending.node) }
 
                     (applied as? Expansion.Opaque)?.let(effectOpaque::add)
                     applied?.let { ended(it, run) }.also { queue.addAll(0, pending.queued()) }
@@ -360,6 +360,10 @@ private fun nameError(name: String, isAtom: Boolean, run: Run): String? {
         else -> null
     }
 }
+
+/** [expansion], but an error is the body's only when every unit applied so far ran; otherwise it stops at [node]. */
+private fun certain(expansion: Expansion, ordered: Boolean, node: ElixirAst): Expansion =
+    if (!ordered && expansion is Expansion.Error) Expansion.Unported(node) else expansion
 
 /** How a unit's [expansion] ends its module, if it does. */
 private fun ended(expansion: Expansion, run: Run): Ended? =
