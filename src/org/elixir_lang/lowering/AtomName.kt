@@ -4,6 +4,8 @@ import com.ericsson.otp.erlang.OtpExternal
 import com.intellij.lang.ASTNode
 import com.intellij.psi.PsiElement
 import com.intellij.psi.tree.IElementType
+import com.intellij.psi.tree.TokenSet
+import com.intellij.psi.util.PsiUtilCore
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.language_level.ElixirLanguageFeature.EMPTY_LEADING_HEREDOC_SEGMENT
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_NEWLINE_KEPT_IN_EXTRACTED_BUFFER
@@ -15,14 +17,12 @@ import org.elixir_lang.psi.ElixirAtIdentifier
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirAtomKeyword
 import org.elixir_lang.psi.ElixirEscapedCharacter
-import org.elixir_lang.psi.ElixirIdentifier
 import org.elixir_lang.psi.ElixirInterpolation
 import org.elixir_lang.psi.ElixirKeywordKey
 import org.elixir_lang.psi.ElixirLine
 import org.elixir_lang.psi.ElixirQuoteHexadecimalEscapeSequence
 import org.elixir_lang.psi.ElixirRelativeIdentifier
 import org.elixir_lang.psi.ElixirTypes
-import org.elixir_lang.psi.ElixirVariable
 import org.elixir_lang.psi.EscapeSequence
 import org.elixir_lang.psi.HeredocLiteral
 import org.elixir_lang.psi.Interpolated
@@ -51,25 +51,75 @@ object AtomName {
      */
     @RequiresReadLock
     @JvmStatic
-    fun of(element: PsiElement, languageLevel: ElixirLanguageLevel): String? =
-        when (element) {
-            is ElixirAtom ->
-                when (val line = element.line) {
-                    null -> unquoted(element.node.lastChildNode.text, languageLevel)
-                    else -> quoted(line, languageLevel)
-                }
-            is ElixirKeywordKey ->
-                when (val line = element.line) {
-                    null -> unquoted(element.text, languageLevel)
-                    else -> quoted(line, languageLevel)
-                }
-            is ElixirIdentifier, is ElixirVariable -> unquoted(element.text, languageLevel)
-            is ElixirAtIdentifier -> unquoted(element.identifierName(), languageLevel)
-            is ElixirRelativeIdentifier -> (remoteCallName(element, languageLevel) as? RemoteCallName.Named)?.atom
-            is ElixirAtomKeyword -> element.text
-            is Operator -> element.operatorTokenNode().text
-            else -> null
-        }
+    fun of(element: PsiElement, languageLevel: ElixirLanguageLevel): String? = occurrence(element, languageLevel)?.name
+
+    /** [of], with the element whose text spells the name. */
+    @RequiresReadLock
+    @JvmStatic
+    fun occurrence(element: PsiElement, languageLevel: ElixirLanguageLevel): Occurrence? =
+        NAMES[PsiUtilCore.getElementType(element)]?.invoke(element, languageLevel)?.let { Occurrence(element, it) }
+
+    /** A name, and the [element] that spells it. */
+    data class Occurrence(val element: PsiElement, val name: String)
+
+    private val OPERATOR_NAME: (PsiElement, ElixirLanguageLevel) -> String? =
+        { element, _ -> (element as Operator).operatorTokenNode().text }
+
+    private val NAMES: Map<IElementType, (PsiElement, ElixirLanguageLevel) -> String?> = mapOf(
+        ElixirTypes.ATOM to { element, languageLevel ->
+            element as ElixirAtom
+
+            when (val line = element.line) {
+                null -> unquoted(element.node.lastChildNode.text, languageLevel)
+                else -> quoted(line, languageLevel)
+            }
+        },
+        ElixirTypes.KEYWORD_KEY to { element, languageLevel ->
+            element as ElixirKeywordKey
+
+            when (val line = element.line) {
+                null -> unquoted(element.text, languageLevel)
+                else -> quoted(line, languageLevel)
+            }
+        },
+        ElixirTypes.IDENTIFIER to { element, languageLevel -> unquoted(element.text, languageLevel) },
+        ElixirTypes.VARIABLE to { element, languageLevel -> unquoted(element.text, languageLevel) },
+        ElixirTypes.AT_IDENTIFIER to { element, languageLevel ->
+            unquoted((element as ElixirAtIdentifier).identifierName(), languageLevel)
+        },
+        ElixirTypes.RELATIVE_IDENTIFIER to { element, languageLevel ->
+            (remoteCallName(element as ElixirRelativeIdentifier, languageLevel) as? RemoteCallName.Named)?.atom
+        },
+        ElixirTypes.ATOM_KEYWORD to { element, _ -> element.text },
+        ElixirTypes.ADDITION_INFIX_OPERATOR to OPERATOR_NAME,
+        ElixirTypes.AND_INFIX_OPERATOR to OPERATOR_NAME,
+        ElixirTypes.ARROW_INFIX_OPERATOR to OPERATOR_NAME,
+        ElixirTypes.AT_PREFIX_OPERATOR to OPERATOR_NAME,
+        ElixirTypes.CAPTURE_PREFIX_OPERATOR to OPERATOR_NAME,
+        ElixirTypes.COMPARISON_INFIX_OPERATOR to OPERATOR_NAME,
+        ElixirTypes.DOT_INFIX_OPERATOR to OPERATOR_NAME,
+        ElixirTypes.IN_INFIX_OPERATOR to OPERATOR_NAME,
+        ElixirTypes.IN_MATCH_INFIX_OPERATOR to OPERATOR_NAME,
+        ElixirTypes.MAP_PREFIX_OPERATOR to OPERATOR_NAME,
+        ElixirTypes.MATCH_INFIX_OPERATOR to OPERATOR_NAME,
+        ElixirTypes.MULTIPLICATION_INFIX_OPERATOR to OPERATOR_NAME,
+        ElixirTypes.NOT_INFIX_OPERATOR to OPERATOR_NAME,
+        ElixirTypes.OR_INFIX_OPERATOR to OPERATOR_NAME,
+        ElixirTypes.PIPE_INFIX_OPERATOR to OPERATOR_NAME,
+        ElixirTypes.POWER_INFIX_OPERATOR to OPERATOR_NAME,
+        ElixirTypes.RELATIONAL_INFIX_OPERATOR to OPERATOR_NAME,
+        ElixirTypes.STAB_INFIX_OPERATOR to OPERATOR_NAME,
+        ElixirTypes.TERNARY_INFIX_OPERATOR to OPERATOR_NAME,
+        ElixirTypes.THREE_INFIX_OPERATOR to OPERATOR_NAME,
+        ElixirTypes.TWO_INFIX_OPERATOR to OPERATOR_NAME,
+        ElixirTypes.TYPE_INFIX_OPERATOR to OPERATOR_NAME,
+        ElixirTypes.UNARY_PREFIX_OPERATOR to OPERATOR_NAME,
+        ElixirTypes.WHEN_INFIX_OPERATOR to OPERATOR_NAME,
+    )
+
+    /** The element types whose PSI [of] can name: it answers `null` for every other. */
+    @JvmField
+    val NAMED: TokenSet = TokenSet.create(*NAMES.keys.toTypedArray())
 
     /** An identifier written as [text], normalized as [identifierAtomName] gives it, if an atom may be that long. */
     internal fun unquoted(text: String, languageLevel: ElixirLanguageLevel): String? =
