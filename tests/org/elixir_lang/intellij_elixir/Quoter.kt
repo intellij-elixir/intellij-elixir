@@ -172,16 +172,21 @@ object Quoter {
             return
         }
 
+        silent(
+            "did not receive message from $REMOTE_NAME@${IntellijElixir.REMOTE_NODE} within ${TIMEOUT_IN_MILLISECONDS}ms.  Make sure it is running"
+        )
+    }
+
+    /** Counts a silence and fails the test, naming the daemon as gone once [QuoterSilences.LIMIT] are in a row. */
+    private fun silent(failure: String): Nothing {
         if (silences.silent()) {
             throw AssertionError(
-                "${quoterPreamble("stopped answering")}: ${silences.count} quotes in a row timed out after " +
-                    "${TIMEOUT_IN_MILLISECONDS}ms. This test needs the reference quoter; the rest of the suite does not."
+                "${quoterPreamble("stopped answering")}: ${silences.count} calls in a row went unanswered or " +
+                    "missed their deadline, the last: $failure. This test needs the reference quoter; the rest of the suite does not."
             )
         }
 
-        throw AssertionError(
-            "did not receive message from $REMOTE_NAME@${IntellijElixir.REMOTE_NODE} within ${TIMEOUT_IN_MILLISECONDS}ms.  Make sure it is running"
-        )
+        throw AssertionError(failure)
     }
 
     @JvmStatic
@@ -473,8 +478,8 @@ object Quoter {
     }
 
     /**
-     * What compiling [code] on the quoter's node produced. [status] is `:ok`, `{:error, reason}`,
-     * `{:raise, kind, message}` or `:timeout`; the lists are in arrival order.
+     * What compiling [code] on the quoter's node produced. [status] is `:ok`, `{:error, reason}` or
+     * `{:raise, kind, message}`; the lists are in arrival order.
      */
     class Compiled(
         val status: OtpErlangObject,
@@ -484,7 +489,10 @@ object Quoter {
         val diagnostics: List<OtpErlangObject>
     )
 
-    /** Compiles [code] on the quoter's node, where [timeout] bounds the compile itself. */
+    /**
+     * Compiles [code] on the quoter's node, where [timeout] bounds the compile itself. A compile that misses
+     * it fails the test, like a quoter that does not answer.
+     */
     fun compile(code: String, timeout: Duration): Compiled {
         assertProtocol(3, "compiling")
 
@@ -496,7 +504,14 @@ object Quoter {
                 OtpErlangList(arrayOf(keyword("timeout", OtpErlangLong(timeoutInMilliseconds.toLong()))))
             )
         )
-        val reply = received(call(request, timeoutInMilliseconds + TIMEOUT_IN_MILLISECONDS)) as OtpErlangTuple
+        val message = call(request, timeoutInMilliseconds + TIMEOUT_IN_MILLISECONDS)
+
+        // `received` counts an answer, so a `:timeout` reply is mapped to a silence before it.
+        if ((message as? OtpErlangTuple)?.elementAt(0) == OtpErlangAtom("timeout")) {
+            silent("compile answered :timeout after ${timeoutInMilliseconds}ms")
+        }
+
+        val reply = received(message) as OtpErlangTuple
 
         return Compiled(
             reply.elementAt(0),
