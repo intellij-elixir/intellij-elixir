@@ -125,6 +125,8 @@
 
 ### Bug Fixes
 
+- [#4384](https://github.com/intellij-elixir/intellij-elixir/pull/4384) [@sh41](https://github.com/sh41)
+  - **A `defimpl` for `:"Elixir.String"` is the implementation `P.String`, a dependency named by an interpolated atom keeps its `path:`, completion of an `EEx.function_from_*` function keeps an argument whose name is unknown, and an interpolated atom resolves when the interpolation splits a UTF-8 character.** Refs [#4379](https://github.com/intellij-elixir/intellij-elixir/issues/4379).
 - [#4382](https://github.com/intellij-elixir/intellij-elixir/pull/4382) [@sh41](https://github.com/sh41)
   - **Names written as quoted atoms, such as `:"acc"` in `Module.register_attribute`, `for: :"lower"` in `defimpl` and `optional: :true` in `mix.exs`, are read as the atoms they are.** Refs [#4379](https://github.com/intellij-elixir/intellij-elixir/issues/4379).
 - [#4372](https://github.com/intellij-elixir/intellij-elixir/pull/4372) [@sh41](https://github.com/sh41)

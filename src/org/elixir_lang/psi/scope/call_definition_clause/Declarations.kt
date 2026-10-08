@@ -20,6 +20,7 @@ import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.headAtomValue
 import org.elixir_lang.psi.impl.quotedAtomValue
 import org.elixir_lang.psi.impl.stripAccessExpression
+import org.elixir_lang.psi.impl.writtenAtomText
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.Callback
 
@@ -107,7 +108,7 @@ object Declarations {
         val name = quotedAtomValue(atom)
 
         return listOf(
-            spelled(call, name ?: atom.node.lastChildNode.text, name != null, arity, capabilities, Form.EEX_FUNCTION_FROM)
+            spelled(call, name ?: writtenAtomText(atom), name != null, arity, capabilities, Form.EEX_FUNCTION_FROM)
         )
     }
 
@@ -126,7 +127,7 @@ object Declarations {
         return listOf(
             spelled(
                 call,
-                "${name ?: atom.node.lastChildNode.text}_$suffix",
+                "${name ?: writtenAtomText(atom)}_$suffix",
                 name != null,
                 arity,
                 PRIVATE_RUNTIME,

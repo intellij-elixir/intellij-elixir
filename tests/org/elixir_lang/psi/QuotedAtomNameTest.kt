@@ -41,6 +41,19 @@ class QuotedAtomNameTest : PlatformTestCase() {
         )
     }
 
+    /** `Module.concat(P, :"Elixir.String")` is `P.String`: the `Elixir.` of an atom is the alias's own. */
+    fun testImplementationForAnElixirPrefixedAtomIsTheAliasModule() {
+        assertEquals(
+            listOf("P.String", "P.String"),
+            implementationNames("defimpl P, for: String do\nend\n", "defimpl P, for: :\"Elixir.String\" do\nend\n")
+        )
+    }
+
+    /** `Module.concat/2` also drops a leading `.` of an atom. */
+    fun testImplementationForADottedAtomIsTheAliasModule() {
+        assertEquals(listOf("P.String"), implementationNames("defimpl P, for: :\".String\" do\nend\n"))
+    }
+
     fun testImplementationForAnEscapedAtom() {
         assertEquals(listOf("P.lower"), implementationNames("defimpl P, for: :\"low\\x65r\" do\nend\n"))
     }
@@ -89,12 +102,15 @@ class QuotedAtomNameTest : PlatformTestCase() {
         }
     }
 
-    /** `defimpl P, for: :µ` is one implementation module, whichever way Elixir folds the name. */
+    /** `defimpl P, for: :µ` is the one implementation module Elixir names at the language level. */
     fun testImplementationForTheMicroSignIsOneModule() {
         for (level in listOf(elixir("1.14.0"), elixir("1.13.0"))) {
             ElixirLanguageLevelResolver.overrideLanguageLevel(project, level)
 
-            assertEquals("at $level", 1, implementationNames("defimpl P, for: :µ do\nend\n").size)
+            // Elixir 1.14 folds the micro sign to the Greek mu in an atom, and earlier releases keep it.
+            val expected = if (level == elixir("1.14.0")) "P.\u03bc" else "P.\u00b5"
+
+            assertEquals("at $level", listOf(expected), implementationNames("defimpl P, for: :µ do\nend\n"))
         }
     }
 

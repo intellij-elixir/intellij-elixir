@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import org.elixir_lang.Module
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.ALIAS_AS_NIL_REJECTED
 import org.elixir_lang.language_level.ElixirLanguageFeature.ALIAS_EXPANDS_ONE_STEP
@@ -275,11 +276,7 @@ internal fun concat(names: List<String>): String {
         else -> "Elixir" to names
     }
 
-    return rest.filter { it != "nil" }.fold(start) { acc, name ->
-        val partial = if (name.startsWith("Elixir.")) name.removePrefix("Elixir.") else name.removePrefix(".")
-
-        "$acc.$partial"
-    }
+    return rest.filter { it != "nil" }.fold(start) { acc, name -> "$acc.${Module.partial(name)}" }
 }
 
 /**

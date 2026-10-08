@@ -266,6 +266,15 @@ class DepTest : PlatformTestCase() {
         assertNull("`optional: :\"true\"` is `optional: true`", quotedOptional.single())
     }
 
+    /** A name that is only known when the code runs still has the `path:` it is given. */
+    fun testInterpolatedNameKeepsTheDepWithItsPath() {
+        val (deps, errorTitles) = depsFrom("{:\"my#{1}\", path: \"../my1\"}")
+
+        assertEmpty(errorTitles)
+        assertEquals("../my1", deps.single()?.path)
+        assertEquals("\"my#{1}\"", deps.single()?.application)
+    }
+
     /** `{:"my\x2Ddep", ...}` is `:"my-dep"`. */
     fun testEscapeInAQuotedNameIsDecoded() {
         val (deps, errorTitles) = depsFrom("{:\"my\\x2Ddep\", \"~> 1.0\"}")
