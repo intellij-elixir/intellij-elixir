@@ -36,15 +36,22 @@ internal class DefinitionTable {
         val checksClauses: Boolean,
     ) {
         /** The line of its first head. */
-        val line: Int get() = line(at.meta)
+        val line: Int get() = lineOf(at.meta)
     }
 
     /** Each named definition, in the order it was first stored. */
     val entries: Map<NameArity, Entry>
         field = LinkedHashMap()
 
-    /** The kinds of the definitions whose name isn't known, in the order they were defined. */
-    val unnamed: List<Kind>
+    /**
+     * A definition whose name isn't known.
+     *
+     * @property statement whether it was defined at a statement of the module body, so that only its name is unknown
+     */
+    data class Unnamed(val kind: Kind, val line: Int, val statement: Boolean)
+
+    /** The definitions whose name isn't known, in the order they were defined. */
+    val unnamed: List<Unnamed>
         field = mutableListOf()
 
     /** Each named definition's kind. */
@@ -58,7 +65,8 @@ internal class DefinitionTable {
     /**
      * `elixir_def:store_definition/10`: a head of [name] and [arity], or of no known name when [name] is `null`, with
      * [clauses] clauses and [defaults] defaults, then a clause for each default arity: the kind of the error the store
-     * raises, if it raises, in which case nothing more is stored.
+     * raises, if it raises, in which case nothing more is stored. For an unnamed head, [ordered] is whether it is a
+     * statement of the module body.
      */
     fun define(
         name: String?,
@@ -71,7 +79,7 @@ internal class DefinitionTable {
         checksClauses: Boolean,
     ): String? {
         if (name == null) {
-            unnamed += kind
+            unnamed += Unnamed(kind, lineOf(at.meta), ordered)
 
             return null
         }
@@ -99,6 +107,20 @@ internal class DefinitionTable {
                 storedDefaults != 0 &&
                 ((arity >= storedArity - storedDefaults && arity < storedArity) ||
                     (storedArity >= arity - defaults && storedArity < arity))
+        }
+
+    /**
+     * `elixir_def:store_definition/9`, as `elixir_overridable` stores a definition `Module.make_overridable/2` took: the
+     * definition as it was, with no check against the defaults of another arity and no clause for its default arities,
+     * which were never taken. The kind of the error the store raises, if it raises.
+     */
+    fun restore(name: String, arity: Int, kind: Kind, at: ElixirAst, clauses: Int, defaults: Int, ordered: Boolean): String? =
+        store(NameArity(name, arity), kind, at, clauses, defaults, default = false, ordered, checksClauses = false)
+
+    /** `elixir_def:take_definition/2`: [nameArity]'s entry, taken out of the table with its `{default, Name}` row. */
+    fun remove(nameArity: NameArity): Entry? =
+        entries.remove(nameArity)?.also { removed ->
+            defaultRows[nameArity.name]?.removeAll { it == nameArity.arity to removed.defaults }
         }
 
     /**

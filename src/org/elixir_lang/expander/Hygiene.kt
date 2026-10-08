@@ -59,10 +59,44 @@ internal fun expandQuoted(
     state: ExState,
     env: Env,
     run: Run,
+    watched: Watched? = null,
 ): Expansion {
-    val counter = run.counters.next(env.module)
+    return expandQuoted(call, receiver, run.counters.next(env.module), output, state, env, run, watched)
+}
 
-    return Expander.expand(linifyWithContextCounter(lineOf(call.meta), receiver, counter, output), state, env, run)
+/**
+ * [expandQuoted] with the [counter] the macro's output was given, for a macro that also uses it outside the output.
+ * [watched], a node of [output], is told the value it expands to.
+ */
+internal fun expandQuoted(
+    call: ElixirAst.Call,
+    receiver: String,
+    counter: Env.Counter,
+    output: ElixirAst,
+    state: ExState,
+    env: Env,
+    run: Run,
+    watched: Watched? = null,
+): Expansion {
+    var watching: ElixirAst? = null
+    val linified = linifyWithContextCounter(lineOf(call.meta), receiver, counter, output) { original, linified ->
+        if (original === watched?.node) watching = linified
+    }
+
+    env.module?.let { run.compiling[it] }?.rewrote(call, linified)
+
+    watching?.let { run.watching[it] = watched!! }
+
+    val expansion = try {
+        Expander.expand(linified, state, env, run)
+    } finally {
+        watching?.let { run.watching.remove(it) }
+    }
+
+    // The call is the bitstring its output expanded to, for the segment of a bitstring that holds the call.
+    run.bitstrings[expandedShape(linified)]?.let { run.bitstrings[call] = it }
+
+    return expansion
 }
 
 /**
@@ -70,7 +104,13 @@ internal fun expandQuoted(
  * it is 0, and [counter] to a `quote` or a variable of [receiver]'s context, an alias, and an `alias`, `import` or
  * `require` call.
  */
-internal fun linifyWithContextCounter(line: Int, receiver: String, counter: Env.Counter, node: ElixirAst): ElixirAst {
+internal fun linifyWithContextCounter(
+    line: Int,
+    receiver: String,
+    counter: Env.Counter,
+    node: ElixirAst,
+    onNode: (original: ElixirAst, linified: ElixirAst) -> Unit = { _, _ -> },
+): ElixirAst {
     val counterValue = counterMetaValue(counter)
     val receiverContext = ElixirAst.VariableContext.Atom(receiver)
 
@@ -99,7 +139,7 @@ internal fun linifyWithContextCounter(line: Int, receiver: String, counter: Env.
             is ElixirAst.ListNode -> ElixirAst.ListNode(node.meta, node.elements.map(::linify))
             is ElixirAst.Placeholder -> ElixirAst.Placeholder(lined(node.meta), node.reason)
             is ElixirAst.Literal -> node
-        }
+        }.also { onNode(node, it) }
 
     return linify(node)
 }

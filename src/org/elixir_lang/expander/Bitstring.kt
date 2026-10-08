@@ -46,7 +46,7 @@ internal fun expandBitstring(
             }
         }
     } else {
-        argumentScope(state, env) { scope -> expandSegments(node, segments, scope, state, env, run, requireSize) }
+        argumentScope(state) { scope -> expandSegments(node, segments, scope, state, env, run, requireSize) }
     }
 }
 
@@ -69,6 +69,8 @@ private fun expandSegments(
     var accState = state
     var accEnv = env
     var bareMeta = bitstring
+    var parts = emptyList<Part>()
+    var alignment: Int? = 0
     val report = Reporter { site, at -> reportOrEnd(site, at, env, run) }
 
     for ((index, segment) in segments.withIndex()) {
@@ -80,7 +82,7 @@ private fun expandSegments(
         val expansion = expandValue(value, accState, original, accEnv, run)
         if (expansion !is Expansion.Expanded) return expansion
 
-        valueError(value, expansion.value, metaNode, context, level, report)?.let { return it }
+        valueError(value, expansion.value, metaNode, context, run, report)?.let { return it }
 
         val shape = valueShape(value, context)
         val described = if (typed) {
@@ -94,7 +96,7 @@ private fun expandSegments(
                     accState = if (hides) specs.state.copy(read = expansion.state.read, write = expansion.state.write) else specs.state
                     accEnv = specs.env
 
-                    describeTyped(segment, shape, expansion.value, specs.args, context, matchSize, level, report)
+                    describeTyped(segment, shape, expansion.value, specs.args, matchSize, run, report)
                 }
             }
         } else {
@@ -102,11 +104,14 @@ private fun expandSegments(
             accEnv = expansion.env
             bareMeta = nextBareMeta
 
-            describeBare(metaNode, shape, expansion.value, context, matchSize, level, report)
+            describeBare(metaNode, shape, expansion.value, matchSize, run, report)
         }
 
         when (described) {
-            is Described.Segment -> Unit
+            is Described.Segment -> {
+                parts = parts + described.parts
+                alignment = alignment?.let { a -> described.alignment?.let { (a + it) % 8 } }
+            }
             is Described.Ended -> return described.expansion
             is Described.Unported -> return Expansion.Unported(described.at)
             is Described.NumberSizeRaises ->
@@ -116,7 +121,13 @@ private fun expandSegments(
         }
     }
 
-    return Expansion.Expanded(accState, accEnv, NODE)
+    run.bitstrings[bitstring] = BitstringParts(parts, alignment)
+
+    // Outside a pattern or a guard it builds a binary when every part is one, whatever the content; there it is no
+    // literal, which the pattern and guard readers of `Term.Binary` take it for.
+    val binary = context == Env.Context.NONE && alignment == 0 && parts.isNotEmpty() && parts.all { it.alone == "binary" }
+
+    return Expansion.Expanded(accState, accEnv, if (binary) Term.Binary(null) else NODE)
 }
 
 /** `is_match_size/2`: whether segment [index] is in a pattern and another follows it. */
@@ -180,18 +191,18 @@ private fun valueError(
     expanded: Term,
     metaNode: ElixirAst,
     context: Env.Context,
-    level: ElixirLanguageLevel,
+    run: Run,
     report: Reporter,
 ): Expansion? =
-    if (BITSTRING_PATTERN_SEGMENT_VALIDATED.isSufficient(level)) {
+    if (BITSTRING_PATTERN_SEGMENT_VALIDATED.isSufficient(run.level)) {
         val shape = valueShape(value, context)
 
-        if (context == Env.Context.MATCH && !isMatchSegment(shape, expanded)) {
+        if (context == Env.Context.MATCH && !isMatchSegment(shape, expanded, run)) {
             report(ErrorSite.UNKNOWN_MATCH, if (shape.hasMetadata()) shape else metaNode)
         } else {
             null
         }
-    } else if (BITSTRING_LIST_OR_ATOM_SEGMENT_REJECTED.isSufficient(level) &&
+    } else if (BITSTRING_LIST_OR_ATOM_SEGMENT_REJECTED.isSufficient(run.level) &&
         interpolated(value, context) == null &&
         (expanded is Term.List || expanded is Term.Atom)
     ) {
@@ -201,13 +212,13 @@ private fun valueError(
     }
 
 /** `validate_expr/3`: a variable, a pin, a number or a binary, as [expanded] is, or a bitstring, as [shape] is. */
-private fun isMatchSegment(shape: ElixirAst, expanded: Term) =
+private fun isMatchSegment(shape: ElixirAst, expanded: Term, run: Run) =
     expanded == VARIABLE_NODE ||
         expanded == Term.Node(Term.Node.Kind.PIN) ||
         expanded is Term.Integer ||
         expanded is Term.NonTuple ||
         expanded is Term.Binary ||
-        isBitstring(shape)
+        isBuilt(shape, run)
 
 /** `find_match/1`, before 1.19: a `=` in any call's arguments, block's expressions or `{}` tuple's elements. */
 private fun containsMatch(node: ElixirAst): Boolean {
@@ -486,13 +497,21 @@ private val ARGUMENTLESS_SPECS = mapOf(
 // What a segment builds, which a bitstring nesting this one checks
 
 /** One element of an expanded bitstring's arguments. */
-private class Part(
+internal class Part(
     /** Where an `unsized_binary` for this part is reported. */
     val at: ElixirAst,
-    val value: ElixirAst,
+    /** Whether the part's value is a binary once expanded, which is what `is_binary/1` asks of it. */
+    val binary: Boolean,
     /** `binary` or `bitstring` when that is the whole spec built. */
     val alone: String?,
 )
+
+/**
+ * What an expanded bitstring builds, for the bitstring that nests it.
+ *
+ * @property alignment modulo 8, or `null` where it is `unknown`
+ */
+internal class BitstringParts(val parts: List<Part>, val alignment: Int?)
 
 private sealed interface Described {
     /** @property alignment modulo 8, or `null` where it is `unknown` */
@@ -512,16 +531,16 @@ private fun interface Reporter {
     operator fun invoke(site: ErrorSite, at: ElixirAst): Expansion?
 }
 
-/** For a bitstring already expanded, whose errors were reported then. */
-private val ALREADY_REPORTED = Reporter { _, _ -> null }
+/** Whether [shape], a segment's value, expanded to a bitstring: one written as `<<>>`, or a macro's output. */
+private fun isBuilt(shape: ElixirAst, run: Run) = isBitstring(shape) || shape in run.bitstrings
 
 /** `expr_type/1` of a segment's value, from [shape] and from [value], its expanded term where one is at hand. */
-private fun exprType(shape: ElixirAst, value: Term?) =
+private fun exprType(shape: ElixirAst, value: Term?, run: Run) =
     when {
         shape is ElixirAst.Literal.Integer || value is Term.Integer -> "integer"
         shape is ElixirAst.Literal.Float || value is Term.NonTuple -> "float"
+        isBuilt(shape, run) -> "bitstring"
         shape is ElixirAst.Literal.Binary || value is Term.Binary -> "binary"
-        isBitstring(shape) -> "bitstring"
         else -> "default"
     }
 
@@ -530,14 +549,13 @@ private fun describeBare(
     metaNode: ElixirAst,
     shape: ElixirAst,
     value: Term?,
-    context: Env.Context,
     matchSize: Boolean,
-    level: ElixirLanguageLevel,
+    run: Run,
     report: Reporter,
 ): Described {
-    val alone = exprType(shape, value).takeIf { it in BINARIES }
+    val exprType = exprType(shape, value, run)
 
-    return concat(metaNode, shape, alone, 0, context, matchSize, level, report)
+    return concat(metaNode, shape, exprType == "binary", exprType.takeIf { it in BINARIES }, 0, matchSize, run, report)
 }
 
 /** `expand_specs/7` from a segment's expanded spec arguments, then `concat_or_prepend_bitstring/6`. */
@@ -546,17 +564,18 @@ private fun describeTyped(
     shape: ElixirAst,
     value: Term?,
     args: Map<String, SpecArg>,
-    context: Env.Context,
     matchSize: Boolean,
-    level: ElixirLanguageLevel,
+    run: Run,
     report: Reporter,
 ): Described {
+    val level = run.level
+
     fun ended(site: ErrorSite) = report(site, segment)?.let(Described::Ended)
 
     /** A site whose helper's return value `expand_specs/7` can't match. */
     fun crashed(site: ErrorSite) = ended(site) ?: Described.Unported(segment)
 
-    val exprType = exprType(shape, value)
+    val exprType = exprType(shape, value, run)
     val type = ((args["type"] as SpecArg.Literal?)?.term as OtpErlangAtom?)?.atomValue()
     val size = args["size"]
     val unit = args["unit"]
@@ -610,7 +629,7 @@ private fun describeTyped(
     // `size_and_unit/5` drops a literal's size and unit, so they don't stop it being spliced in.
     val alone = merged.takeIf { it in BINARIES && !(sizeOrUnit && exprType !in BINARIES) && !inferSize }
 
-    return concat(segment, shape, alone, alignment(merged, size, unit), context, matchSize, level, report)
+    return concat(segment, shape, exprType == "binary", alone, alignment(merged, size, unit), matchSize, run, report)
 }
 
 private val BINARIES = setOf("binary", "bitstring")
@@ -661,32 +680,30 @@ private fun alignment(type: String, size: SpecArg?, unit: SpecArg?): Int? {
  * after checking its last part and, for `binary`, its alignment.
  *
  * @param at where the segment's own errors are reported
+ * @param binary whether the segment's value is a binary once expanded
  * @param matchSize whether this segment needs a size: it is in a pattern and another follows it, or it is in a
  *   generator's pattern
  */
 private fun concat(
     at: ElixirAst,
     shape: ElixirAst,
+    binary: Boolean,
     alone: String?,
     alignment: Int?,
-    context: Env.Context,
     matchSize: Boolean,
-    level: ElixirLanguageLevel,
+    run: Run,
     report: Reporter,
 ): Described {
-    val self = Described.Segment(listOf(Part(at, shape, alone)), alignment)
-    if (!isBitstring(shape)) return self
+    val self = Described.Segment(listOf(Part(at, binary, alone)), alignment)
+    if (!isBuilt(shape, run)) return self
 
-    val inner = when (val described = describe(shape as ElixirAst.Call, context, level)) {
-        is Described.Segment -> described
-        else -> return Described.Unported(shape)
-    }
+    val inner = run.bitstrings[shape] ?: return Described.Unported(shape)
     if (inner.parts.isEmpty()) return Described.Segment(emptyList(), alignment)
 
     if (matchSize) {
         val last = inner.parts.last()
 
-        if ((last.alone == "binary" && last.value !is ElixirAst.Literal.Binary) || last.alone == "bitstring") {
+        if ((last.alone == "binary" && !last.binary) || last.alone == "bitstring") {
             report(ErrorSite.UNSIZED_BINARY_NESTED, last.at)?.let { return Described.Ended(it) }
         }
     }
@@ -703,37 +720,4 @@ private fun concat(
         "bitstring" -> Described.Segment(inner.parts, alignment)
         else -> self
     }
-}
-
-/** The parts and alignment of a nested bitstring, which has already expanded without error. */
-private fun describe(bitstring: ElixirAst.Call, context: Env.Context, level: ElixirLanguageLevel): Described {
-    val segments = bitstring.arguments!!
-    var parts = emptyList<Part>()
-    var alignment: Int? = 0
-    var bareMeta: ElixirAst = bitstring
-
-    for ((index, segment) in segments.withIndex()) {
-        val matchSize = matchSize(context, index, segments)
-        val described = if (isCall(segment, "::", 2)) {
-            val (value, spec) = (segment as ElixirAst.Call).arguments!!
-            val args = unpackSpecs(spec).filterIsInstance<Unpacked.Builtin>().associate { it.key to SpecArg.of(it.arg) }
-
-            describeTyped(segment, valueShape(value, context), null, args, context, matchSize, level, ALREADY_REPORTED)
-        } else {
-            val (metaNode, nextBareMeta) = bareMeta(segment, bareMeta, level)
-            bareMeta = nextBareMeta
-
-            describeBare(metaNode, valueShape(segment, context), null, context, matchSize, level, ALREADY_REPORTED)
-        }
-
-        when (described) {
-            is Described.Segment -> {
-                parts = parts + described.parts
-                alignment = alignment?.let { a -> described.alignment?.let { (a + it) % 8 } }
-            }
-            else -> return described
-        }
-    }
-
-    return Described.Segment(parts, alignment)
 }

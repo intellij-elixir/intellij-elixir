@@ -20,9 +20,29 @@ sealed class ModuleExports {
      *   unfiltered, `module_info/0,1` and `behaviour_info/1` included
      * @property macros what `__info__(:macros)` gives; empty without [hasInfo]
      * @property hasInfo whether the module exports `__info__/1`, as every Elixir module does
+     * @property behaviour what `behaviour_info/1` answers, which [functions] leave out where [hasInfo]
      */
-    data class Present(val functions: List<NameArity>, val macros: List<NameArity>, val hasInfo: Boolean) :
-        ModuleExports()
+    data class Present(
+        val functions: List<NameArity>,
+        val macros: List<NameArity>,
+        val hasInfo: Boolean,
+        val behaviour: Behaviour = Behaviour.Unreadable,
+    ) : ModuleExports()
+
+    /** What a module's `behaviour_info/1` answers. */
+    sealed class Behaviour {
+        /** The module doesn't export `behaviour_info/1`: it is no behaviour. */
+        data object None : Behaviour()
+
+        /**
+         * @property callbacks what `behaviour_info(:callbacks)` returns, where a macro callback is `MACRO-<name>` with
+         *   one more than its arity
+         */
+        data class Callbacks(val callbacks: List<NameArity>) : Behaviour()
+
+        /** The module may export `behaviour_info/1`, but what it answers can't be read. */
+        data object Unreadable : Behaviour()
+    }
 
     companion object {
         /**

@@ -7,7 +7,7 @@ import org.elixir_lang.psi.ElixirFile
  * Each struct case, compiled as a module body on the leg's Elixir, ends as the expander says, and each that expands
  * traces its dispatches and struct expansions as the compiler does. A build that omits a field of a struct whose
  * enforced keys the leg's metadata doesn't record is unported at its `%`, and isn't compared, as is a case unported
- * on the leg's release.
+ * on the leg's release, or whose struct a loaded module of the same name could answer.
  */
 class StructProbeTest : ProbeTestCase() {
     private val probes = ExpansionProbes(harness) { createPsiFile(getTestName(false), it) as ElixirFile }
@@ -38,7 +38,8 @@ class StructProbeTest : ProbeTestCase() {
 
     /**
      * [code] is compared from [from]. When it builds [at] omitting a field of [omits], it is unported on a leg whose
-     * metadata doesn't record [omits]'s enforced keys. It is unported at [at] on a leg before [comparedFrom].
+     * metadata doesn't record [omits]'s enforced keys. It is unported at [at] on a leg before [comparedFrom], or on
+     * every leg where [unported].
      */
     private class Case(
         val code: String,
@@ -46,6 +47,7 @@ class StructProbeTest : ProbeTestCase() {
         val at: String? = null,
         val from: String? = null,
         val comparedFrom: String? = null,
+        val unported: Boolean = false,
     )
 
     private fun cases(): List<Case> {
@@ -55,7 +57,8 @@ class StructProbeTest : ProbeTestCase() {
     }
 
     private fun isUnported(case: Case): Boolean =
-        case.omits?.let { (legStructs.of(it) as? ModuleStruct.Present)?.enforced } == Enforced.Unknown ||
+        case.unported ||
+            case.omits?.let { (legStructs.of(it) as? ModuleStruct.Present)?.enforced } == Enforced.Unknown ||
             case.comparedFrom?.let { legLevel().elixir < ElixirLanguageLevel.of(it).elixir } == true
 
     private companion object {
@@ -114,9 +117,14 @@ class StructProbeTest : ProbeTestCase() {
             Case("def f do\n  %NoSuchStruct{}\nend"),
             Case("def f do\n  %:lists{}\nend"),
             Case("def f do\n  %Version{}\nend", VERSION, "%Version{}"),
-            // The enclosing module's body is still expanding, so its struct isn't defined yet.
-            Case("alias __MODULE__, as: Outer\ndefmodule Inner do\n  _ = %Outer{}\nend"),
-            Case("alias __MODULE__, as: Outer\ndefmodule Inner do\n  _ = %Outer{}\nend\ndefstruct [:a]"),
+            // The enclosing module's body is still expanding, so its struct isn't defined yet, and a loaded module of the
+            // same name would answer.
+            Case("alias __MODULE__, as: Outer\ndefmodule Inner do\n  _ = %Outer{}\nend", at = "%Outer{}", unported = true),
+            Case(
+                "alias __MODULE__, as: Outer\ndefmodule Inner do\n  _ = %Outer{}\nend\ndefstruct [:a]",
+                at = "%Outer{}",
+                unported = true,
+            ),
         )
     }
 }

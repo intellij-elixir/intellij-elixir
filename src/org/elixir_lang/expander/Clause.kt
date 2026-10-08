@@ -324,7 +324,15 @@ internal enum class Clause(vararg val heads: Head) {
             isCall(node, "&", 1) && isNamedCall((node as ElixirAst.Call).arguments!!.single(), "super")
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            noMatchOrGuardScope(node, state, env) ?: resolveSuper(node, env)
+            noMatchOrGuardScope(node, state, env)
+                ?: expandCaptureSuper(
+                    node as ElixirAst.Call,
+                    SuperCapture.CALL,
+                    ((node.arguments!!.single() as ElixirAst.Call).arguments!!).size,
+                    state,
+                    env,
+                    run,
+                )
     },
 
     /** `&super/arity`, which `resolve_super/3` looks up. */
@@ -336,8 +344,21 @@ internal enum class Clause(vararg val heads: Head) {
             return isVariable(name) && variable(name).name == "super" && arity is ElixirAst.Literal.Integer
         }
 
-        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            noMatchOrGuardScope(node, state, env) ?: resolveSuper(node, env)
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
+            val call = node as ElixirAst.Call
+            val division = call.arguments!!.single() as ElixirAst.Call
+            val arity = (division.arguments!![1] as ElixirAst.Literal.Integer).value
+
+            return noMatchOrGuardScope(node, state, env)
+                ?: expandCaptureSuper(
+                    call,
+                    SuperCapture.ARITY,
+                    if (arity.bitLength() < Int.SIZE_BITS) arity.toInt() else -1,
+                    state,
+                    env,
+                    run,
+                )
+        }
     },
 
     CAPTURE(expandHead("{'&',_,[_]}")) {
@@ -409,7 +430,7 @@ internal enum class Clause(vararg val heads: Head) {
             isNamedCall(node, "super")
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            noMatchOrGuardScope(node, state, env) ?: resolveSuper(node, env)
+            noMatchOrGuardScope(node, state, env) ?: expandSuper(node as ElixirAst.Call, state, env, run)
     },
 
     /** `^` while a pattern is being expanded, which reads the variables from before the pattern. */
@@ -584,7 +605,7 @@ internal enum class Clause(vararg val heads: Head) {
             node is ElixirAst.ListNode
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            argumentScope(state, env) { scope ->
+            argumentScope(state) { scope ->
                 expandList((node as ElixirAst.ListNode).elements, scope, env) { element, s, e ->
                     expandArg(element, s, state, e, run)
                 }

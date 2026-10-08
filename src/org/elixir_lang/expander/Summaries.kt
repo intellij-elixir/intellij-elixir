@@ -98,13 +98,18 @@ internal object Summaries {
             MacroKey.STEP_RANGE -> STEP_RANGE
             MacroKey.FULL_RANGE -> FULL_RANGE
             MacroKey.IN -> IN
-            MacroKey.AT -> ATTRIBUTE
-            MacroKey.DEFSTRUCT, MacroKey.DEFEXCEPTION, MacroKey.DEFGUARD, MacroKey.DEFGUARDP,
-            MacroKey.DEFOVERRIDABLE, MacroKey.DEFDELEGATE, MacroKey.DEFPROTOCOL, MacroKey.DEFIMPL_2, MacroKey.DEFIMPL_3,
+            MacroKey.AT, MacroKey.BOOTSTRAP_AT -> ATTRIBUTE
+            MacroKey.DEFOVERRIDABLE -> DEFOVERRIDABLE
+            MacroKey.DEFGUARD -> DEFGUARD
+            MacroKey.DEFGUARDP -> DEFGUARDP
+            MacroKey.UTILS_DEFGUARD -> UTILS_DEFGUARD
+            MacroKey.DEFSTRUCT -> DEFSTRUCT
+            MacroKey.BOOTSTRAP_DEF -> BOOTSTRAP_DEF
+            MacroKey.DEFEXCEPTION -> DEFEXCEPTION
+            MacroKey.DEFDELEGATE, MacroKey.DEFPROTOCOL, MacroKey.DEFIMPL_2, MacroKey.DEFIMPL_3,
             MacroKey.USE_1, MacroKey.USE_2, MacroKey.SIGIL_C_UPPER, MacroKey.SIGIL_D, MacroKey.SIGIL_N,
             MacroKey.SIGIL_R_UPPER, MacroKey.SIGIL_S_UPPER, MacroKey.SIGIL_T, MacroKey.SIGIL_U, MacroKey.SIGIL_W_UPPER,
-            MacroKey.SIGIL_C, MacroKey.SIGIL_R, MacroKey.SIGIL_S, MacroKey.SIGIL_W, MacroKey.PROTOCOL_DEF,
-            MacroKey.UTILS_DEFGUARD -> null
+            MacroKey.SIGIL_C, MacroKey.SIGIL_R, MacroKey.SIGIL_S, MacroKey.SIGIL_W, MacroKey.PROTOCOL_DEF -> null
         }
 }
 

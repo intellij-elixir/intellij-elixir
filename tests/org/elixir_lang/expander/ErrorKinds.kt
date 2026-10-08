@@ -102,6 +102,27 @@ object ErrorKinds {
         "defs_with_defaults" to """^$DEFINER \S+/\d+ (defaults conflicts with|conflicts with defaults from) \S+/\d+$""",
         // elixir_locals, and Module.Types from 1.18
         "incorrect_dispatch" to """^cannot invoke macro \S+/\d+ before its definition$""",
+        // elixir_overridable, and elixir_expand's `super`
+        "bad_kind" to
+            """^cannot override (function \(def, defp\) \S+/\d+ in module \S+ as a macro \(defmacro, defmacrop\)|""" +
+            """macro \(defmacro, defmacrop\) \S+/\d+ in module \S+ as a function \(def, defp\))$""",
+        "no_super" to """^no super defined for \S+/\d+ in module \S+\. Overridable functions available are: """,
+        "wrong_number_of_args_for_super" to
+            """^super must be called with the same number of arguments as the current definition$""",
+        // Module.make_overridable/2's ArgumentErrors
+        "overridable_not_defined" to """^cannot make function \S+/\d+ overridable because it was not defined$""",
+        "overridable_bad_element" to
+            """^each element in tuple list has to be a \{function_name :: atom, arity :: 0\.\.255\} tuple, got: """,
+        "overridable_undefined_behaviour" to
+            """^cannot pass module \S+ as argument to defoverridable/1 because it was not defined$""",
+        "overridable_not_a_behaviour" to
+            """^cannot pass module \S+ as argument to defoverridable/1 because it does not define any callbacks$""",
+        "overridable_missing_behaviour" to
+            """^cannot pass module \S+ as argument to defoverridable/1 because its corresponding behaviour is """ +
+            """missing\. Did you forget to add @behaviour \S+\?$""",
+        // Kernel's `defguard` ArgumentErrors
+        "invalid_defguard" to """^invalid syntax in defguard """,
+        "defguard_two_whens" to """^invalid syntax in defguard .+, only a single when clause is allowed$""",
         // elixir_module
         "invalid_module_name" to """^invalid module name: """,
         "module_reserved" to """^module \S+ is reserved and cannot be defined$""",
@@ -235,6 +256,20 @@ object ErrorKinds {
         // The `KeyError` and `ArgumentError` the struct's `__struct__/1` raises.
         "struct_unknown_key" to """^key \S+ not found""",
         "struct_missing_enforced_keys" to """^the following keys must also be given when building struct \S+: \[""",
+        // `defstruct`'s ArgumentErrors: `Kernel.Utils.defstruct`, and before 1.14 its macro's own check
+        "struct_twice" to """^defstruct has already been called for \S+, defstruct can only be called once per module$""",
+        "struct_fields_not_list" to """^struct fields definition must be list, got: """,
+        "struct_reserved_key" to """^cannot set :__struct__ in struct definition$""",
+        "struct_invalid_default" to """^invalid (default )?value for struct field \S+, """,
+        "struct_field_not_atom" to """^struct field names must be atoms, got: """,
+        "enforce_key_not_atom" to """^keys given to @enforce_keys must be atoms, got: """,
+        "enforce_keys_not_defined" to
+            """^@enforce_keys required keys \(.+\) that are not defined in defstruct: """,
+        // `Protocol.__derive__/3`'s ArgumentErrors, which append the `, cannot derive` of `@derive`'s protocol
+        "derive_not_available" to
+            """^(\S+ is not available|could not load module \S+ due to reason :\w+), cannot derive """,
+        "derive_not_a_protocol" to """^\S+ is not a protocol, cannot derive """,
+        "derive_not_an_implementation" to """^\S+ is not an implementation of a protocol, cannot derive """,
         // elixir_bitstring
         "unsized_binary" to
             """^a binary field without size is only allowed at the end of a binary pattern, at the right side of binary concatenation and (and )?never allowed in binary generators""",
@@ -264,6 +299,23 @@ object ErrorKinds {
         "alias_bang_function_clause",
         "struct_unknown_key",
         "struct_missing_enforced_keys",
+        "struct_twice",
+        "struct_fields_not_list",
+        "struct_reserved_key",
+        "struct_invalid_default",
+        "struct_field_not_atom",
+        "enforce_key_not_atom",
+        "enforce_keys_not_defined",
+        "derive_not_available",
+        "derive_not_a_protocol",
+        "derive_not_an_implementation",
+        "invalid_defguard",
+        "defguard_two_whens",
+        "overridable_not_defined",
+        "overridable_bad_element",
+        "overridable_undefined_behaviour",
+        "overridable_not_a_behaviour",
+        "overridable_missing_behaviour",
         "compile_error",
         "definer_outside_module",
         "definer_inside_function",

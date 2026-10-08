@@ -53,8 +53,8 @@ private fun capture(amp: ElixirAst.Call, arg: ElixirAst, state: ExState, env: En
     val atCall = captureAt(amp, arg, run)
 
     return when {
-        isCall(arg, "/", 2) && isRemoteFunction((arg as ElixirAst.Call).arguments!![0]) && isInteger(arg.arguments!![1]) -> {
-            val (function, arity) = arg.arguments
+        isRemoteCapture(arg) -> {
+            val (function, arity) = (arg as ElixirAst.Call).arguments!!
             val remote = function as ElixirAst.Call
 
             argumentsFromArity(amp, arity)?.let { args ->
@@ -401,6 +401,12 @@ private fun arguments(args: List<ElixirAst>): Arguments =
 private fun isCaptureArgument(node: ElixirAst, position: Int): Boolean =
     isCall(node, "&", 1) &&
         ((node as ElixirAst.Call).arguments!!.single() as? ElixirAst.Literal.Integer)?.value == position.toBigInteger()
+
+/** Whether [arg], the argument of `&`, is `Mod.fun/arity` with an integer arity: a capture of a remote function. */
+internal fun isRemoteCapture(arg: ElixirAst): Boolean =
+    isCall(arg, "/", 2) &&
+        isRemoteFunction((arg as ElixirAst.Call).arguments!![0]) &&
+        isInteger(arg.arguments!![1])
 
 /** `{{'.', _, [_, Fun]}, _, []}` with an atom `Fun`: a remote call of no arguments. */
 private fun isRemoteFunction(node: ElixirAst): Boolean {

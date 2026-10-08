@@ -8,7 +8,11 @@ import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
+import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.expander.ExpansionResult.Owner
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_BIND_QUOTED
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_ESCAPES_STRUCT
+import org.elixir_lang.language_level.ElixirLanguageFeature.STRUCT_ATTRIBUTE_RENAMED
 import org.elixir_lang.lowering.inspect
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.Import.Term
@@ -226,10 +230,92 @@ class AttributeProbeTest : ProbeTestCase() {
     }
 
     /**
-     * A case body, the attributes whose values at the end of the body are compared, and the read functions whose
-     * values the expander doesn't know.
+     * An interpolation is a binary whose content isn't known, so `@doc` and `@external_resource` take it as the text they
+     * need and the module goes on to compile.
      */
-    private class AttributeCase(val body: String, val attributes: List<String>, val unknown: Set<String> = emptySet())
+    fun testAnInterpolatedDocIsText() = assertCompilesLikeElixir("x = \"a\"\n@doc \"x: #{x}\"\ndef f, do: 1")
+
+    fun testAComputedExternalResourceIsText() =
+        assertCompilesLikeElixir("@external_resource \"#{__DIR__}/a.txt\"\ndef f, do: 1")
+
+    fun testAnInterpolatedDeprecationIsText() =
+        assertCompilesLikeElixir("x = \"g\"\n@deprecated \"use #{x} instead\"\ndef f, do: 1")
+
+    /** `super` stores a hidden definition that takes none of the attributes the definition calling it is about to take. */
+    fun testSuperLeavesTheDocOfTheDefinitionCallingItAlone() =
+        assertAttributesMatch(
+            AttributeCase(
+                "def f(x), do: x\ndefoverridable f: 1\n@doc \"calls super\"\ndef f(x), do: super(x)",
+                attributes = emptyList(),
+            ),
+        )
+
+    /**
+     * `defstruct` reads `@enforce_keys` and takes `@derive` (from 1.14), and writes the attribute the struct is kept in
+     * until 1.18, which the expander doesn't know the value of.
+     */
+    fun testDefstructLeavesTheAttributesItReadsAsTheCompilerDoes() {
+        val level = legLevel()
+        val struct = when {
+            DEFSTRUCT_ESCAPES_STRUCT.isSufficient(level) -> null
+            STRUCT_ATTRIBUTE_RENAMED.isSufficient(level) -> "__struct__"
+            else -> "struct"
+        }
+        // Up to 1.13 a `case` on `@enforce_keys` chooses the clause, so the docs and impls of the definitions after the
+        // `defstruct` are unknown to the expander.
+        val definitions = DEFSTRUCT_BIND_QUOTED.isSufficient(level)
+        val cases = listOfNotNull(
+            AttributeCase(
+                "@enforce_keys [:a]\ndefstruct [:a]\ndef r_e, do: @enforce_keys",
+                attributes = listOf("enforce_keys"),
+                definitions = definitions,
+            ),
+            AttributeCase(
+                "defstruct [:a]\ndef r_e, do: @enforce_keys",
+                attributes = listOf("enforce_keys"),
+                definitions = definitions,
+            ),
+            AttributeCase(
+                "@derive []\ndefstruct [:a]\ndef r_d, do: @derive",
+                attributes = listOf("derive"),
+                definitions = definitions,
+            ),
+            AttributeCase(
+                "Module.register_attribute(__MODULE__, :enforce_keys, accumulate: true)\n@enforce_keys :a\n" +
+                    "defstruct [:a]\ndef r_e, do: @enforce_keys",
+                attributes = listOf("enforce_keys"),
+                definitions = definitions,
+            ),
+            struct?.let {
+                AttributeCase(
+                    "defstruct [:a]\ndef r_s, do: @$it",
+                    attributes = emptyList(),
+                    unknown = setOf("r_s"),
+                    definitions = definitions,
+                )
+            },
+        )
+
+        assertAttributesMatch(*cases.toTypedArray())
+    }
+
+    private fun assertCompilesLikeElixir(body: String) {
+        val expansion = probes.expandAll(listOf(body), hook = ProbeHarness.Hook()).cases.single()
+
+        assertEquals("$body: ${expansion.outcome}", ExpansionResult.Ended.Compiled, expansion.ended)
+        probes.assertMatchesElixir(mapOf(body to expansion))
+    }
+
+    /**
+     * A case body, the attributes whose values at the end of the body are compared, and the read functions whose
+     * values the expander doesn't know. Without [definitions] only the reads and the final values are compared.
+     */
+    private class AttributeCase(
+        val body: String,
+        val attributes: List<String>,
+        val unknown: Set<String> = emptySet(),
+        val definitions: Boolean = true,
+    )
 
     /**
      * Expands and compiles each of [cases] alone with the hook, and compares the expander's attribute log with what the
@@ -280,7 +366,9 @@ class AttributeProbeTest : ProbeTestCase() {
                 actual += render(
                     name,
                     layout,
-                    result?.let { expander(it, case.attributes.takeIf { name == module }.orEmpty(), bodyLine) }
+                    result?.let {
+                        expander(it, case.attributes.takeIf { name == module }.orEmpty(), bodyLine, case.definitions)
+                    }
                         ?: listOf("not expanded"),
                 )
             }
@@ -321,11 +409,11 @@ class AttributeProbeTest : ProbeTestCase() {
             }
         }
 
-        return reads + finals + impls.sorted() + docs.sorted()
+        return if (case.definitions) listOf(reads, finals, impls.sorted(), docs.sorted()).flatten() else reads + finals
     }
 
     /** What the expander logged of [result]'s module, with the final values of [attributes], as rows in [elixir]'s order. */
-    private fun expander(result: ExpansionResult, attributes: List<String>, bodyLine: Int): List<String> {
+    private fun expander(result: ExpansionResult, attributes: List<String>, bodyLine: Int, definitions: Boolean): List<String> {
         val log = result.attributes
         val reads = log.reads
             .mapNotNull { read -> (read.owner as? Owner.Definition)?.name?.takeIf { it.startsWith("r_") }?.to(read.value) }
@@ -345,19 +433,19 @@ class AttributeProbeTest : ProbeTestCase() {
             .filter { (_, entry) -> !entry.default }
             .mapNotNull { (nameArity, entry) ->
                 val attributes = log.definitions[nameArity]
-                val doc = docText(attributes?.doc)
+                val written = docText(attributes?.doc, "")
 
                 when {
                     entry.kind.public ->
-                        "doc ${nameArity.name}/${nameArity.arity} = $doc " +
+                        "doc ${nameArity.name}/${nameArity.arity} = ${docText(attributes?.doc, nameArity.name)} " +
                             "deprecated ${attributes?.deprecated?.let(::render) ?: ":nil"}"
                     // The chunk has no entry for a private definition, which is its "no doc".
-                    doc != ":none" -> "doc private ${nameArity.name}/${nameArity.arity} = $doc"
+                    written != ":none" -> "doc private ${nameArity.name}/${nameArity.arity} = $written"
                     else -> null
                 }
             }
 
-        return reads + finals + impls.sorted() + docs.sorted()
+        return if (definitions) listOf(reads, finals, impls.sorted(), docs.sorted()).flatten() else reads + finals
     }
 
     /** `final`'s value of an attribute that names callbacks, less the hook's own. */
@@ -376,10 +464,18 @@ class AttributeProbeTest : ProbeTestCase() {
     private fun docText(doc: OtpErlangObject): String =
         (doc as? OtpErlangAtom)?.let { ":${it.atomValue()}" } ?: render(doc)
 
-    /** The doc the expander says the Docs chunk holds: `nil` is `:none`, and `false` is `:hidden`. */
-    private fun docText(doc: AttributeValue?): String =
+    /**
+     * The doc the expander says the Docs chunk holds for the definition [name]: `nil` is `:none`, or from 1.13.0-rc.0
+     * `:hidden` for a name that starts with an underscore, and `false` is `:hidden` (`elixir_erl:doc_value/2`).
+     */
+    private fun docText(doc: AttributeValue?, name: String): String =
         when (doc) {
-            null, AttributeValue.Known(Term.Atom("nil")) -> ":none"
+            null, AttributeValue.Known(Term.Atom("nil")) ->
+                if (name.startsWith("_") && !isBefore(LegManifest.environment("ELIXIR_VERSION"), "1.13.0-rc.0")) {
+                    ":hidden"
+                } else {
+                    ":none"
+                }
             AttributeValue.Known(Term.Atom("false")) -> ":hidden"
             else -> render(doc)
         }

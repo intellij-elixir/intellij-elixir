@@ -75,20 +75,25 @@ private fun structError(
 
     val build = !update && env.context != Env.Context.MATCH
     if (!build && env.function != null && STRUCT_KEYS_IN_FUNCTIONS_LEFT_TO_TYPES.isSufficient(run.level)) return null
-    if (module == env.module) {
-        // Elixir expands the module's body before it evaluates any `defstruct` in it. Inside a function it reads the
-        // module's own definitions, which aren't modelled, and before 1.14.1 a loaded module of the same name.
-        return if (env.function == null && STRUCT_OF_MODULE_BEING_DEFINED_NEVER_LOADED.isSufficient(run.level)) {
+    // Elixir expands the module's body before it evaluates any `defstruct` in it. A function reads the module's own
+    // definitions, which are modelled where the module is compiled.
+    val readsRecord = env.function != null && run.compiling[module] != null
+    if (module == env.module && !readsRecord) {
+        return if (env.function == null && neverLoaded(module, env, run)) {
             Expansion.Error("inaccessible_struct", node)
         } else {
             Expansion.Unported(node)
         }
     }
 
-    val struct = when (val struct = run.structs.of(module)) {
+    val struct = when (val struct = run.structOf(module)) {
         is ModuleStruct.Present -> struct
         ModuleStruct.Unreadable -> return Expansion.Unported(node)
-        ModuleStruct.Absent -> return undefinedStruct(node, module, env)
+        ModuleStruct.Absent -> return if (loadedModuleMayAnswer(module, env, run)) {
+            Expansion.Unported(node)
+        } else {
+            undefinedStruct(node, module, env)
+        }
     }
     val names = keys.map { (it as? Term.Atom)?.name }
     val unknown = names.filter { it == null || it !in struct.fields }
@@ -108,6 +113,17 @@ private fun structError(
         }
     }
 }
+
+/** Whether Elixir doesn't call the struct of a loaded module of [module]'s name: it is the module being defined. */
+private fun neverLoaded(module: String, env: Env, run: Run): Boolean =
+    module == env.module && STRUCT_OF_MODULE_BEING_DEFINED_NEVER_LOADED.isSufficient(run.level)
+
+/**
+ * Whether Elixir would call the struct of a loaded module of the same name, which the expander can't know: [module] is
+ * still compiling, and so isn't loaded itself, unless it is [neverLoaded].
+ */
+private fun loadedModuleMayAnswer(module: String, env: Env, run: Run): Boolean =
+    module in run.compiling && !neverLoaded(module, env, run)
 
 /** `elixir_map:struct_undef/2`, for a module with no struct other than the one being defined. */
 private fun undefinedStruct(node: ElixirAst, module: String, env: Env): Expansion =

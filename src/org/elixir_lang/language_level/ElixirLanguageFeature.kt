@@ -712,8 +712,10 @@ enum class ElixirLanguageFeature(
 
     /**
      * `@` builds `Module.__put_attribute__/5` and `Module.__get_attribute__/4`, `@behavior` raises rather than warns,
-     * and a doc attribute's `{line, list}` is metadata before the doc is checked, so `@doc []` is empty metadata. Before
-     * it, a doc's list must start with a pair whose key is an atom.
+     * and a doc attribute's `{line, list}` is metadata before the doc is checked, so `@doc []` is empty metadata, and
+     * `Kernel` builds the `@` of the attributes it writes, such as `defguard`'s `@doc guard: true`, as `Elixir.Kernel.@`.
+     * Before it, a doc's list must start with a pair whose key is an atom, and that `@` is the one `Kernel` imports from
+     * `elixir_bootstrap` while it compiles.
      *
      * `elixir-lang/elixir@562113720` ("Lazily expand module attributes to avoid compile-time deps"), first released in
      * v1.14.0-rc.0.
@@ -1736,7 +1738,83 @@ enum class ElixirLanguageFeature(
      *
      * `elixir-lang/elixir@766ece7e3` ("Inline in empty list in erlang pass", #15413), first released in v1.20.0.
      */
-    IN_EMPTY_LISTS_MEMBER(sinceElixir = "1.20.0");
+    IN_EMPTY_LISTS_MEMBER(sinceElixir = "1.20.0"),
+
+    /**
+     * `super` traces a `local_function` event for the definition it stores, and `&super/arity` is expanded as a
+     * capture of it. Before it, `super` traces none and `&super/arity` is returned renamed, unexpanded.
+     *
+     * `elixir-lang/elixir@ab17a3c05` ("Emit trace events for super calls", #14395), first released in v1.18.4.
+     */
+    SUPER_TRACES_LOCAL_FUNCTION(sinceElixir = "1.18.4"),
+
+    /**
+     * `defstruct/1` binds its fields with `quote`'s `bind_quoted`, and `Kernel.Utils.defstruct` builds the `__struct__/1`
+     * clause. Before it, the macro's output holds the check for a second call and the attribute writes, and chooses the
+     * clause with a `case` on `@enforce_keys`.
+     *
+     * `elixir-lang/elixir@bd49ad6ef` ("Generate less code in defstruct"), first released in v1.14.0-rc.0. The same
+     * release reads `@enforce_keys` as its raw row, not through `List.wrap/1` (`elixir-lang/elixir@396f14883`, "Fix
+     * inspection of Macro.Env").
+     */
+    DEFSTRUCT_BIND_QUOTED(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * `defstruct/1` keeps the struct in the `@__struct__` attribute. Before it, it is `@struct`.
+     *
+     * `elixir-lang/elixir@7dc2dd2e8` ("Rename struct attribute in defstruct", #10354), first released in v1.12.0-rc.0.
+     */
+    STRUCT_ATTRIBUTE_RENAMED(sinceElixir = "1.12.0-rc.0"),
+
+    /**
+     * `defstruct/1` raises when `@enforce_keys` holds a key that is not a field. Before it, it takes the keys as given.
+     *
+     * `elixir-lang/elixir@98bab93b4` ("Raise if @enforce_keys keys are not found in defstruct"), first released in
+     * v1.12.0-rc.0.
+     */
+    ENFORCE_KEYS_MUST_BE_FIELDS(sinceElixir = "1.12.0-rc.0"),
+
+    /**
+     * `defstruct/1` gives `Kernel.Utils.defstruct` the macro's `__ENV__`, so a duplicate field warns at its position.
+     * Before it, the function takes no environment.
+     *
+     * `elixir-lang/elixir@79c90bf8e` ("Report correct position for duplicate struct fields diagnostic", #12718), first
+     * released in v1.16.0-rc.0.
+     */
+    DEFSTRUCT_PASSES_ENV(sinceElixir = "1.16.0-rc.0"),
+
+    /**
+     * `Kernel.Utils.defstruct` gives the struct escaped, `__struct__/0` returns it, and a field named `__struct__` raises.
+     * Before it, the struct is in the `@__struct__` attribute, `__struct__/0` reads it, and the module's name replaces
+     * the default of a field named `__struct__`.
+     *
+     * `elixir-lang/elixir@c7fa5f95f` ("Add Macro.struct_info!"), first released in v1.18.0-rc.0.
+     */
+    DEFSTRUCT_ESCAPES_STRUCT(sinceElixir = "1.18.0-rc.0"),
+
+    /**
+     * `defexception/1` defines `exception/1` for a list as `struct!(__MODULE__, args)`. Before it, the body takes the
+     * keys that are not fields out, warns of them, and gives `struct!/2` the rest.
+     *
+     * `elixir-lang/elixir@90f504e9c` ("Deprecate usage around __struct__/0"), first released in v1.18.0-rc.0.
+     */
+    DEFEXCEPTION_STRUCT_BANG(sinceElixir = "1.18.0-rc.0"),
+
+    /**
+     * `@derive` expands the `__deriving__/2` macro of the protocol when it has one. Before it, it expands the
+     * `__deriving__/3` macro of the protocol's `Any` implementation.
+     *
+     * `elixir-lang/elixir@e3bad8323` ("Move __deriving__ callback to the protocol"), first released in v1.18.0-rc.0.
+     */
+    PROTOCOL_DERIVING_MACRO(sinceElixir = "1.18.0-rc.0"),
+
+    /**
+     * `defguard` and `defguardp` take a name written as `unquote(name)`. Before it, `Macro.decompose_call/1` finds no
+     * call in the head, and they raise.
+     *
+     * `elixir-lang/elixir@7a90b59b1` ("Enable use of unquote in defguard(p)", #13716), first released in v1.18.0-rc.0.
+     */
+    DEFGUARD_UNQUOTE_NAMES(sinceElixir = "1.18.0-rc.0");
 
 
     /** The first Elixir release with this behaviour, or `null` when every supported release has it. */

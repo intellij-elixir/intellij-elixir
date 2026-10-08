@@ -1,10 +1,14 @@
 package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangAtom
+import com.ericsson.otp.erlang.OtpErlangLong
+import com.ericsson.otp.erlang.OtpErlangObject
+import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.NameArity
 import org.elixir_lang.beam.BeamReader
 import org.elixir_lang.beam.ReadResult
 import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.V1
+import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.AbstractCodeCompileOptions
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.psi.call.name.Function.DEF
@@ -77,11 +81,17 @@ private fun moduleExports(beam: File): ModuleExports =
                 val byMacro = exports.value.macroNameAritySortedSetByMacro()
                 val functions = byMacro[DEF].orEmpty().map { it.toNameArity() }
                 val macros = byMacro[DEFMACRO].orEmpty().map { it.toNameArity() }
+                val behaviour = if (BEHAVIOUR_INFO in functions) callbacks(reader) else ModuleExports.Behaviour.None
 
                 if (INFO in functions) {
-                    ModuleExports.Present(functions.filterNot { it in ModuleExports.NOT_IN_INFO }, macros, hasInfo = true)
+                    ModuleExports.Present(
+                        functions.filterNot { it in ModuleExports.NOT_IN_INFO },
+                        macros,
+                        hasInfo = true,
+                        behaviour,
+                    )
                 } else {
-                    ModuleExports.Present(functions, macros, hasInfo = false)
+                    ModuleExports.Present(functions, macros, hasInfo = false, behaviour)
                 }
             }
             ReadResult.Absent, is ReadResult.Unreadable -> ModuleExports.Unreadable
@@ -89,6 +99,43 @@ private fun moduleExports(beam: File): ModuleExports =
     }
         .let { (it as? ReadResult.Present)?.value ?: ModuleExports.Unreadable }
 
+/**
+ * What `behaviour_info(:callbacks)` gives for a module that exports `behaviour_info/1`, from the `callback` forms its
+ * `Dbgi` chunk keeps: an Elixir module's `@callback`s and `@macrocallback`s, or an Erlang module's `-callback`s. A
+ * module with none, whose `behaviour_info/1` is written out, or with no abstract code, is
+ * [ModuleExports.Behaviour.Unreadable].
+ */
+private fun callbacks(reader: BeamReader): ModuleExports.Behaviour {
+    val read = when (val info = (reader.debugInfoResult as? ReadResult.Present)?.value) {
+        is V1 -> info.typeSpecifications?.callbacks?.let { callbacks ->
+            (0 until callbacks.size()).map { callbacks[it] }.map { NameArity(it.function, it.arity.toInt()) }
+        }
+        is AbstractCodeCompileOptions -> info.abstractCode?.mapNotNull(::callbackForm)
+        else -> null
+    }
+
+    return read?.takeIf { it.isNotEmpty() }?.let(ModuleExports.Behaviour::Callbacks) ?: ModuleExports.Behaviour.Unreadable
+}
+
+/** `{attribute, _, callback, {{Name, Arity}, _}}`'s name and arity. */
+private fun callbackForm(form: OtpErlangObject): NameArity? {
+    val attribute = form as? OtpErlangTuple ?: return null
+
+    if (attribute.arity() != 4 || (attribute.elementAt(0) as? OtpErlangAtom)?.atomValue() != "attribute") return null
+    if ((attribute.elementAt(2) as? OtpErlangAtom)?.atomValue() != "callback") return null
+
+    val head = (attribute.elementAt(3) as? OtpErlangTuple)?.elementAt(0) as? OtpErlangTuple ?: return null
+    val name = (head.elementAt(0) as? OtpErlangAtom)?.atomValue() ?: return null
+    val arity = (head.elementAt(1) as? OtpErlangLong)?.intValue() ?: return null
+
+    return NameArity(name, arity)
+}
+
+/** Every module the leg's Elixir and OTP ebins hold, as atom text. */
+internal fun legModules(): List<String> =
+    legEbins.flatMap { ebin -> ebin.listFiles { file -> file.extension == "beam" }.orEmpty().map { it.nameWithoutExtension } }
+
 private val INFO = NameArity("__info__", 1)
+private val BEHAVIOUR_INFO = NameArity("behaviour_info", 1)
 private val STRUCT = NameArity("__struct__", 1)
 private val NIL = OtpErlangAtom("nil")
