@@ -47,7 +47,7 @@ interface QuoterPlatform {
     ): Pair<Boolean, String>
 
     /**
-     * Stops the daemon gracefully.
+     * Stops the daemon, or any node answering to [releaseName] when [process] is null.
      * @param execOps Gradle exec operations
      * @param executable Path to the quoter executable
      * @param releaseTmp Optional temporary directory

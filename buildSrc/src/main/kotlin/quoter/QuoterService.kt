@@ -85,6 +85,8 @@ abstract class QuoterService : BuildService<QuoterService.Params>, AutoCloseable
         logPlatformDetection(logger)
         logger.lifecycle("Starting Quoter daemon: ${executable.absolutePath} as $nodeName")
 
+        replaceNodeAnsweringToName(executable, releaseTmp, nodeName)
+
         // Start the daemon (platform-specific)
         process = quoterPlatform.startDaemon(execOps, executable, releaseTmp, nodeName, logger)
 
@@ -120,6 +122,31 @@ abstract class QuoterService : BuildService<QuoterService.Params>, AutoCloseable
     }
 
     /**
+     * A second node started under a name that is held exits 0 and dies, leaving the first answering, so
+     * whatever answers to [nodeName] before this start is a node from an earlier run - possibly stuck,
+     * possibly another leg's Elixir. Halts it and waits until it stops answering.
+     */
+    private fun replaceNodeAnsweringToName(executable: File, releaseTmp: File?, nodeName: String) {
+        val (answering, pid) = quoterPlatform.checkStatus(execOps, executable, releaseTmp, nodeName, null, logger)
+
+        if (!answering) return
+
+        logger.lifecycle("A Quoter node already answers to $nodeName (PID: ${pid.trim()}); replacing it")
+        quoterPlatform.stopDaemon(execOps, executable, releaseTmp, nodeName, null, logger)
+
+        repeat(MAX_STOP_POLLS) {
+            Thread.sleep(1000)
+
+            if (!quoterPlatform.checkStatus(execOps, executable, releaseTmp, nodeName, null, logger).first) return
+        }
+
+        throw RuntimeException(
+            "The Quoter node answering to $nodeName (PID: ${pid.trim()}) still answers $MAX_STOP_POLLS seconds " +
+                "after being halted; stop it by hand."
+        )
+    }
+
+    /**
      * Starts epmd from the Erlang SDK so the one owning port 4369 lives outside the checkout, and
      * reports whether it answers. Anything missing or failing returns false, restoring the previous
      * behaviour rather than failing the build.
@@ -141,6 +168,10 @@ abstract class QuoterService : BuildService<QuoterService.Params>, AutoCloseable
         // readPropertiesFile throws on a malformed file, and this path is only an optimisation.
         logger.info("Could not resolve an SDK epmd: ${exception.message}")
         false
+    }
+
+    private companion object {
+        const val MAX_STOP_POLLS = 10
     }
 
     override fun close() {
