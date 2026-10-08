@@ -33,6 +33,11 @@ object Module {
         }
     }
 
+    /** `elixir_aliases:to_partial/1` of an atom's text: its `Elixir.` or leading `.` is dropped. */
+    @Contract(pure = true)
+    fun partial(name: String): String =
+        if (name.startsWith(ELIXIR_PREFIX)) name.removePrefix(ELIXIR_PREFIX) else name.removePrefix(SEPARATOR)
+
     /**
      * The name Elixir gives the module [atom] names, which is the name it is indexed by: the alias of an `Elixir.` atom
      * that `inspect` writes as an alias, otherwise `:` and the atom.

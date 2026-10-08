@@ -41,6 +41,19 @@ class QuotedAtomNameTest : PlatformTestCase() {
         )
     }
 
+    /** `Module.concat(P, :"Elixir.String")` is `P.String`: the `Elixir.` of an atom is the alias's own. */
+    fun testImplementationForAnElixirPrefixedAtomIsTheAliasModule() {
+        assertEquals(
+            listOf("P.String", "P.String"),
+            implementationNames("defimpl P, for: String do\nend\n", "defimpl P, for: :\"Elixir.String\" do\nend\n")
+        )
+    }
+
+    /** `Module.concat/2` also drops a leading `.` of an atom. */
+    fun testImplementationForADottedAtomIsTheAliasModule() {
+        assertEquals(listOf("P.String"), implementationNames("defimpl P, for: :\".String\" do\nend\n"))
+    }
+
     fun testImplementationForAnEscapedAtom() {
         assertEquals(listOf("P.lower"), implementationNames("defimpl P, for: :\"low\\x65r\" do\nend\n"))
     }

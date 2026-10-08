@@ -7,6 +7,7 @@ import com.intellij.psi.PsiNamedElement
 import com.intellij.usageView.UsageViewTypeLocation
 import com.intellij.util.Processor
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.Module.partial
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.name.Function
@@ -91,6 +92,7 @@ object Implementation {
         is ElixirAccessExpression -> forNameCollection(forNameElement)
         is ElixirList -> forNameCollection(forNameElement)
         is QualifiableAlias -> forNameCollection(forNameElement)
+        is ElixirAtom -> forNameCollection(forNameElement)
         is PsiNamedElement -> forNameCollection(forNameElement)
         else -> listOf(forNameElement.text)
     }
@@ -100,6 +102,10 @@ object Implementation {
 
     private fun forNameCollection(forNameElement: PsiNamedElement): Collection<String>? =
         forNameElement.name?.let { listOf(it) }
+
+    /** `Module.concat/2` drops the `Elixir.` of an atom, so `:"Elixir.String"` is the module `String`. */
+    private fun forNameCollection(forNameElement: ElixirAtom): Collection<String>? =
+        forNameElement.name?.let { listOf(partial(it)) }
 
     private fun forNameCollection(forNameElement: QualifiableAlias): Collection<String>? =
         (moduleName(forNameElement)?.name ?: forNameElement.name)?.let { listOf(it) }
