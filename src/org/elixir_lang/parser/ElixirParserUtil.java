@@ -1,6 +1,7 @@
 package org.elixir_lang.parser;
 
 import com.intellij.lang.PsiBuilder;
+import com.intellij.lang.PsiParser;
 import com.intellij.lang.parser.GeneratedParserUtilBase;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.util.Key;
@@ -55,7 +56,28 @@ public class ElixirParserUtil extends GeneratedParserUtilBase {
             ElixirTypes.TUPLE
     };
 
-    private static final Key<GroupFailures> GROUP_FAILURES = Key.create("ELIXIR_PARSE_GROUP_FAILURES");
+    private static final class ElixirErrorState extends ErrorState {
+        final GroupFailures failures = new GroupFailures();
+    }
+
+    /** Hides the base method: the generated parser's builder has to carry {@link ElixirErrorState}. */
+    public static PsiBuilder adapt_builder_(IElementType root, PsiBuilder builder, PsiParser parser) {
+        return adapt_builder_(root, builder, parser, null);
+    }
+
+    public static PsiBuilder adapt_builder_(IElementType root,
+                                            PsiBuilder builder,
+                                            PsiParser parser,
+                                            TokenSet[] extendsSets) {
+        ErrorState state = new ElixirErrorState();
+        ErrorState.initState(state, builder, root, extendsSets);
+
+        return new Builder(builder, state, parser);
+    }
+
+    private static GroupFailures failures(PsiBuilder builder) {
+        return ((ElixirErrorState) ErrorState.get(builder)).failures;
+    }
 
     /**
      * GrammarKit's guard, failing at once a nesting group that has already failed at the same token, and every rule
@@ -76,12 +98,7 @@ public class ElixirParserUtil extends GeneratedParserUtilBase {
      * Hides {@link GeneratedParserUtilBase#recursion_guard_}: the generated parser static-imports this class.
      */
     public static boolean recursion_guard_(PsiBuilder builder, int level, String funcName) {
-        GroupFailures failures = builder.getUserData(GROUP_FAILURES);
-
-        if (failures == null) {
-            failures = new GroupFailures();
-            builder.putUserData(GROUP_FAILURES, failures);
-        }
+        GroupFailures failures = failures(builder);
 
         if (failures.statementListLevel < 0 && "expressionList".equals(funcName)) {
             failures.statementListLevel = level;
@@ -139,11 +156,7 @@ public class ElixirParserUtil extends GeneratedParserUtilBase {
         int group = indexOf(GROUP_TYPES, elementType);
 
         if (group >= 0) {
-            GroupFailures failures = builder.getUserData(GROUP_FAILURES);
-
-            if (failures != null) {
-                failures.exit(group, result);
-            }
+            failures(builder).exit(group, result);
         }
     }
 
