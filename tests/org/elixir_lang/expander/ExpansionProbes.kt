@@ -1353,8 +1353,8 @@ internal class ExpansionProbes(
 
         fun start(node: ElixirAst): Int = node.meta.origin.startOffset
 
-        fun line(node: ElixirAst): Int? =
-            node.meta.keys.filterIsInstance<Meta.Key.Location>().firstOrNull()?.position?.line
+        /** The line of [node], from the source or the call a macro's output was linified with. */
+        fun line(node: ElixirAst): Int? = lineOf(node.meta).takeIf { it != 0 }
 
         fun column(node: ElixirAst): Int? =
             node.meta.keys.filterIsInstance<Meta.Key.Location>().firstOrNull()?.position?.column
