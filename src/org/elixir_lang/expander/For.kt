@@ -30,7 +30,7 @@ internal fun expandFor(node: ElixirAst.Call, state: ExState, env: Env, run: Run)
     val doOption = block.firstOrNull { keyOf(it) == "do" } ?: return Expansion.Error("missing_option", node)
     val options = block - doOption
 
-    return argumentScope(state, env) { scope ->
+    return argumentScope(state) { scope ->
         expandList(options, scope, env) { option, s, e -> expandArg(option, s, state, e, run) }
     }.then { optionsState, optionsEnv ->
         mapfold(cases, optionsState, optionsEnv) { case, s, e -> generator(case, s, e, run) }

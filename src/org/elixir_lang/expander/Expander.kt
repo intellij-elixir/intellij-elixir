@@ -320,7 +320,7 @@ internal inline fun expandArgs(
         }
         env.context == Env.Context.MATCH -> mapfold(args, state, env, expand)
         else ->
-            argumentScope(state, env) { scope ->
+            argumentScope(state) { scope ->
                 mapfold(args, scope, env) { arg, s, e -> expandArg(arg, s, state, e, expand) }
             }
     }
@@ -358,7 +358,7 @@ internal inline fun expandList(
  * Expands [body] between `elixir_env:prepare_write/1` and `close_write/2`, so its bindings become readable only after
  * it.
  */
-internal inline fun argumentScope(state: ExState, env: Env, body: (ExState) -> Expansion): Expansion =
+internal inline fun argumentScope(state: ExState, body: (ExState) -> Expansion): Expansion =
     body(state.prepareWrite()).thenValue { s, e, v -> Expansion.Expanded(s.closeWrite(state), e, v) }
 
 /**

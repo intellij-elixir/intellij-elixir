@@ -1,7 +1,6 @@
 package org.elixir_lang.expander
 
 import org.elixir_lang.language_level.ElixirLanguageLevel
-import org.elixir_lang.lowering.ElixirAst
 
 /** `elixir_bitstring:expand`, over lowered snippets at every supported minor and at each version difference. */
 class BitstringExpanderTest : ExpanderTestCase() {

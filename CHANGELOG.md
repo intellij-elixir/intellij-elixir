@@ -587,7 +587,7 @@
 
 ### Threading / Platform Hygiene
 
-- [#PR-TBD](https://github.com/intellij-elixir/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)
+- [#4368](https://github.com/intellij-elixir/intellij-elixir/pull/4368) [@sh41](https://github.com/sh41)
   - **The expander expands `defstruct`, `defexception`, `defguard`, `defguardp` and `defoverridable`, with `super`, and answers a struct from the module the file defines; nothing uses it yet.** Fixes [#4361](https://github.com/intellij-elixir/intellij-elixir/issues/4361).
 - [#4358](https://github.com/intellij-elixir/intellij-elixir/pull/4358) [@sh41](https://github.com/sh41)
   - **The expander expands `if`, `unless`, the boolean operators, `|>`, `in`, `<>`, `to_string`, `raise`, `binding`, `destructure` and ranges as each Elixir release does; nothing uses it yet.** Fixes [#4342](https://github.com/intellij-elixir/intellij-elixir/issues/4342).

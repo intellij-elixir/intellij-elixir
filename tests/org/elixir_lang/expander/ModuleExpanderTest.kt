@@ -1654,7 +1654,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
               end
             end
             """.trimIndent(),
-            LEVELS + "1.20.0-rc.4" + "1.20.0-rc.5",
+            LEVELS + listOf("1.20.0-rc.4", "1.20.0-rc.5"),
         ) { version ->
             if (isBefore(version, "1.20.0-rc.5")) {
                 """
@@ -1738,9 +1738,11 @@ class ModuleExpanderTest : ExpanderTestCase() {
         }
         val errors = result.errors.map { "reported ${it.kind} `${source(code, it.at)}`" }
 
-        return listOf("${indent}module ${result.module} $ended") +
-            (table + units + errors).map { "$indent  $it" } +
-            result.nested.flatMap { renderModule(code, it, "$indent  ") }
+        return listOf(
+            listOf("${indent}module ${result.module} $ended"),
+            listOf(table, units, errors).flatten().map { "$indent  $it" },
+            result.nested.flatMap { renderModule(code, it, "$indent  ") },
+        ).flatten()
     }
 
     /** [expansion] as [render] gives it, with the env's `context_modules` if [context], and an atom value. */

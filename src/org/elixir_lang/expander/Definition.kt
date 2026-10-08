@@ -82,7 +82,7 @@ internal fun define(
         linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, it.arguments!!.single())
     }
 
-    return argumentScope(state, env) { scope ->
+    return argumentScope(state) { scope ->
         mapfold(values, scope, env) { value, s, e -> expandArg(value, s, state, e, run) }
     }.thenValue { s, e, terms ->
         val call = extractGuards(head).first

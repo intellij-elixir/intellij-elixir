@@ -46,7 +46,7 @@ internal fun expandBitstring(
             }
         }
     } else {
-        argumentScope(state, env) { scope -> expandSegments(node, segments, scope, state, env, run, requireSize) }
+        argumentScope(state) { scope -> expandSegments(node, segments, scope, state, env, run, requireSize) }
     }
 }
 

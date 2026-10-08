@@ -605,7 +605,7 @@ internal enum class Clause(vararg val heads: Head) {
             node is ElixirAst.ListNode
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            argumentScope(state, env) { scope ->
+            argumentScope(state) { scope ->
                 expandList((node as ElixirAst.ListNode).elements, scope, env) { element, s, e ->
                     expandArg(element, s, state, e, run)
                 }

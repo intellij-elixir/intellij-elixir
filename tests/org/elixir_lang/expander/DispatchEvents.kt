@@ -199,7 +199,7 @@ internal object DispatchEvents {
         val module = (envMap.get(OtpErlangAtom("module")) as? OtpErlangAtom)?.atomValue()
         val function = envMap.get(OtpErlangAtom("function"))?.let(::function) ?: "nil"
         // Code a macro generates has line 0, which the expander's keys give as no line.
-        val line = ((tuple.elementAt(1) as? OtpErlangList)?.let { keyword(it, "line") } as? OtpErlangLong)?.intValue()
+        val line = ((tuple.elementAt(1) as? OtpErlangList)?.let { lineKeyword(it) } as? OtpErlangLong)?.intValue()
             ?.takeIf { it != 0 }
 
         return when (kind) {
@@ -342,9 +342,9 @@ internal object DispatchEvents {
             event.receiver == "elixir_def" ||
             event.receiver == "Elixir.Kernel.LexicalTracker" && event.name == "read_cache" && event.arity == 2
 
-    private fun keyword(list: OtpErlangList, key: String): OtpErlangObject? =
+    private fun lineKeyword(list: OtpErlangList): OtpErlangObject? =
         list.elements().firstNotNullOfOrNull { entry ->
-            (entry as? OtpErlangTuple)?.takeIf { it.arity() == 2 && it.elementAt(0) == OtpErlangAtom(key) }?.elementAt(1)
+            (entry as? OtpErlangTuple)?.takeIf { it.arity() == 2 && it.elementAt(0) == OtpErlangAtom("line") }?.elementAt(1)
         }
 
     /** The line of [meta], from the source or from a macro output's linify, as Elixir's event has it. */

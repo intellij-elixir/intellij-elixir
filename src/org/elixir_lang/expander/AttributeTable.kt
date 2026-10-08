@@ -401,7 +401,7 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
         val COMPILE_DEFINITION_ATTRIBUTES = Term.Pair(Term.Atom(ELIXIR_MODULE), Term.Atom("compile_definition_attributes"))
 
         /** Written by a `put_attribute/7` clause of their own, which never accumulates. */
-        val SET_DIRECTLY = DOCS + "impl" + "deprecated" + "on_load"
+        val SET_DIRECTLY = DOCS + setOf("impl", "deprecated", "on_load")
 
         val ALWAYS_ACCUMULATING =
             listOf(

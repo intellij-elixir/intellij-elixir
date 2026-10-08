@@ -595,7 +595,7 @@ internal class ExpansionProbes(
         val ordered = during.filter { unit(it) == null } +
             placed.sortedBy { it.first }.filter { stop == null || it.first < stop }.flatMap { it.second }
 
-        return if (stop != null) ordered else ordered + after + listOfNotNull(raised?.let { Reported(it.kind, it.at) })
+        return if (stop != null) ordered else listOf(ordered, after, listOfNotNull(raised?.let { Reported(it.kind, it.at) })).flatten()
     }
 
     /**
@@ -776,8 +776,8 @@ internal class ExpansionProbes(
      */
     private fun batches(cases: Map<String, CaseExpansion>): List<Pair<List<String>, Expansions>> =
         cases.keys
-            .groupBy {
-                cases.getValue(it).origin.let { listOf(it.preamble, it.exports, it.structs, it.hook, it.standIns) }
+            .groupBy { name ->
+                cases.getValue(name).origin.let { listOf(it.preamble, it.exports, it.structs, it.hook, it.standIns) }
             }
             .values
             .map { names ->
@@ -1106,19 +1106,19 @@ internal class ExpansionProbes(
         private fun withSignatureReads(result: ExpansionResult): Pair<List<String>, Int> {
             val after = mutableMapOf<Int, MutableList<String>>()
 
-            for (unit in units(result)) {
-                val owner = unit.owner as? Owner.Definition ?: continue
+            for ((unitOwner, node, _, expansion) in units(result)) {
+                val owner = unitOwner as? Owner.Definition ?: continue
                 val name = owner.name ?: continue
-                val start = start(unit.node)
+                val start = start(node)
 
-                if (!owner.kind.public || unit.expansion !is Expansion.Expanded || !range.contains(start)) continue
+                if (!owner.kind.public || expansion !is Expansion.Expanded || !range.contains(start)) continue
 
                 val function = NameArity(name, owner.arity)
-                val end = unit.node.meta.origin.endOffset
+                val end = node.meta.origin.endOffset
                 val last = sites.indices.lastOrNull { sites[it].first in start until end && sites[it].second == function }
                     ?: continue
 
-                after.getOrPut(last) { mutableListOf() } += signatureReads(unit.node).map { at ->
+                after.getOrPut(last) { mutableListOf() } += signatureReads(node).map { at ->
                     DispatchEvents.key(at, Dispatch(Dispatch.Kind.IMPORTED_MACRO, KERNEL, "@", 1), function, bodyLine)
                 }
             }
@@ -1591,16 +1591,15 @@ internal class ExpansionProbes(
                     // `elixir_utils:split_opts/1`, which `with` takes from 1.15: the parts are the same either way.
                     val lists = arguments.takeLastWhile { it is ElixirAst.ListNode }.takeLast(2)
                     // Only `for` has bitstring generators.
-                    val generator = if ((node.callee as ElixirAst.Literal.Atom).name == "for") ::isGenerator else { it: ElixirAst -> isCall(it, "<-", 2) }
+                    val generator = if (node.callee.name == "for") ::isGenerator else { it: ElixirAst -> isCall(it, "<-", 2) }
                     val clauses = arguments.dropLast(lists.size).map { (if (generator(it)) Part.GENERATOR else Part.EXPRESSION) to it }
                     val options = lists.flatMap { (it as ElixirAst.ListNode).elements }
                     val reduce = options.any { ((it as? ElixirAst.Tuple)?.elements?.firstOrNull() as? ElixirAst.Literal.Atom)?.name == "reduce" }
 
                     keyword(options) {
-                        when {
-                            it == "do" && reduce -> Part.PATTERN_CLAUSES
-                            it == "do" -> Part.BODY
-                            it == "else" -> Part.PATTERN_CLAUSES
+                        when (it) {
+                            "do" -> if (reduce) Part.PATTERN_CLAUSES else Part.BODY
+                            "else" -> Part.PATTERN_CLAUSES
                             else -> Part.EXPRESSION
                         }
                     }?.let { clauses + it }
@@ -1773,11 +1772,10 @@ internal class ExpansionProbes(
 
         /** [body]'s statements, unless it has none, and the bodies nested in them. */
         fun bodies(body: ElixirAst): List<List<ElixirAst>> {
-            val statements = when {
-                body is ElixirAst.Block -> body.expressions
+            val statements = when (body) {
+                is ElixirAst.Block -> body.expressions
                 // A `->` without a body lowers to `nil` at the arrow.
-                body is ElixirAst.Literal.Atom && body.name == "nil" && body.meta.origin.length == 2 -> emptyList()
-                else -> listOf(body)
+                else -> if (body is ElixirAst.Literal.Atom && body.name == "nil" && body.meta.origin.length == 2) emptyList() else listOf(body)
             }
 
             return listOfNotNull(statements.takeIf { it.isNotEmpty() }) + statements.flatMap(::nestedBodies)
