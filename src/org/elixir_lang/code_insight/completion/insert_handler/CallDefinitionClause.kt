@@ -192,8 +192,8 @@ class CallDefinitionClause private constructor(private val arity: Arity?) : Inse
             if (arguments.size >= 4) {
                 (arguments[3].stripAccessExpression() as? ElixirList)
                     ?.children
-                    ?.mapNotNull { child ->
-                        child.stripAccessExpression().let { it as? ElixirAtom }?.let(::quotedAtomValue)
+                    ?.map { child ->
+                        child.stripAccessExpression().let { it as? ElixirAtom }?.let(::quotedAtomValue) ?: "arg"
                     }
             } else {
                 emptyList()

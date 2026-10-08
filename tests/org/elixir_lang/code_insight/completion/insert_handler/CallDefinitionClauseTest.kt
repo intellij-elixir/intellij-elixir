@@ -262,6 +262,39 @@ class CallDefinitionClauseTest : PlatformTestCase() {
         )
     }
 
+    fun testLocalEExFunctionFromKeepsASlotForAnArgumentWhoseNameIsUnknown() {
+        myFixture.configureByText(
+            "test.ex",
+            """
+                defmodule EEx do
+                  defmacro function_from_string(kind, name, source, args \\ [], options \\ []) do
+                    quote do
+                      unquote(kind)
+                      unquote(name)
+                    end
+                  end
+                end
+
+                defmodule Test do
+                  require EEx
+
+                  EEx.function_from_string(:def, :unknown_sample, "<%= b %>", [:"a#{1}", :b])
+
+                  def run do
+                    unknown_sa<caret>
+                  end
+                end
+            """.trimIndent()
+        )
+
+        myFixture.completeSoleCandidateAtCaret()
+
+        assertTrue(
+            "Expected `unknown_sample(arg, b)`; got:\n${myFixture.file.text}",
+            myFixture.file.text.contains("unknown_sample(arg, b)")
+        )
+    }
+
     /* defexception's exception/1 and message/1 hooks, local (Variants.executeOnException). Fixed,
        hardcoded parameter names - the same ones the completion renderer's tail text already shows. */
 
