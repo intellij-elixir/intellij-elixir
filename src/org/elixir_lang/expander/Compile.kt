@@ -5,6 +5,7 @@ import org.elixir_lang.expander.ExpansionResult.Ended
 import org.elixir_lang.expander.ExpansionResult.Owner
 import org.elixir_lang.language_level.ElixirLanguageFeature.BOOLEAN_AND_NIL_MODULES_RESERVED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_NAME_REJECTS_SLASHES
+import org.elixir_lang.language_level.ElixirLanguageFeature.POST_MODULE_LOCAL_CHECKS_TYPED
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
@@ -21,6 +22,16 @@ internal class Compiling(body: ElixirAst, level: ElixirLanguageLevel) {
 
     /** Each definition's local calls, in expansion order. */
     val calls = LinkedHashMap<NameArity, MutableList<LocalCall<ElixirAst>>>()
+
+    /**
+     * The calls a hidden definition's body brought back under the name it was made overridable as, which stay when that
+     * name is made overridable again where its checks visit the hidden definition's own body, and go otherwise.
+     */
+    val hiddenCalls: MutableSet<LocalCall<ElixirAst>> =
+        Collections.newSetFromMap(IdentityHashMap())
+
+    /** Whether a hidden definition's body is checked as the definition it was stored as. */
+    val checksHiddenBodies = POST_MODULE_LOCAL_CHECKS_TYPED.isSufficient(level)
 
     /** The private macros dispatched as local macros, in the order they were first dispatched. */
     val usedPrivate = LinkedHashSet<NameArity>()
@@ -258,7 +269,8 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
                 is Pending.Definition -> {
                     ordered = ordered && pending.ordered
 
-                    val (owner, expansion) = storeDefinition(pending, compiling, run)
+                    val (owner, stored) = storeDefinition(pending, compiling, run)
+                    val expansion = certain(stored, ordered, pending.node)
 
                     compiling.storedReads(owner)
 
@@ -282,7 +294,7 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
                 is Pending.Effect -> {
                     ordered = ordered && pending.ordered
 
-                    val applied = pending.apply(compiling)
+                    val applied = pending.apply(compiling)?.let { certain(it, ordered, pending.node) }
 
                     (applied as? Expansion.Opaque)?.let(effectOpaque::add)
                     applied?.let { ended(it, run) }.also { queue.addAll(0, pending.queued()) }
@@ -360,6 +372,10 @@ private fun nameError(name: String, isAtom: Boolean, run: Run): String? {
         else -> null
     }
 }
+
+/** [expansion], but an error is the body's only when every unit applied so far ran; otherwise it stops at [node]. */
+private fun certain(expansion: Expansion, ordered: Boolean, node: ElixirAst): Expansion =
+    if (!ordered && expansion is Expansion.Error) Expansion.Unported(node) else expansion
 
 /** How a unit's [expansion] ends its module, if it does. */
 private fun ended(expansion: Expansion, run: Run): Ended? =

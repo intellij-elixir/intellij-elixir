@@ -110,6 +110,25 @@ class OverridableMacroTest : ExpanderTestCase() {
             "module Elixir.A raised overridable_not_defined `defoverridable f: 1`",
         )
 
+    fun testAnErrorWhereTheBodyMayNotRunStopsTheModuleInsteadOfEndingIt() =
+        assertEvery(
+            "defmodule A do\n  if false do\n    defoverridable missing: 0\n  end\nend",
+            "module Elixir.A stopped `defoverridable missing: 0`",
+        )
+
+    fun testTwoBranchesThatTakeTheSameDefinitionStopAtTheSecond() =
+        assertEvery(
+            "defmodule A do\n  def f, do: 1\n  case 1 do\n    1 -> defoverridable f: 0\n" +
+                "    _ -> defoverridable f: 0\n  end\nend",
+            "module Elixir.A stopped `defoverridable f: 0`",
+        )
+
+    fun testAStatementAfterACallThatMayNotRunStopsTheModuleInsteadOfEndingIt() =
+        assertEvery(
+            "defmodule A do\n  def f, do: 1\n  if false do\n    defoverridable f: 0\n  end\n  defoverridable f: 0\nend",
+            "module Elixir.A stopped `defoverridable f: 0`",
+        )
+
     fun testEachElementIsAFunctionNameAndArity() =
         assertEvery(
             "defmodule A do\n  defoverridable [:f]\nend",

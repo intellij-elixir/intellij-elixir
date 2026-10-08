@@ -198,6 +198,8 @@ class DefinitionMacroProbeTest : ProbeTestCase() {
             "@behaviour Access\ndef fetch(_, _), do: :error\ndef get_and_update(_, _, _), do: :error\n" +
                 "def pop(_, _), do: :error\ndefoverridable Access\ndef fetch(a, b), do: super(a, b)",
             "def f, do: 1\ndefoverridable f: 0\ndef f, do: super()\ndef g, do: 2",
+            // a replaced body's local calls go with it
+            "def f, do: missing()\ndefoverridable f: 0\ndef f, do: :ok",
         )
 
         /** A default that escapes as its external fun, which the compiler expands where a definition reads it. */
@@ -234,9 +236,20 @@ class DefinitionMacroProbeTest : ProbeTestCase() {
             "defoverridable Access",
             "defoverridable NoSuchBehaviour",
             "defoverridable String",
+            // a body's local calls stay with it where it is kept
+            "def f, do: missing()\ndefoverridable f: 0",
+            "def f, do: missing()\ndefoverridable f: 0\ndef f, do: super()",
+            "def f, do: a()\ndefoverridable f: 0\ndef f, do: super() + b()",
+            "def f, do: a()\ndefoverridable f: 0\ndef f, do: b() + super()",
+            "def f, do: a()\ndefoverridable f: 0\ndef f, do: super() + b()\ndefoverridable f: 0\ndef f, do: super() + c()",
+            "def f(a \\\\ missing()), do: a\ndefoverridable f: 1\ndef f(a), do: a",
         )
 
         val EITHER = listOf(
+            // a hidden body's calls stay where the checks visit it, from 1.18
+            "def f, do: missing()\ndefoverridable f: 0\ndef f, do: super()\ndefoverridable f: 0\ndef f, do: :ok",
+            "def f, do: a()\ndefoverridable f: 0\ndef f, do: super() + b()\ndefoverridable f: 0\ndef f, do: :ok",
+            "def f, do: a()\ndefoverridable f: 0\ndef f, do: b() + super()\ndefoverridable f: 0\ndef f, do: :ok",
             "defstruct [:__struct__]",
             "@enforce_keys [:b]\ndefstruct [:a]",
             "Module.register_attribute(__MODULE__, :enforce_keys, [])\ndefstruct [:a]",

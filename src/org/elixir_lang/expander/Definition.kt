@@ -266,7 +266,11 @@ private fun orGuards(node: ElixirAst): List<ElixirAst> =
  * `elixir_def:store_definition/5`: [definition]'s name checked, its defaults and clause expanded in the env where it
  * was defined, and the definition stored unless that raised. The owner names the definition as far as it is known.
  */
-internal fun storeDefinition(definition: Pending.Definition, compiling: Compiling, run: Run): Pair<Owner, Expansion> {
+internal fun storeDefinition(
+    definition: Pending.Definition,
+    compiling: Compiling,
+    run: Run,
+): Pair<Owner, Expansion> {
     val kind = definition.kind
     val node = definition.node
     val unnamedAt = definition.unnamedAt

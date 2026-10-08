@@ -5,6 +5,7 @@ import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
+import org.elixir_lang.NameArity
 
 /**
  * Each module's struct, as `defstruct` records it in the module's metadata. A module the expanded file defines is
@@ -14,6 +15,13 @@ fun interface Structs {
     /** [module]'s struct; [module] is atom text, as for [Exports]. */
     fun of(module: String): ModuleStruct
 }
+
+/**
+ * Whether [nameArity] is what builds a module's struct: `__struct__/1`, and `__struct__/0` which a struct in a pattern
+ * or an update is read through before 1.18. Where a module defines it other than as `defstruct` does, the struct
+ * can't be read.
+ */
+internal fun buildsStruct(nameArity: NameArity): Boolean = nameArity.name == "__struct__" && nameArity.arity <= 1
 
 sealed class ModuleStruct {
     /** No `__struct__/1`: no such module, or a module that defines no struct. */

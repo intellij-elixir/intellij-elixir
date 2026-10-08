@@ -12,22 +12,39 @@ import java.math.BigInteger
  *
  * @property count how many times it was made overridable, which names the hidden definition
  * @property entry the definition taken out of the table, the latest one
+ * @property calls the local calls of [entry]'s body, taken out with it and put back when it is stored
  * @property stored whether `super` or the end of the body stored it
  */
-internal class Overridable(val count: Int, val entry: DefinitionTable.Entry) {
+internal class Overridable(
+    val count: Int,
+    val entry: DefinitionTable.Entry,
+    val calls: List<LocalCall<ElixirAst>>,
+) {
     var stored = false
 }
 
 internal enum class Overriding { RECORDED, NOT_DEFINED, BAD_KIND }
 
-/** `Module.make_overridable/2` of [nameArity]: its entry taken out of the table and recorded, if it is there. */
+/**
+ * `Module.make_overridable/2` of [nameArity]: its entry taken out of the table and recorded, if it is there, with its
+ * body's local calls.
+ */
 internal fun makeOverridable(compiling: Compiling, nameArity: NameArity): Overriding {
     val entry = compiling.table.remove(nameArity) ?: return Overriding.NOT_DEFINED
     val previous = compiling.overridable[nameArity]
 
     if (previous != null && previous.entry.kind.macro != entry.kind.macro) return Overriding.BAD_KIND
 
-    compiling.overridable[nameArity] = Overridable((previous?.count ?: 0) + 1, entry)
+    val (hidden, calls) = compiling.calls.remove(nameArity).orEmpty().partition { it in compiling.hiddenCalls }
+
+    if (hidden.isNotEmpty()) compiling.calls[nameArity] = hidden.toMutableList()
+
+    compiling.overridable[nameArity] = Overridable((previous?.count ?: 0) + 1, entry, calls)
+
+    // The generated `__struct__` is no longer what builds the struct, and what replaces it isn't followed.
+    if (buildsStruct(nameArity) && compiling.struct is ModuleStruct.Present) {
+        compiling.struct = ModuleStruct.Unreadable
+    }
 
     return Overriding.RECORDED
 }
@@ -71,6 +88,10 @@ internal fun storeOverridable(
         overridable.stored = true
 
         compiling.table.restore(name, nameArity.arity, kind, entry.at, entry.clauses, entry.defaults, entry.ordered)
+        // Filed under the original name, as `elixir_locals:reattach` does, whichever name the definition is stored as.
+        compiling.calls.getOrPut(nameArity) { mutableListOf() } += overridable.calls
+
+        if (hidden && compiling.checksHiddenBodies) compiling.hiddenCalls += overridable.calls
     }
 
     return Stored(kind, name)

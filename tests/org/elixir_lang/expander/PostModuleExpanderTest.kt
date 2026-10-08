@@ -24,6 +24,25 @@ class PostModuleExpanderTest : ExpanderTestCase() {
             "module Elixir.A raised changed_kind `defp f, do: 2`",
         )
 
+    fun testAChangedKindAfterADefinitionThatMayNotRunStopsTheModule() =
+        assertEvery(
+            """
+            defmodule A do
+              if false do
+                def f(a), do: 1
+              end
+              defmacro f(a), do: 1
+            end
+            """.trimIndent(),
+            "module Elixir.A stopped `defmacro f(a), do: 1`",
+        )
+
+    fun testADefinitionThatMayNotRunStopsTheModuleAtItsOwnError() =
+        assertEvery(
+            "defmodule A do\n  if false do\n    def __info__(a), do: a\n  end\nend",
+            "module Elixir.A stopped `def __info__(a), do: a`",
+        )
+
     /** Elixir expands the whole body before it stores a definition, so a body the expander can't finish may raise first. */
     fun testABodyThatIsNotExpandedHidesTheChangedKind() =
         assertEvery(

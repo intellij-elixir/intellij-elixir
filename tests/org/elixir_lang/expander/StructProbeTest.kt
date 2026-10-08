@@ -46,6 +46,7 @@ class StructProbeTest : ProbeTestCase() {
         val omits: String? = null,
         val at: String? = null,
         val from: String? = null,
+        val until: String? = null,
         val comparedFrom: String? = null,
         val unported: Boolean = false,
     )
@@ -53,7 +54,10 @@ class StructProbeTest : ProbeTestCase() {
     private fun cases(): List<Case> {
         val level = legLevel()
 
-        return (EXPANDS + OTHERS).filter { it.from == null || level.elixir >= ElixirLanguageLevel.of(it.from).elixir }
+        return (EXPANDS + OTHERS).filter {
+            (it.from == null || level.elixir >= ElixirLanguageLevel.of(it.from).elixir) &&
+                (it.until == null || level.elixir < ElixirLanguageLevel.of(it.until).elixir)
+        }
     }
 
     private fun isUnported(case: Case): Boolean =
@@ -123,6 +127,32 @@ class StructProbeTest : ProbeTestCase() {
             Case(
                 "alias __MODULE__, as: Outer\ndefmodule Inner do\n  _ = %Outer{}\nend\ndefstruct [:a]",
                 at = "%Outer{}",
+                unported = true,
+            ),
+            // The module's own `__struct__/1` builds the struct, and it isn't `defstruct`'s.
+            Case(
+                "defstruct [:a]\ndefoverridable __struct__: 1\ndef __struct__(_), do: %{__struct__: __MODULE__, b: nil}\n" +
+                    "def f, do: %__MODULE__{b: 1}",
+                at = "%__MODULE__{b: 1}",
+                unported = true,
+            ),
+            // With no `defstruct`, the module's own `__struct__/0` builds the struct all the same.
+            Case(
+                "def __struct__, do: %{__struct__: __MODULE__, b: nil}\ndef f(%__MODULE__{}), do: 1",
+                at = "%__MODULE__{}",
+                comparedFrom = "1.20.0",
+            ),
+            Case(
+                "def __struct__, do: %{__struct__: __MODULE__, b: nil}\ndef f, do: %__MODULE__{b: 1}",
+                at = "%__MODULE__{b: 1}",
+                unported = true,
+            ),
+            // Before 1.18 a struct in a pattern is read through `__struct__/0`.
+            Case(
+                "defstruct [:a]\ndefoverridable __struct__: 0\ndef __struct__, do: %{__struct__: __MODULE__, b: nil}\n" +
+                    "def f(%__MODULE__{}), do: 1",
+                at = "%__MODULE__{}",
+                until = "1.18.0",
                 unported = true,
             ),
         )
