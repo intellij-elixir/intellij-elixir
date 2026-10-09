@@ -1,6 +1,8 @@
 package org.elixir_lang.expander
 
+import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.fitsAnAtom
 
 /**
  * `Kernel.use/1,2`: each module, expanded as `Macro.expand/2` expands it, is required and has its `__using__/1`
@@ -50,6 +52,18 @@ internal val USE = object : Summary.Rewrite() {
     }
 }
 
-/** `Module.concat([base | segments])`, or `null` where [base] is not an atom, which raises. */
-private fun concatenated(base: ElixirAst, segments: List<String>): String? =
-    (base as? ElixirAst.Literal.Atom)?.let { concat(listOf(it.name) + segments) }
+/**
+ * `Module.concat([base | segments])`, or `null` where [base] is neither an atom nor a valid UTF-8 binary, which raises,
+ * or where the name is too long for an atom, which raises `system_limit`.
+ */
+private fun concatenated(base: ElixirAst, segments: List<String>): String? {
+    val first = when (base) {
+        is ElixirAst.Literal.Atom -> base.name
+        is ElixirAst.Literal.Binary -> AtomName.text(base.bytes)
+        else -> null
+    }
+
+    return first
+        ?.let { concat(listOf(it) + segments, firstIsBinary = base is ElixirAst.Literal.Binary) }
+        ?.takeIf(::fitsAnAtom)
+}

@@ -34,4 +34,23 @@ class UseMacroTest : ExpanderTestCase() {
     fun testAModuleThatIsNotLoaded() = assertEvery("use Nope", "error unloaded_module `use Nope`")
 
     fun testAModuleThatIsNotAnAliasIsAnError() = assertEvery("use 1", "error use_invalid_arguments `use 1`")
+
+    /** `Elixir.` and `.A` take 9 of the 255 characters an atom may have; Elixir raises `system_limit` past them. */
+    fun testAModuleNameOfTheLongestAtomIsRequired() {
+        val code = """use "${"B".repeat(246)}".{A}"""
+
+        assertEvery(code, "error unloaded_module `$code`")
+    }
+
+    fun testABinaryBaseThatMakesTheNameTooLongForAnAtomIsUnported() {
+        val base = "\"${"B".repeat(247)}\""
+
+        assertEvery("use $base.{A}", "unported `$base`")
+    }
+
+    fun testAliasSegmentsThatMakeTheNameTooLongForAnAtomAreUnported() {
+        val base = "B".repeat(130)
+
+        assertEvery("use $base.{${"C".repeat(130)}}", "unported `$base`")
+    }
 }
