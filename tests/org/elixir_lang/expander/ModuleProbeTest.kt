@@ -56,6 +56,8 @@ class ModuleProbeTest : ProbeTestCase() {
             "alias __MODULE__, as: Outer\ndefmodule Inner do\n  import Outer\nend",
             "defmodule Inner do\n  :ok\nelse\n  :error\nend",
             "defmodule __MODULE__.Inner do\n  :ok\nend",
+            // A name `Macro.expand/2` makes an atom of is required, whatever the name is written as.
+            "defmodule alias!(Inner) do\nend",
             // The case module is being defined.
             "defmodule __MODULE__, do: :ok",
             "defmodule \"foo\", do: :ok",
