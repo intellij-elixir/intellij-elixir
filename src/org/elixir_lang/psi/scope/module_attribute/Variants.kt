@@ -5,8 +5,10 @@ import com.intellij.codeInsight.lookup.LookupElementBuilder
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
+import org.elixir_lang.model.psi.ElixirUsageQueries
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
+import org.elixir_lang.psi.impl.identifierName
 import org.elixir_lang.psi.putInitialVisitedElement
 import org.elixir_lang.psi.scope.ModuleAttribute
 
@@ -16,7 +18,7 @@ import org.elixir_lang.psi.scope.ModuleAttribute
  * `use`-injected attributes are included and non-referencing/reserved attributes are skipped just as
  * in resolution) and yields one [LookupElement] per declared attribute name.
  *
- * The lookup string is the **bare** name (no leading `@`), because the completion prefix is the text
+ * The lookup string is the **bare** name as written (no leading `@`), because the completion prefix is the text
  * after the `@` operator and the `@` the user already typed stays in place.
  *
  * The completion counterpart of [MultiResolve]; the module-attribute analogue of
@@ -32,7 +34,9 @@ class Variants : ModuleAttribute() {
             // `treeWalkUp` visits the nearest (innermost/shadowing) declaration first, so
             // `computeIfAbsent` keeps that one as the navigation target.
             lookupElementByName.computeIfAbsent(name) {
-                LookupElementBuilder.createWithSmartPointer(name, declaration)
+                LookupElementBuilder
+                    .createWithSmartPointer(declaration.atIdentifier.identifierName(), declaration)
+                    .withLookupStrings(ElixirUsageQueries.lookupStrings(name, declaration))
             }
         }
 

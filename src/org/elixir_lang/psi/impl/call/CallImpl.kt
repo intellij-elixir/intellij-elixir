@@ -371,7 +371,7 @@ object CallImpl {
     @Contract(pure = true)
     @JvmStatic
     fun functionName(call: Call): String? =
-        call.functionNameElement()?.text
+        functionNameAtomValue(call) ?: call.functionNameElement()?.text
 
     /**
      * @return `null` because the `IDENTIFIER`, `foo` in `@foo 1` is not the local name of a function, but the name of a

@@ -153,7 +153,7 @@ class TypeVariableSymbol(
         fun variableName(element: PsiElement): String? =
             when (element) {
                 is Call -> element.functionName()
-                is ElixirKeywordKey -> element.text
+                is ElixirKeywordKey -> element.name
                 else -> null
             }
     }

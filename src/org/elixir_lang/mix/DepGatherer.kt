@@ -13,7 +13,6 @@ import org.elixir_lang.psi.CallDefinitionClause.modularChildCalls
 import org.elixir_lang.psi.CallDefinitionClause.nameArityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.foldChildrenWhile
-import org.elixir_lang.psi.impl.functionNameAtomValue
 import org.elixir_lang.psi.impl.keywordValue
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.util.AccumulatorContinue
@@ -166,7 +165,7 @@ private fun QuotableKeywordList.depsNameArity(): NameArity? =
         keywordValue("deps")
                 ?.let { it as? Call }
                 ?.let { depsCall ->
-                    (functionNameAtomValue(depsCall) ?: depsCall.functionName())
+                    depsCall.functionName()
                             ?.let { name ->
                                 NameArity(name, depsCall.resolvedFinalArity())
                             }

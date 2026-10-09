@@ -30,6 +30,8 @@ import com.intellij.util.Query
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.heex.HeexLanguage
+import org.elixir_lang.language_level.ElixirLanguageLevelResolver
+import org.elixir_lang.lowering.identifierAtomName
 import org.elixir_lang.heex.isInHeex
 import org.elixir_lang.heex.xml.ComponentTagName
 import org.elixir_lang.heex.xml.HeexComponentResolver
@@ -58,7 +60,6 @@ import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.moduleAttributeName
 import org.elixir_lang.psi.impl.identifierTextRange
 import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.functionNameAtomValue
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.scope.ancestorTypeSpec
 import org.elixir_lang.reference.Callable
@@ -446,47 +447,56 @@ internal object ElixirUsageQueries {
         symbol: TypeSymbol,
         searchScope: SearchScope
     ): Query<out PsiUsage> =
-        SearchService.getInstance()
-            .searchWord(project, symbol.searchText)
-            .caseSensitive(true)
-            .inContexts(SearchContext.inCode())
-            .inScope(searchScope)
-            .buildQueryFromLeaves(TypeUsageMapper(symbol.createPointer()))
+        bySpelling(symbol.searchText) { word ->
+            SearchService.getInstance()
+                .searchWord(project, word)
+                .caseSensitive(true)
+                .inContexts(SearchContext.inCode())
+                .inScope(searchScope)
+                .buildQueryFromLeaves(TypeUsageMapper(symbol.createPointer()))
+        }
 
     private fun typeVariableUsageQuery(
         project: Project,
         symbol: TypeVariableSymbol,
         searchScope: SearchScope
     ): Query<out PsiUsage> =
-        SearchService.getInstance()
-            .searchWord(project, symbol.searchText)
-            .caseSensitive(true)
-            .inContexts(SearchContext.inCode())
-            .inScope(symbol.maximalSearchScope?.intersectWith(searchScope) ?: searchScope)
-            .buildQueryFromLeaves(TypeVariableUsageMapper(symbol.createPointer()))
+        bySpelling(symbol.searchText) { word ->
+            SearchService.getInstance()
+                .searchWord(project, word)
+                .caseSensitive(true)
+                .inContexts(SearchContext.inCode())
+                .inScope(symbol.maximalSearchScope?.intersectWith(searchScope) ?: searchScope)
+                .buildQueryFromLeaves(TypeVariableUsageMapper(symbol.createPointer()))
+        }
 
     private fun variableUsageQuery(
         project: Project,
         symbol: VariableSymbol,
         searchScope: SearchScope
-    ): Query<out PsiUsage> =        SearchService.getInstance()
-            .searchWord(project, symbol.searchText)
-            .caseSensitive(true)
-            .inContexts(SearchContext.inCode())
-            .inScope(symbol.maximalSearchScope?.intersectWith(searchScope) ?: searchScope)
-            .buildQueryFromLeaves(VariableUsageMapper(symbol.createPointer()))
+    ): Query<out PsiUsage> =
+        bySpelling(symbol.searchText) { word ->
+            SearchService.getInstance()
+                .searchWord(project, word)
+                .caseSensitive(true)
+                .inContexts(SearchContext.inCode())
+                .inScope(symbol.maximalSearchScope?.intersectWith(searchScope) ?: searchScope)
+                .buildQueryFromLeaves(VariableUsageMapper(symbol.createPointer()))
+        }
 
     private fun moduleAttributeReadUsageQuery(
         project: Project,
         symbol: ModuleAttributeSymbol,
         searchScope: SearchScope
     ): Query<out PsiUsage> =
-        SearchService.getInstance()
-            .searchWord(project, symbol.searchText)
-            .caseSensitive(true)
-            .inContexts(SearchContext.inCode())
-            .inScope(symbol.maximalSearchScope?.intersectWith(searchScope) ?: searchScope)
-            .buildQueryFromLeaves(ModuleAttributeReadUsageMapper(symbol.createPointer()))
+        bySpelling(symbol.searchText) { word ->
+            SearchService.getInstance()
+                .searchWord(project, word)
+                .caseSensitive(true)
+                .inContexts(SearchContext.inCode())
+                .inScope(symbol.maximalSearchScope?.intersectWith(searchScope) ?: searchScope)
+                .buildQueryFromLeaves(ModuleAttributeReadUsageMapper(symbol.createPointer()))
+        }
 
     private fun moduleAttributeWriteUsageQuery(
         symbol: ModuleAttributeSymbol,
@@ -659,20 +669,53 @@ internal object ElixirUsageQueries {
     private fun <T> bySpelling(word: String, query: (String) -> Query<out T>): Query<out T> =
         spellings(word).map(query).reduce { merged, next -> MergeQuery(merged, next) }
 
-    private fun spellings(word: String): Set<String> {
-        val spellings = linkedSetOf(word, Normalizer.normalize(word, Normalizer.Form.NFD))
+    /**
+     * The strings completion matches the prefix typed to reach [word] against: the name, and each spelling Elixir reads
+     * as its atom at [element]'s language level. Before 1.14 each spelling is a name of its own, so only [word] itself.
+     */
+    @RequiresReadLock
+    fun lookupStrings(word: String, element: PsiElement): Set<String> {
+        val level = { ElixirLanguageLevelResolver.languageLevelFor(element) }
+        val atom = identifierAtomName(word, level)
 
-        if (GREEK_MU in word) {
-            val micro = word.replace(GREEK_MU, MICRO_SIGN)
-            spellings += micro
-            spellings += Normalizer.normalize(micro, Normalizer.Form.NFD)
-        }
-
-        return spellings
+        return spellings(word).filterTo(linkedSetOf()) { identifierAtomName(it, level) == atom }
     }
 
-    private const val GREEK_MU = '\u03BC'
-    private const val MICRO_SIGN = '\u00B5'
+    /**
+     * Every way to write [word] that Elixir reads as its atom: each character as it is or decomposed, and a mu as the
+     * micro sign, in every combination. A name with more combinations than [MAX_SPELLINGS] gets only the whole name
+     * composed, decomposed, and with every mu a micro sign.
+     */
+    private fun spellings(word: String): Set<String> {
+        val composed = Normalizer.normalize(word, Normalizer.Form.NFC)
+        val alternatives = composed.codePoints().toArray().map { alternatives(it) }
+        val combinations = alternatives.fold(1) { count, each -> minOf(count * each.size, MAX_SPELLINGS + 1) }
+
+        if (combinations > MAX_SPELLINGS) {
+            val micro = composed.replace(GREEK_MU, MICRO_SIGN)
+
+            return linkedSetOf(word, composed, micro).also { whole ->
+                whole += whole.map { Normalizer.normalize(it, Normalizer.Form.NFD) }
+            }
+        }
+
+        return alternatives.fold(listOf("")) { prefixes, each -> prefixes.flatMap { prefix -> each.map { prefix + it } } }
+            .toCollection(linkedSetOf(word))
+    }
+
+    private fun alternatives(codePoint: Int): List<String> {
+        val character = String(Character.toChars(codePoint))
+
+        return if (character == GREEK_MU || character == MICRO_SIGN) {
+            listOf(GREEK_MU, MICRO_SIGN)
+        } else {
+            listOf(character, Normalizer.normalize(character, Normalizer.Form.NFD)).distinct()
+        }
+    }
+
+    private const val GREEK_MU = "\u03BC"
+    private const val MICRO_SIGN = "\u00B5"
+    private const val MAX_SPELLINGS = 256
 
     /**
      * Maps each occurrence of a function name to a matching declaration clause in the same
@@ -758,7 +801,7 @@ internal object ElixirUsageQueries {
         @RequiresReadLock
         private fun matchesCallSite(call: Call, symbol: FunctionSymbol): Boolean =
             if (call.resolvedModuleName() == symbol.moduleName &&
-                (functionNameAtomValue(call) ?: call.functionName()) == symbol.name &&
+                call.functionName() == symbol.name &&
                 call.resolvedFinalArity() == symbol.arity
             ) {
                 true

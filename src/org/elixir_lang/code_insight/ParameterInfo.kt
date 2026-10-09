@@ -9,7 +9,6 @@ import org.elixir_lang.psi.Arguments
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirTypes
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.functionNameAtomValue
 
 class ParameterInfo : ParameterInfoHandler<Arguments, Signature> {
     override fun findElementForParameterInfo(context: CreateParameterInfoContext): Arguments? =
@@ -28,7 +27,7 @@ class ParameterInfo : ParameterInfoHandler<Arguments, Signature> {
                 }
             }
 
-            val signatures = signatures(resolved, functionNameAtomValue(call) ?: call.functionName())
+            val signatures = signatures(resolved, call.functionName())
 
             if (signatures.isNotEmpty()) {
                 context.itemsToShow = signatures.toTypedArray()

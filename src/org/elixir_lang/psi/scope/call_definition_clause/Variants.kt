@@ -15,6 +15,7 @@ import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.code_insight.completion.insert_handler.CallDefinitionClause as CallDefinitionClauseInsertHandler
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Visible
+import org.elixir_lang.model.psi.ElixirUsageQueries
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.Named
@@ -98,6 +99,7 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
 
         lookupElementByPsiElementName.computeIfAbsent(element to name) { (el, n) ->
             LookupElementBuilder.createWithSmartPointer(n, el)
+                .withSpellings(n, el)
                 .withRenderer(org.elixir_lang.code_insight.lookup.element_renderer.CallDefinitionClause(n))
                 .withInsertHandlerIfAppendingParentheses()
         }
@@ -109,7 +111,7 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
                 LookupElementBuilder.createWithSmartPointer(
                         name,
                         element
-                ).withRenderer(
+                ).withSpellings(name, element).withRenderer(
                         org.elixir_lang.code_insight.lookup.element_renderer.CallDefinitionClause(name)
                 ).withInsertHandlerIfAppendingParentheses { Import.highestImportedArity(named, state) }
             }
@@ -133,7 +135,7 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
                     LookupElementBuilder.createWithSmartPointer(
                             name,
                             element
-                    ).withRenderer(
+                    ).withSpellings(name, element).withRenderer(
                             org.elixir_lang.code_insight.lookup.element_renderer.Callback(name)
                     ).withInsertHandlerIfAppendingParentheses()
                 }
@@ -151,7 +153,7 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
                     LookupElementBuilder.createWithSmartPointer(
                             headName,
                             element
-                    ).withRenderer(
+                    ).withSpellings(headName, element).withRenderer(
                             org.elixir_lang.code_insight.lookup.element_renderer.Delegation(headName)
                     ).withInsertHandlerIfAppendingParentheses { Import.highestImportedArity(element, state) }
                 }
@@ -174,7 +176,7 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
                         LookupElementBuilder.createWithSmartPointer(
                                 name,
                                 element
-                        ).withRenderer(
+                        ).withSpellings(name, element).withRenderer(
                                 org.elixir_lang.code_insight.lookup.element_renderer.EExFunctionFrom(name)
                         ).withInsertHandlerIfAppendingParentheses()
                     }
@@ -217,6 +219,7 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
             lookupElementByPsiElementName.computeIfAbsent(element to name) { (element, name) ->
                 LookupElementBuilder
                         .createWithSmartPointer(name, element)
+                        .withSpellings(name, element)
                         .withRenderer(renderer)
                         .withInsertHandlerIfAppendingParentheses()
             }
@@ -234,6 +237,9 @@ class Variants(private val appendParentheses: Boolean, private val recordsVisibl
 
     private fun LookupElementBuilder.withInsertHandlerIfAppendingParentheses(arity: () -> Arity? = { null }): LookupElementBuilder =
         if (appendParentheses) withInsertHandler(CallDefinitionClauseInsertHandler.at(arity())) else this
+
+    private fun LookupElementBuilder.withSpellings(name: String, element: PsiElement): LookupElementBuilder =
+        withLookupStrings(ElixirUsageQueries.lookupStrings(name, element))
 
     /** A name Elixir can write only quoted is not offered here. */
     private fun callableUnqualified(name: String): Boolean = InspectAtom.classify(name) != InspectAtom.Class.OTHER

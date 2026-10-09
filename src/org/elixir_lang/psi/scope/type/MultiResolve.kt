@@ -6,6 +6,7 @@ import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.beam.psi.Module as BeamModule
 import org.elixir_lang.beam.psi.TypeDefinition as BeamTypeDefinition
+import org.elixir_lang.model.psi.type.TypeVariableSymbol
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
@@ -110,7 +111,7 @@ private constructor(private val name: String,
                 is ElixirList,
                 is ElixirMapOperation,
                 is ElixirTuple -> true
-                is ElixirKeywordKey -> executeOnParameter(parameter, parameter.text, state)
+                is ElixirKeywordKey -> executeOnParameter(parameter, TypeVariableSymbol.variableName(parameter), state)
                 is Pipe -> (parameter.leftOperand()?.let { executeOnParameter(it, state) } ?: true)
                         && (parameter.rightOperand()?.let { executeOnParameter(it, state) } ?: true)
                 // putting defaults in type specs isn't valid, but it can occur when copying the def to write the type

@@ -88,9 +88,6 @@ class VariableReference(
             } == true
             if (!fromRightOperand) return emptyList()
 
-            val leftOperandText = match.leftOperand()?.text ?: return emptyList()
-            if (!leftOperandText.contains("^$name")) return emptyList()
-
             val pinnedLeftVariable = sequenceOf(match.leftOperand())
                 .filterNotNull()
                 .flatMap { left ->

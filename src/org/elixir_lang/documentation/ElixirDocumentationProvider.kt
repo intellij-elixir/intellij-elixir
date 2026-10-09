@@ -25,7 +25,6 @@ import org.elixir_lang.psi.ModuleAttribute.isDocumentationName
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.childExpressions
 import org.elixir_lang.psi.impl.declaringModuleCall
-import org.elixir_lang.psi.impl.functionNameAtomValue
 import org.elixir_lang.psi.impl.identifierName
 import org.elixir_lang.psi.operation.capture.NonNumeric
 import org.elixir_lang.psi.stub.type.call.Stub.isModular
@@ -121,7 +120,8 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                                     relative,
                                     arity,
                                     false,
-                                    modular
+                                    modular,
+                                    atom = true
                                 )
                             }
                     } else {
@@ -135,7 +135,8 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                                     relative,
                                     arity,
                                     false,
-                                    modular
+                                    modular,
+                                    atom = true
                                 )
                             }
                             ?.toList()
@@ -158,7 +159,8 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                                     relative,
                                     arity,
                                     false,
-                                    modular
+                                    modular,
+                                    atom = true
                                 )
                             }
                     } else {
@@ -172,7 +174,8 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                                     relative,
                                     arity,
                                     false,
-                                    modular
+                                    modular,
+                                    atom = true
                                 )
                             }
                             ?.toList()
@@ -191,7 +194,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 }
 
                 "t" -> {
-                    val relative = relativeLinkMatcher.group("relative")
+                    val relative = identifierAtomName(relativeLinkMatcher.group("relative")) { languageLevelFor(context) }
                     val arity = relativeLinkMatcher.group("arity").toInt()
 
                     val resolveResults = if (module != null) {
@@ -288,7 +291,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                     // multiResolve uses startsWith for name matching (for completion), so we must
                     // filter to exact name matches to avoid showing docs for map_size when hovering map.
                     bestMatch(validElements) ?: run {
-                        val callName = functionNameAtomValue(contextElement) ?: contextElement.functionName()
+                        val callName = contextElement.functionName()
                         val exactNameElements = allResults
                             .mapNotNull(ResolveResult::getElement)
                             .filter { element ->

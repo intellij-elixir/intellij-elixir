@@ -80,7 +80,7 @@ class AtomReference(
 
         return modulars
             .flatMap { modular ->
-                CallDefinitionClauseMultiResolve.resolveResults(name, arity, false, modular)
+                CallDefinitionClauseMultiResolve.resolveResults(name, arity, false, modular, atom = true)
             }
             .map { visitedResult -> visitedResult.element }
             .flatMap { element ->
@@ -106,7 +106,7 @@ class AtomReference(
 
             return modulars
                 .flatMap { modular ->
-                    CallDefinitionClauseMultiResolve.resolveResults(name, reference.arity, incompleteCode, modular)
+                    CallDefinitionClauseMultiResolve.resolveResults(name, reference.arity, incompleteCode, modular, atom = true)
                 }
                 .flatMap { visitedResult ->
                     when (val element = visitedResult.element) {
