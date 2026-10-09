@@ -12,6 +12,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.POST_MODULE_LOCAL_CH
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.psi.Import.Term
+import java.util.Collections
 import java.util.IdentityHashMap
 
 /**
@@ -70,20 +71,41 @@ internal fun define(
     env: Env,
     run: Run,
 ): Expansion {
-    val fragments = Fragments()
     val unquotes = hasUnquotes(head, run.level) || body != null && hasUnquotes(body, run.level)
+    val fragments = Unquotes()
+    val pieces = mutableListOf<Piece>()
 
-    if (unquotes) {
-        fragments.walk(head)
-        body?.let(fragments::walk)
+    for (part in listOfNotNull(head, body).takeIf { unquotes }.orEmpty()) {
+        fragments.collect(part)
+
+        when (val escape = Quote.escape(part, node.meta, env, run)) {
+            is Quote.Escaped.Built -> fragments.order(escape.node, pieces)
+            // Code the port stops at stops the definition when it is expanded, not the module body that holds it. The
+            // source holds no calls of the escape, and its own `:erlang` calls are the body's to dispatch.
+            is Quote.Escaped.Stopped -> fragments.order(part, pieces, escaped = false)
+        }
     }
 
-    val values = fragments.list.map {
-        linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, it.arguments!!.single())
+    val values = pieces.map {
+        when (it) {
+            is Piece.Fragment -> linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, it.call.arguments!!.single())
+            is Piece.Evaluated -> linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, it.expression)
+            is Piece.Quoted -> node
+        }
     }
+    var next = 0
 
     return argumentScope(state) { scope ->
-        mapfold(values, scope, env) { value, s, e -> expandArg(value, s, state, e, run) }
+        mapfold(values, scope, env) { value, s, e ->
+            when (val piece = pieces[next++]) {
+                is Piece.Fragment, is Piece.Evaluated -> expandArg(value, s, state, e, run)
+                is Piece.Quoted -> {
+                    run.observer.dispatched(node, Dispatch(Dispatch.Kind.REMOTE_FUNCTION, piece.receiver, piece.name, piece.arity))
+
+                    Expansion.Expanded(s, e, NODE)
+                }
+            }
+        }
     }.thenValue { s, e, terms ->
         val call = extractGuards(head).first
         val nameFragment = (call as? ElixirAst.Call)?.callee?.takeIf { isCall(it, "unquote", 1) }
@@ -91,7 +113,8 @@ internal fun define(
         var unnamedAt: ElixirAst? = null
         var stop = fragments.stop
 
-        for ((fragment, term) in fragments.list.zip((terms as Term.List).elements)) {
+        for ((piece, term) in pieces.zip((terms as Term.List).elements)) {
+            val fragment = (piece as? Piece.Fragment)?.call ?: continue
             val literal = literalOf(fragment, term, escaped = false)
 
             when {
@@ -191,23 +214,75 @@ private fun disablesUnquote(options: ElixirAst): Boolean =
         }
     }
 
+/** What the output of `elixir_quote:escape/3` does when the `def` runs it, in order. */
+private sealed interface Piece {
+    /** An `unquote(x)`, whose `x` is evaluated. */
+    class Fragment(val call: ElixirAst.Call) : Piece
+
+    /** The expression of an `unquote_splicing` or of an unquoted call name, evaluated, whose value isn't spliced. */
+    class Evaluated(val expression: ElixirAst) : Piece
+
+    /** A call the escape makes into `elixir_quote` or `:erlang`, for a splice or an unquoted call name. */
+    class Quoted(val receiver: String, val name: String, val arity: Int) : Piece
+}
+
 /**
- * `elixir_quote:escape/3` with unquoting: each `unquote(x)` in a head and body, in order, outside a `quote`'s body, and
- * the first `unquote_splicing` or `unquote` call name, whose value the expander can't splice. A `quote`'s options are
- * unquoted as the rest is.
+ * The expressions `elixir_quote:escape/3` evaluates rather than quotes, in a head or body: the `unquote(x)` fragments
+ * outside a `quote`'s body, the expressions of an `unquote_splicing` and of an unquoted call name, and the first splice
+ * or call name, whose value the expander can't splice. A `quote`'s options are unquoted as the rest is.
  */
-private class Fragments {
-    val list = mutableListOf<ElixirAst.Call>()
+private class Unquotes {
+    private val fragments = IdentityHashMap<ElixirAst, ElixirAst.Call>()
+    private val evaluated = Collections.newSetFromMap(IdentityHashMap<ElixirAst, Boolean>())
     var stop: ElixirAst? = null
 
-    fun walk(node: ElixirAst) {
+    fun collect(node: ElixirAst) {
         when {
-            isCall(node, "unquote", 1) -> list += node as ElixirAst.Call
+            isCall(node, "unquote", 1) -> (node as ElixirAst.Call).let { fragments[it.arguments!!.single()] = it }
             isCall(node, "quote", 1) -> {}
-            isCall(node, "quote", 2) -> walk((node as ElixirAst.Call).arguments!![0])
-            isCall(node, "unquote_splicing", 1) || isUnquotedCallName(node) -> stop = stop ?: node
-            else -> children(node).forEach(::walk)
+            isCall(node, "quote", 2) -> collect((node as ElixirAst.Call).arguments!![0])
+            isCall(node, "unquote_splicing", 1) -> {
+                evaluated += (node as ElixirAst.Call).arguments!!.single()
+                stop = stop ?: node
+            }
+            isUnquotedCall(node) -> {
+                val call = node as ElixirAst.Call
+
+                evaluated += call.arguments!!.single()
+                stop = stop ?: node
+                collect((call.callee as ElixirAst.Call).arguments!![0])
+            }
+            else -> children(node).forEach(::collect)
         }
+    }
+
+    /**
+     * The pieces of [output], the expression the escape built, as the compiler expands it: its `elixir_quote` and
+     * `:erlang` calls, and each expression it evaluates, in order. When [escaped] is false, [output] is the source the
+     * escape stopped at, and holds only the expressions.
+     */
+    fun order(output: ElixirAst, pieces: MutableList<Piece>, escaped: Boolean = true) {
+        val fragment = fragments[output]
+
+        when {
+            fragment != null -> pieces += Piece.Fragment(fragment)
+            output in evaluated -> pieces += Piece.Evaluated(output)
+            else -> {
+                if (escaped) quotedCall(output)?.let { pieces += it }
+                children(output).forEach { order(it, pieces, escaped) }
+            }
+        }
+    }
+
+    private fun quotedCall(node: ElixirAst): Piece.Quoted? {
+        val remote = (node as? ElixirAst.Call)?.callee?.takeIf { isCall(it, ".", 2) } as? ElixirAst.Call ?: return null
+        val receiver = (remote.arguments!![0] as? ElixirAst.Literal.Atom)?.name?.takeIf { it in QUOTE_RECEIVERS } ?: return null
+
+        return Piece.Quoted(receiver, (remote.arguments[1] as ElixirAst.Literal.Atom).name, node.arguments!!.size)
+    }
+
+    private companion object {
+        val QUOTE_RECEIVERS = setOf("elixir_quote", "erlang")
     }
 }
 
