@@ -114,6 +114,20 @@ class HygieneTest {
     }
 
     @Test
+    fun `a module that starts compiling counts from 1 again, whatever a module of the name drew`() {
+        val counters = Counters()
+
+        counters.next(CASE)
+        counters.next(CASE)
+        counters.next(KERNEL)
+        counters.start(CASE)
+
+        assertEquals(0L, counters.count(CASE))
+        assertEquals(Env.Counter.InModule(CASE, 1), counters.next(CASE))
+        assertEquals(1L, counters.count(KERNEL))
+    }
+
+    @Test
     fun `linify gives a quote of the receiver's context the counter, and every node with metadata the line`() {
         fun quote(context: String, vararg keys: Meta.Key) =
             call("quote", listOf(ElixirAst.ListNode(meta(), listOf(integer(1)))), *keys, entry("context", atom(context)))

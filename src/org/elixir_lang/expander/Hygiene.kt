@@ -3,6 +3,7 @@ package org.elixir_lang.expander
 import org.elixir_lang.language_level.ElixirLanguageFeature.VAR_BANG_IF_UNDEFINED
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
+import org.elixir_lang.psi.Import.Term
 
 /** The `counter` entry of [meta]: `{Module, n}`, or the integer Elixir draws when there is no module. */
 internal fun counterOf(meta: Meta): Env.Counter? =
@@ -46,6 +47,11 @@ class Counters {
 
     /** How many counters [module] has given. */
     fun count(module: String?): Long = counts[module] ?: 0
+
+    /** [module] starts compiling: Elixir builds its data tables, and its counter in them, anew, whatever a module of the name drew. */
+    fun start(module: String) {
+        counts.remove(module)
+    }
 }
 
 /**
@@ -60,13 +66,15 @@ internal fun expandQuoted(
     env: Env,
     run: Run,
     watched: Watched? = null,
+    supplied: Map<ElixirAst, Term> = emptyMap(),
 ): Expansion {
-    return expandQuoted(call, receiver, run.counters.next(env.module), output, state, env, run, watched)
+    return expandQuoted(call, receiver, run.counters.next(env.module), output, state, env, run, watched, supplied)
 }
 
 /**
  * [expandQuoted] with the [counter] the macro's output was given, for a macro that also uses it outside the output.
- * [watched], a node of [output], is told the value it expands to.
+ * [watched], a node of [output], is told the value it expands to, and each node of [output] that [supplied], a map by
+ * identity, has takes that value.
  */
 internal fun expandQuoted(
     call: ElixirAst.Call,
@@ -77,10 +85,14 @@ internal fun expandQuoted(
     env: Env,
     run: Run,
     watched: Watched? = null,
+    supplied: Map<ElixirAst, Term> = emptyMap(),
 ): Expansion {
     var watching: ElixirAst? = null
     val linified = linifyWithContextCounter(lineOf(call.meta), receiver, counter, output) { original, linified ->
         if (original === watched?.node) watching = linified
+
+        // A node in a module body is expanded when the module is compiled, after this call returns.
+        supplied[original]?.let { run.supplying[linified] = it }
     }
 
     env.module?.let { run.compiling[it] }?.rewrote(call, linified)

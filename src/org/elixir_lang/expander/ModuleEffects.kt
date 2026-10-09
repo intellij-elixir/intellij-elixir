@@ -99,11 +99,7 @@ internal object ModuleEffects {
                         else -> continue
                     }
 
-                    return when (val value = element.second) {
-                        is Term.Atom -> value.name != "nil" && value.name != "false"
-                        is Term.Integer, is Term.Binary, is Term.List, is Term.Pair, is Term.Tuple, Term.NonTuple -> true
-                        is Term.Node, Term.Unexpanded -> null
-                    }
+                    return element.second.isTruthy()
                 }
                 is Term.Atom, is Term.Integer, is Term.Binary, is Term.List, is Term.Tuple, Term.NonTuple -> continue
                 is Term.Node, Term.Unexpanded -> return null

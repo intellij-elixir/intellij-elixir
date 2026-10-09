@@ -31,6 +31,9 @@ class MacroExpandTest : ExpanderTestCase() {
     /** Render the output node's name, whether its meta has a line, and the counters taken, in place of the node. */
     private var output = false
 
+    /** Expand the snippet as `Macro.expand_literals/2` does, not `Macro.expand/2`. */
+    private var literals = false
+
     private var inModule: String? = MODULE
     override val module: String? get() = inModule
 
@@ -201,7 +204,51 @@ class MacroExpandTest : ExpanderTestCase() {
     fun testARemoteCallOfModuleIsOfTheEnvsModule() =
         assertEvery("__MODULE__.foo(1)", "opaque remote_macro Elixir.Case.foo/1 `__MODULE__.foo(1)` |")
 
+    // Literals
+
+    fun testALiteralAliasIsItsModule() = assertLiterals("Foo.Bar", "atom Elixir.Foo.Bar |")
+
+    fun testTheAliasesOfAListAreExpandedInPlace() = assertLiterals("[Foo, Bar]", "node [Elixir.Foo, Elixir.Bar] |")
+
+    fun testTheAliasesOfATupleAreExpandedInPlace() = assertLiterals("{Foo, 1}", "node {Elixir.Foo, 1} |")
+
+    fun testAListOfLiteralsThatAreNoAliasesIsUnchanged() = assertLiterals("[1, :a]", UNCHANGED)
+
+    fun testAnAliasWhoseHeadIsAVariableIsNotExpandedInAList() = assertLiterals("[x.Foo]", UNCHANGED)
+
+    fun testTheModuleOfAListIsTheEnvsModule() = assertLiterals("[__MODULE__]", "node [Elixir.Case] |")
+
+    fun testAnAliasWhoseHeadIsModuleIsConcatenatedInAList() =
+        assertLiterals("[__MODULE__.Foo]", "node [Elixir.Case.Foo] |")
+
+    fun testTheEnvsAliasesExpandThem() {
+        aliases = listOf(Env.Alias("Elixir.Foo", "Elixir.Other.Foo"))
+
+        assertLiterals("{Foo.Bar, 1}", "node {Elixir.Other.Foo.Bar, 1} |")
+    }
+
+    /** Only the literals: a macro in a list is left as it is, and traces nothing. */
+    fun testAMacroCallInAListIsNotExpanded() = assertLiterals("[unless(1, 2)]", UNCHANGED)
+
+    fun testACallIsNotExpanded() = assertLiterals("first([1])", UNCHANGED)
+
     // Rendering
+
+    private fun assertLiterals(code: String, expected: String) {
+        literals = true
+
+        assertEvery(code, expected)
+    }
+
+    /** [node]'s literals as source: an atom by name, a list or tuple by its elements. */
+    private fun shape(node: ElixirAst): String =
+        when (node) {
+            is ElixirAst.Literal.Atom -> node.name
+            is ElixirAst.Literal.Integer -> node.value.toString()
+            is ElixirAst.ListNode -> node.elements.joinToString(", ", "[", "]", transform = ::shape)
+            is ElixirAst.Tuple -> node.elements.joinToString(", ", "{", "}", transform = ::shape)
+            else -> "?"
+        }
 
     override fun expandAndRender(code: String, version: String): String {
         val level = ElixirLanguageLevel.of(version)
@@ -222,7 +269,12 @@ class MacroExpandTest : ExpanderTestCase() {
             module = module,
         )
         val run = Run(level, observer, exports, structs)
-        val expanded = macroExpand(lower(code, level), ExState.empty(level), env, run)
+        val node = lower(code, level)
+        val expanded = if (literals) {
+            macroExpandLiterals(node, ExState.empty(level), env, run)
+        } else {
+            macroExpand(node, ExState.empty(level), env, run)
+        }
 
         if (output) {
             val node = (expanded as MacroExpanded.Node).node as ElixirAst.Call
@@ -245,6 +297,7 @@ class MacroExpandTest : ExpanderTestCase() {
                     !expanded.expanded -> "unchanged"
                     node is ElixirAst.Literal.Atom -> "atom ${node.name}"
                     node is ElixirAst.Literal.Integer -> "integer ${node.value}"
+                    node is ElixirAst.ListNode || node is ElixirAst.Tuple -> "node ${shape(node)}"
                     else -> "node `${node.meta.origin.substring(code)}`"
                 }
             }

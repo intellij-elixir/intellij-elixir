@@ -40,7 +40,7 @@ internal val ATTRIBUTE = Summary { _, node, state, env, run ->
         }
         is Returned.Code -> {
             val counter = run.counters.next(env.module)
-            val linified = linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, returned.node)
+            val linified = linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, returned.node, run::carrySupplied)
 
             run.compiling[env.module!!]?.built(linified, node)
 
@@ -209,7 +209,7 @@ internal fun takeDefinitionAttributes(definition: Pending.Definition, owner: Own
     val truthy = when (impl) {
         null -> false
         AttributeValue.Unknown -> null
-        is AttributeValue.Known -> impl.term != NIL && impl.term != FALSE
+        is AttributeValue.Known -> impl.term.isTruthy()
     }
     val name = owner.name
 

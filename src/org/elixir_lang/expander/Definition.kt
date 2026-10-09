@@ -195,11 +195,11 @@ private fun hasUnquotes(node: ElixirAst, level: ElixirLanguageLevel, quoteLevel:
 }
 
 /** `{{'.', _, [_, unquote]}, _, [_]}`: a call of one argument whose name is unquoted. */
-private fun isUnquotedCall(node: ElixirAst): Boolean =
+internal fun isUnquotedCall(node: ElixirAst): Boolean =
     node is ElixirAst.Call && node.arguments?.size == 1 && isUnquotedCallName(node.callee)
 
 /** `{'.', _, [Left, unquote]}`: the name of a remote call that is unquoted. */
-private fun isUnquotedCallName(node: ElixirAst): Boolean =
+internal fun isUnquotedCallName(node: ElixirAst): Boolean =
     isCall(node, ".", 2) && ((node as ElixirAst.Call).arguments!![1] as? ElixirAst.Literal.Atom)?.name == "unquote"
 
 /** `disables_unquote/1`: whether a `quote`'s [options] hold `unquote: false` or `bind_quoted:`. */

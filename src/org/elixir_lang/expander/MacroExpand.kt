@@ -35,6 +35,78 @@ internal fun macroExpand(node: ElixirAst, state: ExState, env: Env, run: Run): M
 }
 
 /**
+ * `Macro.expand_literals/2` of [node] in [env]: each alias of atoms and each `__MODULE__` in a literal, `%{}` or tuple,
+ * list, pair or struct, and in the default of an `Application.compile_env/3`, expanded as [macroExpand] expands it.
+ * Anything else is as it was.
+ */
+internal fun macroExpandLiterals(node: ElixirAst, state: ExState, env: Env, run: Run): MacroExpanded =
+    try {
+        val literals = LiteralExpander(state, env, run).expand(node)
+
+        MacroExpanded.Node(literals, expanded = literals !== node)
+    } catch (stop: LiteralsStopped) {
+        MacroExpanded.Stopped(stop.expansion)
+    }
+
+/** Thrown where [macroExpand] stops inside [macroExpandLiterals]. */
+private class LiteralsStopped(val expansion: Expansion) : RuntimeException(null, null, false, false)
+
+private class LiteralExpander(private val state: ExState, private val env: Env, private val run: Run) {
+    fun expand(node: ElixirAst): ElixirAst =
+        when {
+            node is ElixirAst.Alias -> {
+                val segments = all(node.segments)
+                val rebuilt = if (segments === node.segments) node else ElixirAst.Alias(node.meta, segments)
+
+                if (segments.all { it is ElixirAst.Literal.Atom }) expanded(rebuilt) else rebuilt
+            }
+            isVariableNamed(node, "__MODULE__") -> expanded(node)
+            node is ElixirAst.Tuple -> all(node.elements).let { if (it === node.elements) node else ElixirAst.Tuple(node.meta, it) }
+            node is ElixirAst.ListNode ->
+                all(node.elements).let { if (it === node.elements) node else ElixirAst.ListNode(node.meta, it) }
+            isCall(node, "%", 2) || isNamedCall(node, "%{}") || isNamedCall(node, "{}") -> {
+                val call = node as ElixirAst.Call
+                val arguments = all(call.arguments!!)
+
+                if (arguments === call.arguments) node else ElixirAst.Call(call.meta, call.callee, arguments)
+            }
+            isCompileEnv(node) -> {
+                val call = node as ElixirAst.Call
+                val (app, key, default) = call.arguments!!
+                val expanded = expand(default)
+
+                if (expanded === default) node else ElixirAst.Call(call.meta, call.callee, listOf(app, key, expanded))
+            }
+            else -> node
+        }
+
+    /** [nodes], each expanded, or the list itself where none changed. */
+    private fun all(nodes: List<ElixirAst>): List<ElixirAst> {
+        val expanded = nodes.map(::expand)
+
+        return if (expanded.indices.all { expanded[it] === nodes[it] }) nodes else expanded
+    }
+
+    private fun expanded(node: ElixirAst): ElixirAst =
+        when (val result = macroExpand(node, state, env, run)) {
+            is MacroExpanded.Node -> result.node
+            MacroExpanded.Dir -> node
+            is MacroExpanded.Stopped -> throw LiteralsStopped(result.expansion)
+        }
+
+    /** `Application.compile_env(app, key, default)`. */
+    private fun isCompileEnv(node: ElixirAst): Boolean {
+        val call = node as? ElixirAst.Call ?: return false
+        val dot = dotArguments(call.callee)?.takeIf { it.size == 2 } ?: return false
+        val receiver = dot[0] as? ElixirAst.Alias
+
+        return call.arguments?.size == 3 &&
+            receiver?.segments?.singleOrNull().let { it is ElixirAst.Literal.Atom && it.name == "Application" } &&
+            (dot[1] as? ElixirAst.Literal.Atom)?.name == "compile_env"
+    }
+}
+
+/**
  * `Macro.expand_once/2` of [node] in [env], tracing as it does. A macro with no summary is [Expansion.Opaque], and one
  * whose summary isn't a [Summary.Rewrite] is [Expansion.Unported]. An alias's `alias_reference` trace isn't reported.
  */

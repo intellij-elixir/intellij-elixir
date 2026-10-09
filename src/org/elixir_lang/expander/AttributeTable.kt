@@ -22,6 +22,14 @@ internal sealed interface AttributeValue {
     }
 }
 
+/** Whether Elixir's `if` takes [this] as true, or `null` where it is a node or unexpanded. */
+internal fun Term.isTruthy(): Boolean? =
+    when (this) {
+        is Term.Atom -> name != "nil" && name != "false"
+        is Term.Integer, is Term.Binary, is Term.List, is Term.Pair, is Term.Tuple, Term.NonTuple -> true
+        is Term.Node, Term.Unexpanded -> null
+    }
+
 private fun Term.isExact(): Boolean = isShaped(contentKnown = true)
 
 /** Whether Elixir's checks of [this] can be made: no node or non-tuple anywhere in it, though a binary may be unread. */

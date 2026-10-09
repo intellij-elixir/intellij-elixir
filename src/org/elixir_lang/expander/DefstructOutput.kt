@@ -10,7 +10,6 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.STRUCT_ATTRIBUTE_REN
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
-import java.util.IdentityHashMap
 
 private const val KERNEL_UTILS = "Elixir.Kernel.Utils"
 private const val BOOTSTRAP = "elixir_bootstrap"
@@ -267,50 +266,29 @@ internal class StructOutput(
 
         return s.escapedMap(defaults.entries.map { it.key to it.value })
     }
-
-    /** [definition] with each `unquote` of a name in [fragments] replaced by that name's AST. */
-    private fun filled(definition: Pending.Definition, fragments: Map<String, ElixirAst>): Pending.Definition {
-        val replacements = IdentityHashMap<ElixirAst, ElixirAst>()
-
-        fun collect(node: ElixirAst) {
-            val name = (node as? ElixirAst.Call)?.takeIf { isCall(it, "unquote", 1) }
-                ?.let { ((it.arguments!!.single() as? ElixirAst.Call)?.callee as? ElixirAst.Literal.Atom)?.name }
-
-            if (name != null && name in fragments) replacements[node] = fragments.getValue(name) else children(node).forEach(::collect)
-        }
-
-        collect(definition.head)
-        definition.body?.let(::collect)
-
-        return Pending.Definition(
-            definition.kind,
-            definition.node,
-            substitute(definition.head, replacements),
-            definition.body?.let { substitute(it, replacements) },
-            definition.unnamedAt,
-            stop = null,
-            definition.env,
-            definition.ordered,
-            definition.statement,
-            definition.checksClauses,
-        )
-    }
-
 }
 
 /** The `elixir_bootstrap` imports a quoted `def` and `@` are marked with. */
 internal val BOOT_DEF = listOf(1 to BOOTSTRAP, 2 to BOOTSTRAP)
 internal val BOOT_AT = listOf(1 to BOOTSTRAP)
 
-/** A `quote`d expression's nodes in [context], with the keys of a `quote` that is [generated] where it is. */
+/**
+ * A `quote`d expression's nodes in [context], with the keys of a `quote` that is [generated] where it is, and a `line`
+ * of 0 when it is [line] as well.
+ */
 internal class Nodes(
     val s: Synthetic,
     private val level: ElixirLanguageLevel,
     private val context: String,
     generated: Boolean,
+    line: Boolean = generated,
 ) {
     val base: List<Meta.Key> =
-        if (generated) GENERATED + Meta.Key.Entry("line", Meta.Value.Integer(0)) else emptyList()
+        when {
+            !generated -> emptyList()
+            line -> GENERATED + Meta.Key.Entry("line", Meta.Value.Integer(0))
+            else -> GENERATED
+        }
 
     fun keys(more: List<Meta.Key>) = base + more
 
@@ -357,9 +335,19 @@ internal class Nodes(
 
     fun remote(receiver: ElixirAst, function: String, args: List<ElixirAst>) = s.remoteCall(receiver, function, args, base)
 
+    /** An alias `quote` builds: `alias: false`, so it isn't expanded through the caller's aliases. */
+    fun alias(vararg segments: String): ElixirAst.Alias =
+        ElixirAst.Alias(s.meta(base + entry("alias", "false")), segments.map(s::atom))
+
+    /** `__MODULE__.Name`: an alias that continues the module being defined. */
+    fun nestedAlias(name: String): ElixirAst.Alias =
+        ElixirAst.Alias(s.meta(base + entry("alias", "false")), listOf(v("__MODULE__"), s.atom(name)))
+
     fun assign(left: ElixirAst, right: ElixirAst) = s.call("=", listOf(left, right), base)
 
-    fun block(vararg expressions: ElixirAst) = ElixirAst.Block(s.meta(base), expressions.toList())
+    fun block(vararg expressions: ElixirAst) = block(expressions.toList())
+
+    fun block(expressions: List<ElixirAst>) = ElixirAst.Block(s.meta(base), expressions)
 
     fun tuple(elements: List<ElixirAst>): ElixirAst = if (elements.size == 2) s.tuple(elements[0], elements[1]) else s.tuple(elements, base)
 

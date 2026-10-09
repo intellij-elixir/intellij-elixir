@@ -70,13 +70,20 @@ internal val DEFMODULE = Summary { _, node, state, env, run ->
             Expansion.Unported(node)
         env.context == Env.Context.MATCH -> Expansion.Error("definer_in_match", node)
         env.context == Env.Context.GUARD -> Expansion.Error("definer_in_guard", node)
-        else ->
+        else -> {
+            // Expanding the name takes the value the macro that made it supplies.
+            val supplied = run.isSupplied(nameNode)
+
             Expander.expand(nameNode, state, env, run).thenValue { _, _, name ->
                 // `elixir_dispatch:expand_quoted/7`, once the macro has run.
                 val counter = run.counters.next(env.module)
 
                 when (name) {
-                    is Term.Atom -> {
+                    // A name the macro supplies is a variable, an atom only once the body runs: `Macro.expand/2` leaves
+                    // it as it is, so it is not aliased.
+                    is Term.Atom -> if (supplied) {
+                        queueModule(node, name.name, true, body, state, env, run)
+                    } else {
                         val defined = aliasDefmodule(nameNode, name.name, env.module)
                         val directive = linifyWithContextCounter(
                             lineOf(node.meta),
@@ -94,6 +101,7 @@ internal val DEFMODULE = Summary { _, node, state, env, run ->
                         ?: Expansion.Unported(nameNode)
                 }
             }
+        }
     }
 }
 
