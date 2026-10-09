@@ -38,7 +38,11 @@ object Resolver {
     }
 
     fun <T : ResolveResult> preferIsValidResult(resolveResultList: List<T>): List<T> =
-        filterIsValidResult(resolveResultList).takeIf(List<T>::isNotEmpty) ?: resolveResultList
+        preferValid(resolveResultList, ResolveResult::isValidResult)
+
+    /** Those of [list] that are [valid], or all of [list] when none is. */
+    fun <T> preferValid(list: List<T>, valid: (T) -> Boolean): List<T> =
+        list.filter(valid).takeIf(List<T>::isNotEmpty) ?: list
 
     fun <T : ResolveResult> preferElementUnderSameModule(element: PsiElement, resolveResultList: List<T>): List<T> =
         preferUnderSameModule(element, resolveResultList, ResolveResult::getElement)
@@ -82,9 +86,6 @@ object Resolver {
     @RequiresReadLock
     private fun isDelegation(element: PsiElement?): Boolean =
         (element as? Call)?.let { Delegation.`is`(it) } ?: false
-
-    private fun <T : ResolveResult> filterIsValidResult(resolveResultList: List<T>): List<T> =
-        resolveResultList.filter(ResolveResult::isValidResult)
 
     private fun <T, U : PsiElement> filterUnderSameModule(
         elementInModule: PsiElement,

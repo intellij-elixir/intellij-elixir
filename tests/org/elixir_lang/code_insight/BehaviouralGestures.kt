@@ -35,9 +35,13 @@ import com.intellij.psi.util.PsiUtilBase
 import com.intellij.testFramework.AutoPopupParameterInfoTestUtil
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.CodeInsightTestFixture
+import com.intellij.testFramework.utils.parameterInfo.MockCreateParameterInfoContext
+import com.intellij.testFramework.utils.parameterInfo.MockParameterInfoUIContext
+import junit.framework.TestCase.assertNotNull
 import junit.framework.TestCase.assertNull
 import junit.framework.TestCase.assertTrue
 import org.elixir_lang.junit.onPooledThread
+import org.elixir_lang.psi.Arguments
 import kotlinx.coroutines.runBlocking
 import java.util.concurrent.Callable
 
@@ -517,6 +521,28 @@ private fun CodeInsightTestFixture.symbolResolutionFile(project: Project): PsiFi
  * these gestures exist to tell apart from "the IDE offered me a choice".
  */
 data class ParameterInfoPopup(val signatures: List<String>, val currentParameterIndex: Int)
+
+/**
+ * The signatures [ParameterInfo] resolves for the call at the caret, each rendered as the popup would render it:
+ * which signatures, not whether the IDE shows a popup (see [parameterInfoPopupAfterTyping]).
+ */
+fun CodeInsightTestFixture.parameterInfoSignaturesAtCaret(): List<String> = parameterInfoSignatures(editor, file)
+
+/** [parameterInfoSignaturesAtCaret] for an [editor] on [file] that no fixture opened. */
+fun parameterInfoSignatures(editor: Editor, file: PsiFile): List<String> {
+    val handler = ParameterInfo()
+    val context = MockCreateParameterInfoContext(editor, file)
+    val arguments = handler.findElementForParameterInfo(context)
+    assertNotNull("No Arguments at the caret", arguments)
+    handler.showParameterInfo(arguments!!, context)
+
+    return context.itemsToShow.orEmpty().map { item ->
+        MockParameterInfoUIContext<Arguments>(arguments).also {
+            it.currentParameterIndex = 0
+            handler.updateUI(item as Signature, it)
+        }.text
+    }
+}
 
 /**
  * Runs [gesture] and returns the parameter-info popup the IDE builds in response, or `null` when it

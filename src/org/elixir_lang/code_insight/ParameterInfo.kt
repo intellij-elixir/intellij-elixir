@@ -1,12 +1,12 @@
 package org.elixir_lang.code_insight
 
 import com.intellij.lang.parameterInfo.*
-import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.util.PsiTreeUtil
-import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
+import org.elixir_lang.declaration.Feature
+import org.elixir_lang.declaration.Use
+import org.elixir_lang.declaration.preferred
+import org.elixir_lang.declaration.sourceFor
 import org.elixir_lang.psi.Arguments
-import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirTypes
 import org.elixir_lang.psi.call.Call
 
@@ -18,21 +18,11 @@ class ParameterInfo : ParameterInfoHandler<Arguments, Signature> {
         findArguments(context)
 
     override fun showParameterInfo(element: Arguments, context: CreateParameterInfoContext) {
-        PsiTreeUtil.getParentOfType(element, Call::class.java)?.let { call ->
-            val resolved = call.references.flatMap { reference ->
-                if (reference is PsiPolyVariantReference) {
-                    reference.multiResolve(true).mapNotNull { it.element }
-                } else {
-                    listOfNotNull(reference.resolve())
-                }
-            }
+        val signatures = PsiTreeUtil.getParentOfType(element, Call::class.java)?.let(::signatures).orEmpty()
 
-            val signatures = signatures(resolved, call.functionName())
-
-            if (signatures.isNotEmpty()) {
-                context.itemsToShow = signatures.toTypedArray()
-                context.showHint(element, element.textRange.startOffset, this)
-            }
+        if (signatures.isNotEmpty()) {
+            context.itemsToShow = signatures.toTypedArray()
+            context.showHint(element, element.textRange.startOffset, this)
         }
     }
 
@@ -88,24 +78,13 @@ class ParameterInfo : ParameterInfoHandler<Arguments, Signature> {
     private fun findArguments(context: ParameterInfoContext): Arguments? =
         ParameterInfoUtils.findParentOfType(context.file, context.offset, Arguments::class.java)
 
-    /* Deduplicate by (name, arity), preferring bare function heads (no do block) over implementation clauses,
-       and keep only the function actually being called - resolution also returns functions the name is a
-       prefix of, so `reduce` would otherwise be described by `reduce_while` as well.
-
-       The references are resolved as incomplete code so that a call whose arguments are not typed yet resolves
-       at all, which is exactly when the hint is wanted: resolving them completely collapses `foo/1` and `foo/2`
-       to a single arity, and does not drop the prefix matches either.
-
-       A `.beam` definition is read from its stub: this runs on the EDT, and decompiling a module to reach its
-       mirror can take hundreds of milliseconds. */
-    private fun signatures(resolved: List<PsiElement>, name: String?): List<Signature> {
-        val clauses = resolved.filterIsInstance<Call>().filter { CallDefinitionClause.`is`(it) }
-        val beamDefinitions = resolved.filterIsInstance<BeamCallDefinition>()
-
-        return preferFunctionHeadsByArity(clauses, name).mapNotNull { Signature.of(it) } +
-            beamDefinitions
-                .map { Signature.of(it) }
-                .filter { name == null || it.nameArityInterval.name == name }
-                .distinctBy { it.nameArityInterval }
-    }
+    // Incomplete code, so that a call whose arguments are not typed yet resolves at all, which is when the hint is
+    // wanted: complete code keeps only the arity that fits what is typed.
+    private fun signatures(call: Call): List<Signature> =
+        when (val use = Use.of(call)) {
+            is Use.Named ->
+                signatures(preferred(use, sourceFor(Feature.PARAMETER_INFO).candidates(use, true), true))
+            // A name-less use can be any function of the module, so it describes none.
+            is Use.AnyName, null -> emptyList()
+        }
 }
