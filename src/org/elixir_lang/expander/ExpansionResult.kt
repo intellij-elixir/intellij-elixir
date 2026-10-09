@@ -10,6 +10,7 @@ import org.elixir_lang.lowering.ElixirAst
  * @property units the module body, then each definition's body in the order Elixir expands them
  * @property errors the errors reported in this module and by the checks once its body ran, in Elixir's order; a nested
  *   module's are its own
+ * @property warnings the warnings reported in this module, in Elixir's order; a nested module's are its own
  * @property opaque each unit's [Expansion.Opaque]
  * @property consulted the modules whose exports the module's expansion read
  * @property attributes what the module body did to its attributes
@@ -19,6 +20,7 @@ internal data class ExpansionResult(
     val table: DefinitionTable,
     val units: List<Unit>,
     val errors: List<Reported>,
+    val warnings: List<Warning>,
     val ended: Ended,
     val opaque: List<Expansion.Opaque>,
     val consulted: Set<String>,

@@ -60,6 +60,8 @@ class DirectiveProbeTest : ProbeTestCase() {
             "import Integer, as: I",
             "import Integer, :foo",
             "import Integer, only: [:parse]",
+            // `~w` expands, so its atoms reach the option where a list of `name: arity` pairs is meant.
+            "import Kernel, except: ~w(if)a",
             "alias Foo.{A, B}, as: C",
             "alias Foo.{1}",
             "x = Foo\nalias x",

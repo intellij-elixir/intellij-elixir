@@ -46,12 +46,14 @@ internal data class AttributeLog(
     /**
      * @property impls each clause's `@impl`, in order
      * @property doc the doc a public definition keeps, or `null` where it keeps none
-     * @property deprecated the reason it is deprecated, or `null` where it isn't
+     * @property deprecated the reason the Docs chunk gives, the last clause's, or `null` where it isn't deprecated
+     * @property reasons every clause's reason, which `__info__(:deprecated)` keeps one of for each name and arity
      */
     data class DefinitionAttributes(
         val impls: List<Impl>,
         val doc: AttributeValue?,
         val deprecated: AttributeValue?,
+        val reasons: List<AttributeValue>,
     )
 
     companion object {

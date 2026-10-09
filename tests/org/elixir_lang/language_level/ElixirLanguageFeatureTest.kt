@@ -204,6 +204,19 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             IN_LIST_LISTS_MEMBER to ("1.20.0-rc.1" to "1.20.0-rc.2"),
             IN_ENUM_IN to ("1.20.0-rc.4" to "1.20.0-rc.5"),
             IN_EMPTY_LISTS_MEMBER to ("1.20.0-rc.6" to "1.20.0"),
+            REGEX_KEEPS_ESCAPES to ("1.15.8" to "1.16.0-rc.0"),
+            REGEX_OPTIONS_AS_LIST to ("1.16.3" to "1.17.0-rc.0"),
+            REGEX_COMPILED_AT_RUN_TIME_ON_OTP_28 to ("1.18.1" to "1.18.2"),
+            ESCAPED_REGEX_RECOMPILES_ON_OTP_28 to ("1.19.0-rc.0" to "1.19.0-rc.1"),
+            ESCAPED_REGEX_IMPORTS_ON_OTP_28_1 to ("1.19.0-rc.0" to "1.19.0-rc.1"),
+            REGEX_ESCAPED_IN_FIXED_FIELD_ORDER to ("1.19.0-rc.0" to "1.19.0-rc.1"),
+            REGEX_REFUSED_IN_MATCH_AND_GUARD to ("1.19.5" to "1.20.0-rc.0"),
+            UNESCAPE_DROPS_ESCAPED_NEWLINE to ("1.11.4" to "1.12.0-rc.0"),
+            ISO_DATE_UNBOUNDED to ("1.16.3" to "1.17.0-rc.0"),
+            CALENDAR_SIGIL_STRUCT_SYNTAX to ("1.17.3" to "1.18.0-rc.0"),
+            ISO_PARSES_SIGNED_YEAR to ("1.11.4" to "1.12.0-rc.0"),
+            APPLICATION_ENV_IN_BODY to ("1.13.4" to "1.14.0-rc.0"),
+            LOCAL_MACRO_CHECKED_FOR_DEPRECATION to ("1.16.3" to "1.17.0-rc.0"),
         )
 
         assertEquals(entries.filter { it.sinceElixir != null }.toSet(), boundaries.keys)
@@ -230,6 +243,10 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             ANONYMOUS_CALL_OF_ATOM_REFUSED to ("1.17.3" to "1.18.0-rc.0"),
             CLAUSES_REFUSED_IN_CALL to ("1.17.3" to "1.18.0-rc.0"),
             RANGE_NEW_WRAPPED_IN_IDENTITY to ("1.18.4" to "1.19.0-rc.0"),
+            RE_VERSION_IN_REGEX to ("1.18.4" to "1.19.0-rc.0"),
+            MACRO_EXPAND_CHECKS_REMOTE_FUNCTION_DEPRECATION to ("1.16.3" to "1.17.0-rc.0"),
+            REGEX_COMPILED_AT_RUN_TIME_ON_OTP_28 to ("1.19.0-rc.0" to "1.19.0-rc.1"),
+            ESCAPED_MAP_IN_VM_ORDER to ("1.14.5" to "1.15.0-rc.1"),
         )
 
         assertEquals(entries.filter { it.removedInElixir != null }.toSet(), removals.keys)
@@ -253,23 +270,32 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             MAX_AND_MIN_GUARDS to ("25.3.2.21" to "26.0-rc1"),
             IS_INTEGER_RANGE_GUARD to ("28.5.0.7" to "29.0-rc1"),
             IS_RECORD_GUARD to ("28.5.0.7" to "29.0-rc1"),
+            REGEX_COMPILED_AT_RUN_TIME_ON_OTP_28 to ("27.3.4.9" to "28.0-rc1"),
+            ESCAPED_REGEX_RECOMPILES_ON_OTP_28 to ("27.3.4.9" to "28.0-rc1"),
+            ESCAPED_REGEX_IMPORTS_ON_OTP_28_1 to ("28.0.4" to "28.1"),
+            ESCAPED_MAP_IN_VM_ORDER to ("25.3.2.21" to "26.0-rc1"),
         )
 
         assertEquals(entries.filter { it.sinceOtp != null }.toSet(), boundaries.keys)
 
         for ((feature, releases) in boundaries) {
             val (without, with) = releases
-            assertFalse("$feature on OTP $without", feature.isSufficient(ElixirLanguageLevel.of("1.18.4", without)))
-            assertTrue("$feature on OTP $with", feature.isSufficient(ElixirLanguageLevel.of("1.18.4", with)))
+            val version = elixirWithin(feature)
+            assertFalse("$feature on OTP $without", feature.isSufficient(ElixirLanguageLevel.of(version, without)))
+            assertTrue("$feature on OTP $with", feature.isSufficient(ElixirLanguageLevel.of(version, with)))
         }
     }
 
     /** An OTP that cannot be determined is taken as the newest, as an Elixir version that cannot be is. */
     fun testAnUnknownOtpHasEveryOtpFeature() {
         for (feature in entries.filter { it.sinceOtp != null }) {
-            assertTrue("$feature", feature.isSufficient(ElixirLanguageLevel.of("1.18.4", null)))
+            assertTrue("$feature", feature.isSufficient(ElixirLanguageLevel.of(elixirWithin(feature), null)))
         }
     }
+
+    /** The Elixir release [feature]'s OTP boundary is tried on: the one it begins at, else one inside its window. */
+    private fun elixirWithin(feature: ElixirLanguageFeature): String =
+        feature.sinceElixir?.rawVersion ?: if (feature.removedInElixir != null) "1.11.4" else "1.18.4"
 
     /** A pre-release comes before its release, so a later minor's first pre-release keeps what earlier minors added. */
     fun testAPreReleaseOfALaterMinorKeepsEarlierFeatures() {

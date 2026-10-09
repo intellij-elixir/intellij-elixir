@@ -489,7 +489,7 @@ class OperatorsTest : LoweringTestCase() {
         when (node) {
             is ElixirAst.Placeholder -> when (val reason = node.reason) {
                 is ElixirAst.Placeholder.Reason.Unlowered -> listOf(reason.shape)
-                ElixirAst.Placeholder.Reason.Error -> emptyList()
+                ElixirAst.Placeholder.Reason.Error, ElixirAst.Placeholder.Reason.Compiled -> emptyList()
             }
             is ElixirAst.Call -> unloweredShapes(node.callee) + node.arguments.orEmpty().flatMap { unloweredShapes(it) }
             is ElixirAst.Alias -> node.segments.flatMap { unloweredShapes(it) }

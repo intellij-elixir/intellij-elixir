@@ -1158,6 +1158,9 @@ internal class ExpansionProbes(
         /** The nodes entered and not yet left, innermost last. */
         private val open = ArrayDeque<ElixirAst>()
 
+        /** The capture of a remote function whose dispatch comes next. */
+        private var capturing: ElixirAst? = null
+
         private fun step(tag: Tag, state: ExState, env: Env, offset: Int) =
             Step(tag, state.read, env, state.stacktrace, state.caller, offset, counters.count(env.module))
 
@@ -1208,9 +1211,15 @@ internal class ExpansionProbes(
             this.env = env
         }
 
+        override fun capturing(capture: ElixirAst) {
+            capturing = capture
+        }
+
         override fun dispatched(node: ElixirAst, dispatch: Dispatch) {
             val recorder = recorder(node)
-            val nodes = listOfNotNull(node, retraced(open.lastOrNull(), node, dispatch, level))
+            val nodes = listOfNotNull(node, retraced(capturing, node, dispatch, level))
+
+            capturing = null
 
             if (recorder != null) {
                 nodes.forEach {
@@ -1344,8 +1353,8 @@ internal class ExpansionProbes(
 
         fun start(node: ElixirAst): Int = node.meta.origin.startOffset
 
-        fun line(node: ElixirAst): Int? =
-            node.meta.keys.filterIsInstance<Meta.Key.Location>().firstOrNull()?.position?.line
+        /** The line of [node], from the source or the call a macro's output was linified with. */
+        fun line(node: ElixirAst): Int? = lineOf(node.meta).takeIf { it != 0 }
 
         fun column(node: ElixirAst): Int? =
             node.meta.keys.filterIsInstance<Meta.Key.Location>().firstOrNull()?.position?.column

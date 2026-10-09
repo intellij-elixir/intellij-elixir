@@ -25,6 +25,10 @@ internal class Synthetic(private val at: Meta) {
 
     fun keywords(pairs: List<Pair<String, ElixirAst>>) = list(pairs.map { (key, value) -> tuple(atom(key), value) })
 
+    /** A map as `elixir_quote:escape/3` gives it: its keys in term order, whatever order [entries] has. */
+    fun escapedMap(entries: Iterable<Pair<String, ElixirAst>>) =
+        call("%{}", entries.sortedWith { a, b -> compareCodePoints(a.first, b.first) }.map { (key, value) -> tuple(atom(key), value) })
+
     /** `{Key, Meta, elixir_quote}`, the variable the prelude binds a run-time option to, with the `quote`'s keys. */
     fun variable(key: String) =
         ElixirAst.Call(meta(at.keys), atom(key), null, ElixirAst.VariableContext.Atom("elixir_quote"))

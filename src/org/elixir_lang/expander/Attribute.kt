@@ -219,6 +219,7 @@ internal fun takeDefinitionAttributes(definition: Pending.Definition, owner: Own
                 impls,
                 if (kind.public) withoutImpl(doc, truthy) else null,
                 deprecated,
+                listOfNotNull(deprecated),
             )
         }
 
@@ -240,6 +241,7 @@ internal fun takeDefinitionAttributes(definition: Pending.Definition, owner: Own
             current?.impls.orEmpty() + impls,
             merged,
             deprecated ?: current?.deprecated,
+            current?.reasons.orEmpty() + listOfNotNull(deprecated),
         )
     }
 
@@ -251,8 +253,8 @@ internal fun takeDefinitionAttributes(definition: Pending.Definition, owner: Own
             val defaultKey = NameArity(name, defaultArity)
             val existing = compiling.definitions[defaultKey]
 
-            compiling.definitions[defaultKey] = existing?.copy(deprecated = deprecated)
-                ?: AttributeLog.DefinitionAttributes(emptyList(), null, deprecated)
+            compiling.definitions[defaultKey] = existing?.copy(deprecated = deprecated, reasons = existing.reasons + deprecated)
+                ?: AttributeLog.DefinitionAttributes(emptyList(), null, deprecated, listOf(deprecated))
         }
     }
 }

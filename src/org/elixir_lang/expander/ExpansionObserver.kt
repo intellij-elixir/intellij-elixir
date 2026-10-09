@@ -22,6 +22,9 @@ fun interface ExpansionObserver {
      */
     fun dispatched(node: ElixirAst, dispatch: Dispatch) {}
 
+    /** [capture], a capture of a remote function, dispatches next: the `&`, which a built capture is not entered as. */
+    fun capturing(capture: ElixirAst) {}
+
     /**
      * `quote` traces the import that [node], a quoted call, name or capture, finds for [name] in [module]: at its one
      * arity for [QuotedImportKind.IMPORTED_FUNCTION] and [QuotedImportKind.IMPORTED_MACRO], and at each arity [module]

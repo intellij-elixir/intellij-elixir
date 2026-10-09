@@ -1814,7 +1814,149 @@ enum class ElixirLanguageFeature(
      *
      * `elixir-lang/elixir@7a90b59b1` ("Enable use of unquote in defguard(p)", #13716), first released in v1.18.0-rc.0.
      */
-    DEFGUARD_UNQUOTE_NAMES(sinceElixir = "1.18.0-rc.0");
+    DEFGUARD_UNQUOTE_NAMES(sinceElixir = "1.18.0-rc.0"),
+
+    /**
+     * `~r` leaves every escape but a line continuation as written, for the regular expression engine to read. Before
+     * it, `\a`, `\f`, `\n`, `\r`, `\t` and `\v` are replaced by their control characters.
+     *
+     * `elixir-lang/elixir@b710c8822` ("Delegate escape characters to regex"), first released in v1.16.0-rc.0.
+     */
+    REGEX_KEEPS_ESCAPES(sinceElixir = "1.16.0-rc.0"),
+
+    /**
+     * A `Regex` struct holds its options as the list of PCRE options the modifiers translate to. Before it, it holds
+     * the modifiers as written.
+     *
+     * `elixir-lang/elixir@61cc5f6fc` ("Simplify internal storage of regex options"), first released in v1.17.0-rc.0.
+     */
+    REGEX_OPTIONS_AS_LIST(sinceElixir = "1.17.0-rc.0"),
+
+    /**
+     * A `Regex` struct has a `re_version` field, the PCRE version that compiled it.
+     *
+     * Removed by `elixir-lang/elixir@c1e79d189` ("Support Erlang/OTP 28"), first released in v1.19.0-rc.0.
+     */
+    RE_VERSION_IN_REGEX(removedInElixir = "1.19.0-rc.0"),
+
+    /**
+     * On OTP 28, `~r` of a pattern with no interpolation expands to a `Regex.compile!/2` call, as an interpolated one
+     * does, since a compiled pattern there cannot be written in the AST.
+     *
+     * `elixir-lang/elixir@f29e18bca` ("Do not precompile regexes on Erlang/OTP 28"), first released in v1.18.2.
+     * Removed by [ESCAPED_REGEX_RECOMPILES_ON_OTP_28].
+     */
+    REGEX_COMPILED_AT_RUN_TIME_ON_OTP_28(sinceElixir = "1.18.2", removedInElixir = "1.19.0-rc.1", sinceOtp = "28.0-rc1"),
+
+    /**
+     * On OTP 28, `Regex.__escape__/1` writes a `Regex` struct into the AST with a pattern that compiles again from its
+     * source when it runs, since a compiled pattern there cannot be written in the AST. From OTP 28.1 it is
+     * [ESCAPED_REGEX_IMPORTS_ON_OTP_28_1] instead.
+     *
+     * `elixir-lang/elixir@ff21a9d60` ("Add __escape__/1 and use it to fix Regex escaping in OTP28.1+"), first
+     * released in v1.19.0-rc.1.
+     */
+    ESCAPED_REGEX_RECOMPILES_ON_OTP_28(sinceElixir = "1.19.0-rc.1", sinceOtp = "28.0-rc1"),
+
+    /**
+     * From OTP 28.1, `Regex.__escape__/1` writes a `Regex` struct's pattern as a `Regex.__import_pattern__/1` call on
+     * the bytes `:re.compile/2` exports, with `required: true` in its metadata.
+     *
+     * `elixir-lang/elixir@ff21a9d60` and `elixir-lang/elixir@bfbd7658b` ("Assert scope is not match/guard when using
+     * escaped regexes", #14780, which wraps the import in `Regex.__import_pattern__/1`), first released in
+     * v1.19.0-rc.1, and `erlang/otp@efd5ef0c6c`, first released in OTP 28.1.
+     */
+    ESCAPED_REGEX_IMPORTS_ON_OTP_28_1(sinceElixir = "1.19.0-rc.1", sinceOtp = "28.1"),
+
+    /**
+     * `Regex.__escape__/1` writes a `Regex` struct into the AST with its fields in one fixed order, `__struct__`,
+     * `re_pattern`, `source`, `opts`. Before it, `Macro.escape/1` lists the map's entries in term order, bar the window of
+     * [ESCAPED_MAP_IN_VM_ORDER].
+     *
+     * `elixir-lang/elixir@ff21a9d60` ("Add __escape__/1 and use it to fix Regex escaping in OTP28.1+"), first released
+     * in v1.19.0-rc.1.
+     */
+    REGEX_ESCAPED_IN_FIXED_FIELD_ORDER(sinceElixir = "1.19.0-rc.1"),
+
+    /**
+     * `Macro.escape/1` of a map lists its entries in the order the Erlang VM keeps them, which from OTP 26 is the
+     * atoms' index in the VM, not term order. Elixir sorts the entries from 1.15.0-rc.1, so only before it does the
+     * order show. The port writes the keys in term order, which no release or probe can pin in this window.
+     *
+     * `elixir-lang/elixir@ad3f7d20b` ("Sort maps and environment when escaping"), first released in v1.15.0-rc.1, and
+     * `erlang/otp@c013d3ad41` ("erts: Optimize flatmap internal ordering of atoms"), first released in OTP 26.0-rc1.
+     */
+    ESCAPED_MAP_IN_VM_ORDER(removedInElixir = "1.15.0-rc.1", sinceOtp = "26.0-rc1"),
+
+    /**
+     * `~r` is refused in a pattern and a guard, whatever its pattern. Before it, it is only a `Regex.compile!/2` call
+     * there when it interpolates.
+     *
+     * `elixir-lang/elixir@59c0a38bb` ("Raise if using ~r sigil in patterns or guards", #14767), first released in
+     * v1.20.0-rc.0.
+     */
+    REGEX_REFUSED_IN_MATCH_AND_GUARD(sinceElixir = "1.20.0-rc.0"),
+
+    /**
+     * Unescaping a sigil's text drops a `\` together with the newline or `\r\n` after it. Before it, the sigils keep
+     * the newline and drop only the `\`, and `~r` keeps both. The tokenizer already drops the `\` and the
+     * newline of a sigil written in source, so only a direct `sigil_*` call reaches this.
+     *
+     * `elixir-lang/elixir@8c29984ed` ("Add :newline to unescape_map"), first released in v1.12.0-rc.0.
+     */
+    UNESCAPE_DROPS_ESCAPED_NEWLINE(sinceElixir = "1.12.0-rc.0"),
+
+    /**
+     * `Calendar.ISO` applies a datetime's offset only to a date inside the years -9999 to 9999, and raises a
+     * `FunctionClauseError` in `Calendar.ISO.date_from_iso_days/1` where the offset moves the date out of them. From it
+     * the date is not limited, so a `~U` with an offset is refused for the offset alone.
+     *
+     * `elixir-lang/elixir@3d7f4dddb` ("Allow `Date` to accept year outside of -9999..9999 range", #13551), first released
+     * in v1.17.0-rc.0.
+     */
+    ISO_DATE_UNBOUNDED(sinceElixir = "1.17.0-rc.0"),
+
+    /**
+     * A calendar sigil expands to `%Date{...}`, the struct named in a `%` call with the fields in a map. Before it, a
+     * map with `__struct__` as its first entry.
+     *
+     * `elixir-lang/elixir@b087a7501` ("Keep struct fields in calendar sigil for better pretty printing"), first
+     * released in v1.18.0-rc.0.
+     */
+    CALENDAR_SIGIL_STRUCT_SYNTAX(sinceElixir = "1.18.0-rc.0"),
+
+    /**
+     * `Calendar.ISO` parses a `+` before a year, `+2015-01-13`, as it does a `-`. Before it, the `+` is invalid.
+     *
+     * `elixir-lang/elixir@6af4565de` ("Improve Calendar.ISO documentation", #10689), first released in v1.12.0-rc.0.
+     */
+    ISO_PARSES_SIGNED_YEAR(sinceElixir = "1.12.0-rc.0"),
+
+    /**
+     * `Application.get_env/2,3`, `fetch_env/2` and `fetch_env!/2` in a module body warn that `compile_env` is meant. Before
+     * it, `Application` has no check of its own.
+     *
+     * `elixir-lang/elixir@f0b81e820` ("Deprecate features pending for v1.14"), first released in v1.14.0-rc.0.
+     */
+    APPLICATION_ENV_IN_BODY(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * `Macro.expand/2` and `Macro.expand_once/2` check a remote function they expand for a deprecation, as the remote
+     * call they stand for does. From it they check only the macros they expand, in `Macro.Env`.
+     *
+     * `elixir-lang/elixir@097eee9d5` ("Add Macro.Env.expand_import/5 and Macro.Env.expand_require/6", #13421), first
+     * released in v1.17.0-rc.0.
+     */
+    MACRO_EXPAND_CHECKS_REMOTE_FUNCTION_DEPRECATION(removedInElixir = "1.17.0-rc.0"),
+
+    /**
+     * A call of a macro the module defines itself checks it for a deprecation, as a call of an imported or remote
+     * macro does. Before it, `expand_import` answered a local macro without the check.
+     *
+     * `elixir-lang/elixir@097eee9d5` ("Add Macro.Env.expand_import/5 and Macro.Env.expand_require/6", #13421), first
+     * released in v1.17.0-rc.0.
+     */
+    LOCAL_MACRO_CHECKED_FOR_DEPRECATION(sinceElixir = "1.17.0-rc.0");
 
 
     /** The first Elixir release with this behaviour, or `null` when every supported release has it. */

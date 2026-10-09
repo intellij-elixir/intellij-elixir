@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_EXPAND_CHECKS_REMOTE_FUNCTION_DEPRECATION
 import org.elixir_lang.lowering.ElixirAst
 
 /** What `Macro.expand/2` or `Macro.expand_once/2` gives a node. */
@@ -42,7 +43,7 @@ internal fun macroExpandOnce(node: ElixirAst, state: ExState, env: Env, run: Run
 
     return when {
         node is ElixirAst.Alias -> expandAlias(node, state, env, run)
-        node is ElixirAst.Placeholder -> MacroExpanded.Stopped(Expansion.Unported(node))
+        node is ElixirAst.Placeholder && node.stopsExpansion -> MacroExpanded.Stopped(Expansion.Unported(node))
         node !is ElixirAst.Call -> unchanged
         isVariable(node) ->
             when ((node.callee as ElixirAst.Literal.Atom).name) {
@@ -158,14 +159,22 @@ private fun expandRemote(
         env,
         run,
         macro = { dispatch -> expandMacro(dispatch, call, state, env, run) },
-        function = { unchanged },
+        function = {
+            if (MACRO_EXPAND_CHECKS_REMOTE_FUNCTION_DEPRECATION.isSufficient(run.level)) {
+                checkDeprecated(CalledKind.FUNCTION, call, receiver, name, call.arguments!!.size, env, run)
+            }
+
+            unchanged
+        },
         stop = { MacroExpanded.Stopped(it) },
     )
 }
 
 /** `Macro.Env`'s `wrap_expansion/7` of [call], which dispatches as the macro [dispatch]. */
-private fun expandMacro(dispatch: Dispatch, call: ElixirAst.Call, state: ExState, env: Env, run: Run): MacroExpanded =
-    summarised(dispatch, call, opaque = { MacroExpanded.Stopped(it) }) { summary ->
+private fun expandMacro(dispatch: Dispatch, call: ElixirAst.Call, state: ExState, env: Env, run: Run): MacroExpanded {
+    checkDeprecated(dispatch, call, env, run)
+
+    return summarised(dispatch, call, opaque = { MacroExpanded.Stopped(it) }) { summary ->
         when (summary) {
             is Summary.Rewrite -> {
                 run.observer.dispatched(call, dispatch)
@@ -184,3 +193,4 @@ private fun expandMacro(dispatch: Dispatch, call: ElixirAst.Call, state: ExState
             else -> MacroExpanded.Stopped(Expansion.Unported(call))
         }
     }
+}

@@ -119,16 +119,27 @@ abstract class ExpanderTestCase : ParsingTestCase() {
     /** The `counter` entry linify gives macro output in [module]. */
     protected fun counter(n: Long) = entry("counter", Meta.Value.Tuple(listOf(atom(module!!), Meta.Value.Integer(n))))
 
-    /** [node] with each variable named [name] made a placeholder, as source the lowering has no rule for is. */
-    protected fun placeholding(node: ElixirAst, name: String): ElixirAst =
+    /**
+     * [node] with each variable named [name] made a placeholder for [reason], as source the lowering has no rule for
+     * is.
+     */
+    protected fun placeholding(
+        node: ElixirAst,
+        name: String,
+        reason: ElixirAst.Placeholder.Reason = ElixirAst.Placeholder.Reason.Error,
+    ): ElixirAst =
         when {
             isVariable(node) && ((node as ElixirAst.Call).callee as ElixirAst.Literal.Atom).name == name ->
-                ElixirAst.Placeholder(node.meta, ElixirAst.Placeholder.Reason.Error)
+                ElixirAst.Placeholder(node.meta, reason)
             node is ElixirAst.Call ->
-                ElixirAst.Call(node.meta, placeholding(node.callee, name), node.arguments?.map { placeholding(it, name) })
-            node is ElixirAst.Block -> ElixirAst.Block(node.meta, node.expressions.map { placeholding(it, name) })
-            node is ElixirAst.ListNode -> ElixirAst.ListNode(node.meta, node.elements.map { placeholding(it, name) })
-            node is ElixirAst.Tuple -> ElixirAst.Tuple(node.meta, node.elements.map { placeholding(it, name) })
+                ElixirAst.Call(
+                    node.meta,
+                    placeholding(node.callee, name, reason),
+                    node.arguments?.map { placeholding(it, name, reason) },
+                )
+            node is ElixirAst.Block -> ElixirAst.Block(node.meta, node.expressions.map { placeholding(it, name, reason) })
+            node is ElixirAst.ListNode -> ElixirAst.ListNode(node.meta, node.elements.map { placeholding(it, name, reason) })
+            node is ElixirAst.Tuple -> ElixirAst.Tuple(node.meta, node.elements.map { placeholding(it, name, reason) })
             else -> node
         }
 

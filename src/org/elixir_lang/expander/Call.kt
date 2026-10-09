@@ -38,6 +38,10 @@ internal fun expandLocalCall(node: ElixirAst.Call, state: ExState, env: Env, run
                 ?: Dispatch.Kind.REMOTE_FUNCTION.takeUnless { IMPORTED_FUNCTION_NOT_REEXPANDED.isSufficient(run.level) }
             val (inlinedReceiver, inlined) = importedFunction(node, receiver, traced, run)
 
+            if (inlinedReceiver == receiver) {
+                checkDeprecated(CalledKind.FUNCTION, node, receiver, name, args.size, env, run)
+            }
+
             stacktrace(inlinedReceiver, inlined, args.size, state, env, run) ?: expandRemote(
                 Term.Atom(inlinedReceiver),
                 inlined,
@@ -302,7 +306,11 @@ internal fun dispatchRequire(
         env,
         run,
         macro = { dispatch -> macro(dispatch, node, state, env, run) },
-        function = { function(receiver, name) },
+        function = {
+            checkDeprecated(CalledKind.FUNCTION, node, receiver, name, arity, env, run)
+
+            function(receiver, name)
+        },
         stop = { it },
     )
 }
@@ -332,7 +340,12 @@ internal fun <R> expandRequire(
                 // Inside a function the deprecation check doesn't load the module first.
                 UNREQUIRED_MACRO_SEEN_ONLY_WHEN_LOADED.isSufficient(run.level) || env.function != null ->
                     stop(Expansion.Unported(call))
-                else -> stop(Expansion.Error("unrequired_module", call))
+                else -> {
+                    // Before 1.12.2 every remote call is checked before it is known to be a macro.
+                    checkDeprecated(CalledKind.FUNCTION, call, receiver, name, arity, env, run)
+
+                    stop(Expansion.Error("unrequired_module", call))
+                }
             }
         false -> function()
     }

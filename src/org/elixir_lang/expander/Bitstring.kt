@@ -289,7 +289,7 @@ private fun expandSpecs(spec: ElixirAst, state: ExState, original: ExState, env:
                 }
             }
             is Unpacked.Other -> {
-                if (unpacked.node is ElixirAst.Placeholder) return Specs.Stopped(Expansion.Unported(unpacked.node))
+                if (unpacked.node is ElixirAst.Placeholder && unpacked.node.stopsExpansion) return Specs.Stopped(Expansion.Unported(unpacked.node))
 
                 reportOrEnd(ErrorSite.UNDEFINED_BITTYPE, segment, accEnv, run)?.let { return Specs.Stopped(it) }
                 continue
