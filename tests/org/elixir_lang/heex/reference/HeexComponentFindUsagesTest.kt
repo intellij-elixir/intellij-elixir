@@ -62,6 +62,22 @@ class HeexComponentFindUsagesTest : HeexHostTestCase() {
         assertEquals(2, psiUsagesAtCaret().count { !it.declaration })
     }
 
+    /** `def src_µ` quotes to `src_μ`; Elixir 1.14 reads `<.src_µ>` as that component, so it is a usage. */
+    fun testMicroSignComponentTagIsFoundAsUsage() {
+        assertEquals(2, nonDeclarationUsageCount("micro/page_live.ex", "micro/page_live.html.heex"))
+    }
+
+    fun testMicroSignComponentTagInsideHSigilIsFoundAsUsage() {
+        myFixture.configureByText(
+            "test.ex",
+            heexSigilModuleText(
+                entranceModuleText = myFixture.fixtureText("micro/page_live.ex"),
+                heexBody = myFixture.fixtureText("micro/page_live.html.heex")
+            )
+        )
+        assertEquals(2, psiUsagesAtCaret().count { !it.declaration })
+    }
+
     /** `def button(assigns \\ %{})` is one symbol family (`button/0`, `button/1`); the tag is found from it. */
     fun testComponentTagIsFoundFromDeclarationWithDefaultArgument() {
         assertEquals(2, nonDeclarationUsageCount("default_arity/page_live.ex", "default_arity/page_live.html.heex"))

@@ -4,6 +4,7 @@ import com.intellij.find.usages.api.PsiUsage
 import com.intellij.find.usages.api.Usage
 import com.intellij.injected.editor.VirtualFileWindow
 import com.intellij.lang.html.HTMLLanguage
+import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.model.Pointer
 import com.intellij.model.psi.PsiSymbolReferenceService
 import com.intellij.model.search.SearchContext
@@ -35,6 +36,7 @@ import org.elixir_lang.lowering.identifierAtomName
 import org.elixir_lang.heex.isInHeex
 import org.elixir_lang.heex.xml.ComponentTagName
 import org.elixir_lang.heex.xml.HeexComponentResolver
+import org.elixir_lang.injection.PsiLanguageInjectionHost
 import org.elixir_lang.model.psi.atom.AtomReference
 import org.elixir_lang.model.psi.atom.AtomSymbol
 import org.elixir_lang.model.psi.callback.BehaviourMembership
@@ -51,6 +53,7 @@ import org.elixir_lang.model.psi.type.TypeSymbol
 import org.elixir_lang.model.psi.type.TypeVariableSymbol
 import org.elixir_lang.model.psi.variable.VariableReference
 import org.elixir_lang.model.psi.variable.VariableSymbol
+import org.elixir_lang.model.psi.words.DecodedWordQuery
 import org.elixir_lang.model.psi.words.WordOccurrenceMapper
 import org.elixir_lang.model.psi.words.buildQueryFromLeaves
 import org.elixir_lang.psi.*
@@ -206,42 +209,21 @@ internal object ElixirUsageQueries {
         callback: Callback,
         searchScope: SearchScope
     ): Query<out PsiUsage> =
-        bySpelling(callback.name) { word ->
-            SearchService.getInstance()
-                .searchWord(project, word)
-                .caseSensitive(true) // Elixir function/macro names are case-sensitive
-                .inContexts(SearchContext.inCode())
-                .inScope(searchScope)
-                .buildQueryFromLeaves(ImplementationMapper(callback.createPointer()))
-        }
+        wordQuery(project, callback.name, searchScope, ImplementationMapper(callback.createPointer()))
 
     private fun protocolCallSiteQuery(
         project: Project,
         pf: ProtocolFunction,
         searchScope: SearchScope
     ): Query<out PsiUsage> =
-        bySpelling(pf.name) { word ->
-            SearchService.getInstance()
-                .searchWord(project, word)
-                .caseSensitive(true)
-                .inContexts(SearchContext.inCode())
-                .inScope(searchScope)
-                .buildQueryFromLeaves(ProtocolCallSiteMapper(pf.createPointer()))
-        }
+        wordQuery(project, pf.name, searchScope, ProtocolCallSiteMapper(pf.createPointer()))
 
     private fun protocolImplementationQuery(
         project: Project,
         pf: ProtocolFunction,
         searchScope: SearchScope
     ): Query<out PsiUsage> =
-        bySpelling(pf.name) { word ->
-            SearchService.getInstance()
-                .searchWord(project, word)
-                .caseSensitive(true)
-                .inContexts(SearchContext.inCode())
-                .inScope(searchScope)
-                .buildQueryFromLeaves(ProtocolImplementationMapper(pf.createPointer()))
-        }
+        wordQuery(project, pf.name, searchScope, ProtocolImplementationMapper(pf.createPointer()))
 
     /**
      * Maps each occurrence of the callback name to an implementing definition clause, if any.
@@ -425,78 +407,69 @@ internal object ElixirUsageQueries {
      * Builds a word-index query that finds every source token whose text matches the function name,
      * then hands each occurrence to [FunctionCallSiteMapper]. `includeInjections()` is required for
      * [FunctionCallSiteMapper.heexComponentTagUsage] to see a `~H` sigil's injected HTML PSI - an
-     * injected fragment is a separate file from its host `.ex`, invisible to a plain word search.
+     * injected fragment is a separate file from its host `.ex`, invisible to a plain word search. A component tag
+     * is markup, not an atom, so each other spelling of the name is also searched, for tags and documentation code
+     * alone.
      */
     private fun functionCallSiteQuery(
         project: Project,
         symbol: FunctionSymbol,
         searchScope: SearchScope
-    ): Query<out PsiUsage> =
-        bySpelling(symbol.name) { word ->
-            SearchService.getInstance()
-                .searchWord(project, word)
-                .caseSensitive(true)
-                .inContexts(SearchContext.inCode())
-                .inScope(searchScope)
-                .includeInjections()
-                .buildQueryFromLeaves(FunctionCallSiteMapper(symbol.createPointer()))
+    ): Query<out PsiUsage> {
+        val mapper = FunctionCallSiteMapper(symbol.createPointer())
+        val calls = wordQuery(project, symbol.name, searchScope, mapper, injections = true)
+        // The decoded search cannot reach `<.src_µ>` or a call in a documentation code block, and lists every other use
+        // itself, so these find those two only.
+        val unreached = FunctionCallSiteMapper(symbol.createPointer(), unreachedOnly = true)
+        val others = (spellings(symbol.name) - symbol.name).map { spelling ->
+            literalWordQuery(project, spelling, searchScope, unreached, injections = true)
         }
+
+        return others.fold(calls) { merged, next -> MergeQuery(merged, next) }
+    }
 
     private fun typeUsageQuery(
         project: Project,
         symbol: TypeSymbol,
         searchScope: SearchScope
     ): Query<out PsiUsage> =
-        bySpelling(symbol.searchText) { word ->
-            SearchService.getInstance()
-                .searchWord(project, word)
-                .caseSensitive(true)
-                .inContexts(SearchContext.inCode())
-                .inScope(searchScope)
-                .buildQueryFromLeaves(TypeUsageMapper(symbol.createPointer()))
-        }
+        wordQuery(project, symbol.searchText, searchScope, TypeUsageMapper(symbol.createPointer()))
 
     private fun typeVariableUsageQuery(
         project: Project,
         symbol: TypeVariableSymbol,
         searchScope: SearchScope
     ): Query<out PsiUsage> =
-        bySpelling(symbol.searchText) { word ->
-            SearchService.getInstance()
-                .searchWord(project, word)
-                .caseSensitive(true)
-                .inContexts(SearchContext.inCode())
-                .inScope(symbol.maximalSearchScope?.intersectWith(searchScope) ?: searchScope)
-                .buildQueryFromLeaves(TypeVariableUsageMapper(symbol.createPointer()))
-        }
+        wordQuery(
+            project,
+            symbol.searchText,
+            symbol.maximalSearchScope?.intersectWith(searchScope) ?: searchScope,
+            TypeVariableUsageMapper(symbol.createPointer())
+        )
 
     private fun variableUsageQuery(
         project: Project,
         symbol: VariableSymbol,
         searchScope: SearchScope
     ): Query<out PsiUsage> =
-        bySpelling(symbol.searchText) { word ->
-            SearchService.getInstance()
-                .searchWord(project, word)
-                .caseSensitive(true)
-                .inContexts(SearchContext.inCode())
-                .inScope(symbol.maximalSearchScope?.intersectWith(searchScope) ?: searchScope)
-                .buildQueryFromLeaves(VariableUsageMapper(symbol.createPointer()))
-        }
+        wordQuery(
+            project,
+            symbol.searchText,
+            symbol.maximalSearchScope?.intersectWith(searchScope) ?: searchScope,
+            VariableUsageMapper(symbol.createPointer())
+        )
 
     private fun moduleAttributeReadUsageQuery(
         project: Project,
         symbol: ModuleAttributeSymbol,
         searchScope: SearchScope
     ): Query<out PsiUsage> =
-        bySpelling(symbol.searchText) { word ->
-            SearchService.getInstance()
-                .searchWord(project, word)
-                .caseSensitive(true)
-                .inContexts(SearchContext.inCode())
-                .inScope(symbol.maximalSearchScope?.intersectWith(searchScope) ?: searchScope)
-                .buildQueryFromLeaves(ModuleAttributeReadUsageMapper(symbol.createPointer()))
-        }
+        wordQuery(
+            project,
+            symbol.searchText,
+            symbol.maximalSearchScope?.intersectWith(searchScope) ?: searchScope,
+            ModuleAttributeReadUsageMapper(symbol.createPointer())
+        )
 
     private fun moduleAttributeWriteUsageQuery(
         symbol: ModuleAttributeSymbol,
@@ -653,14 +626,40 @@ internal object ElixirUsageQueries {
         symbol: FunctionSymbol,
         searchScope: SearchScope
     ): Query<out PsiUsage> =
-        bySpelling(symbol.name) { word ->
-            SearchService.getInstance()
-                .searchWord(project, word)
-                .caseSensitive(true)
-                .inContexts(SearchContext.inCode())
-                .inScope(searchScope)
-                .buildQueryFromLeaves(FunctionDeclarationFamilyMapper(symbol.createPointer()))
-        }
+        wordQuery(project, symbol.name, searchScope, FunctionDeclarationFamilyMapper(symbol.createPointer()))
+
+    /**
+     * The literal word search for the atom [atom] over [scope], merged with the search for the occurrences it misses:
+     * a name written with an escape, an operator, or decomposed. Elixir names are case-sensitive. [injections] says the
+     * literal search maps occurrences into injected PSI, which the other search then does too.
+     */
+    private fun <T : Any> wordQuery(
+        project: Project,
+        atom: String,
+        scope: SearchScope,
+        mapper: WordOccurrenceMapper<T>,
+        injections: Boolean = false
+    ): Query<out T> {
+        val literal = literalWordQuery(project, atom, scope, mapper, injections)
+
+        return MergeQuery(literal, DecodedWordQuery(project, atom, scope, mapper, injections))
+    }
+
+    /** The platform's case-sensitive word search for [word] in code over [scope], mapped by [mapper]. */
+    private fun <T : Any> literalWordQuery(
+        project: Project,
+        word: String,
+        scope: SearchScope,
+        mapper: WordOccurrenceMapper<T>,
+        injections: Boolean
+    ): Query<out T> =
+        SearchService.getInstance()
+            .searchWord(project, word)
+            .caseSensitive(true)
+            .inContexts(SearchContext.inCode())
+            .inScope(scope)
+            .let { if (injections) it.includeInjections() else it }
+            .buildQueryFromLeaves(mapper)
 
     /**
      * One query per spelling the quoter reads as [word]'s atom, so a use written decomposed, or with a micro sign for
@@ -754,14 +753,20 @@ internal object ElixirUsageQueries {
      * Maps each occurrence of a function name to a **call site** for the given [FunctionSymbol].
      *
      * Qualified calls (`Module.function(args)`) are matched by name/arity without scope resolution.
-     * Unqualified calls are resolved via the legacy [Callable] scope-walker.
+     * Unqualified calls are resolved via the legacy [Callable] scope-walker. With [unreachedOnly] it maps component
+     * tags and calls in documentation code blocks alone, which [DecodedWordQuery] does not walk.
      */
     private class FunctionCallSiteMapper(
-        private val symbolPointer: Pointer<out FunctionSymbol>
+        private val symbolPointer: Pointer<out FunctionSymbol>,
+        private val unreachedOnly: Boolean = false
     ) : WordOccurrenceMapper<PsiUsage> {
         @RequiresReadLock
         override fun map(leaf: PsiElement, offsetInLeaf: Int): Collection<PsiUsage> {
             val symbol = symbolPointer.dereference() ?: return emptyList()
+
+            if (unreachedOnly && !isInDocumentation(leaf)) {
+                return heexComponentTagUsage(leaf, offsetInLeaf, symbol)?.let { listOf(it) }.orEmpty()
+            }
 
             atomUsage(leaf, symbol)?.let { return listOf(it) }
 
@@ -792,6 +797,14 @@ internal object ElixirUsageQueries {
                     usageType = CALL
                 )
             )
+        }
+
+        /** Whether [leaf] is in the Elixir injected into a documentation code block. */
+        private fun isInDocumentation(leaf: PsiElement): Boolean {
+            val file = leaf.containingFile ?: return false
+            val host = InjectedLanguageManager.getInstance(file.project).getInjectionHost(file) ?: return false
+
+            return PsiLanguageInjectionHost.isDocumentation(host)
         }
 
         /**
@@ -984,7 +997,9 @@ internal object ElixirUsageQueries {
                 .filterIsInstance<AtomReference>()
             if (references.isEmpty()) return null
 
-            val matches = references.any { reference ->
+            // The reference's range is the name between the colon and any quotes, however many tokens an escape splits
+            // it into, so a rename replaces the name and not the leaf that happened to be handed on.
+            val reference = references.firstOrNull { reference ->
                 reference.resolveReference()
                     .filterIsInstance<AtomSymbol>()
                     .any {
@@ -993,12 +1008,11 @@ internal object ElixirUsageQueries {
                             it.arity == symbol.arity &&
                             it.macro == symbol.macro
                     }
-            }
-            if (!matches) return null
+            } ?: return null
 
             return ElixirPsiUsage.create(
-                leaf,
-                TextRange(0, leaf.textLength),
+                atom,
+                reference.absoluteRange.shiftLeft(atom.textRange.startOffset),
                 declaration = false,
                 usageType = CALL
             )

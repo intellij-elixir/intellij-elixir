@@ -1,6 +1,7 @@
 package org.elixir_lang.sdk
 
 import com.intellij.openapi.components.service
+import com.intellij.openapi.fileTypes.FileType
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectFileIndex
@@ -10,6 +11,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.FilePropertyKey
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.ElixirFileType
+import org.elixir_lang.ElixirScriptFileType
 import org.elixir_lang.isElixirModule
 import org.elixir_lang.language_level.ElixirLanguageLevel
 
@@ -79,10 +81,13 @@ internal class SdkVersionsPusher : FilePropertyPusher<String> {
     }
 }
 
-/**
- * `.exs` and `.leex` are covered by subclasses of the types checked here. A `.beam`'s stubs are built from the binary.
- */
-internal fun isParsedAsElixir(file: VirtualFile): Boolean = when (file.fileType) {
-    is ElixirFileType, is org.elixir_lang.eex.file.Type, is org.elixir_lang.heex.file.Type -> true
-    else -> false
-}
+/** The file types whose files are parsed as Elixir. A `.beam`'s stubs are built from the binary. */
+internal val PARSED_AS_ELIXIR: Array<FileType> = arrayOf(
+    ElixirFileType.INSTANCE,
+    ElixirScriptFileType.INSTANCE,
+    org.elixir_lang.eex.file.Type.INSTANCE,
+    org.elixir_lang.leex.file.Type.INSTANCE,
+    org.elixir_lang.heex.file.Type.INSTANCE
+)
+
+internal fun isParsedAsElixir(file: VirtualFile): Boolean = file.fileType in PARSED_AS_ELIXIR

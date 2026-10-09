@@ -49,8 +49,8 @@ object AtomName {
 
     /**
      * [element]'s atom name: an atom, keyword key, identifier, remote call name, variable, attribute name, operator or
-     * `true`/`false`/`nil`. `null` for any other element, an interpolated or broken quoted name, and a name longer than
-     * an atom may be.
+     * `true`/`false`/`nil`, or an `@x[...]` read, which names `x`. `null` for any other element, an interpolated or
+     * broken quoted name, and a name longer than an atom may be.
      */
     @RequiresReadLock
     @JvmStatic
@@ -60,16 +60,31 @@ object AtomName {
     @RequiresReadLock
     @JvmStatic
     fun occurrence(element: PsiElement, languageLevel: ElixirLanguageLevel): Occurrence? =
-        NAMES[PsiUtilCore.getElementType(element)]?.invoke(element, languageLevel)?.let { Occurrence(element, it) }
+        NAMES[PsiUtilCore.getElementType(element)]?.invoke(element, languageLevel)
 
     /** A name, and the [element] that spells it. */
     data class Occurrence(val element: PsiElement, val name: String)
 
-    private val OPERATOR_NAME: (PsiElement, ElixirLanguageLevel) -> String? =
-        { element, _ -> (element as Operator).operatorTokenNode().text }
+    /**
+     * Bumped when any [occurrence] answer changes, its element included, as the spellings index keys on both.
+     */
+    const val VERSION = 1
 
-    private val NAMES: Map<IElementType, (PsiElement, ElixirLanguageLevel) -> String?> = mapOf(
-        ElixirTypes.ATOM to { element, languageLevel ->
+    /** An arm of [NAMES] whose name is spelled by the element itself. */
+    private fun named(name: (PsiElement, ElixirLanguageLevel) -> String?): (PsiElement, ElixirLanguageLevel) -> Occurrence? =
+        { element, languageLevel -> name(element, languageLevel)?.let { Occurrence(element, it) } }
+
+    private val OPERATOR_NAME = named { element, _ -> (element as Operator).operatorTokenNode().text }
+
+    /** `@x[...]` reads the attribute `x`; the name is its `x` token, so the brackets are not part of it. */
+    private val ATTRIBUTE_BRACKET_READ_NAME: (PsiElement, ElixirLanguageLevel) -> Occurrence? = { element, languageLevel ->
+        element.node.findChildByType(ElixirTypes.IDENTIFIER_TOKEN)?.psi?.let { token ->
+            unquoted(token.text, languageLevel)?.let { Occurrence(token, it) }
+        }
+    }
+
+    private val NAMES: Map<IElementType, (PsiElement, ElixirLanguageLevel) -> Occurrence?> = mapOf(
+        ElixirTypes.ATOM to named { element, languageLevel ->
             element as ElixirAtom
 
             when (val line = element.line) {
@@ -77,7 +92,7 @@ object AtomName {
                 else -> quoted(line, languageLevel)
             }
         },
-        ElixirTypes.KEYWORD_KEY to { element, languageLevel ->
+        ElixirTypes.KEYWORD_KEY to named { element, languageLevel ->
             element as ElixirKeywordKey
 
             when (val line = element.line) {
@@ -85,15 +100,17 @@ object AtomName {
                 else -> quoted(line, languageLevel)
             }
         },
-        ElixirTypes.IDENTIFIER to { element, languageLevel -> unquoted(element.text, languageLevel) },
-        ElixirTypes.VARIABLE to { element, languageLevel -> unquoted(element.text, languageLevel) },
-        ElixirTypes.AT_IDENTIFIER to { element, languageLevel ->
+        ElixirTypes.IDENTIFIER to named { element, languageLevel -> unquoted(element.text, languageLevel) },
+        ElixirTypes.VARIABLE to named { element, languageLevel -> unquoted(element.text, languageLevel) },
+        ElixirTypes.AT_IDENTIFIER to named { element, languageLevel ->
             unquoted((element as ElixirAtIdentifier).identifierName(), languageLevel)
         },
-        ElixirTypes.RELATIVE_IDENTIFIER to { element, languageLevel ->
+        ElixirTypes.RELATIVE_IDENTIFIER to named { element, languageLevel ->
             (remoteCallName(element as ElixirRelativeIdentifier, languageLevel) as? RemoteCallName.Named)?.atom
         },
-        ElixirTypes.ATOM_KEYWORD to { element, _ -> element.text },
+        ElixirTypes.ATOM_KEYWORD to named { element, _ -> element.text },
+        ElixirTypes.MATCHED_AT_UNQUALIFIED_BRACKET_OPERATION to ATTRIBUTE_BRACKET_READ_NAME,
+        ElixirTypes.UNMATCHED_AT_UNQUALIFIED_BRACKET_OPERATION to ATTRIBUTE_BRACKET_READ_NAME,
         ElixirTypes.ADDITION_INFIX_OPERATOR to OPERATOR_NAME,
         ElixirTypes.AND_INFIX_OPERATOR to OPERATOR_NAME,
         ElixirTypes.ARROW_INFIX_OPERATOR to OPERATOR_NAME,
