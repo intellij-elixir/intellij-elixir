@@ -1569,6 +1569,33 @@ class ModuleExpanderTest : ExpanderTestCase() {
             """.trimIndent()
         }
 
+    /**
+     * `unquote` inserts its value as quoted code, in which a tuple of three is a call and of four or more isn't code at
+     * all, so such a value is not a tuple literal in the definition.
+     */
+    fun testATupleOfThreeFragmentStopsItsBody() =
+        assertLevels("defmodule A do\n  def f, do: unquote({:a, :b, :c})\nend", LEVELS) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            module Elixir.A stopped `unquote({:a, :b, :c})`
+              def f/0 line 2 clauses 1
+              body: expanded {} next 0 context [Elixir.A]
+              def f/0: unported `unquote({:a, :b, :c})`
+            """.trimIndent()
+        }
+
+    /** A value that is a call, as `{:y, [], nil}` is, binds in a head what a tuple literal wouldn't. */
+    fun testACallAsATupleFragmentStopsItsHead() =
+        assertLevels("defmodule A do\n  def f(unquote({:y, [], nil})), do: 1\nend", LEVELS) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            module Elixir.A stopped `unquote({:y, [], nil})`
+              def f/1 line 2 clauses 1
+              body: expanded {} next 0 context [Elixir.A]
+              def f/1: unported `unquote({:y, [], nil})`
+            """.trimIndent()
+        }
+
     fun testAListOrTupleFragmentIsItsValue() =
         assertLevels("defmodule A do\n  def f, do: unquote([:a, {:b, 1}])\nend", LEVELS) { version ->
             """

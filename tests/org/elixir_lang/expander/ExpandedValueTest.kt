@@ -26,7 +26,11 @@ class ExpandedValueTest : ExpanderTestCase() {
 
     fun testAPairIsATwoTuple() = assertValue("{1, :a}", "{1, :a}")
 
-    fun testATupleOfAnotherSizeIsANode() = assertValue("{1, 2, 3}", "node")
+    fun testATupleOfAnotherSizeIsItsElements() {
+        assertValue("{1, 2, 3}", "{1, 2, 3}")
+        assertValue("{}", "{}")
+        assertValue("x = 1; {x}", "{node(variable)}")
+    }
 
     fun testAList() = assertValue("[1, :a]", "[1, :a]")
 
@@ -66,7 +70,8 @@ class ExpandedValueTest : ExpanderTestCase() {
         assertSplit("quote do: [1]", "1.20.0", "[1]", "node")
     }
 
-    fun testAQuotedVariableIsANode() = assertValue("quote do: x", "node")
+    fun testAQuotedVariableIsItsTupleBefore1_20() =
+        assertSplit("quote do: x", "1.20.0", "{:x, [], :Elixir}", "node")
 
     fun testAnAliasThatDefinesANameIsARunTimeWarningFrom1_18() =
         assertSplit("alias M.A", "1.18.0-rc.0", ":Elixir.M.A", "node")
@@ -170,6 +175,7 @@ class ExpandedValueTest : ExpanderTestCase() {
                 term.elements.joinToString(", ", "[", "") { valueOf(it) } +
                     (term.tail?.let { " | ${valueOf(it)}" } ?: "") + "]"
             is Term.Pair -> "{${valueOf(term.first)}, ${valueOf(term.second)}}"
+            is Term.Tuple -> term.elements.joinToString(", ", "{", "}") { valueOf(it) }
             is Term.Node ->
                 when (term.kind) {
                     Term.Node.Kind.VARIABLE -> "node(variable)"

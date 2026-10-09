@@ -101,11 +101,11 @@ internal object ModuleEffects {
 
                     return when (val value = element.second) {
                         is Term.Atom -> value.name != "nil" && value.name != "false"
-                        is Term.Integer, is Term.Binary, is Term.List, is Term.Pair, Term.NonTuple -> true
+                        is Term.Integer, is Term.Binary, is Term.List, is Term.Pair, is Term.Tuple, Term.NonTuple -> true
                         is Term.Node, Term.Unexpanded -> null
                     }
                 }
-                is Term.Atom, is Term.Integer, is Term.Binary, is Term.List, Term.NonTuple -> continue
+                is Term.Atom, is Term.Integer, is Term.Binary, is Term.List, is Term.Tuple, Term.NonTuple -> continue
                 is Term.Node, Term.Unexpanded -> return null
             }
         }

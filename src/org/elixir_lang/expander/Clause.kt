@@ -82,7 +82,9 @@ internal enum class Clause(vararg val heads: Head) {
             node is ElixirAst.Tuple && node.elements.size != 2
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            expandArgs((node as ElixirAst.Tuple).elements, state, env, run).withValue(NODE)
+            expandArgs((node as ElixirAst.Tuple).elements, state, env, run).thenValue { s, e, values ->
+                Expansion.Expanded(s, e, Term.Tuple((values as Term.List).elements))
+            }
     },
 
     MAP(expandHead("{'%{}',_,_}")) {

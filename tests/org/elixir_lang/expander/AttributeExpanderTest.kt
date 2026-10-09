@@ -781,6 +781,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
                 term.elements.joinToString(", ", "[", "") { render(it) } +
                     (term.tail?.let { " | ${render(it)}" } ?: "") + "]"
             is Term.Pair -> "{${render(term.first)}, ${render(term.second)}}"
+            is Term.Tuple -> term.elements.joinToString(", ", "{", "}") { render(it) }
             is Term.Node -> "node"
             Term.NonTuple -> "non-tuple"
             Term.Unexpanded -> "unexpanded"

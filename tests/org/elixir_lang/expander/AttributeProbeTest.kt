@@ -141,8 +141,8 @@ class AttributeProbeTest : ProbeTestCase() {
                 end
                 """.trimIndent(),
                 attributes = listOf("x", "acc", "p", "behaviour"),
-                // A tuple of three, a map, and a module-body read have no Term.
-                unknown = setOf("r_t", "r_map", "r_y"),
+                // A map and a module-body read have no Term.
+                unknown = setOf("r_map", "r_y"),
             ),
             preamble = "\ndefmodule {token}.Beh do\n  @callback cb() :: any\nend\n",
         )
@@ -234,6 +234,19 @@ class AttributeProbeTest : ProbeTestCase() {
      * need and the module goes on to compile.
      */
     fun testAnInterpolatedDocIsText() = assertCompilesLikeElixir("x = \"a\"\n@doc \"x: #{x}\"\ndef f, do: 1")
+
+    /** A tuple of three whose elements are known is a known value: `@compile` takes it and `@impl` refuses it. */
+    fun testATupleOfThreeIsKnown() {
+        val bodies = listOf("@compile {:a, :b, :c}\ndef f, do: 1", "@impl {1, 2, 3}\ndef f, do: 1")
+        val expansions = bodies.associateWith { probes.expand(it) }
+
+        assertEquals(
+            listOf(ExpansionResult.Ended.Compiled),
+            expansions.filterKeys { it == bodies[0] }.values.map { it.ended },
+        )
+        assertTrue(expansions.getValue(bodies[1]).ended is ExpansionResult.Ended.Raised)
+        probes.assertMatchesElixir(expansions)
+    }
 
     fun testAComputedExternalResourceIsText() =
         assertCompilesLikeElixir("@external_resource \"#{__DIR__}/a.txt\"\ndef f, do: 1")
@@ -494,6 +507,7 @@ class AttributeProbeTest : ProbeTestCase() {
             is Term.List ->
                 term.elements.joinToString(", ", "[", (term.tail?.let { " | ${render(it)}" } ?: "") + "]", transform = ::render)
             is Term.Pair -> "{${render(term.first)}, ${render(term.second)}}"
+            is Term.Tuple -> term.elements.joinToString(", ", "{", "}") { render(it) }
             is Term.Node, Term.NonTuple, Term.Unexpanded -> UNKNOWN
         }
 

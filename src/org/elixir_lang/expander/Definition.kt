@@ -92,7 +92,7 @@ internal fun define(
         var stop = fragments.stop
 
         for ((fragment, term) in fragments.list.zip((terms as Term.List).elements)) {
-            val literal = literalOf(fragment, term)
+            val literal = literalOf(fragment, term, escaped = false)
 
             when {
                 literal != null -> replacements[fragment] = literal
@@ -121,18 +121,24 @@ internal fun define(
     }
 }
 
-/** The literal [fragment]'s value [term] is, if it is one a definition can hold. */
-internal fun literalOf(fragment: ElixirAst, term: Term): ElixirAst? =
+/**
+ * The literal [fragment]'s value [term] is, if it is one a definition can hold. A value that is [escaped] is the
+ * expression that builds it, in which a tuple is a tuple; one that isn't is the code `unquote` inserts, in which a tuple
+ * of three is a call and one of any other size but two isn't code at all.
+ */
+internal fun literalOf(fragment: ElixirAst, term: Term, escaped: Boolean): ElixirAst? =
     when (term) {
         is Term.Atom -> ElixirAst.Literal.Atom(fragment.meta, term.name)
         is Term.Integer -> ElixirAst.Literal.Integer(fragment.meta, term.value)
         is Term.Binary -> term.bytes?.let { ElixirAst.Literal.Binary(fragment.meta, it) }
         is Term.List ->
             if (term.tail != null) null
-            else ElixirAst.ListNode(fragment.meta, term.elements.map { literalOf(fragment, it) ?: return null })
+            else ElixirAst.ListNode(fragment.meta, term.elements.map { literalOf(fragment, it, escaped) ?: return null })
+        is Term.Tuple ->
+            if (escaped) ElixirAst.Tuple(fragment.meta, term.elements.map { literalOf(fragment, it, escaped = true) ?: return null }) else null
         is Term.Pair -> ElixirAst.Tuple(
             fragment.meta,
-            listOf(literalOf(fragment, term.first) ?: return null, literalOf(fragment, term.second) ?: return null),
+            listOf(literalOf(fragment, term.first, escaped) ?: return null, literalOf(fragment, term.second, escaped) ?: return null),
         )
         else -> null
     }

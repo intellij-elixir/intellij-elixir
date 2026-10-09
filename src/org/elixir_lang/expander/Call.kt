@@ -400,7 +400,7 @@ private fun expandRemote(
     val level = run.level
     val args = node.arguments!!
 
-    if (receiver !is Term.Atom && receiver !is Term.Pair && receiver !is Term.Node) {
+    if (receiver !is Term.Atom && receiver !is Term.Pair && receiver !is Term.Tuple && receiver !is Term.Node) {
         return Expansion.Error("invalid_call", node)
     }
 

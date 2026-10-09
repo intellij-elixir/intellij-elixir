@@ -83,6 +83,9 @@ object Import {
         /** A two-element tuple, as each keyword pair is. */
         data class Pair(val first: Term, val second: Term) : Term()
 
+        /** A tuple of any other size, whose elements are known: `{}`, `{a}`, `{a, b, c}`. */
+        data class Tuple(val elements: kotlin.collections.List<Term>) : Term()
+
         /** An expression as AST: a variable, a pinned variable, one `returns_boolean/1` holds of, or any other node. */
         data class Node(val kind: Kind) : Term() {
             enum class Kind { VARIABLE, PIN, BOOLEAN, OTHER }

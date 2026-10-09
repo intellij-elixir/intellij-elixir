@@ -297,11 +297,11 @@ class PostModuleExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @impl {1, 2, 3}
+              @impl %{a: 1}
               def f, do: 1
             end
             """.trimIndent(),
-            "module Elixir.A stopped `@impl {1, 2, 3}`",
+            "module Elixir.A stopped `@impl %{a: 1}`",
         )
 
     fun testAnOnLoadAfterOneThatIsNotAStatement() =
@@ -324,7 +324,7 @@ class PostModuleExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @compile {:a, :b, :c}
+              @compile %{a: 1}
               def f, do: 1
             end
             """.trimIndent(),

@@ -31,6 +31,7 @@ private fun Term.isShaped(contentKnown: Boolean = false): Boolean =
         is Term.Binary -> !contentKnown || bytes != null
         is Term.List -> elements.all { it.isShaped(contentKnown) } && tail?.isShaped(contentKnown) ?: true
         is Term.Pair -> first.isShaped(contentKnown) && second.isShaped(contentKnown)
+        is Term.Tuple -> elements.all { it.isShaped(contentKnown) }
         is Term.Node, Term.NonTuple, Term.Unexpanded -> false
     }
 
@@ -351,8 +352,7 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
 
             val valid = when (key.name) {
                 "since", "deprecated" -> pair.second.isText()
-                // A `{module, function, arity}` has no exact term, so no known value is one.
-                "delegate_to" -> false
+                "delegate_to" -> pair.second.isDelegation()
                 else -> true
             }
 
@@ -361,6 +361,11 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
 
         return Prepared.Metadata(checked = list.tail == null)
     }
+
+    /** `validate_doc_meta(:delegate_to, value)`: `{module, function, arity}`, with atoms and a non-negative integer. */
+    private fun Term.isDelegation(): Boolean =
+        this is Term.Tuple && elements.size == 3 && elements[0] is Term.Atom && elements[1] is Term.Atom &&
+            (elements[2] as? Term.Integer)?.let { it.value.signum() >= 0 } == true
 
     private fun isChecked(name: String): Boolean =
         when (name) {
