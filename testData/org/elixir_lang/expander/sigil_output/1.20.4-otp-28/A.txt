@@ -34,6 +34,30 @@ meta: [{:context, :"Elixir.Kernel"}, {:counter, :N}]
 ## use_multi_module_base: use __MODULE__.{A, B}
 {:__block__, [], [{:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir.A"]}, {{:".", [], [:"Elixir.A", :__using__]}, [], [[]]}]}, {:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir.B"]}, {{:".", [], [:"Elixir.B", :__using__]}, [], [[]]}]}]}
 meta: [{:context, :"Elixir.Kernel"}, {:counter, :N}]
+## use_multi_binary_base: use "Foo".{A, B.C}
+{:__block__, [], [{:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir.Foo.A"]}, {{:".", [], [:"Elixir.Foo.A", :__using__]}, [], [[]]}]}, {:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir.Foo.B.C"]}, {{:".", [], [:"Elixir.Foo.B.C", :__using__]}, [], [[]]}]}]}
+meta: [{:context, :"Elixir.Kernel"}, {:counter, :N}]
+## use_multi_binary_base_lower: use "foo".{A}
+{:__block__, [], [{:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir.foo.A"]}, {{:".", [], [:"Elixir.foo.A", :__using__]}, [], [[]]}]}]}
+meta: [{:context, :"Elixir.Kernel"}, {:counter, :N}]
+## use_multi_binary_base_elixir: use "Elixir.Foo".{A}
+{:__block__, [], [{:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir.Foo.A"]}, {{:".", [], [:"Elixir.Foo.A", :__using__]}, [], [[]]}]}]}
+meta: [{:context, :"Elixir.Kernel"}, {:counter, :N}]
+## use_multi_binary_base_elixir_only: use "Elixir".{A}
+{:__block__, [], [{:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir.A"]}, {{:".", [], [:"Elixir.A", :__using__]}, [], [[]]}]}]}
+meta: [{:context, :"Elixir.Kernel"}, {:counter, :N}]
+## use_multi_binary_base_dot: use ".Foo".{A}
+{:__block__, [], [{:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir.Foo.A"]}, {{:".", [], [:"Elixir.Foo.A", :__using__]}, [], [[]]}]}]}
+meta: [{:context, :"Elixir.Kernel"}, {:counter, :N}]
+## use_multi_binary_base_empty: use "".{A}
+{:__block__, [], [{:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir..A"]}, {{:".", [], [:"Elixir..A", :__using__]}, [], [[]]}]}]}
+meta: [{:context, :"Elixir.Kernel"}, {:counter, :N}]
+## use_multi_binary_base_atom: use "Foo".{:a}
+{:__block__, [], [{:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir.Foo.a"]}, {{:".", [], [:"Elixir.Foo.a", :__using__]}, [], [[]]}]}]}
+meta: [{:context, :"Elixir.Kernel"}, {:counter, :N}]
+## use_multi_binary_base_nil: use "nil".{A}
+{:__block__, [], [{:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:"Elixir.nil.A"]}, {{:".", [], [:"Elixir.nil.A", :__using__]}, [], [[]]}]}]}
+meta: [{:context, :"Elixir.Kernel"}, {:counter, :N}]
 ## use_module: use __MODULE__
 {:__block__, [], [{:__block__, [], [{:require, [{:counter, :N}, {:context, :"Elixir.Kernel"}], [:nil]}, {{:".", [], [:nil, :__using__]}, [], [[]]}]}]}
 meta: [{:context, :"Elixir.Kernel"}, {:counter, :N}]

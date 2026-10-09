@@ -601,6 +601,8 @@
 
 ### Threading / Platform Hygiene
 
+- [#4390](https://github.com/intellij-elixir/intellij-elixir/pull/4390) [@sh41](https://github.com/sh41)
+  - **The expander expands `use` of a module named by a string, such as `use "Foo".{A, B}`, as Elixir does; nothing uses it yet.** Refs [#4380](https://github.com/intellij-elixir/intellij-elixir/issues/4380).
 - [#4388](https://github.com/intellij-elixir/intellij-elixir/pull/4388) [@sh41](https://github.com/sh41)
   - **The expander expands `use` and the sigils as each Elixir and OTP release does, and reports calls to a deprecated function or macro of a module the file defines; nothing uses it yet.** Fixes [#4380](https://github.com/intellij-elixir/intellij-elixir/issues/4380).
 - [#4374](https://github.com/intellij-elixir/intellij-elixir/pull/4374) [@sh41](https://github.com/sh41)

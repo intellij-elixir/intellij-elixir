@@ -267,16 +267,21 @@ private tailrec fun lookup(
     }
 }
 
-/** `elixir_aliases:concat/1` over atom texts: `nil` is skipped, and an `Elixir.` prefix after the first is dropped. */
-internal fun concat(names: List<String>): String {
+/**
+ * `elixir_aliases:concat/1` over atom texts: `nil` is skipped, and an `Elixir.` prefix after the first is dropped. The
+ * first is a binary when [firstIsBinary], and a binary `"nil"` is a name, not skipped.
+ */
+internal fun concat(names: List<String>, firstIsBinary: Boolean = false): String {
     val first = names.firstOrNull()
+    val tail = names.drop(1).filter { it != "nil" }
     val (start, rest) = when {
-        first == null || first == "nil" -> "Elixir" to names
-        first.startsWith("Elixir.") || first == "Elixir" -> first to names.drop(1)
-        else -> "Elixir" to names
+        first == null -> "Elixir" to emptyList()
+        first.startsWith("Elixir.") || first == "Elixir" -> first to tail
+        first == "nil" && !firstIsBinary -> "Elixir" to tail
+        else -> "Elixir" to listOf(first) + tail
     }
 
-    return rest.filter { it != "nil" }.fold(start) { acc, name -> "$acc.${Module.partial(name)}" }
+    return rest.fold(start) { acc, name -> "$acc.${Module.partial(name)}" }
 }
 
 /**
