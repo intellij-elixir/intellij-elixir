@@ -119,8 +119,10 @@ internal object Summaries {
             MacroKey.SIGIL_T -> SIGIL_T
             MacroKey.SIGIL_N -> SIGIL_N
             MacroKey.SIGIL_U -> SIGIL_U
-            MacroKey.DEFDELEGATE, MacroKey.DEFPROTOCOL, MacroKey.DEFIMPL_2, MacroKey.DEFIMPL_3,
-            MacroKey.PROTOCOL_DEF -> null
+            MacroKey.DEFDELEGATE -> DEFDELEGATE
+            MacroKey.DEFPROTOCOL -> DEFPROTOCOL
+            MacroKey.PROTOCOL_DEF -> PROTOCOL_DEF
+            MacroKey.DEFIMPL_2, MacroKey.DEFIMPL_3 -> DEFIMPL
         }
 }
 

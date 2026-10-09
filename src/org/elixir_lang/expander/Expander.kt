@@ -127,7 +127,7 @@ object Expander {
         val observed = !ast.meta.built
         if (observed) run.observer.entering(ast, state, env) else run.observer.builtIn(env)
 
-        val expansion = body()
+        val expansion = run.supplied(ast, body())
 
         if (observed) run.observer.left(ast, expansion)
 
@@ -162,6 +162,27 @@ internal class Run(
     /** [node] was expanded to [expansion], which the watch of it reads. */
     fun watched(node: ElixirAst, expansion: Expansion) {
         watching.remove(node)?.value = (expansion as? Expansion.Expanded)?.value
+    }
+
+    /**
+     * The nodes being expanded whose value the macro that made them knows, by identity, until they are expanded: a
+     * variable it bound to a value only Elixir's evaluation of the output computes.
+     */
+    val supplying = IdentityHashMap<ElixirAst, Term>()
+
+    /** Whether the macro that made [node] knows its value, which it hasn't been expanded to yet. */
+    fun isSupplied(node: ElixirAst): Boolean = node in supplying
+
+    /** A macro's output is copied into [copy], which takes the value supplied for [original]. */
+    fun carrySupplied(original: ElixirAst, copy: ElixirAst) {
+        supplying.remove(original)?.let { supplying[copy] = it }
+    }
+
+    /** [expansion] of [node], with its value the one the macro supplied for it, if it did. */
+    fun supplied(node: ElixirAst, expansion: Expansion): Expansion {
+        val value = supplying.remove(node)
+
+        return if (value != null && expansion is Expansion.Expanded) expansion.copy(value = value) else expansion
     }
 
     /** What each module the run compiled exports, which Elixir loads once `elixir_module:compile` returns. */

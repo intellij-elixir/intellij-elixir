@@ -19,13 +19,10 @@ internal fun derive(node: ElixirAst.Call, derived: List<AttributeValue>, run: Ru
     val protocols = derived.asReversed().flatMap { protocolsOf(it) ?: return Expansion.Unported(node) }
     val protocol = protocols.firstOrNull() ?: return null
 
-    val exports = when (val found = run.exports.of(protocol)) {
-        ModuleExports.Absent -> return Expansion.Error("derive_not_available", node)
-        ModuleExports.Unreadable -> return Expansion.Unported(node)
-        is Present -> found
+    val exports = when (val asserted = assertProtocol(protocol, node, run, "derive_not_available", "derive_not_a_protocol")) {
+        is Asserted.Failed -> return asserted.expansion
+        is Asserted.Is -> asserted.exports
     }
-
-    if (NameArity("__protocol__", 1) !in exports.functions) return Expansion.Error("derive_not_a_protocol", node)
 
     if (PROTOCOL_DERIVING_MACRO.isSufficient(run.level) && NameArity("__deriving__", 2) in exports.macros) {
         return Expansion.Opaque(node, Dispatch(Dispatch.Kind.REMOTE_MACRO, protocol, "__deriving__", 2))

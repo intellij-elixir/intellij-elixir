@@ -604,6 +604,8 @@
 
 ### Threading / Platform Hygiene
 
+- [#4394](https://github.com/intellij-elixir/intellij-elixir/pull/4394) [@sh41](https://github.com/sh41)
+  - **The expander expands `defdelegate`, `defprotocol` and `defimpl`, with a module for each type a `defimpl` names, as each Elixir release does; nothing uses it yet.** Refs [#4040](https://github.com/intellij-elixir/intellij-elixir/issues/4040) and [#4261](https://github.com/intellij-elixir/intellij-elixir/issues/4261).
 - [#4390](https://github.com/intellij-elixir/intellij-elixir/pull/4390) [@sh41](https://github.com/sh41)
   - **The expander expands `use` of a module named by a string, such as `use "Foo".{A, B}`, as Elixir does; nothing uses it yet.** Refs [#4380](https://github.com/intellij-elixir/intellij-elixir/issues/4380).
 - [#4388](https://github.com/intellij-elixir/intellij-elixir/pull/4388) [@sh41](https://github.com/sh41)

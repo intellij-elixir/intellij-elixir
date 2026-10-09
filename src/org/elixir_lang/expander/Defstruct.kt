@@ -138,7 +138,7 @@ private fun fieldsOf(node: ElixirAst, term: Term?, at: ElixirAst, level: ElixirL
             term.elements.mapIndexed { index, element -> FieldPart(element, nodes?.get(index)) }
         }
         node is ElixirAst.ListNode -> node.elements.map { FieldPart(null, it) }
-        else -> return if (literalOf(at, term) != null || evaluated(node, level) != Value.DYNAMIC) Fields.NotAList else Fields.Dynamic
+        else -> return if (literalOf(at, term, escaped = true) != null || evaluated(node, level) != Value.DYNAMIC) Fields.NotAList else Fields.Dynamic
     }
 
     val fragment = Synthetic(at.meta).atom("nil")
@@ -193,7 +193,7 @@ private fun fieldOf(part: FieldPart, nil: ElixirAst, level: ElixirLanguageLevel)
 private fun Term.isUnexpanded(): Boolean = this is Term.Node || this is Term.NonTuple || this == Term.Unexpanded
 
 private fun keyOf(part: FieldPart, fragment: ElixirAst): FieldKey {
-    val literal = part.term?.let { literalOf(fragment, it) }
+    val literal = part.term?.let { literalOf(fragment, it, escaped = true) }
     val node = part.node
 
     return when {
@@ -206,14 +206,14 @@ private fun keyOf(part: FieldPart, fragment: ElixirAst): FieldKey {
 }
 
 private fun valueOf(part: FieldPart, fragment: ElixirAst, level: ElixirLanguageLevel): Value =
-    if (part.term?.let { literalOf(fragment, it) } != null) {
+    if (part.term?.let { literalOf(fragment, it, escaped = true) } != null) {
         Value.LITERAL
     } else {
         part.node?.let { evaluated(it, level) } ?: Value.DYNAMIC
     }
 
 private fun defaultOf(part: FieldPart, fragment: ElixirAst): ElixirAst =
-    part.term?.let { literalOf(fragment, it) } ?: part.node?.let(::unlocated) ?: fragment
+    part.term?.let { literalOf(fragment, it, escaped = true) } ?: part.node?.let(::unlocated) ?: fragment
 
 /** [node] with the locations of its metadata taken out: `elixir_quote:escape/3` gives a default none. */
 private fun unlocated(node: ElixirAst): ElixirAst {

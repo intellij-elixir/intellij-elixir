@@ -88,7 +88,8 @@ class MacroKeyTest {
             "module attributes" to listOf(MacroKey.AT, MacroKey.BOOTSTRAP_AT),
             "definition macros" to listOf(
                 MacroKey.DEFOVERRIDABLE, MacroKey.DEFGUARD, MacroKey.DEFGUARDP, MacroKey.UTILS_DEFGUARD,
-                MacroKey.DEFSTRUCT, MacroKey.DEFEXCEPTION, MacroKey.BOOTSTRAP_DEF,
+                MacroKey.DEFSTRUCT, MacroKey.DEFEXCEPTION, MacroKey.BOOTSTRAP_DEF, MacroKey.DEFDELEGATE,
+                MacroKey.DEFPROTOCOL, MacroKey.PROTOCOL_DEF, MacroKey.DEFIMPL_2, MacroKey.DEFIMPL_3,
             ),
             "kernel control flow" to listOf(
                 MacroKey.IF, MacroKey.UNLESS, MacroKey.AND_AND, MacroKey.OR_OR, MacroKey.NOT, MacroKey.AND, MacroKey.OR,

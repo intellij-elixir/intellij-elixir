@@ -309,6 +309,23 @@ class AttributeTableTest {
             assertTrace(it, Write("doc", pair(int(3), list(pair(atom("opaque"), int(1))))) to null)
         }
 
+    /** `validate_doc_meta(:delegate_to, value)`: a `{module, function, arity}` of atoms and a non-negative integer. */
+    @Test
+    fun `a delegate_to is a module, a function and an arity`() =
+        everyLeg {
+            fun doc(value: Term) = Write("doc", pair(int(3), list(pair(atom("delegate_to"), value))))
+
+            assertTrace(it, doc(tuple(atom("Elixir.Enum"), atom("count"), int(1))) to null)
+            assertTrace(it, doc(tuple(atom("Elixir.Enum"), atom("count"), int(0))) to null)
+            assertTrace(it, doc(tuple(atom("Elixir.Enum"), atom("count"), int(-1))) to INVALID)
+            assertTrace(it, doc(tuple(atom("Elixir.Enum"), atom("count"), atom("one"))) to INVALID)
+            assertTrace(it, doc(tuple(int(1), atom("count"), int(1))) to INVALID)
+            assertTrace(it, doc(tuple(atom("Elixir.Enum"), binary("count"), int(1))) to INVALID)
+            assertTrace(it, doc(tuple(atom("Elixir.Enum"), atom("count"))) to INVALID)
+            assertTrace(it, doc(tuple(atom("Elixir.Enum"), atom("count"), int(1), int(2))) to INVALID)
+            assertTrace(it, doc(tuple()) to INVALID)
+        }
+
     /** `preprocess_doc_meta/4` has no clause for an element that isn't a pair with an atom key, so it fails there. */
     @Test
     fun `doc metadata with an element that isn't a key and value is not checked`() =
@@ -524,6 +541,7 @@ class AttributeTableTest {
                 term.elements.joinToString(", ", "[", "") { render(it) } +
                     (term.tail?.let { " | ${render(it)}" } ?: "") + "]"
             is Term.Pair -> "{${render(term.first)}, ${render(term.second)}}"
+            is Term.Tuple -> term.elements.joinToString(", ", "{", "}") { render(it) }
             is Term.Node -> "node"
             Term.NonTuple -> "non-tuple"
             Term.Unexpanded -> "unexpanded"
@@ -534,6 +552,8 @@ class AttributeTableTest {
     private fun int(value: Int) = Term.Integer(BigInteger.valueOf(value.toLong()))
 
     private fun binary(text: String) = Term.Binary(text.toByteArray())
+
+    private fun tuple(vararg elements: Term) = Term.Tuple(elements.toList())
 
     private fun list(vararg elements: Term) = Term.List(elements.toList())
 

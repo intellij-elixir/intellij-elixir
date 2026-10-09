@@ -1569,6 +1569,137 @@ class ModuleExpanderTest : ExpanderTestCase() {
             """.trimIndent()
         }
 
+    /**
+     * `unquote` inserts its value as quoted code, in which a tuple of three is a call and of four or more isn't code at
+     * all, so such a value is not a tuple literal in the definition.
+     */
+    fun testATupleOfThreeFragmentStopsItsBody() =
+        assertLevels("defmodule A do\n  def f, do: unquote({:a, :b, :c})\nend", LEVELS) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            module Elixir.A stopped `unquote({:a, :b, :c})`
+              def f/0 line 2 clauses 1
+              body: expanded {} next 0 context [Elixir.A]
+              def f/0: unported `unquote({:a, :b, :c})`
+            """.trimIndent()
+        }
+
+    /** A value that is a call, as `{:y, [], nil}` is, binds in a head what a tuple literal wouldn't. */
+    fun testACallAsATupleFragmentStopsItsHead() =
+        assertLevels("defmodule A do\n  def f(unquote({:y, [], nil})), do: 1\nend", LEVELS) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            module Elixir.A stopped `unquote({:y, [], nil})`
+              def f/1 line 2 clauses 1
+              body: expanded {} next 0 context [Elixir.A]
+              def f/1: unported `unquote({:y, [], nil})`
+            """.trimIndent()
+        }
+
+    /** The escape of a definition calls `elixir_quote.dot/5` for an unquoted call name and `list/2` for a splice, in order. */
+    fun testADefinitionDispatchesTheQuoteCallsItsUnquotesMake() {
+        val code = "defmodule A do\n  def f(x), do: unquote(:a).unquote(:b)(unquote_splicing([1]))\nend"
+
+        assertQuoteCalls(code, "elixir_quote.dot/5, elixir_quote.list/2")
+    }
+
+    /** A splice among quoted elements joins them to its list with `++`, whose call comes before the `list/2` it joins. */
+    fun testASpliceAmongQuotedElementsDispatchesTheJoin() =
+        assertQuoteCalls("defmodule A do\n  def f(a, unquote_splicing([1])), do: a\nend", "erlang.++/2, elixir_quote.list/2")
+
+    /** A splice before the tail of a list is `tail_list/3`, whatever elements precede it. */
+    fun testASpliceBeforeATailDispatchesTailList() =
+        assertQuoteCalls(
+            "defmodule A do\n  def g, do: [1, unquote_splicing([2]) | [3]]\nend",
+            "elixir_quote.tail_list/3",
+        )
+
+    /** An `unquote` in the receiver of an unquoted call name is evaluated beside the `dot/5` that joins it to the name. */
+    fun testAnUnquoteInTheReceiverOfAnUnquotedCallNameIsEvaluated() =
+        assertQuoteCalls(
+            "defmodule A do\n  def h(x), do: unquote(Enum.max([:a])).unquote(:b)(x)\nend",
+            "elixir_quote.dot/5, Elixir.Enum.max/1",
+        )
+
+    /** The name is evaluated, where the receiver is quoted: `do_quote_call` quotes `Left` and unquotes `Expr`. */
+    fun testTheExpressionOfAnUnquotedCallNameIsEvaluated() =
+        assertQuoteCalls(
+            "defmodule A do\n  def h(x), do: x.unquote(Enum.max([:b]))(x)\nend",
+            "elixir_quote.dot/5, Elixir.Enum.max/1",
+        )
+
+    fun testTheReceiverOfAnUnquotedCallNameIsQuoted() =
+        assertQuoteCalls(
+            "defmodule A do\n  def h(x), do: Enum.max([:a]).unquote(:b)(x)\nend",
+            "elixir_quote.dot/5",
+        )
+
+    /** A placeholder that stops expansion stops the definition holding it, as it does without the `unquote`, not the module body. */
+    fun testAStoppingPlaceholderInADefinitionWithUnquotesStopsOnlyThatDefinition() {
+        val code = "defmodule A do\n  def f(unquote(:x)), do: c\n  def g, do: 1\nend"
+
+        assertEquals(
+            LEVELS.joinToString("\n") { "$it: f/1 g/0" },
+            LEVELS.joinToString("\n") { version ->
+                val level = ElixirLanguageLevel.of(version)
+                val file = Expander.expandFile(
+                    placeholding(lower(code, level), "c"),
+                    Env.empty(level, kernel),
+                    level,
+                    exports,
+                    structs,
+                )
+
+                "$version: " + file.modules.single().table.entries.keys.joinToString(" ") { "${it.name}/${it.arity}" }
+            },
+        )
+    }
+
+    /**
+     * When the escape stops, the definition's own `:erlang` calls are the body's to dispatch: they are not helpers of an
+     * escape that built nothing, and none is traced where the definition is made.
+     */
+    fun testACallOfTheCodeIsNotATraceOfTheEscapeItStopsAt() =
+        assertQuoteCalls("defmodule A do\n  def f(unquote(:x)), do: :erlang.length(c)\nend", "erlang.length/1", placeholder = "c")
+
+    /** An expression the definition unquotes is dispatched once where the definition is made, though the escape stops. */
+    fun testAnUnquotedExpressionInACodeTheEscapeStopsAtIsEvaluatedOnce() =
+        assertQuoteCalls(
+            "defmodule A do\n  def f(unquote(Enum.max([:a]))), do: c\nend",
+            "Elixir.Enum.max/1",
+            placeholder = "c",
+        )
+
+    /** The expression a splice unquotes is evaluated after the `list/2` that takes it, and before the elements it joins. */
+    fun testTheExpressionOfASpliceIsEvaluated() =
+        assertQuoteCalls(
+            "defmodule A do\n  def k(x, unquote_splicing(Enum.to_list([1, 2])), y), do: [1, unquote_splicing([2]), 3]\nend",
+            "erlang.++/2, elixir_quote.list/2, Elixir.Enum.to_list/1, erlang.++/2, elixir_quote.list/2",
+        )
+
+    /** [code]'s calls of `elixir_quote`, `erlang` and `Enum`, in order, at every level are [expected], [placeholder] standing for code the port stops at. */
+    private fun assertQuoteCalls(code: String, expected: String, placeholder: String? = null) =
+        assertEquals(
+            LEVELS.joinToString("\n") { "$it: $expected" },
+            LEVELS.joinToString("\n") { version ->
+                val calls = mutableListOf<String>()
+                val observer = object : ExpansionObserver {
+                    override fun entering(node: ElixirAst, state: ExState, env: Env) {}
+
+                    override fun dispatched(node: ElixirAst, dispatch: Dispatch) {
+                        if (dispatch.receiver in QUOTE_RECEIVERS) calls.add("${dispatch.receiver}.${dispatch.name}/${dispatch.arity}")
+                    }
+                }
+                val level = ElixirLanguageLevel.of(version)
+
+                val lowered = lower(code, level).let { if (placeholder == null) it else placeholding(it, placeholder) }
+
+                Expander.expandFile(lowered, Env.empty(level, kernel), level, exports, structs, observer)
+
+                "$version: " + calls.joinToString()
+            },
+        )
+
     fun testAListOrTupleFragmentIsItsValue() =
         assertLevels("defmodule A do\n  def f, do: unquote([:a, {:b, 1}])\nend", LEVELS) { version ->
             """
@@ -1799,6 +1930,8 @@ class ModuleExpanderTest : ExpanderTestCase() {
         )
 
     private companion object {
+        val QUOTE_RECEIVERS = setOf("elixir_quote", "erlang", "Elixir.Enum")
+
         val FAST_PATH_LEVELS = listOf(
             "1.11.4", "1.12.3", "1.13.0-rc.0", "1.13.1", "1.13.2", "1.13.4", "1.14.5", "1.15.8", "1.16.3", "1.17.3",
             "1.18.4", "1.19.5", "1.20.4",

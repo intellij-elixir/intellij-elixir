@@ -979,9 +979,14 @@ internal class ExpansionProbes(
         /** Where each of [traces] was made: its node's start in the file, and the function it was made in. */
         val sites = mutableListOf<Pair<Int, NameArity?>>()
 
-        /** The node first entered at each probed statement, which, being outermost, is the one the probe follows. */
-        val outermost = mutableMapOf<TextRange, ElixirAst>()
-        val entered = mutableSetOf<TextRange>()
+        /**
+         * The node first entered at each probed statement in each module, which, being outermost, is the one the probe
+         * follows. A block `defimpl` unrolls is entered once in each module of the list.
+         */
+        val outermost = mutableMapOf<Pair<TextRange, String?>, ElixirAst>()
+
+        /** The identity probes taken, by the module they were taken in: a block `defimpl` unrolls runs in each of its modules. */
+        val entered = mutableSetOf<Pair<TextRange, String?>>()
         var stop: Expansion? = null
         var stopSteps = 0
         var stopTraces = 0
@@ -1190,8 +1195,12 @@ internal class ExpansionProbes(
             for (range in shape.tagRanges.values) {
                 val fragment = env.function == null && shape.definitions.any { it.contains(range) && it != range }
 
-                if (range.contains(at) && !fragment && !recorder.outermost.containsKey(range)) {
-                    recorder.outermost[range] = node
+                val entry = range to env.module
+                val first = recorder.outermost.keys.none { it.first == range }
+
+                // Entered again in another module, the statement itself is the node: not one inside it.
+                if (range.contains(at) && !fragment && entry !in recorder.outermost && (first || at == range)) {
+                    recorder.outermost[entry] = node
 
                     if (range in shape.statementTags) {
                         recorder.starts.add(state to env)
@@ -1201,7 +1210,7 @@ internal class ExpansionProbes(
             }
 
             shape.identityTags[at]?.let { tag ->
-                if (recorder.entered.add(at)) {
+                if (recorder.entered.add(at to env.module)) {
                     recorder.add(step(tag, state, env, at.startOffset), serial++)
                 }
             }
@@ -1283,7 +1292,10 @@ internal class ExpansionProbes(
             val shape = recorder.shape
             val state = expansion.state
 
-            for (at in recorder.outermost.filterValues { it === node }.keys.sortedBy { it.length }) {
+            // A literal is the one node in every module a block `defimpl` unrolls runs in, and one step in each.
+            val here = recorder.outermost.filter { (entry, entered) -> entered === node && entry.second == expansion.env.module }
+
+            for (at in here.keys.map { it.first }.sortedBy { it.length }) {
                 val tag = shape.statementTags[at] ?: shape.nestedTags.getValue(at)
 
                 recorder.add(step(tag, state, expansion.env, at.startOffset), serial++)
@@ -1503,7 +1515,7 @@ internal class ExpansionProbes(
                 is ElixirAst.Alias, is ElixirAst.Literal, is ElixirAst.Placeholder -> emptyList()
             }
 
-        /** How a part of a `case`, `cond`, `receive`, `try`, `fn`, `with`, `for`, `def*` or `defmodule` is expanded. */
+        /** How a part of a `case`, `cond`, `receive`, `try`, `fn`, `with`, `for`, `def*`, `defmodule`, `defprotocol` or `defimpl` is expanded. */
         enum class Part {
             EXPRESSION,
             BODY,
@@ -1589,10 +1601,17 @@ internal class ExpansionProbes(
                     } else {
                         null
                     }
-                "defmodule" ->
+                "defmodule", "defprotocol" ->
                     if (arguments.size == 2) {
                         keyword { if (it == "do") Part.BODY else Part.EXPRESSION }
                             ?.let { listOf(Part.EXPRESSION to arguments[0]) + it }
+                    } else {
+                        null
+                    }
+                // The protocol and `for:` are expanded as literals, so only the block is a body.
+                "defimpl" ->
+                    if (arguments.size in 2..3) {
+                        keyword { if (it == "do") Part.BODY else Part.EXPRESSION }?.filter { it.first == Part.BODY }
                     } else {
                         null
                     }

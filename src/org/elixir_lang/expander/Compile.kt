@@ -168,6 +168,10 @@ internal sealed interface Pending {
      * @property isAtom whether the name is an atom
      * @property env the env its body starts from
      * @property state the state its body starts from
+     * @property settle what the body queued, once it is expanded, in place of what the macro that made the module can't
+     *   know before the body has run
+     * @property applied the `@before_compile` callbacks, by module and function, that the macro that made the module
+     *   applies itself, because it knows what they do
      */
     class Module(
         val node: ElixirAst.Call,
@@ -176,6 +180,8 @@ internal sealed interface Pending {
         val body: ElixirAst,
         val env: Env,
         val state: ExState,
+        val settle: ((List<Pending>) -> List<Pending>)? = null,
+        val applied: Set<Pair<String, String>> = emptySet(),
     ) : Pending
 
     /**
@@ -183,8 +189,15 @@ internal sealed interface Pending {
      *
      * @property at the `@` that built the call, or the call
      * @property statement whether [at] is a statement of the module body
+     * @property resolve the effect from the attributes as they are where the walk reaches it, where [effect] depends on
+     *   them; [effect] is what the call leaves when they aren't known
      */
-    class Attribute(val effect: org.elixir_lang.expander.Effect, val at: ElixirAst, val statement: Boolean) : Pending
+    class Attribute(
+        val effect: org.elixir_lang.expander.Effect,
+        val at: ElixirAst,
+        val statement: Boolean,
+        val resolve: ((AttributeTable) -> org.elixir_lang.expander.Effect)? = null,
+    ) : Pending
 }
 
 /** Whether the entry's node is a statement of the module body. A nested module is the body's own. */
@@ -202,7 +215,7 @@ internal fun Pending.asStatement(): Pending =
         is Pending.Definition ->
             Pending.Definition(kind, node, head, body, unnamedAt, stop, env, unnamedAt == null, true, checksClauses)
         is Pending.Effect -> Pending.Effect(node, true, queued, apply)
-        is Pending.Attribute -> Pending.Attribute(effect, at, true)
+        is Pending.Attribute -> Pending.Attribute(effect, at, true, resolve)
         is Pending.Module -> this
     }
 
@@ -256,6 +269,7 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
     val effectOpaque = mutableListOf<Expansion.Opaque>()
 
     run.pending = mutableListOf()
+    run.counters.start(name)
 
     val body = Expander.expand(module.body, module.state, module.env, run)
     var ended = ended(body, run)
@@ -264,7 +278,7 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
 
     if (ended?.raises != true) {
         var ordered = true
-        val queue = ArrayDeque(run.pending)
+        val queue = ArrayDeque(module.settle?.invoke(run.pending) ?: run.pending)
 
         while (queue.isNotEmpty()) {
             val unitEnded = when (val pending = queue.removeFirst()) {
@@ -284,9 +298,11 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
                     ended(expansion, run)
                 }
                 is Pending.Attribute -> {
-                    compiling.effects += AttributeLog.Logged(pending.effect, pending.at, pending.statement)
+                    val effect = pending.resolve?.invoke(compiling.attributes) ?: pending.effect
 
-                    when (val outcome = compiling.attributes.apply(pending.effect, pending.statement)) {
+                    compiling.effects += AttributeLog.Logged(effect, pending.at, pending.statement)
+
+                    when (val outcome = compiling.attributes.apply(effect, pending.statement)) {
                         is EffectOutcome.Raises -> Ended.Raised(Expansion.Error(outcome.kind, pending.at))
                         // Whether Elixir raises there isn't known, so nothing after it can be compared.
                         EffectOutcome.Unchecked -> Ended.Stopped(pending.at)
@@ -397,7 +413,8 @@ private fun ended(expansion: Expansion, run: Run): Ended? =
 /**
  * `eval_callbacks/5` for `@before_compile` (`Mo:495`, `:513–528`): once the body has run, each entry's `M.F(env)`,
  * oldest first, dispatched as a required call at the module's line in [env], the env the body leaves. A function entry,
- * which Elixir applies, isn't modelled; nor is a value the expander doesn't know, which stops at its first write.
+ * which Elixir applies, isn't modelled unless the module's macro [applied][Pending.Module.applied] it; nor is a value the
+ * expander doesn't know, which stops at its first write.
  */
 private fun beforeCompile(module: Pending.Module, compiling: Compiling, env: Env, run: Run): Ended? {
     val entries = when (val value = compiling.attributes.final["before_compile"]) {
@@ -418,6 +435,8 @@ private fun beforeCompile(module: Pending.Module, compiling: Compiling, env: Env
         val name = (pair?.second as? Term.Atom)?.name
 
         if (receiver == null || name == null) return Ended.Stopped(write() ?: module.node)
+
+        if (receiver to name in module.applied) continue
 
         val call = ElixirAst.Call(
             meta,
