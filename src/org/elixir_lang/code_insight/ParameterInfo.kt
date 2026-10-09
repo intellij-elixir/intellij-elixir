@@ -2,6 +2,7 @@ package org.elixir_lang.code_insight
 
 import com.intellij.lang.parameterInfo.*
 import com.intellij.psi.util.PsiTreeUtil
+import org.elixir_lang.beam.decompiler.ParameterText
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.preferred
@@ -41,6 +42,11 @@ class ParameterInfo : ParameterInfoHandler<Arguments, Signature> {
             context.isUIComponentEnabled = false
         } else {
             val currentParameterIndex = context.currentParameterIndex
+            // The head shows its defaults, but a call leaves some out: the argument binds the parameter left at the call's arity.
+            val highlightedIndex = PsiTreeUtil.getParentOfType(context.parameterOwner, Call::class.java)
+                ?.resolvedPrimaryArity()
+                ?.let { ParameterText.positionsReaching(p.parameters, it).getOrNull(currentParameterIndex) }
+                ?: currentParameterIndex
 
             val stringBuilder = StringBuilder()
             var start = 0
@@ -51,13 +57,13 @@ class ParameterInfo : ParameterInfoHandler<Arguments, Signature> {
                     stringBuilder.append(", ")
                 }
 
-                if (index == currentParameterIndex) {
+                if (index == highlightedIndex) {
                     start = stringBuilder.length
                 }
 
                 stringBuilder.append(parameter)
 
-                if (index == currentParameterIndex) {
+                if (index == highlightedIndex) {
                     end = stringBuilder.length
                 }
             }

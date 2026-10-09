@@ -106,59 +106,20 @@ private fun documentationClauseSource(
             ?.covering(macroNameArity)
             ?.signatures
             ?.firstOrNull()
-            ?.let { coveredParameters(signatureParameters(it.replace("\r", "")), macroNameArity.arity) }
+            ?.let { ParameterText.covered(signatureParameters(it.replace("\r", "")), macroNameArity.arity) }
             ?.let { ClauseSource.CoveringDocsSignature(it) }
             ?: ClauseSource.Generated(decompiler, macroNameArity)
     }
 }
 
-/**
- * The parameters [parameters] leave at [arity]: Elixir fills the last defaults first, so those are dropped, and the
- * rest lose their defaults. `null` when there are too few defaults to reach [arity].
- */
-private fun coveredParameters(parameters: List<String>, arity: Int): List<String>? {
-    val withoutDefaults = parameters.map(::withoutDefault)
-    val defaulted = parameters.indices.filter { withoutDefaults[it] != null }
-    val dropCount = parameters.size - arity
-
-    if (dropCount < 0 || dropCount > defaulted.size) return null
-
-    val dropped = defaulted.takeLast(dropCount).toSet()
-
-    return parameters.indices.filterNot { it in dropped }.map { withoutDefaults[it] ?: parameters[it] }
-}
-
-private val OPENERS = TokenSet.create(
+internal val OPENERS = TokenSet.create(
     ElixirTypes.OPENING_PARENTHESIS, ElixirTypes.OPENING_BRACKET, ElixirTypes.OPENING_CURLY,
     ElixirTypes.OPENING_BIT, ElixirTypes.FN, ElixirTypes.DO
 )
-private val CLOSERS = TokenSet.create(
+internal val CLOSERS = TokenSet.create(
     ElixirTypes.CLOSING_PARENTHESIS, ElixirTypes.CLOSING_BRACKET, ElixirTypes.CLOSING_CURLY,
     ElixirTypes.CLOSING_BIT, ElixirTypes.END
 )
-
-/** [parameter] before its top-level `\\`, or `null` when it has no default. */
-private fun withoutDefault(parameter: String): String? {
-    val lexer = ElixirLexer()
-    lexer.start(parameter)
-
-    var depth = 0
-
-    while (lexer.tokenType != null) {
-        when (lexer.tokenType) {
-            in OPENERS -> depth++
-            in CLOSERS -> depth--
-            ElixirTypes.IN_MATCH_OPERATOR ->
-                if (depth == 0 && lexer.tokenText == "\\\\") {
-                    return parameter.substring(0, lexer.tokenStart).trim()
-                }
-        }
-
-        lexer.advance()
-    }
-
-    return null
-}
 
 /**
  * The top-level arguments of a docs chunk signature such as `merge(map1, map2 \\ %{})`.

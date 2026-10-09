@@ -3,9 +3,10 @@ package org.elixir_lang.code_insight.lookup.element_renderer
 import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.codeInsight.lookup.LookupElementPresentation
 import com.intellij.codeInsight.lookup.LookupElementRenderer
+import org.elixir_lang.code_insight.Signature
+import org.elixir_lang.declaration.Form
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.call.finalArguments
-import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.psi.scope.call_definition_clause.Declarations
 
 /**
  * Renders a `defdelegate` like an ordinary clause: name, head parameters, then where it is declared.
@@ -25,29 +26,10 @@ class Delegation(private val name: String) : LookupElementRenderer<LookupElement
 
         lookupElementPresentation.icon = itemPresentation?.getIcon(true)
 
-        // Only strip the name when the head actually starts with it. `removePrefix` returns the string
-        // unchanged on a mismatch, which would render the name twice - `values` + `unquote(:values)(map)`
-        // for an unquoted head, or `<>` + `left <> right` for an operator delegate.
-        headText(delegationCall)
-            ?.takeIf { it.startsWith(name) }
-            ?.removePrefix(name)
-            ?.takeIf(String::isNotEmpty)
-            ?.let { lookupElementPresentation.appendTailText(it, true) }
+        Declarations.named(Form.DELEGATION, delegationCall, name)
+            ?.let { Signature.of(it, delegationCall) }
+            ?.let { lookupElementPresentation.appendTailText("(${it.parameters.joinToString(", ")})", true) }
 
         itemPresentation?.locationString?.let { lookupElementPresentation.appendTailText(" ($it)", false) }
-    }
-
-    /** The head as written, whitespace-normalised, e.g. `values(map)`. */
-    @RequiresReadLock
-    private fun headText(delegationCall: Call): String? =
-        delegationCall
-            .finalArguments()
-            ?.takeIf { it.size == 2 }
-            ?.get(0)
-            ?.text
-            ?.replace(WHITESPACE_RUN, " ")
-
-    companion object {
-        private val WHITESPACE_RUN = Regex("\\s+")
     }
 }

@@ -14,6 +14,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.name.Function.UNQUOTE
 import org.elixir_lang.psi.impl.PsiNamedElementImpl.unquoteName
+import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.headAtomValue
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.operation.Normalized.operatorIndex
@@ -85,12 +86,8 @@ class CallDefinitionHead(val callDefinition: CallDefinition, private val visibil
 
                     if (functionName != null) {
                         val name = headAtomValue(stripped) ?: unquoteName(stripped, functionName)
-                        // For an `unquote(:name)` head the primary argument list supplies the name, not the
-                        // parameters, so the parameters (if any) come solely from the secondary argument list.
-                        // A bare `unquote(:name)` head therefore has arity 0 rather than the arity 1 that counting
-                        // the name atom would produce.
                         val arityInterval = if (functionName == UNQUOTE) {
-                            ArityInterval.fromArguments(stripped.secondaryArguments()?.map { it!! }?.toTypedArray())
+                            ArityInterval.fromArguments(parameters(stripped))
                         } else {
                             stripped.resolvedFinalArityInterval()
                         }
@@ -100,6 +97,18 @@ class CallDefinitionHead(val callDefinition: CallDefinition, private val visibil
                         null
                     }
                 }
+            }
+
+        /**
+         * The arguments of [stripped] that are the head's parameters. For an `unquote(:name)` head the primary list
+         * names the function, so a bare `unquote(:name)` has none.
+         */
+        @RequiresReadLock
+        fun parameters(stripped: Call): Array<PsiElement>? =
+            if (stripped.functionName() == UNQUOTE) {
+                stripped.secondaryArguments()?.map { it!! }?.toTypedArray()
+            } else {
+                stripped.finalArguments()
             }
 
         /**

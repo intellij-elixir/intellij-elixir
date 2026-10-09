@@ -89,7 +89,7 @@ private class Offer(val name: String, val element: PsiElement, val form: Form?) 
 
         val declaration: Declaration? = when (form) {
             null -> (element as BeamCallDefinition).declaration()
-            else -> Declarations.of(form, element as Call, ResolveState.initial()).firstOrNull { it.text == name }?.declaration
+            else -> Declarations.named(form, element as Call, name)
         }
 
         return Visible(name, declaration?.name, declaration, element)

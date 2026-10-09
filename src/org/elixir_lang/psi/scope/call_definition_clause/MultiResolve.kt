@@ -308,9 +308,7 @@ private constructor(
 
     /** The declaration [call] makes that the walk spells [name], when that name has an atom value. */
     private fun declared(form: Form, call: Call, name: String, valid: Boolean, state: ResolveState): List<ReachedDeclaration> =
-        Declarations.of(form, call, state)
-            .firstOrNull { it.text == name }
-            ?.declaration
+        Declarations.named(form, call, name, state)
             ?.let { listOf(ReachedDeclaration(it, this.name.takeIf { atom }, true, valid)) }
             .orEmpty()
 

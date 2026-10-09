@@ -95,6 +95,110 @@ class Issue1613RemoteCompletionTest : PlatformTestCase() {
         )
     }
 
+    /** A head written over several lines is rendered on one, without its comments. */
+    fun testDelegatedFunctionWithAMultiLineHeadRendersItOnOneLine() {
+        myFixture.configureByText(
+            "wide.ex",
+            """
+            defmodule Wide do
+              defdelegate snoc(q, # the query
+                               x), to: Target
+
+              def snoc_all(a), do: a
+
+              def run, do: sno<caret>
+            end
+            """.trimIndent()
+        )
+        myFixture.complete(CompletionType.BASIC, 1)
+
+        val snoc = myFixture.lookupElements.orEmpty().first { lookupElement ->
+            LookupElementPresentation().also(lookupElement::renderElement).itemText == "snoc"
+        }
+
+        assertTrue(
+            "Expected `(q, x)` in the tail, got: ${LookupElementPresentation().also(snoc::renderElement).tailText}",
+            LookupElementPresentation().also(snoc::renderElement).tailText.orEmpty().startsWith("(q, x)")
+        )
+    }
+
+    /** A delegation named by `unquote(:ab)` is the function `ab`, so it is rendered as one. */
+    fun testDelegatedFunctionNamedByAnUnquotedAtomRendersItsParameters() {
+        myFixture.configureByText(
+            "unquoted.ex",
+            """
+            defmodule Unquoted do
+              defdelegate unquote(:ab)(x), to: Target
+
+              def abc(a), do: a
+
+              def run, do: a<caret>
+            end
+            """.trimIndent()
+        )
+        myFixture.complete(CompletionType.BASIC, 1)
+
+        val ab = myFixture.lookupElements.orEmpty().first { lookupElement ->
+            LookupElementPresentation().also(lookupElement::renderElement).itemText == "ab"
+        }
+
+        assertTrue(
+            "Expected `(x)` in the tail, got: ${LookupElementPresentation().also(ab::renderElement).tailText}",
+            LookupElementPresentation().also(ab::renderElement).tailText.orEmpty().startsWith("(x)")
+        )
+    }
+
+    /** `unquote(:ab)` alone names the function and takes no parameters, so the name atom is not one. */
+    fun testDelegatedFunctionNamedByABareUnquotedAtomHasNoParameters() {
+        myFixture.configureByText(
+            "bare.ex",
+            """
+            defmodule Bare do
+              defdelegate unquote(:ab), to: Target
+
+              def abc(a), do: a
+
+              def run, do: a<caret>
+            end
+            """.trimIndent()
+        )
+        myFixture.complete(CompletionType.BASIC, 1)
+
+        val ab = myFixture.lookupElements.orEmpty().first { lookupElement ->
+            LookupElementPresentation().also(lookupElement::renderElement).itemText == "ab"
+        }
+        val tail = LookupElementPresentation().also(ab::renderElement).tailText.orEmpty()
+
+        assertFalse("Expected no `:ab` parameter in the tail, got: $tail", tail.contains(":ab"))
+    }
+
+    /** `defdelegate left <> right, to: T` compiles and defines `<>/2`, so it is rendered as one. */
+    fun testDelegatedOperatorRendersItsParameters() {
+        myFixture.configureByText(
+            "operator.ex",
+            """
+            defmodule Operators do
+              defdelegate left <> right, to: Target
+              def other(a), do: a
+            end
+
+            defmodule Caller do
+              def run, do: Operators.<caret>
+            end
+            """.trimIndent()
+        )
+        myFixture.complete(CompletionType.BASIC, 1)
+
+        val operator = myFixture.lookupElements.orEmpty().first { lookupElement ->
+            LookupElementPresentation().also(lookupElement::renderElement).itemText == "<>"
+        }
+
+        assertTrue(
+            "Expected `(left, right)` in the tail, got: ${LookupElementPresentation().also(operator::renderElement).tailText}",
+            LookupElementPresentation().also(operator::renderElement).tailText.orEmpty().startsWith("(left, right)")
+        )
+    }
+
     override fun getTestDataPath(): String =
         "testData/org/elixir_lang/code_insight/completion/contributor/call_definition_clause"
 }

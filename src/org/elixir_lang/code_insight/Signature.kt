@@ -1,18 +1,26 @@
 package org.elixir_lang.code_insight
 
-import com.intellij.psi.ResolveState
+import com.intellij.psi.PsiElement
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.NameArityInterval
+import org.elixir_lang.beam.decompiler.ParameterText
 import org.elixir_lang.beam.decompiler.generatedArguments
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
+import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.ElixirAtom
+import org.elixir_lang.psi.ElixirList
+import org.elixir_lang.psi.Exception as ElixirException
+import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
+import org.elixir_lang.psi.impl.quotedAtomValue
+import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 
 /**
@@ -30,45 +38,68 @@ data class Signature(val nameArityInterval: NameArityInterval, val parameters: L
     companion object {
         /** `null` for a declaration that is no definition to show, as a `@callback`. */
         @RequiresReadLock
-        fun of(found: Found): Signature? {
+        fun of(found: Found): Signature? = of(found.candidate.declaration, found.element)
+
+        /**
+         * [declaration] made by [element]: its name and arities are the declaration's, and the parameter text is read
+         * from [element] by the form that made it.
+         */
+        @RequiresReadLock
+        fun of(declaration: Declaration, element: PsiElement): Signature? {
             ThreadingAssertions.assertReadAccess()
 
-            return when (val declared = found.candidate.declaration.declared) {
-                is Declared.Source ->
-                    when (declared.form) {
-                        Form.CLAUSE -> (found.element as? Call)?.let { of(it) }
-                        Form.DELEGATION -> (found.element as? Call)?.let(::delegation)
-                        Form.CALLBACK,
-                        Form.EXCEPTION,
-                        Form.EEX_FUNCTION_FROM,
-                        Form.GENERATOR_EMBED -> null
-                    }
-                is Declared.Compiled -> (found.element as? BeamCallDefinition)?.let { of(it) }
+            return when (val declared = declaration.declared) {
+                is Declared.Source -> sourceSignature(declaration, declared.form, element as? Call)
+                is Declared.Compiled -> (element as? BeamCallDefinition)?.let { of(it) }
             }
         }
 
-        private fun delegation(defdelegate: Call): Signature? {
-            val head =
-                defdelegate.finalArguments()?.firstOrNull()?.let { CallDefinitionHead.strip(it) } as? Call
-                    ?: return null
-            val nameArityInterval = CallDefinitionHead.nameArityInterval(head, ResolveState.initial()) ?: return null
+        private fun sourceSignature(declaration: Declaration, form: Form, call: Call?): Signature? {
+            if (call == null) return null
 
-            return Signature(nameArityInterval, head.finalArguments()?.map { it.text }.orEmpty())
+            val nameArityInterval = declaration.arity.arityInterval()?.let { NameArityInterval(declaration.name, it) }
+                ?: return null
+            val parameters = when (form) {
+                Form.CLAUSE -> clause(call)
+                Form.DELEGATION -> delegation(call)
+                Form.EXCEPTION -> exception(declaration.name)
+                Form.EEX_FUNCTION_FROM -> eexFunctionFrom(call)
+                Form.GENERATOR_EMBED -> embed(call)
+                Form.CALLBACK -> null
+            }
+
+            return parameters?.let { Signature(nameArityInterval, it.map(ParameterText::normalised)) }
         }
 
-        /** `null` when [clause] is not a call definition clause. */
-        @RequiresReadLock
-        fun of(clause: Call): Signature? {
-            ThreadingAssertions.assertReadAccess()
+        private fun clause(clause: Call): List<String>? = CallDefinitionClause.head(clause)?.let(::headParameters)
 
-            if (!CallDefinitionClause.`is`(clause)) return null
+        private fun delegation(defdelegate: Call): List<String>? = defdelegate.finalArguments()?.firstOrNull()?.let(::headParameters)
 
-            val nameArityInterval = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return null
-            val head = CallDefinitionClause.head(clause)?.let { CallDefinitionHead.strip(it) } as? Call
-            val parameters = head?.finalArguments()?.map { it.text }.orEmpty()
+        private fun headParameters(head: PsiElement): List<String> =
+            (CallDefinitionHead.strip(head) as? Call)?.let(CallDefinitionHead::parameters)?.map { it.text }.orEmpty()
 
-            return Signature(nameArityInterval, parameters)
-        }
+        /** The two functions `defexception` defines take the other's name: `exception(message)`, `message(exception)`. */
+        private fun exception(name: String): List<String> =
+            when (name) {
+                ElixirException.EXCEPTION.name -> listOf(ElixirException.MESSAGE.name)
+                ElixirException.MESSAGE.name -> listOf(ElixirException.EXCEPTION.name)
+                else -> emptyList()
+            }
+
+        /**
+         * The macro's own `[:a, :b]` argument-name list, which no PSI head spells; a name that isn't an atom literal
+         * leaves a slot called `arg`.
+         */
+        private fun eexFunctionFrom(call: Call): List<String> =
+            call.finalArguments()
+                ?.getOrNull(3)
+                ?.let { (it.stripAccessExpression() as? ElixirList)?.children }
+                ?.map { child -> child.stripAccessExpression().let { it as? ElixirAtom }?.let(::quotedAtomValue) ?: "arg" }
+                .orEmpty()
+
+        /** `embed_template` defines a function of `assigns`, `embed_text` one of nothing. */
+        private fun embed(call: Call): List<String> =
+            if (call.functionName() == "embed_template") listOf("assigns") else emptyList()
 
         /** A stub stores no parameters for a definition the decompiler did not render, so those get generated names. */
         fun of(definition: BeamCallDefinition): Signature {
