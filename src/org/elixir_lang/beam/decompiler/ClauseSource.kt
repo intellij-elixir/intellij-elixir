@@ -3,10 +3,12 @@ package org.elixir_lang.beam.decompiler
 import com.intellij.psi.tree.TokenSet
 import org.elixir_lang.ElixirLexer
 import org.elixir_lang.beam.chunk.DebugInfo
+import org.elixir_lang.beam.chunk.beam_documentation.Docs
 import org.elixir_lang.beam.chunk.beam_documentation.Documentation
 import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.V1
 import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.v1.definitions.Definition
 import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.v1.definitions.definition.Clause
+import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.v1.definitions.definition.DefaultArgumentClause
 import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.AbstractCodeCompileOptions
 import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_compiler_options.abstract_code.Function
 import org.elixir_lang.psi.ElixirTypes
@@ -65,6 +67,53 @@ fun clauseSource(
     debugInfoClauseSource(macroNameArity, debugInfo)
         ?: documentationClauseSource(macroNameArity, documentation())
 
+/**
+ * The head a function with default arguments is written with, when [macroNameArity] is one of the arities it answers
+ * to. Elixir exports each of them, but writes the one head: `Docs` has it as the signature, else the debug info has
+ * it as the default clauses that call the full-arity definition.
+ */
+fun definitionHead(
+    macroNameArity: org.elixir_lang.beam.MacroNameArity,
+    debugInfo: DebugInfo?,
+    documentation: () -> Documentation?
+): List<String>? =
+    (documentationHead(macroNameArity, documentation()) ?: debugInfoHead(macroNameArity, debugInfo))
+        ?.takeIf { head -> ParameterText.arities(head).let { macroNameArity.arity in it && it.first < it.last } }
+
+private fun debugInfoHead(
+    macroNameArity: org.elixir_lang.beam.MacroNameArity,
+    debugInfo: DebugInfo?
+): List<String>? =
+    (debugInfo as? V1)?.definitions?.get(macroNameArity)?.let(DefaultArgumentClause::head)
+
+/**
+ * Every `Docs` signature of a definition's own entry, or the parameters of the first signature of the entry whose
+ * defaults cover it.
+ */
+private sealed interface DocsEntry {
+    class Own(val signatures: List<String>) : DocsEntry
+
+    class Covering(val parameters: List<String>) : DocsEntry
+}
+
+private fun docsEntry(docs: Docs, macroNameArity: org.elixir_lang.beam.MacroNameArity): DocsEntry? =
+    docs.signatures(macroNameArity)?.takeIf { it.isNotEmpty() }?.let { DocsEntry.Own(it) }
+        ?: docs.covering(macroNameArity)?.signatures?.firstOrNull()
+            ?.let { DocsEntry.Covering(signatureParameters(it.replace("\r", ""))) }
+
+private fun documentationHead(
+    macroNameArity: org.elixir_lang.beam.MacroNameArity,
+    documentation: Documentation?
+): List<String>? {
+    val docs = documentation?.takeIf { it.beamLanguage == "elixir" }?.docs ?: return null
+
+    return when (val entry = docsEntry(docs, macroNameArity)) {
+        is DocsEntry.Own -> signatureParameters(entry.signatures.first().replace("\r", ""))
+        is DocsEntry.Covering -> entry.parameters
+        null -> null
+    }
+}
+
 private fun debugInfoClauseSource(
     macroNameArity: org.elixir_lang.beam.MacroNameArity,
     debugInfo: DebugInfo?
@@ -97,18 +146,14 @@ private fun documentationClauseSource(
     } else {
         null
     }
-    val signatures = docs?.signatures(macroNameArity)
 
-    return if (!signatures.isNullOrEmpty()) {
-        ClauseSource.DocsSignatures(signatures)
-    } else {
-        docs
-            ?.covering(macroNameArity)
-            ?.signatures
-            ?.firstOrNull()
-            ?.let { ParameterText.covered(signatureParameters(it.replace("\r", "")), macroNameArity.arity) }
-            ?.let { ClauseSource.CoveringDocsSignature(it) }
-            ?: ClauseSource.Generated(decompiler, macroNameArity)
+    return when (val entry = docs?.let { docsEntry(it, macroNameArity) }) {
+        is DocsEntry.Own -> ClauseSource.DocsSignatures(entry.signatures)
+        is DocsEntry.Covering ->
+            ParameterText.covered(entry.parameters, macroNameArity.arity)
+                ?.let { ClauseSource.CoveringDocsSignature(it) }
+                ?: ClauseSource.Generated(decompiler, macroNameArity)
+        null -> ClauseSource.Generated(decompiler, macroNameArity)
     }
 }
 

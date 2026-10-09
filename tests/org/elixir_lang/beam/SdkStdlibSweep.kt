@@ -12,6 +12,7 @@ import com.intellij.psi.PsiManager
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.LoggedErrorProcessor
+import org.elixir_lang.beam.decompiler.ParameterText
 import org.elixir_lang.beam.psi.impl.CallDefinitionImpl
 import org.elixir_lang.beam.psi.impl.ModuleImpl
 import org.elixir_lang.junit.logs.GuardedLoggedErrorProcessor
@@ -142,7 +143,12 @@ object SdkStdlibSweep {
                         null
                     }
 
-                    for (callDefinition in (module as ModuleImpl<*>).callDefinitions()) {
+                    val headsByDefinition = (module as ModuleImpl<*>).callDefinitions().associate {
+                        Triple(it.stub.resolvedFunctionName(), it.stub.name, it.stub.callDefinitionClauseHeadArity()) to
+                            it.stub.head()
+                    }
+
+                    for (callDefinition in module.callDefinitions()) {
                         try {
                             if (callDefinition.isExported) {
                                 mirrorExported++
@@ -160,6 +166,19 @@ object SdkStdlibSweep {
                             val stub = callDefinition.stub
                             val name = stub.name
                             val arity = stub.callDefinitionClauseHeadArity()
+                            val head = stub.head()
+
+                            if (head.isNotEmpty()) {
+                                for (covered in ParameterText.arities(head)) {
+                                    val coveredHead = headsByDefinition[Triple(stub.resolvedFunctionName(), name, covered)]
+
+                                    // An empty head is a definition of its own, as `Enum.max/2` beside `max/3`'s defaults.
+                                    if (!coveredHead.isNullOrEmpty() && coveredHead != head) {
+                                        stubMismatches += "$beamLabel: ${stub.resolvedFunctionName()} $name/$arity " +
+                                            "head=$head covers $covered, whose stub has head=$coveredHead"
+                                    }
+                                }
+                            }
 
                             if (stub.isExported && arity > 0) {
                                 stubExportedWithParameters++

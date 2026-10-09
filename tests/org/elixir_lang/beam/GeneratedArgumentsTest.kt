@@ -60,14 +60,29 @@ class GeneratedArgumentsTest : BeamLibraryTestCase() {
         )
     }
 
-    fun testSignatureOfALowerArityADefaultCovers() {
-        assertEquals(listOf("q"), Signature.of(definition("Elixir.DocsDefaults.beam", "snoc", 1)).parameters)
+    // Every arity the defaults cover is described by the one head, which covers them all.
+    fun testSignatureOfALowerArityADefaultCoversIsTheHead() {
+        val signature = Signature.of(definition("Elixir.DocsDefaults.beam", "snoc", 1))
+
+        assertEquals(listOf("q", "x \\\\ nil"), signature.parameters)
+        assertEquals(Signature.of(definition("Elixir.DocsDefaults.beam", "snoc", 2)), signature)
     }
 
-    // `f(a \\ 1, b \\ 2, c)` called with two arguments binds `a` and `c`: Elixir fills the last defaults first.
-    fun testSignatureOfALowerArityDropsTheLastDefaultsFirst() {
-        assertEquals(listOf("a", "c"), Signature.of(definition("Elixir.DocsDefaults.beam", "f", 2)).parameters)
-        assertEquals(listOf("c"), Signature.of(definition("Elixir.DocsDefaults.beam", "f", 1)).parameters)
+    fun testSignatureOfADebugInfoLowerArityADefaultCoversIsTheHead() {
+        assertEquals(
+            listOf("a", "b \\\\ 1", "c", "d \\\\ 2"),
+            Signature.of(definition("Elixir.DebugDefaults.beam", "h", 3)).parameters
+        )
+    }
+
+    // `h(a, b \\ 1, c, d \\ 2)` called with three arguments binds `a`, `b` and `c`: the last defaults go first.
+    fun testInsertionDropsTheLastDefaultsFirst() {
+        assertEquals("DebugDefaults.h(a, b, c)", insertedCall("DebugDefaults", "h", 3))
+        assertEquals("DebugDefaults.h(a, c)", insertedCall("DebugDefaults", "h", 2))
+    }
+
+    fun testInsertionAtTheArityOfTheHeadDropsNoParameterButTheirDefaults() {
+        assertEquals("DocsDefaults.h(a, b, c, d)", insertedCall("DocsDefaults", "h", 4))
     }
 
     fun testCompletionInsertsTheNamesOfTheEntryTheDefaultsCover() {
@@ -78,8 +93,11 @@ class GeneratedArgumentsTest : BeamLibraryTestCase() {
         assertEquals("DocsDefaults.f(a, c)", insertedCall("DocsDefaults", "f", 2))
     }
 
-    fun testUsageViewTextOfALowerArityADefaultCovers() {
-        assertEquals("defmacro snoc(q), do: ...", usageViewText(definition("Elixir.DocsDefaults.beam", "snoc", 1)))
+    fun testUsageViewTextOfALowerArityADefaultCoversIsTheHead() {
+        assertEquals(
+            "defmacro snoc(q, x \\\\ nil), do: ...",
+            usageViewText(definition("Elixir.DocsDefaults.beam", "snoc", 1))
+        )
     }
 
     fun testUsageViewTextWithDocsNames() {

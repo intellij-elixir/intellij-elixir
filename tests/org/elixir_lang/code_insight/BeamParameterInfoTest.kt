@@ -34,13 +34,38 @@ class BeamParameterInfoTest : BeamLibraryTestCase() {
         assertEquals(listOf("module"), signaturesAtCaret("elixir_function.ex"))
     }
 
-    /** Each arity a default argument generates is its own definition in the `.beam`. */
+    /** Each arity a default argument generates is an export of the `.beam`, and the hint is the one head. */
     fun testElixirDefaultArguments() {
         assertEquals(
-            listOf("string", "string, binding", "string, binding, %Macro.Env{} = env"),
-            signaturesAtCaret("elixir_default_arguments.ex").sortedBy { it.length }
+            listOf("string, binding \\\\ [], opts \\\\ []"),
+            signaturesAtCaret("elixir_default_arguments.ex")
         )
     }
+
+    fun testAMacroWithADefaultDescribedByDocsShowsItsHead() =
+        assertEquals(listOf("q, x \\\\ nil"), shownFromGenerated("DocsDefaults.snoc(<caret>)"))
+
+    fun testAMacroWithADefaultDescribedByDebugInfoShowsItsHead() =
+        assertEquals(listOf("q, x \\\\ nil"), shownFromGenerated("DebugDefaults.snoc(<caret>)"))
+
+    fun testADefaultInTheMiddleDescribedByDocsShowsItsHead() =
+        assertEquals(listOf("a, b \\\\ 1, c, d \\\\ 2"), shownFromGenerated("DocsDefaults.h(<caret>)"))
+
+    fun testADefaultInTheMiddleDescribedByDebugInfoShowsItsHead() =
+        assertEquals(listOf("a, b \\\\ 1, c, d \\\\ 2"), shownFromGenerated("DebugDefaults.h(<caret>)"))
+
+    fun testAnImportOfOneArityDescribedByDocsShowsTheHead() =
+        assertEquals(listOf("q, x \\\\ nil"), shownFromGeneratedImport("DocsDefaults"))
+
+    fun testAnImportOfOneArityDescribedByDebugInfoShowsTheHead() =
+        assertEquals(listOf("q, x \\\\ nil"), shownFromGeneratedImport("DebugDefaults"))
+
+    /** A module with neither debug info nor `Docs` has no head to show: one signature per arity. */
+    fun testAFunctionWithNoNamesKeepsOneSignatureForEachArity() =
+        assertEquals(
+            listOf("arg1", "arg1, arg2"),
+            shownFromGenerated("NoNamesDefaults.d(<caret>)").sortedBy { it.length }
+        )
 
     /**
      * Resolution prefers a source module over a `.beam` of the same name, so the hint describes only the source
@@ -98,11 +123,36 @@ class BeamParameterInfoTest : BeamLibraryTestCase() {
         val popup = myFixture.parameterInfoPopupAfterTyping(',')
 
         assertNotNull("Typing a comma should pop up the parameter hint", popup)
-        assertEquals(
-            listOf("string", "string, binding", "string, binding, %Macro.Env{} = env"),
-            popup!!.signatures.sortedBy { it.length }
-        )
+        assertEquals(listOf("string, binding \\\\ [], opts \\\\ []"), popup!!.signatures)
         assertEquals(1, popup.currentParameterIndex)
+    }
+
+    /** The `.beam`s `GeneratedArgumentsTest` describes by their debug info, their `Docs`, or neither. */
+    private fun shownFromGenerated(call: String): List<String> {
+        addGeneratedArgumentsLibrary()
+        myFixture.configureByText(
+            "generated.ex",
+            "defmodule Caller do\n  def run(q), do: $call\nend\n"
+        )
+
+        return myFixture.parameterInfoSignaturesAtCaret()
+    }
+
+    private fun shownFromGeneratedImport(module: String): List<String> {
+        addGeneratedArgumentsLibrary()
+        myFixture.configureByText(
+            "generated_import.ex",
+            "defmodule Caller do\n  import $module, only: [snoc: 1]\n\n  defmacro run(q), do: snoc(q<caret>)\nend\n"
+        )
+
+        return myFixture.parameterInfoSignaturesAtCaret()
+    }
+
+    private fun addGeneratedArgumentsLibrary() {
+        val ebin = File("testData/org/elixir_lang/beam/generated_arguments/ebin").absoluteFile
+        VfsRootAccess.allowRootAccess(myFixture.testRootDisposable, ebin.path)
+        val root = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(ebin)!!
+        BeamLibraryFixture.addLibrary(project, myFixture.module, "beam-generated-arguments", listOf(root))
     }
 
     private fun signaturesAtCaret(vararg paths: String): List<String> {

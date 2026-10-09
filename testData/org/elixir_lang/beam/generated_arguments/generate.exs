@@ -13,6 +13,12 @@ modules = [
      defmacro m(x), do: x
    end
    """},
+  {[debug_info: false, docs: false],
+   """
+   defmodule NoNamesDefaults do
+     def d(a, b \\\\ nil), do: {a, b}
+   end
+   """},
   {[debug_info: false, docs: true],
    """
    defmodule DocsDefaults do
@@ -28,6 +34,17 @@ modules = [
 
      @doc "Takes three."
      def g(a, b \\\\ 1, c \\\\ 2), do: {a, b, c}
+
+     @doc "h"
+     def h(a, b \\\\ 1, c, d \\\\ 2), do: {a, b, c, d}
+   end
+   """},
+  {[debug_info: true, docs: false],
+   """
+   defmodule DebugDefaults do
+     defmacro snoc(q, x \\\\ nil), do: {q, x}
+
+     def h(a, b \\\\ 1, c, d \\\\ 2), do: {a, b, c, d}
    end
    """}
 ]

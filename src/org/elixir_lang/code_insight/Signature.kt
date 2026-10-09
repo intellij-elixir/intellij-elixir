@@ -101,12 +101,33 @@ data class Signature(val nameArityInterval: NameArityInterval, val parameters: L
         private fun embed(call: Call): List<String> =
             if (call.functionName() == "embed_template") listOf("assigns") else emptyList()
 
-        /** A stub stores no parameters for a definition the decompiler did not render, so those get generated names. */
+        /**
+         * The head [definition] is written with, at each arity its defaults cover. A stub stores no parameters for a
+         * definition the decompiler did not render, so those get generated names.
+         */
         fun of(definition: BeamCallDefinition): Signature {
+            val head = definition.head
+
+            if (head.isNotEmpty()) {
+                val arities = ParameterText.arities(head)
+
+                return Signature(
+                    NameArityInterval(definition.nameArityInterval.name, ArityInterval(arities.first, arities.last)),
+                    head
+                )
+            }
+
             val arity = definition.nameArityInterval.arityInterval.minimum
             val parameters = definition.parameters.takeIf { it.size == arity } ?: generatedArguments(arity)
 
             return Signature(definition.nameArityInterval, parameters)
+        }
+
+        /** What a call at [definition]'s own arity passes: its head without the defaults that arity leaves out. */
+        fun parametersAt(definition: BeamCallDefinition): List<String> {
+            val parameters = of(definition).parameters
+
+            return ParameterText.covered(parameters, definition.nameArityInterval.arityInterval.minimum) ?: parameters
         }
     }
 }

@@ -93,7 +93,7 @@ class CallDefinitionClause private constructor(private val arity: Arity?) : Inse
      */
     private fun parameters(item: LookupElement): List<String>? =
         when (val psiElement = item.psiElement) {
-            is BeamCallDefinition -> Signature.of(psiElement).parameters
+            is BeamCallDefinition -> Signature.parametersAt(psiElement)
             is Call -> callParameters(psiElement, item.lookupString)
             else -> null
         }
