@@ -1,0 +1,1880 @@
+package org.elixir_lang.code_insight
+
+import com.intellij.ide.impl.HeadlessDataManager
+import com.intellij.lang.annotation.HighlightSeverity
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.PsiCompiledFile
+import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
+import com.intellij.navigation.GotoRelatedItem
+import com.intellij.navigation.GotoRelatedProvider
+import com.intellij.openapi.extensions.ExtensionPointName
+import com.intellij.psi.PsiManager
+import com.intellij.psi.ElementDescriptionUtil
+import com.intellij.psi.PsiNamedElement
+import com.intellij.psi.PsiPolyVariantReference
+import com.intellij.usageView.UsageViewNodeTextLocation
+import com.intellij.usageView.UsageViewShortNameLocation
+import com.intellij.usageView.UsageViewTypeLocation
+import com.intellij.psi.ResolveState
+import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.testFramework.runInEdtAndWait
+import com.intellij.testFramework.LightPlatformTestCase
+import com.intellij.testFramework.fixtures.CodeInsightTestFixture
+import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory
+import com.intellij.testFramework.fixtures.impl.LightTempDirTestFixtureImpl
+import com.intellij.openapi.diagnostic.ControlFlowException
+import com.intellij.testFramework.utils.parameterInfo.MockCreateParameterInfoContext
+import com.intellij.testFramework.utils.parameterInfo.MockParameterInfoUIContext
+import org.elixir_lang.psi.Arguments
+import com.intellij.ide.structureView.StructureViewBuilder
+import com.intellij.ide.structureView.TreeBasedStructureViewBuilder
+import com.intellij.ide.util.treeView.smartTree.TreeElement
+import com.intellij.openapi.util.Disposer
+import org.elixir_lang.ElixirSyntaxHighlighter
+import com.intellij.openapi.editor.colors.EditorColorsManager
+import com.intellij.openapi.editor.colors.TextAttributesKey
+import com.intellij.openapi.editor.markup.TextAttributes
+import java.awt.Color
+import java.io.File
+import java.util.concurrent.ExecutionException
+import com.intellij.testFramework.TestLoggerFactory
+import com.intellij.refactoring.rename.api.RenameTarget
+import com.intellij.refactoring.rename.api.RenameValidationResult
+import java.lang.management.ManagementFactory
+import com.intellij.codeInsight.lookup.LookupManager
+import com.intellij.codeInsight.CodeInsightSettings
+import com.intellij.codeInsight.lookup.LookupElement
+import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
+import org.elixir_lang.structure_view.element.Delegation
+import org.elixir_lang.psi.ElixirFile
+import org.elixir_lang.psi.ElixirStabBody
+import org.elixir_lang.structure_view.Model
+import org.elixir_lang.structure_view.node_provider.Used
+import org.elixir_lang.code_insight.matrix.Declaration
+import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.fileEditor.FileDocumentManager
+import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.psi.PsiDocumentManager
+import junit.framework.TestCase.assertEquals
+import junit.framework.TestCase.assertFalse
+import junit.framework.TestCase.assertNotNull
+import junit.framework.TestCase.assertTrue
+import kotlinx.coroutines.CancellationException
+import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.DynamicContainer
+import org.junit.jupiter.api.DynamicContainer.dynamicContainer
+import org.junit.jupiter.api.DynamicTest.dynamicTest
+import org.junit.jupiter.api.TestFactory
+import org.elixir_lang.code_insight.matrix.Scenario
+import org.elixir_lang.code_insight.matrix.Shards
+import org.elixir_lang.code_insight.matrix.Applicability
+import org.elixir_lang.code_insight.matrix.Backing
+import org.elixir_lang.code_insight.matrix.Binding
+import org.elixir_lang.code_insight.matrix.Cell
+import org.elixir_lang.code_insight.matrix.Complaint
+import org.elixir_lang.code_insight.matrix.complaintOf
+import org.elixir_lang.code_insight.matrix.namedArities
+import org.elixir_lang.code_insight.matrix.suggestionsOf
+import org.elixir_lang.inspection.References
+import org.elixir_lang.inspection.UnresolvableModuleQualifier
+import org.elixir_lang.code_insight.matrix.Crossing
+import org.elixir_lang.code_insight.matrix.DeclaringModule
+import org.elixir_lang.code_insight.matrix.Definition
+import org.elixir_lang.code_insight.matrix.Expected
+import org.elixir_lang.code_insight.matrix.Feature
+import org.elixir_lang.code_insight.matrix.Fixtures
+import org.elixir_lang.code_insight.matrix.Head
+import org.elixir_lang.code_insight.matrix.LOCAL
+import org.elixir_lang.code_insight.matrix.MACRO_FORMS
+import org.elixir_lang.code_insight.matrix.MatrixProjectDescriptor
+import org.elixir_lang.code_insight.matrix.Place
+import org.elixir_lang.code_insight.matrix.Site
+import org.elixir_lang.code_insight.matrix.UNAVAILABLE_PHRASE
+import org.elixir_lang.code_insight.matrix.written
+import org.elixir_lang.code_insight.matrix.Spelling
+import org.elixir_lang.code_insight.matrix.Position
+import org.elixir_lang.code_insight.matrix.sees
+import org.elixir_lang.code_insight.matrix.privateUse
+import org.elixir_lang.code_insight.matrix.specName
+import org.elixir_lang.documentation.quickDocumentationAtCaret
+import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.call.Call
+
+/**
+ * One test per cell: a [Feature] asked at one [Place] of one scenario, where a scenario is a backing, a declaration
+ * form and a world of definitions and calls generated by `generate.exs`. The expected answers come from real Elixir:
+ * the compiler says which definition each call binds to, and quoting the scenario's source says what that
+ * definition's heads are.
+ *
+ * Every cell of a scenario shares one fixture, opened by the first of them to run and closed after the last, because
+ * the fixture's set-up and tear-down cost more than the features themselves. Each cell still passes or fails on its
+ * own outcome.
+ *
+ * `testData/.../code_intelligence_matrix/gap-map.tsv` records which cells were red when this suite was written, one
+ * sorted row each, so a refactor of the code underneath can be diffed cell by cell. It is **data, not an oracle**:
+ * nothing reads it, and a cell going green is an improvement to re-record rather than a row to defend.
+ *
+ * The scenarios are split between [shard] classes, which `testFullMatrix` runs in parallel forks; see [Shards].
+ */
+abstract class CodeIntelligenceMatrixTest(private val shard: Int) {
+    @TestFactory
+    fun cells(): List<DynamicContainer> {
+        Group.startTiming(shard)
+        return Shards.of(Shards.count).getOrElse(shard) { emptyList() }
+            .map { it to Group.cellsOf(it) }
+            // An empty container is reported as a passing test named after the scenario.
+            .filter { (_, cells) -> cells.isNotEmpty() }
+            .map { (scenario, cells) ->
+                dynamicContainer(
+                    Shards.name(scenario),
+                    cells.map { cell -> dynamicTest(cell.testName) { Group.check(cell) } }
+                )
+            }
+    }
+
+    companion object {
+        /**
+         * Closes whichever scenario a filtered or aborted run left open, then the light project every scenario
+         * shared: JUnit 5's leak check at the end of the run reports it otherwise, where JUnit 3 closed it itself.
+         */
+        @AfterAll
+        @JvmStatic
+        fun close() {
+            Group.closeOpen()
+            runInEdtAndWait { LightPlatformTestCase.closeAndDeleteProject() }
+        }
+    }
+}
+
+/**
+ * Every applicable feature asked at every place of [scenario], in one light fixture.
+ *
+ * The fixture is per scenario rather than per place because its set-up and tear-down cost more than the features
+ * themselves, and a scenario's places all ask about the same files. It is not shared any more widely than that: a
+ * feature that edits has to be the only thing in the project defining what it edits, so scenarios cannot overlap.
+ */
+private class Group(val scenario: Scenario) {
+    private lateinit var myFixture: CodeInsightTestFixture
+
+    /** The place being asked; every applicable feature is asked there before the next place is opened. */
+    private lateinit var place: Place
+    private val project get() = myFixture.project
+    private val backing get() = Backing.of(scenario)
+
+    /** What `generate.exs` prefixes every function name with, so one project can hold every scenario at once. */
+    private val scope get() = "${scenario.backing}_${scenario.form}_${scenario.world}_"
+    /** Every caller the scenario has, by its fixture path: the ordinary one, and the broken ones where it has them. */
+    private val callerFiles = linkedMapOf<String, VirtualFile>()
+    private val sourceFiles = mutableMapOf<DeclaringModule, VirtualFile>()
+    private val originals = linkedMapOf<VirtualFile, String>()
+    private var opened = false
+
+    private val cells = cellsOf(scenario)
+    private var unchecked = cells.size
+    private var closed = false
+
+    /** Set once the scenario cannot go on - its fixture would not open, or a place would not bind - and failing every later cell. */
+    private var broken: Throwable? = null
+    private var binding: Binding? = null
+    /** completionInserted's outcome at [place], already decided by completionOffered's completion there. */
+    private var inserted: Result<Unit>? = null
+
+    /**
+     * Asks [feature] at [atPlace], opening the fixture for this scenario's first cell and closing it after its last.
+     *
+     * A failure to open the fixture or to bind a place fails that cell and every later one of the scenario, as it
+     * would leave them asking an unknown project.
+     */
+    fun check(atPlace: Place, feature: Feature, name: String?) {
+        try {
+            broken?.let { throw it }
+            runInEdtAndWait {
+                if (!this::myFixture.isInitialized) breakOnFailure { timed("setUp") { setUp() } }
+                if (!this::place.isInitialized || place != atPlace) {
+                    place = atPlace
+                    opened = false
+                    inserted = null
+                    binding = breakOnFailure { timed("binding", place = atPlace) { binding() } }
+                }
+                timed("check", feature, atPlace) {
+                    val answered = if (feature == Feature.COMPLETION_INSERTED && name == null) inserted.also { inserted = null } else null
+                    try {
+                        if (answered != null) answered.getOrThrow() else check(feature, binding, name)
+                    } catch (e: Throwable) {
+                        if (e is ControlFlowException || e is CancellationException) breakOnFailure { throw e }
+                        if (e is junit.framework.AssertionFailedError || e.javaClass == AssertionError::class.java) trimToCheck(e)
+                        throw e
+                    } finally {
+                        if (feature.edits && broken == null && answered == null) restore()
+                    }
+                }
+            }
+        } finally {
+            if (--unchecked == 0) closeOpen()
+        }
+    }
+
+    /**
+     * Cuts [assertion]'s stack below the feature's check, the frames that differ between cells: the JUnit XML stores
+     * every red cell's stack, which at tens of thousands of cells is mostly the harness repeated.
+     */
+    private fun trimToCheck(assertion: Throwable) {
+        val check = assertion.stackTrace.indexOfFirst { it.className == Group::class.java.name && it.methodName == "check" }
+        if (check >= 0) assertion.stackTrace = assertion.stackTrace.copyOfRange(0, check + 1)
+    }
+
+    private inline fun <T> breakOnFailure(block: () -> T): T =
+        try {
+            block()
+        } catch (e: Throwable) {
+            if (e !is VirtualMachineError) broken = e
+            close()
+            throw e
+        }
+
+    fun close() {
+        if (closed) return
+        closed = true
+        // `myFixture` is only unset when the factory itself threw, and then there is nothing to tear down; calling it
+        // anyway would replace the real failure with an uninitialized-property one.
+        if (this::myFixture.isInitialized) timed("tearDown") { myFixture.tearDown() }
+    }
+
+    /**
+     * [block]'s result, with its wall time appended to [timing] when that is set.
+     *
+     * The XML charges a scenario's set-up to its first cell and a place's binding to that place's first; this says
+     * which phase the time goes to. A feature's time includes the [restore] after it, and completionOffered's includes
+     * completionInserted's at the same place, which it answers from the same completion.
+     */
+    private inline fun <T> timed(phase: String, feature: Feature? = null, place: Place? = null, block: () -> T): T {
+        val file = timing ?: return block()
+        val start = System.nanoTime()
+        try {
+            return block()
+        } finally {
+            val nanos = System.nanoTime() - start
+            file.appendText(
+                listOf(scenario.backing, scenario.form, scenario.world, phase, feature?.testName ?: "", place?.id ?: "", nanos)
+                    .joinToString("\t", postfix = "\n")
+            )
+        }
+    }
+
+    private fun setUp() {
+        val factory = IdeaTestFixtureFactory.getFixtureFactory()
+        val fixture = factory.createLightFixtureBuilder(MatrixProjectDescriptor, "matrix").fixture
+        myFixture = factory.createCodeInsightFixture(fixture, LightTempDirTestFixtureImpl(true))
+        myFixture.testDataPath = Fixtures.DIRECTORY
+        myFixture.setUp()
+        HeadlessDataManager.fallbackToProductionDataManager(myFixture.testRootDisposable)
+        // What the editor says is a question only an enabled inspection answers, and `References` ships off by
+        // default. Both are enabled for every group rather than only the diagnostic cells, so that a complaint one
+        // of them makes about a place the other is being asked about is visible instead of suppressed.
+        myFixture.enableInspections(References(), UnresolvableModuleQualifier())
+
+        scenario.callers.forEach { callerFiles[it] = myFixture.copyFileToProject(it) }
+        scenario.modules.filterNot { it.compiled || it.source in callerFiles }.forEach { sourceFiles[it] = myFixture.copyFileToProject(it.source) }
+        scenario.modules.mapNotNull { it.staleBeam }.forEach { myFixture.copyFileToProject(it, it.removePrefix("stale/")) }
+        (callerFiles.values + sourceFiles.values).forEach { originals[it] = text(it) }
+    }
+
+    /** Puts every copied file back as it was copied, so the next feature starts from the same project. */
+    private fun restore() {
+        LookupManager.hideActiveLookup(project)
+        WriteCommandAction.runWriteCommandAction(project) {
+            for ((file, text) in originals) {
+                val document = FileDocumentManager.getInstance().getDocument(file)!!
+                // Only what the feature changed: resetting an untouched document to its own text still reparses it.
+                if (document.text != text) document.setText(text)
+            }
+        }
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+        // Unsaved, the next group's copy of the same file would meet a document that differs from the disk.
+        FileDocumentManager.getInstance().saveAllDocuments()
+        opened = false
+    }
+
+    private fun check(feature: Feature, binding: Binding?, name: String?) {
+        if (scenario.attribute) return checkAttribute(feature, name)
+        if (scenario.variable) return checkVariable(feature)
+
+        when (feature) {
+            Feature.GO_TO_DECLARATION -> checkGoToDeclaration(binding)
+            Feature.FIND_USAGES -> checkFindUsages(binding)
+            Feature.LABEL -> checkLabel(binding)
+            Feature.DESCRIPTION -> checkDescription(binding!!, name!!)
+            Feature.QUICK_DOCUMENTATION -> if (binding?.namesModule == true) checkModuleDocumentation(binding) else checkQuickDocumentation(binding)
+            Feature.UNAVAILABLE_NOTICE -> checkUnavailableNotice(binding)
+            Feature.PARAMETER_INFO -> checkParameterInfo(binding)
+            Feature.CTRL_CLICK -> checkCtrlClick(binding!!)
+            Feature.HIGHLIGHTING -> checkHighlighting(binding)
+            Feature.DIAGNOSTIC -> checkDiagnostic(binding)
+            Feature.STRUCTURE_VIEW -> checkStructureView(binding!!)
+            Feature.BREADCRUMBS -> checkBreadcrumbs(binding!!)
+            Feature.SHOW_USED -> checkShowUsed(binding!!)
+            Feature.COMPLETION_OFFERED -> checkCompletionOffered()
+            Feature.COMPLETION_INSERTED -> checkCompletionInserted(name)
+            Feature.RENAME -> checkRename(binding)
+            Feature.INCOMPLETE_RESOLUTION -> checkIncompleteResolution()
+            Feature.GO_TO_RELATED -> checkGoToRelated()
+        }
+    }
+
+    /**
+     * One signature for each arity of the called name in the called module, taken from that arity's first clause.
+     *
+     * Every arity of the name is shown, whichever one the call passes - and at a call whose arity none of them
+     * covers, that is still the answer, because the arity is what the developer could not remember.
+     */
+    private fun checkParameterInfo(binding: Binding?) {
+        openAt(place)
+        moveIntoArguments()
+
+        val site = siteOrNull()!!
+        val module = binding?.let { definition(it).first } ?: scenario.main
+        val expected = module.definitions
+            .filter { it.name == site.name && site.sees(it) }
+            .flatMap { definition ->
+                (definition.minArity..definition.maxArity)
+                    .filter { arity -> site.visible?.let { "${definition.name}/$arity" in it } ?: true }
+                    .map { arity -> Expected.headAt(scenario.backing, module, definition, arity).parameters }
+                    .distinct()
+            }
+            .map { parameters -> parameters.joinToString(", ").ifEmpty { "<no parameters>" } }
+            .sorted()
+
+        assertEquals("Parameter Info at ${place.id} showed the wrong signatures", expected, parameterInfoSignaturesAtCaret().sorted())
+    }
+
+    /** Ctrl+Click on a declaration shows its usages, offering only the clause the caret is on. */
+    private fun checkCtrlClick(binding: Binding) {
+        openAt(place)
+        val navigation = myFixture.gtduNavigationAtCaret()
+
+        // Without its identity hash, which differs from run to run and would make every such cell's message "change".
+        val described = navigation.toString().replace(IDENTITY_HASH, "")
+        assertTrue("Ctrl+Click on ${place.id} should show its usages, but resolved to $described", navigation is GtduNavigation.ShowUsages)
+        assertEquals(
+            "Show Usages at ${place.id} offered the wrong targets",
+            listOf(presentedHead(binding).label),
+            (navigation as GtduNavigation.ShowUsages).variants
+        )
+    }
+
+    /**
+     * The annotator's key on the name: a declaration's for a head, and a call's for a use, by whether the definition
+     * is a function or a macro. A variable, atom or keyword that shares the name gets neither call key.
+     */
+    private fun checkHighlighting(binding: Binding?) {
+        openAt(place)
+        val keys = nameStarts(myFixture.editor.document.charsSequence, myFixture.editor.caretModel.offset - 1).flatMap(::highlightKeysAt)
+        val macro = scenario.form in MACRO_FORMS
+        // A guard is a macro Elixir allows in a guard, and it has keys of its own; they fall back to the function
+        // keys, so an unconfigured scheme shows it as a function, but the key says what it is.
+        val guard = scenario.form in GUARD_FORMS
+
+        if (binding == null) {
+            val callKeys = listOf(ElixirSyntaxHighlighter.FUNCTION_CALL, ElixirSyntaxHighlighter.MACRO_CALL, GUARD_CALL).map { it.externalName }
+            assertEquals("${place.id} is highlighted as a call", emptyList<String>(), keys.filter { it in callKeys })
+        } else {
+            val expected = when {
+                place is Place.Head && guard -> GUARD_DECLARATION
+                place is Place.Head && macro -> ElixirSyntaxHighlighter.MACRO_DECLARATION
+                place is Place.Head -> ElixirSyntaxHighlighter.FUNCTION_DECLARATION
+                guard -> GUARD_CALL
+                macro -> ElixirSyntaxHighlighter.MACRO_CALL
+                else -> ElixirSyntaxHighlighter.FUNCTION_CALL
+            }.externalName
+            assertTrue("${place.id} should be highlighted `$expected`, but has $keys", expected in keys)
+        }
+    }
+
+    /**
+     * The keys whose attributes the annotator applied at [offset]. It applies merged attributes rather than keys, and
+     * the test scheme gives several keys the same attributes, so each key gets a foreground of its own while this runs.
+     *
+     * The five keys are put back in a `finally`, with one caveat worth stating rather than hiding: a key the global
+     * scheme only inherits is read as its inherited value and written back as an explicit one. The value is identical,
+     * so no cell can see the difference, but the scheme is left marginally more explicit than it was found for the
+     * rest of the test JVM.
+     */
+    private fun highlightKeysAt(offset: Int): List<String> =
+        highlights().filter { it.startOffset == offset }.mapNotNull { it.key }.sorted()
+
+    /** Where a name written at [offset] starts: a quoted name `"f"` may start at its opening quote. */
+    private fun nameStarts(text: CharSequence, offset: Int): List<Int> =
+        if (offset > 0 && text[offset - 1] == '"') listOf(offset - 1, offset) else listOf(offset)
+
+    private fun startsAt(virtualFile: VirtualFile, site: Site, offset: Int): Boolean =
+        offset in nameStarts(String(virtualFile.contentsToByteArray(), virtualFile.charset), offsetOf(virtualFile, site.line, site.column))
+
+    /** One highlight of the open file: where, how severe, what it says, and which of [highlightKeysAt]'s keys it is. */
+    private class Highlight(val startOffset: Int, val endOffset: Int, val severity: HighlightSeverity, val description: String?, val key: String?)
+
+    /**
+     * The open file's highlights, with each of [highlightKeysAt]'s keys given a foreground of its own while they are
+     * computed, so an applied attribute can be read back as the key that applied it.
+     *
+     * The highlights depend on the project's text, not on the caret, so one pass answers every place in the file and
+     * both [checkHighlighting] and [checkDiagnostic]. Without this every place re-highlighted the whole file twice,
+     * a fifth of the suite. A pass is only reused while [pristine], and [restore] puts the project back to exactly
+     * that text.
+     */
+    private fun highlights(): List<Highlight> {
+        val file = myFixture.file.virtualFile
+        val pristine = pristine()
+        highlightsByFile[file]?.takeIf { pristine }?.let { return it }
+
+        val scheme = EditorColorsManager.getInstance().globalScheme
+        val previous = HIGHLIGHT_KEYS.associateWith { scheme.getAttributes(it) }
+        val distinct = HIGHLIGHT_KEYS.withIndex().associate { (index, key) -> key to TextAttributes(Color(1, 2, 3 + index), null, null, null, 0) }
+
+        return try {
+            distinct.forEach { (key, attributes) -> scheme.setAttributes(key, attributes) }
+            myFixture.doHighlighting().map { info ->
+                Highlight(
+                    info.startOffset,
+                    info.endOffset,
+                    info.severity,
+                    info.description,
+                    distinct.entries.firstOrNull { it.value == info.forcedTextAttributes }?.key?.externalName
+                )
+            }
+        } finally {
+            previous.forEach { (key, attributes) -> scheme.setAttributes(key, attributes) }
+        }.also { if (pristine) highlightsByFile[file] = it }
+    }
+
+    private val highlightsByFile = mutableMapOf<VirtualFile, List<Highlight>>()
+
+    /**
+     * What the editor says about the caret's position: [inspectionDescriptionsAtCaret], read from [highlights]
+     * rather than from a highlighting pass of its own.
+     */
+    private fun inspectionDescriptionsAtCaret(): List<String> {
+        val document = myFixture.editor.document
+        val caret = myFixture.caretOffset
+        val line = document.getLineNumber(caret)
+        val start = document.getLineStartOffset(line)
+        val end = document.getLineEndOffset(line)
+
+        if (DUMP_HIGHLIGHTS) {
+            println("highlights on line ${line + 1}, caret at $caret (`${document.charsSequence.subSequence(caret, minOf(caret + 30, end))}`):")
+            highlights().filter { it.startOffset >= start && it.endOffset <= end }.forEach {
+                println("  ${it.startOffset}..${it.endOffset} `${document.charsSequence.subSequence(it.startOffset, it.endOffset)}` ${it.severity} ${it.description}")
+            }
+        }
+
+        return highlights()
+            .filter { it.severity >= HighlightSeverity.WARNING }
+            .filter { it.startOffset >= start && it.endOffset <= end && caret in it.startOffset..it.endOffset }
+            .mapNotNull { it.description }
+            .distinct()
+            .sorted()
+    }
+
+    /** Whether every copied file's document has the text it was copied with, and nothing is waiting to be committed. */
+    private fun pristine(): Boolean =
+        !PsiDocumentManager.getInstance(project).hasUncommitedDocuments() &&
+            originals.all { (file, text) -> FileDocumentManager.getInstance().getDocument(file)!!.text == text }
+
+    /**
+     * What the editor says about the call, which is the only feature here that asks what the developer is *told*
+     * rather than where they are taken. Everything else can see that resolution failed; none of them can see
+     * whether the reason was explained, or explained wrongly.
+     *
+     * Three answers, and the middle one is the point. A correct call is not complained about. A call at an arity
+     * nothing covers is complained about as an arity, because the editor knows the arities and the developer has
+     * just demonstrated that they do not - this is what the compiler itself does, answering *"undefined or
+     * private. Did you mean: * snoc/2"*. A call to a name nothing declares gets the complaint that says so, and
+     * exists here mainly so the middle answer has something to be distinguished from: a plugin that says "does
+     * not resolve to anything" to both is wrong about one of them and looks right about the other.
+     *
+     * A category, never a sentence - [complaintOf] is the one place the current wordings appear, so improving one
+     * reddens nothing. The arity complaint is held to one thing more: it has to *name the arities*. That is
+     * content rather than wording, the same way [UNAVAILABLE_PHRASE] is, and without it the category is a
+     * distinction the plugin makes only to itself - "only resolves to invalid results" tells a developer who
+     * cannot remember whether it was two arguments or three exactly nothing, where the compiler's own
+     * *"Did you mean: * snoc/2"* answers them outright.
+     */
+    private fun checkDiagnostic(binding: Binding?) {
+        openAt(place)
+        val site = siteOrNull()!!
+        val candidates = candidates(site)
+        val expected = when {
+            site.diagnostic == null -> emptyList()
+            candidates.isNotEmpty() -> listOf(Complaint.ARITY_MISMATCH.name)
+            else -> listOf(Complaint.UNRESOLVED.name)
+        }
+        val said = inspectionDescriptionsAtCaret()
+
+        assertEquals(
+            "The editor says the wrong thing about ${place.id}, which the compiler called: ${site.diagnostic?.message?.trim() ?: "correct"}",
+            expected,
+            said.map(::complaintOf).distinct().sorted()
+        )
+
+        val suggested = site.diagnostic?.message?.let(::suggestionsOf).orEmpty()
+
+        if (suggested.isNotEmpty()) {
+            // The compiler already tells the developer what they may have meant, and an editor naming less than that,
+            // or something else, is less help than the build. Its list is fuzzy on the name, not only the arity: a
+            // call of a name nothing declares is pointed at the name that is declared.
+            assertEquals(
+                "The editor's complaint about ${place.id} does not name what the compiler suggests: $said",
+                suggested,
+                said.flatMap(::namedArities).distinct().sorted()
+            )
+        } else if (expected == listOf(Complaint.UNRESOLVED.name)) {
+            // The compiler names nothing - "undefined or private" of a private function says no more - so naming an arity
+            // tells the developer of a function they cannot call.
+            assertEquals(
+                "The editor's complaint about ${place.id} names what the compiler does not: $said",
+                emptyList<String>(),
+                said.flatMap(::namedArities).distinct().sorted()
+            )
+        } else if (expected == listOf(Complaint.ARITY_MISMATCH.name)) {
+            // Every arity a candidate covers, defaults included, less any an `import only:`/`except:` hides from
+            // this site: naming the one arity the developer can call here is the answer, not the definition's widest.
+            val visible = site.visible
+            val arities = candidates
+                .map { definition(it).second }
+                .flatMap { definition -> (definition.minArity..definition.maxArity).map { "${definition.name}/$it" } }
+                .filter { visible == null || it in visible }
+
+            assertTrue(
+                "The editor complains about ${place.id} without saying which arities there are, so it leaves the developer where it found them: $said does not name any of $arities",
+                said.any { description -> arities.any(description::contains) }
+            )
+        }
+    }
+
+    /** The declaring file's structure view has the definition as `name/arity`, with one child per clause it keeps. */
+    private fun checkStructureView(binding: Binding) {
+        openAt(place)
+        val (module, definition) = definition(binding)
+        val file = myFixture.file.virtualFile
+        val builder = StructureViewBuilder.getProvider().getStructureViewBuilder(file.fileType, file, project)
+            as? TreeBasedStructureViewBuilder
+            ?: throw AssertionError("${file.name} has no tree-based structure view")
+        val model = builder.createStructureViewModel(myFixture.editor)
+
+        try {
+            val entries = mutableListOf<Pair<String, Int>>()
+            fun walk(element: TreeElement) {
+                entries += element.presentation.presentableText.orEmpty() to element.children.size
+                element.children.forEach(::walk)
+            }
+            walk(model.root)
+
+            val name = "${definition.name}/${definition.maxArity}"
+            // Every head the declaration writes, which for a defaults world is one more than `Definition.clauses`:
+            // the bodiless head is not a clause, but the structure view still shows it under the definition.
+            // A `@spec` of the definition is shown under it too, as the other thing written about it. One of a lower arity a
+            // default covers is shown under that arity's own entry, which is how the view lists a definition with defaults.
+            val specs = scenario.sites.count { specName(it.id) && it.file == module.source && it.name == definition.name && it.arity == definition.maxArity }
+            val heads = Expected.heads(module, definition.name, definition.maxArity).size + specs
+            assertTrue(
+                "Structure view has no `$name` with $heads head(s) and spec(s); it has ${entries.filter { it.first.contains('/') }}",
+                entries.any { it.first == name && it.second == heads }
+            )
+        } finally {
+            Disposer.dispose(model)
+        }
+    }
+
+    /** With the caret in a head, the breadcrumbs end with the module and the definition's `name/arity`. */
+    private fun checkBreadcrumbs(binding: Binding) {
+        openAt(place)
+        val (_, definition) = definition(binding)
+        val provider = org.elixir_lang.breadcrumbs.Provider()
+        val crumbs = generateSequence(myFixture.file.findElementAt(myFixture.editor.caretModel.offset)) { it.parent }
+            .filter { provider.acceptElement(it) }
+            .map { provider.getElementInfo(it) }
+            .toList()
+            .reversed()
+        val arity = if (definition.minArity == definition.maxArity) "${definition.maxArity}" else "${definition.minArity}..${definition.maxArity}"
+        // An injected definition is written inside the `__using__` of the module whose source holds it.
+        val enclosing = declarationOf(place as Place.Head)?.file
+            ?.let { file -> listOf(scenario.modules.first { it.source == file }.module, "$USING/1") }
+            ?: listOf(scenario.main.module)
+        val expected = enclosing + "${definition.name}/$arity"
+
+        assertEquals("Breadcrumbs at ${place.id} are wrong", expected, crumbs.takeLast(expected.size))
+    }
+
+    /**
+     * Show Used, in the source of a module that uses another, lists what the `use` injects: every definition the using
+     * module gets from it, as `name/arity`.
+     */
+    private fun checkShowUsed(binding: Binding) {
+        val (module, definition) = definition(binding)
+        val file = sourceFiles.getValue(module)
+        myFixture.configureFromExistingVirtualFile(file)
+        opened = false
+        val model = Model(myFixture.file as ElixirFile, myFixture.editor)
+
+        try {
+            val modules = mutableListOf<TreeElement>()
+            fun walk(element: TreeElement) {
+                if (element is org.elixir_lang.structure_view.element.modular.Module) modules += element
+                element.children.forEach(::walk)
+            }
+            walk(model.root)
+            // A module's entry presents its last alias segment, so it is told apart by the `defmodule` it stands for.
+            val using = modules.firstOrNull { ((it as? com.intellij.ide.structureView.StructureViewTreeElement)?.value as? PsiElement)?.text?.startsWith("defmodule ${module.module} ") == true }
+                ?: throw AssertionError("The structure view of ${file.name} has no module ${module.module}")
+            val used = Used().provideNodes(using).map { it.presentation.presentableText.orEmpty() }.sorted()
+            val name = "${definition.name}/${definition.maxArity}"
+
+            assertTrue("Show Used under ${module.module} does not list `$name`; it lists $used", name in used)
+        } finally {
+            Disposer.dispose(model)
+        }
+    }
+
+    private fun parameterInfoSignaturesAtCaret(): List<String> {
+        val handler = ParameterInfo()
+        val context = MockCreateParameterInfoContext(myFixture.editor, myFixture.file)
+        val arguments = handler.findElementForParameterInfo(context) ?: return emptyList()
+        handler.showParameterInfo(arguments, context)
+
+        return context.itemsToShow.orEmpty().map { item ->
+            val uiContext = MockParameterInfoUIContext<Arguments>(arguments)
+            uiContext.currentParameterIndex = 0
+            handler.updateUI(item as Signature, uiContext)
+            uiContext.text
+        }
+    }
+
+    /** Every definition visible at the call whose name starts with what is typed, under its own name, byte for byte. */
+    private fun checkCompletionOffered() {
+        val (name, prefix) = typeCallPrefix(null)
+        if (Crossing.namesNoFunction(siteOrNull()!!)) {
+            assertOffered(name, prefix, functionCandidatesAtCaret())
+            return
+        }
+        if (cells.none { it.place == place && it.feature == Feature.COMPLETION_INSERTED && it.name == null }) {
+            assertOffered(name, prefix, myFixture.completionCandidatesAtCaret())
+            return
+        }
+
+        val completion = myFixture.completionAtCaret()
+        // Decided before inserting, so that neither outcome can decide the other.
+        val offered = runCatching { assertOffered(name, prefix, completion.candidates()) }
+        inserted = runCatching { assertInserted(name, prefix, completion.complete(name, '\n') { it == name }) }
+        offered.getOrThrow()
+    }
+
+    /**
+     * The completion items at the caret that stand for a function: an atom completed as a plain atom names no function
+     * even when its text is a function's name, so an item is told apart by the element it stands for, not its string.
+     */
+    private fun functionCandidatesAtCaret(): List<String> {
+        val settings = CodeInsightSettings.getInstance()
+        val autocompleteWas = settings.AUTOCOMPLETE_ON_CODE_COMPLETION
+        settings.AUTOCOMPLETE_ON_CODE_COMPLETION = false
+
+        try {
+            val items = myFixture.completeBasic()
+                ?: throw AssertionError("Expected the completion lookup to open, but a candidate was auto-inserted")
+
+            return items.filter { item ->
+                when (val element = item.psiElement ?: item.`object` as? PsiElement) {
+                    is BeamCallDefinition -> true
+                    is Call -> CallDefinitionClause.`is`(element) || Delegation.`is`(element)
+                    else -> false
+                }
+            }.map(LookupElement::getLookupString)
+        } finally {
+            settings.AUTOCOMPLETE_ON_CODE_COMPLETION = autocompleteWas
+        }
+    }
+
+    private fun assertOffered(name: String, prefix: String, candidates: List<String>) {
+        val offered = candidates.filter { it.startsWith(prefix) }.distinct().sorted()
+
+        assertEquals(
+            "Typing `$prefix` at ${place.id} offered the wrong names (typing toward `$name`)",
+            Crossing.offered(scenario, siteOrNull()!!),
+            offered
+        )
+    }
+
+    /**
+     * Completing a name writes it as Elixir spells it where it stands. At a call it also writes a real signature -
+     * `snoc(q, x)`, with the parameters there to be typed over - not an empty argument list. `snoc()` is what puts
+     * the developer at a call no arity covers in the first place, and it is the IDE that put them there. A capture
+     * or an atom keeps the text after the name: completion writes the name alone.
+     *
+     * Any of the name's arities is accepted, because the gesture takes the first candidate offered under the name
+     * and the popup collapses the arities into one lookup string, so which one was picked is not the caller's to
+     * choose. Where a zero-arity definition genuinely exists, `snoc()` is one of those signatures and is right.
+     *
+     * The signature is the one a caller could type - [org.elixir_lang.code_insight.matrix.Head.callSignature], without the `\\` that declares a
+     * default - since inserting a default marker at a call site would insert a syntax error.
+     */
+    private fun checkCompletionInserted(name: String?) {
+        val (completing, prefix) = typeCallPrefix(name)
+        assertInserted(completing, prefix, myFixture.completeCandidateOrSoleMatchAtCaret(completing, '\n') { it == completing })
+    }
+
+    private fun assertInserted(name: String, prefix: String, text: String) {
+        val line = typedLine()
+        val inserted = text.split('\n')[line.index]
+        val site = siteOrNull()!!
+        if (site.attribute != null) {
+            assertEquals("Completing `@$prefix` to `@$name` at ${place.id} inserted the wrong text", line.before + name, inserted)
+            return
+        }
+        val written = written(site)
+        val spelled = Spelling.of(name, written.position)!!
+        if (!written.call) {
+            assertEquals("Completing `$prefix` to `$name` at ${place.id} inserted the wrong text", line.before + spelled + line.after, inserted)
+            return
+        }
+        val module = scenario.module(site.binding?.module ?: scenario.main.module)
+        val signatures = module.definitions
+            .filter { it.name == name }
+            .sortedBy { it.maxArity }
+            .flatMap { definition ->
+                (definition.minArity..definition.maxArity)
+                    .filter { arity -> site.visible?.contains("${definition.name}/$arity") ?: true }
+                    .map { arity ->
+                        val head = Expected.headAt(scenario.backing, module, definition, arity)
+                        line.before + spelled + head.callSignature(arity).removePrefix(head.name)
+                    }
+            }
+
+        assertTrue(
+            "Completing `$prefix` to `$name` at ${place.id} inserted `$inserted`, not one of $signatures",
+            inserted in signatures
+        )
+    }
+
+    /**
+     * Source: every head of the definition and every call the compiler bound to it are renamed, and nothing else
+     * changes. Compiled: the rename is refused, because the definition is in a read-only `.beam`. A call nothing
+     * covers: the rename is refused, because renaming would edit a function the call does not make. Refused is
+     * either nothing offered to rename, or the rename dialog refusing with a reason saying it cannot be renamed and
+     * editing nothing.
+     */
+    private fun checkRename(binding: Binding?) {
+        openAt(place)
+
+        if (binding == null) {
+            assertRenameRefused("no definition covers that call", "nothing")
+            return
+        }
+
+        if (definition(binding).first.compiled) {
+            assertRenameRefused("the definition is compiled", definition(binding).second.name)
+            return
+        }
+
+        val (module, definition) = definition(binding)
+        val newName = renamed(definition.name)
+        val positions = scenario.sites
+            .filter { site -> site.binding?.let { sameDefinition(module, definition, it) } == true }
+            .map { it.file to (it.line to it.column) }
+        // A declaration spells the name as its form does: an embed's atom is the name without the suffix the embed adds.
+        val declarationName = EMBED_SUFFIXES.firstOrNull { scenario.form == GENERATOR_EMBED && newName.endsWith(it) }
+            ?.let(newName::removeSuffix) ?: newName
+        val declarationPositions = module.declarations
+            .filter { it.name == definition.name && it.arity == definition.maxArity }
+            .map { (it.file ?: module.source) to (it.line to it.column) }
+
+        val targets = myFixture.renameTargetsAtCaret()
+        rename(
+            targets.singleOrNull()
+                ?: throw AssertionError("Expected exactly one rename target at the caret, got ${targets.size}: $targets"),
+            newName
+        )
+
+        val wrong = originals.keys.mapNotNull { file ->
+            val path = callerFiles.entries.firstOrNull { it.value == file }?.key
+                ?: scenario.modules.single { sourceFiles[it] == file }.source
+            val heads = declarationPositions.filter { it.first == path }.map { it.second }
+            val declared = replaceNames(keepDelegationTarget(module, originals.getValue(file), heads), heads, declarationName)
+            val expected = replaceNames(declared, positions.filter { it.first == path }.map { it.second }, newName)
+            val actual = FileDocumentManager.getInstance().getDocument(file)!!.text
+
+            if (actual == expected) null else "${file.name}: ${differences(expected, actual)}"
+        }
+
+        assertEquals("Renaming ${definition.name} to $newName from ${place.id} changed the wrong text", emptyList<String>(), wrong)
+    }
+
+    /**
+     * Resolved as code still being typed - how completion and parameter info resolve it - a call the compiler rejected for
+     * its name has no valid result either: a name that only starts like a declared one, or one the call cannot see, is
+     * not made right by typing more of the arguments. Candidates it is offered stay invalid.
+     */
+    private fun checkIncompleteResolution() {
+        openAt(place)
+        val reference = myFixture.file.findReferenceAt(myFixture.caretOffset) as? PsiPolyVariantReference
+        val valid = reference?.multiResolve(true).orEmpty()
+            .filter { it.isValidResult }
+            .map { result -> result.element?.let { "${it.containingFile?.name}: ${it.text.lineSequence().first().take(80)}" } ?: "an element-less result" }
+
+        assertEquals("Resolving ${place.id} as code being typed found valid results", emptyList<String>(), valid)
+    }
+
+    /**
+     * Go To Related from a declaration in a module's source, where the module is also in the project compiled, offers
+     * the decompiled definition of the same function: every decompiled head of that name at an arity the source's
+     * definition covers. The compiled scenario's source is added only for this, and removed again, so no other cell
+     * sees a module twice.
+     */
+    private fun checkGoToRelated() {
+        val head = place as Place.Head
+        val main = scenario.main
+        val file = myFixture.copyFileToProject(main.source)
+
+        try {
+            myFixture.configureFromExistingVirtualFile(file)
+            opened = false
+            val declaration = declarationOf(head)!!
+            val element = myFixture.file.findElementAt(offsetOf(file, declaration.line, declaration.column) + 1)!!
+            val related = GOTO_RELATED_PROVIDERS.extensionList
+                .flatMap { provider: GotoRelatedProvider -> provider.getItems(element) }
+                .mapNotNull { item: GotoRelatedItem -> item.element?.let { describeLine(it) } }
+                .distinct()
+                .sorted()
+            val definition = main.definitions.first { it.name == head.name && head.arity in it.minArity..it.maxArity }
+            val mirror = mirror(main)
+            val expected = (definition.minArity..definition.maxArity)
+                .flatMap { mirrorHeads(mirror, definition.name, it) }
+                .map(::describeLine)
+                .distinct()
+                .sorted()
+
+            assertEquals("Go To Related from ${place.id} does not offer the decompiled definition", expected, related)
+        } finally {
+            FileEditorManager.getInstance(project).let { manager -> manager.openFiles.forEach(manager::closeFile) }
+            WriteCommandAction.runWriteCommandAction(project) { file.delete(this) }
+            opened = false
+        }
+    }
+
+    // -- Module attributes ------------------------------------------------------------------
+
+    private fun checkAttribute(feature: Feature, name: String?) {
+        when (feature) {
+            Feature.GO_TO_DECLARATION -> checkAttributeGoToDeclaration()
+            Feature.FIND_USAGES -> checkAttributeFindUsages()
+            Feature.HIGHLIGHTING -> checkAttributeHighlighting()
+            Feature.DIAGNOSTIC -> checkAttributeDiagnostic()
+            Feature.COMPLETION_OFFERED -> checkCompletionOffered()
+            Feature.COMPLETION_INSERTED -> checkCompletionInserted(name)
+            Feature.RENAME -> checkAttributeRename()
+            else -> throw AssertionError("${feature.testName} is not asked of a module attribute")
+        }
+    }
+
+    /** Every read and write of the attribute at the caret, which is every one of its name in the module. */
+    private fun attributeSites(): List<Site> {
+        val name = siteOrNull()!!.name
+        return scenario.sites.filter { it.attribute != null && it.name == name }
+    }
+
+    /** A read lands on the writes its value came from; a write on itself; an undefined read nowhere. */
+    private fun checkAttributeGoToDeclaration() {
+        openAt(place)
+        val landed = myFixture.gotoDeclarationTargetsAtCaret().orEmpty().map { target ->
+            target.destination?.let(::describeLine) ?: "a target with no destination"
+        }.sorted()
+        val expected = siteOrNull()!!.attribute!!.declarations
+            .map { id -> scenario.sites.single { it.id == id }.let { describeLine(fileOf(it), it.line) } }
+            .sorted()
+
+        assertEquals("Go To Declaration from ${place.id} landed on the wrong writes", expected, landed)
+    }
+
+    /**
+     * From any read or write, every read and write of the name in the module, the starting one included: a redefined
+     * attribute is still one name, and a read before any write names it too.
+     */
+    private fun checkAttributeFindUsages() {
+        openAt(place)
+        val targets = myFixture.searchTargetCountAtCaret()
+        val found = myFixture.everyTargetPsiUsagesAtCaret(project).map { usage ->
+            attributeUsageSite(usage.file, usage.range.startOffset)
+        }.distinct().sorted()
+
+        assertEquals(
+            "Find Usages from ${place.id} found the wrong reads and writes from $targets search targets at the caret",
+            attributeSites().map { it.id }.sorted(),
+            found
+        )
+    }
+
+    /** Which site a usage starting at [offset] is, on its `@` or on its name. */
+    private fun attributeUsageSite(file: PsiFile, offset: Int): String {
+        val virtualFile = fileOf(file)
+        val site = scenario.sites.firstOrNull { site ->
+            callerFiles[site.file] == virtualFile && offsetOf(virtualFile!!, site.line, site.column) - offset in 0..1
+        }
+
+        return site?.id ?: "unexpected usage at ${describeLine(file, offset)}"
+    }
+
+    private fun checkAttributeHighlighting() {
+        openAt(place)
+        val site = siteOrNull()!!
+        val at = offsetOf(fileOf(site), site.line, site.column) - 1
+        val keys = highlightKeysAt(at)
+        val expected = ElixirSyntaxHighlighter.MODULE_ATTRIBUTE.externalName
+
+        assertTrue("@${site.name} at ${place.id} should be highlighted `$expected`, but has $keys", expected in keys)
+    }
+
+    /** A read the compiler reports as undefined is complained about; its wording is the implementation's. */
+    private fun checkAttributeDiagnostic() {
+        openAt(place)
+        val site = siteOrNull()!!
+
+        assertTrue(
+            "The editor says nothing about ${place.id}, which the compiler called: ${site.diagnostic!!.message.trim()}",
+            inspectionDescriptionsAtCaret().isNotEmpty()
+        )
+    }
+
+    /** Every read and write of the name is renamed, and nothing else changes. */
+    private fun checkAttributeRename() {
+        openAt(place)
+        val site = siteOrNull()!!
+        val newName = "renamed_${site.name}"
+        val positions = attributeSites().map { it.file to (it.line to it.column) }
+        val targets = myFixture.renameTargetsAtCaret()
+        rename(
+            targets.singleOrNull()
+                ?: throw AssertionError("Expected exactly one rename target at the caret, got ${targets.size}: $targets"),
+            newName
+        )
+
+        val wrong = originals.keys.mapNotNull { file ->
+            val path = callerFiles.entries.single { it.value == file }.key
+            val expected = replaceNames(originals.getValue(file), positions.filter { it.first == path }.map { it.second }, newName)
+            val actual = FileDocumentManager.getInstance().getDocument(file)!!.text
+
+            if (actual == expected) null else "${file.name}: ${differences(expected, actual)}"
+        }
+
+        assertEquals("Renaming @${site.name} to @$newName from ${place.id} changed the wrong text", emptyList<String>(), wrong)
+    }
+
+    // -- Variables --------------------------------------------------------------------------
+
+    private fun checkVariable(feature: Feature) {
+        when (feature) {
+            Feature.GO_TO_DECLARATION -> checkVariableGoToDeclaration()
+            Feature.FIND_USAGES -> checkVariableFindUsages()
+            Feature.RENAME -> checkVariableRename()
+            else -> throw AssertionError("${feature.testName} is not asked of a variable")
+        }
+    }
+
+    /** A read lands on the binding it is of. */
+    private fun checkVariableGoToDeclaration() {
+        openAt(place)
+        val landed = myFixture.gotoDeclarationTargetsAtCaret().orEmpty().map { target ->
+            target.destination?.let { variableUsageSite(it.containingFile, it.textOffset) } ?: "a target with no destination"
+        }.sorted()
+
+        assertEquals("Go To Declaration from ${place.id} landed on the wrong bindings", siteOrNull()!!.variable!!.declarations.sorted(), landed)
+    }
+
+    /** From a binding or any of its reads, every read of that binding; the binding itself may be reported as the declaration. */
+    private fun checkVariableFindUsages() {
+        openAt(place)
+        val bindings = siteOrNull()!!.variable!!.declarations.toSet()
+        val targets = myFixture.searchTargetCountAtCaret()
+        val found = myFixture.everyTargetPsiUsagesAtCaret(project).filterNot { it.declaration }.map { usage ->
+            variableUsageSite(usage.file, usage.range.startOffset)
+        }.distinct().sorted()
+        val expected = scenario.sites
+            .filter { site -> site.variable?.let { !it.binding && it.declarations.any(bindings::contains) } == true }
+            .map { it.id }
+            .sorted()
+
+        assertEquals("Find Usages from ${place.id} found the wrong reads from $targets search targets at the caret", expected, found)
+    }
+
+    /** The binding and every read of it are renamed, and nothing else changes. */
+    private fun checkVariableRename() {
+        openAt(place)
+        val site = siteOrNull()!!
+        val bindings = site.variable!!.declarations.toSet()
+        val newName = "renamed_${site.name}"
+        val positions = scenario.sites
+            .filter { other -> other.variable?.let { it.declarations.any(bindings::contains) } == true }
+            .map { it.file to (it.line to it.column) }
+        val targets = myFixture.renameTargetsAtCaret()
+        rename(
+            targets.singleOrNull()
+                ?: throw AssertionError("Expected exactly one rename target at the caret, got ${targets.size}: $targets"),
+            newName
+        )
+
+        val wrong = originals.keys.mapNotNull { file ->
+            val path = callerFiles.entries.single { it.value == file }.key
+            val expected = replaceNames(originals.getValue(file), positions.filter { it.first == path }.map { it.second }, newName)
+            val actual = FileDocumentManager.getInstance().getDocument(file)!!.text
+
+            if (actual == expected) null else "${file.name}: ${differences(expected, actual)}"
+        }
+
+        assertEquals("Renaming ${site.name} to $newName from ${place.id} changed the wrong text", emptyList<String>(), wrong)
+    }
+
+    /** Which site an element or usage starting at [offset] is, or where it is when no site is there. */
+    private fun variableUsageSite(file: PsiFile, offset: Int): String {
+        val virtualFile = fileOf(file)
+        val site = scenario.sites.firstOrNull { site -> callerFiles[site.file] == virtualFile && offsetOf(virtualFile!!, site.line, site.column) == offset }
+        if (site != null) return site.id
+        val text = file.text
+        val line = text.substring(0, offset).count { it == '\n' } + 1
+        val column = offset - text.lastIndexOf('\n', offset - 1)
+        return "unexpected ${virtualFile?.name}:$line:$column ${describeLine(file, offset)}"
+    }
+
+    // -- Typing a call ----------------------------------------------------------------------
+
+    /** The line the call is on, and the text completion leaves alone around its name; nothing [after] a call. */
+    private class TypedLine(val index: Int, val before: String, val after: String)
+
+    private fun typedLine(): TypedLine {
+        val site = scenario.sites.single { it.id == place.id }
+        val written = written(site)
+        return TypedLine(site.line - 1, written.before, if (site.attribute != null || written.call) "" else written.after)
+    }
+
+    /**
+     * Cuts the name at [place] back to its [Crossing.prefix], with the caret after it, toward [name] or else the site's
+     * own name: a call at an arity nothing defines still names what it meant.
+     */
+    private fun typeCallPrefix(name: String?): Pair<String, String> {
+        val site = scenario.sites.single { it.id == place.id }
+        val prefix = Crossing.prefix(scenario, site)
+        val file = fileOf(site)
+        val line = typedLine()
+        // Opening rewrites the file on disk, which conflicts with an unsaved edit, so it comes first.
+        myFixture.configureFromExistingVirtualFile(file)
+        val document = myFixture.editor.document
+        val lineStart = document.getLineStartOffset(line.index)
+        val lineEnd = document.getLineEndOffset(line.index)
+
+        WriteCommandAction.runWriteCommandAction(project) {
+            document.replaceString(lineStart, lineEnd, line.before + prefix + line.after)
+        }
+        PsiDocumentManager.getInstance(project).commitDocument(document)
+        myFixture.editor.caretModel.moveToOffset(lineStart + line.before.length + prefix.length)
+        opened = false
+
+        return (name ?: site.name) to prefix
+    }
+
+    private fun fileOf(site: Site): VirtualFile =
+        callerFiles[site.file] ?: sourceFiles.getValue(scenario.modules.single { it.source == site.file })
+
+    // -- Renaming ---------------------------------------------------------------------------
+
+    /**
+     * `snoc` becomes `renamed`; a trailing `?` or `!` is kept, as renaming it away would change what the name means.
+     * The new name keeps the scenario prefix, or two scenarios sharing the project would rename to the same name.
+     */
+    private fun renamed(name: String): String =
+        scope + "renamed" + name.takeLast(1).takeIf { it == "?" || it == "!" }.orEmpty() +
+            // An embed's function is its atom plus a suffix, so a name without the suffix is one no embed can declare.
+            EMBED_SUFFIXES.firstOrNull { scenario.form == GENERATOR_EMBED && name.endsWith(it) }.orEmpty()
+
+    /**
+     * Rename at the caret is refused because [why]: nothing is offered, or whichever of the offered targets the user
+     * picks is refused by the rename dialog's validator - which the test engine reports as an exception carrying the
+     * validator's reason - and nothing is edited. Any other failure is not a refusal the user could read.
+     */
+    private fun assertRenameRefused(why: String, name: String) {
+        val targets = myFixture.renameTargetsAtCaret()
+
+        for (target in targets) {
+            val failure = runCatching { rename(target, renamed(name)) }.exceptionOrNull()
+            val reason = generateSequence(failure) { it.cause }.mapNotNull { it.message }.firstOrNull { "cannot be renamed" in it }
+            assertNotNull(
+                "Rename at ${place.id} should be refused, as $why, but offered $targets and $target " +
+                    (failure?.let { "failed with $it" } ?: "renamed it"),
+                reason
+            )
+            val changed = originals.filter { (file, text) -> FileDocumentManager.getInstance().getDocument(file)!!.text != text }.keys.map { it.name }
+            assertEquals("Rename at ${place.id} of $target was refused ($reason) but still changed", emptyList<String>(), changed)
+        }
+    }
+
+    /**
+     * [renameTargetDirectly], without `renameAndWait`'s 10 ms polling, behind the check `renameAndWait` makes first: a
+     * name the validator calls an error is refused with the same `IllegalArgumentException`.
+     */
+    private fun rename(target: RenameTarget, newName: String) {
+        val result = target.validator().validate(newName)
+        // `RenameValidationResultData`, which `renameAndWait` reads the level and message from, is internal.
+        if (result != RenameValidationResult.ok() && result.javaClass.getMethod("getLevel").invoke(result).toString() == "ERROR") {
+            throw IllegalArgumentException(result.javaClass.getMethod("message", String::class.java).invoke(result, newName) as String)
+        }
+        try {
+            myFixture.renameTargetDirectly(target, newName)
+        } catch (e: ExecutionException) {
+            // The pooled thread logs what it throws, and a test logger's `error(e)` throws `e`'s message wrapped round it.
+            throw generateSequence<Throwable>(e) { failure ->
+                when {
+                    failure is ExecutionException -> failure.cause
+                    failure is TestLoggerFactory.TestLoggerAssertionError && failure.cause?.message == failure.message -> failure.cause
+                    else -> null
+                }
+            }.last()
+        }
+    }
+
+    /**
+     * Renaming a `defdelegate` renames the delegation, not what it calls: the target keeps its name, so a delegation
+     * without `as:` gains `as: :<its old name>` to go on calling it. One that already has `as:` keeps it unchanged.
+     */
+    private fun keepDelegationTarget(module: DeclaringModule, text: String, heads: List<Pair<Int, Int>>): String {
+        if (module.delegateTo == null || module.delegateAs != null) return text
+        val lines = text.split('\n').toMutableList()
+
+        for ((line, column) in heads) {
+            val current = lines[line - 1]
+            val name = IDENTIFIER.find(current, column - 1)?.value ?: throw AssertionError("No identifier at $line:$column of `$current`")
+            // The options can go on over the lines after the head, one per line, so `to:` is the first at or after it.
+            val (index, to) = (line - 1 until lines.size).asSequence()
+                .mapNotNull { index -> DELEGATE_TO.find(lines[index])?.let { index to it } }
+                .firstOrNull() ?: throw AssertionError("No `to:` in or after the delegation `$current`")
+            lines[index] = lines[index].substring(0, to.range.last + 1) + ", as: :$name" + lines[index].substring(to.range.last + 1)
+        }
+
+        return lines.joinToString("\n")
+    }
+
+    /** [text] with the identifier at each 1-based (line, column) replaced by [newName]. */
+    private fun replaceNames(text: String, positions: List<Pair<Int, Int>>, newName: String): String {
+        val lines = text.split('\n').toMutableList()
+
+        for ((line, column) in positions.sortedWith(compareBy({ it.first }, { -it.second }))) {
+            val current = lines[line - 1]
+            val start = column - 1
+            val length = IDENTIFIER.find(current, start)?.takeIf { it.range.first == start }?.value?.length
+                ?: throw AssertionError("No identifier at $line:$column of `$current`")
+            // `Mod."f"` becomes `Mod.g`, as `mix format` writes it: the quotes stay only where the new name needs them.
+            val quoted = current.startsWith(".\"", start - 2) && current.getOrNull(start + length) == '"'
+            lines[line - 1] =
+                if (quoted) current.substring(0, start - 1) + Spelling.of(newName, Position.REMOTE_CALL) + current.substring(start + length + 1)
+                else current.substring(0, start) + newName + current.substring(start + length)
+        }
+
+        return lines.joinToString("\n")
+    }
+
+    /** Every differing line, not the first: a fix to one line must not unmask another as a new failure. */
+    private fun differences(expected: String, actual: String): String {
+        val expectedLines = expected.split('\n')
+        val actualLines = actual.split('\n')
+        return (0 until maxOf(expectedLines.size, actualLines.size))
+            .filter { expectedLines.getOrNull(it) != actualLines.getOrNull(it) }
+            .joinToString(", ") { "line ${it + 1}: expected `${expectedLines.getOrNull(it)?.trim()}`, got `${actualLines.getOrNull(it)?.trim()}`" }
+    }
+
+    private fun text(file: VirtualFile): String = String(file.contentsToByteArray(), file.charset)
+
+    /**
+     * A correct call navigates to its definition's heads. A call at an arity nothing defines navigates to the
+     * heads of every arity of the name instead - one target navigates straight there, several open the chooser -
+     * because the arity is precisely what the developer could not remember, and refusing to move is the least
+     * useful answer available. A place that is not a call at all still navigates nowhere.
+     */
+    private fun checkGoToDeclaration(binding: Binding?) {
+        openAt(place)
+        val landed = myFixture.gotoDeclarationTargetsAtCaret().orEmpty().map { target ->
+            target.destination?.let(::describeLine) ?: "a target with no destination"
+        }.sorted()
+        val targets = siteOrNull()?.let { site -> site.targets?.map { describeLine(fileOf(site), it) } }
+
+        if (targets != null) {
+            assertEquals("Go To Declaration from ${place.id} landed on the wrong modules", targets.sorted(), landed)
+        } else if (atWrongArity(binding)) {
+            val candidates = candidates(siteOrNull()!!).flatMap(::headLines).distinct().sorted()
+            assertEquals("Go To Declaration from ${place.id} did not offer the declared arities", candidates, landed)
+        } else if (binding == null) {
+            val functionHeads = named().flatMap(::headLines).toSet()
+            assertEquals("Go To Declaration from ${place.id} landed on a function head", emptyList<String>(), landed.filter { it in functionHeads })
+        } else {
+            // A `@spec` describes the definition it is written over, so from a delegate's spec the user lands on the
+            // `defdelegate` itself, not on the function it delegates to.
+            val expected = if (specName(place.id)) headLines(binding) else goToDeclarationLines(binding)
+            assertEquals("Go To Declaration from ${place.id} landed on the wrong heads", expected, landed)
+        }
+    }
+
+    private fun checkFindUsages(binding: Binding?) {
+        openAt(place)
+        val targets = myFixture.searchTargetCountAtCaret()
+        // With several targets the IDE asks which; what a user can reach is every target's usages, one after another.
+        val found = myFixture.everyTargetPsiUsagesAtCaret(project).filterNot { it.declaration }.map { usage ->
+            usageSite(usage.file, usage.range.startOffset)
+        }.sorted()
+
+        if (atWrongArity(binding)) {
+            // Asked for the uses of a name the caller got the arity of wrong, the answer is the uses of that name -
+            // the same candidates Go To Declaration offers, not silence.
+            assertEquals(
+                "Find Usages from ${place.id} did not find the uses of the declared arities, from $targets search targets at the caret",
+                candidates(siteOrNull()!!).flatMap(::boundSites).distinct().sorted(),
+                found
+            )
+        } else if (binding == null) {
+            val functionCalls = named().flatMap(::boundSites).toSet()
+            assertEquals(
+                "Find Usages from ${place.id} found calls of the function from $targets search targets at the caret",
+                emptyList<String>(),
+                found.filter { it in functionCalls }
+            )
+        } else {
+            assertEquals(
+                "Find Usages from ${place.id} found the wrong calls from $targets search targets at the caret",
+                boundSites(binding),
+                found
+            )
+        }
+    }
+
+    /** Parameter names vary by backing, so a negative check identifies the function by its name, not by a whole head. */
+    private fun namesPrimary(text: String): Boolean =
+        Regex("""(?<![\p{L}\p{M}\p{N}_])${Regex.escape(primary().name)}(?![\p{L}\p{M}\p{N}_?!])""").containsMatchIn(text)
+
+    private fun checkLabel(binding: Binding?) {
+        openAt(place)
+        val labels = myFixture.searchTargetPresentableTextsAtCaret()
+
+        if (atWrongArity(binding)) {
+            // The candidates have to name themselves, or a chooser listing them says nothing a developer who is
+            // already unsure of the arity can act on.
+            assertEquals(
+                "The search targets at ${place.id} do not present the declared arities",
+                candidates(siteOrNull()!!).map { heads(it).first().label }.sorted(),
+                labels.sorted()
+            )
+        } else if (binding == null) {
+            // A label that is the bare name is the variable, atom or keyword written there; a definition shows its head.
+            assertEquals(
+                "The search target at ${place.id} presents the function",
+                emptyList<String>(),
+                labels.filter { it != primary().name && namesPrimary(it) }
+            )
+        } else {
+            assertEquals("The search target at ${place.id} presents the wrong text", listOf(presentedHead(binding).label), labels)
+        }
+    }
+
+    /**
+     * What the platform's usage views and dialogs say of the definition the place resolves to, one [location] per
+     * cell: its `name`, its `shortName`, its `nodeText` (the head as [checkLabel] presents it, the parameters by
+     * [checkParameterInfo]'s rules) and its `type`, which is Elixir's own kind of the definer: `function` or `macro`.
+     */
+    private fun checkDescription(binding: Binding, location: String) {
+        openAt(place)
+        val (module, definition) = describedDefinition(binding)
+        // At a head, what the caret is in; elsewhere, what Go To Declaration lands in.
+        val targets = if (place is Place.Head) {
+            listOfNotNull(myFixture.file.findElementAt(myFixture.caretOffset)?.let(::definingStatement))
+        } else {
+            myFixture.gotoDeclarationTargetsAtCaret().orEmpty().mapNotNull { it.destination?.let(::definingStatement) }.distinct()
+        }
+        assertFalse("Nothing at ${place.id} resolves to describe", targets.isEmpty())
+
+        val heads = Expected.heads(module, definition.name, definition.maxArity)
+        val definer = heads.first().definer
+        val (expected, actual) = when (location) {
+            "name" -> setOf(definition.name) to targets.map { (it as? PsiNamedElement)?.name }
+            "shortName" -> setOf(definition.name) to targets.map { ElementDescriptionUtil.getElementDescription(it, UsageViewShortNameLocation.INSTANCE) }
+            "type" -> setOf(if (definer in MACRO_FORMS) "macro" else "function") to
+                targets.map { ElementDescriptionUtil.getElementDescription(it, UsageViewTypeLocation.INSTANCE) }
+            "nodeText" -> {
+                // A `.beam` with neither debug info nor docs records each exported arity, but not which are defaults.
+                val labels = if (backing == Backing.EX_GEN && definition.minArity < definition.maxArity) {
+                    (definition.minArity..definition.maxArity).map { arity -> "$definer ${definition.name}(${(1..arity).joinToString(", ") { "arg$it" }})" }
+                } else if (place is Place.Head) {
+                    listOf(presentedHead(binding).label)
+                } else {
+                    heads.map { it.label }
+                }
+                labels.toSet() to targets.map { ElementDescriptionUtil.getElementDescription(it, UsageViewNodeTextLocation.INSTANCE) }
+            }
+            else -> throw AssertionError("No description location $location")
+        }
+        val wrong = actual.filter { it !in expected }
+        assertEquals("The $location of what ${place.id} resolves to is not one of ${expected.sorted()}", emptyList<String?>(), wrong)
+    }
+
+    /** The `@doc` the compiler kept on [documented]'s own definition, if any. */
+    private fun ownDoc(documented: Binding): String? =
+        definition(documented).let { (module, definition) -> module.doc(definition.name, definition.maxArity) }
+
+    /**
+     * The module and name whose documentation Quick Documentation of [documented] shows. A `defdelegate` with an `@doc`
+     * of its own is documented by it; one without is documented as its target is, where the target resolves. Source or
+     * compiled makes no difference: a compiled delegate's Docs chunk records the same `delegate_to`.
+     */
+    private fun documentedDefinition(documented: Binding): Pair<DeclaringModule, String> {
+        val (module, definition) = definition(documented)
+        val target = delegatedTarget(module, definition)
+            ?.takeIf { ownDoc(documented) == null }
+            ?: return module to documented.name
+
+        return target to module.delegateAs.orEmpty() + definition.name
+    }
+
+    /**
+     * Every definition of the name, in ascending arity order, whichever arity the call passes.
+     *
+     * Taken from IEx's `h Module.fun`, which given a bare name shows every definition of it, and deliberately not
+     * from IEx's other half: given an explicit `Module.fun/0` it says *"No documentation for ... was found"* and
+     * stops. In an editor the developer never typed the arity - completion did - so answering "nothing" to the
+     * question "what are the arguments?" would be the IDE refusing to answer its own mistake. Every arity is
+     * shown, and where there is more than one a header at the top lists their signatures, each linking to its
+     * entry, so the developer can see at a glance that a choice exists.
+     *
+     * Deliberately not asserted: which entry the view opens scrolled to, since that is carried by the
+     * `DocumentationResult` and never reaches the HTML; how the matching arity is marked out; and the anchors'
+     * naming scheme, which is the implementation's to choose so long as the header's links resolve.
+     */
+    private fun checkQuickDocumentation(binding: Binding?) {
+        openAt(place)
+        val html = myFixture.quickDocumentationAtCaret(project)?.let { it.replace('\n', ' ') }
+
+        if (binding == null && !atWrongArity(binding)) {
+            assertFalse("Quick Documentation at ${place.id} documents the function: $html", html?.let(::namesPrimary) == true)
+            return
+        }
+
+        val documented = binding ?: candidates(siteOrNull()!!).first()
+        val (module, name) = documentedDefinition(documented)
+        val signatures = module.definitions
+            .filter { it.name == name }
+            .sortedBy { it.maxArity }
+            .map { Expected.heads(module, it.name, it.maxArity).first().signature }
+
+        assertNotNull("Quick Documentation at ${place.id} showed nothing", html)
+        assertEquals(
+            "Quick Documentation at ${place.id} does not show every arity in ascending order: $html",
+            signatures,
+            signatures.filter { html!!.contains(it) }.sortedBy { html!!.indexOf(it) }
+        )
+        assertTrue("Quick Documentation does not show `${module.module}`: $html", html!!.contains(module.module))
+        ownDoc(documented)?.let { doc ->
+            assertTrue("Quick Documentation at ${place.id} does not show the delegate's own `@doc` `$doc`: $html", html.contains(doc))
+        }
+
+        if (signatures.size > 1) {
+            val entries = signatures.associateWith { html.indexOf(it, html.indexOf(it) + 1) }
+
+            assertEquals(
+                "Quick Documentation at ${place.id} shows no header listing every signature: $html",
+                emptyList<String>(),
+                entries.filterValues { it < 0 }.keys.toList()
+            )
+
+            val header = html.take(entries.values.min())
+
+            assertTrue(
+                "Quick Documentation at ${place.id} lists the signatures among its entries rather than above them: $html",
+                signatures.all { header.contains(it) }
+            )
+            assertTrue(
+                "Quick Documentation's header at ${place.id} does not link each signature to its entry: $html",
+                occurrences(header, "href=\"#") >= signatures.size
+            )
+        }
+    }
+
+    /**
+     * At a module's name, the documentation the compiler kept for it, and none of the texts it did not: an earlier
+     * `@moduledoc` it replaced, an `if` branch it never took, or any text at all once `@moduledoc false` hides it.
+     */
+    private fun checkModuleDocumentation(binding: Binding) {
+        openAt(place)
+        val html = myFixture.quickDocumentationAtCaret(project)?.let { it.replace('\n', ' ') }
+        val moduledoc = scenario.module(binding.module).moduledoc
+            ?: throw AssertionError("${binding.module} has no moduledoc in the oracle")
+        val kept = moduledoc.doc?.trim()
+
+        if (kept != null) assertTrue("Quick Documentation at ${place.id} does not show `$kept`: $html", html?.contains(kept) == true)
+
+        assertEquals(
+            "Quick Documentation at ${place.id} shows moduledoc text the compiler ${if (moduledoc.hidden) "hid" else "did not keep"}: $html",
+            emptyList<String>(),
+            moduledoc.written.filter { it != kept && html?.contains(it) == true }
+        )
+    }
+
+    /**
+     * Where the reader does not have everything the author wrote, the popups the developer asks say so.
+     *
+     * This is the other half of writing `_` for a parameter the artefact never recorded. `_` stops the IDE
+     * claiming a name the author never chose, but on its own it leaves the developer to guess why the IDE has
+     * less to say about this module than the last one - and guessing wrong means filing a bug for a gap no fix
+     * can close. One sentence turns that into something they can act on: find a build of the dependency that was
+     * not stripped. Asserted as a category rather than a sentence, through [UNAVAILABLE_PHRASE], so the wording
+     * stays the implementation's.
+     *
+     * It is a feature of its own rather than a line in [checkQuickDocumentation] because those cells are red for
+     * other reasons in exactly the scenarios this asks about, and an assertion that can only run once something
+     * else is fixed reports nothing in the meantime.
+     */
+    private fun checkUnavailableNotice(binding: Binding?) {
+        openAt(place)
+        // A wrong-arity call is described by the candidates Quick Documentation offers there, so it is owed the
+        // same word about them; a variable or an atom is describing nothing and is owed none.
+        val described = binding ?: siteOrNull()?.takeIf { it.diagnostic != null }?.let { candidates(it).firstOrNull() }
+        val module = described?.let { definition(it).first }
+        val wanted = module?.complete == false
+        val shown = linkedMapOf<String, Boolean>()
+
+        shown["Quick Documentation"] = myFixture.quickDocumentationAtCaret(project).orEmpty().says(UNAVAILABLE_PHRASE)
+
+        if (Crossing.applicability(scenario, Feature.PARAMETER_INFO, place) is Applicability.Applicable) {
+            moveIntoArguments()
+            shown["Parameter Info"] = parameterInfoSignaturesAtCaret().any { it.says(UNAVAILABLE_PHRASE) }
+        }
+
+        assertEquals(
+            if (wanted) {
+                "${module.beam} was compiled without debug info, so what it cannot say about ${place.id} should be said out loud"
+            } else {
+                "Nothing is missing at ${place.id}, so nothing should claim it is"
+            },
+            shown.keys.associateWith { wanted },
+            shown
+        )
+    }
+
+    private fun String.says(phrase: String): Boolean = contains(phrase, ignoreCase = true)
+
+    /**
+     * Parameter Info answers from inside the argument list, not from the name the caret opened on.
+     *
+     * A site with no argument list after the caret is one [Crossing.applicability] should have ruled out; saying so
+     * beats moving the caret to offset 0 and answering about whatever happens to be at the top of the file.
+     */
+    private fun moveIntoArguments() {
+        val caret = myFixture.editor.caretModel.offset
+        val openingParenthesis = myFixture.editor.document.text.indexOf('(', caret)
+
+        if (openingParenthesis < 0) throw AssertionError("${place.id} has no argument list after the caret to move into")
+
+        myFixture.editor.caretModel.moveToOffset(openingParenthesis + 1)
+        opened = false
+    }
+
+    private fun occurrences(text: String, of: String): Int =
+        generateSequence(text.indexOf(of)) { text.indexOf(of, it + 1) }.takeWhile { it >= 0 }.count()
+
+    // -- What the oracle says ---------------------------------------------------------------
+
+    /** The definition the caret is on or at a call of: a declaration is its own; a call is whatever the compiler bound. */
+    private fun binding(): Binding? =
+        when (val place = place) {
+            is Place.Head -> Binding(scenario.main.module, place.name, place.arity, "declaration")
+            is Place.Marked -> scenario.sites.single { it.id == place.id }.binding
+        }
+
+    /** The world's first definition, which a variable, atom or keyword site shares its name with. */
+    private fun primary(): Binding =
+        scenario.main.definitions.first().let { Binding(scenario.main.module, it.name, it.maxArity, "declaration") }
+
+    /** Every arity of every definition named what the place writes, which a place nothing binds must reach none of. */
+    private fun named(): List<Binding> {
+        val name = siteOrNull()?.name ?: primary().name
+
+        return scenario.main.definitions
+            .filter { it.name == name }
+            .flatMap { definition -> (definition.minArity..definition.maxArity).map { Binding(scenario.main.module, definition.name, it, "declaration") } }
+    }
+
+    /** The marked site the caret is at, or null at a declaration. */
+    private fun siteOrNull(): Site? = (place as? Place.Marked)?.let { marked -> scenario.sites.single { it.id == marked.id } }
+
+    /**
+     * Whether the caret is at a call the compiler rejected for its arity, as opposed to a place that is not a call
+     * at all or one naming a function that does not exist. The oracle only carries a diagnostic where the compiler
+     * complained, so this is the compiler's own answer rather than the harness guessing from the shape; the
+     * candidates are what makes it an *arity* question, since a name nothing declares has none and there is
+     * nothing to show a developer instead.
+     */
+    private fun atWrongArity(binding: Binding?): Boolean =
+        binding == null && siteOrNull()?.let { it.diagnostic != null && candidates(it).isNotEmpty() } == true
+
+    /**
+     * Every definition of the name a call writes, at any arity - what the developer is choosing between when they
+     * could not remember which one they wanted. Ascending arity, because that is the order they are offered in.
+     */
+    private fun candidates(site: Site): List<Binding> =
+        scenario.main.definitions
+            .filter { it.name == site.name && site.sees(it) }
+            .sortedBy { it.maxArity }
+            .map { Binding(scenario.main.module, it.name, it.maxArity, "candidate") }
+
+    private fun definition(binding: Binding): Pair<DeclaringModule, Definition> {
+        val module = scenario.module(binding.module)
+        return module to module.definitions.first { it.covers(binding) }
+    }
+
+    private fun heads(binding: Binding): List<Head> {
+        val (module, definition) = definition(binding)
+        return Expected.heads(module, definition.name, binding.arity)
+    }
+
+    /**
+     * A declaration presents its own clause; a call presents the definition's first.
+     *
+     * A clause the oracle names and the heads do not have is the fixtures and the expectations disagreeing, so it is
+     * raised rather than quietly answered with clause 0 - which would compare the cell against the wrong head and
+     * pass.
+     */
+    private fun presentedHead(binding: Binding): Head {
+        val heads = heads(binding)
+        val place = place
+
+        return if (place is Place.Head) {
+            heads.getOrNull(place.clause)
+                ?: throw AssertionError("${place.id} asks for clause ${place.clause} of ${binding.name}/${binding.arity}, which has ${heads.size} head(s)")
+        } else {
+            heads.first()
+        }
+    }
+
+    /** The sites the compiler bound to the definition [binding] is in: the mirror of a body-less backing has no local call. */
+    private fun boundSites(binding: Binding): List<String> {
+        val (module, definition) = definition(binding)
+
+        return scenario.sites
+            .filter { site -> site.binding?.let { sameDefinition(module, definition, it) } == true }
+            .filter { (it.id != LOCAL && !privateUse(it.id)) || Crossing.hasLocalCall(scenario) }
+            // A compiled module is searched through its mirror, where only `local`'s call can be told apart.
+            .filter { !privateUse(it.id) || !module.compiled }
+            .map { it.id }
+            .sorted()
+    }
+
+    /**
+     * Whether a site bound to [bound] calls [definition] of [module]: a call of it in that module, or of the same injected
+     * definition in another module that uses the same `__using__` - one written declaration, defined in every user, whose
+     * uses a user expects to find and rename together.
+     */
+    private fun sameDefinition(module: DeclaringModule, definition: Definition, bound: Binding): Boolean {
+        if (bound.module == module.module) return definition.covers(bound)
+        val written = writtenAt(module, definition).takeIf { it.isNotEmpty() } ?: return false
+        val other = scenario.modules.firstOrNull { it.module == bound.module } ?: return false
+        val otherDefinition = other.definitions.firstOrNull { it.covers(bound) } ?: return false
+
+        return writtenAt(other, otherDefinition) == written
+    }
+
+    /** Where an injected [definition] of [module] is written, as `file:line`s; empty for one written in its module. */
+    private fun writtenAt(module: DeclaringModule, definition: Definition): Set<String> =
+        module.declarations
+            .filter { it.file != null && it.name == definition.name && it.arity == definition.maxArity }
+            .map { "${it.file}:${it.line}" }
+            .toSet()
+
+    /** The source file [declaration] of [module] is written in: its module's own, or the one a `use` injects it from. */
+    private fun declarationFile(module: DeclaringModule, declaration: Declaration): VirtualFile =
+        declaration.file?.let { file -> sourceFiles.getValue(scenario.modules.first { it.source == file }) } ?: sourceFiles.getValue(module)
+
+    /** The main module's declaration [head] is at, or null where its module is compiled. */
+    private fun declarationOf(head: Place.Head): Declaration? =
+        scenario.main.declarations.filter { it.name == head.name && it.arity == head.arity }.getOrNull(head.clause)
+
+    /**
+     * The module a delegation of [definition] reaches, when the scenario has it and it defines the delegated function at
+     * the arity the delegation calls it with. A `to:` module that only imports the function does not define it, so
+     * nothing is reached through the delegation, as Elixir leaves `Target.name/arity` undefined.
+     */
+    private fun delegatedTarget(module: DeclaringModule, definition: Definition): DeclaringModule? {
+        val name = module.delegateAs.orEmpty() + definition.name
+
+        return scenario.modules
+            .firstOrNull { it.module == module.delegateTo }
+            ?.takeIf { target -> target.definitions.any { it.name == name && definition.maxArity in it.minArity..it.maxArity } }
+    }
+
+    /**
+     * Where Go To Declaration from a call of [binding] lands: a delegate's target where its target resolves and the
+     * delegate's `.beam`, if any, still records it, and otherwise the definition's own heads.
+     */
+    private fun goToDeclarationLines(binding: Binding): List<String> {
+        val (module, definition) = definition(binding)
+        val target = delegatedTarget(module, definition)
+
+        return if (target != null && !(module.compiled && backing in setOf(Backing.EX_GEN, Backing.ERL_GEN))) {
+            // A delegate fills in its own defaults and calls the target with every argument, so a call at any arity
+            // the delegate covers lands on the target's one arity. Asking the target for the call's own arity found
+            // no definition, and the cell reported the harness's exception rather than anything the plugin did.
+            headLines(Binding(target.module, module.delegateAs.orEmpty() + definition.name, definition.maxArity, "delegated"))
+        } else {
+            headLines(binding)
+        }
+    }
+
+    /** The definition Go To Declaration from the place lands in, as [goToDeclarationLines] decides it. */
+    private fun describedDefinition(binding: Binding): Pair<DeclaringModule, Definition> {
+        val (module, definition) = definition(binding)
+        val target = delegatedTarget(module, definition)
+            ?.takeUnless { place is Place.Head || specName(place.id) || (module.compiled && backing in setOf(Backing.EX_GEN, Backing.ERL_GEN)) }
+            ?: return module to definition
+        val name = module.delegateAs.orEmpty() + definition.name
+
+        return target to target.definitions.first { it.name == name && definition.maxArity in it.minArity..it.maxArity }
+    }
+
+    /**
+     * Where each clause head of the definition [binding] is in, as `file:line `text``. A mirror gives each arity a
+     * default argument creates its own head, so there it is the heads covering the arity called.
+     */
+    private fun headLines(binding: Binding): List<String> {
+        val (module, definition) = definition(binding)
+
+        return if (module.compiled) {
+            mirrorHeads(mirror(module), definition.name, binding.arity).map { describeLine(it) }
+        } else {
+            module.declarations
+                .filter { it.name == definition.name && it.arity == definition.maxArity }
+                .map { describeLine(declarationFile(module, it), it.line) }
+        }.sorted()
+    }
+
+    // -- Carets -----------------------------------------------------------------------------
+
+    /** Every feature asks at the same place, so the file is opened once per group. */
+    private fun openAt(place: Place) {
+        if (opened) return
+        opened = true
+        // `createAndSetEditor` makes a new editor per open and closes none, so a fixture reused across places
+        // accumulates one for every open it has ever done.
+        FileEditorManager.getInstance(project).let { manager -> manager.openFiles.forEach(manager::closeFile) }
+
+        val offset = when {
+            place is Place.Head && scenario.main.compiled -> {
+                myFixture.configureFromExistingVirtualFile(beamFile(scenario.main))
+                val head = mirrorHeads(mirror(scenario.main), place.name, place.arity).getOrNull(place.clause)
+                    ?: throw AssertionError("The decompiled ${scenario.main.module} has no clause ${place.clause} for ${place.name}/${place.arity}")
+                CallDefinitionClause.nameIdentifier(head)!!.textOffset
+            }
+
+            place is Place.Head -> {
+                val declaration = declarationOf(place)
+                    ?: throw AssertionError("${scenario.main.module} has no declaration for clause ${place.clause} of ${place.name}/${place.arity}")
+                val file = declarationFile(scenario.main, declaration)
+                myFixture.configureFromExistingVirtualFile(file)
+                offsetOf(file, declaration.line, declaration.column)
+            }
+
+            place.id == LOCAL && scenario.main.compiled -> {
+                myFixture.configureFromExistingVirtualFile(beamFile(scenario.main))
+                mirrorLocalCall(mirror(scenario.main)).textOffset
+            }
+
+            else -> {
+                val site = scenario.sites.single { it.id == place.id }
+                val file = fileOf(site)
+                myFixture.configureFromExistingVirtualFile(file)
+                offsetOf(file, site.line, site.column)
+            }
+        }
+
+        myFixture.editor.caretModel.moveToOffset(offset + 1)
+    }
+
+    /** Which site a usage is, or where it is when no site is there. */
+    private fun usageSite(file: PsiFile, offset: Int): String {
+        val virtualFile = fileOf(file)
+        val source = sourceFiles.entries.firstOrNull { it.value == virtualFile }?.key
+        val site = when {
+            virtualFile in callerFiles.values ->
+                scenario.sites.firstOrNull { callerFiles[it.file] == virtualFile && startsAt(virtualFile!!, it, offset) }?.id
+            source != null ->
+                scenario.sites.firstOrNull { it.file == source.source && startsAt(virtualFile!!, it, offset) }?.id
+            virtualFile == beamFileOrNull(scenario.main) ->
+                LOCAL.takeIf { runCatching { mirrorLocalCall(mirror(scenario.main)).textOffset }.getOrNull() == offset }
+            else -> null
+        }
+
+        return site ?: "unexpected usage at ${describeLine(file, offset)}"
+    }
+
+    // -- The decompiled mirror --------------------------------------------------------------
+
+    private fun beamFileOrNull(module: DeclaringModule): VirtualFile? =
+        module.beam?.let { LocalFileSystem.getInstance().refreshAndFindFileByIoFile(Fixtures.file(it).absoluteFile) }
+
+    private fun beamFile(module: DeclaringModule): VirtualFile =
+        beamFileOrNull(module) ?: throw AssertionError("${module.beam} is not in the VFS")
+
+    private fun mirror(module: DeclaringModule): PsiFile {
+        val file = PsiManager.getInstance(project).findFile(beamFile(module))!!
+        return (file as? PsiCompiledFile)?.decompiledPsiFile ?: file
+    }
+
+    private fun mirrorHeads(mirror: PsiFile, name: String, arity: Int): List<Call> =
+        PsiTreeUtil.findChildrenOfType(mirror, Call::class.java).filter { call ->
+            CallDefinitionClause.`is`(call) &&
+                CallDefinitionClause.nameArityInterval(call, ResolveState.initial())?.let { nameArityInterval ->
+                    val interval = nameArityInterval.arityInterval
+                    nameArityInterval.name == name && interval.minimum <= arity && (interval.maximum ?: arity) >= arity
+                } == true
+        }
+
+    /** The name of the call in `local_site`'s body. */
+    private fun mirrorLocalCall(mirror: PsiFile): PsiElement {
+        val localSite = mirrorHeads(mirror, "local_site", 2).singleOrNull()
+            ?: throw AssertionError("The decompiled ${scenario.main.module} has no single local_site/2")
+        val name = scenario.sites.single { it.id == LOCAL }.binding!!.name
+        val call = PsiTreeUtil.findChildrenOfType(localSite, Call::class.java)
+            .firstOrNull { it.functionName() == name && !CallDefinitionClause.`is`(it) }
+            ?: throw AssertionError("The decompiled local_site/2 of ${scenario.main.module} does not call $name: ${localSite.text}")
+
+        return call.functionNameElement() ?: call
+    }
+
+    // -- Positions --------------------------------------------------------------------------
+
+    /** The clause [element] is in, or for a form that writes no clause, such as `defdelegate`, its statement. */
+    private fun definingStatement(element: PsiElement): PsiElement {
+        val calls = generateSequence(element) { it.parent }.filterIsInstance<Call>()
+
+        return calls.firstOrNull { CallDefinitionClause.`is`(it) } ?: calls.firstOrNull { it.parent is ElixirStabBody } ?: element
+    }
+
+    private fun offsetOf(file: VirtualFile, line: Int, column: Int): Int {
+        val text = String(file.contentsToByteArray(), file.charset)
+        return text.split('\n').take(line - 1).sumOf { it.length + 1 } + column - 1
+    }
+
+    private fun fileOf(file: PsiFile): VirtualFile? = file.virtualFile ?: file.originalFile.virtualFile
+
+    private fun describeLine(element: PsiElement): String = describeLine(element.containingFile, element.textOffset)
+
+    private fun describeLine(file: PsiFile, offset: Int): String {
+        val text = file.text
+        val start = text.lastIndexOf('\n', offset - 1) + 1
+        val end = text.indexOf('\n', offset).let { if (it < 0) text.length else it }
+        return "${fileOf(file)?.name}:${text.substring(0, start).count { it == '\n' } + 1} `${text.substring(start, end).trim()}`"
+    }
+
+    private fun describeLine(file: VirtualFile, line: Int): String =
+        "${file.name}:$line `${String(file.contentsToByteArray(), file.charset).split('\n')[line - 1].trim()}`"
+
+    companion object {
+        private val IDENTIFIER = Regex("[\\p{L}\\p{N}_\\p{Mn}\\p{Mc}]+[?!]?")
+
+        /** The `@1a2b3c` a default `toString()` ends with. */
+        private val IDENTITY_HASH = Regex("@[0-9a-f]+$")
+        private val DELEGATE_TO = Regex("\\bto: [A-Z][\\w.]*")
+
+        /** The form whose declarations are `Mix.Generator` embeds, and the suffixes an embed adds to its atom. */
+        private const val GENERATOR_EMBED = "generator_embed"
+        private const val USING = "__using__"
+        private val EMBED_SUFFIXES = listOf("_template", "_text")
+
+        /**
+         * A guard's own keys, looked up by name: a plugin without them still compiles this suite, and its guard cells
+         * then say what it is missing rather than failing to build.
+         */
+        private val GUARD_CALL: TextAttributesKey = TextAttributesKey.find("ELIXIR_GUARD_CALL")
+        private val GUARD_DECLARATION: TextAttributesKey = TextAttributesKey.find("ELIXIR_GUARD_DECLARATION")
+        private val GUARD_FORMS = setOf("defguard", "defguardp")
+
+        private val DESCRIPTION_LOCATIONS = listOf("name", "shortName", "nodeText", "type")
+
+        /** The keys [highlightKeysAt] can tell apart. */
+        private val HIGHLIGHT_KEYS = listOf(
+            ElixirSyntaxHighlighter.FUNCTION_CALL,
+            ElixirSyntaxHighlighter.MACRO_CALL,
+            ElixirSyntaxHighlighter.FUNCTION_DECLARATION,
+            ElixirSyntaxHighlighter.MACRO_DECLARATION,
+            ElixirSyntaxHighlighter.PREDEFINED_CALL,
+            ElixirSyntaxHighlighter.MODULE_ATTRIBUTE,
+            GUARD_CALL,
+            GUARD_DECLARATION,
+        )
+
+        /**
+         * Where [Group.timed] appends one row per phase: the file `MATRIX_TIMING` names, suffixed `.shard<n>` when
+         * sharded so parallel forks never interleave, or nowhere when unset.
+         */
+        private var timing: File? = null
+
+        /** Opens [shard]'s timing file with a `jvm` row: the JVM's uptime once the application is up, before any cell. */
+        fun startTiming(shard: Int) {
+            timing = System.getenv("MATRIX_TIMING")?.takeIf(String::isNotBlank)
+                ?.let { if (Shards.count > 1) File("$it.shard$shard") else File(it) }
+                ?.apply {
+                    val nanos = ManagementFactory.getRuntimeMXBean().uptime * 1_000_000
+                    appendText(listOf("", "", "", "jvm", "", "", nanos).joinToString("\t", postfix = "\n"))
+                }
+        }
+
+        /** Go To Related's providers, by the extension point's name: its `EP_NAME` is not public in every platform. */
+        private val GOTO_RELATED_PROVIDERS = ExtensionPointName.create<GotoRelatedProvider>("com.intellij.gotoRelatedProvider")
+
+        /** The cells whose names `MATRIX_ONLY` matches, a regex, when it is set: to ask a handful without the rest. */
+        private val ONLY: Regex? = System.getenv("MATRIX_ONLY")?.takeIf(String::isNotBlank)?.let(::Regex)
+
+        /** Whether to print every highlight on the caret's line where a cell reads them, to see what it is judged on. */
+        private val DUMP_HIGHLIGHTS: Boolean = !System.getenv("MATRIX_DUMP_HIGHLIGHTS").isNullOrBlank()
+        /**
+         * The scenario being asked, and the only one holding a fixture: scenarios define the same files, and a closed
+         * scenario's group is dropped rather than kept for the rest of the run.
+         */
+        private var open: Group? = null
+
+        /** Every applicable feature at every place, in the order [check] asks them. */
+        /**
+         * Every applicable feature at every place, in the order [check] asks them. Each name completion offers at a
+         * place other than the site's own gets a completionInserted cell of its own after the site's, so that one
+         * name's red cannot hide another's.
+         */
+        fun cellsOf(scenario: Scenario): List<Cell> = Crossing.places(scenario).flatMap { place ->
+            val features = Feature.entries.filter { Crossing.applicability(scenario, it, place) is Applicability.Applicable }
+            val last = features.lastOrNull { it == Feature.COMPLETION_OFFERED || it == Feature.COMPLETION_INSERTED }
+            features.flatMap { feature ->
+                val others = if (feature == last) {
+                    val site = scenario.sites.single { it.id == place.id }
+                    (Crossing.offered(scenario, site) - site.name).map { Cell(scenario, Feature.COMPLETION_INSERTED, place, it) }
+                } else {
+                    emptyList()
+                }
+                if (feature == Feature.DESCRIPTION) {
+                    DESCRIPTION_LOCATIONS.map { Cell(scenario, feature, place, it) }
+                } else {
+                    listOf(Cell(scenario, feature, place)) + others
+                }
+            }.filter { cell -> ONLY?.containsMatchIn(cell.testName) ?: true }
+        }
+
+        fun check(cell: Cell) {
+            val group = open?.takeIf { it.scenario === cell.scenario } ?: Group(cell.scenario).also {
+                closeOpen()
+                open = it
+            }
+            group.check(cell.place, cell.feature, cell.name)
+        }
+
+        fun closeOpen() {
+            val group = open ?: return
+            open = null
+            runInEdtAndWait { group.close() }
+        }
+    }
+}
