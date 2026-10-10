@@ -497,6 +497,9 @@
         <stubIndex implementation="org.elixir_lang.psi.stub.index.QuoteModuleAttributeName"/>
         <stubIndex implementation="org.elixir_lang.psi.stub.index.QuoteVariableName"/>
 
+        <!-- names spelled other than as their atom, which Find Usages' literal word search misses -->
+        <fileBasedIndex implementation="org.elixir_lang.model.psi.words.SpellingsIndex"/>
+
         <!-- debug -->
         <fileBasedIndex implementation="org.elixir_lang.beam.chunk.lines.file_names.Index"/>
         <programRunner implementation="org.elixir_lang.debugger.Runner"/>

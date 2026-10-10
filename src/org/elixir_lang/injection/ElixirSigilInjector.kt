@@ -1,13 +1,17 @@
 package org.elixir_lang.injection
 
 import com.intellij.lang.Language
+import com.intellij.lang.LanguageParserDefinitions
 import com.intellij.lang.injection.MultiHostInjector
 import com.intellij.lang.injection.MultiHostRegistrar
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
+import com.intellij.psi.tree.IElementType
 import com.intellij.psi.util.PsiTreeUtil
+import org.elixir_lang.eex.psi.Types as EexTypes
 import org.elixir_lang.heex.HeexLanguage
+import org.elixir_lang.heex.psi.Types as HeexTypes
 import org.elixir_lang.psi.ElixirInterpolation
 import org.elixir_lang.psi.HeredocLineable
 import org.elixir_lang.psi.SigilHeredocLiteral
@@ -16,6 +20,47 @@ import org.intellij.lang.regexp.RegExpLanguage
 import org.elixir_lang.eex.Language as EexLanguage
 
 private val LOG = logger<ElixirSigilInjector>()
+
+/** The language the injector fills a sigil named [sigilName] with, or `null` for a sigil it leaves alone. */
+internal fun languageForSigil(sigilName: String): Language? {
+    LOG.debug("languageForSigil: sigilName='$sigilName'")
+
+    return when (sigilName) {
+        "H" -> HeexLanguage.INSTANCE
+        "E", "L" -> EexLanguage.INSTANCE
+        "r" -> RegExpLanguage.INSTANCE
+        else -> null
+    }
+}
+
+/** The token type each language the injector fills a sigil with gives the parts of its body that are Elixir. */
+private val ELIXIR_TOKENS: Map<Language, IElementType> = mapOf(
+    HeexLanguage.INSTANCE to HeexTypes.ELIXIR,
+    EexLanguage.INSTANCE to EexTypes.ELIXIR
+)
+
+/** Whether the injector fills a sigil named [sigilName] with a language that holds Elixir: HEEx or EEx. */
+internal fun sigilHoldsElixir(sigilName: String): Boolean = languageForSigil(sigilName) in ELIXIR_TOKENS
+
+/**
+ * The parts of [body], the text of a sigil named [sigilName], that are Elixir as the language the injector fills it
+ * with lexes them, or `null` when that language holds none.
+ */
+internal fun sigilElixirParts(sigilName: String, body: CharSequence): Sequence<CharSequence>? {
+    val language = languageForSigil(sigilName) ?: return null
+    val elixir = ELIXIR_TOKENS[language] ?: return null
+    val lexer = LanguageParserDefinitions.INSTANCE.forLanguage(language).createLexer(null)
+
+    return sequence {
+        lexer.start(body)
+
+        while (lexer.tokenType != null) {
+            if (lexer.tokenType == elixir) yield(lexer.tokenSequence)
+
+            lexer.advance()
+        }
+    }
+}
 
 internal class ElixirSigilInjector : MultiHostInjector {
     // Per-line view of a sigil body used to compute injection ranges consistently for line and heredoc sigils.
@@ -95,17 +140,6 @@ internal class ElixirSigilInjector : MultiHostInjector {
     }
 
     override fun elementsToInjectIn() = listOf(SigilHeredocLiteral::class.java, SigilLine::class.java)
-
-    private fun languageForSigil(sigilName: String): Language? {
-        LOG.debug("languageForSigil: sigilName='$sigilName'")
-
-        return when (sigilName) {
-            "H" -> HeexLanguage.INSTANCE
-            "E", "L" -> EexLanguage.INSTANCE
-            "r" -> RegExpLanguage.INSTANCE
-            else -> null
-        }
-    }
 
     // EEx guesses an injected fragment's template-data language from a double extension, the way a
     // real `.html.eex` file carries one; with no extension the guess falls through to plain text and

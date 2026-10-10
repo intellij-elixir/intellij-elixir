@@ -14,7 +14,10 @@ object PsiLanguageInjectionHost {
     fun isValidHost(psiElement: PsiElement): Boolean =
         // If the element is a Sigil, then it is definitely a valid host
         // @todo make this more precise, to ~H etc
-        (ElixirExperimentalSettings.instance.state.enableHtmlInjection && psiElement is Sigil) || isDocumentation(psiElement)
+        (sigilsAreHosts() && psiElement is Sigil) || isDocumentation(psiElement)
+
+    /** Whether a sigil is a host: HTML injection is on. */
+    fun sigilsAreHosts(): Boolean = ElixirExperimentalSettings.instance.state.enableHtmlInjection
 
     /** Returns `true` when [psiElement] is the value of a documentation attribute, such as `@doc`. */
     internal fun isDocumentation(psiElement: PsiElement): Boolean =

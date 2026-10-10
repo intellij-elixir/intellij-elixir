@@ -125,6 +125,8 @@
 
 ### Bug Fixes
 
+- [#4395](https://github.com/intellij-elixir/intellij-elixir/pull/4395) [@sh41](https://github.com/sh41)
+  - **Find Usages and Rename find a function, callback, protocol function, type, variable or module attribute used under another spelling of its name, such as `M."fo\x6f"(1)` for `foo` or an operator call like `1 <~> 2`, including inside template files and, with HTML injection on, `~H`, `~E` and `~L` sigils.** Fixes [#4364](https://github.com/intellij-elixir/intellij-elixir/issues/4364).
 - [#4393](https://github.com/intellij-elixir/intellij-elixir/pull/4393) [@sh41](https://github.com/sh41)
   - **Parameter Info shows a function with default arguments as it is defined, `(q, x \\ nil)`, once, from source, a `defdelegate` or a `.beam` with docs or debug info, and now shows EEx template functions, embedded templates and `defexception` functions at all.** Fixes [#4333](https://github.com/intellij-elixir/intellij-elixir/issues/4333).
 - [#4389](https://github.com/intellij-elixir/intellij-elixir/pull/4389) [@sh41](https://github.com/sh41)
