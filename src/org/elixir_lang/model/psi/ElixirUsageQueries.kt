@@ -41,6 +41,7 @@ import org.elixir_lang.model.psi.atom.AtomReference
 import org.elixir_lang.model.psi.atom.AtomSymbol
 import org.elixir_lang.model.psi.callback.BehaviourMembership
 import org.elixir_lang.model.psi.callback.Callback
+import org.elixir_lang.model.psi.callback.CallbackImplementation
 import org.elixir_lang.model.psi.function.FunctionArityKeywordPairReference
 import org.elixir_lang.model.psi.function.FunctionSymbol
 import org.elixir_lang.model.psi.module.ModuleReference
@@ -79,8 +80,6 @@ import java.util.concurrent.Callable as JCallable
  * searcher may invoke the other's interface methods - only the platform may call a `Searcher`.
  *
  * - Every searchable symbol contributes its self-declaration usage.
- * - A [Callback] additionally contributes each implementing `def`/`defmacro` clause of matching
- *   name/arity/kind, where the enclosing module implements the behaviour (see [BehaviourMembership]).
  * - A [ProtocolFunction] additionally contributes each **call site** that dispatches to it
  *   (`Protocol.function(args)` of matching name/arity) and each implementing `def`/`defmacro`
  *   clause inside a `defimpl` of the same protocol (so rename keeps every implementation in sync;
@@ -246,36 +245,7 @@ internal object ElixirUsageQueries {
             val nameIdentifier = CallDefinitionClause.nameIdentifier(defClause) ?: return emptyList()
             if (!PsiTreeUtil.isAncestor(nameIdentifier, leaf, false)) return emptyList()
 
-            val nameArity =
-                    CallDefinitionClause.nameArityInterval(defClause, ResolveState.initial()) ?: return emptyList()
-            if (nameArity.name != callback.name || callback.arity !in nameArity.arityInterval) return emptyList()
-
-            // `@callback` is implemented by `def`, `@macrocallback` by `defmacro`.
-            val capabilities = CallDefinitionClause.capabilities(defClause) ?: return emptyList()
-            val kindMatches = if (callback.macro) capabilities.quotesArguments else capabilities.runtimeFunction
-            if (!kindMatches) return emptyList()
-
-            val implements =
-                    when (val usingDefiner = defClause.enclosingUsingDefiner()) {
-                        // Default implementation: a `def` inside a `__using__` quote whose module is the
-                        // behaviour itself, or which injects `@behaviour B`.
-                        is Call -> {
-                            val definingModule = CallDefinitionClause.enclosingModularMacroCall(usingDefiner)
-                            definingModule != null &&
-                                    (BehaviourMembership.moduleName(definingModule) == callback.moduleName ||
-                                            callback.moduleName in BehaviourMembership.namesInjectedByDefiner(
-                                        usingDefiner,
-                                        definingModule
-                                    ))
-                        }
-                        // Concrete implementation: a `def` directly in a module that declares the behaviour.
-                        else -> {
-                            val modular =
-                                    CallDefinitionClause.enclosingModularMacroCall(defClause) ?: return emptyList()
-                            BehaviourMembership.implements(modular, callback.moduleName)
-                        }
-                    }
-            if (!implements) return emptyList()
+            if (!CallbackImplementation.implements(defClause, callback)) return emptyList()
 
             return listOf(
                 ElixirPsiUsage.create(
@@ -1234,8 +1204,6 @@ private val VALUE_READ = UsageType { "Value read" }
 
 private val VALUE_WRITE = UsageType { "Value write" }
 
-private const val USING = "__using__"
-
 private fun PsiElement.enclosingCalls(): Sequence<Call> =
         generateSequence(parent) { it.parent }.takeWhile { it !is PsiFile }.filterIsInstance<Call>()
 
@@ -1253,14 +1221,6 @@ private fun Call.matchesFunctionFamily(symbol: FunctionSymbol): Boolean {
     val clauseIsMacro = CallDefinitionClause.capabilities(this)?.quotesArguments == true
     return clauseIsMacro == symbol.macro
 }
-
-/** Nearest enclosing `defmacro __using__/1` clause, or `null`. */
-@RequiresReadLock
-private fun Call.enclosingUsingDefiner(): Call? =
-        enclosingCalls().firstOrNull { call ->
-            CallDefinitionClause.`is`(call) &&
-                    CallDefinitionClause.nameArityInterval(call, ResolveState.initial())?.name == USING
-        }
 
 @RequiresReadLock
 private fun Call.enclosingSpecAttributeIfHead(): AtUnqualifiedNoParenthesesCall<*>? {

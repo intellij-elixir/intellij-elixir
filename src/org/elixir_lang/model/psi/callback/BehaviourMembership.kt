@@ -2,11 +2,12 @@ package org.elixir_lang.model.psi.callback
 
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.psi.PsiElement
-import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.psi.PsiRecursiveElementWalkingVisitor
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
+import org.elixir_lang.psi.QuoteMacro
 import org.elixir_lang.psi.Use
 import org.elixir_lang.psi.Using
 import org.elixir_lang.psi.call.Call
@@ -22,9 +23,9 @@ import org.elixir_lang.psi.impl.stripAccessExpression
  * present in the module's *expanded* form - a literal `@behaviour B`, or an `@behaviour B` injected
  * by a `use` (via the used module's `__using__` quote), transitively. `use B` alone is NOT enough.
  *
- * Shared by the forward search ([org.elixir_lang.model.psi.ElixirSymbolUsageSearcher]: callback ->
- * implementations) and the reverse reference ([CallbackImplReference]: implementing `def` ->
- * `@callback`) so both directions stay consistent.
+ * Read through [CallbackImplementation] by both the forward search ([org.elixir_lang.model.psi.ElixirSymbolUsageSearcher]:
+ * callback -> implementations) and the reverse reference ([CallbackImplReference]: implementing `def` ->
+ * `@callback`), so both directions stay consistent.
  *
  * Injected `@behaviour` is found by scanning the used module's `__using__` definer quote directly -
  * `Use`/`Using.treeWalkUp` only surface injected call-definition clauses, not module attributes.
@@ -37,11 +38,6 @@ object BehaviourMembership {
         collectModule(module, names, hashSetOf())
         return names
     }
-
-    /** `true` if [module] implements behaviour [behaviourModuleName]. */
-    @RequiresReadLock
-    fun implements(module: Call, behaviourModuleName: String): Boolean =
-        behaviourModuleName in namesImplementedBy(module)
 
     /** Behaviour names injected by a `__using__` [definer] defined in [definingModule]. */
     @RequiresReadLock
@@ -62,12 +58,18 @@ object BehaviourMembership {
     @RequiresReadLock
     private fun collectModule(module: Call, out: MutableSet<String>, visited: MutableSet<PsiElement>) {
         if (!visited.add(module)) return
-        val calls = CallDefinitionClause.modularChildCalls(module)
+        collectOwn(module, module, out, visited)
+    }
+
+    /** The `@behaviour`s and `use`s written directly in [scope], a module or a quote, with `__MODULE__` meaning [contextModule]. */
+    @RequiresReadLock
+    private fun collectOwn(scope: Call, contextModule: Call, out: MutableSet<String>, visited: MutableSet<PsiElement>) {
+        val calls = CallDefinitionClause.modularChildCalls(scope)
 
         calls
             .filterIsInstance<AtUnqualifiedNoParenthesesCall<*>>()
             .filter { ElixirPsiImplUtil.moduleAttributeName(it) == "@behaviour" }
-            .forEach { out += namesFromAttr(it, module) }
+            .forEach { out += namesFromAttr(it, contextModule) }
         calls
             .filter { Use.`is`(it) }
             .forEach { useCall ->
@@ -88,16 +90,31 @@ object BehaviourMembership {
         out: MutableSet<String>,
         visited: MutableSet<PsiElement>
     ) {
-        PsiTreeUtil
-            .findChildrenOfType(definer, AtUnqualifiedNoParenthesesCall::class.java)
-            .filter { ElixirPsiImplUtil.moduleAttributeName(it) == "@behaviour" }
-            .forEach { out += namesFromAttr(it, definingModule) }
-        PsiTreeUtil
-            .findChildrenOfType(definer, Call::class.java)
-            .filter { Use.`is`(it) }
-            .forEach { nestedUse ->
-                Use.modulars(nestedUse).filterIsInstance<Call>().forEach { used -> collectUseInjected(used, out, visited) }
+        quotesOf(definer).forEach { quote -> collectOwn(quote, definingModule, out, visited) }
+    }
+
+    /**
+     * The quotes written in [definer]'s own body, however they are bound or returned, such as `ast = quote do ... end`.
+     * One inside a nested module, function or quote is that scope's, so none is descended into.
+     */
+    @RequiresReadLock
+    private fun quotesOf(definer: Call): List<Call> {
+        val quotes = mutableListOf<Call>()
+
+        definer.accept(object : PsiRecursiveElementWalkingVisitor() {
+            override fun visitElement(element: PsiElement) {
+                if (element is Call && element !== definer) {
+                    if (QuoteMacro.`is`(element)) {
+                        quotes += element
+                        return
+                    }
+                    if (CallDefinitionClause.startsNewScope(element)) return
+                }
+                super.visitElement(element)
             }
+        })
+
+        return quotes
     }
 
     /**
