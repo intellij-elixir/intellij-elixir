@@ -6033,7 +6033,7 @@ If you're okay with disabling the background for all injections:
 
 ### Canary releases
 
-Builds on `main` will produce pre-release builds of format `NEXT_VERSION-pre+YYYYMMDDHHMMSS`.
+Pre-releases of the next version, `VERSION-pre-N`, are cut from `main` and uploaded to the `canary` channel ahead of the release.
 
 #### Inside IDE using JetBrains repository
 

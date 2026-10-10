@@ -693,6 +693,9 @@
 
 ### Build / CI
 
+- [#4397](https://github.com/intellij-elixir/intellij-elixir/pull/4397) [@sh41](https://github.com/sh41)
+  - **Tag Release uploads a pre-release to the Marketplace canary channel, so canary users no longer wait on a hand upload.**
+
 - [#4381](https://github.com/intellij-elixir/intellij-elixir/pull/4381) [@sh41](https://github.com/sh41)
   - **The tests quote with quoter v3.2.1, whose quotes, and compiles before Elixir 1.15, no longer wait on a console that has stopped draining.** Fixes [#4378](https://github.com/intellij-elixir/intellij-elixir/issues/4378), answers [intellij-elixir-quoter#16](https://github.com/intellij-elixir/intellij-elixir-quoter/issues/16).
 - [#4373](https://github.com/intellij-elixir/intellij-elixir/pull/4373) [@sh41](https://github.com/sh41)

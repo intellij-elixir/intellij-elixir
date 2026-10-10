@@ -796,9 +796,9 @@ The built plugin's version depends on how it was produced:
 
 | Build | Version | Example |
 |---|---|---|
-| Tagged release (`tag.yml`, `-PpluginVersionOverride`) | the git tag verbatim | `24.0.0` |
+| Tagged release or pre-release (`tag.yml`, `-PpluginVersionOverride`) | the git tag verbatim | `24.0.0`, `25.0.0-pre-4` |
 | Release channel (`-PpublishChannels=default`) | base version, no suffix | `24.0.0` |
-| CI canary | `<base>-pre+<UTC commit time>.<commit>` | `24.0.1-pre+20260804164541.64e3d69a` |
+| CI test and verify legs (`shared-test.yml`; a downloadable run artifact, never uploaded to the Marketplace) | `<base>-pre+<UTC commit time>.<commit>` | `24.0.1-pre+20260804164541.64e3d69a` |
 | Local build | `<base>-dev+<UTC commit time>.<commit>` | `24.0.1-dev+20260804164541.64e3d69a` |
 | `-PversionSuffix=<s>` | `<base>-<s>` | `24.0.1-rc1` |
 
@@ -811,7 +811,8 @@ Why the commit is there: the version string is the **only** field identifying th
 JetBrains Marketplace exception report. The IDE sends `IdeaPluginDescriptor.version` as
 `plugin.version`, and the exception analyzer surfaces it as `pluginVersion` with no companion
 metadata - so without the commit, a crash report cannot be traced to a source revision.
-`-dev` vs `-pre` separates a maintainer's own sandbox reports from real canary users' reports.
+`-dev` marks a maintainer's own sandbox build and `-pre+<commit>` a CI artifact someone installed; canary
+users' reports carry a tag's `-pre-N` version.
 
 The timestamp is the **commit's** committer date, not the build's clock. A build-clock stamp reads as
 a source date without being one, which is how a report from a build stamped 30 June turned out to be

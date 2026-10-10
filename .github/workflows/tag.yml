@@ -25,6 +25,11 @@ on:
         required: false
         type: boolean
         default: false
+      publish_canary:
+        description: 'Upload a pre-release to the Marketplace canary channel (from main only; ignored for a release)'
+        required: false
+        type: boolean
+        default: true
 jobs:
   # Runs before anything else, so a bad dispatch costs seconds rather than the whole test matrix.
   # Only gradle.properties is checked out, which keeps that true.
@@ -42,6 +47,8 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
+    outputs:
+      canary_upload: ${{ steps.branch.outputs.canary_upload }}
     steps:
       - name: Checkout release metadata
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -77,17 +84,33 @@ jobs:
 
       # workflow_dispatch accepts any ref, and the release below sets target_commitish to github.sha,
       # so a stable release cut from a topic branch would put the tag on that branch. Pre-releases stay
-      # free to come from anywhere, which is how a canary gets in front of someone before merge.
+      # free to come from anywhere.
+      #
+      # canary_upload only from main of the upstream repository: a topic-branch pre-release is cut for
+      # one reporter, not every canary subscriber, and would consume the version, and a fork has no
+      # business uploading to plugin 7522 even when it has a token.
       - name: Validate release branch
+        id: branch
         env:
           PRERELEASE: ${{ inputs.prerelease }}
+          PUBLISH_CANARY: ${{ inputs.publish_canary }}
           REF_NAME: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           if [[ "$PRERELEASE" != "true" && "$REF_NAME" != "main" ]]; then
             echo "::error title=Stable release off main::A stable release must be dispatched from main, not \"${REF_NAME}\". The release sets target_commitish to the dispatched commit, so the tag would live on that branch."
             exit 1
           fi
-          echo "Branch \"${REF_NAME}\" is allowed for prerelease=${PRERELEASE}."
+          canary_upload=false
+          if [[ "$PRERELEASE" == "true" && "$PUBLISH_CANARY" == "true" ]]; then
+            if [[ "$REF_NAME" == "main" && "$REPOSITORY" == "intellij-elixir/intellij-elixir" ]]; then
+              canary_upload=true
+            else
+              echo "::notice title=Canary upload skipped::Pre-releases upload to the Marketplace canary channel only from main of intellij-elixir/intellij-elixir; this one from \"${REPOSITORY}\" at \"${REF_NAME}\" gets its GitHub release and zip but no upload."
+            fi
+          fi
+          echo "canary_upload=${canary_upload}" >> "$GITHUB_OUTPUT"
+          echo "Branch \"${REF_NAME}\" is allowed for prerelease=${PRERELEASE}; canary_upload=${canary_upload}."
 
       # One ls-remote answers both questions below, and needs no local tags.
       #
@@ -155,6 +178,58 @@ jobs:
           fi
           echo "Tag base ${base} matches pluginVersion=${plugin_version}."
 
+
+      # Secrets cannot be read in an `if:`, so the Marketplace side is checked here rather than by
+      # publishPlugin after the build. /api/users/me/full lists the account's plugins: a developer
+      # token for this plugin lists 7522, but other routes to upload rights are not visible here, so an
+      # absence only warns. The authenticated updates list includes uploads still awaiting moderation.
+      # Both answers are untrusted input and are only ever read through jq.
+      - name: Validate Marketplace token and version
+        if: ${{ steps.branch.outputs.canary_upload == 'true' }}
+        env:
+          TAG: ${{ inputs.tag }}
+          TOKEN: ${{ secrets.JETBRAINSMARKETPLACETOKEN }}
+        run: |
+          if [[ -z "$TOKEN" ]]; then
+            echo "::error title=Marketplace token missing::The JETBRAINSMARKETPLACETOKEN repository secret is empty, so the canary upload cannot run. Add a Marketplace permanent token for an account with upload rights to plugin 7522, or untick publish_canary."
+            exit 1
+          fi
+          # The header goes in on stdin so the token never appears in a process argument list. curl's
+          # exit status is kept: a transfer that fails after a 200 status line leaves a truncated body.
+          api() { curl -sS --max-time 30 -o "$2" -w '%{http_code}' -H @- "https://plugins.jetbrains.com/api/$1" <<< "Authorization: Bearer $TOKEN"; }
+          unavailable() {
+            echo "::error title=Marketplace unavailable::plugins.jetbrains.com answered $1 to $2. Retry, or untick publish_canary."
+            exit 1
+          }
+
+          status=$(api users/me/full "$RUNNER_TEMP/me.json") || status="a failed transfer (curl exit $?)"
+          case "$status" in
+            200) ;;
+            401|403)
+              echo "::error title=Marketplace token rejected::plugins.jetbrains.com answered ${status} to the JETBRAINSMARKETPLACETOKEN secret on /api/users/me/full, which a plugin developer's token can read. Rotate it to a current permanent token for a developer of plugin 7522, or untick publish_canary."
+              exit 1 ;;
+            *) unavailable "$status" /api/users/me/full ;;
+          esac
+          developer=$(jq -r 'if type == "object" then any((.plugins // [])[]; .id == 7522) else "unreadable" end' "$RUNNER_TEMP/me.json" 2> /dev/null || echo unreadable)
+          case "$developer" in
+            true) ;;
+            false) echo "::warning title=Marketplace token may lack rights::The account behind the JETBRAINSMARKETPLACETOKEN secret does not list plugin 7522 among its plugins. If the upload fails with 403, rotate the secret to a developer's token." ;;
+            *) unavailable "an unreadable body" /api/users/me/full ;;
+          esac
+
+          version="${TAG#v}"
+          status=$(api "plugins/7522/updates?channel=canary&size=100" "$RUNNER_TEMP/canary.json") || status="a failed transfer (curl exit $?)"
+          [[ "$status" == "200" ]] || unavailable "$status" "the canary channel listing"
+          held=$(jq -r --arg v "$version" 'if type == "array" then any(.[]; .version == $v) else "unreadable" end' "$RUNNER_TEMP/canary.json" 2> /dev/null || echo unreadable)
+          case "$held" in
+            false) ;;
+            true)
+              echo "::error title=Version already on canary::The Marketplace canary channel already holds ${version}, which it rejects a second time. If an earlier run uploaded it and then failed, re-dispatch with publish_canary unticked."
+              exit 1 ;;
+            *) unavailable "an unreadable body" "the canary channel listing" ;;
+          esac
+          echo "Marketplace token accepted; ${version} is not on the canary channel."
+
       # No "What's New" check here any more. The plugin's changeNotes are rendered from CHANGELOG.md by
       # the Gradle Changelog Plugin, falling back to the Unreleased section when no section matches the
       # version being built, so there is no second file that can go stale against the tag. That a
@@ -195,27 +270,14 @@ jobs:
           gradle-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
           skip-searchable-options: 'false'
 
-      - name: Build with Gradle (canary)
-        id: build-plugin-canary
-        if: ${{ inputs.prerelease }}
-        env:
-          TAG: ${{ inputs.tag }}
-        run: ./gradlew buildPlugin --no-scan -PpublishChannels=canary "-PpluginVersionOverride=${TAG#v}" --stacktrace
-
-      - name: Build with Gradle (release)
-        id: build-plugin-default
-        if: ${{ !inputs.prerelease }}
-        env:
-          TAG: ${{ inputs.tag }}
-        run: ./gradlew buildPlugin --no-scan -PpublishChannels=default "-PpluginVersionOverride=${TAG#v}" --stacktrace
-
       # The release body comes from CHANGELOG.md rather than being pasted in by hand. Unlike the
       # plugin's changeNotes this keeps EVERY group, including Threading / Platform Hygiene and
       # Build / CI: the audience for a GitHub release is contributors as much as users, and the full
       # record is what they want. --no-header because the release title is already the tag.
       #
       # A missing section fails the job (MissingVersionException), which is deliberate - it means the
-      # release was never promoted with patchChangelog, so there are no notes to publish.
+      # release was never promoted with patchChangelog, so there are no notes to publish. Rendered
+      # before the build, so that failure costs no build and no Marketplace upload.
       - name: Render release notes from the changelog
         env:
           TAG: ${{ inputs.tag }}
@@ -235,6 +297,26 @@ jobs:
             exit 1
           fi
           echo "::notice title=Release notes::$(wc -l < build/release-notes.md) lines rendered from CHANGELOG.md."
+
+      - name: Build with Gradle
+        id: build-plugin
+        if: ${{ needs.validate-tag.outputs.canary_upload != 'true' }}
+        env:
+          TAG: ${{ inputs.tag }}
+          CHANNEL: ${{ inputs.prerelease && 'canary' || 'default' }}
+        run: ./gradlew buildPlugin --no-scan "-PpublishChannels=${CHANNEL}" "-PpluginVersionOverride=${TAG#v}" --stacktrace
+
+      # publishPlugin builds the zip through buildPlugin, so one invocation builds and uploads. It runs
+      # before the GitHub release: a failed upload leaves nothing public and the tag can be
+      # re-dispatched, which the existence check refuses once the release exists. -x patchChangelog:
+      # publishPlugin runs it first, and it would promote Unreleased.
+      - name: Build with Gradle and upload to the Marketplace canary channel
+        id: build-plugin-canary-upload
+        if: ${{ needs.validate-tag.outputs.canary_upload == 'true' }}
+        env:
+          TAG: ${{ inputs.tag }}
+          JET_BRAINS_MARKETPLACE_TOKEN: ${{ secrets.JETBRAINSMARKETPLACETOKEN }}
+        run: ./gradlew publishPlugin -x patchChangelog --no-scan -PpublishChannels=canary "-PpluginVersionOverride=${TAG#v}" --stacktrace
 
       - name: Create Release
         id: create_release
