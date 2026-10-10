@@ -125,6 +125,8 @@
 
 ### Bug Fixes
 
+- [#4393](https://github.com/intellij-elixir/intellij-elixir/pull/4393) [@sh41](https://github.com/sh41)
+  - **Parameter Info shows a function with default arguments as it is defined, `(q, x \\ nil)`, once, from source, a `defdelegate` or a `.beam` with docs or debug info, and now shows EEx template functions, embedded templates and `defexception` functions at all.** Fixes [#4333](https://github.com/intellij-elixir/intellij-elixir/issues/4333).
 - [#4389](https://github.com/intellij-elixir/intellij-elixir/pull/4389) [@sh41](https://github.com/sh41)
   - **A variable bound by `quote bind_quoted:` is found by a read in the quote's body and offered by completion.**
   - **A call, variable, type variable or module attribute is found by the name Elixir reads it as: a quoted name such as `Kernel."def"` is the function `def`, and from Elixir 1.14 a name written with a decomposed `é` or a micro sign `µ` is the same name as its other spelling.** Fixes [#4344](https://github.com/intellij-elixir/intellij-elixir/issues/4344). Refs [#4170](https://github.com/intellij-elixir/intellij-elixir/issues/4170).

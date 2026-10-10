@@ -50,6 +50,14 @@ object Declarations {
         }
     }
 
+    /**
+     * The declaration [call] makes that the walk spells [name], when that name has an atom value. No form gives two
+     * declarations one name.
+     */
+    @RequiresReadLock
+    fun named(form: Form, call: Call, name: String, state: ResolveState = ResolveState.initial()): Declaration? =
+        of(form, call, state).firstOrNull { it.text == name }?.declaration
+
     private fun clause(call: Call, state: ResolveState): List<Spelled> {
         val declaration = CallDefinitionClause.declaration(call, state) ?: return emptyList()
         val atom = CallDefinitionClause.head(call)?.let(::headAtomValue)

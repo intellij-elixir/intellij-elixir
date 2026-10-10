@@ -104,4 +104,7 @@ class CallDefinitionImpl<T : CallDefinitionStub<*>>(private val stub: T) : Modul
 
     override val parameters: List<String>
         get() = stub.parameters()
+
+    override val head: List<String>
+        get() = stub.head()
 }

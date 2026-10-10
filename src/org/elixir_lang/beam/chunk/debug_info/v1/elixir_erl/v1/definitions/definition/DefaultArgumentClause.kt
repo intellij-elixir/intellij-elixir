@@ -7,6 +7,7 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.Macro
 import org.elixir_lang.beam.MacroNameArity
 import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.v1.definitions.Definition
+import org.elixir_lang.beam.decompiler.ParameterText
 import org.elixir_lang.toOtpErlangList
 
 /**
@@ -44,6 +45,58 @@ internal object DefaultArgumentClause {
         )
 
         return OtpErlangList(arrayOf<OtpErlangObject>(renamed))
+    }
+
+    /**
+     * The head [definition] is written with, `q, x \\ nil` for `def f(q, x \\ nil)`: the first clause of the full-arity
+     * definition, with `\\ default` at each position the lowest-arity default clause fills. `null` when no default
+     * clause targets it. [definition] may be the full-arity one or any default clause.
+     */
+    fun head(definition: Definition): List<String>? {
+        val macro = definition.macro ?: return null
+        val name = definition.name ?: return null
+        val arity = definition.arity ?: return null
+        val definitions = definition.debugInfo.definitions ?: return null
+
+        val fullArity = defaultClause(definition)?.second?.arity() ?: arity
+        val parameters = definitions[MacroNameArity(macro, name, fullArity)]
+            ?.renderedClauses()
+            ?.firstOrNull()
+            ?.parameters
+            ?.takeIf { it.size == fullArity }
+            ?: return null
+
+        val (ownArguments, superArguments) = (0 until fullArity).firstNotNullOfOrNull { lowerArity ->
+            definitions[MacroNameArity(macro, name, lowerArity)]
+                ?.let(::defaultClause)
+                ?.takeIf { (_, superArguments) -> superArguments.arity() == fullArity }
+        } ?: return null
+
+        return parameters.mapIndexed { index, parameter ->
+            val argument = superArguments.elementAt(index)
+
+            if (argument in ownArguments) {
+                parameter
+            } else {
+                "$parameter \\\\ ${ParameterText.normalised(Macro.toString(argument))}"
+            }
+        }
+    }
+
+    /**
+     * The arguments of [definition]'s one clause and of the `super` call it is, when it is a default clause: every
+     * argument is one `elixir_def` generated, and the call passes more. A user's `super` has named arguments.
+     */
+    private fun defaultClause(definition: Definition): Pair<OtpErlangList, OtpErlangList>? {
+        val clause = definition.clausesTerm.let { it as? OtpErlangList }?.singleOrNull() as? OtpErlangTuple ?: return null
+        if (clause.arity() != Clause.EXPECTED_ARITY) return null
+
+        val arguments = clause.elementAt(1).toOtpErlangList()
+        if (!arguments.all { Clause.isGeneratedVariable(it) }) return null
+
+        return superArguments(clause.elementAt(3))
+            ?.takeIf { it.arity() > arguments.arity() }
+            ?.let { arguments to it }
     }
 
     private fun superArguments(block: OtpErlangObject): OtpErlangList? =

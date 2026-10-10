@@ -174,6 +174,44 @@ class BeamCallDefinitionClauseTest : PlatformTestCase() {
     }
 
     /**
+     * `Code.eval_string(string, binding \\ [], opts \\ [])` is offered once for each arity it answers to, and each
+     * names the parameters a call at that arity passes: the head without the defaults it leaves out.
+     */
+    fun testBeamFunctionWithDefaultsRendersEachArityWithTheParametersItPasses() {
+        addBeamLibrary()
+
+        myFixture.configureByFiles("usage.ex")
+        val lookupElements: Array<LookupElement>? = myFixture.complete(CompletionType.BASIC, 1)
+        assertNotNull(NO_POPUP_MESSAGE, lookupElements)
+
+        val tails = lookupElements!!
+            .filter { it.lookupString == "eval_string" }
+            .map { element -> LookupElementPresentation().also { element.renderElement(it) }.tailText }
+
+        assertSameElements(tails, "(string)", "(string, binding)", "(string, binding, opts)")
+    }
+
+    /** Accepting the arity with one default left out inserts the parameters of a call at that arity. */
+    fun testBeamFunctionWithDefaultsInsertsTheParametersOfTheArityChosen() {
+        addBeamLibrary()
+
+        myFixture.configureByFiles("usage.ex")
+        val lookupElements = myFixture.complete(CompletionType.BASIC, 1)!!
+        val twoArguments = lookupElements.first { element ->
+            element.lookupString == "eval_string" &&
+                LookupElementPresentation().also { element.renderElement(it) }.tailText == "(string, binding)"
+        }
+
+        myFixture.lookup.currentItem = twoArguments
+        myFixture.finishLookup('\n')
+
+        assertTrue(
+            "Expected `Code.eval_string(string, binding)` inserted, got: ${myFixture.editor.document.text}",
+            myFixture.editor.document.text.contains("Code.eval_string(string, binding)")
+        )
+    }
+
+    /**
      * The lookup element for a BEAM-decompiled function must render with an icon, just like a
      * source-defined function does (the source path forwards `ItemPresentation.getIcon` via
      * `renderItemPresentation`).  `renderBeamCallDefinition` builds the equivalent RowIcon

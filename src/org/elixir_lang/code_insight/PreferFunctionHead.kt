@@ -1,12 +1,15 @@
 package org.elixir_lang.code_insight
 
 import com.intellij.psi.ResolveState
+import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.declaration.Preferred
+import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
 
 /**
  * Given a list of [CallDefinitionClause] calls (potentially multiple clause heads for the same function),
- * groups them by name and selects one representative per function — preferring **bare function heads**
+ * groups them by name and selects one representative per function - preferring **bare function heads**
  * (those without a `do` block or keyword) over implementation clauses.
  *
  * A bare function head like `def map_every(enumerable, nth, fun)` has canonical parameter names,
@@ -25,33 +28,41 @@ fun preferFunctionHeads(clauses: Iterable<Call>): Map<String, Call> =
                 ?.let { it.name to call }
         }
         .groupBy({ it.first }, { it.second })
-        .mapValues { (_, group) -> preferFunctionHead(group) }
+        .mapValues { (_, group) ->
+            val intervals = group.associateWith { CallDefinitionClause.nameArityInterval(it, ResolveState.initial())?.arityInterval }
 
-/**
- * Like [preferFunctionHeads] but groups by **(name, arityInterval)**, preserving separate entries
- * for functions with the same name but different arities (e.g., `foo/1` and `foo/2`).
- *
- * Use for parameter info where each arity should appear as a separate hint.
- *
- * @param name keeps only the clauses defining that function, or every clause when `null` because the
- * caller has no name to match on. Resolution returns more than the function called: a call to `reduce`
- * also resolves `reduce_while`, whether or not the reference is resolved as incomplete code, so a hint
- * built from the results unfiltered describes functions the user is not calling.
- * @return a list of best representative clauses, one per name+arity combination
- */
-fun preferFunctionHeadsByArity(clauses: Iterable<Call>, name: String?): List<Call> =
-    clauses
-        .mapNotNull { call ->
-            CallDefinitionClause.nameArityInterval(call, ResolveState.initial())
-                ?.let { it to call }
+            preferHead(
+                group,
+                call = { it },
+                definitionOf = { clause -> intervals[clause]?.definition() },
+                defaultsOf = { clause -> intervals[clause]?.defaults() ?: 0 }
+            )
         }
-        .filter { (nameArityInterval, _) -> name == null || nameArityInterval.name == name }
-        .groupBy({ it.first }, { it.second })
-        .map { (_, group) -> preferFunctionHead(group) }
 
 /**
- * From a list of clauses for the same function, prefer the bare function head (no `do` block/keyword)
- * over implementation clauses. Falls back to the first clause if no bare head exists.
+ * One [Signature] per definition among [preferred], in the order found. A definition is a module's name and the
+ * arities it covers, so a bodiless head with default arguments and the clauses below it are one, and `foo/1` and
+ * `foo/2`, or the `foo/2` of two modules, are two. A definition with a bare function head is shown by it, else by the
+ * clause that declares the most defaults, else by the first.
  */
-private fun preferFunctionHead(clauses: List<Call>): Call =
-    clauses.firstOrNull { !it.hasDoBlockOrKeyword() } ?: clauses.first()
+@RequiresReadLock
+fun signatures(preferred: List<Preferred>): List<Signature> =
+    preferred
+        .mapNotNull { Signature.of(it.found)?.let { signature -> signature to it.found } }
+        .groupBy({ it.first.definition to it.second.declaringModuleName() }, { it })
+        .values
+        .map { group -> preferHead(group, call = { it.second.element as? Call }, defaultsOf = { it.first.defaults }).first }
+
+/**
+ * The clause that speaks for a function: the bare function head (no `do` block or keyword) if there is one, else the
+ * clause that declares the most defaults among those of the first clause's [definitionOf], else the first. Completion,
+ * whose group is a name, and Parameter Info, whose group is one definition, both choose by this.
+ */
+private fun <T> preferHead(
+    group: List<T>,
+    call: (T) -> Call?,
+    definitionOf: (T) -> Any? = { null },
+    defaultsOf: (T) -> Int
+): T =
+    group.firstOrNull { call(it)?.hasDoBlockOrKeyword() == false }
+        ?: group.filter { definitionOf(it) == definitionOf(group.first()) }.maxBy(defaultsOf)

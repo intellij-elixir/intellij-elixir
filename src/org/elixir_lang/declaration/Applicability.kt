@@ -9,6 +9,9 @@ enum class Applicability {
     /** Not decidable yet, as for [ArityKnowledge.Unknown]. */
     OPAQUE;
 
+    /** Whether a use with a candidate this applicable compiles, or may: what a preference keeps, and no rejection names. */
+    val admitted: Boolean get() = this == VALID || this == OPAQUE
+
     companion object {
         /**
          * How [declaration] applies at a use that resolution reached it by the name [reachedAs] and found [valid] or

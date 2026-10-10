@@ -2,8 +2,6 @@ package org.elixir_lang.declaration
 
 /** Why a call has no valid target: each near miss it names, with the arities that one accepts. */
 object RejectedCall {
-    private val NOT_REJECTING = setOf(Applicability.VALID, Applicability.OPAQUE)
-
     /** [candidate] accepts each of [arities], and every arity from [from] up. */
     data class Named<T>(val candidate: T, val arities: List<Int>, val from: Int? = null)
 
@@ -20,7 +18,7 @@ object RejectedCall {
         remote: Boolean,
         admits: (T, Int) -> Boolean
     ): List<Named<T>>? {
-        if (candidates.any { candidate(it).applicability in NOT_REJECTING }) return null
+        if (candidates.any { candidate(it).applicability.admitted }) return null
 
         return candidates.mapNotNull { element ->
             val (declaration, reach, applicability) = candidate(element)

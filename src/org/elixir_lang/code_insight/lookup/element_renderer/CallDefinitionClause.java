@@ -128,7 +128,7 @@ public class CallDefinitionClause extends com.intellij.codeInsight.lookup.Lookup
     private void renderBeamCallDefinition(
             @NotNull CallDefinition callDefinition,
             @NotNull LookupElementPresentation presentation) {
-        List<String> parameters = Signature.Companion.of(callDefinition).getParameters();
+        List<String> parameters = Signature.Companion.parametersAt(callDefinition);
         presentation.appendTailText("(" + String.join(", ", parameters) + ")", true);
 
         // Mirror the source render path's icon (navigation.item_presentation.CallDefinitionHead):

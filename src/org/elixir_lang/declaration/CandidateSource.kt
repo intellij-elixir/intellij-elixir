@@ -3,8 +3,10 @@ package org.elixir_lang.declaration
 import com.intellij.psi.PsiElement
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.Unquote
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.functionNameAtomValue
 
@@ -28,6 +30,20 @@ interface CandidateSource {
  * `defdelegate` calls it was reached through.
  */
 data class Found(val candidate: Candidate, val element: PsiElement, val via: List<Call>)
+
+/**
+ * The name of the module that declares [this], so two copies of one module are one. What a `use` injects is declared
+ * by the module that holds the `use`, the first call [via] crossed.
+ */
+@RequiresReadLock
+fun Found.declaringModuleName(): String? =
+    when (val declared = candidate.declaration.declared) {
+        is Declared.Compiled -> declared.origin.module
+        is Declared.Source ->
+            (via.firstOrNull().takeIf { candidate.reach == Reach.USE } ?: element as? Call)
+                ?.let { CallDefinitionClause.enclosingModularMacroCall(it) }
+                ?.let { SyntacticCall.of(it).canonicalName() }
+    }
 
 /**
  * What completion offers as [lookupName] at a position. [name] and [declaration] are `null` exactly when the name has

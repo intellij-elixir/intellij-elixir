@@ -178,6 +178,30 @@ class CallDefinitionClauseTest : PlatformTestCase() {
         )
     }
 
+    /** The inserted placeholder is the parameter as Elixir writes a head: on one line, with no comment. */
+    fun testLocalClauseWithACommentInAParameterInsertsTheParameterWithoutIt() {
+        myFixture.configureByText(
+            "test.ex",
+            """
+                defmodule Test do
+                  def pair({a, # the first
+                            b}), do: {a, b}
+
+                  def run do
+                    pai<caret>
+                  end
+                end
+            """.trimIndent()
+        )
+
+        myFixture.completeSoleCandidateAtCaret()
+
+        assertTrue(
+            "Expected `pair({a, b})` with no comment; got:\n${myFixture.file.text}",
+            myFixture.file.text.contains("    pair({a, b})\n")
+        )
+    }
+
     fun testLocalZeroArityDelegateStillInsertsBareParentheses() {
         myFixture.configureByFiles("defdelegate.ex", "to.ex")
 

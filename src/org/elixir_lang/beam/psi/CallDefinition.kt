@@ -24,6 +24,9 @@ interface CallDefinition : BeamSymbol, MaybeExported {
     /** The first clause's parameters as the stub stores them. */
     val parameters: List<String>
 
+    /** The head a function with default arguments is written with, the same at each arity they cover; empty if none. */
+    val head: List<String>
+
     /** A `defguard` is a `MACRO-` export, which the stub cannot tell from a `defmacro`. */
     @get:RequiresReadLock
     val capabilities: Capabilities
