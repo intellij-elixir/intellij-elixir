@@ -125,10 +125,11 @@
 
 ### Bug Fixes
 
-- [#PR-TBD](https://github.com/intellij-elixir/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)
+- [#4401](https://github.com/intellij-elixir/intellij-elixir/pull/4401) [@sh41](https://github.com/sh41)
   - **Go To Declaration and Find Usages work on a function that is not a callback in a module with a behaviour.** Fixes [#4398](https://github.com/intellij-elixir/intellij-elixir/issues/4398).
   - **`def` and `defp` are highlighted again.** Fixes [#4398](https://github.com/intellij-elixir/intellij-elixir/issues/4398).
   - **A type named like the function whose `@spec` uses it resolves.** Fixes [#4399](https://github.com/intellij-elixir/intellij-elixir/issues/4399).
+  - **A project with copies of itself under a hidden directory such as `.claude/worktrees` is no longer read as an umbrella.** Fixes [#4400](https://github.com/intellij-elixir/intellij-elixir/issues/4400).
 - [#4395](https://github.com/intellij-elixir/intellij-elixir/pull/4395) [@sh41](https://github.com/sh41)
   - **Find Usages and Rename find a function, callback, protocol function, type, variable or module attribute used under another spelling of its name, such as `M."fo\x6f"(1)` for `foo` or an operator call like `1 <~> 2`, including inside template files and, with HTML injection on, `~H`, `~E` and `~L` sigils.** Fixes [#4364](https://github.com/intellij-elixir/intellij-elixir/issues/4364).
 - [#4393](https://github.com/intellij-elixir/intellij-elixir/pull/4393) [@sh41](https://github.com/sh41)

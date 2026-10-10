@@ -58,7 +58,7 @@ object Project {
                 if (file.isDirectory) {
                     indicator.text2 = file.path
 
-                    if (isAssetsOrBuildOrConfigOrDepsOrTestsDirectory(root.path, file.path)) {
+                    if (isHiddenBelow(root, file) || isAssetsOrBuildOrConfigOrDepsOrTestsDirectory(root.path, file.path)) {
                         return false
                     }
                 }
@@ -242,6 +242,10 @@ object Project {
         }?.let {
             OtpApp(appRoot, it)
         }
+
+    /** A hidden directory holds tooling state, such as `.claude/worktrees/` checkouts, never an app of [root]. */
+    private fun isHiddenBelow(root: VirtualFile, directory: VirtualFile): Boolean =
+        directory != root && directory.name.startsWith(".")
 
     private fun isAssetsOrBuildOrConfigOrDepsOrTestsDirectory(projectRootPath: String, path: String): Boolean {
         return (path.endsWith("/assets")
