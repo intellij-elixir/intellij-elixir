@@ -47,11 +47,12 @@ changes nothing - which means the release has no notes, so check why before cont
 ## Tag release
 
 The **Tag Release** workflow (`.github/workflows/tag.yml`) is what builds a release. Dispatching it
-validates the tag, runs the test matrix, builds the plugin zip, creates the GitHub release, renders
-its body from `CHANGELOG.md` and attaches the artifact. Every step below works from what it
-produced, so there is no local `buildPlugin` step in a release: an unqualified local build stamps a
-`-dev+<timestamp>` version and compiles against whatever `gradle.properties` currently pins, which
-is not what users install.
+validates the tag, runs the test matrix, renders the release body from `CHANGELOG.md`, builds the
+plugin zip, uploads a pre-release from `main` to the Marketplace canary channel, creates the GitHub
+release and attaches the artifact. Every step below works from what it produced, so there is
+no local `buildPlugin` step in a release: an unqualified local build stamps a `-dev+<timestamp>`
+version and compiles against whatever `gradle.properties` currently pins, which is not what users
+install.
 
 Do **not** edit `resources/META-INF/plugin.xml` - Gradle patches its `<version>` and
 `<change-notes>` during `patchPluginXml`, so any value committed there is overwritten. The version
@@ -69,6 +70,7 @@ whole test matrix, and it checks:
 | Tag does not already exist | both |
 | Version higher than every existing tag | both |
 | Tag version matches `pluginVersion` in `gradle.properties` | both |
+| The Marketplace accepts the `JETBRAINSMARKETPLACETOKEN` secret, and the canary channel does not already hold the version | pre-releases from `main`, unless `publish_canary` is unticked |
 
 There is deliberately no change-notes check here. The notes are rendered from `CHANGELOG.md`, so no
 separate file can go stale against the tag, and that every change is recorded at all is enforced per
@@ -120,7 +122,23 @@ changelog does not carry.
 
 ## Publish to JetBrains Repository
 
-No workflow runs `publishPlugin`, so this upload is by hand.
+A pre-release dispatched from `main` is uploaded to the canary channel by Tag Release (the
+`publish_canary` input, ticked by default), using the `JETBRAINSMARKETPLACETOKEN` repository secret.
+A pre-release from any other branch, or from a fork, gets its GitHub release and zip but no upload,
+since it is cut for one reporter rather than every canary subscriber. The upload happens before the
+smoke test above, so a canary build that fails it is hidden on the Marketplace instead
+(<https://plugins.jetbrains.com/docs/marketplace/hidden-plugin.html>). It waits on Marketplace
+moderation; it is live once it appears at
+<https://plugins.jetbrains.com/plugin/7522-elixir/versions/canary> without signing in. Skipping the
+tests also skips CI's internal-API allowlist check, so the Marketplace's own verification is then
+the first to see a new internal usage. If the upload succeeded but creating the GitHub release
+failed, re-dispatch the same tag from a branch at the same commit with `publish_canary` unticked and
+`skip_tests` ticked, since the Marketplace already holds that version and rejects it a second time
+and the tests already passed on the commit; if the tag was created before the failure, delete the
+release and the tag first. The GitHub release then carries a fresh build of the same commit, not the
+byte-identical zip the Marketplace holds.
+
+For a release, the upload is by hand:
 
 1. Go to https://plugins.jetbrains.com/plugin/7522
 2. Click Update Plugin

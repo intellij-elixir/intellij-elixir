@@ -241,16 +241,13 @@ extra["expectedOtpVersion"] = expectedOtpVersion.getOrElse("unresolved")
 // Version suffix logic:
 // - "default" channel = no suffix (release build)
 // - explicit versionSuffix property = use that
-// - CI, untagged = "-pre+<commit time>.<commit>" (canary build)
+// - CI, untagged = "-pre+<commit time>.<commit>"
 // - local        = "-dev+<commit time>.<commit>"
 //
 // The version string is the ONLY field identifying the built code in a Marketplace exception report:
 // the IDE sends IdeaPluginDescriptor.version as `plugin.version`, and the exception-analyzer API
 // surfaces it as `pluginVersion` with no companion metadata. So it has to say what the build was made
 // from, and a build-clock timestamp reads as a source date without being one.
-//
-// `-dev` vs `-pre` separates a maintainer's own sandbox reports from real canary users, which is
-// otherwise only recoverable by looking for debugger frames and home directories in the stack trace.
 //
 // The timestamp is the commit's, so the whole suffix is a pure function of the source: ordering still
 // works (committer dates advance along a branch, and PluginVersion's patch bump keeps any untagged
