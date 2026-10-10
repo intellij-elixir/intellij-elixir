@@ -96,12 +96,12 @@ local build.
 
 1. Download `intellij-elixir-VERSION.zip` from the release the workflow created.
 2. Install it from disk
-  1. Preferences > Plugins
-  2. Click "Install plugin from disk..."
-  3. Select the downloaded zip
-  4. Click Open
-  5. Click Apply
-  6. Click Restart
+   1. Preferences > Plugins
+   2. Click "Install plugin from disk..."
+   3. Select the downloaded zip
+   4. Click Open
+   5. Click Apply
+   6. Click Restart
 3. Ensure no errors are raised during re-indexing and reparsing of any previously open files.
 4. Try out new features for this release
 
