@@ -56,8 +56,8 @@ internal class Callable : Annotator, DumbAware {
                  */
 
                 private fun visitCallDefinitionClause(call: Call) {
-                    // visit the `def(macro)?p? for Kernel PREDEFINED highlighting
-                    visitPlainCall(call)
+                    // A clause has no reference, so its `def(macro)?p?` keyword is resolved apart, for Kernel PREDEFINED highlighting
+                    visitPlainCall(call, org.elixir_lang.reference.Callable.definer(call))
 
                     CallDefinitionClause.head(call)?.let { head ->
                         visitCallDefinitionHead(head, call)
@@ -87,13 +87,11 @@ internal class Callable : Annotator, DumbAware {
                     if (CallDefinitionClause.`is`(call)) {
                         visitCallDefinitionClause(call)
                     } else {
-                        visitPlainCall(call)
+                        visitPlainCall(call, call.reference)
                     }
                 }
 
-                private fun visitPlainCall(call: Call) {
-                    val reference = call.reference
-
+                private fun visitPlainCall(call: Call, reference: PsiReference?) {
                     if (reference != null) {
                         val resolvedCollection =
                             if (reference is PsiPolyVariantReference) {
@@ -106,7 +104,7 @@ internal class Callable : Annotator, DumbAware {
                                 }
                             }
 
-                        if (resolvedCollection != null && resolvedCollection.isNotEmpty()) {
+                        if (!resolvedCollection.isNullOrEmpty()) {
                             highlight(call, reference.rangeInElement, resolvedCollection, holder)
                         } else if (call.hasDoBlockOrKeyword()) {
                             /* Even though it can't be resolved, it is called like a macro, so highlight like one */
