@@ -5,7 +5,11 @@ import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
+import com.intellij.openapi.application.ReadAction
 import org.elixir_lang.NameArity
+import org.elixir_lang.language_level.ElixirLanguageFeature.CACHE_ENV_IN_ELIXIR_MODULE
+import org.elixir_lang.lowering.Lowering
+import org.elixir_lang.psi.ElixirFile
 import java.io.File
 
 /**
@@ -47,6 +51,120 @@ class LoadedModulesTest : ProbeTestCase() {
 
         assertEquals(listOf(module.key), mismatches(lost, probed).map { it.substringBefore(":") })
     }
+
+    /**
+     * A source module's behaviour from its callback writes: what `behaviour_info(:callbacks)` gives once the leg's
+     * Elixir compiles it, as a set, or `None` where it exports no `behaviour_info/1`; `Unreadable` where that can't be
+     * read from the writes; and `Callbacks` for the typespec errors Elixir raises at the module's end, which aren't
+     * ported.
+     */
+    fun testSourceBehaviour() {
+        val compared = listOf(
+            """
+            @callback f(integer) :: integer
+            @callback f(atom) :: atom
+            @callback g(a) :: a when a: term
+            @macrocallback m(term) :: Macro.t
+            @optional_callbacks g: 1
+            """,
+            "@type t :: term\n@callback f :: t",
+            "@callback f(term) :: term\n@macrocallback f(term) :: Macro.t",
+            "def a, do: 1",
+            "@callback f() :: term\nModule.delete_attribute(__MODULE__, :callback)",
+            "@callback f() :: term\n@macrocallback m(term) :: Macro.t\nModule.delete_attribute(__MODULE__, :callback)\n@callback g() :: term",
+            "@macrocallback m(term) :: Macro.t\n@callback f() :: term\nModule.delete_attribute(__MODULE__, :macrocallback)",
+        ).map { it.trimIndent() }
+
+        assertEquals("compared", probedBehaviours(compared), compared.map { sourceBehaviour(it) })
+
+        val cachedEnv = if (CACHE_ENV_IN_ELIXIR_MODULE.isSufficient(legLevel())) ":elixir_module" else ":elixir_locals"
+        val unreadable = listOf(
+            "def behaviour_info(:callbacks), do: []",
+            "@callback f() :: term\ndef behaviour_info(:callbacks), do: []",
+            "n = :f\n@callback unquote(n)(term) :: term",
+            "@callback f(term)",
+            "@callback 1 :: term",
+            "if true do\n  @callback f() :: term\nend",
+            "@callback h(term) :: term\ndefp h(_x), do: 1\ndef f, do: h(1)",
+            "@callback h(term) :: term\ndefp h(_x), do: 1",
+            "@callback f() :: term\nif true do\n  Module.delete_attribute(__MODULE__, :callback)\nend",
+        )
+
+        assertEquals(
+            "unreadable",
+            unreadable.map { "$it\n  -> Unreadable" },
+            unreadable.map { "$it\n  -> ${sourceBehaviour(it)}" },
+        )
+        // A write whose kind isn't known may be of `@before_compile` too, so the module stops at its end.
+        assertEquals(
+            "a kind that isn't known",
+            ModuleExports.Unreadable,
+            sourceExports(
+                """
+                kind = :callback
+                spec = quote(do: f(integer) :: integer)
+                Kernel.Typespec.deftypespec(kind, spec, __ENV__.line, __ENV__.file, __MODULE__, $cachedEnv.cache_env(__ENV__))
+                """.trimIndent(),
+            ),
+        )
+        assertEquals(
+            "typespec errors aren't ported",
+            listOf(callbacks("f" to 0), callbacks("f" to 0)),
+            listOf("@callback f() :: undefined_type()", "@optional_callbacks h: 1\n@callback f() :: term").map {
+                sourceBehaviour(it)
+            },
+        )
+    }
+
+    /** The behaviour [LoadedModules] gives the module whose body is [body], with its callbacks sorted. */
+    private fun sourceBehaviour(body: String): ModuleExports.Behaviour? =
+        (sourceExports(body) as? ModuleExports.Present)?.behaviour?.let {
+            if (it is ModuleExports.Behaviour.Callbacks) it.copy(callbacks = it.callbacks.sorted()) else it
+        }
+
+    /** What [LoadedModules] gives the module whose body is [body], expanded at the leg's level. */
+    private fun sourceExports(body: String): ModuleExports {
+        val level = legLevel()
+        val code = "defmodule SourceBehaviour do\n${body.prependIndent("  ")}\nend"
+        val forms = ReadAction.computeBlocking<_, Throwable> {
+            Lowering.lower(createPsiFile(getTestName(false), code) as ElixirFile, level)
+        }
+        val file = Expander.expandFile(forms, Env.empty(level, legKernel), level, legExports, legStructs)
+
+        return LoadedModules.exports(file.modules.single())
+    }
+
+    /** What the leg's Elixir gives each module whose body is one of [bodies]: as [sourceBehaviour] answers it. */
+    private fun probedBehaviours(bodies: List<String>): List<ModuleExports.Behaviour> {
+        val token = harness.token()
+        val modules = bodies.indices.map { "SourceBehaviour$token.Case$it" }
+        val compiled = harness.compileSource(
+            bodies.mapIndexed { i, body -> "defmodule ${modules[i]} do\n${body.prependIndent("  ")}\nend\n" }
+                .joinToString("\n") +
+                """
+
+                for m <- [${modules.joinToString(", ")}] do
+                  answer = if function_exported?(m, :behaviour_info, 1), do: m.behaviour_info(:callbacks), else: :none
+                  IntellijElixir.Quoter.Probe.send(__ENV__, answer)
+                  :code.purge(m)
+                  :code.delete(m)
+                end
+                """.trimIndent(),
+        )
+
+        assertEquals("probe compile status", OtpErlangAtom("ok"), compiled.status)
+
+        return compiled.messages.map {
+            if (it is OtpErlangAtom) {
+                ModuleExports.Behaviour.None
+            } else {
+                ModuleExports.Behaviour.Callbacks(nameArities(it))
+            }
+        }
+    }
+
+    private fun callbacks(vararg callbacks: Pair<String, Int>) =
+        ModuleExports.Behaviour.Callbacks(callbacks.map { (name, arity) -> NameArity(name, arity) })
 
     /** What Elixir gives a loaded module: with [hasInfo], `__info__`'s answers; without, `module_info(:exports)`. */
     private data class Loaded(val functions: List<NameArity>, val macros: List<NameArity>, val hasInfo: Boolean)

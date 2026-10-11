@@ -459,7 +459,7 @@ private fun queueEffect(receiver: Term, name: String, node: ElixirAst.Call, valu
     val at = compiling.site(node)
     val statement = compiling.isStatement(at)
 
-    when (val change = ModuleEffects.of(dispatch, values.elements, module, run.level)) {
+    when (val change = ModuleEffects.of(dispatch, values.elements, node.arguments.orEmpty(), module, run.level)) {
         null -> Unit
         is ModuleEffects.Change.Attributes -> run.pending += Pending.Attribute(change.effect, at, statement)
         is ModuleEffects.Change.Definitions ->

@@ -102,7 +102,16 @@ internal class Compiling(body: ElixirAst, level: ElixirLanguageLevel) {
     }
 
     val log: AttributeLog
-        get() = AttributeLog(effects, reads, attributes.final, definitions, unnamed, attributes.accumulating)
+        get() = AttributeLog(
+            effects,
+            reads,
+            attributes.final,
+            definitions,
+            unnamed,
+            attributes.accumulating,
+            attributes.heads("callback"),
+            attributes.heads("macrocallback"),
+        )
 
     /** A block's expressions are statements, and so is what a statement that is a match binds, which runs where it does. */
     private fun addStatements(node: ElixirAst) {

@@ -252,7 +252,7 @@ class AttributeTableTest {
         everyLeg {
             assertTrace(
                 it,
-                *TYPESPECS.flatMap { name -> listOf(TypespecWrite(name) to null, read(name) to "node") }.toTypedArray(),
+                *TYPESPECS.flatMap { name -> listOf(TypespecWrite(name, null) to null, read(name) to "node") }.toTypedArray(),
             )
         }
 

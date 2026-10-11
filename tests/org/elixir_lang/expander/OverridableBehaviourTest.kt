@@ -71,11 +71,11 @@ class OverridableBehaviourTest : ExpanderTestCase() {
             "module Elixir.A stopped `defoverridable Unreadable` | def f/1 line 3 clauses 1",
         )
 
-    fun testABehaviourDefinedInTheSameFileHasCallbacksNotYetReadable() =
+    fun testABehaviourDefinedInTheSameFileHasItsCallbacksRead() =
         assertEvery(
             "defmodule B do\n  @callback f(integer) :: integer\nend\ndefmodule A do\n  @behaviour B\n  def f(x), do: x\n" +
                 "  defoverridable B\nend",
-            "module Elixir.B compiled\nmodule Elixir.A stopped `defoverridable B` | def f/1 line 6 clauses 1",
+            "module Elixir.B compiled\nmodule Elixir.A compiled | def f/1 line 6 clauses 1",
         )
 
     override fun expandAndRender(code: String, version: String): String {

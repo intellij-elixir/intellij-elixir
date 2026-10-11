@@ -2189,7 +2189,16 @@ enum class ElixirLanguageFeature(
      * `elixir-lang/elixir@30764fe67` ("Add type checking of protocol implementations", #14115), first released in
      * v1.19.0-rc.0.
      */
-    DEFIMPL_CHECKED_BY_IMPL_BANG(sinceElixir = "1.19.0-rc.0");
+    DEFIMPL_CHECKED_BY_IMPL_BANG(sinceElixir = "1.19.0-rc.0"),
+
+    /**
+     * A typespec attribute caches its caller's env with `:elixir_module.cache_env/1`, where it called
+     * `:elixir_locals.cache_env/1` (`kernel.ex`, `Kernel.@/1`, `:3652` at v1.17.3, `:3645` at v1.18.0).
+     *
+     * `elixir-lang/elixir@cb2e03688` ("Perform return type inference and application across local calls", #13984),
+     * first released in v1.18.0-rc.0.
+     */
+    CACHE_ENV_IN_ELIXIR_MODULE(sinceElixir = "1.18.0-rc.0");
 
 
     /** The first Elixir release with this behaviour, or `null` when every supported release has it. */

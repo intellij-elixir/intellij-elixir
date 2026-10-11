@@ -29,9 +29,36 @@ internal object LoadedModules {
                 named(DefinitionTable.Kind.DEF),
                 named(DefinitionTable.Kind.DEFMACRO),
                 hasInfo = true,
+                behaviour = behaviour(result),
                 deprecated = deprecations(result.attributes),
             )
             Loading.ABSENT -> ModuleExports.Absent
+        }
+    }
+
+    /**
+     * What `behaviour_info(:callbacks)` gives once [result]'s module loads, from the callbacks in its attributes when
+     * the body ends: each name and arity once, as a macro's when any of them is a `@macrocallback`. It can't be read
+     * where the module defines `behaviour_info/1` itself, a callback isn't known, or a callback is a private
+     * definition's, which Elixir drops when nothing calls it.
+     */
+    private fun behaviour(result: ExpansionResult): ModuleExports.Behaviour {
+        val definitions = result.table.entries
+
+        if (BEHAVIOUR_INFO in definitions) return ModuleExports.Behaviour.Unreadable
+
+        val functions = result.attributes.callbacks ?: return ModuleExports.Behaviour.Unreadable
+        val macros = result.attributes.macrocallbacks ?: return ModuleExports.Behaviour.Unreadable
+        val callbacks = functions + macros
+
+        if (callbacks.any { definitions[it]?.kind?.public == false }) return ModuleExports.Behaviour.Unreadable
+
+        return if (callbacks.isEmpty()) {
+            ModuleExports.Behaviour.None
+        } else {
+            ModuleExports.Behaviour.Callbacks(
+                callbacks.distinct().map { if (it in macros) NameArity("MACRO-${it.name}", it.arity + 1) else it },
+            )
         }
     }
 

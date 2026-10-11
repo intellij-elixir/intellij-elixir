@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.AFTER_VERIFY_ACCUMULATES
 import org.elixir_lang.language_level.ElixirLanguageFeature.ATTRIBUTES_EXPANDED_LAZILY
 import org.elixir_lang.language_level.ElixirLanguageFeature.BEHAVIOUR_VALUE_CHECKED
@@ -54,8 +55,13 @@ internal sealed interface Effect {
     /** `Module.delete_attribute/2`. */
     data class Delete(val name: String) : Effect
 
-    /** `Kernel.Typespec.deftypespec/6`, which a typespec attribute builds. */
-    data class TypespecWrite(val name: String) : Effect
+    /**
+     * `Kernel.Typespec.deftypespec/6`, which a typespec attribute builds.
+     *
+     * @property head the name and arity `translate_spec` reads from the spec, or `null` where it raises or they aren't
+     *   known
+     */
+    data class TypespecWrite(val name: String, val head: NameArity?) : Effect
 
     /** One of the others whose attribute or module isn't known. */
     data object UnknownEffect : Effect
@@ -87,6 +93,9 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
     private val unknown = mutableSetOf<String>()
     private var everyUnknown = false
 
+    /** Each typespec write's name and arity still in its attribute's bag, oldest first, `null` where it isn't known. */
+    private val heads = mutableMapOf<String, List<NameArity?>>()
+
     init {
         entries["moduledoc"] = Entry.Set(AttributeValue.Known(NIL))
 
@@ -112,7 +121,10 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
             is Effect.Write -> write(effect.name, effect.value)
             is Effect.Register -> EffectOutcome.Stored.also { register(effect.name, effect.accumulate) }
             is Effect.Delete -> EffectOutcome.Stored.also { delete(effect.name) }
-            is Effect.TypespecWrite -> EffectOutcome.Stored.also { store(effect.name, AttributeValue.Unknown) }
+            is Effect.TypespecWrite -> EffectOutcome.Stored.also {
+                store(effect.name, AttributeValue.Unknown)
+                heads[effect.name] = heads[effect.name].orEmpty() + effect.head
+            }
             Effect.UnknownEffect -> EffectOutcome.Stored.also { everyUnknown = true }
         }
     }
@@ -186,6 +198,16 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
         if (everyUnknown || name in unknown) return
 
         if (entries[name] is Entry.Accumulate) entries[name] = Entry.Set(AttributeValue.Known(Term.List(emptyList())))
+    }
+
+    /**
+     * The name and arity of each typespec write of [name] in its bag at this point, oldest first, or `null` where one
+     * of them, or whether a write ran, isn't known.
+     */
+    fun heads(name: String): List<NameArity>? {
+        if (everyUnknown || name in unknown) return null
+
+        return heads[name].orEmpty().map { it ?: return null }
     }
 
     /** Makes every later read of [names] unknown, as after a definition that isn't a statement takes them. */
@@ -403,6 +425,8 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
 
     /** `Mod:1729–1745`: an accumulating attribute keeps accumulating. */
     private fun delete(name: String) {
+        heads.remove(name)
+
         when (entries[name]) {
             is Entry.Accumulate -> entries[name] = Entry.Accumulate(emptyList())
             else -> entries.remove(name)
