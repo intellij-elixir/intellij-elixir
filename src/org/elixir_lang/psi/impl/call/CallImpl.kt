@@ -369,9 +369,17 @@ fun Call.stabBodyChildExpressions(forward: Boolean = true): Sequence<PsiElement>
 object CallImpl {
     @RequiresReadLock
     @Contract(pure = true)
+    @Suppress("UNCHECKED_CAST")
     @JvmStatic
-    fun functionName(call: Call): String? =
-        functionNameAtomValue(call) ?: call.functionNameElement()?.text
+    fun functionName(call: Call): String? {
+        val stub = (call as? StubBased<Stub<*>>)?.stub
+
+        return if (stub != null) {
+            stub.resolvedFunctionName()
+        } else {
+            functionNameAtomValue(call) ?: call.functionNameElement()?.text
+        }
+    }
 
     /**
      * @return `null` because the `IDENTIFIER`, `foo` in `@foo 1` is not the local name of a function, but the name of a

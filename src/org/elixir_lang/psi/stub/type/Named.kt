@@ -18,13 +18,20 @@ abstract class Named<S : NamedStubBase<T>, T : PsiNameIdentifierOwner>(@NonNls d
     override fun getExternalId(): String = "elixir." + super.toString()
 
     companion object {
+        /**
+         * The names a call defining [definition] with [nameSet], its stub's canonical names, is indexed under. Stub-safe:
+         * nothing it calls may resolve or expand.
+         */
+        @JvmStatic
+        fun indexedNames(definition: Definition?, nameSet: Set<String>): Collection<String> =
+            // A module named only at run time has no name a use could write.
+            if (definition?.type == Definition.Type.MODULAR) nameSet.filter { Module.atom(it) != null } else nameSet
+
         @JvmStatic
         fun <T : Stubbic> indexStubbic(stubbic: T, sink: IndexSink) {
             val nameSet = stubbic.canonicalNameSet()
             val definition = stubbic.definition
-            // A module named only at run time has no name a use could write.
-            val nameKeys =
-                if (definition?.type == Definition.Type.MODULAR) nameSet.filter { Module.atom(it) != null } else nameSet
+            val nameKeys = indexedNames(definition, nameSet)
 
             nameKeys.forEach { name ->
                 sink.occurrence<NamedElement, String>(AllName.KEY, name)

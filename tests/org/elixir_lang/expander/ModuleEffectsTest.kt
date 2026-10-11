@@ -1,7 +1,10 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.util.TextRange
 import org.elixir_lang.expander.Effect.*
 import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -88,7 +91,7 @@ class ModuleEffectsTest {
             "Elixir.Kernel.Typespec",
             "deftypespec",
             listOf(atom("type"), NODE, int(3), Term.Binary("nofile".toByteArray()), atom(MODULE), int(0)),
-            TypespecWrite("type"),
+            TypespecWrite("type", null),
         )
 
     @Test
@@ -126,7 +129,8 @@ class ModuleEffectsTest {
             legs.joinToString("\n") { leg ->
                 val dispatch = Dispatch(Dispatch.Kind.REMOTE_FUNCTION, receiver, name, args.size)
 
-                val change = ModuleEffects.of(dispatch, args, MODULE, ElixirLanguageLevel.of(leg))
+                val nodes = args.map { NODE_AST }
+                val change = ModuleEffects.of(dispatch, args, nodes, MODULE, ElixirLanguageLevel.of(leg))
 
                 "$leg: ${(change as ModuleEffects.Change.Attributes?)?.effect}"
             },
@@ -135,6 +139,12 @@ class ModuleEffectsTest {
 
     private companion object {
         const val MODULE = "Elixir.M"
+
+        /** The node each argument was expanded from, which only a typespec's spec is read from. */
+        val NODE_AST = ElixirAst.Literal.Atom(
+            Meta(TextRange.EMPTY_RANGE, Meta.Position(1, 1), Meta.Position(1, 1)),
+            "nil",
+        )
 
         val LEGS = listOf(
             "1.11.4", "1.12.3", "1.13.4", "1.14.5", "1.15.8", "1.16.3", "1.17.3", "1.18.4", "1.19.5", "1.20.4",

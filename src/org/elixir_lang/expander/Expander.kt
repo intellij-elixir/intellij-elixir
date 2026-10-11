@@ -1,14 +1,12 @@
 package org.elixir_lang.expander
 
 import com.intellij.openapi.progress.ProgressManager
-import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAST_PATH_ADDS_CONTEXT_MODULE
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
-import java.util.Arrays
 import java.util.IdentityHashMap
 
 /**
@@ -204,15 +202,6 @@ internal class Run(
     /** The struct of each module the run compiled, which Elixir loads once `elixir_module:compile` returns. */
     private val compiledStructs = HashMap<String, ModuleStruct>()
 
-    /** The reason each module the run compiled gives for its `@deprecated` definitions, which `__info__(:deprecated)` lists. */
-    private val compiledDeprecations = HashMap<String, Map<NameArity, String>>()
-
-    /**
-     * The reason [module], which Elixir has loaded because the run compiled it, deprecates [nameArity] with, or `null`
-     * where it doesn't or the module isn't loaded.
-     */
-    fun deprecation(module: String, nameArity: NameArity): String? = compiledDeprecations[module]?.get(nameArity)
-
     /**
      * [module]'s struct: one the run is compiling, the record its `defstruct` made, or none before it, and unreadable
      * where the module defines `__struct__/1` itself, which Elixir calls; one it compiled, what it left; any other,
@@ -221,48 +210,17 @@ internal class Run(
     fun structOf(module: String): ModuleStruct {
         val inProgress = compiling[module] ?: return compiledStructs[module] ?: structs.of(module)
 
-        return recorded(inProgress.struct, inProgress.table)
+        return LoadedModules.recorded(inProgress.struct, inProgress.table)
     }
 
-    /** The [struct] a module's `defstruct` recorded, or where it recorded none, `Unreadable` if [table] defines what builds the struct itself. */
-    private fun recorded(struct: ModuleStruct?, table: DefinitionTable): ModuleStruct =
-        struct ?: if (table.entries.keys.any(::buildsStruct)) ModuleStruct.Unreadable else ModuleStruct.Absent
-
-    /** [result]'s module loaded, with the [struct] its `defstruct` recorded, as Elixir loads a module once it compiles. */
-    fun load(result: ExpansionResult, struct: ModuleStruct?) {
-        val table = result.table
-        val named = { kind: DefinitionTable.Kind ->
-            table.entries.filterValues { it.kind == kind }.keys.sortedWith(NAME_ARITY_ORDER)
-        }
-
-        val unreadable = result.ended is ExpansionResult.Ended.Stopped || table.unnamed.isNotEmpty()
-        val loaded = !unreadable && result.ended == ExpansionResult.Ended.Compiled
-
-        compiledStructs[result.module] = when {
-            unreadable -> ModuleStruct.Unreadable
-            loaded -> recorded(struct, table)
-            else -> ModuleStruct.Absent
-        }
-        compiled[result.module] = when {
-            unreadable -> ModuleExports.Unreadable
-            loaded -> ModuleExports.Present(named(DefinitionTable.Kind.DEF), named(DefinitionTable.Kind.DEFMACRO), true)
-            else -> ModuleExports.Absent
-        }
-
-        if (loaded) compiledDeprecations[result.module] = deprecations(result.attributes)
+    /** [result]'s module loaded, as Elixir loads a module once it compiles. */
+    fun load(result: ExpansionResult) {
+        val loadedStruct = LoadedModules.struct(result)
+        val loadedExports = LoadedModules.exports(result)
+        compiledStructs[result.module] = loadedStruct
+        compiled[result.module] = loadedExports
+        observer.loaded(result.module, loadedExports, loadedStruct)
     }
-
-    /**
-     * Each definition `@deprecated` marked, with the reason a call reports: of the reasons its clauses gave, the
-     * lowest, as `get_deprecated/1` sorts them, if the expander knows every one.
-     */
-    private fun deprecations(log: AttributeLog): Map<NameArity, String> =
-        log.definitions.mapNotNull { (nameArity, attributes) ->
-            val reasons = attributes.reasons.map { ((it as? AttributeValue.Known)?.term as? Term.Binary)?.bytes }
-            val lowest = if (null in reasons) null else reasons.filterNotNull().minWithOrNull { a, b -> Arrays.compareUnsigned(a, b) }
-
-            lowest?.let { nameArity to String(it, Charsets.UTF_8) }
-        }.toMap()
 
     /** What each bitstring expanded builds, by node, for the bitstring that nests it. */
     val bitstrings = IdentityHashMap<ElixirAst, BitstringParts>()

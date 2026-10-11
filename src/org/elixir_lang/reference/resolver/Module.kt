@@ -2,6 +2,9 @@ package org.elixir_lang.reference.resolver
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.DumbService
+import com.intellij.openapi.roots.LibraryOrderEntry
+import com.intellij.openapi.roots.ProjectFileIndex
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.diagnostic.ControlFlowException
 import kotlinx.coroutines.CancellationException
 import com.intellij.psi.PsiElement
@@ -11,6 +14,9 @@ import com.intellij.psi.impl.source.resolve.ResolveCache
 import com.intellij.psi.stubs.StubIndex
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.errorreport.Logger
+import org.elixir_lang.mix.buildEnv
+import org.elixir_lang.mix.sync.isConsolidatedLibraryName
+import org.elixir_lang.navigation.isDecompiled
 import org.elixir_lang.psi.Alias
 import org.elixir_lang.psi.NamedElement
 import org.elixir_lang.psi.Require
@@ -83,17 +89,63 @@ object Module : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Modul
      *
      * @param name an index name verbatim: `Mod` for `Mod` and `:"Elixir.Mod"`, `:lists` for `:lists`.
      * @param inScope whether to look at the `alias`es in scope first, which a module written as an atom never is.
+     * @param loaded whether to keep only the copies Elixir would load for [element]: see [loadedCopies].
      */
+    @JvmOverloads
     fun resolvePreferred(
         element: PsiElement,
         name: String,
         incompleteCode: Boolean,
-        inScope: Boolean
+        inScope: Boolean,
+        loaded: Boolean = false,
     ): List<VisitedElementSetResolveResult> {
         val all = resolveAll(element, name, incompleteCode, inScope)
+        val candidates = if (loaded) loadedCopies(element, all) else all
 
-        return org.elixir_lang.reference.Resolver.preferred(element, incompleteCode, all)
+        return org.elixir_lang.reference.Resolver.preferred(element, incompleteCode, candidates)
     }
+
+    /**
+     * Those of [candidates] Elixir would load for [asker]:
+     * - when a library or the SDK holds a `.beam`, no source outside the project's content;
+     * - a module's own `.beam` over its consolidated copy, whose exports are the same;
+     * - the `.beam`s built for [asker]'s Mix env, `test` in test sources and `dev` elsewhere, over other envs' builds.
+     */
+    private fun loadedCopies(
+        asker: PsiElement,
+        candidates: List<VisitedElementSetResolveResult>,
+    ): List<VisitedElementSetResolveResult> {
+        val index = ProjectFileIndex.getInstance(asker.project)
+        val file = { candidate: VisitedElementSetResolveResult -> candidate.element.containingFile?.originalFile?.virtualFile }
+        val beam = { candidate: VisitedElementSetResolveResult -> candidate.element.isDecompiled() }
+
+        val loadable = if (candidates.any { beam(it) && file(it)?.let(index::isInLibraryClasses) == true }) {
+            candidates.filter { beam(it) || file(it)?.let(index::isInContent) == true }
+        } else {
+            candidates
+        }
+        val consolidated = { candidate: VisitedElementSetResolveResult ->
+            beam(candidate) && isConsolidated(index, file(candidate))
+        }
+        val unconsolidated = if (loadable.any { beam(it) && !consolidated(it) }) {
+            loadable.filterNot(consolidated)
+        } else {
+            loadable
+        }
+        val env = if (effectiveVirtualFile(asker)?.let(index::isInTestSourceContent) == true) "test" else "dev"
+
+        return if (unconsolidated.any { buildEnv(file(it)) == env }) {
+            unconsolidated.filter { buildEnv(file(it)).let { built -> built == null || built == env } }
+        } else {
+            unconsolidated
+        }
+    }
+
+    /** Whether [file] is in Mix sync's consolidated-protocols library. */
+    private fun isConsolidated(index: ProjectFileIndex, file: VirtualFile?): Boolean =
+        file != null && index.getOrderEntriesForFile(file).any { entry ->
+            (entry as? LibraryOrderEntry)?.libraryName?.let(::isConsolidatedLibraryName) == true
+        }
 
     private fun resolveAll(element: PsiElement, name: String, incompleteCode: Boolean, inScope: Boolean) =
         try {

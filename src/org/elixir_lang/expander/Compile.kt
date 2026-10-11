@@ -102,7 +102,16 @@ internal class Compiling(body: ElixirAst, level: ElixirLanguageLevel) {
     }
 
     val log: AttributeLog
-        get() = AttributeLog(effects, reads, attributes.final, definitions, unnamed, attributes.accumulating)
+        get() = AttributeLog(
+            effects,
+            reads,
+            attributes.final,
+            definitions,
+            unnamed,
+            attributes.accumulating,
+            attributes.heads("callback"),
+            attributes.heads("macrocallback"),
+        )
 
     /** A block's expressions are statements, and so is what a statement that is a match binds, which runs where it does. */
     private fun addStatements(node: ElixirAst) {
@@ -253,7 +262,7 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
     nameError(name, module.isAtom, run)?.let { kind ->
         return ExpansionResult(
             name, compiling.table, emptyList(), emptyList(), emptyList(), Ended.Raised(Expansion.Error(kind, module.node)),
-            emptyList(), emptySet(), emptyList(), AttributeLog.EMPTY,
+            emptyList(), emptySet(), emptyList(), AttributeLog.EMPTY, null,
         )
     }
 
@@ -371,9 +380,10 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
         run.consulted.subList(consultedFrom, run.consulted.size).toSet(),
         nested,
         compiling.log,
+        compiling.struct,
     )
 
-    run.load(result, compiling.struct)
+    run.load(result)
 
     return result
 }

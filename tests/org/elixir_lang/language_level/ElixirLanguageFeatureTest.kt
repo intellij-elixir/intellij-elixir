@@ -239,6 +239,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             DEFIMPL_TARGET_FIRST to ("1.13.4" to "1.14.0-rc.0"),
             DEFIMPL_EXPANDS_PROTOCOL to ("1.18.4" to "1.19.0-rc.0"),
             DEFIMPL_CHECKED_BY_IMPL_BANG to ("1.18.4" to "1.19.0-rc.0"),
+            CACHE_ENV_IN_ELIXIR_MODULE to ("1.17.3" to "1.18.0-rc.0"),
         )
 
         assertEquals(entries.filter { it.sinceElixir != null }.toSet(), boundaries.keys)
