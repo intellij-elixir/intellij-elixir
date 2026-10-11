@@ -17,6 +17,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiManager
 import org.elixir_lang.jps.shared.ElixirSdkTypeId
 import org.elixir_lang.jps.shared.ErlangSdkTypeId
+import org.elixir_lang.mix.buildEnv
 import org.elixir_lang.mix.sync.isConsolidatedLibraryName
 import org.elixir_lang.mix.sync.scopedLibraryNameToken
 
@@ -179,19 +180,6 @@ private class ApplicationGroupNode(
 private fun JdkOrderEntry.isElixirOrErlangSdk(): Boolean {
     val typeName = jdk?.sdkType?.name ?: return false
     return typeName == ElixirSdkTypeId.ELIXIR_SDK_TYPE_ID || typeName == ErlangSdkTypeId.ERLANG_SDK_TYPE_ID
-}
-
-/**
- * Walks up the VFS hierarchy to find the direct child of `_build/`, returning its name (e.g. `"dev"`,
- * `"test"`), or `null` if [vFile] is not under a `_build` directory.
- */
-private fun buildEnv(vFile: VirtualFile?): String? {
-    var current = vFile ?: return null
-    while (true) {
-        val parent = current.parent ?: return null
-        if (parent.name == "_build") return current.name
-        current = parent
-    }
 }
 
 /**
