@@ -9,17 +9,22 @@ import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.psi.ElixirFile
 import java.util.concurrent.Callable
 
-/** The leg's inputs, which every ask of [ProjectModules] in the tests passes. */
+/** The leg's inputs, which an ask of [ProjectModules] in the tests passes unless it names others. */
 internal val legInputs: ProjectModules.Inputs by lazy { ProjectModules.Inputs(legLevel(), legKernel) }
 
-internal fun expansion(holder: ProjectModules, file: PsiFile): FileExpansion =
-    ReadAction.nonBlocking(Callable { holder.expansion(file as ElixirFile, legInputs) }).executeSynchronously()
+internal fun expansion(holder: ProjectModules, file: PsiFile, inputs: ProjectModules.Inputs = legInputs): FileExpansion =
+    ReadAction.nonBlocking(Callable { holder.expansion(file as ElixirFile, inputs) }).executeSynchronously()
 
-internal fun exports(holder: ProjectModules, asker: PsiFile, atom: String): ModuleExports =
-    ReadAction.nonBlocking(Callable { holder.exports(asker, atom, legInputs) }).executeSynchronously()
+internal fun exports(
+    holder: ProjectModules,
+    asker: PsiFile,
+    atom: String,
+    inputs: ProjectModules.Inputs = legInputs,
+): ModuleExports = ReadAction.nonBlocking(Callable { holder.exports(asker, atom, inputs) }).executeSynchronously()
 
 /** [file]'s expansion from a holder that has cached nothing. */
-internal fun freshExpansion(project: Project, file: PsiFile): FileExpansion = expansion(ProjectModules(project), file)
+internal fun freshExpansion(project: Project, file: PsiFile, inputs: ProjectModules.Inputs = legInputs): FileExpansion =
+    expansion(ProjectModules(project), file, inputs)
 
 /** Each module [expansion] of [file] compiled, one per line: how it ended, the errors it reported, and its exports. */
 internal fun render(file: PsiFile, expansion: FileExpansion): String {

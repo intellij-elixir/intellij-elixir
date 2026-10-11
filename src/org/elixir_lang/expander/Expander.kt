@@ -226,12 +226,16 @@ internal class Run(
 
     /** [result]'s module loaded, as Elixir loads a module once it compiles. */
     fun load(result: ExpansionResult) {
-        val exports = LoadedModules.exports(result)
+        val loadedStruct = LoadedModules.struct(result)
+        val loadedExports = LoadedModules.exports(result)
+        compiledStructs[result.module] = loadedStruct
+        compiled[result.module] = loadedExports
 
-        compiledStructs[result.module] = LoadedModules.struct(result)
-        compiled[result.module] = exports
+        if (loadedExports is ModuleExports.Present) {
+            compiledDeprecations[result.module] = deprecations(result.attributes)
+        }
 
-        if (exports is ModuleExports.Present) compiledDeprecations[result.module] = deprecations(result.attributes)
+        observer.loaded(result.module, loadedExports, loadedStruct)
     }
 
     /**

@@ -1,7 +1,12 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.progress.EmptyProgressIndicator
+import com.intellij.openapi.progress.ProcessCanceledException
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.progress.util.AbstractProgressIndicatorBase
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
@@ -16,7 +21,11 @@ import org.elixir_lang.NameArity
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.elixir_surface.LegManifest
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.psi.ElixirFile
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import kotlin.concurrent.thread
 
 /**
  * A file's expansion reads the modules other files define through [ProjectModules], and each answer, cached or not,
@@ -138,6 +147,34 @@ class ProjectModulesTest : PlatformTestCase() {
         assertTrue(heldFile.isValid)
     }
 
+    /** As Elixir makes each module available once its own `defmodule` compiles, while the rest of its file compiles. */
+    fun testAModuleFinishedEarlierInARunningFileIsLoaded() {
+        val a = add("a.ex", "defmodule A1 do\n  defmacro m, do: :ok\nend\n\ndefmodule A2 do\n  require B\nend\n")
+        val b = add("b.ex", "defmodule B do\n  require A1\nend\n")
+        val x = add("x.ex", "defmodule X do\nend\n")
+
+        inBothOrders("A1 then A2, which requires B, which requires A1", a, b, x, legInputs) { ofA, ofB ->
+            val rendered = render(a, ofA) + "\n" + render(b, ofB)
+
+            assertTrue(rendered, render(a, ofA).contains("Elixir.A1 compiled"))
+            assertTrue(rendered, render(a, ofA).contains("Elixir.A2 compiled"))
+            assertTrue(rendered, render(b, ofB).contains("Elixir.B compiled"))
+        }
+    }
+
+    /** B stops at `A1.m()`, as a macro from another source file isn't expanded, but no module reads as unloaded. */
+    fun testAMacroFinishedEarlierInARunningFileIsLoaded() {
+        val a = add("a.ex", "defmodule A1 do\n  defmacro m, do: :ok\nend\n\ndefmodule A2 do\n  require B\nend\n")
+        val b = add("b.ex", "defmodule B do\n  require A1\n  A1.m()\nend\n")
+        val x = add("x.ex", "defmodule X do\nend\n")
+
+        inBothOrders("A1 then A2, which requires B, which calls A1's macro", a, b, x, legInputs) { ofA, ofB ->
+            val rendered = render(a, ofA) + "\n" + render(b, ofB)
+
+            assertFalse(rendered, rendered.contains("unloaded_module"))
+        }
+    }
+
     fun testTypingInABodyRecomputesNothing() {
         val asker = add("asker.ex", "defmodule Asker do\n  require Missing\n  require B\nend\n")
         add("b.ex", "defmodule B do\nend\n")
@@ -200,6 +237,257 @@ class ProjectModulesTest : PlatformTestCase() {
         assertFresh("the .beam rebuilt", a, after)
     }
 
+    fun testCycleAnswersAbsent() {
+        val a = add("a.ex", "")
+        val b = add("b.ex", "")
+        val c = add("c.ex", "defmodule C do\n  require D\nend\n\ndefmodule D do\n  def f, do: :ok\nend\n")
+        val x = add("x.ex", "defmodule X do\nend\n")
+
+        for (version in listOf("1.20.4", "1.12.3")) {
+            val inputs = ProjectModules.Inputs(ElixirLanguageLevel.of(version), legKernel)
+
+            edit(project, a, "defmodule A do\n  require B\n  B.m()\n  defmacro n, do: :ok\nend\n")
+            edit(project, b, "defmodule B do\n  require A\n  A.n()\n  defmacro m, do: :ok\nend\n")
+            inBothOrders("$version, each requires the other", a, b, x, inputs) { ofA, ofB ->
+                assertTrue(render(a, ofA).contains("Elixir.A raised unloaded_module `require B`"))
+                assertTrue(render(b, ofB).contains("Elixir.B raised unloaded_module `require A`"))
+            }
+            val holder = ProjectModules(project)
+            assertEquals(ModuleExports.Absent, exports(holder, a, "Elixir.B", inputs))
+            assertFresh("$version, A after exports(B) from A", a, expansion(holder, a, inputs), inputs)
+            assertFresh("$version, B after exports(B) from A", b, expansion(holder, b, inputs), inputs)
+
+            edit(project, a, "defmodule A do\n  def g, do: :ok\n  def f, do: B.f()\nend\n")
+            edit(project, b, "defmodule B do\n  def f, do: A.g()\nend\n")
+            inBothOrders("$version, each calls the other unrequired", a, b, x, inputs) { ofA, ofB ->
+                assertTrue(render(a, ofA).contains("Elixir.A compiled"))
+                assertTrue(render(b, ofB).contains("Elixir.B compiled"))
+            }
+
+            val later = expansion(ProjectModules(project), c, inputs)
+            assertFresh("$version, a call to a module defined later in the file", c, later, inputs)
+            assertTrue(render(c, later).contains("Elixir.C raised unloaded_module `require D`"))
+        }
+
+        val level = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel)
+        edit(project, a, "defmodule A do\n  def f, do: B.f()\n  defmacro g, do: :ok\nend\n")
+        edit(project, b, "defmodule B do\n  def f, do: A.g()\nend\n")
+        inBothOrders("1.12.3, B calls A's macro unrequired", a, b, x, level) { _, ofB ->
+            assertTrue(render(b, ofB).contains("Elixir.B stopped `A.g()`"))
+        }
+    }
+
+    fun testOtherInputsRecompute() {
+        val a = add("a.ex", "defmodule A do\n  def f, do: B.f()\n  defmacro g, do: :ok\nend\n")
+        val b = add("b.ex", "defmodule B do\n  def f, do: A.g()\nend\n")
+        val newer = ProjectModules.Inputs(ElixirLanguageLevel.of("1.20.4"), legKernel)
+        val older = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel)
+        val holder = ProjectModules(project)
+        expansion(holder, a, newer)
+        expansion(holder, b, newer)
+
+        val recomputed = expansion(holder, b, older)
+
+        assertFresh("B at 1.12.3 after A and B at 1.20.4", b, recomputed, older)
+        assertTrue(render(b, recomputed), render(b, recomputed).contains("Elixir.B stopped `A.g()`"))
+    }
+
+    /**
+     * Below 1.13 every remote call reads its receiver's exports, so eight files that each call the others form one
+     * group of re-entries. A value that read a file in progress is reused within the outermost call wherever it would
+     * read the same, so the group costs a bounded multiple of one file whose calls go to absent modules, not one
+     * expansion per path through the group.
+     */
+    fun testAGroupOfFilesThatCallEachOtherIsExpandedOncePerState() {
+        val older = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel)
+        val n = 8
+        val group = (1..n).map { i ->
+            val calls = (1..n).filter { it != i }.joinToString(", ") { "M$it.f()" }
+            add("m$i.ex", "defmodule M$i do\n  def f, do: [$calls]\nend\n")
+        }
+        val calls = (2..n).joinToString(", ") { "Absent$it.f()" }
+        val alone = add("alone.ex", "defmodule Alone do\n  def f, do: [$calls]\nend\n")
+        val x = add("x.ex", "defmodule X do\nend\n")
+        // The first run also loads what later runs find cached, so it makes more checks.
+        expandUnder(ProjectModules(project), alone, 0, older)
+        val unit = expandUnder(ProjectModules(project), alone, 0, older)
+        val holder = ProjectModules(project)
+
+        val checks = expandUnder(holder, group.first(), 0, older)
+
+        // Measured at 1.20.4's leg: 534 times with the reuse, 15,597 times without.
+        assertTrue("$checks checks against $unit for one file", checks < 1000 * unit)
+        assertFresh("M1", group.first(), expansion(holder, group.first(), older), older)
+
+        for (i in 1..n) {
+            assertEquals(
+                "M$i from x.ex",
+                exports(ProjectModules(project), x, "Elixir.M$i", older),
+                exports(holder, x, "Elixir.M$i", older),
+            )
+        }
+    }
+
+    /**
+     * C requires A1 while A0 is still compiling, so C raises. Once A1 has finished, A2's `require D` reaches C again,
+     * which now compiles, so D stops at C's remote macro, as it does from a fresh run of D.
+     */
+    fun testAFileExpandedWhileAModuleWasUnfinishedIsExpandedAgainOnceItFinishes() {
+        val older = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel)
+        val a = add(
+            "a.ex",
+            "defmodule A0 do\n  def g, do: C.f()\nend\n\ndefmodule A1 do\nend\n\ndefmodule A2 do\n  require D\nend\n",
+        )
+        add("c.ex", "defmodule C do\n  require A1\n  defmacro f, do: :ok\nend\n")
+        add("d.ex", "defmodule D do\n  def h, do: C.f()\nend\n")
+
+        val rendered = render(a, expansion(ProjectModules(project), a, older))
+
+        assertTrue(rendered, rendered.contains("Elixir.A2 stopped `require D`"))
+    }
+
+    /**
+     * A0 reaches C, which requires X from f.ex once f.ex has finished, and defines the macro `x`. A2's `require G` then
+     * compiles f.ex, whose G calls `C.x()` while X is unfinished, so C raises at `require X` this time: below 1.13 G's
+     * call reads C's exports, finds none, and is a function call, so G and A2 compile.
+     */
+    fun testAFileThatReadAnotherAsLoadedIsExpandedAgainWhileThatOneIsCompiling() {
+        val older = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel)
+        val a = add("a.ex", "defmodule A0 do\n  def g, do: C.y()\nend\n\ndefmodule A2 do\n  require G\nend\n")
+        add("c.ex", "defmodule C do\n  require X\n  def y, do: A2.h()\n  defmacro x, do: :ok\nend\n")
+        add("f.ex", "defmodule G do\n  def g, do: C.x()\nend\n\ndefmodule X do\nend\n")
+
+        val rendered = render(a, expansion(ProjectModules(project), a, older))
+
+        assertTrue(rendered, rendered.contains("Elixir.A2 compiled"))
+    }
+
+    fun testCancelledCachesNothing() {
+        val a = add("a.ex", A_CALLS_B)
+        add(
+            "b.ex",
+            "defmodule B do\n  def f(x), do: x + 1\n  def g(x), do: f(x) * 2\n  def h(x, y), do: {g(x), f(y), [x, y]}\n" +
+                "  defmacro m, do: :ok\nend\n",
+        )
+        val x = add("x.ex", "defmodule X do\nend\n")
+        // The first run also loads what later runs find cached, so it makes more checks.
+        expandUnder(ProjectModules(project), a, cancelAt = 0)
+        val checks = expandUnder(ProjectModules(project), a, cancelAt = 0)
+
+        for (n in 1 until checks step maxOf(1, checks / 12)) {
+            val holder = ProjectModules(project)
+
+            try {
+                expandUnder(holder, a, n)
+                fail("no cancel at check $n of $checks")
+            } catch (_: ProcessCanceledException) {
+            }
+
+            assertFresh("A asked after a cancel at check $n of $checks", a, expansion(holder, a))
+
+            for (atom in listOf("Elixir.A", "Elixir.B")) {
+                assertEquals(
+                    "$atom from x.ex after a cancel at check $n of $checks",
+                    exports(ProjectModules(project), x, atom),
+                    exports(holder, x, atom),
+                )
+            }
+        }
+    }
+
+    /**
+     * A new holder per order asks [a] then [b], and [b] then [a], and each answer equals a fresh run's, as does each module's
+     * exports asked from [asker] afterwards.
+     */
+    private fun inBothOrders(
+        label: String,
+        a: PsiFile,
+        b: PsiFile,
+        asker: PsiFile,
+        inputs: ProjectModules.Inputs,
+        check: (ofA: FileExpansion, ofB: FileExpansion) -> Unit,
+    ) {
+        for ((first, second) in listOf(a to b, b to a)) {
+            val holder = ProjectModules(project)
+            val firstExpansion = expansion(holder, first, inputs)
+            val secondExpansion = expansion(holder, second, inputs)
+            assertFresh("$label, ${first.name} first", first, firstExpansion, inputs)
+            assertFresh("$label, ${first.name} first, then ${second.name}", second, secondExpansion, inputs)
+
+            for (atom in listOf("Elixir.A", "Elixir.B")) {
+                assertEquals(
+                    "$label, ${first.name} first, then $atom from ${asker.name}",
+                    exports(ProjectModules(project), asker, atom, inputs),
+                    exports(holder, asker, atom, inputs),
+                )
+            }
+
+            if (first == a) check(firstExpansion, secondExpansion) else check(secondExpansion, firstExpansion)
+        }
+    }
+
+    /** Expands [file], cancelled at this thread's [cancelAt]th check if that is above 0, and counts the checks. */
+    private fun expandUnder(holder: ProjectModules, file: PsiFile, cancelAt: Int, inputs: ProjectModules.Inputs = legInputs): Int {
+        val indicator = CancelAt(if (cancelAt > 0) cancelAt else Int.MAX_VALUE)
+
+        whileCheckingIndicators {
+            ProgressManager.getInstance().runProcess(
+                { ReadAction.computeBlocking<FileExpansion, Throwable> { holder.expansion(file as ElixirFile, inputs) } },
+                indicator,
+            )
+        }
+
+        return indicator.checks
+    }
+
+    /**
+     * Runs [block] while another thread runs under a cancelled indicator: only then does `ProgressManager.checkCanceled`
+     * call each thread's indicator.
+     */
+    private fun whileCheckingIndicators(block: () -> Unit) {
+        val running = CountDownLatch(1)
+        val done = CountDownLatch(1)
+        val other = thread {
+            val cancelled = EmptyProgressIndicator()
+
+            try {
+                ProgressManager.getInstance().runProcess(
+                    {
+                        cancelled.cancel()
+                        running.countDown()
+                        done.await()
+                    },
+                    cancelled,
+                )
+            } catch (_: ProcessCanceledException) {
+            }
+        }
+        running.await()
+
+        try {
+            block()
+        } finally {
+            done.countDown()
+            other.join()
+        }
+    }
+
+    /** Cancelled from its [n]th check on the thread that made it. */
+    private class CancelAt(private val n: Int) : AbstractProgressIndicatorBase() {
+        private val owner = Thread.currentThread()
+
+        var checks = 0
+            private set
+
+        override fun isCanceled(): Boolean = checks >= n
+
+        override fun checkCanceled() {
+            if (Thread.currentThread() === owner) checks++
+
+            super.checkCanceled()
+        }
+    }
+
     /** The leg's Elixir `.beam`s as a library, which a `defstruct` dispatches to. */
     private fun addLegElixir() {
         val directory = LegManifest.ebin()
@@ -211,8 +499,12 @@ class ProjectModulesTest : PlatformTestCase() {
 
     private fun add(path: String, text: String): PsiFile = myFixture.addFileToProject(path, text)
 
-    private fun assertFresh(message: String, file: PsiFile, expansion: FileExpansion) =
-        assertEquals(message, render(file, freshExpansion(project, file)), render(file, expansion))
+    private fun assertFresh(
+        message: String,
+        file: PsiFile,
+        expansion: FileExpansion,
+        inputs: ProjectModules.Inputs = legInputs,
+    ) = assertEquals(message, render(file, freshExpansion(project, file, inputs)), render(file, expansion))
 
     /** [file]'s content replaced on disk, as a checkout or another editor writes it, with no document. */
     private fun rewrite(file: VirtualFile, text: String) {

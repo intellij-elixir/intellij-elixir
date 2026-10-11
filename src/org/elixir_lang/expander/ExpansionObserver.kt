@@ -36,6 +36,8 @@ fun interface ExpansionObserver {
     /** The struct [node] builds, updates or matches expands as [module]'s, with [keys] given as written. */
     fun structExpanded(node: ElixirAst, module: String, keys: List<String>) {}
 
+    fun loaded(module: String, exports: ModuleExports, struct: ModuleStruct) {}
+
     companion object {
         val NONE = ExpansionObserver { _, _, _ -> }
     }
