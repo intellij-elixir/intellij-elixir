@@ -221,35 +221,17 @@ internal class Run(
     fun structOf(module: String): ModuleStruct {
         val inProgress = compiling[module] ?: return compiledStructs[module] ?: structs.of(module)
 
-        return recorded(inProgress.struct, inProgress.table)
+        return LoadedModules.recorded(inProgress.struct, inProgress.table)
     }
 
-    /** The [struct] a module's `defstruct` recorded, or where it recorded none, `Unreadable` if [table] defines what builds the struct itself. */
-    private fun recorded(struct: ModuleStruct?, table: DefinitionTable): ModuleStruct =
-        struct ?: if (table.entries.keys.any(::buildsStruct)) ModuleStruct.Unreadable else ModuleStruct.Absent
+    /** [result]'s module loaded, as Elixir loads a module once it compiles. */
+    fun load(result: ExpansionResult) {
+        val exports = LoadedModules.exports(result)
 
-    /** [result]'s module loaded, with the [struct] its `defstruct` recorded, as Elixir loads a module once it compiles. */
-    fun load(result: ExpansionResult, struct: ModuleStruct?) {
-        val table = result.table
-        val named = { kind: DefinitionTable.Kind ->
-            table.entries.filterValues { it.kind == kind }.keys.sortedWith(NAME_ARITY_ORDER)
-        }
+        compiledStructs[result.module] = LoadedModules.struct(result)
+        compiled[result.module] = exports
 
-        val unreadable = result.ended is ExpansionResult.Ended.Stopped || table.unnamed.isNotEmpty()
-        val loaded = !unreadable && result.ended == ExpansionResult.Ended.Compiled
-
-        compiledStructs[result.module] = when {
-            unreadable -> ModuleStruct.Unreadable
-            loaded -> recorded(struct, table)
-            else -> ModuleStruct.Absent
-        }
-        compiled[result.module] = when {
-            unreadable -> ModuleExports.Unreadable
-            loaded -> ModuleExports.Present(named(DefinitionTable.Kind.DEF), named(DefinitionTable.Kind.DEFMACRO), true)
-            else -> ModuleExports.Absent
-        }
-
-        if (loaded) compiledDeprecations[result.module] = deprecations(result.attributes)
+        if (exports is ModuleExports.Present) compiledDeprecations[result.module] = deprecations(result.attributes)
     }
 
     /**

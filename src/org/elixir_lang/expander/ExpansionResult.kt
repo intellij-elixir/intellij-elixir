@@ -14,6 +14,7 @@ import org.elixir_lang.lowering.ElixirAst
  * @property opaque each unit's [Expansion.Opaque]
  * @property consulted the modules whose exports the module's expansion read
  * @property attributes what the module body did to its attributes
+ * @property struct the struct `defstruct` recorded in the module body, or `null` where nothing recorded one
  */
 internal data class ExpansionResult(
     val module: String,
@@ -26,6 +27,7 @@ internal data class ExpansionResult(
     val consulted: Set<String>,
     val nested: List<ExpansionResult>,
     val attributes: AttributeLog,
+    val struct: ModuleStruct?,
 ) {
     /**
      * One body.
