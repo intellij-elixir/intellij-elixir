@@ -28,14 +28,14 @@ private constructor(private val name: String,
                     ?: true
 
     private fun executeOnTypeHead(definition: Call, typeHead: Call, state: ResolveState): Boolean {
-        // Only `@type`/`@typep`/`@opaque` heads declare type variables. In `@spec`/`@callback`/`@macrocallback`
-        // heads the arguments are type usages (references to real types or `when`-bound variables), so processing
-        // them as declarations would wrongly self-resolve a bare name like `config` in `@spec check(config, opts)`
-        // and short-circuit resolution before reaching the actual `@type config` or `when` binding.
-        val argumentsKeepProcessing =
-            if (TypeElement.`is`(definition)) executeOnTypeHeadArguments(typeHead, state) else true
+        // Only `@type`/`@typep`/`@opaque` heads declare a type or its variables. In `@spec`/`@callback`/`@macrocallback`
+        // heads the name is a function and the arguments are type usages (references to real types or `when`-bound
+        // variables), so processing either as a declaration would wrongly self-resolve a bare name like `config` in
+        // `@spec check(config, opts)`, or `capabilities` in `@spec capabilities :: capabilities()`, and short-circuit
+        // resolution before reaching the actual `@type` or `when` binding.
+        if (!TypeElement.`is`(definition)) return true
 
-        return argumentsKeepProcessing && executeOnTypeHeadName(definition, typeHead, state)
+        return executeOnTypeHeadArguments(typeHead, state) && executeOnTypeHeadName(definition, typeHead, state)
     }
 
     private fun executeOnTypeHeadArguments(typeHead: Call, state: ResolveState): Boolean =

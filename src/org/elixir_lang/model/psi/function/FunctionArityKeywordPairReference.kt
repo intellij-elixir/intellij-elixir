@@ -5,12 +5,11 @@ import com.intellij.model.psi.PsiSymbolReference
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
-import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.FunctionArityKeywordPair
-import org.elixir_lang.model.psi.callback.BehaviourMembership
 import org.elixir_lang.model.psi.callback.Callback
+import org.elixir_lang.model.psi.callback.CallbackImplementation
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.Import
@@ -31,7 +30,7 @@ import org.elixir_lang.structure_view.element.Callback as CallbackElement
  *  - `import :only`/`:except` -> the matching `def`/`defmacro` in the imported module ([FunctionSymbol]).
  *  - `@compile :inline` / `@dialyzer` -> the matching `def`/`defmacro` in the enclosing module.
  *  - `defoverridable` -> the `@callback`/`@macrocallback` it makes overridable ([Callback]), resolved
- *    through the behaviour(s) in scope (see [BehaviourMembership]); this keeps the `defoverridable`
+ *    through the behaviour(s) in scope (see [CallbackImplementation]); this keeps the `defoverridable`
  *    entry renaming in lock-step with the callback, its default `def`, and every override.
  */
 @Suppress("UnstableApiUsage")
@@ -68,7 +67,7 @@ class FunctionArityKeywordPairReference(
 
     @RequiresReadLock
     private fun resolveCallbacks(occurrence: FunctionArityKeywordPair.Occurrence): Collection<Symbol> {
-        val behaviourNames = defoverridableBehaviourNames(occurrence.hostCall)
+        val behaviourNames = CallbackImplementation.behaviourNames(occurrence.hostCall)
         if (behaviourNames.isEmpty()) return emptyList()
 
         val callbacks = mutableListOf<Symbol>()
@@ -89,36 +88,6 @@ class FunctionArityKeywordPairReference(
             }
         }
         return callbacks
-    }
-
-    /**
-     * Behaviour module names in scope for a `defoverridable` [hostCall]: either the module(s) injected
-     * by the enclosing `__using__` definer (default-implementation case) plus that definer's own
-     * module, or - for a plain `defoverridable` directly in a module - the behaviours that module
-     * implements.
-     */
-    @RequiresReadLock
-    private fun defoverridableBehaviourNames(hostCall: Call): Set<String> {
-        val usingDefiner = generateSequence(hostCall.parent) { it.parent }
-            .filterIsInstance<Call>()
-            .firstOrNull { call ->
-                CallDefinitionClause.`is`(call) &&
-                    CallDefinitionClause.nameArityInterval(call, ResolveState.initial())?.name == "__using__"
-            }
-
-        return if (usingDefiner != null) {
-            val definingModule = CallDefinitionClause.enclosingModularMacroCall(usingDefiner)
-            val names = linkedSetOf<String>()
-            if (definingModule != null) {
-                BehaviourMembership.moduleName(definingModule)?.let { names += it }
-                names += BehaviourMembership.namesInjectedByDefiner(usingDefiner, definingModule)
-            }
-            names
-        } else {
-            CallDefinitionClause.enclosingModularMacroCall(hostCall)
-                ?.let { BehaviourMembership.namesImplementedBy(it) }
-                ?: emptySet()
-        }
     }
 
     /** What the key of an [FunctionArityKeywordPair.Occurrence] can name, before its name and arity. */

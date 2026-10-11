@@ -359,7 +359,8 @@ object Using {
     private const val ARITY = 1
     private const val USING = "__using__"
 
-    private fun isDefiner(call: Call): Boolean =
+    @RequiresReadLock
+    internal fun isDefiner(call: Call): Boolean =
         CallDefinitionClause.capabilities(call)?.let { it.quotesArguments && it.public } == true &&
                 nameArityInterval(call, ResolveState.initial())?.let { nameArityRange ->
                     nameArityRange.name == USING && nameArityRange.arityInterval.contains(ARITY)
