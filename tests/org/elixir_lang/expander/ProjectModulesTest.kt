@@ -16,6 +16,7 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.intellij.psi.impl.PsiFileEx
 import com.intellij.psi.impl.PsiManagerEx
+import com.intellij.testFramework.DumbModeTestUtils
 import com.intellij.testFramework.IndexingTestUtil
 import org.elixir_lang.NameArity
 import org.elixir_lang.PlatformTestCase
@@ -290,6 +291,23 @@ class ProjectModulesTest : PlatformTestCase() {
 
         assertFresh("B at 1.12.3 after A and B at 1.20.4", b, recomputed, older)
         assertTrue(render(b, recomputed), render(b, recomputed).contains("Elixir.B stopped `A.g()`"))
+    }
+
+    fun testDumbAnswersUnreadableUncached() {
+        val a = add("a.ex", A_CALLS_B)
+        add("b.ex", "defmodule B do\n  defmacro m, do: :ok\nend\n")
+        var dumb: FileExpansion? = null
+
+        DumbModeTestUtils.runInDumbModeSynchronously(project) {
+            assertEquals(ModuleExports.Unreadable, exports(holder, a, "Elixir.B"))
+            dumb = expansion(holder, a)
+            assertTrue(render(a, dumb).contains("Elixir.A stopped `require B`"))
+            assertNotSame("asked again while dumb", dumb, expansion(holder, a))
+        }
+
+        val smart = expansion(holder, a)
+        assertNotSame("asked once smart", dumb, smart)
+        assertFresh("asked once smart", a, smart)
     }
 
     /**

@@ -2,6 +2,7 @@ package org.elixir_lang.expander
 
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
+import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.util.Key
@@ -60,8 +61,10 @@ internal class ProjectModules(private val project: Project) {
         file.getUserData(held)?.takeIf { it.loaded.isCurrent(inputs) }?.let { return it.expansion }
 
         val computed = compute(file, inputs, emptyMap(), Memo())
-        files[virtualFile] = computed.loaded
-        file.putUserData(held, computed)
+        if (computed.transient.isNone) {
+            files[virtualFile] = computed.loaded
+            file.putUserData(held, computed)
+        }
 
         return computed.expansion
     }
@@ -82,6 +85,8 @@ internal class ProjectModules(private val project: Project) {
         inProgress: Map<VirtualFile, Map<String, Answer>>,
         memo: Memo,
     ): Looked {
+        if (DumbService.isDumb(project)) return Looked(UNREADABLE, Stamps(), Transient.DUMB)
+
         val copies = Module
             .resolvePreferred(asker, org.elixir_lang.Module.indexName(atom), false, inScope = false, loaded = true)
             .mapNotNull { copy(it.element) }
@@ -91,7 +96,7 @@ internal class ProjectModules(private val project: Project) {
         stamps.track(ModuleNamesTracker.getInstance(project))
         stamps.track(ProjectRootManager.getInstance(project))
 
-        var reentered = emptyMap<VirtualFile, Map<String, Answer>>()
+        var transient = Transient.NONE
         val answer = when (val copy = copies.singleOrNull()) {
             null -> {
                 copies.forEach { stamps.copy(it) }
@@ -106,20 +111,20 @@ internal class ProjectModules(private val project: Project) {
             // Elixir loads each module as its own `defmodule` compiles, so one still compiling isn't loaded yet.
             is Copy.Source if copy.virtualFile in inProgress -> {
                 val answer = runningAnswer(inProgress, copy.virtualFile, atom)
-                reentered = mapOf(copy.virtualFile to mapOf(atom to answer))
+                transient = Transient(mapOf(copy.virtualFile to mapOf(atom to answer)), false)
 
                 answer
             }
             is Copy.Source -> {
                 val (loaded, below) = loaded(copy, inputs, inProgress, memo)
-                reentered = below
+                transient = below
                 stamps.addAll(loaded.stamps)
 
                 loaded.modules[atom] ?: loaded.uncompiled
             }
         }
 
-        return Looked(answer, stamps, reentered)
+        return Looked(answer, stamps, transient)
     }
 
     private fun compiled(beam: VirtualFile): Answer {
@@ -149,30 +154,27 @@ internal class ProjectModules(private val project: Project) {
         }
     }
 
-    /**
-     * [copy]'s modules, and the files in progress above it that they read. A value that read one holds only for
-     * that run, so it isn't stored.
-     */
+    /** [copy]'s modules, and what they read that holds only for this run. */
     private fun loaded(
         copy: Copy.Source,
         inputs: Inputs,
         inProgress: Map<VirtualFile, Map<String, Answer>>,
         memo: Memo,
-    ): Pair<Loaded, Map<VirtualFile, Map<String, Answer>>> {
+    ): Pair<Loaded, Transient> {
         // A stored value read the files in progress here as loaded, where this run must read them as compiling.
         files[copy.virtualFile]
             ?.takeIf { it.isCurrent(inputs) && it.holdsWhile(inProgress) }
-            ?.let { return it to emptyMap() }
+            ?.let { return it to Transient.NONE }
         memo.of(copy.virtualFile, inProgress)?.let { return it }
 
         val computed = compute(copy.file, inputs, inProgress, memo)
-        if (computed.reentered.isEmpty()) {
+        if (computed.transient.isNone) {
             files[copy.virtualFile] = computed.loaded
-        } else {
-            memo.add(copy.virtualFile, computed.loaded to computed.reentered)
+        } else if (!computed.transient.dumb) {
+            memo.add(copy.virtualFile, computed.loaded to computed.transient)
         }
 
-        return computed.loaded to computed.reentered
+        return computed.loaded to computed.transient
     }
 
     /** Only a computation that completes is stored, so a cancelled one leaves nothing behind. */
@@ -206,13 +208,9 @@ internal class ProjectModules(private val project: Project) {
         looked.values.forEach { stamps.addAll(it.stamps) }
 
         val uncompiled = Answer(LoadedModules.uncompiledExports(expansion), LoadedModules.uncompiledStruct(expansion))
-        val reentered = HashMap<VirtualFile, Map<String, Answer>>()
-        looked.values.forEach { value ->
-            value.reentered.forEach { (file, answers) -> reentered.merge(file, answers) { mine, theirs -> mine + theirs } }
-        }
-        virtualFile?.let { reentered.remove(it) }
+        val transient = looked.values.fold(Transient.NONE) { all, it -> all + it.transient }.leaving(virtualFile)
 
-        return Held(Loaded(inputs, modules, uncompiled, stamps), expansion, reentered)
+        return Held(Loaded(inputs, modules, uncompiled, stamps), expansion, transient)
     }
 
     /** Where Elixir loads a module from. */
@@ -225,11 +223,7 @@ internal class ProjectModules(private val project: Project) {
 
     private data class Answer(val exports: ModuleExports, val struct: ModuleStruct)
 
-    /**
-     * @property reentered the files in progress above the lookup that its answer read, each with the answer it read for
-     *   each module
-     */
-    private class Looked(val answer: Answer, val stamps: Stamps, val reentered: Map<VirtualFile, Map<String, Answer>>)
+    private class Looked(val answer: Answer, val stamps: Stamps, val transient: Transient)
 
     /**
      * A source file's modules as its expansion compiled them.
@@ -248,15 +242,7 @@ internal class ProjectModules(private val project: Project) {
         fun holdsWhile(inProgress: Map<VirtualFile, Map<String, Answer>>): Boolean = inProgress.keys.none(stamps::reads)
     }
 
-    /**
-     * @property reentered the files in progress above the computation that it read, each with the answer it read for
-     *   each module
-     */
-    private class Held(
-        val loaded: Loaded,
-        val expansion: FileExpansion,
-        val reentered: Map<VirtualFile, Map<String, Answer>>,
-    )
+    private class Held(val loaded: Loaded, val expansion: FileExpansion, val transient: Transient)
 
     /**
      * The values one outermost call computed that read files in progress above them, by file. A value holds for
@@ -264,22 +250,45 @@ internal class ProjectModules(private val project: Project) {
      * read from one has the answer it read.
      */
     private class Memo {
-        private val held = HashMap<VirtualFile, MutableList<Pair<Loaded, Map<VirtualFile, Map<String, Answer>>>>>()
+        private val held = HashMap<VirtualFile, MutableList<Pair<Loaded, Transient>>>()
 
-        fun of(
-            virtualFile: VirtualFile,
-            inProgress: Map<VirtualFile, Map<String, Answer>>,
-        ): Pair<Loaded, Map<VirtualFile, Map<String, Answer>>>? =
-            held[virtualFile]?.firstOrNull { (loaded, reentered) ->
+        fun of(virtualFile: VirtualFile, inProgress: Map<VirtualFile, Map<String, Answer>>): Pair<Loaded, Transient>? =
+            held[virtualFile]?.firstOrNull { (loaded, transient) ->
                 loaded.holdsWhile(inProgress) &&
-                    reentered.all { (file, answers) ->
+                    transient.reentered.all { (file, answers) ->
                         file in inProgress &&
                             answers.all { (atom, answer) -> runningAnswer(inProgress, file, atom) == answer }
                     }
             }
 
-        fun add(virtualFile: VirtualFile, value: Pair<Loaded, Map<VirtualFile, Map<String, Answer>>>) {
+        fun add(virtualFile: VirtualFile, value: Pair<Loaded, Transient>) {
             held.getOrPut(virtualFile, ::ArrayList) += value
+        }
+    }
+
+    /**
+     * What an answer read that holds only for the run that read it, so a value that read any is not stored.
+     *
+     * @property reentered the files in progress above the run, which it read as compiling, each with the answer it
+     *   read for each module
+     * @property dumb whether it asked for a copy while the index couldn't be read
+     */
+    private data class Transient(val reentered: Map<VirtualFile, Map<String, Answer>>, val dumb: Boolean) {
+        val isNone: Boolean get() = reentered.isEmpty() && !dumb
+
+        operator fun plus(other: Transient): Transient {
+            val merged = HashMap(reentered)
+            other.reentered.forEach { (file, answers) -> merged.merge(file, answers) { mine, theirs -> mine + theirs } }
+
+            return Transient(merged, dumb || other.dumb)
+        }
+
+        /** As the run of [virtualFile] leaves it: that file reads itself as compiling for its own run only. */
+        fun leaving(virtualFile: VirtualFile?): Transient = copy(reentered = reentered - setOfNotNull(virtualFile))
+
+        companion object {
+            val NONE = Transient(emptyMap(), false)
+            val DUMB = Transient(emptyMap(), true)
         }
     }
 
