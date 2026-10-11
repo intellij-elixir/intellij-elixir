@@ -21,8 +21,7 @@ internal fun checkDeprecated(dispatch: Dispatch, call: ElixirAst, env: Env, run:
 
 /**
  * `elixir_dispatch:check_deprecated/6` of [call], which calls [name]/[arity] of [receiver] as a [kind]: the warning it
- * reports, if any. Only a module the run compiled is loaded, so it is the only receiver whose `@deprecated` definitions
- * are read.
+ * reports, if any.
  */
 internal fun checkDeprecated(
     kind: CalledKind,
@@ -46,10 +45,13 @@ internal fun checkDeprecated(
 
             if (inBody && name in APPLICATION_ENV) run.warnings += Warning.CompileEnv(call, name, arity)
         }
-        checked ->
-            run.deprecation(receiver, NameArity(name, arity))?.let {
+        checked -> {
+            val deprecated = (run.exports.of(receiver) as? ModuleExports.Present)?.deprecated as? Deprecations.Known
+
+            deprecated?.reasons?.get(NameArity(name, arity))?.let {
                 run.warnings += Warning.Deprecated(call, receiver, name, arity, it)
             }
+        }
     }
 }
 

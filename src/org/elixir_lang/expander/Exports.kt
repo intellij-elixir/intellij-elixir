@@ -21,12 +21,14 @@ sealed class ModuleExports {
      * @property macros what `__info__(:macros)` gives; empty without [hasInfo]
      * @property hasInfo whether the module exports `__info__/1`, as every Elixir module does
      * @property behaviour what `behaviour_info/1` answers, which [functions] leave out where [hasInfo]
+     * @property deprecated what `__info__(:deprecated)` answers
      */
     data class Present(
         val functions: List<NameArity>,
         val macros: List<NameArity>,
         val hasInfo: Boolean,
         val behaviour: Behaviour = Behaviour.Unreadable,
+        val deprecated: Deprecations = Deprecations.Unreadable,
     ) : ModuleExports()
 
     /** What a module's `behaviour_info/1` answers. */
@@ -56,4 +58,13 @@ sealed class ModuleExports {
             NameArity("behaviour_info", 1),
         )
     }
+}
+
+/** A module's hard deprecations, which `elixir_dispatch:check_deprecated/6` reads once the module is loaded. */
+sealed class Deprecations {
+    /** @property reasons each `@deprecated` definition's reason */
+    data class Known(val reasons: Map<NameArity, String>) : Deprecations()
+
+    /** The module may deprecate definitions, but which, or why, can't be read. */
+    data object Unreadable : Deprecations()
 }

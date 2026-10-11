@@ -414,6 +414,54 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     /**
+     * Elixir compiles `a.ex` before `b.ex` here, so `A` is loaded when `b.ex` expands. Compiled together, a call in a
+     * module body to a module not yet required races its load, as `code:ensure_loaded` doesn't wait for it.
+     */
+    fun testDeprecatedInAnotherFile() {
+        val a = add("a.ex", DEPRECATED)
+        val bodies = listOf(
+            "defmodule B do\n  A.old()\nend\n",
+            "defmodule B do\n  def f, do: A.old()\nend\n",
+            "defmodule B do\n  require A\n  A.old_m()\nend\n",
+            "defmodule B do\n  require A\n  def f, do: A.old_m()\nend\n",
+            "defmodule B do\n  import A\n  old()\n  old_m()\nend\n",
+        )
+        val b = add("b.ex", bodies.first())
+        val expected = bodies.map { DeprecationWarnings.compiled(listOf("a.ex" to DEPRECATED, "b.ex" to it)) }
+        val actual = bodies.map {
+            edit(project, b, it)
+            DeprecationWarnings.of(expansion(holder, b))
+        }
+
+        assertTrue("no case warns", expected.any { it.isNotEmpty() })
+        assertEquals(show(bodies, expected), show(bodies, actual))
+
+        edit(project, b, bodies.first())
+        DeprecationWarnings.of(expansion(holder, b))
+        edit(project, a, DEPRECATED.replace("Use A.new/0", "Use A.newer/0"))
+        assertEquals(
+            listOf("A.old/0 is deprecated. Use A.newer/0 instead line 2"),
+            DeprecationWarnings.of(expansion(holder, b)),
+        )
+    }
+
+    /**
+     * A definition that isn't a statement may take the attributes at any point, so whether a later one is deprecated
+     * is unknown. Elixir warns of both calls; with one definition's reason unknown, none of the module's is read.
+     */
+    fun testAnUnknownDeprecationWarnsNothing() {
+        add(
+            "a.ex",
+            "defmodule A do\n  @deprecated \"Use A.new/0 instead\"\n  case 1 do\n    _ -> def old, do: 1\n  end\n" +
+                "  @deprecated \"Use A.new_m/0 instead\"\n  defmacro old_m, do: 1\n  def plain, do: 1\nend\n",
+        )
+        val b = add("b.ex", "defmodule B do\n  require A\n  A.old()\n  A.old_m()\nend\n")
+
+        assertEquals(emptyList<String>(), DeprecationWarnings.of(expansion(holder, b)))
+        assertEquals(Deprecations.Unreadable, (exports(holder, b, "Elixir.A") as ModuleExports.Present).deprecated)
+    }
+
+    /**
      * A new holder per order asks [a] then [b], and [b] then [a], and each answer equals a fresh run's, as does each module's
      * exports asked from [asker] afterwards.
      */
@@ -532,7 +580,14 @@ class ProjectModulesTest : PlatformTestCase() {
 
     private fun psi(virtualFile: VirtualFile): PsiFile = PsiManager.getInstance(project).findFile(virtualFile)!!
 
+    private fun show(bodies: List<String>, warnings: List<List<String>>) =
+        bodies.indices.joinToString("\n\n") { "${bodies[it]}  => ${warnings[it].ifEmpty { listOf("none") }}" }
+
     private companion object {
         const val A_CALLS_B = "defmodule A do\n  require B\n  B.m()\nend\n"
+
+        const val DEPRECATED =
+            "defmodule A do\n  @deprecated \"Use A.new/0 instead\"\n  def old, do: 1\n" +
+                "  @deprecated \"Use A.new_m/0 instead\"\n  defmacro old_m, do: 1\nend\n"
     }
 }

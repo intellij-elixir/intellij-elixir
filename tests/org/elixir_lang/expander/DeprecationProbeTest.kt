@@ -1,14 +1,9 @@
 package org.elixir_lang.expander
 
-import com.intellij.util.system.OS
-import org.elixir_lang.elixir_surface.LegManifest.environment
 import org.elixir_lang.language_level.ElixirLanguageFeature.APPLICATION_ENV_IN_BODY
 import org.elixir_lang.language_level.ElixirLanguageFeature.LOCAL_MACRO_CHECKED_FOR_DEPRECATION
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNREQUIRED_MACRO_CALLED_AS_FUNCTION
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNREQUIRED_MACRO_SEEN_ONLY_WHEN_LOADED
-import java.io.File
-import java.nio.file.Files
-import java.util.concurrent.TimeUnit
 
 /**
  * The deprecation warnings Elixir gives while it expands a file, on the leg's Elixir, equal the expander's. Elixir
@@ -176,80 +171,14 @@ class DeprecationProbeTest : ExpanderTestCase() {
 
     private fun expanderWarnings(source: String): List<String> {
         val level = legLevel()
-        val file = Expander.expandFile(lower(source, level), Env.empty(level, kernel), level, exports, structs)
 
-        return file.modules.flatMap(::warnings)
-    }
-
-    private fun warnings(result: ExpansionResult): List<String> =
-        result.warnings.map(::render) + result.nested.flatMap(::warnings)
-
-    private fun render(warning: Warning): String {
-        val line = lineOf(warning.at.meta)
-
-        return when (warning) {
-            is Warning.Deprecated -> {
-                val module = warning.module.removePrefix("Elixir.")
-
-                if (warning.name == "__using__" && warning.arity == 1) {
-                    "use $module is deprecated. ${warning.reason} line $line"
-                } else {
-                    "$module.${warning.name}/${warning.arity} is deprecated. ${warning.reason} line $line"
-                }
-            }
-            is Warning.CompileEnv ->
-                "Application.${warning.name}/${warning.arity} is discouraged in the module body, " +
-                    "use Application.compile_env/3 instead line $line"
-        }
+        return DeprecationWarnings.of(Expander.expandFile(lower(source, level), Env.empty(level, kernel), level, exports, structs))
     }
 
     /** The deprecation warnings [source] gives when Elixir compiles it, with the line each is for. */
-    private fun compilerWarnings(source: String): List<String> {
-        val directory = Files.createTempDirectory("deprecation-probe").toFile()
-
-        try {
-            val file = File(directory, "case.ex").also { it.writeText(source) }
-            val stderr = File(directory, "stderr")
-            val executable = if (OS.CURRENT == OS.Windows) "bin/elixir.bat" else "bin/elixir"
-            val elixir = File(environment("ELIXIR_LANG_ELIXIR_PATH"), executable)
-            val process = ProcessBuilder(elixir.path, PROBE.absolutePath, file.path)
-                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
-                .redirectError(stderr)
-                .start()
-
-            try {
-                assertTrue("timed out", process.waitFor(2, TimeUnit.MINUTES))
-                assertEquals(stderr.readText(), 0, process.exitValue())
-
-                return warningsIn(stderr.readText())
-            } finally {
-                process.descendants().forEach(ProcessHandle::destroyForcibly)
-                process.destroyForcibly()
-            }
-        } finally {
-            directory.deleteRecursively()
-        }
-    }
-
-    private fun warningsIn(stderr: String): List<String> {
-        val lines = stderr.lines()
-        val starts = lines.indices.filter { WARNING.containsMatchIn(lines[it]) }
-
-        return starts.mapIndexedNotNull { index, start ->
-            val message = WARNING.find(lines[start])!!.groupValues[1]
-            val block = lines.subList(start + 1, starts.getOrElse(index + 1) { lines.size })
-            val line = block.firstNotNullOfOrNull { LOCATION.find(it)?.groupValues?.get(1) }
-
-            "$message line $line".takeIf { DEPRECATION.containsMatchIn(message) }
-        }
-    }
+    private fun compilerWarnings(source: String): List<String> = DeprecationWarnings.compiled(listOf("probe.ex" to source))
 
     private companion object {
-        val PROBE = File("testData/org/elixir_lang/expander/deprecation_probe/probe.exs")
-        val WARNING = Regex("""^\s*warning: (.*)$""")
-        val LOCATION = Regex("""probe\.ex:(\d+)""")
-        val DEPRECATION = Regex(""" is deprecated\. | is discouraged in the module body""")
-
         /** The definitions the cases call. */
         const val DEP =
             """

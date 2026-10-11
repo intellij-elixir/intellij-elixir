@@ -9,8 +9,10 @@ import org.elixir_lang.beam.BeamReader
 import org.elixir_lang.beam.ReadResult
 import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.V1
 import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.AbstractCodeCompileOptions
+import org.elixir_lang.psi.Import.Term
 import org.elixir_lang.psi.call.name.Function.DEF
 import org.elixir_lang.psi.call.name.Function.DEFMACRO
+import java.util.Arrays
 
 /** What a loaded module exports and its struct, from the [ExpansionResult] that compiled it or from its `.beam`. */
 internal object LoadedModules {
@@ -23,10 +25,31 @@ internal object LoadedModules {
 
         return when (loading(result)) {
             Loading.UNREADABLE -> ModuleExports.Unreadable
-            Loading.LOADED ->
-                ModuleExports.Present(named(DefinitionTable.Kind.DEF), named(DefinitionTable.Kind.DEFMACRO), true)
+            Loading.LOADED -> ModuleExports.Present(
+                named(DefinitionTable.Kind.DEF),
+                named(DefinitionTable.Kind.DEFMACRO),
+                hasInfo = true,
+                deprecated = deprecations(result.attributes),
+            )
             Loading.ABSENT -> ModuleExports.Absent
         }
+    }
+
+    /**
+     * Each definition `@deprecated` marked, with the reason a call reports: of the reasons its clauses gave, the
+     * lowest, as `get_deprecated/1` sorts them. One reason that isn't a known binary makes the whole module's
+     * [Deprecations.Unreadable].
+     */
+    private fun deprecations(log: AttributeLog): Deprecations {
+        val reasons = log.definitions.mapValues { (_, attributes) ->
+            attributes.reasons.map { ((it as? AttributeValue.Known)?.term as? Term.Binary)?.bytes ?: return Deprecations.Unreadable }
+        }
+
+        return Deprecations.Known(
+            reasons.mapNotNull { (nameArity, reasons) ->
+                reasons.minWithOrNull { a, b -> Arrays.compareUnsigned(a, b) }?.let { nameArity to String(it, Charsets.UTF_8) }
+            }.toMap(),
+        )
     }
 
     /** [result]'s module's struct as Elixir loads it once it compiles. */
