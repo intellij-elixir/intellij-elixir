@@ -613,6 +613,8 @@
 
 ### Threading / Platform Hygiene
 
+- [#PR-TBD](https://github.com/intellij-elixir/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)
+  - **The expander reads the modules a file uses from the project's other source files and from libraries' and the SDK's `.beam` files, and keeps each answer until what it read changes; nothing uses it yet.** Fixes [#4375](https://github.com/intellij-elixir/intellij-elixir/issues/4375).
 - [#4394](https://github.com/intellij-elixir/intellij-elixir/pull/4394) [@sh41](https://github.com/sh41)
   - **The expander expands `defdelegate`, `defprotocol` and `defimpl`, with a module for each type a `defimpl` names, as each Elixir release does; nothing uses it yet.** Refs [#4040](https://github.com/intellij-elixir/intellij-elixir/issues/4040) and [#4261](https://github.com/intellij-elixir/intellij-elixir/issues/4261).
 - [#4390](https://github.com/intellij-elixir/intellij-elixir/pull/4390) [@sh41](https://github.com/sh41)

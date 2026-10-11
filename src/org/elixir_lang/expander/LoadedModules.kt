@@ -41,6 +41,17 @@ internal object LoadedModules {
     fun recorded(struct: ModuleStruct?, table: DefinitionTable): ModuleStruct =
         struct ?: if (table.entries.keys.any(::buildsStruct)) ModuleStruct.Unreadable else ModuleStruct.Absent
 
+    /**
+     * The exports of a module the file defines that [file] didn't compile: none where the expansion reached the file's
+     * end or raised before it, and unknown where it stopped short.
+     */
+    fun uncompiledExports(file: FileExpansion): ModuleExports =
+        if (stoppedShort(file)) ModuleExports.Unreadable else ModuleExports.Absent
+
+    /** The struct of a module the file defines that [file] didn't compile, as [uncompiledExports]. */
+    fun uncompiledStruct(file: FileExpansion): ModuleStruct =
+        if (stoppedShort(file)) ModuleStruct.Unreadable else ModuleStruct.Absent
+
     private enum class Loading { UNREADABLE, LOADED, ABSENT }
 
     private fun loading(result: ExpansionResult): Loading =
@@ -48,6 +59,12 @@ internal object LoadedModules {
             result.ended is ExpansionResult.Ended.Stopped || result.table.unnamed.isNotEmpty() -> Loading.UNREADABLE
             result.ended == ExpansionResult.Ended.Compiled -> Loading.LOADED
             else -> Loading.ABSENT
+        }
+
+    private fun stoppedShort(file: FileExpansion): Boolean =
+        when (file.top) {
+            is Expansion.Expanded, is Expansion.Error -> false
+            is Expansion.Unported, is Expansion.Opaque -> true
         }
 
     /** What `__info__` gives for a module that has it, and `module_info(exports)` for one that doesn't. */
