@@ -7,6 +7,7 @@ import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.util.AbstractProgressIndicatorBase
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
@@ -293,6 +294,31 @@ class ProjectModulesTest : PlatformTestCase() {
         assertTrue(render(b, recomputed), render(b, recomputed).contains("Elixir.B stopped `A.g()`"))
     }
 
+    fun testWarmAskLoadsNoTree() {
+        val a = add("a.ex", "defmodule A do\nend\n").virtualFile
+        val b = add("b.ex", "defmodule B do\n  def f, do: 1\nend\n").virtualFile
+        val cold = exports(holder, psi(a), "Elixir.B")
+        repeat(3) { System.gc() }
+        assertFalse("b.ex's tree is let go", (psi(b) as PsiFileEx).isContentsLoaded)
+        val loaded = mutableListOf<String>()
+        val recording = Disposer.newDisposable()
+        PsiManagerEx.getInstanceEx(project).setAssertOnFileLoadingFilter(
+            {
+                loaded += it.name
+                false
+            },
+            recording,
+        )
+
+        try {
+            assertEquals(cold, exports(holder, psi(a), "Elixir.B"))
+        } finally {
+            Disposer.dispose(recording)
+        }
+
+        assertEquals(emptyList<String>(), loaded)
+    }
+
     fun testDumbAnswersUnreadableUncached() {
         val a = add("a.ex", A_CALLS_B)
         add("b.ex", "defmodule B do\n  defmacro m, do: :ok\nend\n")
@@ -565,13 +591,6 @@ class ProjectModulesTest : PlatformTestCase() {
 
     private fun add(path: String, text: String): PsiFile = myFixture.addFileToProject(path, text)
 
-    private fun assertFresh(
-        message: String,
-        file: PsiFile,
-        expansion: FileExpansion,
-        inputs: ProjectModules.Inputs = legInputs,
-    ) = assertEquals(message, render(file, freshExpansion(project, file, inputs)), render(file, expansion))
-
     /** [file]'s content replaced on disk, as a checkout or another editor writes it, with no document. */
     private fun rewrite(file: VirtualFile, text: String) {
         WriteAction.runAndWait<Throwable> { file.setBinaryContent(text.toByteArray()) }
@@ -579,6 +598,13 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     private fun psi(virtualFile: VirtualFile): PsiFile = PsiManager.getInstance(project).findFile(virtualFile)!!
+
+    private fun assertFresh(
+        message: String,
+        file: PsiFile,
+        expansion: FileExpansion,
+        inputs: ProjectModules.Inputs = legInputs,
+    ) = assertEquals(message, render(file, freshExpansion(project, file, inputs)), render(file, expansion))
 
     private fun show(bodies: List<String>, warnings: List<List<String>>) =
         bodies.indices.joinToString("\n\n") { "${bodies[it]}  => ${warnings[it].ifEmpty { listOf("none") }}" }
