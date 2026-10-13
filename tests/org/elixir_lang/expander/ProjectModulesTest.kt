@@ -406,6 +406,60 @@ class ProjectModulesTest : PlatformTestCase() {
         assertTrue(rendered, rendered.contains("Elixir.A2 compiled"))
     }
 
+    /**
+     * A0's call reads C while A1 is unfinished, so C raises at `require A1`. Once A1 has finished, A2's `require C`
+     * reads C again, which now compiles and defines `f`, as Elixir compiles all three.
+     */
+    fun testLaterModuleRereads() {
+        val older = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel)
+        val a = add(
+            "a.ex",
+            "defmodule A0 do\n  def g, do: C.f()\nend\n\ndefmodule A1 do\nend\n\ndefmodule A2 do\n  require C\nend\n",
+        )
+        val c = add("c.ex", "defmodule C do\n  require A1\n  defmacro f, do: :ok\nend\n")
+        val x = add("x.ex", "defmodule X do\nend\n")
+        val holder = ProjectModules(project)
+
+        val rendered = render(a, expansion(holder, a, older))
+
+        assertFalse(rendered, rendered.contains("unloaded_module"))
+        assertTrue(rendered, rendered.contains("Elixir.A2 compiled"))
+        assertFresh("C after a.ex", c, expansion(holder, c, older), older)
+
+        for (atom in listOf("Elixir.A0", "Elixir.A1", "Elixir.A2", "Elixir.C")) {
+            assertEquals(
+                "$atom from x.ex",
+                exports(ProjectModules(project), x, atom, older),
+                exports(holder, x, atom, older),
+            )
+        }
+    }
+
+    /**
+     * A0's call reads C while A1 is unfinished: C passes `A1.m()` as a function call and stops at X's macro. A2 reads C
+     * again once A1 has finished, and C ends at `A1.m()` without reading X. A0's answer still came from X: editing X's
+     * macro into a function lets C compile, and A0 with it.
+     */
+    fun testASupersededAnswerKeepsWhatItRead() {
+        val older = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel)
+        val a = add(
+            "a.ex",
+            "defmodule A0 do\n  def g, do: C.f()\nend\n\ndefmodule A1 do\n  defmacro m, do: :ok\nend\n\n" +
+                "defmodule A2 do\n  require C\nend\n",
+        )
+        add("c.ex", "defmodule C do\n  A1.m()\n  require X\n  X.k()\n  def f, do: :ok\nend\n")
+        val x = add("x.ex", "defmodule X do\n  defmacro k, do: :ok\nend\n")
+        val holder = ProjectModules(project)
+        val before = expansion(holder, a, older)
+        assertFresh("X's macro", a, before, older)
+
+        edit(project, x, "defmodule X do\n  def k, do: :ok\nend\n")
+        val after = expansion(holder, a, older)
+
+        assertFresh("X's macro edited into a function", a, after, older)
+        assertFalse(render(a, after), render(a, before) == render(a, after))
+    }
+
     fun testCancelledCachesNothing() {
         val a = add("a.ex", A_CALLS_B)
         add(

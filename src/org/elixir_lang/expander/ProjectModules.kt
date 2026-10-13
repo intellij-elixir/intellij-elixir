@@ -190,7 +190,17 @@ internal class ProjectModules(private val project: Project) {
         val modules = HashMap<String, Answer>()
         val within = virtualFile?.let { inProgress + (it to modules) } ?: inProgress
         val looked = HashMap<String, Looked>()
-        val ask = { atom: String -> looked.getOrPut(atom) { lookup(file, atom, inputs, within, memo) }.answer }
+        // A re-read answer joins the one it supersedes, as the expansion used both.
+        val used = ArrayList<Looked>()
+        val ask = { atom: String ->
+            looked[atom]
+                ?.takeIf { it.transient.holdsWhile(within) }
+                ?.answer
+                ?: lookup(file, atom, inputs, within, memo).also {
+                    looked[atom] = it
+                    used += it
+                }.answer
+        }
         val expansion = Expander.expandFile(
             Lowering.lower(file, inputs.level),
             Env.empty(inputs.level, inputs.kernel),
@@ -205,10 +215,10 @@ internal class ProjectModules(private val project: Project) {
                 }
             },
         )
-        looked.values.forEach { stamps.addAll(it.stamps) }
+        used.forEach { stamps.addAll(it.stamps) }
 
         val uncompiled = Answer(LoadedModules.uncompiledExports(expansion), LoadedModules.uncompiledStruct(expansion))
-        val transient = looked.values.fold(Transient.NONE) { all, it -> all + it.transient }.leaving(virtualFile)
+        val transient = used.fold(Transient.NONE) { all, it -> all + it.transient }.leaving(virtualFile)
 
         return Held(Loaded(inputs, modules, uncompiled, stamps), expansion, transient)
     }
@@ -254,11 +264,7 @@ internal class ProjectModules(private val project: Project) {
 
         fun of(virtualFile: VirtualFile, inProgress: Map<VirtualFile, Map<String, Answer>>): Pair<Loaded, Transient>? =
             held[virtualFile]?.firstOrNull { (loaded, transient) ->
-                loaded.holdsWhile(inProgress) &&
-                    transient.reentered.all { (file, answers) ->
-                        file in inProgress &&
-                            answers.all { (atom, answer) -> runningAnswer(inProgress, file, atom) == answer }
-                    }
+                loaded.holdsWhile(inProgress) && transient.holdsWhile(inProgress)
             }
 
         fun add(virtualFile: VirtualFile, value: Pair<Loaded, Transient>) {
@@ -275,6 +281,12 @@ internal class ProjectModules(private val project: Project) {
      */
     private data class Transient(val reentered: Map<VirtualFile, Map<String, Answer>>, val dumb: Boolean) {
         val isNone: Boolean get() = reentered.isEmpty() && !dumb
+
+        /** Whether each module this read from a file in progress still has, below [inProgress], the answer it read. */
+        fun holdsWhile(inProgress: Map<VirtualFile, Map<String, Answer>>): Boolean =
+            reentered.all { (file, answers) ->
+                file in inProgress && answers.all { (atom, answer) -> runningAnswer(inProgress, file, atom) == answer }
+            }
 
         operator fun plus(other: Transient): Transient {
             val merged = HashMap(reentered)
