@@ -4,6 +4,9 @@ import com.intellij.ide.structureView.StructureViewTreeElement
 import com.intellij.ide.util.treeView.smartTree.TreeElement
 import com.intellij.navigation.ItemPresentation
 import com.intellij.navigation.NavigationItem
+import com.intellij.platform.backend.navigation.NavigationRequest
+import com.intellij.util.OpenSourceUtil
+import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.call.Visibility
 import org.elixir_lang.navigation.item_presentation.NameArity
@@ -21,10 +24,13 @@ import org.elixir_lang.structure_view.element.modular.Modular
 
 class EExFunctionFrom(val modular: Modular, val call: Call) : StructureViewTreeElement, Visible, NavigationItem {
     override fun navigate(requestFocus: Boolean) {
-        if (canNavigate()) {
-            call.navigate(requestFocus)
-        }
+        OpenSourceUtil.navigate(requestFocus, call)
     }
+
+    @Suppress("UnstableApiUsage")
+    @RequiresReadLock
+    @RequiresBackgroundThread
+    override fun navigationRequest(): NavigationRequest? = call.navigationRequest()
 
     override fun canNavigate(): Boolean = true
     override fun canNavigateToSource(): Boolean = true

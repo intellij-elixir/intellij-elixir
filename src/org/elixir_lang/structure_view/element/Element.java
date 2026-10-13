@@ -2,7 +2,11 @@ package org.elixir_lang.structure_view.element;
 
 import com.intellij.ide.structureView.StructureViewTreeElement;
 import com.intellij.navigation.NavigationItem;
+import com.intellij.platform.backend.navigation.NavigationRequest;
 import com.intellij.psi.NavigatablePsiElement;
+import com.intellij.util.OpenSourceUtil;
+import com.intellij.util.concurrency.annotations.RequiresBackgroundThread;
+import com.intellij.util.concurrency.annotations.RequiresReadLock;
 import org.elixir_lang.psi.NamedElement;
 import org.jetbrains.annotations.Nullable;
 
@@ -73,13 +77,20 @@ public abstract class Element<T extends NavigatablePsiElement> implements Struct
     }
 
     /**
-     * Open editor and select/navigate to the object there if possible.
-     * Just do nothing if navigation is not possible like in case of a package
-     *
-     * @param requestFocus <code>true</code> if focus requesting is necessary
+     * The tree nodes forward navigation here, so it must not call the target's {@code navigate}, which is
+     * override-only.
      */
     @Override
     public void navigate(boolean requestFocus) {
-        navigationItem.navigate(requestFocus);
+        OpenSourceUtil.navigate(requestFocus, navigationItem);
+    }
+
+    @SuppressWarnings("UnstableApiUsage")
+    @RequiresReadLock
+    @RequiresBackgroundThread
+    @Nullable
+    @Override
+    public NavigationRequest navigationRequest() {
+        return navigationItem.navigationRequest();
     }
 }

@@ -613,6 +613,8 @@
 
 ### Threading / Platform Hygiene
 
+- [#4416](https://github.com/intellij-elixir/intellij-elixir/pull/4416) [@sh41](https://github.com/sh41)
+  - **The structure view no longer calls `Navigatable.navigate`, which IntelliJ 2026.3 reserves for the platform.** Fixes [#4410](https://github.com/intellij-elixir/intellij-elixir/issues/4410).
 - [#4404](https://github.com/intellij-elixir/intellij-elixir/pull/4404) [@sh41](https://github.com/sh41)
   - **The expander reads the modules a file uses from the project's other source files and from libraries' and the SDK's `.beam` files, and keeps each answer until what it read changes; nothing uses it yet.** Fixes [#4375](https://github.com/intellij-elixir/intellij-elixir/issues/4375).
 - [#4394](https://github.com/intellij-elixir/intellij-elixir/pull/4394) [@sh41](https://github.com/sh41)
