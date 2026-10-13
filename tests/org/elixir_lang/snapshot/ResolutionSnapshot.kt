@@ -13,15 +13,11 @@ import com.intellij.psi.PsiRecursiveElementWalkingVisitor
 import com.intellij.psi.PsiReference
 import com.intellij.psi.PsiReferenceService
 import com.intellij.psi.PsiReferenceService.Hints.NO_HINTS
-import com.intellij.psi.ResolveState
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.model.psi.ElixirSymbolWithUsages
 import org.elixir_lang.model.psi.generic_server.GenServerHandlerTarget
-import org.elixir_lang.psi.CallDefinitionClause
-import org.elixir_lang.psi.Modular
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.call.CanonicallyNamed
 import org.elixir_lang.psi.stub.type.call.Stub
 
 /**
@@ -103,11 +99,10 @@ class ResolutionSnapshot(private val root: VirtualFile) {
     }
 
     private fun inventory(file: PsiFile, modular: Call): List<Inventory> {
-        val module = (modular as? CanonicallyNamed)?.canonicalNameSet().orEmpty().sorted().joinToString(", ")
-            .ifEmpty { "?" }
-        val definitions = Modular.callDefinitionClauseCallSequence(modular).map { clause ->
-            val description = CallDefinitionClause.declaration(clause, ResolveState.initial())?.let(::describe)
-                ?: "(no declaration)  `${firstLine(clause)}`"
+        val (names, clauses) = definitions(modular)
+        val module = names.joinToString(", ").ifEmpty { "?" }
+        val definitions = clauses.map { (clause, declaration) ->
+            val description = declaration?.let(::describe) ?: "(no declaration)  `${firstLine(clause)}`"
 
             inventory(file, clause.textRange, "definition  $module  $description")
         }

@@ -86,7 +86,8 @@ object CompilerFacts {
         "local_function",
         "local_macro",
     )
-    private val DEF_KINDS = setOf("def", "defp", "defmacro", "defmacrop")
+    /** The `def*` keywords a `def` fact names. */
+    val DEF_KINDS = setOf("def", "defp", "defmacro", "defmacrop")
     private val MODULE = Regex("""[A-Z]\w*(?:\.[A-Z]\w*)*|:\w+""")
     private val POSITION = Regex("""(.+):(\d+):(\d+)""")
     private val DIAG_POSITION = Regex("""(.+):(\d+)""")

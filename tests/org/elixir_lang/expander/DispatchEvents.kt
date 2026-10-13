@@ -368,5 +368,5 @@ internal object DispatchEvents {
     /** The `env.function` of a call Elixir makes for a module once its body has run. */
     private val POST_MODULE_FUNCTIONS = setOf(NIL, "__info__/1")
     private val REMOTE_KINDS = setOf(IMPORTED_FUNCTION, "imported_macro", REMOTE_FUNCTION, "remote_macro")
-    private val LOCAL_KINDS = setOf("local_function", "local_macro")
+    internal val LOCAL_KINDS = setOf("local_function", "local_macro")
 }
