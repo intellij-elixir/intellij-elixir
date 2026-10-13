@@ -171,7 +171,9 @@ class LoadedModulesTest : ProbeTestCase() {
 
     private data class Compared(val read: Map<String, Loaded>, val probed: Map<String, Loaded>, val unloaded: Set<String>)
 
-    private fun compared(): Compared {
+    private fun compared(): Compared = cachedCompared ?: compare().also { cachedCompared = it }
+
+    private fun compare(): Compared {
         val read = beams.keys.sorted().mapNotNull { module ->
             (read(module) as? ModuleExports.Present)?.let {
                 module to Loaded(it.functions.sorted(), it.macros.sorted(), it.hasInfo)
@@ -183,10 +185,26 @@ class LoadedModulesTest : ProbeTestCase() {
     }
 
     /**
-     * What the node gives for each of [modules]. One its release doesn't hold is loaded from its `.beam` for the probe,
-     * then unloaded.
+     * What the node gives for each of [modules], [BATCH_SIZE] to a compile. One its release doesn't hold is loaded from
+     * its `.beam` for the probe, then unloaded.
      */
     private fun probed(modules: List<String>): Pair<Map<String, Loaded>, Set<String>> {
+        val answers = modules.chunked(BATCH_SIZE).flatMap { probedBatch(it) }
+        val unloaded = answers.filter { it[1] is OtpErlangAtom }.map { (it[0] as OtpErlangAtom).atomValue() }.toSet()
+        val probed = answers.filter { it[1] is OtpErlangList }.associate { answer ->
+            val module = (answer[0] as OtpErlangAtom).atomValue()
+
+            module to if (answer.size == 3) {
+                Loaded(nameArities(answer[1]), nameArities(answer[2]), hasInfo = true)
+            } else {
+                Loaded(nameArities(answer[1]), emptyList(), hasInfo = false)
+            }
+        }
+
+        return probed to unloaded
+    }
+
+    private fun probedBatch(modules: List<String>): List<Array<OtpErlangObject>> {
         // Names are binaries made atoms at run time: a quoted atom per module makes the compiler warn once for each.
         val list = modules.joinToString(", ") { "{\"$it\", ${elixirString(beams.getValue(it).path)}}" }
         val compiled = harness.compileSource(
@@ -213,19 +231,7 @@ class LoadedModulesTest : ProbeTestCase() {
 
         assertEquals("probe compile status", OtpErlangAtom("ok"), compiled.status)
 
-        val answers = compiled.messages.map { (it as OtpErlangTuple).elements() }
-        val unloaded = answers.filter { it[1] is OtpErlangAtom }.map { (it[0] as OtpErlangAtom).atomValue() }.toSet()
-        val probed = answers.filter { it[1] is OtpErlangList }.associate { answer ->
-            val module = (answer[0] as OtpErlangAtom).atomValue()
-
-            module to if (answer.size == 3) {
-                Loaded(nameArities(answer[1]), nameArities(answer[2]), hasInfo = true)
-            } else {
-                Loaded(nameArities(answer[1]), emptyList(), hasInfo = false)
-            }
-        }
-
-        return probed to unloaded
+        return compiled.messages.map { (it as OtpErlangTuple).elements() }
     }
 
     /** [text] as an Elixir string literal, so a Windows path's backslashes aren't read as escapes. */
@@ -259,4 +265,13 @@ class LoadedModulesTest : ProbeTestCase() {
     private fun read(module: String): ModuleExports = beams.getValue(module).let { LoadedModules.exports(it.readBytes(), it.path) }
 
     private fun List<NameArity>.sorted() = sortedWith(compareBy({ it.name }, { it.arity }))
+
+    private companion object {
+        /** Modules per probe compile: 1,768 took about 30 s on the slowest leg, so a batch takes about a tenth of that. */
+        const val BATCH_SIZE = 200
+
+        /** The leg's modules read and probed; every test in the class shares it. */
+        @Volatile
+        var cachedCompared: Compared? = null
+    }
 }
