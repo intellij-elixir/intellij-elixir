@@ -4,10 +4,10 @@ import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
-import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.snapshot.text
 
 /**
  * What each declaring form declares, written `atom/arity visibility presentation form`; `(no atom)` is a name with no
@@ -126,12 +126,7 @@ class DeclarationsTest : PlatformTestCase() {
 
     private fun describe(declaration: Declaration?): String {
         if (declaration == null) return "(no atom)"
-        val arity = when (val arity = declaration.arity) {
-            is ArityKnowledge.Exact -> "${arity.arity}"
-            is ArityKnowledge.Range -> "${arity.minimum}..${arity.maximum}"
-            is ArityKnowledge.Open -> "${arity.minimum}.."
-            ArityKnowledge.Unknown -> "?"
-        }
+        val arity = declaration.arity.text()
         val capabilities = declaration.capabilities
         val form = (declaration.declared as Declared.Source).form
 

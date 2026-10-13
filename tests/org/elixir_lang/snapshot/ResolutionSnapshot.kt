@@ -14,7 +14,6 @@ import com.intellij.psi.PsiReference
 import com.intellij.psi.PsiReferenceService
 import com.intellij.psi.PsiReferenceService.Hints.NO_HINTS
 import com.intellij.psi.ResolveState
-import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.model.psi.ElixirSymbolWithUsages
@@ -117,12 +116,7 @@ class ResolutionSnapshot(private val root: VirtualFile) {
     }
 
     private fun describe(declaration: Declaration): String {
-        val arity = when (val arity = declaration.arity) {
-            is ArityKnowledge.Exact -> "${arity.arity}"
-            is ArityKnowledge.Range -> "${arity.minimum}..${arity.maximum}"
-            is ArityKnowledge.Open -> "${arity.minimum}.."
-            ArityKnowledge.Unknown -> "?"
-        }
+        val arity = declaration.arity.text()
         val form = when (val declared = declaration.declared) {
             is Declared.Source -> declared.form.name.lowercase()
             is Declared.Compiled -> "compiled"
