@@ -125,6 +125,8 @@
 
 ### Bug Fixes
 
+- [#4427](https://github.com/intellij-elixir/intellij-elixir/pull/4427) [@sh41](https://github.com/sh41)
+  - **In a tagged tuple such as `{:error, :lists, reason}`, the middle atom completes and navigates as a module atom again, not as a function of `:error`. A tuple whose first element names a module still reads as module, function and arguments.** Fixes [#4336](https://github.com/intellij-elixir/intellij-elixir/issues/4336).
 - [#4417](https://github.com/intellij-elixir/intellij-elixir/pull/4417) [@sh41](https://github.com/sh41)
   - **Protocol navigation, Find Usages and Rename link a protocol function only to the `def` or `defdelegate` that implements it in a `defimpl`, not to a `defp`, `defguard` or `defmacro` of the same name, and a protocol's `defmacro` is linked to no implementation.** Refs [#4405](https://github.com/intellij-elixir/intellij-elixir/issues/4405).
 - [#4401](https://github.com/intellij-elixir/intellij-elixir/pull/4401) [@sh41](https://github.com/sh41)

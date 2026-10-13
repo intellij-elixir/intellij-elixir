@@ -7,21 +7,23 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.atom.AtomReference
 import org.elixir_lang.model.psi.atom.GeneralAtomReference
 import org.elixir_lang.model.psi.atom.contentTextRange
-import org.elixir_lang.model.psi.atom.mfaReferenceContext
+import org.elixir_lang.model.psi.atom.mfaReferenceDecision
 import org.elixir_lang.psi.*
 
 
-private fun ElixirAtom.computeReference(): PsiReference? =
-    if (declaringModuleCall(this) != null) {
-        null
-    } else {
-        mfaReferenceContext()?.let { context ->
-            AtomReference(this, context.moduleElement, contentTextRange(this), context.arity)
-        } ?: GeneralAtomReference(this)
-    }
+private fun ElixirAtom.computeReference(): CachedValueProvider.Result<PsiReference?> {
+    if (declaringModuleCall(this) != null) return CachedValueProvider.Result.create(null, this)
+
+    val decision = mfaReferenceDecision()
+    val reference = decision.context?.let { context ->
+        AtomReference(this, context.moduleElement, contentTextRange(this), context.arity)
+    } ?: GeneralAtomReference(this)
+
+    return decision.cachedResult(reference, this)
+}
 
 fun getReference(atom: ElixirAtom): PsiReference? =
-        getCachedValue(atom) { CachedValueProvider.Result.create(atom.computeReference(), atom) }
+        getCachedValue(atom) { atom.computeReference() }
 
 fun ElixirAtom.maybeModularNameToModulars(incompleteCode: Boolean): Set<PsiNamedElement> =
     reference?.maybeModularNameToModulars(incompleteCode) ?: emptySet()

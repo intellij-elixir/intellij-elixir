@@ -18,7 +18,7 @@ internal class AtomReferenceProvider : PsiSymbolReferenceProvider {
         hints: PsiSymbolReferenceHints
     ): Collection<PsiSymbolReference> {
         val atom = element as? ElixirAtom ?: return emptyList()
-        val context = atom.mfaReferenceContext() ?: return emptyList()
+        val context = atom.mfaReferenceDecision().context ?: return emptyList()
         return listOf(AtomReference(atom, context.moduleElement, contentTextRange(atom), context.arity))
     }
 
