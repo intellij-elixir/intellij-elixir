@@ -1,0 +1,10 @@
+# Elixir 1.19.5	census_fixture	split by column
+# opaque: side, library, macro, with a column, without a column
+# total: side, library, modelled with a column, modelled without, opaque with a column, opaque without
+opaque	app	census_dep	CensusDep.__using__/1	0	1
+opaque	app	census_dep	CensusDep.wrap/1	1	0
+opaque	app	census_fixture	CensusFixture.twice/1	1	0
+total	app	census_dep	0	0	1	1
+total	app	census_fixture	0	0	1	0
+total	app	elixir	4	3	0	0
+total	dep	elixir	2	0	0	0

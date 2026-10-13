@@ -702,6 +702,8 @@
 
 ### Build / CI
 
+- [#4409](https://github.com/intellij-elixir/intellij-elixir/pull/4409) [@sh41](https://github.com/sh41)
+  - **A test-side census compiles a Mix project and its dependencies under a compiler tracer and reports, by library, the macros the expander has no model for and whether each call carries a column.** Refs [#4406](https://github.com/intellij-elixir/intellij-elixir/issues/4406).
 - [#4397](https://github.com/intellij-elixir/intellij-elixir/pull/4397) [@sh41](https://github.com/sh41)
   - **Tag Release uploads a pre-release to the Marketplace canary channel, so canary users no longer wait on a hand upload.**
 
