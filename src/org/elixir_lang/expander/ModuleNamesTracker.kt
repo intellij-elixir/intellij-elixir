@@ -10,6 +10,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileContentChangeEvent
+import com.intellij.openapi.vfs.newvfs.events.VFileDeleteEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
@@ -23,6 +24,7 @@ import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.call.StubBased
 import org.elixir_lang.psi.definition
 import org.elixir_lang.psi.stub.type.Named
+import org.jetbrains.annotations.TestOnly
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -37,6 +39,9 @@ import java.util.concurrent.ConcurrentHashMap
 internal class ModuleNamesTracker(private val project: Project) : SimpleModificationTracker(), Disposable {
     /** Each file's module names when last named. */
     private val names = ConcurrentHashMap<VirtualFile, Set<String>>()
+
+    @get:TestOnly
+    internal val named: Set<VirtualFile> get() = names.keys.toSet()
 
     /** The files changed since they were last named. */
     private val changed: MutableSet<VirtualFile> = ConcurrentHashMap.newKeySet()
@@ -69,6 +74,9 @@ internal class ModuleNamesTracker(private val project: Project) : SimpleModifica
                             incModificationCount()
                         }
                     }
+
+                    // A deleted directory's events name only the directory.
+                    if (events.any { it is VFileDeleteEvent }) names.keys.removeIf { !it.isValid }
                 }
             },
         )
