@@ -9,6 +9,11 @@ import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.util.TextRange
+import org.elixir_lang.beam.BeamReader
+import org.elixir_lang.beam.ReadResult
+import org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.V1
+import org.elixir_lang.beam.term.inspect
+import org.elixir_lang.expander.appBeams
 import org.elixir_lang.junit.UnitTestCase
 import org.elixir_lang.lowering.ElixirAst.Alias
 import org.elixir_lang.lowering.ElixirAst.Block
@@ -27,6 +32,53 @@ import java.math.BigInteger
 /** [ElixirAst.toOtp] against the terms `Code.string_to_quoted` returns, built by hand. */
 class ElixirAstTest : UnitTestCase() {
     fun testAtom() = assertOtp(atom("foo"), Literal.Atom(meta(), "foo"))
+
+    /** [ElixirAst.fromOtp] gives back the arguments, guards and body of every debug info clause of the leg's apps. */
+    fun testFromOtpRoundTrips() {
+        val origin = TextRange(0, 0)
+        var compared = 0
+        val differing = appBeams.keys.sorted().flatMap { module ->
+            val beam = appBeams.getValue(module)
+            val read = BeamReader.readResult(beam.readBytes(), beam.path) { reader ->
+                (reader.debugInfoResult.valueOrNull as? V1)?.definitions?.definitionList.orEmpty().flatMap { definition ->
+                    (definition.clausesTerm as OtpErlangList).elements().flatMap { clause ->
+                        val (_, arguments, guards, body) = (clause as OtpErlangTuple).elements()
+
+                        listOf(arguments, guards, body).mapNotNull { term ->
+                            compared++
+
+                            "$module ${definition.name}/${definition.arity}: ${inspect(term)}"
+                                .takeIf { ElixirAst.fromOtp(term, origin)?.toOtp() != term }
+                        }
+                    }
+                }
+            }
+
+            (read as ReadResult.Present).value
+        }
+
+        assertTrue("clauses compared: $compared", compared > 10_000)
+        assertEquals("${differing.size} of $compared differ", emptyList<String>(), differing.take(20))
+    }
+
+    /** A decoded node's `line` and `column` are its location, as a lowered node's are, and still give back the term. */
+    fun testFromOtpKeepsTheLocation() {
+        val located = { keys: List<OtpErlangObject> ->
+            val term = OtpErlangTuple(arrayOf(atom("f"), OtpErlangList(keys.toTypedArray()), OtpErlangList()))
+            val decoded = ElixirAst.fromOtp(term, TextRange(0, 0))!!
+
+            assertEquals(term, decoded.toOtp())
+
+            org.elixir_lang.expander.location(decoded.meta)?.let { it.line to it.column }
+        }
+        val line = OtpErlangTuple(arrayOf(atom("line"), OtpErlangLong(3)))
+        val column = OtpErlangTuple(arrayOf(atom("column"), OtpErlangLong(5)))
+        val generated = OtpErlangTuple(arrayOf(atom("generated"), atom("true")))
+
+        assertEquals(3 to 5, located(listOf(generated, line, column)))
+        assertEquals(3 to 0, located(listOf(line)))
+        assertEquals(null, located(listOf(generated)))
+    }
 
     fun testInteger() = assertOtp(OtpErlangLong(7), integer(7))
 
