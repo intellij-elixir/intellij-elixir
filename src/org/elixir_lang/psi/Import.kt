@@ -31,6 +31,7 @@ import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.beam.psi.isCompilerAdded
 import org.elixir_lang.beam.psi.Module as BeamModule
 import org.elixir_lang.declaration.Capabilities
+import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Reach
 import org.elixir_lang.language_level.ElixirLanguageFeature.DIGITS_IN_SIGIL_NAMES
 import org.elixir_lang.language_level.ElixirLanguageFeature.IMPORT_ONLY_SIGILS
@@ -49,7 +50,6 @@ import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.psi.impl.siblingExpressions
 import org.elixir_lang.psi.scope.Recording
 import org.elixir_lang.psi.scope.reachedThrough
-import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.Delegation
 import java.math.BigInteger
 
@@ -615,8 +615,12 @@ object Import {
                     CallDefinitionClause.nameArityInterval(child, resolveState)?.let { Export(it, capabilities.compileTime) }
                 }
             Delegation.`is`(child) ->
-                child.finalArguments()?.takeIf { it.size == 2 }?.let { arguments ->
-                    CallDefinitionHead.nameArityInterval(arguments[0], resolveState)?.let { Export(it, macro = false) }
+                Delegation.declaration(child, resolveState)?.let { declaration ->
+                    importedCapabilities(declaration)?.let { capabilities ->
+                        declaration.arity.arityInterval()?.let {
+                            Export(NameArityInterval(declaration.name, it), capabilities.compileTime)
+                        }
+                    }
                 }
             else -> null
         }
@@ -628,6 +632,10 @@ object Import {
     @RequiresReadLock
     internal fun importedCapabilities(clause: Call): Capabilities? =
         CallDefinitionClause.capabilities(clause)?.takeIf { it.public }
+
+    /** [declaration]'s capabilities when an `import` of its module brings it in, else `null`. */
+    private fun importedCapabilities(declaration: Declaration): Capabilities? =
+        declaration.capabilities.takeIf { it.public }
 
     /** [definition]'s capabilities when an `import` of its module brings it in, else `null`. */
     @RequiresReadLock

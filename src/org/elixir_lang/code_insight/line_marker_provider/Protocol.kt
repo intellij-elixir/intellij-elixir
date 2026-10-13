@@ -16,9 +16,11 @@ import com.intellij.psi.ResolveState
 import com.intellij.psi.SmartPsiElementPointer
 import org.elixir_lang.Icons
 import org.elixir_lang.beam.psi.Module as BeamModule
+import org.elixir_lang.model.psi.protocol.ProtocolImplementation
 import org.elixir_lang.navigation.ElixirImplementationCellRenderer
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
+import org.elixir_lang.psi.DefinitionDeclaration
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.call.Call
 import java.awt.event.MouseEvent
@@ -64,7 +66,7 @@ internal class Protocol : LineMarkerProvider {
                 .createLineMarkerInfo(anchor)
         } else if (CallDefinitionClause.`is`(call)) {
             enclosingModularMacroCall(call)?.let { modularCall ->
-                CallDefinitionClause.nameArityInterval(call, ResolveState.initial())?.let { protocolNameArityInterval ->
+                DefinitionDeclaration.of(call, ResolveState.initial())?.let { member ->
                     if (Protocol.`is`(modularCall)) {
                         val anchor = markerAnchor(call) ?: return null
                         val targets: NotNullLazyValue<Collection<PsiElement>> = NotNullLazyValue.createValue {
@@ -74,29 +76,18 @@ internal class Protocol : LineMarkerProvider {
                                 when (defimpl) {
                                     is Call ->
                                         for (defimplChild in CallDefinitionClause.modularChildCalls(defimpl)) {
-                                            if (CallDefinitionClause.`is`(defimplChild)) {
-                                                CallDefinitionClause
-                                                    .nameArityInterval(defimplChild, ResolveState.initial())
-                                                    ?.let { implNameArityInterval ->
-                                                        if (implNameArityInterval.name == protocolNameArityInterval.name &&
-                                                            implNameArityInterval.arityInterval.overlaps(
-                                                                protocolNameArityInterval.arityInterval
-                                                            )
-                                                        ) {
-                                                            implementations.add(defimplChild)
-                                                        }
+                                            DefinitionDeclaration
+                                                .of(defimplChild, ResolveState.initial())
+                                                ?.let { implementer ->
+                                                    if (ProtocolImplementation.implementedBy(member, implementer)) {
+                                                        implementations.add(defimplChild)
                                                     }
-                                            }
+                                                }
                                         }
 
                                     is BeamModule ->
                                         for (callDefinition in defimpl.callDefinitions()) {
-                                            val implNameArityInterval = callDefinition.nameArityInterval
-
-                                            if (implNameArityInterval.name == protocolNameArityInterval.name &&
-                                                implNameArityInterval.arityInterval.overlaps
-                                                    (protocolNameArityInterval.arityInterval)
-                                            ) {
+                                            if (ProtocolImplementation.implementedBy(member, callDefinition.declaration())) {
                                                 implementations.add(callDefinition)
                                             }
                                         }

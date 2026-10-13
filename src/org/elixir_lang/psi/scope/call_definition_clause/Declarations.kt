@@ -23,6 +23,7 @@ import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.impl.writtenAtomText
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.Callback
+import org.elixir_lang.structure_view.element.Delegation
 
 /** The declarations a declaring call makes, with the arities the walk gives them. */
 object Declarations {
@@ -83,12 +84,10 @@ object Declarations {
     }
 
     private fun delegation(call: Call, state: ResolveState): List<Spelled> {
-        val head = call.finalArguments()?.takeIf { it.size == 2 }?.get(0) ?: return emptyList()
-        val (name, arityInterval) = CallDefinitionHead.nameArityInterval(head, state) ?: return emptyList()
+        val declaration = Delegation.declaration(call, state) ?: return emptyList()
+        val atom = Delegation.head(call)?.let(::headAtomValue)
 
-        return listOf(
-            spelled(call, name, headAtomValue(head) != null, arityInterval.arityKnowledge(), PUBLIC_RUNTIME, Form.DELEGATION)
-        )
+        return listOf(Spelled(declaration.name, declaration.takeIf { atom != null }))
     }
 
     private fun exception(call: Call): List<Spelled> =

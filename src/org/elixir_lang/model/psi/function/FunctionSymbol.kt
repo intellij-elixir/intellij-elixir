@@ -18,9 +18,8 @@ import org.elixir_lang.model.psi.ElixirRenameTarget
 import org.elixir_lang.navigation.ElixirClausePresentation
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.Protocol
+import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.Delegation
 import java.util.*
 
@@ -150,23 +149,29 @@ class FunctionSymbol(
          * The symbols a `defdelegate` declares in its own module.
          *
          * A delegation declares a function whether or not `to:` resolves, and [fromClause] cannot
-         * express it because `Delegation.is` and `CallDefinitionClause.is` are disjoint. Never a macro.
+         * express it because `Delegation.is` and `CallDefinitionClause.is` are disjoint.
          */
         @RequiresReadLock
         fun fromDelegation(delegation: Call): List<FunctionSymbol> {
-            if (!Delegation.`is`(delegation)) return emptyList()
-            val head = delegation.finalArguments()?.takeIf { it.size == 2 }?.get(0) ?: return emptyList()
+            val declaration = Delegation.declaration(delegation, ResolveState.initial()) ?: return emptyList()
             val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(delegation) ?: return emptyList()
             if (Protocol.`is`(enclosingModular)) return emptyList()
             val moduleName = runCatching { org.elixir_lang.psi.Module.name(enclosingModular) }
                 .getOrElse { if (it is ProcessCanceledException) throw it else null }
                 ?: return emptyList()
-            val nameArity = CallDefinitionHead.nameArityInterval(head, ResolveState.initial()) ?: return emptyList()
+            val arityInterval = declaration.arity.arityInterval() ?: return emptyList()
             val nameId = Delegation.nameIdentifier(delegation) ?: return emptyList()
             val declarationFile = delegation.containingFile.originalFile
 
-            return nameArity.arityInterval.closed().map { arity ->
-                FunctionSymbol(declarationFile, nameId.textRange, moduleName, nameArity.name, arity, false)
+            return arityInterval.closed().map { arity ->
+                FunctionSymbol(
+                    declarationFile,
+                    nameId.textRange,
+                    moduleName,
+                    declaration.name,
+                    arity,
+                    declaration.capabilities.quotesArguments
+                )
             }
         }
     }

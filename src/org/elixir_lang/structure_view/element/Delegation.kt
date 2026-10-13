@@ -4,13 +4,19 @@ import com.intellij.ide.util.treeView.smartTree.TreeElement
 import com.intellij.navigation.ItemPresentation
 import com.intellij.psi.ElementDescriptionLocation
 import com.intellij.psi.PsiElement
+import com.intellij.psi.ResolveState
 import com.intellij.usageView.UsageViewTypeLocation
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.declaration.Declaration
+import org.elixir_lang.declaration.Declared
+import org.elixir_lang.declaration.Definer
+import org.elixir_lang.declaration.Form
 import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.navigation.item_presentation.Delegation
 import org.elixir_lang.navigation.item_presentation.Parent
 import org.elixir_lang.psi.ElixirAccessExpression
 import org.elixir_lang.psi.ElixirList
+import org.elixir_lang.psi.arityKnowledge
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.name.Function
@@ -134,6 +140,28 @@ class Delegation(private val modular: Modular, call: Call) : Element<Call?>(call
         // finalArguments() and indexes it.
         fun `is`(call: SyntacticCall): Boolean =
             call.isCalling(Module.KERNEL, Function.DEFDELEGATE) && call.finalArity() == 2
+
+        /** The head [call] defines, `name(arguments)` in `defdelegate name(arguments), to: Module`. */
+        @RequiresReadLock
+        fun head(call: Call): PsiElement? = call.finalArguments()?.takeIf { it.size == 2 }?.get(0)
+
+        /**
+         * What [call] defines: the public run-time function its head names, at each arity its defaults give. A list of
+         * heads, which Elixir deprecates, defines nothing here.
+         */
+        @RequiresReadLock
+        fun declaration(call: Call, state: ResolveState): Declaration? {
+            if (!`is`(call)) return null
+
+            val (name, arityInterval) = head(call)?.let { CallDefinitionHead.nameArityInterval(it, state) } ?: return null
+
+            return Declaration(
+                name,
+                arityInterval.arityKnowledge(),
+                Definer.DEF.capabilities,
+                Declared.Source(Form.DELEGATION, org.elixir_lang.psi.CallDefinitionClause.sourceOrigin(call))
+            )
+        }
 
         @RequiresReadLock
         fun fromCall(call: Call): org.elixir_lang.structure_view.element.Delegation? =

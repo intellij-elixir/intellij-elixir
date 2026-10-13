@@ -1,0 +1,7 @@
+defprotocol Shape do
+  defmacro describe(shape), do: shape
+end
+
+defimpl Shape, for: Map do
+  defmacro describe(shape), do: shape
+end

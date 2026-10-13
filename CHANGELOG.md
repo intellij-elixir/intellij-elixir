@@ -125,6 +125,8 @@
 
 ### Bug Fixes
 
+- [#4417](https://github.com/intellij-elixir/intellij-elixir/pull/4417) [@sh41](https://github.com/sh41)
+  - **Protocol navigation, Find Usages and Rename link a protocol function only to the `def` or `defdelegate` that implements it in a `defimpl`, not to a `defp`, `defguard` or `defmacro` of the same name, and a protocol's `defmacro` is linked to no implementation.** Refs [#4405](https://github.com/intellij-elixir/intellij-elixir/issues/4405).
 - [#4401](https://github.com/intellij-elixir/intellij-elixir/pull/4401) [@sh41](https://github.com/sh41)
   - **Go To Declaration and Find Usages work on a function that is not a callback in a module with a behaviour.** Fixes [#4398](https://github.com/intellij-elixir/intellij-elixir/issues/4398).
   - **`def` and `defp` are highlighted again.** Fixes [#4398](https://github.com/intellij-elixir/intellij-elixir/issues/4398).
