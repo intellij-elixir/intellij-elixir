@@ -266,6 +266,17 @@ class ProjectModulesTest : PlatformTestCase() {
         )
     }
 
+    /** A macro of the SDK's compiled `EEx` is dispatched to remotely, though `EEx`'s sources are attached too. */
+    fun testCompiledEex() {
+        val eex = File(LegManifest.environment("ELIXIR_LANG_ELIXIR_PATH"), "lib/eex")
+        addLibrary("leg_eex", File(eex, "ebin"), File(eex, "lib"))
+        val a = add("a.ex", "defmodule A do\n  require EEx\n  EEx.function_from_string(:def, :f, \"x\")\nend\n")
+        val rendered = render(a, expansion(holder, a))
+
+        assertTrue(rendered, rendered.contains("Elixir.A stopped `EEx.function_from_string(:def, :f, \"x\")`"))
+        assertFresh("the compiled EEx read", a, expansion(holder, a))
+    }
+
     fun testCycleAnswersAbsent() {
         val a = add("a.ex", "")
         val b = add("b.ex", "")
@@ -672,14 +683,17 @@ class ProjectModulesTest : PlatformTestCase() {
         return addLibrary("project_modules_ebin", directory)
     }
 
-    /** A library of the `.beam`s in [classes]; its root is returned. */
-    private fun addLibrary(name: String, classes: File): VirtualFile {
-        VfsRootAccess.allowRootAccess(testRootDisposable, classes.path)
-        val root = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(classes)!!
-        BeamLibraryFixture.addLibrary(project, module, name, listOf(root))
+    /** A library of the `.beam`s in [classes], with [sources] attached when given; its classes root is returned. */
+    private fun addLibrary(name: String, classes: File, sources: File? = null): VirtualFile {
+        val fileSystem = LocalFileSystem.getInstance()
+        val roots = listOfNotNull(classes, sources).map {
+            VfsRootAccess.allowRootAccess(testRootDisposable, it.path)
+            fileSystem.refreshAndFindFileByIoFile(it)!!
+        }
+        BeamLibraryFixture.addLibrary(project, module, name, roots.take(1), roots.drop(1))
         IndexingTestUtil.waitUntilIndexesAreReady(project)
 
-        return root
+        return roots.first()
     }
 
     private fun add(path: String, text: String): PsiFile = myFixture.addFileToProject(path, text)
