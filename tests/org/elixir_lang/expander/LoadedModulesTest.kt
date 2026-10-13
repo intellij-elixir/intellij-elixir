@@ -10,7 +10,6 @@ import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.CACHE_ENV_IN_ELIXIR_MODULE
 import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.psi.ElixirFile
-import java.io.File
 
 /**
  * What [LoadedModules] reads from each `.beam` in every app of the leg's Elixir and OTP, against what Elixir gives once it
@@ -18,13 +17,6 @@ import java.io.File
  * for one that doesn't. A module the node can't load is left out, and the failure lists them.
  */
 class LoadedModulesTest : ProbeTestCase() {
-    /** Each module's `.beam`, by module as atom text. */
-    private val beams: Map<String, File> by lazy {
-        (appEbins("ELIXIR_LANG_ELIXIR_PATH") + appEbins("ERLANG_SDK_HOME"))
-            .flatMap { ebin -> ebin.listFiles { file -> file.extension == "beam" }.orEmpty().toList() }
-            .associateBy { it.nameWithoutExtension }
-    }
-
     fun testEveryModuleExportsWhatElixirLoads() {
         val (read, probed, unloaded) = compared()
 
@@ -40,7 +32,7 @@ class LoadedModulesTest : ProbeTestCase() {
         assertEquals(
             "unreadable",
             emptyList<String>(),
-            beams.keys.sorted().filter { read(it) !is ModuleExports.Present },
+            appBeams.keys.sorted().filter { read(it) !is ModuleExports.Present },
         )
     }
 
@@ -174,7 +166,7 @@ class LoadedModulesTest : ProbeTestCase() {
     private fun compared(): Compared = cachedCompared ?: compare().also { cachedCompared = it }
 
     private fun compare(): Compared {
-        val read = beams.keys.sorted().mapNotNull { module ->
+        val read = appBeams.keys.sorted().mapNotNull { module ->
             (read(module) as? ModuleExports.Present)?.let {
                 module to Loaded(it.functions.sorted(), it.macros.sorted(), it.hasInfo)
             }
@@ -184,59 +176,24 @@ class LoadedModulesTest : ProbeTestCase() {
         return Compared(read.filterKeys { it !in unloaded }, probed, unloaded)
     }
 
-    /**
-     * What the node gives for each of [modules], [BATCH_SIZE] to a compile. One its release doesn't hold is loaded from
-     * its `.beam` for the probe, then unloaded.
-     */
+    /** What the node gives for each of [modules], and the modules it can't load. */
     private fun probed(modules: List<String>): Pair<Map<String, Loaded>, Set<String>> {
-        val answers = modules.chunked(BATCH_SIZE).flatMap { probedBatch(it) }
-        val unloaded = answers.filter { it[1] is OtpErlangAtom }.map { (it[0] as OtpErlangAtom).atomValue() }.toSet()
-        val probed = answers.filter { it[1] is OtpErlangList }.associate { answer ->
-            val module = (answer[0] as OtpErlangAtom).atomValue()
-
-            module to if (answer.size == 3) {
-                Loaded(nameArities(answer[1]), nameArities(answer[2]), hasInfo = true)
-            } else {
-                Loaded(nameArities(answer[1]), emptyList(), hasInfo = false)
-            }
-        }
-
-        return probed to unloaded
-    }
-
-    private fun probedBatch(modules: List<String>): List<Array<OtpErlangObject>> {
-        // Names are binaries made atoms at run time: a quoted atom per module makes the compiler warn once for each.
-        val list = modules.joinToString(", ") { "{\"$it\", ${elixirString(beams.getValue(it).path)}}" }
-        val compiled = harness.compileSource(
-            """
-            for {name, path} <- [$list] do
-              m = String.to_atom(name)
-              held = Code.ensure_loaded?(m)
-              loaded = held or match?({:module, _}, :code.load_binary(m, String.to_charlist(path), File.read!(path)))
-
-              cond do
-                not loaded -> IntellijElixir.Quoter.Probe.send(__ENV__, {m, :unloaded})
-                function_exported?(m, :__info__, 1) ->
-                  IntellijElixir.Quoter.Probe.send(__ENV__, {m, m.__info__(:functions), m.__info__(:macros)})
-                true -> IntellijElixir.Quoter.Probe.send(__ENV__, {m, m.module_info(:exports)})
-              end
-
-              if loaded and not held do
-                :code.delete(m)
-                :code.purge(m)
-              end
-            end
-            """.trimIndent(),
+        val answers = harness.probeLoaded(
+            modules,
+            "if function_exported?(m, :__info__, 1), do: {m.__info__(:functions), m.__info__(:macros)}, " +
+                "else: m.module_info(:exports)",
         )
+        val probed = answers.mapNotNull { (module, answer) ->
+            when (answer) {
+                null -> null
+                is OtpErlangTuple ->
+                    module to Loaded(nameArities(answer.elementAt(0)), nameArities(answer.elementAt(1)), hasInfo = true)
+                else -> module to Loaded(nameArities(answer), emptyList(), hasInfo = false)
+            }
+        }.toMap()
 
-        assertEquals("probe compile status", OtpErlangAtom("ok"), compiled.status)
-
-        return compiled.messages.map { (it as OtpErlangTuple).elements() }
+        return probed to answers.filterValues { it == null }.keys
     }
-
-    /** [text] as an Elixir string literal, so a Windows path's backslashes aren't read as escapes. */
-    private fun elixirString(text: String): String =
-        "\"" + text.replace("\\", "\\\\").replace("\"", "\\\"").replace("#", "\\#") + "\""
 
     private fun nameArities(list: OtpErlangObject): List<NameArity> =
         (list as OtpErlangList).elements().map {
@@ -262,14 +219,11 @@ class LoadedModulesTest : ProbeTestCase() {
             }
         }
 
-    private fun read(module: String): ModuleExports = beams.getValue(module).let { LoadedModules.exports(it.readBytes(), it.path) }
+    private fun read(module: String): ModuleExports = appBeams.getValue(module).let { LoadedModules.exports(it.readBytes(), it.path) }
 
     private fun List<NameArity>.sorted() = sortedWith(compareBy({ it.name }, { it.arity }))
 
     private companion object {
-        /** Modules per probe compile: 1,768 took about 30 s on the slowest leg, so a batch takes about a tenth of that. */
-        const val BATCH_SIZE = 200
-
         /** The leg's modules read and probed; every test in the class shares it. */
         @Volatile
         var cachedCompared: Compared? = null
