@@ -96,9 +96,15 @@ internal class MacroCensus(val elixirVersion: String, val project: String, val e
         /**
          * Compiles [project], its dependencies included, under the tracer into a temporary build directory, so that
          * neither its `_build` nor its sources are written. Fetches nothing: its dependencies must be fetched.
-         * Mix's home and archives are empty temporary directories.
+         * Mix's home and archives are empty temporary directories unless [isolateMix] is false, which a project that
+         * needs Hex or rebar from the environment's Mix home takes.
          */
-        fun run(project: File, parentEnvironment: Map<String, String> = System.getenv()): MacroCensus {
+        fun run(
+            project: File,
+            isolateMix: Boolean = true,
+            timeoutMinutes: Long = 5,
+            parentEnvironment: Map<String, String> = System.getenv()
+        ): MacroCensus {
             val scratch = FileUtil.createTempDirectory("macro-census", null)
 
             try {
@@ -114,10 +120,14 @@ internal class MacroCensus(val elixirVersion: String, val project: String, val e
                         .withEnvironment(parentEnvironment.filterKeys { !it.equals("MIX_BUILD_PATH", ignoreCase = true) })
                         .withEnvironment("MIX_BUILD_ROOT", File(scratch, "build").path)
                         .withEnvironment(OUTPUT, output.path)
+
+                    if (isolateMix) {
                         // The test JVM inherits the Mix home and archives of the shell's Elixir, whose Hex archive another leg cannot load.
-                        .withEnvironment("MIX_HOME", File(scratch, "mix-home").apply { mkdirs() }.path)
-                        .withEnvironment("MIX_ARCHIVES", File(scratch, "mix-archives").apply { mkdirs() }.path)
-                    val result = CapturingProcessHandler(commandLine).runProcess(TimeUnit.MINUTES.toMillis(5).toInt())
+                        commandLine.withEnvironment("MIX_HOME", File(scratch, "mix-home").apply { mkdirs() }.path)
+                        commandLine.withEnvironment("MIX_ARCHIVES", File(scratch, "mix-archives").apply { mkdirs() }.path)
+                    }
+
+                    val result = CapturingProcessHandler(commandLine).runProcess(TimeUnit.MINUTES.toMillis(timeoutMinutes).toInt())
 
                     check(!result.isTimeout) { "mix ${arguments.first()} timed out:\n${result.stdout}\n${result.stderr}" }
                     check(result.exitCode == 0) { "mix ${arguments.first()} failed:\n${result.stdout}\n${result.stderr}" }
