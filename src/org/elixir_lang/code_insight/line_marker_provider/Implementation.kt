@@ -15,8 +15,10 @@ import com.intellij.psi.ResolveState
 import com.intellij.psi.SmartPsiElementPointer
 import org.elixir_lang.Icons
 import org.elixir_lang.beam.psi.Module as BeamModule
+import org.elixir_lang.model.psi.protocol.ProtocolImplementation
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
+import org.elixir_lang.psi.DefinitionDeclaration
 import org.elixir_lang.psi.Implementation
 import org.elixir_lang.psi.call.Call
 import java.awt.event.MouseEvent
@@ -60,9 +62,9 @@ class Implementation : LineMarkerProvider {
             ProtocolsGutterIconBuilder()
                 .setTargets(targets)
                 .createLineMarkerInfo(anchor)
-        } else if (CallDefinitionClause.`is`(call)) {
+        } else if (DefinitionDeclaration.`is`(call)) {
             enclosingModularMacroCall(call)?.let { modularCall ->
-                CallDefinitionClause.nameArityInterval(call, ResolveState.initial())?.let { implNameArityInterval ->
+                DefinitionDeclaration.of(call, ResolveState.initial())?.let { implementer ->
                     if (Implementation.`is`(modularCall)) {
                         val anchor = markerAnchor(call) ?: return null
                         val targets: NotNullLazyValue<Collection<PsiElement>> = NotNullLazyValue.createValue {
@@ -73,14 +75,10 @@ class Implementation : LineMarkerProvider {
                                     is Call ->
                                         for (defprotocolChild in CallDefinitionClause.modularChildCalls(defprotocol)) {
                                             if (CallDefinitionClause.`is`(defprotocolChild)) {
-                                                CallDefinitionClause
-                                                    .nameArityInterval(defprotocolChild, ResolveState.initial())
-                                                    ?.let { protocolNameArityInterval ->
-                                                        if (protocolNameArityInterval.name == implNameArityInterval.name &&
-                                                            protocolNameArityInterval.arityInterval.overlaps(
-                                                                implNameArityInterval.arityInterval
-                                                            )
-                                                        ) {
+                                                DefinitionDeclaration
+                                                    .of(defprotocolChild, ResolveState.initial())
+                                                    ?.let { member ->
+                                                        if (ProtocolImplementation.implementedBy(member, implementer)) {
                                                             protocols.add(defprotocolChild)
                                                         }
                                                     }
@@ -89,12 +87,7 @@ class Implementation : LineMarkerProvider {
 
                                     is BeamModule ->
                                         for (callDefinition in defprotocol.callDefinitions()) {
-                                            val protocolNameArityInterval = callDefinition.nameArityInterval
-
-                                            if (protocolNameArityInterval.name == implNameArityInterval.name &&
-                                                protocolNameArityInterval.arityInterval.overlaps
-                                                    (implNameArityInterval.arityInterval)
-                                            ) {
+                                            if (ProtocolImplementation.implementedBy(callDefinition.declaration(), implementer)) {
                                                 protocols.add(callDefinition)
                                             }
                                         }

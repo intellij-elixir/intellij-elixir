@@ -1,0 +1,3 @@
+defprotocol Count do
+  def count(data)
+end

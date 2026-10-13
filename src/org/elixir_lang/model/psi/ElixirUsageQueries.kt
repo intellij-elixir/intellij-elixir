@@ -49,6 +49,7 @@ import org.elixir_lang.model.psi.module.ModuleSymbol
 import org.elixir_lang.model.psi.module_attribute.ModuleAttributeReference
 import org.elixir_lang.model.psi.module_attribute.ModuleAttributeSymbol
 import org.elixir_lang.model.psi.protocol.ProtocolFunction
+import org.elixir_lang.model.psi.protocol.ProtocolImplementation
 import org.elixir_lang.model.psi.type.TypeReference
 import org.elixir_lang.model.psi.type.TypeSymbol
 import org.elixir_lang.model.psi.type.TypeVariableSymbol
@@ -70,6 +71,7 @@ import org.elixir_lang.reference.Callable
 import org.elixir_lang.reference.CaptureNameArity
 import org.elixir_lang.psi.operation.capture.NonNumeric as CaptureNonNumeric
 import org.elixir_lang.structure_view.element.CallDefinitionSpecification
+import org.elixir_lang.structure_view.element.Delegation
 import java.text.Normalizer
 import java.util.concurrent.Callable as JCallable
 
@@ -326,7 +328,7 @@ internal object ElixirUsageQueries {
     }
 
     /**
-     * Maps each occurrence of a protocol function name to an implementing `def`/`defmacro` clause
+     * Maps each occurrence of a protocol function name to an implementing definition
      * inside a `defimpl` of the same protocol, if any. Unlike Find Usages (where implementations are
      * reached via "Go To Implementation"), rename MUST update every `defimpl` clause so the protocol
      * member and all its concrete implementations stay in sync.
@@ -338,36 +340,32 @@ internal object ElixirUsageQueries {
         override fun map(leaf: PsiElement, offsetInLeaf: Int): Collection<PsiUsage> {
             val protocolFunction = protocolFunctionPointer.dereference() ?: return emptyList()
 
-            // Nearest enclosing call-definition clause (def/defmacro).
-            val defClause = leaf.enclosingCalls().firstOrNull { CallDefinitionClause.`is`(it) } ?: return emptyList()
+            // Nearest enclosing definition: a clause or a `defdelegate`.
+            val definition = leaf.enclosingCalls().firstOrNull { DefinitionDeclaration.`is`(it) } ?: return emptyList()
 
-            // The occurrence must be the clause's own name, not a call in its body.
-            val nameIdentifier = CallDefinitionClause.nameIdentifier(defClause) ?: return emptyList()
+            // The occurrence must be the definition's own name, not a call in its body.
+            val nameIdentifier = DefinitionDeclaration.nameIdentifier(definition) ?: return emptyList()
             if (!PsiTreeUtil.isAncestor(nameIdentifier, leaf, false)) return emptyList()
 
-            val nameArity =
-                    CallDefinitionClause.nameArityInterval(defClause, ResolveState.initial()) ?: return emptyList()
-            if (nameArity.name != protocolFunction.name || protocolFunction.arity !in nameArity.arityInterval) {
-                return emptyList()
-            }
-
-            // `def` implements a function protocol member; `defmacro` a macro member.
-            val capabilities = CallDefinitionClause.capabilities(defClause) ?: return emptyList()
-            val kindMatches =
-                    if (protocolFunction.macro) capabilities.quotesArguments else capabilities.runtimeFunction
-            if (!kindMatches) return emptyList()
+            val declaration = DefinitionDeclaration.of(definition, ResolveState.initial()) ?: return emptyList()
+            if (!ProtocolImplementation.implementedBy(protocolFunction, declaration)) return emptyList()
 
             // The clause must live directly inside a `defimpl` for this protocol.
-            val defimpl = CallDefinitionClause.enclosingModularMacroCall(defClause) ?: return emptyList()
+            val defimpl = CallDefinitionClause.enclosingModularMacroCall(definition) ?: return emptyList()
             if (!Implementation.`is`(defimpl)) return emptyList()
             if (Implementation.protocolName(defimpl) != protocolFunction.protocolName) return emptyList()
+
+            // Without `as:` the head names the target's function too, so a rename of the head alone would break it.
+            val headName = nameIdentifier.text
+            val keepsName = Delegation.`is`(definition) && Delegation.fromCall(definition)?.`as`() == null
 
             return listOf(
                 ElixirPsiUsage.create(
                     nameIdentifier,
                     TextRange(0, nameIdentifier.textLength),
                     declaration = false,
-                    usageType = IMPLEMENTATION
+                    usageType = IMPLEMENTATION,
+                    usageTextByName = if (keepsName) { _ -> headName } else null
                 )
             )
         }

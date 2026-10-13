@@ -9,8 +9,9 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.model.psi.protocol.ProtocolImplementation
 import org.elixir_lang.psi.CallDefinitionClause
-import org.elixir_lang.psi.CallDefinitionClause.nameArityInterval
+import org.elixir_lang.psi.DefinitionDeclaration
 import org.elixir_lang.psi.Implementation
 import org.elixir_lang.psi.call.Call
 
@@ -27,21 +28,21 @@ internal class GotoSuper : CodeInsightActionHandler {
 
     @RequiresReadLock
     fun invoke(project: Project, editor: Editor, call: Call) {
-        // Normalize caret-level calls to the enclosing def/defmacro clause.
-        val callDefinitionClause = if (CallDefinitionClause.`is`(call)) {
+        // Normalize caret-level calls to the enclosing definition.
+        val definition = if (DefinitionDeclaration.`is`(call)) {
             call
         } else {
             generateSequence(call.parent) { it.parent }
                 .filterIsInstance<Call>()
-                .firstOrNull { CallDefinitionClause.`is`(it) }
+                .firstOrNull { DefinitionDeclaration.`is`(it) }
                 ?: return
         }
 
         // Direct structural navigation, no call.reference indirection
-        val defimpl = CallDefinitionClause.enclosingModularMacroCall(callDefinitionClause) ?: return
+        val defimpl = CallDefinitionClause.enclosingModularMacroCall(definition) ?: return
         if (!Implementation.`is`(defimpl)) return
 
-        val nameArityInterval = nameArityInterval(callDefinitionClause, ResolveState.initial()) ?: return
+        val implementer = DefinitionDeclaration.of(definition, ResolveState.initial()) ?: return
 
         val protocols = mutableListOf<PsiElement>()
         Implementation.processProtocols(defimpl) { protocol -> protocols.add(protocol) }
@@ -54,11 +55,8 @@ internal class GotoSuper : CodeInsightActionHandler {
                 }
                 .filter(CallDefinitionClause::`is`)
                 .filter { protocolCallDefinitionClause ->
-                    nameArityInterval(protocolCallDefinitionClause, ResolveState.initial())
-                            ?.let { protocolNameArityInterval ->
-                                protocolNameArityInterval.name == nameArityInterval.name &&
-                                        protocolNameArityInterval.arityInterval.overlaps(nameArityInterval.arityInterval)
-                            }
+                    DefinitionDeclaration.of(protocolCallDefinitionClause, ResolveState.initial())
+                            ?.let { member -> ProtocolImplementation.implementedBy(member, implementer) }
                             ?: false
                 }
                 .toList()
@@ -67,7 +65,7 @@ internal class GotoSuper : CodeInsightActionHandler {
         if (targets.isNotEmpty()) {
             PsiTargetNavigator(targets)
                     .title("Choose Protocol Function")
-                    .tabTitle("Protocol Functions of ${callDefinitionClause.functionName()}/${callDefinitionClause.resolvedFinalArity()}")
+                    .tabTitle("Protocol Functions of ${definition.functionName()}/${definition.resolvedFinalArity()}")
                     .navigate(editor, "Choose Protocol Function")
         }
     }

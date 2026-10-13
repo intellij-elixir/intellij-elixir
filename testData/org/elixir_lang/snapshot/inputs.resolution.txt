@@ -131,7 +131,6 @@ definitions.ex:25:42  symbol  ModuleReference  `Definitions`  ->  definitions.ex
 definitions.ex:25:54  psi  Module  `Nested`  ->  definitions.ex:20:3 `defmodule Nested do`
 definitions.ex:25:54  symbol  ModuleReference  `Nested`  ->  definitions.ex:20:13 ModuleSymbol(Definitions.Nested)
 definitions.ex:26:3  definition  String.Chars.Definitions, String.Chars.Definitions.Nested  to_string/1  clause  public function runtime
-definitions.ex:26:7  symbol  ProtocolImplReference  `to_string`  ->  nothing
 definitions.ex:26:17  psi  Callable  `_`  ->  definitions.ex:26:17 `_`
 gen_server_request.ex:1:1  module  GenServerRequest
 gen_server_request.ex:1:1  psi  Callable  `defmodule`  ->  nothing

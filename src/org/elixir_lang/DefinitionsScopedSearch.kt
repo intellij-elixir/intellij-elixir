@@ -8,8 +8,11 @@ import com.intellij.psi.search.searches.DefinitionsScopedSearch
 import com.intellij.util.Processor
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.beam.psi.Module as BeamModule
+import org.elixir_lang.declaration.Declaration
+import org.elixir_lang.model.psi.protocol.ProtocolImplementation
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
+import org.elixir_lang.psi.DefinitionDeclaration
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.QualifiableAlias
 import org.elixir_lang.psi.call.Call
@@ -73,60 +76,9 @@ internal class DefinitionsScopedSearch :
             Protocol.processImplementations(call, consumer)
         } else if (CallDefinitionClause.`is`(call)) {
             enclosingModularMacroCall(call)?.let { modularCall ->
-                CallDefinitionClause.nameArityInterval(call, ResolveState.initial())?.let { protocolNameArityInterval ->
+                DefinitionDeclaration.of(call, ResolveState.initial())?.let { member ->
                     if (Protocol.`is`(modularCall)) {
-                        Protocol.processImplementations(modularCall) { defimpl ->
-                            ProgressManager.checkCanceled()
-
-                            var continueProcessing = true
-
-                            when (defimpl) {
-                                is Call -> {
-                                    for (defimplChild in CallDefinitionClause.modularChildCalls(defimpl)) {
-                                        ProgressManager.checkCanceled()
-
-                                        if (CallDefinitionClause.`is`(defimplChild)) {
-                                            CallDefinitionClause.nameArityInterval(defimplChild, ResolveState.initial())
-                                                ?.let { implNameArityInterval ->
-                                                    if (implNameArityInterval.name == protocolNameArityInterval.name &&
-                                                        implNameArityInterval.arityInterval.overlaps(protocolNameArityInterval.arityInterval)
-                                                    ) {
-                                                        if (!consumer.process(defimplChild)) {
-                                                            continueProcessing = false
-                                                        }
-                                                    }
-                                                }
-                                        }
-
-                                        if (!continueProcessing) {
-                                            break
-                                        }
-                                    }
-                                }
-
-                                is BeamModule -> {
-                                    for (callDefinition in defimpl.callDefinitions()) {
-                                        ProgressManager.checkCanceled()
-
-                                        val implNameArityInterval = callDefinition.nameArityInterval
-
-                                        if (implNameArityInterval.name == protocolNameArityInterval.name &&
-                                            implNameArityInterval.arityInterval.overlaps(protocolNameArityInterval.arityInterval)
-                                        ) {
-                                            if (!consumer.process(callDefinition)) {
-                                                continueProcessing = false
-                                            }
-                                        }
-
-                                        if (!continueProcessing) {
-                                            break
-                                        }
-                                    }
-                                }
-                            }
-
-                            continueProcessing
-                        }
+                        processImplementers(modularCall, member, consumer)
                     }
                 }
             }
@@ -143,59 +95,50 @@ internal class DefinitionsScopedSearch :
         val moduleImpl = callDefinitionImpl.parent
 
         if (Protocol.`is`(moduleImpl)) {
-            val name = callDefinitionImpl.name
-            val arity = callDefinitionImpl.exportedArity(ResolveState.initial())
+            processImplementers(moduleImpl, callDefinitionImpl.declaration(), consumer)
+        }
+    }
 
-            Protocol.processImplementations(moduleImpl) { defimpl ->
-                ProgressManager.checkCanceled()
+    /** The definitions of every `defimpl` of [protocol] that implement [member]. */
+    private fun processImplementers(protocol: PsiElement, member: Declaration, consumer: Processor<in PsiElement>) {
+        val process = Processor<PsiElement> { defimpl ->
+            ProgressManager.checkCanceled()
 
-                var continueProcessing = true
+            var continueProcessing = true
 
-                when (defimpl) {
-                    is Call -> {
-                        for (defimplChild in CallDefinitionClause.modularChildCalls(defimpl)) {
-                            ProgressManager.checkCanceled()
+            when (defimpl) {
+                is Call ->
+                    for (defimplChild in CallDefinitionClause.modularChildCalls(defimpl)) {
+                        ProgressManager.checkCanceled()
 
-                            if (CallDefinitionClause.`is`(defimplChild)) {
-                                CallDefinitionClause.nameArityInterval(defimplChild, ResolveState.initial())
-                                    ?.let { implNameArityInterval ->
-                                        if (implNameArityInterval.name == name &&
-                                            implNameArityInterval.arityInterval.contains(arity)
-                                        ) {
-                                            if (!consumer.process(defimplChild)) {
-                                                continueProcessing = false
-                                            }
-                                        }
-                                    }
-                            }
-
-                            if (!continueProcessing) {
-                                break
-                            }
+                        if (DefinitionDeclaration.of(defimplChild, ResolveState.initial())
+                                ?.let { ProtocolImplementation.implementedBy(member, it) } == true &&
+                            !consumer.process(defimplChild)
+                        ) {
+                            continueProcessing = false
+                            break
                         }
                     }
-                    is BeamModule ->
-                        for (callDefinition in defimpl.callDefinitions()) {
-                            ProgressManager.checkCanceled()
 
-                            val implNameArityInterval = callDefinition.nameArityInterval
+                is BeamModule ->
+                    for (callDefinition in defimpl.callDefinitions()) {
+                        ProgressManager.checkCanceled()
 
-                            if (implNameArityInterval.name == name &&
-                                implNameArityInterval.arityInterval.contains(arity)
-                            ) {
-                                if (!consumer.process(callDefinition)) {
-                                    continueProcessing = false
-                                }
-                            }
-
-                            if (!continueProcessing) {
-                                break
-                            }
+                        if (ProtocolImplementation.implementedBy(member, callDefinition.declaration()) &&
+                            !consumer.process(callDefinition)
+                        ) {
+                            continueProcessing = false
+                            break
                         }
-                }
-
-                continueProcessing
+                    }
             }
+
+            continueProcessing
+        }
+
+        when (protocol) {
+            is Call -> Protocol.processImplementations(protocol, process)
+            is BeamModule -> Protocol.processImplementations(protocol, process)
         }
     }
 }
