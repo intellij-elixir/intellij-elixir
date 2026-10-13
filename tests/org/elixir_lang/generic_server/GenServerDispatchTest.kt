@@ -5,6 +5,8 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.assertGotoDeclarationChosenAtCaret
+import org.elixir_lang.code_insight.assertNoNavigationAtCaret
+import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
 import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
 import org.elixir_lang.psi.call.Call
 
@@ -127,6 +129,61 @@ class GenServerDispatchTest : PlatformTestCase() {
             """.trimIndent()
         )
         assertRequestNavigatesToHandler("handle_info", ":timeout")
+    }
+
+    // ---- Only the message argument itself is the message ----
+
+    fun testAtomInsideATupleMessageDoesNotNavigateToTheHandler() {
+        configureCall("{:<caret>ping, 1}", ":ping")
+        myFixture.assertShowUsagesChosenAtCaret("An atom inside a tuple message is a bare atom, not the message")
+    }
+
+    fun testAtomInsideACallInTheMessageDoesNotNavigateToTheHandler() {
+        configureCall("Keyword.get(opts, :<caret>ping)", ":ping")
+        myFixture.assertShowUsagesChosenAtCaret("An atom inside a call in the message is a bare atom, not the message")
+    }
+
+    fun testQuotedAtomInsideACallInTheMessageDoesNotNavigateToTheHandler() {
+        configureCall("Keyword.get(opts, :\"<caret>ping\")", ":ping")
+        myFixture.assertNoNavigationAtCaret("An atom inside a call in the message is not the message")
+    }
+
+    /** Parentheses leave no trace in the quoted message, so `(:ping)` is `:ping`. */
+    fun testParenthesisedRequestNavigatesToTheHandler() {
+        configureCall("(:<caret>ping)", ":ping")
+        assertRequestNavigatesToHandler("handle_call", ":ping")
+    }
+
+    fun testAtomInsideAParenthesisedTupleMessageDoesNotNavigateToTheHandler() {
+        configureCall("({:<caret>ping, 1})", ":ping")
+        myFixture.assertShowUsagesChosenAtCaret("An atom inside a tuple message is a bare atom, not the message")
+    }
+
+    /**
+     * A module with `ping/3` sending [message] by `GenServer.call/2`, and `handle_call/3` clauses for
+     * [handler] and `:pong`.
+     */
+    private fun configureCall(message: String, handler: String) {
+        myFixture.configureByText(
+            "stack.ex",
+            """
+                defmodule Stack do
+                  use GenServer
+
+                  def ping(pid, opts, n), do: GenServer.call(pid, $message)
+
+                  @impl true
+                  def handle_call($handler, _from, state) do
+                    {:reply, :ok, state}
+                  end
+
+                  @impl true
+                  def handle_call(:pong, _from, state) do
+                    {:reply, :ok, state}
+                  end
+                end
+            """.trimIndent()
+        )
     }
 
     /**

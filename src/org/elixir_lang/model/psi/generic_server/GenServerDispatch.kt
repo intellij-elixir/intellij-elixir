@@ -4,7 +4,6 @@ import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
-import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.navigation.ElixirClausePresentation
 import org.elixir_lang.psi.CallDefinitionClause
@@ -13,6 +12,7 @@ import org.elixir_lang.psi.Modular
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.stripAccessExpression
+import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 
 /**
  * Resolves GenServer / `Process` message send sites to the matching handler clause(s) in the enclosing
@@ -44,7 +44,7 @@ internal object GenServerDispatch {
         val (sendCall, dispatch) = enclosingSendSite(atom) ?: return emptyList()
         val arguments = sendCall.finalArguments() ?: return emptyList()
         // The message is always the second argument (index 1) of the send site.
-        if (arguments.size < 2 || !PsiTreeUtil.isAncestor(arguments[1], atom, false)) return emptyList()
+        if (arguments.size < 2 || arguments[1].stripAccessExpressionAndParentheses() !== atom) return emptyList()
 
         val module = enclosingModule(sendCall) ?: return emptyList()
 
