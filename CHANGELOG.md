@@ -624,8 +624,8 @@
 
 ### Threading / Platform Hygiene
 
-- [#PR-TBD](https://github.com/intellij-elixir/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)
-  - **The expander reads the deprecations of a library's or the SDK's module from its `.beam` file, and reports a call to one as Elixir does; nothing uses it yet.** Fixes [#4423](https://github.com/intellij-elixir/intellij-elixir/issues/4423).
+- [#4429](https://github.com/intellij-elixir/intellij-elixir/pull/4429) [@sh41](https://github.com/sh41)
+  - **The expander reads the deprecations, definitions and macro bodies of a library's or the SDK's module from its `.beam` file, and reports a call to a deprecated one as Elixir does; nothing uses it yet.** Fixes [#4423](https://github.com/intellij-elixir/intellij-elixir/issues/4423).
 - [#4416](https://github.com/intellij-elixir/intellij-elixir/pull/4416) [@sh41](https://github.com/sh41)
   - **The structure view no longer calls `Navigatable.navigate`, which IntelliJ 2026.3 reserves for the platform.** Fixes [#4410](https://github.com/intellij-elixir/intellij-elixir/issues/4410).
 - [#4404](https://github.com/intellij-elixir/intellij-elixir/pull/4404) [@sh41](https://github.com/sh41)

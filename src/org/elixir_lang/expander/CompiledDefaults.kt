@@ -24,13 +24,17 @@ internal object CompiledDefaults {
         }?.toMap()
 
     /** Each exported definition's that `Docs` has an entry for: an arity a default covers has none of its own. */
-    fun fromDocs(reader: BeamReader): Map<NameArity, Int>? {
+    fun fromDocs(reader: BeamReader): Map<NameArity, Int>? = documented(reader)?.mapValues { it.value.second }
+
+    /** Each exported definition `Docs` has an entry for, with its `def` or `defmacro` and its defaults. */
+    fun documented(reader: BeamReader): Map<NameArity, Pair<String, Int>>? {
         val docs = reader.documentationResult.valueOrNull?.takeIf { it.beamLanguage == "elixir" }?.docs ?: return null
         val exports = reader.exportsResult.valueOrNull?.macroNameAritySortedSetByMacro() ?: return null
 
         return KINDS.flatMap { (macro, kind) ->
             exports[macro].orEmpty().mapNotNull { export ->
-                docs.documented(kind, export.name, export.arity)?.let { NameArity(export.name, export.arity) to it.defaults() }
+                docs.documented(kind, export.name, export.arity)
+                    ?.let { NameArity(export.name, export.arity) to (macro to it.defaults()) }
             }
         }.toMap()
     }
