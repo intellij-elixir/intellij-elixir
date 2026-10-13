@@ -2,7 +2,9 @@ package org.elixir_lang.code_insight.line_marker_provider
 
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzerSettings
 import com.intellij.codeInsight.daemon.LineMarkerInfo
-import com.intellij.codeInsight.daemon.impl.DaemonCodeAnalyzerImpl
+import com.intellij.openapi.editor.impl.DocumentMarkupModel
+import com.intellij.openapi.editor.markup.RangeHighlighter
+import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.impl.source.tree.LeafPsiElement
 import org.elixir_lang.PlatformTestCase
@@ -38,21 +40,16 @@ class CallDefinitionLeafElementTest : PlatformTestCase() {
     }
 
     /**
-     * Verifies that every [LineMarkerInfo] element returned by `CallDefinition` is a leaf.
+     * Verifies that every line marker the daemon registers for `CallDefinition` is anchored to a leaf.
      *
      * The platform logs `Performance warning: LineMarker is supposed to be registered for leaf
      * elements only` when a non-leaf element is used. This test fails if any marker is anchored
-     * to a composite element.
+     * to a composite element, whose range is wider than that of the leaf at its start.
      */
     fun testAllLineMarkersAnchoredToLeafElements() {
         myFixture.configureByFile("leaf_element_contract.ex")
 
-        // Run the highlighting passes - this triggers all LineMarkerProviders
-        myFixture.doHighlighting()
-
-        val document = myFixture.editor.document
-        val markers: List<LineMarkerInfo<*>> =
-            DaemonCodeAnalyzerImpl.getLineMarkers(document, myFixture.project)
+        val markers = lineMarkers()
 
         // We expect at least some separators for the multiple def groups
         assertTrue(
@@ -62,13 +59,12 @@ class CallDefinitionLeafElementTest : PlatformTestCase() {
         )
 
         val nonLeafMarkers = markers.filter { marker ->
-            val element = marker.element
-            element != null && element.firstChild != null // non-leaf: has children
+            myFixture.file.findElementAt(marker.startOffset)?.textRange != TextRange(marker.startOffset, marker.endOffset)
         }
 
         assertTrue(
-            "Found ${nonLeafMarkers.size} LineMarkerInfo(s) anchored to non-leaf elements. " +
-                "Elements: ${nonLeafMarkers.map { formatElement(it.element!!) }}. " +
+            "Found ${nonLeafMarkers.size} line marker(s) anchored to non-leaf elements. " +
+                "Ranges: ${nonLeafMarkers.map { TextRange(it.startOffset, it.endOffset) }}. " +
                 "All markers must be anchored to leaf (terminal) PSI elements per the " +
                 "LineMarkerProvider contract.",
             nonLeafMarkers.isEmpty()
@@ -176,12 +172,20 @@ class CallDefinitionLeafElementTest : PlatformTestCase() {
 
     private fun markerLines(body: String): List<Int> {
         myFixture.configureByText("grouped.ex", "defmodule M do\n" + body.prependIndent("  ") + "end\n")
-        myFixture.doHighlighting()
 
         val document = myFixture.editor.document
 
-        return DaemonCodeAnalyzerImpl.getLineMarkers(document, myFixture.project)
+        return lineMarkers()
             .map { document.getLineNumber(it.startOffset) }
             .sorted()
+    }
+
+    /** The line markers the daemon registers on the configured file: its method separators and gutter icons. */
+    private fun lineMarkers(): List<RangeHighlighter> {
+        myFixture.doHighlighting()
+
+        return DocumentMarkupModel.forDocument(myFixture.editor.document, myFixture.project, true)
+            .allHighlighters
+            .filter { it.lineSeparatorColor != null || it.gutterIconRenderer is LineMarkerInfo.LineMarkerGutterIconRenderer<*> }
     }
 }
