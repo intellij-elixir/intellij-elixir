@@ -2,10 +2,17 @@ package org.elixir_lang.snapshot
 
 import com.intellij.openapi.application.ReadAction
 import com.intellij.psi.PsiFileFactory
+import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.testFramework.LightProjectDescriptor
 import org.elixir_lang.ElixirLanguage
+import org.elixir_lang.declaration.Feature
+import org.elixir_lang.declaration.Use
+import org.elixir_lang.declaration.declaringModuleName
+import org.elixir_lang.declaration.sourceFor
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.Tokenization
 import org.elixir_lang.psi.ElixirFile
+import org.elixir_lang.psi.call.Call
 import org.elixir_lang.snapshot.CompilerFacts.Fact
 import org.elixir_lang.snapshot.CompilerFacts.INPUTS
 import org.elixir_lang.snapshot.CompilerFacts.Position
@@ -14,6 +21,22 @@ import java.io.File
 
 /** Fails when a committed fact's position is not one the plugin places at an offset in its file for that version. */
 class CompilerJoinTest : SnapshotTestCase() {
+    fun testAStandardLibraryCallFindsItsModule() {
+        val (_, files) = copyInputs("snapshot/compiler/columns")
+
+        val modules = ReadAction.computeBlocking<List<String?>, Throwable> {
+            val call = PsiTreeUtil.findChildrenOfType(files.single(), Call::class.java)
+                .first { it.functionName() == "length" }
+            val use = Use.of(call)!!
+
+            sourceFor(Feature.SYMBOL_REFERENCES).candidates(use, false).map { it.declaringModuleName() }
+        }
+
+        assertTrue("String.length/1 finds no candidate in String: $modules", "String" in modules)
+    }
+
+    override fun getProjectDescriptor(): LightProjectDescriptor = LegElixirProjectDescriptor
+
     fun testEveryCommittedPositionIsInItsFile() {
         val offsets = mutableMapOf<Pair<File, String>, Map<Pair<Int, Int>, Int>>()
         val misplaced = committed().flatMap { (version, facts) ->
