@@ -32,6 +32,11 @@ class Definition(
     val macro: String? = macro(macro)
     val metdata: Keyword? = org.elixir_lang.beam.chunk.from(metadata)
 
+    /** How many of the arities below [arity] the definition answers to through default arguments. */
+    internal val defaults: Int by lazy {
+        (metdata?.firstOrNull { it.key.atomValue() == "defaults" }?.value as? OtpErlangLong)?.intValue() ?: 0
+    }
+
     val name: String? by lazy {
         nameArityTuple?.let {
             nameArityToName(it)
