@@ -16,7 +16,7 @@ import org.elixir_lang.psi.call.name.Function.UNQUOTE
 import org.elixir_lang.psi.impl.PsiNamedElementImpl.unquoteName
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.headAtomValue
-import org.elixir_lang.psi.impl.stripAccessExpression
+import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 import org.elixir_lang.psi.operation.Normalized.operatorIndex
 import org.elixir_lang.psi.operation.When
 
@@ -118,7 +118,7 @@ class CallDefinitionHead(val callDefinition: CallDefinition, private val visibil
          * @return `name(arg, ...)`
          */
         fun strip(head: PsiElement): PsiElement =
-            stripAllOuterParentheses(head).let { stripGuard(it) }.let { stripAllOuterParentheses(it) }
+            stripGuard(head.stripAccessExpressionAndParentheses()).stripAccessExpressionAndParentheses()
 
         /**
          * The head without the guard clause
@@ -155,44 +155,5 @@ class CallDefinitionHead(val callDefinition: CallDefinition, private val visibil
             } else {
                 head
             }
-
-        /**
-         * Strips each set of outer parentheses from `head` until there aren't anymore.
-         *
-         * @param head `((value))`
-         * @return `value`.  `head` if no outer parentheses
-         */
-        @JvmStatic
-        fun stripAllOuterParentheses(head: PsiElement): PsiElement {
-            var stripped = head
-            var previousStripped: PsiElement
-
-            do {
-                previousStripped = stripped
-                stripped = stripOuterParentheses(previousStripped)
-            } while (previousStripped !== stripped)
-
-            return stripped
-        }
-
-        /**
-         * Strips outer parentheses from `head`.
-         *
-         * @param head `(value)`
-         * @return `value`.  `head` if no outer parentheses
-         */
-        private fun stripOuterParentheses(head: PsiElement): PsiElement {
-            val strippedHead = head.stripAccessExpression()
-
-            return (strippedHead as? ElixirParentheticalStab)?.let {
-                it.children.singleOrNull()?.let {
-                    (it as? ElixirStab)?.let {
-                        it.children.singleOrNull()?.let {
-                            (it as? ElixirStabBody)?.children?.singleOrNull()
-                        }
-                    }
-                }
-            } ?: strippedHead
-        }
     }
 }

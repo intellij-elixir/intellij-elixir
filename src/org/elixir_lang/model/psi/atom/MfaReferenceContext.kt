@@ -19,6 +19,7 @@ import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.psi.impl.quotedAtomValue
 import org.elixir_lang.psi.impl.stripAccessExpression
+import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 import org.elixir_lang.psi.impl.toBigInteger
 
 internal data class MfaReferenceContext(
@@ -103,7 +104,7 @@ private fun ElixirAtom.applyContext(): MfaReferenceContext? {
         ?: return null
     val finalArguments = applyCall.finalArguments() ?: return null
     if (finalArguments.size != 3) return null
-    if (finalArguments[1].stripAccessExpression() !== this) return null
+    if (finalArguments[1].stripAccessExpressionAndParentheses() !== this) return null
 
     val moduleElement = moduleElement(finalArguments[0].stripAccessExpression()) ?: return null
 

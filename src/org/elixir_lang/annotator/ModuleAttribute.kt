@@ -24,8 +24,8 @@ import org.elixir_lang.psi.call.name.Function.UNQUOTE_SPLICING
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.identifierName
 import org.elixir_lang.psi.impl.stripAccessExpression
+import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 import org.elixir_lang.psi.operation.*
-import org.elixir_lang.structure_view.element.CallDefinitionHead.Companion.stripAllOuterParentheses
 
 /**
  * Annotates module attributes.
@@ -571,7 +571,8 @@ internal class ModuleAttribute : Annotator, DumbAware {
                 when (val leftOperand: PsiElement? = grandChild.leftOperand()) {
                     is Type -> {
                         leftOperand.leftOperand()?.let { typeOperationLeftOperand ->
-                            val strippedTypeOperationLeftOperand = stripAllOuterParentheses(typeOperationLeftOperand)
+                            val strippedTypeOperationLeftOperand =
+                                typeOperationLeftOperand.stripAccessExpressionAndParentheses()
 
                             if (strippedTypeOperationLeftOperand is Call) {
                                 highlightSpecification(

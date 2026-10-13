@@ -36,6 +36,7 @@ import org.elixir_lang.psi.ElixirUnmatchedQualifiedAlias
 import org.elixir_lang.psi.Quote
 import org.elixir_lang.psi.Sigil
 import org.elixir_lang.psi.UnqualifiedNoArgumentsCall
+import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPE_ERRORS_NAME_THE_INVALID_CHARACTER
 import org.elixir_lang.language_level.ElixirLanguageFeature.HEREDOC_OPENING_ERROR_SAYS_OPENING
 import org.elixir_lang.language_level.ElixirLanguageFeature.HEREDOC_TERMINATOR_AFTER_CONTENT_IS_CONTENT
@@ -81,7 +82,7 @@ internal class InvalidConstruct : Annotator, DumbAware {
 
     /** An interpolated atom is a call to `:erlang.binary_to_atom/2`, which may be followed by an alias. */
     private fun isAtom(element: PsiElement): Boolean =
-        when (val unwrapped = unwrap(element)) {
+        when (val unwrapped = element.stripAccessExpressionAndParentheses()) {
             is ElixirAtom -> PsiTreeUtil.findChildOfType(unwrapped, ElixirInterpolation::class.java) == null
             is ElixirAtomKeyword -> true
             else -> false

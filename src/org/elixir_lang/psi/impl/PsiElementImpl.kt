@@ -300,5 +300,18 @@ fun PsiElement.siblingExpression(function: (PsiElement) -> PsiElement?): PsiElem
 fun PsiElement.stripAccessExpression(): PsiElement = (this as? ElixirAccessExpression)?.stripOnlyChildParent() ?: this
 fun Array<PsiElement>.stripAccessExpressions(): List<PsiElement> = map(PsiElement::stripAccessExpression)
 
+/**
+ * The expression this argument evaluates to as written. Elixir quotes `(:ping)` as `:ping`, so parentheses around a
+ * single expression, however many, are read through along with the access expression. `()` and `(a; b)` are left as is.
+ */
+@Contract(pure = true)
+tailrec fun PsiElement.stripAccessExpressionAndParentheses(): PsiElement {
+    val stripped = stripAccessExpression()
+    val expression = (stripped as? ElixirParentheticalStab)?.stab?.stabBody?.childExpressions()?.singleOrNull()
+        ?: return stripped
+
+    return expression.stripAccessExpressionAndParentheses()
+}
+
 @Contract(pure = true)
 fun PsiElement.stripOnlyChildParent(): PsiElement = children.singleOrNull() ?: this
