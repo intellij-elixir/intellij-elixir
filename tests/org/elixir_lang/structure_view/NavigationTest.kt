@@ -2,9 +2,9 @@ package org.elixir_lang.structure_view
 
 import com.intellij.ide.structureView.StructureViewTreeElement
 import com.intellij.ide.util.treeView.smartTree.TreeElementWrapper
+import com.intellij.openapi.application.readAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.FileEditorManager
-import com.intellij.openapi.util.IntellijInternalApi
 import com.intellij.platform.ide.navigation.NavigationOptions
 import com.intellij.platform.ide.navigation.NavigationService
 import com.intellij.platform.ide.progress.runWithModalProgressBlocking
@@ -20,8 +20,7 @@ import org.elixir_lang.structure_view.element.EExFunctionFrom
 /**
  * Activating a structure view element opens its target at the target's offset, by each route the platform takes:
  * the tree's wrapper node, which forwards to the element's `navigate(boolean)`, that method called directly, as the
- * File Structure popup's backend does, and the element handed to the navigation service, which asks it for its
- * `navigationRequest()`.
+ * File Structure popup's backend does, and the element's `navigationRequest()` handed to the navigation service.
  */
 class NavigationTest : LightTestCase() {
     private lateinit var model: Model
@@ -45,13 +44,14 @@ class NavigationTest : LightTestCase() {
 
     private enum class Route { WRAPPER_NODE, DIRECT, NAVIGATION_SERVICE }
 
-    @OptIn(IntellijInternalApi::class)
     private fun navigate(element: StructureViewTreeElement, route: Route) {
         when (route) {
             Route.WRAPPER_NODE -> TreeElementWrapper(project, element, model).navigate(true)
             Route.DIRECT -> (element as Navigatable).navigate(true)
             Route.NAVIGATION_SERVICE -> runWithModalProgressBlocking(project, "navigate") {
-                project.service<NavigationService>().navigate(element as Navigatable, NavigationOptions.defaultOptions())
+                val request = readAction { (element as Navigatable).navigationRequest() }
+
+                project.service<NavigationService>().navigate(request!!, NavigationOptions.defaultOptions())
             }
         }
     }
