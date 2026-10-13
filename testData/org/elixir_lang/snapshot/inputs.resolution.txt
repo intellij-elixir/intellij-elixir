@@ -159,8 +159,7 @@ gen_server_request.ex:4:19  psi  GeneralAtomReference  `:ping`  ->  nothing
 gen_server_request.ex:4:26  psi  Callable  `_from`  ->  gen_server_request.ex:4:26 `_from`
 gen_server_request.ex:4:33  psi  Callable  `state`  ->  gen_server_request.ex:4:33 `state`
 gen_server_request.ex:4:46  psi  GeneralAtomReference  `:reply`  ->  nothing
-gen_server_request.ex:4:55  psi  AtomReference  `pong`  ->  nothing
-gen_server_request.ex:4:55  symbol  AtomReference  `pong`  ->  nothing
+gen_server_request.ex:4:54  psi  GeneralAtomReference  `:pong`  ->  nothing
 gen_server_request.ex:4:61  psi  Callable  `state`  ->  gen_server_request.ex:4:33 `state`
 gen_server_request.ex:4:61  symbol  VariableReference  `state`  ->  gen_server_request.ex:4:33 VariableSymbol(state, PARAMETER, (158,163))
 gen_server_request.ex:5:3  definition  GenServerRequest  handle_cast/2  clause  public function runtime

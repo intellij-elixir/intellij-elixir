@@ -175,6 +175,18 @@ class AtomCompletionTest : PlatformTestCase() {
         myFixture.checkResult(tupleModule(definitions, "\"unique\\\"target\""))
     }
 
+    fun testTaggedTupleMiddleAtomCompletionOffersTheModuleAtom() {
+        assertTupleMiddleAtomCompletes("tag_target", "{:error, :tag_t<caret>, reason}", "{:error, :tag_target, reason}")
+    }
+
+    fun testUnresolvedAliasTupleMiddleAtomCompletionOffersTheModuleAtom() {
+        assertTupleMiddleAtomCompletes("tag_target", "{Missing, :tag_t<caret>, reason}", "{Missing, :tag_target, reason}")
+    }
+
+    fun testModuleAtomFirstTupleMiddleAtomCompletionOffersTheFunction() {
+        assertTupleMiddleAtomCompletes("f", "{:tag_target, :<caret>, 1}", "{:tag_target, :f, 1}")
+    }
+
     /*
      * Private Instance Methods
      */
@@ -196,6 +208,22 @@ class AtomCompletionTest : PlatformTestCase() {
         return "defmodule Test do\n" +
                 indented +
                 "\n\n  def run do\n    $body\n  end\nend"
+    }
+
+    /** A project holding the module atom `:tag_target`, with [body] as the result of `Usage.run/1`. */
+    private fun tagTargetModule(body: String): String =
+        "defmodule :tag_target do\n  def f(a), do: a\nend\n\n" +
+                "defmodule Usage do\n  def run(reason) do\n    $body\n  end\nend"
+
+    /** Completes the tuple's middle atom with [name], inserting it when no popup is shown. */
+    private fun assertTupleMiddleAtomCompletes(name: String, before: String, after: String) {
+        myFixture.configureByText("test.ex", tagTargetModule(before))
+        val offered = myFixture.completeBasic()?.map { it.lookupString }
+        myFixture.lookupElements?.firstOrNull { it.lookupString.endsWith(name) }?.let {
+            myFixture.lookup.currentItem = it
+            myFixture.finishLookup(Lookup.NORMAL_SELECT_CHAR)
+        }
+        assertEquals("offered: $offered", tagTargetModule(after), myFixture.editor.document.text)
     }
 
     private fun configureApplyCompletion(definitions: String, atomPrefix: String, atomSuffix: String = "") {

@@ -13,6 +13,7 @@ import com.intellij.psi.PsiNamedElement
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
 import org.elixir_lang.junit.onPooledThread
 import org.elixir_lang.model.psi.atom.AtomReference
 import org.elixir_lang.model.psi.atom.GeneralAtomReference
@@ -301,30 +302,54 @@ class MfaTupleReferenceTest : PlatformTestCase() {
         assertEquals("start_link", (resolveResults.first().element as? PsiNamedElement)?.name)
     }
 
-    fun testMissingTargetReferenceIsSoft() {
-        val reference = atomReferenceAtCaret("unresolvable_module.ex")
+    fun testTupleWithAnUnresolvedModuleReadsItsMiddleAtomAsAnOrdinaryAtom() {
+        myFixture.configureByFile("unresolvable_module.ex")
 
-        assertTrue(reference.isSoft)
-        assertEmpty(reference.multiResolve(false))
+        val reference = myFixture.getReferenceAtCaretPositionWithAssertion()
+        assertInstanceOf(reference, GeneralAtomReference::class.java)
+        assertNull(atomReferenceAtCaretOrNull())
+        assertEmpty((reference as GeneralAtomReference).multiResolve(false))
     }
 
-    /**
-     * `{:ok, :error, \[reason]}` is a common Elixir tagged-value tuple, not an MFA tuple.
-     * However, with Erlang-style support, the provider accepts
-     * `:ok` as a potential Erlang module name.  Since `:ok` resolves to no module, the
-     * reference is soft and returns empty results - no false error highlighting.
-     *
-     * This documents the accepted false-positive shape: syntactically matches Erlang-style
-     * MFA but silently produces no results.  `isSoft = true` is the guard against UI noise.
-     */
-    fun testTaggedValueTupleIsAcceptedAsSoftErlangStyleMfa() {
-        val reference = atomReferenceAtCaret("tagged_value_tuple.ex")
+    fun testTaggedValueTupleMiddleAtomIsAnOrdinaryAtom() {
+        myFixture.configureByFile("tagged_value_tuple.ex")
 
-        assertTrue("Tagged-value MFA-shaped tuple reference must be soft", reference.isSoft)
-        assertTrue(
-            "Tagged-value tuple {ok, error, [reason]} must resolve to nothing - :ok is not a real module",
-            reference.multiResolve(false).isEmpty()
-        )
+        assertInstanceOf(myFixture.getReferenceAtCaretPositionWithAssertion(), GeneralAtomReference::class.java)
+        assertNull(atomReferenceAtCaretOrNull())
+    }
+
+    fun testTaggedTupleMiddleAtomNavigatesToTheModule() {
+        assertMiddleAtomNavigatesToTheModule("tag_middle_module.ex")
+    }
+
+    fun testTupleWithAnUnresolvedAliasFirstNavigatesItsMiddleAtomToTheModule() {
+        assertMiddleAtomNavigatesToTheModule("tag_middle_module_unresolved_alias.ex")
+    }
+
+    fun testModuleAtomFirstWithAnArgumentsListResolvesTheFunction() {
+        assertResolvesValidlyTo("tag_module_first_args_list.ex", "f")
+    }
+
+    fun testModuleAtomFirstWithAnIntegerArityResolvesTheFunction() {
+        assertResolvesValidlyTo("tag_module_first_integer_arity.ex", "f")
+    }
+
+    fun testMiddleAtomBecomesAFunctionNameOnceAnotherFileDefinesTheModule() {
+        myFixture.configureByText("usage.ex", "defmodule Usage do\n  def run, do: {Later, :<caret>f, 1}\nend\n")
+        assertInstanceOf(myFixture.getReferenceAtCaretPositionWithAssertion(), GeneralAtomReference::class.java)
+
+        myFixture.addFileToProject("later.ex", "defmodule Later do\n  def f(a), do: a\nend\n")
+
+        val reference = myFixture.getReferenceAtCaretPositionWithAssertion()
+        assertInstanceOf(reference, AtomReference::class.java)
+        assertEquals("later.ex", reference.resolve()?.containingFile?.name)
+    }
+
+    fun testApplyKeepsItsMfaReferenceWhenItsFirstArgumentIsNoModule() {
+        myFixture.configureByFile("tag_apply_non_module_first.ex")
+
+        assertInstanceOf(myFixture.getReferenceAtCaretPositionWithAssertion(), AtomReference::class.java)
+        assertNotNull(atomReferenceAtCaretOrNull())
     }
 
     fun testApplyThreeWithErlangModuleIsStillAnUnresolvedGap() {
@@ -379,6 +404,22 @@ class MfaTupleReferenceTest : PlatformTestCase() {
         myFixture.configureByFile(fileName)
 
         return atomReferenceAtCaretOrNull() ?: error("Expected AtomReference at caret")
+    }
+
+    private fun assertMiddleAtomNavigatesToTheModule(fileName: String) {
+        myFixture.configureByFile(fileName)
+
+        val reference = myFixture.getReferenceAtCaretPositionWithAssertion()
+        assertInstanceOf(reference, GeneralAtomReference::class.java)
+        assertNull(atomReferenceAtCaretOrNull())
+
+        val destination = myFixture.gotoDeclarationDestinationAtCaret()!!
+        val fileText = destination.containingFile.text
+        assertTrue(
+            "Go To on the middle atom must land in `defmodule :tag_target`, landed at: " +
+                    fileText.substring(destination.textRange.startOffset).lineSequence().first(),
+            destination.textRange.startOffset < fileText.indexOf("defmodule Usage")
+        )
     }
 
     private fun assertResolvesValidlyTo(fileName: String, name: String) {
