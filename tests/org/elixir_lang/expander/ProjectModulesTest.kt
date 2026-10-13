@@ -211,17 +211,18 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     fun testLibraryReadsBeam() {
-        val directory = FileUtil.createTempDirectory("project_modules_ebin", null, true)
-        VfsRootAccess.allowRootAccess(testRootDisposable, directory.path)
         val beam = File("testData/org/elixir_lang/expander/loaded_copy/Elixir.LoadedCopy.Dep.beam")
-        beam.copyTo(File(directory, beam.name))
-        val ebin = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(directory)!!
-        BeamLibraryFixture.addLibrary(project, module, "project_modules_ebin", listOf(ebin))
-        IndexingTestUtil.waitUntilIndexesAreReady(project)
+        val ebin = copiedLibrary(beam)
         val a = add("a.ex", "defmodule A do\n  require LoadedCopy.Dep\nend\n")
 
         assertEquals(
-            ModuleExports.Present(listOf(NameArity("f", 0)), emptyList(), true, ModuleExports.Behaviour.None),
+            ModuleExports.Present(
+                listOf(NameArity("f", 0)),
+                emptyList(),
+                true,
+                ModuleExports.Behaviour.None,
+                Deprecations.Known(emptyMap()),
+            ),
             exports(holder, a, "Elixir.LoadedCopy.Dep"),
         )
         val before = expansion(holder, a)
@@ -231,12 +232,38 @@ class ProjectModulesTest : PlatformTestCase() {
         WriteAction.runAndWait<Throwable> { ebin.findChild(beam.name)!!.setBinaryContent(rebuilt) }
 
         assertEquals(
-            ModuleExports.Present(listOf(NameArity("g", 0)), emptyList(), true, ModuleExports.Behaviour.None),
+            ModuleExports.Present(
+                listOf(NameArity("g", 0)),
+                emptyList(),
+                true,
+                ModuleExports.Behaviour.None,
+                Deprecations.Known(emptyMap()),
+            ),
             exports(holder, a, "Elixir.LoadedCopy.Dep"),
         )
         val after = expansion(holder, a)
         assertNotSame("the .beam rebuilt", before, after)
         assertFresh("the .beam rebuilt", a, after)
+    }
+
+    /** A library's deprecations are read from its `.beam`, and read again once it is rebuilt. */
+    fun testCompiledDependency() {
+        val beam = File("testData/org/elixir_lang/expander/deprecated_copy/Elixir.DeprecatedCopy.beam")
+        val ebin = copiedLibrary(beam)
+        val a = add("a.ex", "defmodule A do\n  DeprecatedCopy.old()\nend\n")
+
+        assertEquals(
+            listOf("DeprecatedCopy.old/0 is deprecated. Use new/0 instead line 2"),
+            DeprecationWarnings.of(expansion(holder, a)),
+        )
+
+        val rebuilt = File("testData/org/elixir_lang/expander/deprecated_copy/changed/${beam.name}").readBytes()
+        WriteAction.runAndWait<Throwable> { ebin.findChild(beam.name)!!.setBinaryContent(rebuilt) }
+
+        assertEquals(
+            listOf("DeprecatedCopy.old/0 is deprecated. Use newer/0 instead line 2"),
+            DeprecationWarnings.of(expansion(holder, a)),
+        )
     }
 
     fun testCycleAnswersAbsent() {
@@ -635,12 +662,24 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     /** The leg's Elixir `.beam`s as a library, which a `defstruct` dispatches to. */
-    private fun addLegElixir() {
-        val directory = LegManifest.ebin()
-        VfsRootAccess.allowRootAccess(testRootDisposable, directory.path)
-        val ebin = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(directory)!!
-        BeamLibraryFixture.addLibrary(project, module, "leg_elixir", listOf(ebin))
+    private fun addLegElixir() = addLibrary("leg_elixir", LegManifest.ebin())
+
+    /** A library holding a copy of [beam], whose `ebin` the test may rewrite. */
+    private fun copiedLibrary(beam: File): VirtualFile {
+        val directory = FileUtil.createTempDirectory("project_modules_ebin", null, true)
+        beam.copyTo(File(directory, beam.name))
+
+        return addLibrary("project_modules_ebin", directory)
+    }
+
+    /** A library of the `.beam`s in [classes]; its root is returned. */
+    private fun addLibrary(name: String, classes: File): VirtualFile {
+        VfsRootAccess.allowRootAccess(testRootDisposable, classes.path)
+        val root = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(classes)!!
+        BeamLibraryFixture.addLibrary(project, module, name, listOf(root))
         IndexingTestUtil.waitUntilIndexesAreReady(project)
+
+        return root
     }
 
     private fun add(path: String, text: String): PsiFile = myFixture.addFileToProject(path, text)
