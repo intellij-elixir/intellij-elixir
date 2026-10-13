@@ -4,7 +4,10 @@ import com.intellij.ide.structureView.StructureViewTreeElement
 import com.intellij.ide.util.treeView.smartTree.TreeElement
 import com.intellij.navigation.ItemPresentation
 import com.intellij.navigation.NavigationItem
+import com.intellij.platform.backend.navigation.NavigationRequest
 import com.intellij.psi.ResolveState
+import com.intellij.util.OpenSourceUtil
+import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.call.Visibility
 import org.elixir_lang.navigation.item_presentation.NameArity
@@ -136,16 +139,16 @@ class CallDefinition(val modular: Modular, private val time: Timed.Time, private
 
     fun name(): String = name
 
-    /**
-     * Navigates to first clause in [.clauseList].
-     *
-     * @param requestFocus `true` if focus requesting is necessary
-     */
+    private fun firstClause(): CallDefinitionClause? = clauseList.firstOrNull()
+
     override fun navigate(requestFocus: Boolean) {
-        if (canNavigate()) {
-            clauseList.first().navigate(requestFocus)
-        }
+        firstClause()?.let { OpenSourceUtil.navigate(requestFocus, it) }
     }
+
+    @Suppress("UnstableApiUsage")
+    @RequiresReadLock
+    @RequiresBackgroundThread
+    override fun navigationRequest(): NavigationRequest? = firstClause()?.navigationRequest()
 
     /**
      * When the defined call is usable
