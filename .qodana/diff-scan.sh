@@ -2,6 +2,10 @@
 #
 # Runs Qodana on the files changed between the merge-base with --base and HEAD, like the CI pr-mode run.
 #
+# Without --base, the base is main fetched from the repository URL into refs/qodana/base, so no remote
+# name matters. --no-fetch reuses that ref, and stops if it was never fetched. An explicit --base is
+# fetched only when it is <remote>/<branch> for an existing remote, unless --no-fetch.
+#
 # A diff run does `git checkout -f <merge-base>` and then `git checkout -f <HEAD sha>`, which silently
 # discards uncommitted work. This script refuses to start if either checkout could destroy anything, and
 # switches back to the original branch afterwards (the CLI leaves HEAD detached).
@@ -15,7 +19,10 @@
 
 set -euo pipefail
 
-base='upstream/main'
+repo_url='https://github.com/intellij-elixir/intellij-elixir.git'
+default_base='refs/qodana/base'
+base="$default_base"
+base_given=0
 no_fetch=0
 dry_run=0
 qodana_args=()
@@ -24,6 +31,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --base)
             base="$2"
+            base_given=1
             shift 2
             ;;
         --no-fetch)
@@ -35,7 +43,7 @@ while [ $# -gt 0 ]; do
             shift
             ;;
         -h|--help)
-            sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *)
@@ -65,7 +73,13 @@ for marker in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD rebase-merge rebase-apply 
     fi
 done
 
-if [ "$no_fetch" -eq 0 ]; then
+if [ "$base_given" -eq 0 ]; then
+    if [ "$no_fetch" -eq 0 ]; then
+        git fetch --quiet "$repo_url" "+refs/heads/main:$default_base"
+    elif ! git rev-parse --verify --quiet "$default_base" > /dev/null; then
+        abort "$default_base was never fetched. Run once without --no-fetch."
+    fi
+elif [ "$no_fetch" -eq 0 ]; then
     remote="${base%%/*}"
     branch="${base#*/}"
     if [ "$branch" != "$base" ] && git remote | grep -qx "$remote"; then
