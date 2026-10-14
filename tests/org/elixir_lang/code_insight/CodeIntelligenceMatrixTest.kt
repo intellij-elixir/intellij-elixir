@@ -982,7 +982,7 @@ private class Group(val scenario: Scenario) {
     private fun checkVariableGoToDeclaration() {
         openAt(place)
         val landed = myFixture.gotoDeclarationTargetsAtCaret().orEmpty().map { target ->
-            target.destination?.let { variableUsageSite(it.containingFile, it.textOffset) } ?: "a target with no destination"
+            target.destination?.let { siteIdAt(it.containingFile, it.textOffset) } ?: "a target with no destination"
         }.sorted()
 
         assertEquals("Go To Declaration from ${place.id} landed on the wrong bindings", siteOrNull()!!.variable!!.declarations.sorted(), landed)
@@ -994,7 +994,7 @@ private class Group(val scenario: Scenario) {
         val bindings = siteOrNull()!!.variable!!.declarations.toSet()
         val targets = myFixture.searchTargetCountAtCaret()
         val found = myFixture.everyTargetPsiUsagesAtCaret(project).filterNot { it.declaration }.map { usage ->
-            variableUsageSite(usage.file, usage.range.startOffset)
+            siteIdAt(usage.file, usage.range.startOffset)
         }.distinct().sorted()
         val expected = scenario.sites
             .filter { site -> site.variable?.let { !it.binding && it.declarations.any(bindings::contains) } == true }
@@ -1032,7 +1032,7 @@ private class Group(val scenario: Scenario) {
     }
 
     /** Which site an element or usage starting at [offset] is, or where it is when no site is there. */
-    private fun variableUsageSite(file: PsiFile, offset: Int): String {
+    private fun siteIdAt(file: PsiFile, offset: Int): String {
         val virtualFile = fileOf(file)
         val site = scenario.sites.firstOrNull { site -> callerFiles[site.file] == virtualFile && offsetOf(virtualFile!!, site.line, site.column) == offset }
         if (site != null) return site.id
