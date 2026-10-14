@@ -100,7 +100,10 @@ defmodule Matrix do
       # Not a function: `@limit value` writes a module attribute and `@limit` reads it. Only the attribute worlds ask it.
       %{id: "attribute", attribute: true},
       # Not a function: a variable bound in a function body and read inside a nested clause. Only the variable worlds ask it.
-      %{id: "variable", variable: true}
+      %{id: "variable", variable: true},
+      # Not a function: a protocol, its `defimpl`s and a behaviour with its implementer, whose same-named functions are
+      # one function to the language where a protocol or a callback declares them. Only the impl world asks it.
+      %{id: "impl", impl: true}
     ]
   end
 
@@ -319,6 +322,53 @@ defmodule Matrix do
   }
   @variable_world_ids Map.keys(@variable_worlds)
 
+  # The impl world: one file of top-level modules, `snoc`/`push` marked `# @<id>` in column order on each line.
+  # `Queue` declares `snoc/2`; its `List` impl has a same-named `defp snoc/3` and its `Tuple` impl an undeclared `def
+  # snoc/1`, neither of which the protocol dispatches to. `Stack` has the callback `push/2`; `ListStack` implements it
+  # with a head whose default also covers `push/1`.
+  @impl_world_ids ["impl"]
+  @impl_names [:snoc, :push]
+  @impl_lines [
+    "defprotocol Src.Impl.Impl.Queue do",
+    "  def snoc(queue, item) # @declaration",
+    "end",
+    "",
+    "defimpl Src.Impl.Impl.Queue, for: List do",
+    "  def snoc(queue, item), do: snoc(queue, item, :tail) # @list_head @private_call",
+    "  defp snoc(queue, item, :tail), do: queue ++ [item] # @private_head",
+    "end",
+    "",
+    "defimpl Src.Impl.Impl.Queue, for: Tuple do",
+    "  def snoc(tuple, item), do: Tuple.insert_at(tuple, tuple_size(tuple), item) # @tuple_head",
+    "  def snoc(tuple), do: tuple # @extra_head",
+    "end",
+    "",
+    "defmodule Src.Impl.Impl.Stack do",
+    "  @callback push(stack :: term, item :: term) :: term # @callback",
+    "end",
+    "",
+    "defmodule Src.Impl.Impl.ListStack do",
+    "  @behaviour Src.Impl.Impl.Stack",
+    "",
+    "  def push(stack, item \\\\ nil) # @push_head",
+    "  def push(stack, item) when is_list(stack), do: [item | stack] # @push_clause_1",
+    "  def push(stack, item), do: [item | List.wrap(stack)] # @push_clause_2",
+    "end",
+    "",
+    "defmodule Src.Impl.Impl.Caller do",
+    "  def run do",
+    "    [",
+    "      Src.Impl.Impl.Queue.snoc([], 1), # @protocol_call",
+    "      Src.Impl.Impl.Queue.List.snoc([], 1), # @list_call",
+    "      Src.Impl.Impl.Queue.Tuple.snoc({}, 1), # @tuple_call",
+    "      Src.Impl.Impl.Queue.Tuple.snoc({}), # @extra_call",
+    "      Src.Impl.Impl.ListStack.push([], 1), # @push_call",
+    "      Src.Impl.Impl.ListStack.push([]) # @push_default_call",
+    "    ]",
+    "  end",
+    "end"
+  ]
+
   # The worlds whose main module's definitions a `use` injects.
   @use_worlds ["x_use_injected", "x_use_injected_defaults", "x_use_apply"]
   @injecting_worlds @use_worlds ++ @use_wrapper_worlds ++ @use_parens_worlds ++ @use_quote_wrapper_worlds ++ @use_quote_shape_worlds
@@ -353,7 +403,8 @@ defmodule Matrix do
     worlds = Enum.reduce(@compile_time_call_worlds, worlds, &Map.put(&2, &1, %{modules: worlds["w1"].modules, calls: [], asks: Map.keys(@compile_time_calls)}))
 
     worlds = Enum.reduce(@attribute_world_ids, worlds, &Map.put(&2, &1, %{attribute: true}))
-    Enum.reduce(@variable_world_ids, worlds, &Map.put(&2, &1, %{variable: true}))
+    worlds = Enum.reduce(@variable_world_ids, worlds, &Map.put(&2, &1, %{variable: true}))
+    Enum.reduce(@impl_world_ids, worlds, &Map.put(&2, &1, %{impl: true}))
   end
 
   defp base_worlds do
@@ -545,6 +596,15 @@ defmodule Matrix do
   # `beamLanguage = "elixir"` and picks the same decompiler `ex_gen` gets. Measured over 1,090 comparable cells,
   # the two never once disagreed - not coincidence but the same code. One scenario is kept so the fallback itself
   # can be pinned by a guard; asking the features again would cost seconds and red cells to learn nothing.
+  def not_applicable(_backing, %{impl: true}, world) when world not in @impl_world_ids,
+    do: "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls"
+
+  def not_applicable(_backing, form, world) when world in @impl_world_ids and not is_map_key(form, :impl),
+    do: "the impl world's subject is its protocol and behaviour, which no other form declares"
+
+  def not_applicable(%{id: backing}, %{impl: true}, _world) when backing != "src",
+    do: "a `defimpl` is a source concept: a compiled impl is a module of the protocol's name and the target's, with no head to ask"
+
   def not_applicable(_backing, %{variable: true}, world) when world not in @variable_world_ids,
     do: "the variable form's subject is a variable, which only the variable worlds bind and read"
 
@@ -707,6 +767,7 @@ defmodule Matrix do
                 cond do
                   form[:attribute] -> attribute_scenario(backing, form, world)
                   form[:variable] -> variable_scenario(backing, form, world)
+                  form[:impl] -> impl_scenario(backing, form, world)
                   true -> scenario(backing, form, world, spec)
                 end
 
@@ -1306,6 +1367,171 @@ defmodule Matrix do
       ],
       "sites" => sites
     }
+  end
+
+  # The impl world's file and its sites: every `snoc` and `push` followed by `(`, marked `# @<id>` in column order.
+  #
+  # Which of them are heads is the AST's answer, and what a call is of is the language's: a protocol function and a
+  # callback are what their `@callback`s declare, so a module whose `@behaviour` lists the protocol or the behaviour
+  # defines that one function there, at every arity its defaults cover. A function nothing declares is its own.
+  defp impl_scenario(backing, form, world) do
+    [prefix] = module_names(backing, form, world, 1)
+    path = Path.join(["lib", backing.id, (prefix |> Macro.underscore() |> String.replace("/", ".")) <> ".ex"])
+    source = "# #{@header}\n" <> Enum.join(@impl_lines, "\n") <> "\n"
+    File.mkdir_p!(Path.dirname(path))
+    File.write!(path, source)
+
+    diagnostics = variable_compile!(source, path)
+    if diagnostics != [], do: raise("#{path} compiled with diagnostics: #{inspect(diagnostics)}")
+
+    {_ast, %{heads: heads, calls: calls}} =
+      source
+      |> Code.string_to_quoted!(columns: true, emit_warnings: false)
+      |> Macro.traverse(%{stack: [], heads: [], calls: []}, &impl_enter/2, &impl_leave/2)
+
+    lines = Enum.with_index(String.split(source, "\n"), 1)
+    pattern = ~r/\b(?:#{Enum.join(@impl_names, "|")})(?=\()/
+
+    marked =
+      for {text, line} <- lines,
+          [_, ids] <- [Regex.run(~r/# ((?:@\w+ ?)+)$/, text)],
+          do: {line, ids |> String.split() |> Enum.map(&String.trim_leading(&1, "@"))}
+
+    positions =
+      for {text, line} <- lines, [{start, length}] <- Regex.scan(pattern, text, return: :index),
+          do: {line, start + 1, binary_part(text, start, length)}
+
+    located =
+      Enum.flat_map(marked, fn {line, ids} ->
+        at = for {^line, column, name} <- positions, do: {column, name}
+        if length(at) != length(ids), do: raise("#{path}:#{line}: the names there, #{inspect(at)}, are not the marked #{inspect(ids)}")
+        Enum.zip_with(ids, at, fn id, {column, name} -> {id, line, column, name} end)
+      end)
+
+    if length(located) != length(positions), do: raise("#{path}: #{inspect(positions)} holds a name no line marks")
+
+    head_at = Map.new(heads, &{{&1.line, &1.column}, &1})
+    call_at = Enum.group_by(calls, & &1.line)
+
+    bound =
+      Enum.map(located, fn {id, line, column, name} ->
+        case head_at[{line, column}] do
+          nil ->
+            case call_at[line] do
+              [call] -> %{id: id, line: line, column: column, name: name, role: :call, arity: call.arity, key: impl_key(heads, call)}
+              other -> raise("#{path}:#{line}: expected one call of `#{name}`, got #{inspect(other)}")
+            end
+
+          head ->
+            role = if head.declares or function_exported?(head.module, :__protocol__, 1), do: :declaration, else: :head
+            %{id: id, line: line, column: column, name: name, role: role, arity: head.last, key: impl_key(heads, head)}
+        end
+      end)
+
+    sites =
+      for site <- bound do
+        %{
+          "id" => site.id,
+          "file" => path,
+          "line" => site.line,
+          "column" => site.column,
+          "name" => site.name,
+          "arity" => site.arity,
+          "binding" => nil,
+          "impl" => %{
+            "role" => to_string(site.role),
+            "family" => impl_family(site.key),
+            "declarations" => for(other <- bound, other.role != :call, other.key == site.key, do: other.id)
+          }
+        }
+      end
+
+    %{
+      "backing" => backing.id,
+      "form" => form.id,
+      "world" => world,
+      "caller" => path,
+      "brokenCallers" => [],
+      "importCallers" => [],
+      "modules" => [
+        %{
+          "module" => "#{prefix}.Caller",
+          "source" => path,
+          "spec" => path,
+          "heads" => [],
+          "complete" => true,
+          "beam" => nil,
+          "clauseSource" => nil,
+          "delegateTo" => nil,
+          "delegateAs" => nil,
+          "definitions" => [],
+          "declarations" => []
+        }
+      ],
+      "sites" => sites
+    }
+  end
+
+  defp impl_enter({kind, _, [{:__aliases__, _, parts} | _]} = node, state) when kind in [:defmodule, :defprotocol],
+    do: {node, %{state | stack: [Module.concat(parts) | state.stack]}}
+
+  defp impl_enter({:defimpl, _, [{:__aliases__, _, protocol}, [for: {:__aliases__, _, target}] | _]} = node, state),
+    do: {node, %{state | stack: [Module.concat(Module.concat(protocol), Module.concat(target)) | state.stack]}}
+
+  defp impl_enter({definer, _, [head | _]} = node, state) when definer in [:def, :defp] do
+    {name, meta, args} =
+      case head do
+        {:when, _, [inner | _]} -> inner
+        inner -> inner
+      end
+
+    {node, impl_head(state, name, meta, args, false)}
+  end
+
+  defp impl_enter({:@, _, [{:callback, _, [{:"::", _, [{name, meta, args} | _]}]}]} = node, state),
+    do: {node, impl_head(state, name, meta, args, true)}
+
+  defp impl_enter({{:., _, [{:__aliases__, _, parts}, name]}, meta, args} = node, state) when name in @impl_names and is_list(args),
+    do: {node, impl_call(state, Module.concat(parts), name, meta, args)}
+
+  defp impl_enter({name, meta, args} = node, state) when name in @impl_names and is_list(args) do
+    if Enum.any?(state.heads, &(&1.line == meta[:line] and &1.column == meta[:column])),
+      do: {node, state},
+      else: {node, impl_call(state, hd(state.stack), name, meta, args)}
+  end
+
+  defp impl_enter(node, state), do: {node, state}
+
+  defp impl_leave({kind, _, [{:__aliases__, _, _} | _]} = node, %{stack: [_ | rest]} = state) when kind in [:defmodule, :defprotocol, :defimpl],
+    do: {node, %{state | stack: rest}}
+
+  defp impl_leave(node, state), do: {node, state}
+
+  # A head covers every arity down to its defaults: `last` is the one a clause with all its parameters has.
+  defp impl_head(state, name, meta, args, declares) when name in @impl_names and is_list(args) do
+    last = length(args)
+    first = last - Enum.count(args, &match?({:\\, _, _}, &1))
+    head = %{module: hd(state.stack), name: name, line: meta[:line], column: meta[:column], first: first, last: last, declares: declares}
+    %{state | heads: [head | state.heads]}
+  end
+
+  defp impl_head(state, _name, _meta, _args, _declares), do: state
+
+  defp impl_call(state, module, name, meta, args),
+    do: %{state | calls: [%{module: module, name: name, line: meta[:line], arity: length(args), first: length(args), last: length(args)} | state.calls]}
+
+  # The function a head or call is of, at the largest arity the head it falls under covers.
+  defp impl_key(heads, %{module: module, name: name, first: first, last: last}) do
+    covering = Enum.find(heads, &(&1.module == module and &1.name == name and &1.first <= last and first <= &1.last))
+    {module, name, if(covering, do: covering.last, else: last)}
+  end
+
+  # What the language says the function is: the callback a module itself declares or lists in `@behaviour`, else its own.
+  defp impl_family({module, name, arity}) do
+    behaviours = for {:behaviour, list} <- module.module_info(:attributes), behaviour <- list, do: behaviour
+    declares? = fn candidate -> function_exported?(candidate, :behaviour_info, 1) and {name, arity} in candidate.behaviour_info(:callbacks) end
+
+    "#{inspect(Enum.find([module | behaviours], module, declares?))}.#{name}/#{arity}"
   end
 
   defp variable_compile!(source, path) do
