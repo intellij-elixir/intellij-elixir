@@ -19,6 +19,10 @@ import java.io.StringWriter
 
 /** Runs each sample class in a nested launcher. */
 class UnexpectedLogsTest : UnitTestCase() {
+    private companion object {
+        const val FILE_WATCHER_CATEGORY = "#com.intellij.openapi.vfs.impl.local.FileWatcher"
+    }
+
     fun testVintage() {
         val results = run(VintageSample::class.java)
 
@@ -121,6 +125,42 @@ class UnexpectedLogsTest : UnitTestCase() {
             IgnoredLogs.matches(
                 "#com.intellij.ide.plugins.PluginManager",
                 "Environment-configured module is not found: intellij.platform.split",
+                null,
+            ),
+        )
+    }
+
+    fun testTheFileWatcherMissingItsExtensionPointInAMockApplicationIsIgnored() {
+        assertTrue(
+            IgnoredLogs.matches(
+                FILE_WATCHER_CATEGORY,
+                "Missing extension point: com.intellij.vfs.local.pluggableFileWatcher in container {}",
+                null,
+            ),
+        )
+    }
+
+    // Only the empty mock-application container is ignored: a real application missing the extension point, or
+    // another extension point missing from the mock, still fails a test.
+    fun testTheFileWatcherMissingItsExtensionPointInARealApplicationIsNotIgnored() {
+        assertFalse(
+            IgnoredLogs.matches(
+                FILE_WATCHER_CATEGORY,
+                "Missing extension point: com.intellij.vfs.local.pluggableFileWatcher in container ApplicationImpl@1d3a7f2",
+                null,
+            ),
+        )
+        assertFalse(
+            IgnoredLogs.matches(
+                FILE_WATCHER_CATEGORY,
+                "Missing extension point: com.intellij.otherExtensionPoint in container {}",
+                null,
+            ),
+        )
+        assertFalse(
+            IgnoredLogs.matches(
+                "#com.intellij.openapi.vfs.impl.local.OtherWatcher",
+                "Missing extension point: com.intellij.vfs.local.pluggableFileWatcher in container {}",
                 null,
             ),
         )

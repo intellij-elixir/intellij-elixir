@@ -711,6 +711,8 @@
 
 ### Build / CI
 
+- [#4438](https://github.com/intellij-elixir/intellij-elixir/pull/4438) [@sh41](https://github.com/sh41)
+  - **The unexpected-log check no longer fails a parsing test, after it has passed, on the platform's file watcher logging a missing extension point through the test's mock application.** Fixes [#4436](https://github.com/intellij-elixir/intellij-elixir/issues/4436).
 - [#4434](https://github.com/intellij-elixir/intellij-elixir/pull/4434) [@sh41](https://github.com/sh41)
   - **`MixDepsSyncServiceTest` waits for the sync its own fixture starts before it seeds libraries, so it no longer fails intermittently, most often on the Windows leg.** Fixes [#4432](https://github.com/intellij-elixir/intellij-elixir/issues/4432).
 - [#4424](https://github.com/intellij-elixir/intellij-elixir/pull/4424) [@sh41](https://github.com/sh41)
