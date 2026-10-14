@@ -300,6 +300,7 @@ private class Group(val scenario: Scenario) {
     private fun check(feature: Feature, binding: Binding?, name: String?) {
         if (scenario.attribute) return checkAttribute(feature, name)
         if (scenario.variable) return checkVariable(feature)
+        if (scenario.impl) return checkImpl(feature)
 
         when (feature) {
             Feature.GO_TO_DECLARATION -> checkGoToDeclaration(binding)
@@ -1013,6 +1014,69 @@ private class Group(val scenario: Scenario) {
         val positions = scenario.sites
             .filter { other -> other.variable?.let { it.declarations.any(bindings::contains) } == true }
             .map { it.file to (it.line to it.column) }
+        val targets = myFixture.renameTargetsAtCaret()
+        rename(
+            targets.singleOrNull()
+                ?: throw AssertionError("Expected exactly one rename target at the caret, got ${targets.size}: $targets"),
+            newName
+        )
+
+        val wrong = originals.keys.mapNotNull { file ->
+            val path = callerFiles.entries.single { it.value == file }.key
+            val expected = replaceNames(originals.getValue(file), positions.filter { it.first == path }.map { it.second }, newName)
+            val actual = FileDocumentManager.getInstance().getDocument(file)!!.text
+
+            if (actual == expected) null else "${file.name}: ${differences(expected, actual)}"
+        }
+
+        assertEquals("Renaming ${site.name} to $newName from ${place.id} changed the wrong text", emptyList<String>(), wrong)
+    }
+
+    // -- Protocols and behaviours -----------------------------------------------------------
+
+    private fun checkImpl(feature: Feature) {
+        when (feature) {
+            Feature.GO_TO_DECLARATION -> checkImplGoToDeclaration()
+            Feature.FIND_USAGES -> checkImplFindUsages()
+            Feature.RENAME -> checkImplRename()
+            else -> throw AssertionError("${feature.testName} is not asked of a protocol or behaviour function")
+        }
+    }
+
+    /** A call lands on the heads of the function it is bound to: a protocol call on the protocol's declaration, not on an implementation. */
+    private fun checkImplGoToDeclaration() {
+        openAt(place)
+        val landed = myFixture.gotoDeclarationTargetsAtCaret().orEmpty().map { target ->
+            target.destination?.let(::describeLine) ?: "a target with no destination"
+        }.sorted()
+        val expected = siteOrNull()!!.impl!!.declarations.map { id ->
+            val head = scenario.sites.single { it.id == id }
+            describeLine(fileOf(head), head.line)
+        }.sorted()
+
+        assertEquals("Go To Declaration from ${place.id} landed on the wrong heads", expected, landed)
+    }
+
+    /** From a declaration, an implementation head or a call, every call of the family; a same-named function nothing declares is not of it. */
+    private fun checkImplFindUsages() {
+        openAt(place)
+        val family = siteOrNull()!!.impl!!.family
+        val targets = myFixture.searchTargetCountAtCaret()
+        val found = myFixture.everyTargetPsiUsagesAtCaret(project).filterNot { it.declaration }.map { usage ->
+            siteIdAt(usage.file, usage.range.startOffset)
+        }.distinct().sorted()
+        val expected = scenario.sites.filter { it.impl!!.role == "call" && it.impl.family == family }.map { it.id }.sorted()
+
+        assertEquals("Find Usages from ${place.id} found the wrong calls from $targets search targets at the caret", expected, found)
+    }
+
+    /** Every declaration, head and call of the family is renamed, and nothing else changes. */
+    private fun checkImplRename() {
+        openAt(place)
+        val site = siteOrNull()!!
+        val family = site.impl!!.family
+        val newName = "renamed_${site.name}"
+        val positions = scenario.sites.filter { it.impl!!.family == family }.map { it.file to (it.line to it.column) }
         val targets = myFixture.renameTargetsAtCaret()
         rename(
             targets.singleOrNull()

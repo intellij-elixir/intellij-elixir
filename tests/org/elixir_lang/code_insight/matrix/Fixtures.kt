@@ -59,6 +59,9 @@ class Scenario(
     /** Whether the subject is a variable rather than a function; its module is then its own [caller]. */
     val variable: Boolean get() = form == VARIABLE_FORM
 
+    /** Whether the subject is a protocol's or behaviour's function rather than a plain one; its module is then its own [caller]. */
+    val impl: Boolean get() = form == IMPL_FORM
+
     /** Whether the main module's definitions are written in another module's source, as a `use` injects them. */
     val injected: Boolean get() = main.declarations.any { it.file != null }
 
@@ -185,6 +188,8 @@ class Site(
     val attribute: AttributeSite? = null,
     /** For a variable's binding or read, what the compiler says of it; null at a call. */
     val variable: VariableSite? = null,
+    /** For a protocol or behaviour function's declaration, implementation head or call, which family it is of; null elsewhere. */
+    val impl: ImplSite? = null,
 )
 
 /**
@@ -199,6 +204,14 @@ class AttributeSite(val write: Boolean, val declarations: List<String>, val visi
  * [rename] says whether rename is asked here.
  */
 class VariableSite(val binding: Boolean, val declarations: List<String>, val rename: Boolean = false)
+
+/**
+ * A protocol or behaviour function's `declaration` (the `def` in a protocol, the `@callback`), an implementation `head`
+ * or a `call`, by [role]. [family] names what the language says it is of: everything a protocol call can dispatch to,
+ * every implementation of a callback, and every arity a head's defaults cover are one family, and a function nothing
+ * declares is its own. [declarations] are the ids of the heads of the exact function a call is bound to.
+ */
+class ImplSite(val role: String, val family: String, val declarations: List<String>)
 
 /** Whether a bare call at [this] site can reach [definition] at any of its arities: always, unless [Site.visible] says. */
 fun Site.sees(definition: Definition): Boolean =

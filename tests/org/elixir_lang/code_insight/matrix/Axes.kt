@@ -153,6 +153,9 @@ const val ATTRIBUTE_FORM = "attribute"
 /** The form whose subject is a variable bound in a function body and read in a nested clause. */
 const val VARIABLE_FORM = "variable"
 
+/** The form whose subject is a protocol's or behaviour's function, its implementations and their calls. */
+const val IMPL_FORM = "impl"
+
 /** Whether [id] is the name in a `@spec`, which `generate.exs` marks `spec_<arity>`. */
 fun specName(id: String): Boolean = id.startsWith("spec_")
 
@@ -204,6 +207,7 @@ object Crossing {
         return when {
             scenario.attribute -> attributeApplicability(scenario, feature, place)
             scenario.variable -> variableApplicability(scenario, feature, place)
+            scenario.impl -> implApplicability(scenario, feature, place)
             place is Place.Marked && namesModule(scenario, place) && feature != Feature.QUICK_DOCUMENTATION ->
                 Applicability.NotApplicable("a moduledoc world asks only what Quick Documentation shows of the module")
             feature == Feature.GO_TO_RELATED && !(place is Place.Head && backing in setOf(Backing.EX_DBGI, Backing.EX_DOCS, Backing.EX_GEN)) ->
@@ -303,6 +307,19 @@ object Crossing {
                 Applicability.NotApplicable("a variable is asked only which binding a read is of, which reads share it, and rename")
             feature == Feature.GO_TO_DECLARATION && site.variable!!.binding ->
                 Applicability.NotApplicable("Ctrl+Click on a binding is Show Usages, asked as findUsages")
+            else -> Applicability.Applicable
+        }
+    }
+
+    /** An implementation is asked where a call lands, which calls share its family and, from any name of it, rename. */
+    private fun implApplicability(scenario: Scenario, feature: Feature, place: Place): Applicability {
+        val site = scenario.sites.single { it.id == place.id }
+
+        return when {
+            feature != Feature.GO_TO_DECLARATION && feature != Feature.FIND_USAGES && feature != Feature.RENAME ->
+                Applicability.NotApplicable("a protocol or behaviour function is asked only where a call lands, which calls share its family, and rename")
+            feature == Feature.GO_TO_DECLARATION && site.impl!!.role != "call" ->
+                Applicability.NotApplicable("Ctrl+Click on a declaration is Show Usages, asked as findUsages")
             else -> Applicability.Applicable
         }
     }
