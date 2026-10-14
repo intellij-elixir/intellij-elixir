@@ -4,9 +4,7 @@ import com.intellij.codeInsight.CodeInsightActionHandler
 import com.intellij.codeInsight.navigation.PsiTargetNavigator
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
-import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
-import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.protocol.ProtocolImplementation
@@ -42,25 +40,7 @@ internal class GotoSuper : CodeInsightActionHandler {
         val defimpl = CallDefinitionClause.enclosingModularMacroCall(definition) ?: return
         if (!Implementation.`is`(defimpl)) return
 
-        val implementer = DefinitionDeclaration.of(definition, ResolveState.initial()) ?: return
-
-        val protocols = mutableListOf<PsiElement>()
-        Implementation.processProtocols(defimpl) { protocol -> protocols.add(protocol) }
-
-        val targets = protocols
-                .asSequence()
-                .filterIsInstance<Call>()
-                .flatMap { defprotocol ->
-                    CallDefinitionClause.modularChildCalls(defprotocol).asSequence()
-                }
-                .filter(CallDefinitionClause::`is`)
-                .filter { protocolCallDefinitionClause ->
-                    DefinitionDeclaration.of(protocolCallDefinitionClause, ResolveState.initial())
-                            ?.let { member -> ProtocolImplementation.implementedBy(member, implementer) }
-                            ?: false
-                }
-                .toList()
-                .toTypedArray()
+        val targets = ProtocolImplementation.memberElementsImplementedBy(definition).toTypedArray()
 
         if (targets.isNotEmpty()) {
             PsiTargetNavigator(targets)

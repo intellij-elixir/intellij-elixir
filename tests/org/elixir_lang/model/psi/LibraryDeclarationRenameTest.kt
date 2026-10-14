@@ -107,6 +107,18 @@ class LibraryDeclarationRenameTest : PlatformTestCase() {
         assertRenameRefused(declaration)
     }
 
+    /**
+     * A function that implements a callback declared in a library is one symbol with it, so renaming it from a call
+     * would rewrite the library's `@callback`. Rename refuses, as it does from the implementing head.
+     */
+    fun testImplementedCallbackInALibraryIsRefusedFromACall() {
+        val declaration = outsideProject("path_dependency_callback/lib", "lib.ex", CALLBACK_SOURCE)
+
+        addSourcesLibrary(declaration.parent)
+
+        assertRenameRefused(declaration, IMPLEMENTER, CALLBACK_SOURCE)
+    }
+
     fun testScratchFileRenames() {
         val scratch = ScratchRootType.getInstance().createScratchFile(
             project,
@@ -172,12 +184,16 @@ class LibraryDeclarationRenameTest : PlatformTestCase() {
         cleanups += { BeamLibraryFixture.removeLibrary(project, module, LIBRARY_NAME) }
     }
 
-    private fun configureCaller() {
-        myFixture.configureByText("caller.ex", CALLER)
+    private fun configureCaller(caller: String) {
+        myFixture.configureByText("caller.ex", caller)
     }
 
-    private fun assertRenameRefused(declaration: VirtualFile) {
-        configureCaller()
+    private fun assertRenameRefused(
+        declaration: VirtualFile,
+        caller: String = CALLER,
+        librarySource: String = LIBRARY_SOURCE
+    ) {
+        configureCaller(caller)
         val targets = myFixture.renameTargetsAtCaret()
 
         assertNotEmpty(targets)
@@ -192,11 +208,11 @@ class LibraryDeclarationRenameTest : PlatformTestCase() {
             )
         }
 
-        assertEquals(LIBRARY_SOURCE, textOf(declaration))
+        assertEquals(librarySource, textOf(declaration))
     }
 
     private fun assertRenamed(declaration: VirtualFile) {
-        configureCaller()
+        configureCaller(CALLER)
         myFixture.renameTargetAtCaret("fresh")
 
         assertEquals(LIBRARY_SOURCE.replace("fun", "fresh"), textOf(declaration))
@@ -210,6 +226,9 @@ class LibraryDeclarationRenameTest : PlatformTestCase() {
         const val LIBRARY_NAME = "library_declaration_rename_test_lib"
         const val REFUSAL = "declared outside the project, in a library or SDK"
         const val LIBRARY_SOURCE = "defmodule Lib do\n  def fun, do: :ok\nend\n"
+        const val CALLBACK_SOURCE = "defmodule Lib do\n  @callback fun() :: :ok\nend\n"
+        const val IMPLEMENTER =
+            "defmodule Caller do\n  @behaviour Lib\n\n  @impl true\n  def fun, do: :ok\n\n  def run, do: fu<caret>n()\nend\n"
         const val CALLER = "defmodule Caller do\n  def run, do: Lib.fu<caret>n()\nend\n"
     }
 }

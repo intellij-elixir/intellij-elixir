@@ -11,12 +11,9 @@ import com.intellij.openapi.util.Computable
 import com.intellij.openapi.util.NotNullLazyValue
 import com.intellij.psi.NavigatablePsiElement
 import com.intellij.psi.PsiElement
-import com.intellij.psi.ResolveState
 import com.intellij.psi.SmartPsiElementPointer
 import org.elixir_lang.Icons
-import org.elixir_lang.beam.psi.Module as BeamModule
 import org.elixir_lang.model.psi.protocol.ProtocolImplementation
-import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
 import org.elixir_lang.psi.DefinitionDeclaration
 import org.elixir_lang.psi.Implementation
@@ -62,52 +59,17 @@ class Implementation : LineMarkerProvider {
             ProtocolsGutterIconBuilder()
                 .setTargets(targets)
                 .createLineMarkerInfo(anchor)
-        } else if (DefinitionDeclaration.`is`(call)) {
-            enclosingModularMacroCall(call)?.let { modularCall ->
-                DefinitionDeclaration.of(call, ResolveState.initial())?.let { implementer ->
-                    if (Implementation.`is`(modularCall)) {
-                        val anchor = markerAnchor(call) ?: return null
-                        val targets: NotNullLazyValue<Collection<PsiElement>> = NotNullLazyValue.createValue {
-                            val protocols = mutableListOf<PsiElement>()
-
-                            Implementation.processProtocols(modularCall) { defprotocol ->
-                                when (defprotocol) {
-                                    is Call ->
-                                        for (defprotocolChild in CallDefinitionClause.modularChildCalls(defprotocol)) {
-                                            if (CallDefinitionClause.`is`(defprotocolChild)) {
-                                                DefinitionDeclaration
-                                                    .of(defprotocolChild, ResolveState.initial())
-                                                    ?.let { member ->
-                                                        if (ProtocolImplementation.implementedBy(member, implementer)) {
-                                                            protocols.add(defprotocolChild)
-                                                        }
-                                                    }
-                                            }
-                                        }
-
-                                    is BeamModule ->
-                                        for (callDefinition in defprotocol.callDefinitions()) {
-                                            if (ProtocolImplementation.implementedBy(callDefinition.declaration(), implementer)) {
-                                                protocols.add(callDefinition)
-                                            }
-                                        }
-                                }
-
-                                true
-                            }
-
-                            protocols
-                        }
-
-
-                        ProtocolsGutterIconBuilder()
-                            .setTargets(targets)
-                            .createLineMarkerInfo(anchor)
-                    } else {
-                        null
-                    }
-                }
+        } else if (
+            DefinitionDeclaration.`is`(call) && enclosingModularMacroCall(call)?.let { Implementation.`is`(it) } == true
+        ) {
+            val anchor = markerAnchor(call) ?: return null
+            val targets: NotNullLazyValue<Collection<PsiElement>> = NotNullLazyValue.createValue {
+                ProtocolImplementation.memberElementsImplementedBy(call)
             }
+
+            ProtocolsGutterIconBuilder()
+                .setTargets(targets)
+                .createLineMarkerInfo(anchor)
         } else {
             null
         }

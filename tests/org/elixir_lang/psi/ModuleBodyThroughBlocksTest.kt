@@ -252,7 +252,6 @@ class ModuleBodyThroughBlocksTest : PlatformTestCase() {
         configureWithBehaviour(body, callbackCaret = true)
 
         val implementations = myFixture.singleTargetPsiUsagesAtCaret(project)
-            .filterNot { it.declaration }
             .count { usage ->
                 usage.file.findElementAt(usage.range.startOffset)
                     ?.let { PsiTreeUtil.getParentOfType(it, Call::class.java, false) }

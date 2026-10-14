@@ -295,7 +295,7 @@ class SpellingFindUsagesTest : PlatformTestCase() {
         assertEquals("Find Usages lists `$line` once; it gave $lines", 1, lines.count { it == line })
     }
 
-    /** The trimmed host line of each usage in the file Find Usages is run to find, not counting its declaration. */
+    /** The trimmed host line of each usage in the file Find Usages is run to find. */
     @Suppress("UnstableApiUsage")
     private fun usageLines(declaring: String, usingName: String?, using: String?): List<String> {
         if (usingName != null && using != null) myFixture.addFileToProject(usingName, using)
@@ -303,7 +303,6 @@ class SpellingFindUsagesTest : PlatformTestCase() {
         val injected = InjectedLanguageManager.getInstance(project)
 
         return myFixture.psiUsagesAtCaret(project)
-            .filterNot { it.declaration && using != null }
             .map { usage -> hostLine(injected, usage) }
             .filter { (name, _) -> if (using == null) name == "declaring.ex" else name == usingName }
             .map { it.second }

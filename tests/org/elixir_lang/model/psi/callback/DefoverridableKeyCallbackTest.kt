@@ -247,7 +247,7 @@ class DefoverridableKeyCallbackTest : PlatformTestCase() {
     }
 
     private fun usageOffsets(): List<Int> =
-        myFixture.psiUsagesAtCaret(project).filterNot { it.declaration }.map { it.range.startOffset }
+        myFixture.psiUsagesAtCaret(project).map { it.range.startOffset }
 
     private fun describe(callback: Callback): String =
         "${callback.name}/${callback.arity}" + if (callback.macro) " macro" else ""

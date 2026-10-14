@@ -10,13 +10,12 @@ import com.intellij.model.psi.PsiSymbolReferenceService
 import com.intellij.model.search.SearchContext
 import com.intellij.model.search.SearchService
 import com.intellij.openapi.application.ReadAction
-import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
-import com.intellij.psi.ResolveState
+import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.LocalSearchScope
 import com.intellij.psi.search.SearchScope
 import com.intellij.psi.util.PsiTreeUtil
@@ -28,6 +27,7 @@ import com.intellij.util.AbstractQuery
 import com.intellij.util.MergeQuery
 import com.intellij.util.Processor
 import com.intellij.util.Query
+import com.intellij.util.UniqueResultsQuery
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.heex.HeexLanguage
@@ -44,6 +44,7 @@ import org.elixir_lang.model.psi.callback.Callback
 import org.elixir_lang.model.psi.callback.CallbackImplementation
 import org.elixir_lang.model.psi.function.FunctionArityKeywordPairReference
 import org.elixir_lang.model.psi.function.FunctionSymbol
+import org.elixir_lang.model.psi.function.definitionClause
 import org.elixir_lang.model.psi.module.ModuleReference
 import org.elixir_lang.model.psi.module.ModuleSymbol
 import org.elixir_lang.model.psi.module_attribute.ModuleAttributeReference
@@ -84,8 +85,9 @@ import java.util.concurrent.Callable as JCallable
  * - Every searchable symbol contributes its self-declaration usage.
  * - A [ProtocolFunction] additionally contributes each **call site** that dispatches to it
  *   (`Protocol.function(args)` of matching name/arity) and each implementing `def`/`defmacro`
- *   clause inside a `defimpl` of the same protocol (so rename keeps every implementation in sync;
- *   for Find Usages the implementations are also reachable via "Go To Implementation").
+ *   clause inside a `defimpl` of the same protocol, each a declaration, and every use of those
+ *   definitions (so rename keeps every implementation in sync, and Find Usages lists what rename touches).
+ * - A [FunctionSymbol] that implements a callback or a protocol function also contributes everything that member does.
  * - A [FunctionSymbol] additionally contributes each **call site** that dispatches to it.
  *   Qualified calls (`Module.function(args)`) are matched via [Call.isCalling]; unqualified calls
  *   require scope resolution and are resolved by delegating to the legacy [Callable] walker.
@@ -144,9 +146,24 @@ internal object ElixirUsageQueries {
             }
         }
 
-        return queries
+        // A function that implements a callback or a protocol function is one symbol with it: a use of the function is a
+        // use of the member, so a rename from a call to the function also renames the member and every implementation.
+        val implemented = (target as? FunctionSymbol)?.implementedMembers().orEmpty()
+        if (implemented.isEmpty()) return queries
+
+        val all = queries + implemented.flatMap { searchRequests(project, it, searchScope) }
+
+        return listOf(
+            UniqueResultsQuery(all.reduce { merged, next -> MergeQuery(merged, next) }) { usage ->
+                (usage as? PsiUsage)?.let { it.file to it.range } ?: usage
+            }
+        )
     }
 
+    /**
+     * A [Callback] or [ProtocolFunction] also finds the other clauses of each function its implementing definitions
+     * define, and every use of them, so a rename of the implementing heads leaves no call to the old name.
+     */
     private fun usageQueries(
         project: Project,
         target: ElixirSymbolWithUsages,
@@ -156,11 +173,15 @@ internal object ElixirUsageQueries {
         when (target) {
             is Callback -> {
                 queries += implementationQuery(project, target, searchScope)
+                queries += eachRangeOnce(callbackImplementedQuery(project, target, searchScope))
             }
 
             is ProtocolFunction -> {
-                queries += protocolCallSiteQuery(project, target, searchScope)
+                val callSites = protocolCallSiteQuery(project, target, searchScope)
+                val implemented = protocolImplementedQuery(project, target, searchScope)
                 queries += protocolImplementationQuery(project, target, searchScope)
+                // `Size.size(x)` is a dispatching call and, by its module, a call of an implementation.
+                queries += eachRangeOnce(MergeQuery(callSites, implemented))
             }
 
             is FunctionSymbol -> {
@@ -212,6 +233,74 @@ internal object ElixirUsageQueries {
     ): Query<out PsiUsage> =
         wordQuery(project, callback.name, searchScope, ImplementationMapper(callback.createPointer()))
 
+    /** What each definition that implements [callback] defines, through [implementedQuery]. */
+    private fun callbackImplementedQuery(
+        project: Project,
+        callback: Callback,
+        searchScope: SearchScope
+    ): Query<out PsiUsage> {
+        val pointer = callback.createPointer()
+
+        return implementedQuery(project, callback.name, searchScope) { leaf ->
+            pointer.dereference()?.let { callbackImplementer(leaf, it) }
+        }
+    }
+
+    /** What each definition that implements [pf] defines, through [implementedQuery]. */
+    private fun protocolImplementedQuery(
+        project: Project,
+        pf: ProtocolFunction,
+        searchScope: SearchScope
+    ): Query<out PsiUsage> {
+        val pointer = pf.createPointer()
+
+        return implementedQuery(project, pf.name, searchScope) { leaf ->
+            pointer.dereference()?.let { protocolImplementer(leaf, it) }
+        }
+    }
+
+    /**
+     * For each function the implementing definitions [implementerAt] finds at an occurrence of [name] define: its
+     * other clauses, which implement nothing themselves, as a default argument's header leaves them, and its uses. One
+     * search per function, however many definitions define it, and none for a head that keeps its text, whose calls
+     * keep theirs. The implementing definitions are found everywhere, so that a search limited to a client lists its
+     * calls of an implementation defined outside it; only the uses are limited to [searchScope].
+     */
+    private fun implementedQuery(
+        project: Project,
+        name: String,
+        searchScope: SearchScope,
+        implementerAt: (PsiElement) -> Implementer?
+    ): Query<out PsiUsage> {
+        val implemented = wordQuery(project, name, GlobalSearchScope.allScope(project), WordOccurrenceMapper { leaf, _ ->
+            implementerAt(leaf)?.takeUnless { it.keepsHeadText }?.functions().orEmpty()
+        })
+
+        return UniqueResultsQuery<FunctionSymbol, FunctionSymbol>(implemented)
+            .flatMapping { function ->
+                // The implementing heads are listed by the implementation query, and a protocol's own declaration is
+                // the target.
+                val siblings = functionDeclarationFamilyQuery(project, function, searchScope)
+                    .filtering { usage ->
+                        val leaf = usage.file.findElementAt(usage.range.startOffset)
+
+                        leaf != null && implementerAt(leaf) == null && !isProtocolDeclaration(leaf)
+                    }
+
+                MergeQuery(siblings, functionCallSiteQuery(project, function, searchScope))
+            }
+    }
+
+    /** Whether the definition clause [leaf] is in sits directly in a `defprotocol`, which is the target's own declaration. */
+    @RequiresReadLock
+    private fun isProtocolDeclaration(leaf: PsiElement): Boolean =
+        leaf.enclosingCalls().firstOrNull { CallDefinitionClause.`is`(it) }
+            ?.let { ProtocolFunction.fromClause(it).isNotEmpty() } == true
+
+    /** [query] without the second of two usages of one file and range. */
+    private fun <T : PsiUsage> eachRangeOnce(query: Query<out T>): Query<out T> =
+        UniqueResultsQuery<T, Pair<PsiFile, TextRange>>(query) { usage -> usage.file to usage.range }
+
     private fun protocolCallSiteQuery(
         project: Project,
         pf: ProtocolFunction,
@@ -240,26 +329,7 @@ internal object ElixirUsageQueries {
             // renaming with the callback.
             defoverridableKeyUsage(leaf, callback)?.let { return listOf(it) }
 
-            // Nearest enclosing definition (def/defp/defmacro/..., defdelegate).
-            val defClause = leaf.enclosingCalls().firstOrNull { DefinitionDeclaration.`is`(it) } ?: return emptyList()
-
-            // The occurrence must be the definition's own name, not a call in its body.
-            val nameIdentifier = DefinitionDeclaration.nameIdentifier(defClause) ?: return emptyList()
-            if (!PsiTreeUtil.isAncestor(nameIdentifier, leaf, false)) return emptyList()
-
-            if (!CallbackImplementation.implements(defClause, callback)) return emptyList()
-
-            val headName = nameIdentifier.text
-
-            return listOf(
-                ElixirPsiUsage.create(
-                    nameIdentifier,
-                    TextRange(0, nameIdentifier.textLength),
-                    declaration = false,
-                    usageType = IMPLEMENTATION,
-                    usageTextByName = if (Delegation.headKeepsTargetName(defClause)) { _ -> headName } else null
-                )
-            )
+            return callbackImplementer(leaf, callback)?.let { listOf(it.usage()) }.orEmpty()
         }
 
         /**
@@ -332,9 +402,8 @@ internal object ElixirUsageQueries {
 
     /**
      * Maps each occurrence of a protocol function name to an implementing definition
-     * inside a `defimpl` of the same protocol, if any. Unlike Find Usages (where implementations are
-     * reached via "Go To Implementation"), rename MUST update every `defimpl` clause so the protocol
-     * member and all its concrete implementations stay in sync.
+     * inside a `defimpl` of the same protocol, if any, so the protocol member and all its
+     * concrete implementations stay in sync under rename.
      */
     private class ProtocolImplementationMapper(
         private val protocolFunctionPointer: Pointer<out ProtocolFunction>
@@ -343,33 +412,65 @@ internal object ElixirUsageQueries {
         override fun map(leaf: PsiElement, offsetInLeaf: Int): Collection<PsiUsage> {
             val protocolFunction = protocolFunctionPointer.dereference() ?: return emptyList()
 
-            // Nearest enclosing definition: a clause or a `defdelegate`.
-            val definition = leaf.enclosingCalls().firstOrNull { DefinitionDeclaration.`is`(it) } ?: return emptyList()
+            return protocolImplementer(leaf, protocolFunction)?.let { listOf(it.usage()) }.orEmpty()
+        }
+    }
 
-            // The occurrence must be the definition's own name, not a call in its body.
-            val nameIdentifier = DefinitionDeclaration.nameIdentifier(definition) ?: return emptyList()
-            if (!PsiTreeUtil.isAncestor(nameIdentifier, leaf, false)) return emptyList()
-
-            val declaration = DefinitionDeclaration.of(definition, ResolveState.initial()) ?: return emptyList()
-            if (!ProtocolImplementation.implementedBy(protocolFunction, declaration)) return emptyList()
-
-            // The clause must live directly inside a `defimpl` for this protocol.
-            val defimpl = CallDefinitionClause.enclosingModularMacroCall(definition) ?: return emptyList()
-            if (!Implementation.`is`(defimpl)) return emptyList()
-            if (Implementation.protocolName(defimpl) != protocolFunction.protocolName) return emptyList()
-
+    /**
+     * A definition that implements a callback or a protocol function, its [nameIdentifier] being the head's name.
+     * [keepsHeadText] says a rename leaves the head as written. Its head is a declaration of the function.
+     */
+    private class Implementer(
+        val definition: Call,
+        val nameIdentifier: PsiElement,
+        val keepsHeadText: Boolean
+    ) {
+        fun usage(): PsiUsage {
             val headName = nameIdentifier.text
 
-            return listOf(
-                ElixirPsiUsage.create(
-                    nameIdentifier,
-                    TextRange(0, nameIdentifier.textLength),
-                    declaration = false,
-                    usageType = IMPLEMENTATION,
-                    usageTextByName = if (Delegation.headKeepsTargetName(definition)) { _ -> headName } else null
-                )
+            return ElixirPsiUsage.create(
+                nameIdentifier,
+                TextRange(0, nameIdentifier.textLength),
+                declaration = true,
+                usageType = IMPLEMENTATION,
+                usageTextByName = if (keepsHeadText) { _ -> headName } else null
             )
         }
+
+        /** The functions the definition defines, each of which its calls use. */
+        @RequiresReadLock
+        fun functions(): List<FunctionSymbol> = FunctionSymbol.fromClause(definition)
+    }
+
+    /** The definition `leaf` is the head name of, when it implements [callback]. */
+    @RequiresReadLock
+    private fun callbackImplementer(leaf: PsiElement, callback: Callback): Implementer? {
+        // Nearest enclosing definition (def/defp/defmacro/..., defdelegate).
+        val definition = leaf.enclosingCalls().firstOrNull { DefinitionDeclaration.`is`(it) } ?: return null
+
+        // The occurrence must be the definition's own name, not a call in its body.
+        val nameIdentifier = DefinitionDeclaration.nameIdentifier(definition) ?: return null
+        if (!PsiTreeUtil.isAncestor(nameIdentifier, leaf, false)) return null
+
+        if (!CallbackImplementation.implements(definition, callback)) return null
+
+        return Implementer(definition, nameIdentifier, Delegation.headKeepsTargetName(definition))
+    }
+
+    /** The definition `leaf` is the head name of, when it implements [protocolFunction] in a `defimpl` of its protocol. */
+    @RequiresReadLock
+    private fun protocolImplementer(leaf: PsiElement, protocolFunction: ProtocolFunction): Implementer? {
+        // Nearest enclosing definition: a clause or a `defdelegate`.
+        val definition = leaf.enclosingCalls().firstOrNull { DefinitionDeclaration.`is`(it) } ?: return null
+
+        // The occurrence must be the definition's own name, not a call in its body.
+        val nameIdentifier = DefinitionDeclaration.nameIdentifier(definition) ?: return null
+        if (!PsiTreeUtil.isAncestor(nameIdentifier, leaf, false)) return null
+
+        // Directly inside a `defimpl` for this protocol, as every other test of "implements" says.
+        if (protocolFunction !in ProtocolImplementation.membersImplementedBy(definition)) return null
+
+        return Implementer(definition, nameIdentifier, Delegation.headKeepsTargetName(definition))
     }
 
     /**
@@ -699,7 +800,7 @@ internal object ElixirUsageQueries {
             val defClause = leaf.enclosingCalls().firstOrNull { CallDefinitionClause.`is`(it) } ?: return emptyList()
             val nameIdentifier = CallDefinitionClause.nameIdentifier(defClause) ?: return emptyList()
             if (!PsiTreeUtil.isAncestor(nameIdentifier, leaf, false)) return emptyList()
-            if (!defClause.matchesFunctionFamily(symbol)) return emptyList()
+            if (!FunctionSymbol.isFamilyMember(defClause, symbol)) return emptyList()
 
             // Direct usage query already contributes the symbol's own declaration.
             if (defClause.containingFile.virtualFile == symbol.file.virtualFile &&
@@ -784,7 +885,8 @@ internal object ElixirUsageQueries {
         private fun matchesCallSite(call: Call, symbol: FunctionSymbol): Boolean =
             if (call.resolvedModuleName() == symbol.moduleName &&
                 call.functionName() == symbol.name &&
-                call.resolvedFinalArity() == symbol.arity
+                call.resolvedFinalArity() == symbol.arity &&
+                !FunctionSymbol.isHelper(symbol)
             ) {
                 true
             } else {
@@ -793,8 +895,7 @@ internal object ElixirUsageQueries {
                     .filter { it.isValidResult }
                     .mapNotNull { it.element as? Call }
                     .filter { CallDefinitionClause.`is`(it) }
-                    .flatMap { FunctionSymbol.fromClause(it) }
-                    .any { it == symbol }
+                    .any { FunctionSymbol.matches(it, symbol) }
             }
 
         /**
@@ -901,8 +1002,7 @@ internal object ElixirUsageQueries {
                 .filter { it.isValidResult }
                 .mapNotNull { it.element as? Call }
                 .filter { CallDefinitionClause.`is`(it) }
-                .flatMap { FunctionSymbol.fromClause(it) }
-                .any { it == symbol }
+                .any { FunctionSymbol.matches(it, symbol) }
             if (!matches) return null
 
             return ElixirPsiUsage.create(
@@ -969,14 +1069,10 @@ internal object ElixirUsageQueries {
             // The reference's range is the name between the colon and any quotes, however many tokens an escape splits
             // it into, so a rename replaces the name and not the leaf that happened to be handed on.
             val reference = references.firstOrNull { reference ->
-                reference.resolveReference()
-                    .filterIsInstance<AtomSymbol>()
-                    .any {
-                        it.moduleName == symbol.moduleName &&
-                            it.name == symbol.name &&
-                            it.arity == symbol.arity &&
-                            it.macro == symbol.macro
-                    }
+                reference.multiResolve(false)
+                    .asSequence()
+                    .mapNotNull { it.element?.let(::definitionClause) }
+                    .any { FunctionSymbol.matchesAtom(it, symbol) }
             } ?: return null
 
             return ElixirPsiUsage.create(
@@ -1205,21 +1301,6 @@ private val VALUE_WRITE = UsageType { "Value write" }
 
 private fun PsiElement.enclosingCalls(): Sequence<Call> =
         generateSequence(parent) { it.parent }.takeWhile { it !is PsiFile }.filterIsInstance<Call>()
-
-@RequiresReadLock
-private fun Call.matchesFunctionFamily(symbol: FunctionSymbol): Boolean {
-    val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(this) ?: return false
-    val moduleName = runCatching { Module.name(enclosingModular) }
-        .getOrElse { if (it is ProcessCanceledException) throw it else null }
-        ?: return false
-    if (moduleName != symbol.moduleName) return false
-
-    val nameArity = CallDefinitionClause.nameArityInterval(this, ResolveState.initial()) ?: return false
-    if (nameArity.name != symbol.name || symbol.arity !in nameArity.arityInterval) return false
-
-    val clauseIsMacro = CallDefinitionClause.capabilities(this)?.quotesArguments == true
-    return clauseIsMacro == symbol.macro
-}
 
 @RequiresReadLock
 private fun Call.enclosingSpecAttributeIfHead(): AtUnqualifiedNoParenthesesCall<*>? {
