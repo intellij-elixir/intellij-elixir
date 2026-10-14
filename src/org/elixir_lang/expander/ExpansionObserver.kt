@@ -10,8 +10,8 @@ import org.elixir_lang.lowering.ElixirAst
 fun interface ExpansionObserver {
     fun entering(node: ElixirAst, state: ExState, env: Env)
 
-    /** A node the expander built is reached in [env], which its dispatches are in. */
-    fun builtIn(env: Env) {}
+    /** [node], which the expander built, is reached in [env], which its dispatches are in. */
+    fun builtIn(node: ElixirAst, env: Env) {}
 
     /** [node]'s [expansion], as [Expander.expand] returns it. */
     fun left(node: ElixirAst, expansion: Expansion) {}

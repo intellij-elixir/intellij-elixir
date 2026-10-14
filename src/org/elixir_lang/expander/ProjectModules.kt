@@ -19,6 +19,7 @@ import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.navigation.isDecompiled
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.reference.resolver.Module
+import org.jetbrains.annotations.TestOnly
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 
@@ -56,17 +57,29 @@ internal class ProjectModules(private val project: Project) {
 
     /** [file]'s expansion, against the modules the other files define, held on [file] while what it read is unchanged. */
     @RequiresReadLock
-    fun expansion(file: ElixirFile, inputs: Inputs): FileExpansion {
-        val virtualFile = file.virtualFile ?: return compute(file, inputs, emptyMap(), Memo()).expansion
-        file.getUserData(held)?.takeIf { it.loaded.isCurrent(inputs) }?.let { return it.expansion }
+    fun expansion(file: ElixirFile, inputs: Inputs): FileExpansion = held(file, inputs).expansion
 
-        val computed = compute(file, inputs, emptyMap(), Memo())
+    /** The env each node of [file]'s [expansion] was entered in, held with it. */
+    @RequiresReadLock
+    fun envIndex(file: ElixirFile, inputs: Inputs): EnvIndex = held(file, inputs).envs!!
+
+    /** [file] expanded afresh, with [observer] told what the expansion reaches. Nothing is held. */
+    @TestOnly
+    @RequiresReadLock
+    fun observe(file: ElixirFile, inputs: Inputs, observer: ExpansionObserver): FileExpansion =
+        compute(file, inputs, emptyMap(), Memo(), observer = observer).expansion
+
+    private fun held(file: ElixirFile, inputs: Inputs): Held {
+        val virtualFile = file.virtualFile ?: return compute(file, inputs, emptyMap(), Memo(), records = true)
+        file.getUserData(held)?.takeIf { it.loaded.isCurrent(inputs) }?.let { return it }
+
+        val computed = compute(file, inputs, emptyMap(), Memo(), records = true)
         if (computed.transient.isNone) {
             files[virtualFile] = computed.loaded
             file.putUserData(held, computed)
         }
 
-        return computed.expansion
+        return computed
     }
 
     /** [asker]'s file as compiling, with none of its modules loaded yet. */
@@ -177,12 +190,18 @@ internal class ProjectModules(private val project: Project) {
         return computed.loaded to computed.transient
     }
 
-    /** Only a computation that completes is stored, so a cancelled one leaves nothing behind. */
+    /**
+     * Only a computation that completes is stored, so a cancelled one leaves nothing behind.
+     *
+     * @param records whether the env each node is entered in is recorded, which only the file asked about needs
+     */
     private fun compute(
         file: ElixirFile,
         inputs: Inputs,
         inProgress: Map<VirtualFile, Map<String, Answer>>,
         memo: Memo,
+        records: Boolean = false,
+        observer: ExpansionObserver = ExpansionObserver.NONE,
     ): Held {
         val virtualFile = file.virtualFile
         val stamps = Stamps()
@@ -201,17 +220,28 @@ internal class ProjectModules(private val project: Project) {
                     used += it
                 }.answer
         }
+        val top = Env.empty(inputs.level, inputs.kernel)
+        val envs = if (records) EnvIndex(top) else null
         val expansion = Expander.expandFile(
             Lowering.lower(file, inputs.level),
-            Env.empty(inputs.level, inputs.kernel),
+            top,
             inputs.level,
             { ask(it).exports },
             { ask(it).struct },
-            object : ExpansionObserver {
-                override fun entering(node: ElixirAst, state: ExState, env: Env) {}
+            object : ExpansionObserver by observer {
+                override fun entering(node: ElixirAst, state: ExState, env: Env) {
+                    envs?.entering(node, env)
+                    observer.entering(node, state, env)
+                }
+
+                override fun left(node: ElixirAst, expansion: Expansion) {
+                    envs?.left(node, expansion)
+                    observer.left(node, expansion)
+                }
 
                 override fun loaded(module: String, exports: ModuleExports, struct: ModuleStruct) {
                     modules[module] = Answer(exports, struct)
+                    observer.loaded(module, exports, struct)
                 }
             },
         )
@@ -220,7 +250,7 @@ internal class ProjectModules(private val project: Project) {
         val uncompiled = Answer(LoadedModules.uncompiledExports(expansion), LoadedModules.uncompiledStruct(expansion))
         val transient = used.fold(Transient.NONE) { all, it -> all + it.transient }.leaving(virtualFile)
 
-        return Held(Loaded(inputs, modules, uncompiled, stamps), expansion, transient)
+        return Held(Loaded(inputs, modules, uncompiled, stamps), expansion, transient, envs)
     }
 
     /** Where Elixir loads a module from. */
@@ -252,7 +282,7 @@ internal class ProjectModules(private val project: Project) {
         fun holdsWhile(inProgress: Map<VirtualFile, Map<String, Answer>>): Boolean = inProgress.keys.none(stamps::reads)
     }
 
-    private class Held(val loaded: Loaded, val expansion: FileExpansion, val transient: Transient)
+    private class Held(val loaded: Loaded, val expansion: FileExpansion, val transient: Transient, val envs: EnvIndex?)
 
     /**
      * The values one outermost call computed that read files in progress above them, by file. A value holds for
