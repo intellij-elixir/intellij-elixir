@@ -7,19 +7,20 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.platform.ide.navigation.NavigationOptions
 import com.intellij.platform.ide.navigation.NavigationService
-import com.intellij.platform.ide.progress.runWithModalProgressBlocking
 import com.intellij.pom.Navigatable
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.psi.PsiElement
 import com.intellij.util.concurrency.AppExecutorUtil
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.future.asCompletableFuture
 import org.elixir_lang.junit.LightTestCase
 import org.elixir_lang.junit.hangDump
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.structure_view.element.CallDefinition
 import org.elixir_lang.structure_view.element.CallDefinitionClause
 import org.elixir_lang.structure_view.element.EExFunctionFrom
+import org.elixir_lang.util.ElixirCoroutineService
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.seconds
@@ -56,12 +57,17 @@ class NavigationTest : LightTestCase() {
             when (route) {
                 Route.WRAPPER_NODE -> TreeElementWrapper(project, element, model).navigate(true)
                 Route.DIRECT -> (element as Navigatable).navigate(true)
-                Route.NAVIGATION_SERVICE -> runWithModalProgressBlocking(project, "navigate") {
-                    onJob(coroutineContext.job)
+                // Not under modal progress: from 2026.3 the previous route's navigation can still be finishing on the
+                // EDT at NON_MODAL, which a modal loop never runs, and the service queues this request behind it.
+                Route.NAVIGATION_SERVICE -> {
+                    val navigation = project.service<ElixirCoroutineService>().scope.async {
+                        val request = readAction { (element as Navigatable).navigationRequest() }
 
-                    val request = readAction { (element as Navigatable).navigationRequest() }
+                        project.service<NavigationService>().navigate(request!!, NavigationOptions.defaultOptions())
+                    }
 
-                    project.service<NavigationService>().navigate(request!!, NavigationOptions.defaultOptions())
+                    onJob(navigation)
+                    PlatformTestUtil.waitForFuture(navigation.asCompletableFuture())
                 }
             }
         }

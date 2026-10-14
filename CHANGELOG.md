@@ -717,6 +717,8 @@
 
 ### Build / CI
 
+- [#4451](https://github.com/intellij-elixir/intellij-elixir/pull/4451) [@sh41](https://github.com/sh41)
+  - **The structure view's navigation test no longer hangs on IntelliJ 2026.3, and prints the test JVM's coroutine and thread dumps if a navigation route does not return.** Fixes [#4449](https://github.com/intellij-elixir/intellij-elixir/issues/4449).
 - [#4450](https://github.com/intellij-elixir/intellij-elixir/pull/4450) [@sh41](https://github.com/sh41)
   - **`CompiledModuleTest` builds its no-debug-info fixture from the module's own `@compile` instead of switching debug info off for the whole quoter, so a test running in another fork at that moment no longer fails for want of debug info.** Fixes [#4448](https://github.com/intellij-elixir/intellij-elixir/issues/4448).
 - [#4445](https://github.com/intellij-elixir/intellij-elixir/pull/4445) [@sh41](https://github.com/sh41)
