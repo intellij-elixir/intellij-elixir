@@ -133,7 +133,8 @@ internal sealed interface Pending {
      * @property node the `def*` call
      * @property head the call and guard being defined
      * @property body the options, or `null` for a bodiless head
-     * @property unnamedAt the name's unquote fragment, when its value isn't an atom
+     * @property unnamedAt the name's unquote fragment, when its value isn't an atom, or the first fragment that stops a
+     *   head whose name or argument count a fragment decides
      * @property stop the first other fragment whose value isn't a literal
      * @property env the env at [node]
      * @property ordered whether [node] is a statement of the module body, and named

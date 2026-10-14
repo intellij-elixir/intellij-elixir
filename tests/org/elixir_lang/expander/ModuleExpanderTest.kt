@@ -1570,6 +1570,52 @@ class ModuleExpanderTest : ExpanderTestCase() {
         }
 
     /**
+     * `store_definition/5` reads the name and `length(Args)` after the splice, so a head whose name is a fragment, or
+     * one of whose arguments is a splice, has no arity the expander can read. An `unquote` argument is still one.
+     */
+    fun testAHeadWithASpliceRecordsNoArity() =
+        assertLevels(
+            """
+            defmodule S do
+              args = [1, 2]
+              h = :h
+              b = 1
+              def spliced(unquote_splicing(args)), do: :ok
+              def spliced_after(a, unquote_splicing(args)), do: a
+              def k(x, unquote_splicing([1, 2])), do: x
+              def unquote(h)
+              def unquote_splicing(h)
+              def f(a, unquote(b)), do: a
+              def guarded(unquote_splicing(args)) when true, do: :ok
+              def g(a, unquote(b)) when true, do: a
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.S")}
+            module Elixir.S stopped `unquote_splicing(args)`
+              def f/2 line 10 clauses 1
+              def g/2 line 12 clauses 1
+              def unnamed
+              def unnamed
+              def unnamed
+              def unnamed
+              def unnamed
+              def unnamed
+              body: expanded {args:0 b:2 h:1} next 3 context [Elixir.S]
+              def unnamed unordered: unported `unquote_splicing(args)`
+              def unnamed unordered: unported `unquote_splicing(args)`
+              def unnamed unordered: unported `unquote_splicing([1, 2])`
+              def unnamed unordered: unported `unquote(h)`
+              def unnamed unordered: unported `unquote_splicing(h)`
+              def f/2 unordered: unported `unquote(b)`
+              def unnamed unordered: unported `unquote_splicing(args)`
+              def g/2 unordered: unported `unquote(b)`
+            """.trimIndent()
+        }
+
+    /**
      * `unquote` inserts its value as quoted code, in which a tuple of three is a call and of four or more isn't code at
      * all, so such a value is not a tuple literal in the definition.
      */

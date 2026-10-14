@@ -125,11 +125,14 @@ internal fun define(
         }
 
         val statement = run.compiling[env.module]?.isStatement(node) == true
+        val substituted = substitute(head, replacements)
+
+        if (!isReadWhole(extractGuards(substituted).first)) unnamedAt = unnamedAt ?: stop
 
         run.pending += Pending.Definition(
             kind,
             node,
-            substitute(head, replacements),
+            substituted,
             body?.let { substitute(it, replacements) },
             unnamedAt,
             stop,
@@ -335,6 +338,15 @@ private fun substituteAll(nodes: List<ElixirAst>, replacements: Map<ElixirAst, E
 
     return if (substituted.indices.all { substituted[it] === nodes[it] }) nodes else substituted
 }
+
+/**
+ * Whether `store_definition/5` reads [call]'s name and `length(Args)` with no fragment the expander can't evaluate
+ * deciding either: [call] isn't itself a fragment, and no direct argument is a splice.
+ */
+private fun isReadWhole(call: ElixirAst): Boolean =
+    !isCall(call, "unquote", 1) &&
+        !isCall(call, "unquote_splicing", 1) &&
+        (call as? ElixirAst.Call)?.arguments.orEmpty().none { isCall(it, "unquote_splicing", 1) }
 
 /** `elixir_utils:extract_guards/1`: [head] without its guards, and each guard of its `when`s, which `extract_or_guards/1` splits. */
 internal fun extractGuards(head: ElixirAst): Pair<ElixirAst, List<ElixirAst>> =
