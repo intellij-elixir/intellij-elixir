@@ -631,6 +631,8 @@
 
 ### Threading / Platform Hygiene
 
+- [#PR-TBD](https://github.com/intellij-elixir/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)
+  - **The expander answers which definitions a call can refer to and which names are visible where it is, from each file's own SDK; nothing uses it yet.** Fixes [#4446](https://github.com/intellij-elixir/intellij-elixir/issues/4446).
 - [#4429](https://github.com/intellij-elixir/intellij-elixir/pull/4429) [@sh41](https://github.com/sh41)
   - **The expander reads the deprecations, definitions and macro bodies of a library's or the SDK's module from its `.beam` file, and reports a call to a deprecated one as Elixir does; nothing uses it yet.** Fixes [#4423](https://github.com/intellij-elixir/intellij-elixir/issues/4423).
 - [#4416](https://github.com/intellij-elixir/intellij-elixir/pull/4416) [@sh41](https://github.com/sh41)

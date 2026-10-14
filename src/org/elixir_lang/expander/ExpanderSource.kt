@@ -8,8 +8,8 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
-import org.elixir_lang.NameArity
 import org.elixir_lang.call.Visibility
+import org.elixir_lang.code_insight.eachNameOnce
 import org.elixir_lang.declaration.Applicability
 import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Candidate
@@ -34,6 +34,8 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
+import org.jetbrains.annotations.TestOnly
+import java.util.EnumMap
 import org.elixir_lang.beam.psi.Module as BeamModule
 
 /**
@@ -45,8 +47,21 @@ internal object ExpanderSource : CandidateSource {
     override fun candidates(use: Use, incompleteCode: Boolean): List<Found> {
         ThreadingAssertions.assertReadAccess()
 
+        return inputs(use.entrance)?.let { answer(use, it) }.orEmpty()
+    }
+
+    /** [use]'s candidates, its file expanded with [inputs] in place of its SDK's. */
+    @TestOnly
+    @RequiresReadLock
+    internal fun candidates(use: Use, inputs: ProjectModules.Inputs): List<Found> {
+        ThreadingAssertions.assertReadAccess()
+
+        return answer(use, inputs)
+    }
+
+    private fun answer(use: Use, inputs: ProjectModules.Inputs): List<Found> {
         val call = use.entrance
-        val at = at(call) ?: return emptyList()
+        val at = at(call, inputs) ?: return emptyList()
         val name = (use as? Use.Named)?.name
         val reached = if (call is Qualified) {
             val module = receiver(at, call) ?: return emptyList()
@@ -60,8 +75,38 @@ internal object ExpanderSource : CandidateSource {
         return reached.mapNotNull { found(it, use) }
     }
 
+    /**
+     * At an unqualified call, the definitions of the module it is in, what its env imports and `Kernel.SpecialForms`;
+     * after a qualifier, the public definitions of the module it names, as completion offers them ([eachNameOnce]).
+     */
     @RequiresReadLock
-    override fun visible(position: Call): List<Visible> = emptyList()
+    override fun visible(position: Call): List<Visible> {
+        ThreadingAssertions.assertReadAccess()
+
+        val at = inputs(position)?.let { at(position, it) } ?: return emptyList()
+        val defined = if (position is Qualified) {
+            val module = receiver(at, position) ?: return emptyList()
+            eachNameOnce(ofModule(at, module, null).filter { it.declaration.visibility != Visibility.PRIVATE })
+        } else {
+            ownDefined(at, null) + importedDefined(at, at.file, at.env, null).map { it.defined } + specialFormsDefined(at, null)
+        }
+
+        return defined.map { Visible(it.declaration.name, it.declaration.name, it.declaration, it.element) }
+    }
+
+    /**
+     * [defined] as completion offers a module's functions: of a source module's, the preferred head of each name its
+     * clauses define, then one `defdelegate` for each other name; each of a `.beam`'s.
+     */
+    private fun eachNameOnce(defined: List<Defined>): List<Defined> {
+        val (source, compiled) = defined.partition { it.declaration.declared is Declared.Source }
+        val (delegations, clauses) = source.partition { (it.declaration.declared as Declared.Source).form == Form.DELEGATION }
+        val byElement = clauses.associateBy { it.element }
+        val calls = clauses.mapNotNull { it.element as? Call }.filter { CallDefinitionClause.`is`(it) }
+
+        return eachNameOnce(calls, delegations.map { it.declaration.name to it }) { _, clause -> byElement.getValue(clause) } +
+            compiled
+    }
 
     /**
      * Where a use is, as its file's expansion saw it, what each receiver it reached expanded to, and the [lowering] it
@@ -77,11 +122,17 @@ internal object ExpanderSource : CandidateSource {
         val lowering: Lowering,
     )
 
-    /** `null` in dumb mode, or where the file's SDK gives no inputs. */
-    private fun at(call: Call): At? {
+    /** `null` where the file's SDK gives no inputs. */
+    private fun inputs(call: Call): ProjectModules.Inputs? {
+        val file = call.containingFile as? ElixirFile ?: return null
+
+        return (SdkInputs.getInstance(file.project).inputsFor(file) as? SdkInputs.Answer.Ready)?.inputs
+    }
+
+    /** `null` in dumb mode. */
+    private fun at(call: Call, inputs: ProjectModules.Inputs): At? {
         val file = call.containingFile as? ElixirFile ?: return null
         if (DumbService.isDumb(file.project)) return null
-        val inputs = (SdkInputs.getInstance(file.project).inputsFor(file) as? SdkInputs.Answer.Ready)?.inputs ?: return null
         val holder = ProjectModules.getInstance(file.project)
 
         val indexed = holder.indexed(file, inputs)
@@ -125,16 +176,20 @@ internal object ExpanderSource : CandidateSource {
         val remote: Boolean,
     )
 
-    private fun own(at: At, name: String?, arity: Int): List<Reached> {
+    private fun own(at: At, name: String?, arity: Int): List<Reached> =
+        ownDefined(at, name).flatMap {
+            reachedFrom(at, it, Reach.OWN, emptyList(), name, arity, remote = false, emptySet())
+        }
+
+    /** The definitions of [name], or of every name when it is `null`, in the module body [at] is in. */
+    private fun ownDefined(at: At, name: String?): List<Defined> {
         val module = at.env.module ?: return emptyList()
-        // The module body the use is in, of the module's definitions in the file.
         val result = ProjectModules.results(at.holder.expansion(at.file, at.inputs)).firstOrNull { result ->
             result.module == module &&
                 result.units.any { it.owner == ExpansionResult.Owner.ModuleBody && it.node.meta.origin.contains(at.range) }
         } ?: return emptyList()
 
-        return defined(at.file, result.table) { name == null || it == name }
-            .flatMap { reachedFrom(at, it, Reach.OWN, emptyList(), name, arity, remote = false, emptySet()) }
+        return defined(at.file, result.table, name)
     }
 
     /** What [env]'s imports of [name] reach, each through its `import` call in [file]. */
@@ -145,36 +200,53 @@ internal object ExpanderSource : CandidateSource {
         name: String?,
         arity: Int,
         crossed: Set<Head>,
-    ): List<Reached> {
-        if (name == null) return emptyList()
+    ): List<Reached> =
+        importedDefined(at, file, env, name)
+            .groupBy { ImportedHead(it.defined.head, it.call) }
+            .values
+            .flatMap { runs ->
+                val reached = runs.map { (defined, reach, call) -> reached(defined, reach, listOfNotNull(call), name, arity, remote = false) }
 
-        return (env.functions + env.macros).flatMap { imports ->
-            val arities = imports.nameArities.filter { it.name == name }.map { it.arity }.toSet()
-            if (arities.isEmpty()) return@flatMap emptyList()
+                // The runs of one head share its delegation, which is followed once.
+                reached + throughDelegation(at, reached.first(), reached.any(Reached::valid), crossed)
+            }
+
+    /** A definition an import brings in, how, and the `import` call that brings it in, if any. */
+    private data class Imported(val defined: Defined, val reach: Reach, val call: Call?)
+
+    /** One head an `import` call brings in, whose runs of arities share its delegation. */
+    private data class ImportedHead(val head: Head, val call: Call?)
+
+    /** The definitions [env]'s imports bring in of [name], or of every name when it is `null`. */
+    private fun importedDefined(at: At, file: ElixirFile, env: Env, name: String?): List<Imported> =
+        (env.functions + env.macros).flatMap { imports ->
+            val aritiesByName = NameIndex.of(imports).named(name).groupBy({ it.name }, { it.arity })
+            if (aritiesByName.isEmpty()) return@flatMap emptyList()
             val call = imports.origin?.let { importCall(file, it) }
             // The `Kernel` import a `defprotocol` builds has the `defprotocol`'s origin, and no `import` call names it.
             val reach = if (call == null && imports.module == KERNEL) Reach.IMPLICIT_IMPORT else Reach.IMPORT
 
-            ofModule(at, imports.module) { it == name }.flatMap { defined ->
-                val runs = narrowed(defined, arities).map { reached(it, reach, listOfNotNull(call), name, arity, remote = false) }
-                if (runs.isEmpty()) return@flatMap emptyList()
-
-                // The runs of one head share its delegation, which is followed once.
-                runs + throughDelegation(at, runs.first(), runs.any(Reached::valid), crossed)
+            aritiesByName.flatMap { (imported, arities) ->
+                ofModule(at, imports.module, imported).flatMap { narrowed(it, arities.toSet()) }.map { Imported(it, reach, call) }
             }
         }
-    }
 
     /** `Kernel.SpecialForms`, which no env lists, as Elixir imports it everywhere. */
     private fun specialForms(at: At, name: String?, arity: Int): List<Reached> =
-        ofModule(at, SPECIAL_FORMS) { it == name }
-            .map { defined ->
-                // Elixir takes a special form at arities its declared ones leave out.
-                val arity = specialFormArity(defined.declaration.name, at.inputs.level) ?: return@map defined
+        specialFormsDefined(at, name).flatMap {
+            reachedFrom(at, it, Reach.IMPLICIT_IMPORT, emptyList(), name, arity, remote = false, emptySet())
+        }
 
-                Defined(defined.declaration.copy(arity = arity), defined.element, defined.delegation, arity)
-            }
-            .flatMap { reachedFrom(at, it, Reach.IMPLICIT_IMPORT, emptyList(), name, arity, remote = false, emptySet()) }
+    /**
+     * `Kernel.SpecialForms`' declarations of [name], or of every name when it is `null`, at the arities Elixir takes
+     * each at, which its declared arities leave out.
+     */
+    private fun specialFormsDefined(at: At, name: String?): List<Defined> =
+        ofModule(at, SPECIAL_FORMS, name).map { defined ->
+            val arity = specialFormArity(defined.declaration.name, at.inputs.level) ?: return@map defined
+
+            Defined(defined.declaration.copy(arity = arity), defined.element, defined.delegation, arity)
+        }
 
     /**
      * [module]'s definitions of [name], as a remote call reaches them, and with [imports] what the env at the end of
@@ -192,14 +264,14 @@ internal object ExpanderSource : CandidateSource {
             ProjectModules.Located.Unknown, ProjectModules.Located.None, is ProjectModules.Located.Several -> emptyList()
             is ProjectModules.Located.Source -> {
                 val result = located.result ?: return emptyList()
-                val own = defined(located.file, result.table) { name == null || it == name }
+                val own = defined(located.file, result.table, name)
                     .flatMap { reachedFrom(at, it, Reach.OWN, emptyList(), name, arity, remote = true, crossed) }
                 val body = if (imports) bodyEnv(result) else null
 
                 own + body?.let { imported(at, located.file, it, name, arity, crossed) }.orEmpty()
             }
             is ProjectModules.Located.Compiled ->
-                compiled(at.file, located) { name == null || it == name }
+                compiled(at.file, located, name)
                     .flatMap { reachedFrom(at, it, Reach.OWN, emptyList(), name, arity, remote = true, crossed) }
         }
 
@@ -260,26 +332,17 @@ internal object ExpanderSource : CandidateSource {
     private fun bodyEnv(result: ExpansionResult): Env? =
         (result.units.firstOrNull { it.owner == ExpansionResult.Owner.ModuleBody }?.expansion as? Expansion.Expanded)?.env
 
-    /** [module]'s declarations whose name [keep] keeps, from its copy that [at]'s file loads. */
-    private fun ofModule(at: At, module: String, keep: (String) -> Boolean): List<Defined> =
+    /** [module]'s declarations of [name], or of every name when it is `null`, from its copy that [at]'s file loads. */
+    private fun ofModule(at: At, module: String, name: String?): List<Defined> =
         when (val located = at.holder.locate(at.file, module, at.inputs)) {
             ProjectModules.Located.Unknown, ProjectModules.Located.None, is ProjectModules.Located.Several -> emptyList()
-            is ProjectModules.Located.Source -> located.result?.let { defined(located.file, it.table, keep) }.orEmpty()
-            is ProjectModules.Located.Compiled -> compiled(at.file, located, keep)
+            is ProjectModules.Located.Source -> located.result?.let { defined(located.file, it.table, name) }.orEmpty()
+            is ProjectModules.Located.Compiled -> compiled(at.file, located, name)
         }
 
-    /**
-     * [table]'s definitions whose name [keep] keeps: one for each head, each with its arities. An entry a definition's
-     * defaults added is left out while a definition of its name still answers its arity through defaults; one overridden
-     * without them leaves it the only entry at that arity.
-     */
-    private fun defined(file: ElixirFile, table: DefinitionTable, keep: (String) -> Boolean): List<Defined> {
-        val throughDefaults = table.entries.flatMapTo(HashSet()) { (nameArity, entry) ->
-            DefinitionTable.defaultArities(nameArity.arity, entry.defaults).map { arity -> NameArity(nameArity.name, arity) }
-        }
-
-        return table.entries.flatMap { (nameArity, entry) ->
-            if (entry.default && nameArity in throughDefaults || !keep(nameArity.name)) return@flatMap emptyList()
+    /** [table]'s definitions of [name], or of every name when it is `null`: one for each head, each with its arities. */
+    private fun defined(file: ElixirFile, table: DefinitionTable, name: String?): List<Defined> =
+        NameIndex.of(table).named(name).flatMap { (nameArity, entry) ->
             val arity = if (entry.defaults == 0) {
                 ArityKnowledge.Exact(nameArity.arity)
             } else {
@@ -298,24 +361,21 @@ internal object ExpanderSource : CandidateSource {
                 Defined(Declaration(nameArity.name, arity, capabilities, declared), call, head.delegation)
             }
         }
-    }
 
-    /** [located]'s exports whose name [keep] keeps, each declared by its decompiled definition. */
-    private fun compiled(asker: PsiFile, located: ProjectModules.Located.Compiled, keep: (String) -> Boolean): List<Defined> {
+    /** [located]'s exports of [name], or of every name when it is `null`, each declared by its decompiled definition. */
+    private fun compiled(asker: PsiFile, located: ProjectModules.Located.Compiled, name: String?): List<Defined> {
         val exports = located.exports as? ModuleExports.Present ?: return emptyList()
         val module = (PsiManager.getInstance(asker.project).findFile(located.beam) as? PsiCompiledFile)
             ?.children
             ?.filterIsInstance<BeamModule>()
             ?.singleOrNull()
             ?: return emptyList()
-        val definitions = module.callDefinitions()
+        val definitions = NameIndex.of(module)
 
-        return (exports.exported + exports.macros).mapNotNull { nameArity ->
-            if (!keep(nameArity.name)) return@mapNotNull null
-            val definition = definitions.firstOrNull { definition ->
-                val (name, interval) = definition.nameArityInterval
-                name == nameArity.name && nameArity.arity in interval
-            } ?: return@mapNotNull null
+        return NameIndex.of(exports).named(name).mapNotNull { nameArity ->
+            val definition = definitions.named(nameArity.name)
+                .firstOrNull { nameArity.arity in it.nameArityInterval.arityInterval }
+                ?: return@mapNotNull null
             val origin = CompiledOrigin(located.beam, module.name, nameArity.name, nameArity.arity)
 
             Defined(
@@ -422,6 +482,48 @@ internal object ExpanderSource : CandidateSource {
         generateSequence(file.findElementAt(origin.startOffset)) { element -> element.parent.takeIf { element !is PsiFile } }
             .filterIsInstance<Call>()
             .filter { it.textRange.contains(origin) }
+
+    /**
+     * Counts of the reads one answer makes through a name index or the env index, for the tests that pin them as
+     * independent of a module's size.
+     */
+    object Probe {
+        enum class Counter {
+            /** Entries read into a name index. */
+            INDEXED,
+
+            /** Entries a lookup examines. */
+            EXAMINED,
+        }
+
+        @Volatile
+        private var counting = false
+
+        private val counts = EnumMap<Counter, Long>(Counter::class.java)
+
+        fun count(counter: Counter, n: Int) {
+            if (counting) {
+                synchronized(counts) { counts.merge(counter, n.toLong(), Long::plus) }
+            }
+        }
+
+        @TestOnly
+        fun <T> counting(block: () -> T): T {
+            counting = true
+
+            return try {
+                block()
+            } finally {
+                counting = false
+            }
+        }
+
+        @TestOnly
+        fun snapshot(): Map<Counter, Long> = synchronized(counts) { Counter.entries.associateWith { counts[it] ?: 0L } }
+
+        @TestOnly
+        fun reset() = synchronized(counts) { counts.clear() }
+    }
 
     private const val KERNEL = "Elixir.Kernel"
     private const val SPECIAL_FORMS = "Elixir.Kernel.SpecialForms"

@@ -16,6 +16,7 @@ import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Use
+import org.elixir_lang.declaration.Visible
 import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.declaration.preferred
 import org.elixir_lang.junit.HeavyTestCase
@@ -346,6 +347,13 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             Over.f/2 OWN WRONG_ARITY via [] line 4
             """.trimIndent(),
             candidates(file, "Over.f(6)", "Over.f(6)"),
+        )
+        assertEquals(
+            """
+            f/1 line 2
+            f/2 line 4
+            """.trimIndent(),
+            renderVisible(visible(file, "do: f(1)", "f(1)").filter { it.lookupName == "f" }),
         )
     }
 
@@ -1060,6 +1068,109 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
     }
 
+    fun testVisible() {
+        val file = file(
+            """
+            defmodule Target do
+              def v_imported(x), do: x
+              def v_imported(x, y), do: {x, y}
+              def v_unimported(x), do: x
+              defp v_target_private, do: :p
+            end
+
+            defmodule Visibler do
+              import Target, only: [v_imported: 1]
+              def v_own(a \\ 1), do: a
+              defp v_private, do: :p
+              def v_multi(1), do: 1
+              def v_multi(2), do: 2
+              def caller, do: v_own()
+              def remote, do: Target.v_imported(1)
+            end
+            """
+        )
+
+        val unqualified = visible(file, "do: v_own()", "v_own()")
+        assertEquals(
+            """
+            v_imported/1 line 2
+            v_multi/1 line 12
+            v_multi/1 line 13
+            v_own/0..1 line 10
+            v_private/0 line 11
+            """.trimIndent(),
+            renderVisible(unqualified.filter { it.lookupName.startsWith("v_") }),
+        )
+        assertTrue("Kernel's defmodule", unqualified.any { it.lookupName == "defmodule" })
+        assertTrue("Kernel.SpecialForms' quote", unqualified.any { it.lookupName == "quote" })
+
+        assertEquals(
+            """
+            v_imported/1 line 2
+            v_unimported/1 line 4
+            """.trimIndent(),
+            renderVisible(visible(file, "Target.v_imported(1)", "Target.v_imported(1)")),
+        )
+    }
+
+    /** After a qualifier, as completion offers them: one of each name, at its function head where it has one. */
+    fun testAQualifiedPositionSeesEachNameOnce() {
+        val file = file(
+            """
+            defmodule Multi do
+              def m_clauses(1), do: 1
+              def m_clauses(2), do: 2
+              def m_headed(a \\ 1)
+              def m_headed(1), do: 1
+              def m_headed(a), do: a
+              defdelegate m_delegated(m), to: Map, as: :keys
+              defdelegate m_both(m), to: Map, as: :keys
+              def m_both(a, b), do: {a, b}
+              def m_late(a, b), do: {a, b}
+              def m_late(a)
+              def m_late(a), do: a
+              defdelegate [m_list_a(m), m_list_b(m)], to: Map
+            end
+
+            defmodule Asker do
+              def go, do: Multi.m_clauses(1)
+            end
+            """
+        )
+
+        assertEquals(
+            """
+            m_both/2 line 9
+            m_clauses/1 line 2
+            m_delegated/1 line 7
+            m_headed/0..1 line 4
+            m_late/1 line 11
+            m_list_a/1 line 13
+            m_list_b/1 line 13
+            """.trimIndent(),
+            renderVisible(visible(file, "Multi.m_clauses(1)", "Multi.m_clauses(1)").filter { it.lookupName.startsWith("m_") }),
+        )
+    }
+
+    /** A remote capture's receiver is the module the file's expansion found at it, as a call's is. */
+    fun testACapturesReceiverIsWhatTheFilesExpansionFound() {
+        val file = file(
+            """
+            defmodule Foo.Bar do
+              def f(x), do: x
+            end
+
+            defmodule Foo do
+              @mod Foo.Bar
+
+              def by_capture, do: &@mod.f/1
+            end
+            """
+        )
+
+        assertEquals("f/1 line 2", renderVisible(visible(file, "&@mod.f/1", "@mod.f")))
+    }
+
     /** How each module [file] defines at its top ended, by name. */
     private fun ended(file: PsiFile): Map<String, String> =
         read {
@@ -1118,12 +1229,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         read {
             found.joinToString("\n") { found ->
                 val declaration = found.candidate.declaration
-                val arity = when (val arity = declaration.arity) {
-                    is ArityKnowledge.Exact -> "${arity.arity}"
-                    is ArityKnowledge.Range -> "${arity.minimum}..${arity.maximum}"
-                    is ArityKnowledge.Open -> "${arity.minimum}+"
-                    ArityKnowledge.Unknown -> "?"
-                }
+                val arity = arity(declaration.arity)
                 val via = found.via.joinToString(" | ") { it.text.lines().first() }
                 val line = when (declaration.declared) {
                     is Declared.Source -> " line ${lineOf(found.element)}"
@@ -1135,9 +1241,35 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             }
         }
 
+    /** What [ExpanderSource] makes visible at the call [call] in [context]. */
+    private fun visible(file: PsiFile, context: String, call: String): List<Visible> {
+        val position = use(file, context, call).entrance
+
+        return read { ExpanderSource.visible(position) }
+    }
+
     /** The 1-based line of [element] in its own file. */
     private fun lineOf(element: PsiElement): Int =
         StringUtil.offsetToLineNumber(element.containingFile.text, element.textRange.startOffset) + 1
+
+    /** [visible], one per line in name order, each with its arity and the line that declares it. */
+    private fun renderVisible(visible: List<Visible>): String =
+        read {
+            visible
+                .map { visible ->
+                    "${visible.lookupName}/${arity(visible.declaration!!.arity)} line ${lineOf(visible.element)}"
+                }
+                .sorted()
+                .joinToString("\n")
+        }
+
+    private fun arity(arity: ArityKnowledge): String =
+        when (arity) {
+            is ArityKnowledge.Exact -> "${arity.arity}"
+            is ArityKnowledge.Range -> "${arity.minimum}..${arity.maximum}"
+            is ArityKnowledge.Open -> "${arity.minimum}+"
+            ArityKnowledge.Unknown -> "?"
+        }
 
     private fun <T> read(block: () -> T): T = ReadAction.nonBlocking(Callable { block() }).executeSynchronously()
 }

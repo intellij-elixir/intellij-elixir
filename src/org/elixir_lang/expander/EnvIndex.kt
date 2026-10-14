@@ -46,17 +46,24 @@ internal class EnvIndex(private val top: Env) {
 
         val sorted = sorted ?: sort().also { sorted = it }
         var index = upperBound(sorted.entries, range.startOffset) - 1
+        var examined = 0
+        var env = top
         // The last entry before [range] in the one that contains it.
         var before: Entry? = null
         while (index >= 0) {
             val entry = sorted.entries[index]
-            if (entry.end >= range.endOffset) return before?.takeIf { it.stopped }?.env ?: entry.env
+            examined++
+            if (entry.end >= range.endOffset) {
+                env = before?.takeIf { it.stopped }?.env ?: entry.env
+                break
+            }
             before = entry
             // The entries between this one and the one enclosing it end before this one does, so they miss too.
             index = sorted.enclosing[index]
         }
+        ExpanderSource.Probe.count(ExpanderSource.Probe.Counter.EXAMINED, examined)
 
-        return top
+        return env
     }
 
     private fun sort(): Sorted {
