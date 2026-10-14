@@ -1,16 +1,10 @@
 package org.elixir_lang.junit
 
-import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.components.serviceIfCreated
 import com.intellij.testFramework.common.runAll
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.util.ThrowableRunnable
 import org.elixir_lang.junit.logs.UnexpectedLogs
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeoutOrNull
-import org.elixir_lang.mix.sync.MixDepsSyncService
 import org.elixir_lang.mix.sync.MixSyncTestHelpers
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * A [BasePlatformTestCase] failed for any warning, error or uncaught exception it does not expect.
@@ -34,7 +28,7 @@ abstract class LightTestCase : BasePlatformTestCase() {
     override fun setUp() {
         super.setUp()
         // The fixture's tear-down deletes the previous test's files, which queues syncs after the restore.
-        awaitMixDepsSyncs()
+        MixSyncTestHelpers.awaitMixDepsSyncs(project)
         resetSharedState()
         sharedStateBefore = SharedModuleState.of(module)
     }
@@ -45,22 +39,10 @@ abstract class LightTestCase : BasePlatformTestCase() {
     @Throws(Exception::class)
     override fun tearDown() {
         runAll(
-            { awaitMixDepsSyncs() },
+            { MixSyncTestHelpers.awaitMixDepsSyncs(project) },
             { restoreSharedState() },
             { super.tearDown() },
         )
-    }
-
-    private fun awaitMixDepsSyncs() {
-        val service = project.serviceIfCreated<MixDepsSyncService>()?.takeUnless { it.isIdle } ?: return
-        val awaitIdle: suspend () -> Boolean = { withTimeoutOrNull(SYNC_TIMEOUT) { service.awaitIdle() } != null }
-        val idle = if (ApplicationManager.getApplication().isDispatchThread) {
-            // A drain commits on the EDT, which this pumps while it waits.
-            MixSyncTestHelpers.runSuspendOnPooledThread(timeoutMillis = 2 * SYNC_TIMEOUT.inWholeMilliseconds, awaitIdle)
-        } else {
-            runBlocking { awaitIdle() }
-        }
-        if (!idle) throw AssertionError("Mix deps syncs still running after $SYNC_TIMEOUT")
     }
 
     private fun restoreSharedState() {
@@ -70,9 +52,5 @@ abstract class LightTestCase : BasePlatformTestCase() {
         if (differences.isNotEmpty()) {
             throw AssertionError("$name left the shared light module changed:\n" + differences.joinToString("\n"))
         }
-    }
-
-    private companion object {
-        val SYNC_TIMEOUT = 60.seconds
     }
 }

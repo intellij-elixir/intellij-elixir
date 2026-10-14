@@ -969,6 +969,7 @@ class MixDepsSyncServiceTest : PlatformTestCase() {
         val libOld = myFixture.tempDirFixture.findOrCreateDir("my_app/deps/phoenix/lib_old")
         val libNew = myFixture.tempDirFixture.findOrCreateDir("my_app/deps/phoenix/lib_new")
         PsiTestUtil.addContentRoot(myFixture.module, myApp)
+        MixSyncTestHelpers.awaitMixDepsSyncs(project)
 
         val contentRootUrl = myApp.url
         val rootToken = contentRootToken(project, contentRootUrl)
@@ -977,15 +978,7 @@ class MixDepsSyncServiceTest : PlatformTestCase() {
         val libraryTable = LibraryTablesRegistrar.getInstance().getLibraryTable(project)
 
         // Seed: phoenix library with lib_old as source root.
-        WriteAction.run<Throwable> {
-            val model = libraryTable.modifiableModel
-            val lib = model.createLibrary(libName, MixLibraryKind)
-            lib.modifiableModel.let { lm ->
-                lm.addRoot(libOld.url, OrderRootType.SOURCES)
-                lm.commit()
-            }
-            model.commit()
-        }
+        createMixLibrary(libName, sourceRootUrl = libOld.url)
 
         // Build a SyncPlan requesting lib_new (not lib_old) as the source root.
         val plan = SyncPlan(
@@ -1028,6 +1021,7 @@ class MixDepsSyncServiceTest : PlatformTestCase() {
         val myApp = myFixture.tempDirFixture.findOrCreateDir("my_app_noop")
         val libDir = myFixture.tempDirFixture.findOrCreateDir("my_app_noop/deps/phoenix/lib")
         PsiTestUtil.addContentRoot(myFixture.module, myApp)
+        MixSyncTestHelpers.awaitMixDepsSyncs(project)
 
         val contentRootUrl = myApp.url
         val rootToken = contentRootToken(project, contentRootUrl)
@@ -1035,15 +1029,7 @@ class MixDepsSyncServiceTest : PlatformTestCase() {
         val libraryTable = LibraryTablesRegistrar.getInstance().getLibraryTable(project)
 
         // Seed with the exact same source roots as the plan.
-        WriteAction.run<Throwable> {
-            val model = libraryTable.modifiableModel
-            val lib = model.createLibrary(libName, MixLibraryKind)
-            lib.modifiableModel.let { lm ->
-                lm.addRoot(libDir.url, OrderRootType.SOURCES)
-                lm.commit()
-            }
-            model.commit()
-        }
+        createMixLibrary(libName, sourceRootUrl = libDir.url)
 
         val plan = SyncPlan(
             libraryPlans = listOf(
@@ -1175,21 +1161,14 @@ class MixDepsSyncServiceTest : PlatformTestCase() {
         myFixture.tempDirFixture.findOrCreateDir("placeholder_del_test/deps")
         val libDir = myFixture.tempDirFixture.findOrCreateDir("placeholder_del_test/deps/placeholder_dep/lib")
         PsiTestUtil.addContentRoot(myFixture.module, myApp)
+        MixSyncTestHelpers.awaitMixDepsSyncs(project)
 
         val contentRootUrl = myApp.url
         val libName = scopedDepLibraryName(contentRootToken(project, contentRootUrl), "placeholder_dep")
         val libraryTable = LibraryTablesRegistrar.getInstance().getLibraryTable(project)
 
         // Seed the library so it exists in the snapshot.
-        WriteAction.run<Throwable> {
-            val model = libraryTable.modifiableModel
-            val lib = model.createLibrary(libName, MixLibraryKind)
-            lib.modifiableModel.let { lm ->
-                lm.addRoot(libDir.url, OrderRootType.SOURCES)
-                lm.commit()
-            }
-            model.commit()
-        }
+        createMixLibrary(libName, sourceRootUrl = libDir.url)
 
         // Build a SyncPlan with a DeleteAll AND a ModuleDepsPlan that needs the library.
         val syncPlan = SyncPlan(
@@ -1223,6 +1202,7 @@ class MixDepsSyncServiceTest : PlatformTestCase() {
         myFixture.tempDirFixture.findOrCreateDir("delete_resync_test/deps")
         val libDir = myFixture.tempDirFixture.findOrCreateDir("delete_resync_test/deps/phoenix/lib")
         PsiTestUtil.addContentRoot(myFixture.module, myApp)
+        MixSyncTestHelpers.awaitMixDepsSyncs(project)
 
         val contentRootUrl = myApp.url
         val rootToken = contentRootToken(project, contentRootUrl)
@@ -1231,15 +1211,7 @@ class MixDepsSyncServiceTest : PlatformTestCase() {
 
         // Seed the library with the same roots the re-sync will request - this is the critical
         // scenario: identical roots means a naive diff sees no changes and emits no write op.
-        WriteAction.run<Throwable> {
-            val model = libraryTable.modifiableModel
-            val lib = model.createLibrary(libName, MixLibraryKind)
-            lib.modifiableModel.let { lm ->
-                lm.addRoot(libDir.url, OrderRootType.SOURCES)
-                lm.commit()
-            }
-            model.commit()
-        }
+        createMixLibrary(libName, sourceRootUrl = libDir.url)
 
         // Build a SyncPlan with a DeleteOne for phoenix AND a LibraryRootsPlan requesting the
         // same roots (simulating a delete event immediately followed by a re-sync event in the
@@ -1280,17 +1252,14 @@ class MixDepsSyncServiceTest : PlatformTestCase() {
         val myApp = myFixture.tempDirFixture.findOrCreateDir("delete_all_schemes")
         myFixture.tempDirFixture.findOrCreateDir("delete_all_schemes/deps")
         PsiTestUtil.addContentRoot(myFixture.module, myApp)
+        MixSyncTestHelpers.awaitMixDepsSyncs(project)
 
         val contentRootUrl = myApp.url
         val currentName = scopedDepLibraryName(contentRootToken(project, contentRootUrl), "phoenix")
         val olderSchemeName = scopedDepLibraryName(contentRootUrl, "ecto")
 
-        WriteAction.run<Throwable> {
-            val model = LibraryTablesRegistrar.getInstance().getLibraryTable(project).modifiableModel
-            model.createLibrary(currentName, MixLibraryKind)
-            if (olderSchemeName != currentName) model.createLibrary(olderSchemeName, MixLibraryKind)
-            model.commit()
-        }
+        createMixLibrary(currentName)
+        if (olderSchemeName != currentName) createMixLibrary(olderSchemeName)
 
         val plan = SyncPlan(deleteAlls = listOf(DeleteAllPlan("$contentRootUrl/deps")))
         val writePlan = runSuspendOnPooledThread { buildWritePlan(project, plan) }
@@ -1320,6 +1289,7 @@ class MixDepsSyncServiceTest : PlatformTestCase() {
     fun testBuildWritePlan_removesEntriesScopedByAnOlderScheme() = withRelativeTokenRoot("supersede_app") { myApp ->
         val ebinDir = File(myApp.path, "_build/dev/lib/phoenix/ebin").apply { mkdirs() }
         val ebin = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(ebinDir)!!
+        MixSyncTestHelpers.awaitMixDepsSyncs(project)
 
         val contentRootUrl = myApp.url
         val rootToken = contentRootToken(project, contentRootUrl)
@@ -1772,7 +1742,11 @@ class MixDepsSyncServiceTest : PlatformTestCase() {
     fun testOnlyOpsAPlanAskedForRecreateTheirLibrary() {
         val app = myFixture.tempDirFixture.findOrCreateDir("recreate_app")
         val ebin = myFixture.tempDirFixture.findOrCreateDir("recreate_app/_build/dev/lib/phoenix/ebin")
+        val keptRoot = myFixture.tempDirFixture.findOrCreateDir("recreate_app/wanted_kept/ebin")
+        val consolidatedDir = myFixture.tempDirFixture.findOrCreateDir("recreate_app/_build/dev/consolidated")
+        val keptSources = myFixture.tempDirFixture.findOrCreateDir("recreate_app/consolidated_sources")
         PsiTestUtil.addContentRoot(myFixture.module, app)
+        MixSyncTestHelpers.awaitMixDepsSyncs(project)
         val token = contentRootToken(project, app.url)
         val planned = LibraryRootsPlan(
             contentRootUrl = app.url,
@@ -1789,7 +1763,6 @@ class MixDepsSyncServiceTest : PlatformTestCase() {
         createMixLibrary(dangling, "${app.url}/gone/ebin")
         // Its deps directory went, but its mix.exs still declares it: a plan wants it, with no roots to give it.
         val wantedDangling = scopedDepLibraryName(token, "wanted")
-        val keptRoot = myFixture.tempDirFixture.findOrCreateDir("recreate_app/wanted_kept/ebin")
         createMixLibrary(wantedDangling, "${app.url}/wanted_gone/ebin")
         WriteAction.run<Throwable> {
             assertLibraryExists(wantedDangling).modifiableModel.let { libraryModel ->
@@ -1798,8 +1771,6 @@ class MixDepsSyncServiceTest : PlatformTestCase() {
             }
         }
         val created = planned.copy(depName = "jason")
-        val consolidatedDir = myFixture.tempDirFixture.findOrCreateDir("recreate_app/_build/dev/consolidated")
-        val keptSources = myFixture.tempDirFixture.findOrCreateDir("recreate_app/consolidated_sources")
         val consolidated = ConsolidatedLibraryPlan(app.url, token, listOf(consolidatedDir.url), null)
         createMixLibrary(consolidated.libraryName, "${app.url}/old_consolidated")
         WriteAction.run<Throwable> {
@@ -1871,6 +1842,7 @@ class MixDepsSyncServiceTest : PlatformTestCase() {
     fun testOneFullSyncClearsAPlannedConsolidatedLibrarysDanglingSourceRoot() {
         val app = MixTestFixtures.createMixRoot(myFixture, "consolidated_sources_app")
         val consolidated = myFixture.tempDirFixture.findOrCreateDir("consolidated_sources_app/_build/dev/consolidated")
+        MixSyncTestHelpers.awaitMixDepsSyncs(project)
         val name = consolidatedName(app)
         createMixLibrary(name, consolidated.url)
         WriteAction.run<Throwable> {
@@ -2094,6 +2066,7 @@ class MixDepsSyncServiceTest : PlatformTestCase() {
         val app = myFixture.tempDirFixture.findOrCreateDir("older_scheme_app")
         val ebin = myFixture.tempDirFixture.findOrCreateDir("older_scheme_app/_build/dev/lib/phoenix/ebin")
         PsiTestUtil.addContentRoot(myFixture.module, app)
+        MixSyncTestHelpers.awaitMixDepsSyncs(project)
         // A project-relative token, as a real project has; the fixture's own root has none.
         val rootsPlan = LibraryRootsPlan(
             contentRootUrl = app.url,
@@ -2341,13 +2314,18 @@ class MixDepsSyncServiceTest : PlatformTestCase() {
 
     private fun consolidatedName(root: VirtualFile) = consolidatedLibraryName(project, root.url)
 
-    private fun createMixLibrary(name: String, classRootUrl: String? = null): Library =
+    /** Adds the roots to the Mix library [name], which a sync that already ran may have made. */
+    private fun createMixLibrary(name: String, classRootUrl: String? = null, sourceRootUrl: String? = null): Library =
         WriteAction.computeAndWait<Library, Throwable> {
             val model = libraryTable().modifiableModel
-            val library = model.createLibrary(name, MixLibraryKind)
-            classRootUrl?.let { url ->
+            val library = model.getLibraryByName(name) ?: model.createLibrary(name, MixLibraryKind)
+            val roots = listOfNotNull(
+                classRootUrl?.let { it to OrderRootType.CLASSES },
+                sourceRootUrl?.let { it to OrderRootType.SOURCES },
+            ).filter { (url, type) -> url !in library.getUrls(type) }
+            if (roots.isNotEmpty()) {
                 library.modifiableModel.let { libraryModel ->
-                    libraryModel.addRoot(url, OrderRootType.CLASSES)
+                    roots.forEach { (url, type) -> libraryModel.addRoot(url, type) }
                     libraryModel.commit()
                 }
             }
@@ -2361,6 +2339,7 @@ class MixDepsSyncServiceTest : PlatformTestCase() {
             .refreshAndFindFileByIoFile(FileUtil.createTempDirectory(prefix, null, true))!!
         VfsRootAccess.allowRootAccess(myFixture.testRootDisposable, root.path)
         PsiTestUtil.addContentRoot(myFixture.module, root)
+        MixSyncTestHelpers.awaitMixDepsSyncs(project)
         try {
             assertFalse("the fixture needs a root with a relative token", contentRootToken(project, root.url) == root.url)
             block(root)
