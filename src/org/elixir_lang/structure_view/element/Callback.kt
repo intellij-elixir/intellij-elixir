@@ -112,11 +112,7 @@ class Callback(private val modular: Modular, navigationItem: Call, private val k
 
         @Contract(pure = true)
         fun headCall(atUnqualifiedNoParenthesesCall: AtUnqualifiedNoParenthesesCall<*>): Call? =
-            atUnqualifiedNoParenthesesCall
-                .noParenthesesOneArgument
-                .children
-                .singleOrNull()
-                ?.let { specificationHeadCall(it) }
+            atUnqualifiedNoParenthesesCall.argument?.let { specificationHeadCall(it) }
 
         @RequiresReadLock
         fun `is`(call: Call): Boolean = `is`(SyntacticCall.of(call))

@@ -2,6 +2,7 @@ package org.elixir_lang.injection
 
 import com.intellij.psi.LiteralTextEscaper
 import com.intellij.psi.PsiElement
+import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.ElixirNoParenthesesKeywords
 import org.elixir_lang.psi.ModuleAttribute.DOCUMENTATION_NAME_SET
@@ -20,19 +21,20 @@ object PsiLanguageInjectionHost {
     fun sigilsAreHosts(): Boolean = ElixirExperimentalSettings.instance.state.enableHtmlInjection
 
     /** Returns `true` when [psiElement] is the value of a documentation attribute, such as `@doc`. */
-    internal fun isDocumentation(psiElement: PsiElement): Boolean =
-        when (val greatGrandParent = psiElement.parent?.parent?.parent) {
-            is AtUnqualifiedNoParenthesesCall<*> -> isDocumentationHost(greatGrandParent)
-            is ElixirNoParenthesesKeywords -> {
-                greatGrandParent
-                    .parent
-                    ?.parent
-                    ?.let { it as? AtUnqualifiedNoParenthesesCall<*> }
-                    ?.let(::isDocumentationHost)
-                    ?: false
-            }
-            else -> false
+    internal fun isDocumentation(psiElement: PsiElement): Boolean {
+        val attribute = PsiTreeUtil.getParentOfType(psiElement, AtUnqualifiedNoParenthesesCall::class.java)
+
+        return if (attribute?.argument == psiElement) {
+            isDocumentationHost(attribute)
+        } else {
+            (psiElement.parent?.parent?.parent as? ElixirNoParenthesesKeywords)
+                ?.parent
+                ?.parent
+                ?.let { it as? AtUnqualifiedNoParenthesesCall<*> }
+                ?.let(::isDocumentationHost)
+                ?: false
         }
+    }
 
     /**
      * Returns `true` when [atUnqualifiedNoParenthesesCall] is an `@doc`, `@moduledoc`, `@typedoc`,

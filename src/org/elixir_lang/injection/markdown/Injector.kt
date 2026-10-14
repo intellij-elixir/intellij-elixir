@@ -9,7 +9,6 @@ import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.injection.PsiLanguageInjectionHost.isDocumentation
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.impl.keywordAtom
-import org.elixir_lang.psi.impl.stripAccessExpression
 import org.intellij.plugins.markdown.lang.MarkdownLanguage
 
 class Injector : MultiHostInjector {
@@ -17,10 +16,7 @@ class Injector : MultiHostInjector {
         context
             .let { it as? AtUnqualifiedNoParenthesesCall<*> }
             ?.takeIf(org.elixir_lang.injection.PsiLanguageInjectionHost::isDocumentationHost)
-            ?.lastChild
-            ?.firstChild
-            ?.firstChild
-            ?.stripAccessExpression()
+            ?.argument
             ?.let { getLanguagesToInjectInQuote(registrar, it) }
     }
 
@@ -61,9 +57,12 @@ class Injector : MultiHostInjector {
 
             is ElixirLine -> if (isDocumentation(documentation)) injectMarkdownInQuote(registrar, documentation)
             // `deprecated:` is the one metadata key whose value is prose; any other key is data
-            is QuotableKeywordPair -> if (documentation.keywordAtom() == "deprecated") {
-                getLanguagesToInjectInQuote(registrar, documentation.keywordValue)
-            }
+            is QuotableKeywordList ->
+                documentation
+                    .quotableKeywordPairList()
+                    .firstOrNull()
+                    ?.takeIf { it.keywordAtom() == "deprecated" }
+                    ?.let { getLanguagesToInjectInQuote(registrar, it.keywordValue) }
 
             // Any other value shape is not prose to inject into
             else -> Unit

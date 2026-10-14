@@ -105,9 +105,7 @@ internal class Builder : FoldingBuilderEx() {
                                                 )
                                             } else if (isTypeName(name)) {
                                                 atUnqualifiedNoParenthesesCall
-                                                    .noParenthesesOneArgument
-                                                    .children
-                                                    .singleOrNull()
+                                                    .argument
                                                     ?.let { child ->
                                                         if (child is Type) {
                                                             val rightOperand: PsiElement? =

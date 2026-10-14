@@ -111,6 +111,28 @@ class ModuleAttributeFoldingTest : PlatformTestCase() {
         )
     }
 
+    fun testTypeFoldsItsDefinition() = assertTypeFoldsItsDefinition("@type t :: :a | :b")
+
+    /** `@type (t :: ...)` is quoted as `@type t :: ...`, so it folds the same operand. */
+    fun testParenthesizedTypeFoldsItsDefinition() {
+        assertTypeFoldsItsDefinition("@type (t :: :a | :b)")
+        assertTypeFoldsItsDefinition("@type ((t :: :a | :b))")
+    }
+
+    private fun assertTypeFoldsItsDefinition(attribute: String) {
+        myFixture.configureByText("test.ex", "defmodule Typed do\n  $attribute\nend\n")
+        CodeFoldingManager.getInstance(project).updateFoldRegions(myFixture.editor)
+
+        val start = myFixture.file.text.indexOf(":a | :b")
+        val regions = myFixture.editor.foldingModel.allFoldRegions
+
+        assertEquals(
+            "`$attribute` regions: " + regions.map { "${it.placeholderText} ${it.startOffset}..${it.endOffset}" },
+            listOf("..."),
+            regions.filter { it.startOffset == start && it.endOffset == start + ":a | :b".length }.map { it.placeholderText }
+        )
+    }
+
     fun testReadsWithAndWithoutSpaceAfterAtFoldAsOneGroup() {
         myFixture.configureByText(
             "test.ex",

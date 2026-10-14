@@ -107,7 +107,7 @@ class Type(
             (call as? AtUnqualifiedNoParenthesesCall<*>)?.let { nameIdentifier(it) }
 
         fun specification(atUnqualifiedNoParenthesesCall: AtUnqualifiedNoParenthesesCall<*>): Call? =
-            (atUnqualifiedNoParenthesesCall.noParenthesesOneArgument.arguments().singleOrNull() as? Call)
+            atUnqualifiedNoParenthesesCall.argument as? Call
 
         private fun specificationType(specification: Call): Call? =
             when (specification) {
@@ -117,7 +117,7 @@ class Type(
             }
 
         fun type(atUnqualifiedNoParenthesesCall: AtUnqualifiedNoParenthesesCall<*>): Call? =
-            atUnqualifiedNoParenthesesCall.noParenthesesOneArgument.arguments().singleOrNull()?.let { it as? Call }
+            atUnqualifiedNoParenthesesCall.argument as? Call
 
         private fun typeNameIdentifier(type: Call): PsiElement? = type.functionNameElement()
     }

@@ -145,32 +145,25 @@ internal class ModuleAttribute : Annotator, DumbAware {
         atUnqualifiedNoParenthesesCall: AtUnqualifiedNoParenthesesCall<*>,
         holder: AnnotationHolder,
     ) {
-        val noParenthesesOneArgument: PsiElement = atUnqualifiedNoParenthesesCall.noParenthesesOneArgument
-        val grandChildren = noParenthesesOneArgument.children
-
-        grandChildren.singleOrNull()?.let { grandChild ->
-            val greatGrandChildren = grandChild.children
-
-            greatGrandChildren.singleOrNull()?.let { greatGrandChild ->
-                when (greatGrandChild) {
-                    is ElixirAtomKeyword, is ElixirAtom -> {
-                        if (AtomName.of(greatGrandChild) == "false") {
-                            holder
-                                .newAnnotation(
-                                    HighlightSeverity.WEAK_WARNING,
-                                    "Will make documented invisible to the documentation extraction tools like ExDoc."
-                                )
-                                .range(greatGrandChild)
-                                .create()
-                        }
+        atUnqualifiedNoParenthesesCall.argument?.let { argument ->
+            when (argument) {
+                is ElixirAtomKeyword, is ElixirAtom -> {
+                    if (AtomName.of(argument) == "false") {
+                        holder
+                            .newAnnotation(
+                                HighlightSeverity.WEAK_WARNING,
+                                "Will make documented invisible to the documentation extraction tools like ExDoc."
+                            )
+                            .range(argument)
+                            .create()
                     }
-
-                    is Quote ->
-                        Textual.highlightQuote(holder, greatGrandChild, ElixirSyntaxHighlighter.DOCUMENTATION_TEXT)
-
-                    is Sigil ->
-                        Textual.highlightSigil(holder, greatGrandChild, ElixirSyntaxHighlighter.DOCUMENTATION_TEXT)
                 }
+
+                is Quote ->
+                    Textual.highlightQuote(holder, argument, ElixirSyntaxHighlighter.DOCUMENTATION_TEXT)
+
+                is Sigil ->
+                    Textual.highlightSigil(holder, argument, ElixirSyntaxHighlighter.DOCUMENTATION_TEXT)
             }
         }
     }
@@ -197,19 +190,16 @@ internal class ModuleAttribute : Annotator, DumbAware {
         atUnqualifiedNoParenthesesCall: AtUnqualifiedNoParenthesesCall<*>,
         annotationHolder: AnnotationHolder,
     ) {
-        val noParenthesesOneArgument: PsiElement = atUnqualifiedNoParenthesesCall.noParenthesesOneArgument
-        val grandChildren = noParenthesesOneArgument.children
-
-        grandChildren.singleOrNull()?.stripAccessExpression()?.let { grandChild ->
-            when (grandChild) {
+        atUnqualifiedNoParenthesesCall.argument?.let { argument ->
+            when (argument) {
                 /* Match is invalid.  It will be marked by MatchOperatorInsteadOfTypeOperator inspection as an error */
                 is Match, is Type -> {
-                    val leftOperand: PsiElement? = grandChild.leftOperand()?.stripAccessExpression()
+                    val leftOperand: PsiElement? = argument.leftOperand()?.stripAccessExpression()
                     var typeParameterNameSet: Set<String?> = emptySet<String>()
 
                     if (leftOperand is Call) {
                         highlightTypeName(leftOperand, annotationHolder)
-                        if (leftOperand is ElixirMatchedUnqualifiedParenthesesCall) {
+                        if (leftOperand is UnqualifiedParenthesesCall<*>) {
                             typeParameterNameSet = highlightTypeLeftOperand(
                                 leftOperand,
                                 annotationHolder
@@ -219,7 +209,7 @@ internal class ModuleAttribute : Annotator, DumbAware {
                         highlightTypeName(leftOperand, annotationHolder)
                     }
 
-                    val rightOperand: PsiElement? = grandChild.rightOperand()
+                    val rightOperand: PsiElement? = argument.rightOperand()
 
                     if (rightOperand != null) {
                         highlightTypesAndTypeParameterUsages(
@@ -233,10 +223,10 @@ internal class ModuleAttribute : Annotator, DumbAware {
                     }
                 }
 
-                is ElixirMatchedUnqualifiedParenthesesCall -> {
+                is UnqualifiedParenthesesCall<*> -> {
                     // seen as `unquote(ast)`, but could also be just the beginning of typing
-                    if (Function.UNQUOTE == grandChild.functionName()) {
-                        grandChild.secondaryArguments()?.map { it!! }?.let { secondaryArguments ->
+                    if (Function.UNQUOTE == argument.functionName()) {
+                        argument.secondaryArguments()?.map { it!! }?.let { secondaryArguments ->
                             val typeParameterNameSet = typeTypeParameterNameSet(secondaryArguments)
                             highlightTypesAndTypeTypeParameterDeclarations(
                                 secondaryArguments,
@@ -245,18 +235,18 @@ internal class ModuleAttribute : Annotator, DumbAware {
                             )
                         } ?: return
                     } else {
-                        highlightTypeName(grandChild, annotationHolder)
+                        highlightTypeName(argument, annotationHolder)
 
                         // Assume it's `@type foo(bar)` before completed as `@type foo(bar) :: bar`
                         highlightTypeLeftOperand(
-                            grandChild,
+                            argument,
                             annotationHolder
                         )
                     }
                 }
 
                 is QuotableKeywordList -> {
-                    grandChild.quotableKeywordPairList().singleOrNull()?.let { quotableKeywordPair ->
+                    argument.quotableKeywordPairList().singleOrNull()?.let { quotableKeywordPair ->
                         // occurs when user does `my_type: definition` instead of `my_type :: definition`
                         val quotableKeywordKey = quotableKeywordPair.keywordKey
 
@@ -280,8 +270,8 @@ internal class ModuleAttribute : Annotator, DumbAware {
 
                 is UnqualifiedNoArgumentsCall<*> -> {
                     // assume it's a type name that is being typed
-                    val grandChildCall = grandChild as Call
-                    grandChildCall.functionNameElement()?.let { functionNameElement ->
+                    val argumentCall = argument as Call
+                    argumentCall.functionNameElement()?.let { functionNameElement ->
                         Highlighter.highlight(
                             annotationHolder,
                             functionNameElement.textRange,
@@ -301,7 +291,7 @@ internal class ModuleAttribute : Annotator, DumbAware {
                        ```
                      */
 
-                    grandChild.functionNameElement()?.let { functionNameElement ->
+                    argument.functionNameElement()?.let { functionNameElement ->
                         Highlighter.highlight(
                             annotationHolder,
                             functionNameElement.textRange,
@@ -310,7 +300,7 @@ internal class ModuleAttribute : Annotator, DumbAware {
                     }
 
                     highlightTypesAndTypeParameterUsages(
-                        grandChild.noParenthesesOneArgument, emptySet<String>(),
+                        argument.noParenthesesOneArgument, emptySet<String>(),
                         annotationHolder,
                         ElixirSyntaxHighlighter.TYPE
                     )
@@ -335,13 +325,13 @@ internal class ModuleAttribute : Annotator, DumbAware {
     }
 
     private fun highlightTypeLeftOperand(
-        call: ElixirMatchedUnqualifiedParenthesesCall,
+        call: UnqualifiedParenthesesCall<*>,
         annotationHolder: AnnotationHolder,
     ): Set<String?> {
         val arguments: Array<PsiElement>? = if (Unquote.`is`(call)) {
             call.secondaryArguments()?.filterNotNull()?.toTypedArray()
         } else {
-            call.primaryArguments()
+            call.primaryArguments()?.filterNotNull()?.toTypedArray()
         }
 
         return if (arguments != null) {
@@ -523,11 +513,9 @@ internal class ModuleAttribute : Annotator, DumbAware {
         annotationHolder: AnnotationHolder,
         leftMostFunctionNameTextAttributesKey: TextAttributesKey,
     ) {
-        val noParenthesesOneArgument: PsiElement = atUnqualifiedNoParenthesesCall.noParenthesesOneArgument
-
-        noParenthesesOneArgument.children.singleOrNull()?.let { grandChild ->
-            if (grandChild is Type) {
-                val infix = grandChild as Infix
+        atUnqualifiedNoParenthesesCall.argument?.let { argument ->
+            if (argument is Type) {
+                val infix = argument as Infix
                 val leftOperand: PsiElement? = infix.leftOperand()
 
                 if (leftOperand is Call) {
@@ -563,12 +551,12 @@ internal class ModuleAttribute : Annotator, DumbAware {
                         ElixirSyntaxHighlighter.TYPE
                     )
                 }
-            } else if (grandChild is When) {
-                val rightOperand: PsiElement? = grandChild.rightOperand()
+            } else if (argument is When) {
+                val rightOperand: PsiElement? = argument.rightOperand()
                 val typeParameterNameSet: Set<String?>
                 typeParameterNameSet = rightOperand?.let { specificationTypeParameterNameSet(it) } ?: emptySet<String>()
 
-                when (val leftOperand: PsiElement? = grandChild.leftOperand()) {
+                when (val leftOperand: PsiElement? = argument.leftOperand()) {
                     is Type -> {
                         leftOperand.leftOperand()?.let { typeOperationLeftOperand ->
                             val strippedTypeOperationLeftOperand =

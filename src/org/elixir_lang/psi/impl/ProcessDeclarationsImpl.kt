@@ -76,7 +76,7 @@ object ProcessDeclarationsImpl {
 
         return if (ModuleAttribute.isTypeSpecName(identifierName)) {
             processor.execute(atUnqualifiedNoParenthesesCall, state) &&
-                    atUnqualifiedNoParenthesesCall.finalArguments()?.singleOrNull()?.let { argument ->
+                    atUnqualifiedNoParenthesesCall.argument?.let { argument ->
                         processDeclarationInTypeSpecArgument(argument, processor, state)
                     } ?: true
         } else {

@@ -212,10 +212,10 @@ private constructor(private val name: String,
         private tailrec fun typeHead(typeSpec: PsiElement): Call? =
             when (typeSpec) {
                 is AtUnqualifiedNoParenthesesCall<*> -> {
-                    val finalArgument = typeSpec.finalArguments()?.singleOrNull()
+                    val argument = typeSpec.argument
 
-                    if (finalArgument != null) {
-                        typeHead(finalArgument)
+                    if (argument != null) {
+                        typeHead(argument)
                     } else {
                         null
                     }

@@ -6,6 +6,7 @@ import com.intellij.openapi.editor.colors.TextAttributesKey
 import com.intellij.openapi.project.DumbAware
 import com.intellij.psi.PsiElement
 import com.intellij.psi.tree.TokenSet
+import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.ElixirSyntaxHighlighter
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.SIGIL
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.SIGIL_BY_NAME
@@ -60,10 +61,8 @@ internal class Textual : Annotator, DumbAware {
                         }
 
                         private fun isDocumentationText(parent: Parent): Boolean =
-                            parent
-                                    .parent?.let { it as? ElixirAccessExpression }
-                                    ?.parent?.let { it as? ElixirNoParenthesesOneArgument }
-                                    ?.parent?.let { it as? AtUnqualifiedNoParenthesesCall<*> }
+                            PsiTreeUtil.getParentOfType(parent, AtUnqualifiedNoParenthesesCall::class.java)
+                                    ?.takeIf { it.argument == parent }
                                     ?.atIdentifier
                                     ?.identifierName()?.let { isDocumentationName(it) }
                                     ?: false

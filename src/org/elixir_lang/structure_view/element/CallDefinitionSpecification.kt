@@ -84,7 +84,7 @@ class CallDefinitionSpecification(
                 (call as? AtUnqualifiedNoParenthesesCall<*>)?.let { nameIdentifier(it) }
 
         fun specification(atUnqualifiedNoParenthesesCall: AtUnqualifiedNoParenthesesCall<*>): Call? =
-            (atUnqualifiedNoParenthesesCall.noParenthesesOneArgument.arguments().singleOrNull() as? Call)
+            atUnqualifiedNoParenthesesCall.argument as? Call
 
         fun specificationType(specification: Call): Call? =
                 when (specification) {

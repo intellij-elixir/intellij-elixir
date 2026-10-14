@@ -35,33 +35,28 @@ internal class KeywordPairColonInsteadOfTypeOperator : LocalInspectionTool() {
                         val identifier = atIdentifier.identifierName()
 
                         if (isTypeName(identifier)) {
-                            val child = atUnqualifiedNoParenthesesCall.noParenthesesOneArgument
-                            val grandChildren = child.children
+                            val argument = atUnqualifiedNoParenthesesCall.argument
 
-                            if (grandChildren.size == 1) {
-                                val grandChild = grandChildren[0]
+                            if (argument is QuotableKeywordList) {
+                                val quotableKeywordPairList = argument.quotableKeywordPairList()
 
-                                if (grandChild is QuotableKeywordList) {
-                                    val quotableKeywordPairList = grandChild.quotableKeywordPairList()
+                                if (quotableKeywordPairList.size == 1) {
+                                    val quotableKeywordPair = quotableKeywordPairList[0]
+                                    val keywordKey = quotableKeywordPair.keywordKey
+                                    val keywordPairColon = keywordKey.nextSibling
 
-                                    if (quotableKeywordPairList.size == 1) {
-                                        val quotableKeywordPair = quotableKeywordPairList[0]
-                                        val keywordKey = quotableKeywordPair.keywordKey
-                                        val keywordPairColon = keywordKey.nextSibling
+                                    val localQuickFix = ConvertKeywordPairToTypeOperation(
+                                            /* Can't be KEYWORD_PAIR_COLON because caret is never on the single
+                                               character in editor mode, only to left or right */
+                                            keywordPairColon
+                                    )
 
-                                        val localQuickFix = ConvertKeywordPairToTypeOperation(
-                                                /* Can't be KEYWORD_PAIR_COLON because caret is never on the single
-                                                   character in editor mode, only to left or right */
-                                                keywordPairColon
-                                        )
-
-                                        problemsHolder.registerProblem(
-                                                keywordPairColon,
-                                                "Type specifications separate the name from the definition using `::`, not `:`",
-                                                ProblemHighlightType.ERROR,
-                                                localQuickFix
-                                        )
-                                    }
+                                    problemsHolder.registerProblem(
+                                            keywordPairColon,
+                                            "Type specifications separate the name from the definition using `::`, not `:`",
+                                            ProblemHighlightType.ERROR,
+                                            localQuickFix
+                                    )
                                 }
                             }
                         }
