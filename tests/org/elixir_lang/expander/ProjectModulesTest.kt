@@ -19,6 +19,7 @@ import com.intellij.psi.impl.PsiFileEx
 import com.intellij.psi.impl.PsiManagerEx
 import com.intellij.testFramework.DumbModeTestUtils
 import com.intellij.testFramework.IndexingTestUtil
+import com.intellij.util.FileContentUtilCore
 import org.elixir_lang.NameArity
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
@@ -26,6 +27,7 @@ import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.psi.ElixirFile
 import java.io.File
+import java.util.concurrent.Callable
 import java.util.concurrent.CountDownLatch
 import kotlin.concurrent.thread
 
@@ -208,6 +210,44 @@ class ProjectModulesTest : PlatformTestCase() {
 
         assertTrue(exports(holder, a, "Elixir.B") is ModuleExports.Present)
         assertFresh("one copy left", a, expansion(holder, a))
+    }
+
+    fun testTwoCopiesAreSeveralThroughLocateAndUnreadableThroughExports() {
+        val a = add("a.ex", "defmodule A do\nend\n")
+        val b1 = add("b1.ex", "defmodule B do\n  def f, do: 1\nend\n")
+        val b2 = add("b2.ex", "defmodule B do\n  def f, do: 1\nend\n")
+
+        val located = ReadAction.nonBlocking(Callable { holder.locate(a, "Elixir.B", legInputs) }).executeSynchronously()
+
+        assertEquals(
+            setOf(b1.virtualFile, b2.virtualFile),
+            (located as? ProjectModules.Located.Several)?.copies?.toSet(),
+        )
+        assertEquals(ModuleExports.Unreadable, exports(holder, a, "Elixir.B"))
+    }
+
+    fun testAReparsedCopyIsLocatedAsItsNewFile() {
+        val a = add("a.ex", "defmodule A do\nend\n")
+        val b = add("b.ex", "defmodule B do\n  def f, do: 1\nend\n")
+        val locate = { ReadAction.nonBlocking(Callable { holder.locate(a, "Elixir.B", legInputs) }).executeSynchronously() }
+        assertSame(b, (locate() as ProjectModules.Located.Source).file)
+
+        FileContentUtilCore.reparseFiles(b.virtualFile)
+
+        val reparsed = (locate() as ProjectModules.Located.Source).file
+        assertTrue("the located file is valid", ReadAction.nonBlocking(Callable { reparsed.isValid }).executeSynchronously())
+        assertSame(psiManager.findFile(b.virtualFile), reparsed)
+    }
+
+    fun testDumbLocatesUnknown() {
+        val a = add("a.ex", "defmodule A do\nend\n")
+        add("b.ex", "defmodule B do\n  def f, do: 1\nend\n")
+
+        DumbModeTestUtils.runInDumbModeSynchronously(project) {
+            val located = ReadAction.nonBlocking(Callable { holder.locate(a, "Elixir.B", legInputs) }).executeSynchronously()
+
+            assertSame(ProjectModules.Located.Unknown, located)
+        }
     }
 
     fun testLibraryReadsBeam() {

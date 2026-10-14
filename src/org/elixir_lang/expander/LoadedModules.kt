@@ -106,6 +106,7 @@ internal object LoadedModules {
 
     private fun loading(result: ExpansionResult): Loading =
         when {
+            result.ended.raises -> Loading.ABSENT
             result.ended is ExpansionResult.Ended.Stopped || result.table.unnamed.isNotEmpty() -> Loading.UNREADABLE
             result.ended == ExpansionResult.Ended.Compiled -> Loading.LOADED
             else -> Loading.ABSENT

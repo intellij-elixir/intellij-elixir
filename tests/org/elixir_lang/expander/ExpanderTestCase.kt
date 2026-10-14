@@ -30,11 +30,11 @@ abstract class ExpanderTestCase : ParsingTestCase() {
     protected open val function: NameArity? = null
 
     /** [code], lowered and expanded at [version], from the empty env and an empty [ExState]. */
-    protected fun expand(code: String, version: String, observer: ExpansionObserver = ExpansionObserver.NONE) =
+    internal fun expand(code: String, version: String, observer: ExpansionObserver = ExpansionObserver.NONE) =
         expand(code, ElixirLanguageLevel.of(version), observer)
 
     /** [code], lowered and expanded at [level], from the empty env and an empty [ExState]. */
-    protected fun expand(code: String, level: ElixirLanguageLevel, observer: ExpansionObserver = ExpansionObserver.NONE) =
+    internal fun expand(code: String, level: ElixirLanguageLevel, observer: ExpansionObserver = ExpansionObserver.NONE) =
         Expander.expand(
             lower(code, level),
             ExState.empty(level),

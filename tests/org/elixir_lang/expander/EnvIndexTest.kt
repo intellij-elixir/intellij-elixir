@@ -30,7 +30,7 @@ class EnvIndexTest : PlatformTestCase() {
     fun testADefmoduleCallGetsTheTopEnv() {
         val inputs = inputs("1.20.4")
         val file = file("top.ex", "defmodule A do\n  def f, do: :ok\nend\n")
-        val index = holder.envIndex(file, inputs)
+        val index = holder.indexed(file, inputs).envs
 
         assertEquals(Env.empty(inputs.level, inputs.kernel), index.at(call(file, "defmodule A").textRange))
         assertEquals("Elixir.A", index.at(call(file, "def f").textRange).module)
@@ -41,7 +41,7 @@ class EnvIndexTest : PlatformTestCase() {
         val file = file("after_error.ex", "defmodule A do\n  u()\nend\n\ndefmodule B do\n  def g, do: :ok\nend\n")
         assertTrue(holder.expansion(file, inputs).modules.single().ended.raises)
 
-        assertEquals(Env.empty(inputs.level, inputs.kernel), holder.envIndex(file, inputs).at(call(file, "def g").textRange))
+        assertEquals(Env.empty(inputs.level, inputs.kernel), holder.indexed(file, inputs).envs.at(call(file, "def g").textRange))
     }
 
     /**
@@ -73,7 +73,7 @@ class EnvIndexTest : PlatformTestCase() {
 
     /** The aliases and the imports other than `Kernel`'s in the env at the call in [file] that starts with [prefix]. */
     private fun directives(file: ElixirFile, prefix: String, inputs: ProjectModules.Inputs): String {
-        val env = holder.envIndex(file, inputs).at(call(file, prefix).textRange)
+        val env = holder.indexed(file, inputs).envs.at(call(file, prefix).textRange)
 
         return "aliases ${env.aliases.map { it.alias }} imports ${env.functions.map { it.module }.filter { it != "Elixir.Kernel" }}"
     }
@@ -90,7 +90,7 @@ class EnvIndexTest : PlatformTestCase() {
         }
         val uses = files.flatMap { file -> uses(file).map { file to it } }
         val differing = uses.filter { (file, use) ->
-            holder.envIndex(file, inputs).at(use.textRange) != reexpanded(file, use.textRange, inputs)
+            holder.indexed(file, inputs).envs.at(use.textRange) != reexpanded(file, use.textRange, inputs)
         }
 
         assertEquals("", differing.joinToString("\n") { (file, use) -> "${file.name} ${use.textRange} `${use.text}`" })

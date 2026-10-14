@@ -20,7 +20,7 @@ object Expander {
      * counter. An error Elixir reports and carries on after isn't returned, and a definition or module [ast] defines is
      * never compiled; [expandFile] does both.
      */
-    fun expand(
+    internal fun expand(
         ast: ElixirAst,
         state: ExState,
         env: Env,
@@ -219,7 +219,7 @@ internal class Run(
         val loadedExports = LoadedModules.exports(result)
         compiledStructs[result.module] = loadedStruct
         compiled[result.module] = loadedExports
-        observer.loaded(result.module, loadedExports, loadedStruct)
+        observer.loaded(result, loadedExports, loadedStruct)
     }
 
     /** What each bitstring expanded builds, by node, for the bitstring that nests it. */

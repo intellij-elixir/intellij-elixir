@@ -29,7 +29,19 @@ sealed class ModuleExports {
         val hasInfo: Boolean,
         val behaviour: Behaviour = Behaviour.Unreadable,
         val deprecated: Deprecations = Deprecations.Unreadable,
-    ) : ModuleExports()
+    ) : ModuleExports() {
+        /**
+         * Every function a remote call reaches: [functions], and with [hasInfo] those of [NOT_IN_INFO] the module
+         * exports, `behaviour_info/1` only for a behaviour.
+         */
+        val exported: List<NameArity>
+            get() =
+                if (hasInfo) {
+                    functions + NOT_IN_INFO.filter { it.name != "behaviour_info" || behaviour != Behaviour.None }
+                } else {
+                    functions
+                }
+    }
 
     /** What a module's `behaviour_info/1` answers. */
     sealed class Behaviour {

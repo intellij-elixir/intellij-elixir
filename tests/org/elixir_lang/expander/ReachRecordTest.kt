@@ -115,7 +115,7 @@ class ReachRecordTest : PlatformTestCase() {
 
     /** Each entry of the env at [use] that imports names, with the text of the call that made it. */
     private fun imports(file: ElixirFile, use: String, inputs: ProjectModules.Inputs): String =
-        holder.envIndex(file, inputs).at(call(file, use).textRange).functions.joinToString(" | ") { imports ->
+        holder.indexed(file, inputs).envs.at(call(file, use).textRange).functions.joinToString(" | ") { imports ->
             imports.module + " " + (imports.origin?.let { "`${it.substring(file.text)}`" } ?: "none")
         }
 

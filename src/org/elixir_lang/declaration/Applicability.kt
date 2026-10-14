@@ -1,5 +1,7 @@
 package org.elixir_lang.declaration
 
+import org.elixir_lang.psi.arityInterval
+
 /** Whether a declaration applies at a use. */
 enum class Applicability {
     VALID,
@@ -25,5 +27,20 @@ enum class Applicability {
                 declaration.arity == ArityKnowledge.Unknown -> OPAQUE
                 else -> WRONG_ARITY
             }
+
+        /**
+         * How [declaration] applies at a use with no name yet and [arity] arguments, reached as [searched] behind a
+         * delegation. Nothing such a use reaches is valid, so its arity decides; behind a delegation only the name it
+         * delegates to is a candidate.
+         */
+        fun ofAnyName(declaration: Declaration, searched: String?, arity: Int): Applicability? =
+            when {
+                searched != null && searched != declaration.name -> null
+                declaration.arity.admits(arity) -> OPAQUE
+                else -> WRONG_ARITY
+            }
     }
 }
+
+/** Whether a declaration of this arity takes [arity] arguments; an unknown arity may take any. */
+fun ArityKnowledge.admits(arity: Int): Boolean = arityInterval()?.contains(arity) != false

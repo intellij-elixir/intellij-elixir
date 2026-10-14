@@ -358,11 +358,15 @@ private fun orGuards(node: ElixirAst): List<ElixirAst> =
 /**
  * `elixir_def:store_definition/5`: [definition]'s name checked, its defaults and clause expanded in the env where it
  * was defined, and the definition stored unless that raised. The owner names the definition as far as it is known.
+ *
+ * @param expand whether the defaults and clause are expanded; where they aren't, the definition is stored as one that
+ *   stops at its node
  */
 internal fun storeDefinition(
     definition: Pending.Definition,
     compiling: Compiling,
     run: Run,
+    expand: Boolean = true,
 ): Pair<Owner, Expansion> {
     val kind = definition.kind
     val node = definition.node
@@ -395,10 +399,10 @@ internal fun storeDefinition(
     reservedNameError(kind, name, arity)?.let { return owner to Expansion.Error(it, node) }
 
     val defaults = defaultsArgs.mapNotNull { arg -> (arg as? ElixirAst.Call)?.takeIf { isCall(it, "\\\\", 2) } }
-    definition.stop?.let { stop ->
+    if (definition.stop != null || !expand) {
         store(definition, name, arity, defaults.size, compiling)
 
-        return owner to Expansion.Unported(stop)
+        return owner to Expansion.Unported(definition.stop ?: node)
     }
 
     val env = definition.env.copy(function = NameArity(name, arity))
