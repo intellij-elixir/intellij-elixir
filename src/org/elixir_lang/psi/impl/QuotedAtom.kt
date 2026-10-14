@@ -14,7 +14,6 @@ import org.elixir_lang.psi.ElixirAtIdentifier
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirAtomKeyword
 import org.elixir_lang.psi.ElixirIdentifier
-import org.elixir_lang.psi.ElixirParentheticalStab
 import org.elixir_lang.psi.ElixirVariable
 import org.elixir_lang.psi.Quotable
 import org.elixir_lang.psi.call.Call
@@ -95,9 +94,8 @@ fun moduleAttributeAtom(atIdentifier: ElixirAtIdentifier): String? {
     return AtomName.of(atIdentifier)
 }
 
-private tailrec fun attributeNameElement(operand: PsiElement?): PsiElement? =
-    when (val stripped = operand?.stripAccessExpression()) {
-        is ElixirParentheticalStab -> attributeNameElement(stripped.stab?.stabBody?.childExpressions()?.singleOrNull())
+private fun attributeNameElement(operand: PsiElement?): PsiElement? =
+    when (val stripped = operand?.stripAccessExpressionAndParentheses()) {
         is ElixirVariable -> stripped
         is Call -> stripped.functionNameElement()?.takeIf { it is ElixirIdentifier }
         else -> null

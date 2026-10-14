@@ -229,6 +229,16 @@ class MfaTupleReferenceTest : PlatformTestCase() {
         assertNull(atomReferenceAtCaretOrNull())
     }
 
+    fun testApplyThreeResolvesParenthesisedFunctionAtom() {
+        assertResolvesValidlyTo("apply_parenthesised_atom.ex", "reverse")
+    }
+
+    fun testAtomNestedInParenthesisedApplyThreeFunctionArgumentHasNoMfaReference() {
+        myFixture.configureByFile("apply_parenthesised_nested_atom.ex")
+
+        assertNull(atomReferenceAtCaretOrNull())
+    }
+
     fun testInterpolatedModuleAtomHasNoMfaReference() {
         myFixture.configureByFile("interpolated_module_atom.ex")
 

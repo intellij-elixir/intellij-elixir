@@ -20,6 +20,7 @@ import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.Modular
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
+import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 import org.elixir_lang.psi.operation.Prefix
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 import java.util.concurrent.ConcurrentHashMap
@@ -288,7 +289,7 @@ object SdkStdlibSweep {
             ?.let { head ->
                 // `def not(value)` parses as `not` applied to the parenthesized operand `(value)`.
                 head.finalArguments()?.map { argument ->
-                    if (head is Prefix) CallDefinitionHead.stripAllOuterParentheses(argument).text else argument.text
+                    if (head is Prefix) argument.stripAccessExpressionAndParentheses().text else argument.text
                 }
             }
 

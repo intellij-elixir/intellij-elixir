@@ -125,6 +125,9 @@
 
 ### Bug Fixes
 
+- [#4426](https://github.com/intellij-elixir/intellij-elixir/pull/4426) [@sh41](https://github.com/sh41)
+  - **Go to Declaration from a GenServer or `Process` message reaches its handler when either atom is quoted or spelt differently, as `:"ping"` and `:ping` are one atom.** Fixes [#4334](https://github.com/intellij-elixir/intellij-elixir/issues/4334).
+  - **An atom inside a GenServer message, such as `:ping` in `{:ping, 1}`, no longer goes to a `handle_call(:ping, ...)` clause.**
 - [#4427](https://github.com/intellij-elixir/intellij-elixir/pull/4427) [@sh41](https://github.com/sh41)
   - **In a tagged tuple such as `{:error, :lists, reason}`, the middle atom completes and navigates as a module atom again, not as a function of `:error`. A tuple whose first element names a module still reads as module, function and arguments.** Fixes [#4336](https://github.com/intellij-elixir/intellij-elixir/issues/4336).
 - [#4417](https://github.com/intellij-elixir/intellij-elixir/pull/4417) [@sh41](https://github.com/sh41)

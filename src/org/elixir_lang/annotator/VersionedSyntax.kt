@@ -62,6 +62,7 @@ import org.elixir_lang.psi.QualifiedParenthesesCall
 import org.elixir_lang.psi.UnqualifiedNoArgumentsCall
 import org.elixir_lang.psi.UnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.UnqualifiedParenthesesCall
+import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 import org.elixir_lang.language_level.ElixirLanguageFeature.*
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
@@ -401,7 +402,11 @@ internal class VersionedSyntax : Annotator, DumbAware {
         if (arguments?.parent is ElixirMapOperation && arguments.prevSibling is PsiWhiteSpace) return null
 
         val entry = base.children.firstOrNull { !isMapEntry(it, languageLevel) } ?: return null
-        if (unwrap(entry) is ElixirNullaryRangeOperation && !NULLARY_RANGE.isSufficient(languageLevel())) return null
+        if (entry.stripAccessExpressionAndParentheses() is ElixirNullaryRangeOperation &&
+            !NULLARY_RANGE.isSufficient(languageLevel())
+        ) {
+            return null
+        }
 
         val next = nextCodeLeaf(entry) ?: return null
         val eol = hasNewlineBetween(entry, next)
@@ -508,7 +513,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
     }
 
     private fun isRange(element: PsiElement?): Boolean =
-        when (val unwrapped = unwrap(element)) {
+        when (val unwrapped = element?.stripAccessExpressionAndParentheses()) {
             is ElixirMatchedTwoOperation, is ElixirUnmatchedTwoOperation ->
                 unwrapped.children.any { it is ElixirTwoInfixOperator && it.text == ".." }
             else -> false

@@ -5,6 +5,8 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.assertGotoDeclarationChosenAtCaret
+import org.elixir_lang.code_insight.assertNoNavigationAtCaret
+import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
 import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
 import org.elixir_lang.psi.call.Call
 
@@ -127,6 +129,154 @@ class GenServerDispatchTest : PlatformTestCase() {
             """.trimIndent()
         )
         assertRequestNavigatesToHandler("handle_info", ":timeout")
+    }
+
+    // ---- Only the message argument itself is the message ----
+
+    fun testAtomInsideATupleMessageDoesNotNavigateToTheHandler() {
+        configureCall("{:<caret>ping, 1}", ":ping")
+        myFixture.assertShowUsagesChosenAtCaret("An atom inside a tuple message is a bare atom, not the message")
+    }
+
+    fun testAtomInsideACallInTheMessageDoesNotNavigateToTheHandler() {
+        configureCall("Keyword.get(opts, :<caret>ping)", ":ping")
+        myFixture.assertShowUsagesChosenAtCaret("An atom inside a call in the message is a bare atom, not the message")
+    }
+
+    fun testQuotedAtomInsideACallInTheMessageDoesNotNavigateToTheHandler() {
+        configureCall("Keyword.get(opts, :\"<caret>ping\")", ":ping")
+        myFixture.assertNoNavigationAtCaret("An atom inside a call in the message is not the message")
+    }
+
+    /** Parentheses leave no trace in the quoted message, so `(:ping)` is `:ping`. */
+    fun testParenthesisedRequestNavigatesToTheHandler() {
+        configureCall("(:<caret>ping)", ":ping")
+        assertRequestNavigatesToHandler("handle_call", ":ping")
+    }
+
+    fun testAtomInsideAParenthesisedTupleMessageDoesNotNavigateToTheHandler() {
+        configureCall("({:<caret>ping, 1})", ":ping")
+        myFixture.assertShowUsagesChosenAtCaret("An atom inside a tuple message is a bare atom, not the message")
+    }
+
+    // ---- The atoms match by value, however each is written ----
+
+    /** `:"pop"` is the same atom as `:pop`, so it reaches the same handler. */
+    fun testQuotedRequestNavigatesToTheBareAtomsHandler() {
+        myFixture.configureByText(
+            "stack.ex",
+            """
+                defmodule Stack do
+                  use GenServer
+
+                  def pop(pid), do: GenServer.call(pid, :"<caret>pop")
+
+                  @impl true
+                  def handle_call(:pop, _from, [head | tail]) do
+                    {:reply, head, tail}
+                  end
+                end
+            """.trimIndent()
+        )
+        assertRequestNavigatesToHandler("handle_call", ":pop")
+    }
+
+    fun testBareRequestNavigatesToTheQuotedAtomsHandler() {
+        configureCall(":<caret>ping", ":\"ping\"")
+        assertRequestNavigatesToHandler("handle_call", ":\"ping\"")
+    }
+
+    fun testQuotedRequestNavigatesToTheQuotedAtomsHandler() {
+        configureCall(":\"<caret>ping\"", ":\"ping\"")
+        assertRequestNavigatesToHandler("handle_call", ":\"ping\"")
+    }
+
+    fun testSingleQuotedCastRequestNavigatesToHandleCastClause() {
+        myFixture.configureByText(
+            "stack.ex",
+            """
+                defmodule Stack do
+                  use GenServer
+
+                  def ping(pid), do: GenServer.cast(pid, :'<caret>ping')
+
+                  @impl true
+                  def handle_cast(:ping, state) do
+                    {:noreply, state}
+                  end
+                end
+            """.trimIndent()
+        )
+        assertRequestNavigatesToHandler("handle_cast", ":ping")
+    }
+
+    /** The escape tells the atom's value from its content with the quotes stripped. */
+    fun testEscapedProcessSendMessageNavigatesToHandleInfoClause() {
+        myFixture.configureByText(
+            "worker.ex",
+            """
+                defmodule Worker do
+                  use GenServer
+
+                  def ping(pid), do: Process.send(pid, :"<caret>ping\x20pong", [])
+
+                  @impl true
+                  def handle_info(:"ping pong", state) do
+                    {:noreply, state}
+                  end
+                end
+            """.trimIndent()
+        )
+        assertRequestNavigatesToHandler("handle_info", ":\"ping pong\"")
+    }
+
+    /** From Elixir 1.14 a bare atom's `µ` (micro sign) is `μ` (Greek mu). */
+    fun testBareRequestNavigatesToTheHandlerOfTheAtomItNormalizesTo() {
+        configureCall(":<caret>${"μ"}", ":${"µ"}")
+        assertRequestNavigatesToHandler("handle_call", ":${"µ"}")
+    }
+
+    /** A quoted atom is not normalized, so `:"µ"` is not `:µ`. */
+    fun testQuotedMicroSignRequestDoesNotNavigateToTheBareMicroSignHandler() {
+        configureCall(":\"<caret>${"µ"}\"", ":${"µ"}")
+        myFixture.assertNoNavigationAtCaret("A quoted atom is not normalized")
+    }
+
+    fun testComposedRequestNavigatesToTheDecomposedAtomsHandler() {
+        configureCall(":caf<caret>${"é"}", ":caf${"é"}")
+        assertRequestNavigatesToHandler("handle_call", ":caf${"é"}")
+    }
+
+    fun testInterpolatedRequestDoesNotNavigateToTheHandler() {
+        configureCall(":\"<caret>ping#{n}\"", ":ping")
+        myFixture.assertNoNavigationAtCaret("An interpolated atom has no value")
+    }
+
+    /**
+     * A module with `ping/3` sending [message] by `GenServer.call/2`, and `handle_call/3` clauses for
+     * [handler] and `:pong`.
+     */
+    private fun configureCall(message: String, handler: String) {
+        myFixture.configureByText(
+            "stack.ex",
+            """
+                defmodule Stack do
+                  use GenServer
+
+                  def ping(pid, opts, n), do: GenServer.call(pid, $message)
+
+                  @impl true
+                  def handle_call($handler, _from, state) do
+                    {:reply, :ok, state}
+                  end
+
+                  @impl true
+                  def handle_call(:pong, _from, state) do
+                    {:reply, :ok, state}
+                  end
+                end
+            """.trimIndent()
+        )
     }
 
     /**
