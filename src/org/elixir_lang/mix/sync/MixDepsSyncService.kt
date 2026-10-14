@@ -161,6 +161,11 @@ class MixDepsSyncService(private val project: Project, cs: CoroutineScope) {
     @get:TestOnly
     internal val isIdle: Boolean get() = completed.value >= requested.get()
 
+    /** The counts [isIdle] compares, and the pending set's size, for a test that gave up waiting. */
+    @get:TestOnly
+    internal val counts: String
+        get() = "requested=${requested.get()}, completed=${completed.value}, pending=$pendingCount"
+
     /** Number of requests currently waiting in the pending set. Exposed for tests only. */
     @VisibleForTesting
     internal val pendingCount: Int get() = pendingRequests.get().size

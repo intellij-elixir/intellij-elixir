@@ -1,5 +1,7 @@
 package org.elixir_lang.mix.sync
 
+import com.intellij.diagnostic.ThreadDumper
+import com.intellij.diagnostic.dumpCoroutines
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
@@ -94,7 +96,13 @@ internal object MixSyncTestHelpers {
         } else {
             runBlocking { awaitIdle() }
         }
-        if (!idle) throw AssertionError("Mix deps syncs still running after $SYNC_TIMEOUT")
+        if (!idle) {
+            throw AssertionError(
+                "Mix deps syncs still running after $SYNC_TIMEOUT: ${service.counts}\n\n" +
+                    "Coroutines:\n${dumpCoroutines() ?: "(coroutine debug probes are not installed)"}\n\n" +
+                    "Threads:\n${ThreadDumper.dumpThreadsToString()}"
+            )
+        }
     }
 
     private val SYNC_TIMEOUT = 60.seconds
