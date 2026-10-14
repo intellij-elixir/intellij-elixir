@@ -125,6 +125,8 @@
 
 ### Bug Fixes
 
+- [#4429](https://github.com/intellij-elixir/intellij-elixir/pull/4429) [@sh41](https://github.com/sh41)
+  - **A decompiled `.beam` shows the defaults of a function whose default values are all small integers, such as `cursor_up(lines \\ 1)` in `IO.ANSI`.**
 - [#4433](https://github.com/intellij-elixir/intellij-elixir/pull/4433) [@sh41](https://github.com/sh41)
   - **A `defoverridable` key links only to the callbacks its definition implements: a public `def` or `defdelegate` for a `@callback`, a public `defmacro` for a `@macrocallback`, and nothing when the definition is private or missing. Find Usages from a callback now lists a `defdelegate` that implements it.** Fixes [#4430](https://github.com/intellij-elixir/intellij-elixir/issues/4430).
 - [#4426](https://github.com/intellij-elixir/intellij-elixir/pull/4426) [@sh41](https://github.com/sh41)
