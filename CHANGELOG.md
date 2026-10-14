@@ -715,6 +715,8 @@
 
 ### Build / CI
 
+- [#4443](https://github.com/intellij-elixir/intellij-elixir/pull/4443) [@sh41](https://github.com/sh41)
+  - **Each Linux test leg compiles Elixir's own tests with that leg's Elixir and checks what the plugin resolves in them against what the compiler says, and committed files per leg count each kind of difference.** Refs [#4407](https://github.com/intellij-elixir/intellij-elixir/issues/4407).
 - [#4437](https://github.com/intellij-elixir/intellij-elixir/pull/4437) [@sh41](https://github.com/sh41)
   - **The local Qodana diff-scan scripts diff against `main` fetched from the repository itself, so they no longer need a remote named `upstream`.** Fixes [#4431](https://github.com/intellij-elixir/intellij-elixir/issues/4431).
 - [#4438](https://github.com/intellij-elixir/intellij-elixir/pull/4438) [@sh41](https://github.com/sh41)

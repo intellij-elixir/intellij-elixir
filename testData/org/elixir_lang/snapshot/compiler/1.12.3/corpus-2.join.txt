@@ -1,0 +1,377 @@
+ref	matched	18537
+ref	no use	1227
+ref	other	151
+ref	nothing	374
+alias	matched	4690
+alias	other	82
+alias	nothing	147
+def	matched	175
+def	nothing	1928
+declaration	matched	188
+declaration	nothing	52
+other	alias	MyAgent	1	elixir/agent_test.exs:17:15
+other	alias	CustomAgent	1	elixir/agent_test.exs:26:15
+no use	ref	Map	new	0	1	elixir/agent_test.exs:39:35
+nothing	ref	:proc_lib	translate_initial_call	1	8	elixir/agent_test.exs:44:21
+nothing	ref	:sys	suspend	1	3	elixir/agent_test.exs:73:15
+nothing	ref	:sys	change_code	4	2	elixir/agent_test.exs:75:16
+nothing	ref	:sys	resume	1	2	elixir/agent_test.exs:76:15
+no use	ref	Base	encode16	2	1	elixir/base_test.exs:785:12
+no use	ref	Base	decode16!	2	1	elixir/base_test.exs:785:25
+no use	ref	Base	encode32	2	1	elixir/base_test.exs:786:12
+no use	ref	Base	decode32!	2	1	elixir/base_test.exs:786:25
+no use	ref	Base	hex_encode32	2	1	elixir/base_test.exs:787:12
+no use	ref	Base	hex_decode32!	2	1	elixir/base_test.exs:787:29
+no use	ref	Base	encode64	2	1	elixir/base_test.exs:788:12
+no use	ref	Base	decode64!	2	1	elixir/base_test.exs:788:25
+no use	ref	Base	url_encode64	2	1	elixir/base_test.exs:789:12
+no use	ref	Base	url_decode64!	2	1	elixir/base_test.exs:789:29
+nothing	ref	:lists	seq	2	1	elixir/base_test.exs:798:18
+no use	ref	Kernel	to_string	1	84	elixir/base_test.exs:808:42
+no use	ref	Kernel	@	1	329	elixir/calendar/date_range_test.exs:7:3
+no use	ref	Kernel	sigil_D	2	168	elixir/calendar/date_range_test.exs:7:25
+no use	ref	Kernel	sigil_N	2	2	elixir/calendar/date_range_test.exs:99:24
+no use	ref	Kernel	sigil_U	2	3	elixir/calendar/date_range_test.exs:99:49
+no use	ref	Kernel	sigil_r	2	331	elixir/calendar/date_range_test.exs:131:15
+no use	ref	Kernel	sigil_S	2	67	elixir/code_formatter/containers_test.exs:201:19
+nothing	alias	Z	1	elixir/code_test.exs:188:73
+nothing	alias	K	1	elixir/code_test.exs:195:20
+nothing	alias	CodeTest.Sample	2	elixir/code_test.exs:229:12
+nothing	ref	CodeTest.Sample	eval_quoted_info	0	1	elixir/code_test.exs:229:27
+other	alias	CompileTimeEnv	1	elixir/code_test.exs:243:15
+nothing	ref	CodeTest	__info__	1	2	elixir/code_test.exs:284:22
+no use	ref	Access	get	2	44	elixir/code_test.exs:284:41
+nothing	alias	CompileStringSample	1	elixir/code_test.exs:294:16
+nothing	ref	:code	purge	1	14	elixir/code_test.exs:297:12
+nothing	alias	CompileSimpleSample	2	elixir/code_test.exs:297:19
+nothing	ref	:code	delete	1	13	elixir/code_test.exs:298:12
+nothing	alias	CompileCrossSample	3	elixir/code_test.exs:302:16
+nothing	alias	Code.NoFile	4	elixir/code_test.exs:312:32
+nothing	ref	:code	get_path	0	2	elixir/code_test.exs:359:38
+no use	ref	Kernel	sigil_w	2	20	elixir/enum_test.exs:377:29
+no use	ref	Kernel	>=	2	14	elixir/enum_test.exs:498:31
+no use	ref	Kernel	>	2	8	elixir/enum_test.exs:500:31
+no use	ref	Kernel	<=	2	13	elixir/enum_test.exs:582:31
+no use	ref	Kernel	<	2	5	elixir/enum_test.exs:584:31
+nothing	ref	:rand	seed	2	30	elixir/enum_test.exs:740:10
+no use	ref	:erlang	+	2	6	elixir/enum_test.exs:807:39
+no use	ref	:erlang	>=	2	1	elixir/enum_test.exs:894:39
+other	ref	Kernel	..//	3	140	elixir/enum_test.exs:1364:23
+nothing	ref	:math	pow	2	7	elixir/enum_test.exs:1697:43
+no use	ref	Kernel	+	2	1	elixir/enum_test.exs:1790:63
+no use	ref	:erlang	>	2	3	elixir/enum_test.exs:1979:28
+other	alias	DefaultDeprecated	1	elixir/kernel/deprecated_test.exs:18:15
+nothing	ref	Kernel.DeprecatedTest.DefaultDeprecated	__info__	1	1	elixir/kernel/deprecated_test.exs:23:29
+other	alias	Kernel.DeprecatedTest.SampleDeprecated	1	elixir/kernel/deprecated_test.exs:43:12
+nothing	ref	Kernel.DeprecatedTest.SampleDeprecated	__info__	1	1	elixir/kernel/deprecated_test.exs:43:28
+other	alias	DocAttributes	1	elixir/kernel/docs_test.exs:18:15
+other	alias	Kernel.DocsTest.WithoutDocs	1	elixir/kernel/docs_test.exs:50:28
+other	alias	InMemoryDocs	1	elixir/kernel/docs_test.exs:56:15
+other	alias	Kernel.DocsTest.SignatureDocs	1	elixir/kernel/docs_test.exs:125:70
+other	alias	Kernel.DocsTest.SampleDocs	1	elixir/kernel/docs_test.exs:231:32
+other	alias	Kernel.DocsTest.ExternalDocs	3	elixir/kernel/docs_test.exs:319:28
+nothing	ref	:erlang	term_to_binary	1	1	elixir/kernel/docs_test.exs:323:30
+other	alias	Kernel.DocsTest.Docs	1	elixir/kernel/docs_test.exs:358:55
+no use	ref	Kernel	sigil_C	2	15	elixir/kernel/errors_test.exs:45:23
+other	alias	BadStructType	1	elixir/kernel/errors_test.exs:266:17
+no use	ref	List	to_charlist	1	10	elixir/kernel/errors_test.exs:277:25
+other	alias	MissingStructKey	1	elixir/kernel/errors_test.exs:296:17
+other	alias	InvalidStructKey	1	elixir/kernel/errors_test.exs:324:17
+other	alias	InvalidStructName	1	elixir/kernel/errors_test.exs:354:17
+other	alias	GoodStruct	1	elixir/kernel/errors_test.exs:381:17
+other	alias	EnforceKeys	1	elixir/kernel/errors_test.exs:395:17
+nothing	alias	Kernel.ErrorsTest.MacrosErrorStacktrace	1	elixir/kernel/errors_test.exs:867:15
+nothing	alias	Kernel.ErrorsTest.MacrosInterpretedFunctionClauseStacktrace	1	elixir/kernel/errors_test.exs:888:14
+nothing	alias	Kernel.ErrorsTest.MacrosCompiledCallback	1	elixir/kernel/errors_test.exs:905:31
+other	alias	User	2	elixir/kernel/expansion_test.exs:488:13
+no use	ref	Kernel.MacrosTest	by_two	1	1	elixir/kernel/macros_test.exs:38:21
+nothing	alias	Kernel.MacrosTest.Nested	2	elixir/kernel/macros_test.exs:46:12
+nothing	ref	Kernel.MacrosTest.Nested	value	0	1	elixir/kernel/macros_test.exs:46:18
+nothing	ref	Kernel.Overridable	undefined_function	0	1	elixir/kernel/overridable_test.exs:37:5
+other	alias	OverridableOrder	1	elixir/kernel/overridable_test.exs:171:15
+other	alias	OverridableDefault	1	elixir/kernel/overridable_test.exs:194:15
+other	alias	OverridableCall	1	elixir/kernel/overridable_test.exs:217:15
+nothing	alias	Kernel.Overridable	18	elixir/kernel/overridable_test.exs:225:12
+nothing	ref	Kernel.Overridable	sample	0	1	elixir/kernel/overridable_test.exs:225:23
+nothing	ref	Kernel.Overridable	with_super	0	1	elixir/kernel/overridable_test.exs:229:23
+nothing	ref	Kernel.Overridable	without_super	0	1	elixir/kernel/overridable_test.exs:233:23
+nothing	ref	Kernel.Overridable	test_public_to_private	0	1	elixir/kernel/overridable_test.exs:237:23
+nothing	ref	Kernel.Overridable	module_info	1	3	elixir/kernel/overridable_test.exs:238:50
+nothing	ref	Kernel.Overridable	locals	0	1	elixir/kernel/overridable_test.exs:242:23
+nothing	ref	Kernel.Overridable	super_with_multiple_args	2	1	elixir/kernel/overridable_test.exs:246:23
+nothing	ref	Kernel.Overridable	capture_super	1	1	elixir/kernel/overridable_test.exs:250:23
+nothing	ref	Kernel.Overridable	capture_super_macro	1	1	elixir/kernel/overridable_test.exs:254:23
+nothing	ref	Kernel.Overridable	many_clauses	1	4	elixir/kernel/overridable_test.exs:263:23
+nothing	ref	Kernel.Overridable	multiple_overrides	0	1	elixir/kernel/overridable_test.exs:275:23
+nothing	ref	Kernel.Overridable	overridable_macro	1	1	elixir/kernel/overridable_test.exs:280:23
+nothing	ref	Kernel.Overridable	private_macro_call	0	1	elixir/kernel/overridable_test.exs:281:23
+nothing	alias	Kernel.OverridableOrder.Forwarding	1	elixir/kernel/overridable_test.exs:299:11
+nothing	alias	Kernel.OverridableMacro.FunctionOverride	3	elixir/kernel/overridable_test.exs:347:11
+nothing	alias	Kernel.OverridableFunction.MacroOverride	3	elixir/kernel/overridable_test.exs:391:11
+nothing	alias	Kernel.OverridableOrder.Foo	1	elixir/kernel/overridable_test.exs:431:11
+other	alias	OverridableWithBehaviour	1	elixir/kernel/overridable_test.exs:435:15
+nothing	alias	Kernel.OverridableTest.Foo	4	elixir/kernel/overridable_test.exs:476:11
+nothing	alias	Kernel.OverridableTest.Bar	1	elixir/kernel/overridable_test.exs:511:11
+nothing	alias	HelloWorld	2	elixir/kernel/parallel_compiler_test.exs:43:18
+nothing	alias	BarParallel	2	elixir/kernel/parallel_compiler_test.exs:80:23
+nothing	alias	FooParallel	2	elixir/kernel/parallel_compiler_test.exs:81:23
+nothing	alias	BarStruct	4	elixir/kernel/parallel_compiler_test.exs:105:15
+nothing	alias	FooStruct	4	elixir/kernel/parallel_compiler_test.exs:105:26
+nothing	alias	FooCircular	3	elixir/kernel/parallel_compiler_test.exs:282:25
+nothing	alias	BarCircular	3	elixir/kernel/parallel_compiler_test.exs:282:38
+nothing	alias	FooAsync	2	elixir/kernel/parallel_compiler_test.exs:311:16
+nothing	alias	BarAsync	2	elixir/kernel/parallel_compiler_test.exs:312:16
+nothing	alias	WarningsSample	2	elixir/kernel/parallel_compiler_test.exs:377:16
+nothing	alias	Dynamic	2	elixir/kernel/parallel_compiler_test.exs:437:21
+no use	ref	Kernel	sigil_s	2	39	elixir/kernel/parser_test.exs:82:39
+nothing	ref	:unicode	characters_to_nfd_list	1	1	elixir/kernel/parser_test.exs:519:44
+no use	ref	Kernel	sigil_c	2	3	elixir/kernel/sigils_test.exs:51:12
+nothing	alias	Bar	3	elixir/kernel/sigils_test.exs:94:21
+no use	ref	Kernel	sigil_W	2	11	elixir/kernel/sigils_test.exs:103:12
+no use	ref	Kernel	sigil_R	2	6	elixir/kernel_test.exs:89:22
+nothing	alias	Post	2	elixir/kernel_test.exs:221:52
+other	alias	TooLargeList	1	elixir/kernel_test.exs:445:17
+other	alias	InSample	2	elixir/kernel_test.exs:649:17
+other	alias	InVarCopy	2	elixir/kernel_test.exs:666:21
+nothing	ref	Kernel	__info__	1	5	elixir/kernel_test.exs:814:32
+nothing	ref	KernelTest	dynamic_flatten	1	1	elixir/kernel_test.exs:873:14
+other	alias	StructAccess	1	elixir/kernel_test.exs:929:15
+no use	ref	:erlang	hd	1	1	elixir/kernel_test.exs:1192:22
+other	alias	SampleA	1	elixir/kernel_test.exs:1260:15
+other	alias	SampleB	1	elixir/kernel_test.exs:1267:15
+nothing	alias	KernelTest.TestMod	1	elixir/kernel_test.exs:1314:13
+no use	ref	IO	puts	1	1	elixir/kernel_test.exs:1337:25
+nothing	ref	Map	__info__	1	1	elixir/keyword_test.exs:24:15
+nothing	ref	Keyword	__info__	1	1	elixir/keyword_test.exs:24:47
+nothing	ref	:file	native_name_encoding	0	1	elixir/path_test.exs:7:11
+nothing	ref	:gen_udp	open	1	1	elixir/port_test.exs:7:27
+nothing	ref	:gen_udp	close	1	1	elixir/port_test.exs:16:19
+nothing	alias	Any	4	elixir/protocol/consolidation_test.exs:19:25
+other	alias	NoImplStruct	1	elixir/protocol/consolidation_test.exs:25:13
+other	alias	ImplStruct	1	elixir/protocol/consolidation_test.exs:29:13
+nothing	alias	Unknown	4	elixir/protocol/consolidation_test.exs:34:37
+nothing	ref	Unknown	undefined	1	1	elixir/protocol/consolidation_test.exs:37:16
+nothing	ref	:code	load_binary	3	3	elixir/protocol/consolidation_test.exs:48:8
+nothing	alias	Protocol.ConsolidationTest.WithAny.Integer	2	elixir/protocol/consolidation_test.exs:73:17
+nothing	ref	Protocol.ConsolidationTest.Sample	impl_for	1	16	elixir/protocol/consolidation_test.exs:78:25
+nothing	ref	:erlang	ports	0	1	elixir/protocol/consolidation_test.exs:90:45
+nothing	alias	Protocol.ConsolidationTest.Sample.Protocol.ConsolidationTest.ImplStruct	1	elixir/protocol/consolidation_test.exs:93:46
+nothing	ref	Protocol.ConsolidationTest.WithAny	impl_for	1	5	elixir/protocol/consolidation_test.exs:98:19
+nothing	alias	Protocol.ConsolidationTest.WithAny.Any	3	elixir/protocol/consolidation_test.exs:98:49
+nothing	alias	Protocol.ConsolidationTest.WithAny.Map	2	elixir/protocol/consolidation_test.exs:101:54
+nothing	ref	:beam_lib	chunks	2	2	elixir/protocol/consolidation_test.exs:107:54
+nothing	ref	:erlang	binary_to_term	1	2	elixir/protocol/consolidation_test.exs:108:46
+nothing	ref	Protocol.ConsolidationTest.Sample	__info__	1	2	elixir/protocol/consolidation_test.exs:116:32
+other	alias	NoBeam	1	elixir/protocol/consolidation_test.exs:134:17
+nothing	ref	Protocol.ConsolidationTest.Sample	__protocol__	1	2	elixir/protocol/consolidation_test.exs:140:18
+nothing	ref	Protocol.ConsolidationTest.WithAny	__protocol__	1	2	elixir/protocol/consolidation_test.exs:142:19
+nothing	ref	:code	lib_dir	2	2	elixir/protocol/consolidation_test.exs:147:47
+other	alias	StructExtract	1	elixir/record_test.exs:34:15
+nothing	ref	RecordTest.StructExtract	__struct__	0	1	elixir/record_test.exs:38:74
+nothing	alias	User	9	elixir/record_test.exs:55:21
+nothing	alias	Author	2	elixir/record_test.exs:56:39
+nothing	ref	RecordTest	file_info	0	2	elixir/record_test.exs:101:17
+nothing	ref	RecordTest	user	0	4	elixir/record_test.exs:105:14
+nothing	ref	RecordTest	user	2	7	elixir/record_test.exs:106:12
+nothing	ref	RecordTest	user	1	14	elixir/record_test.exs:112:25
+nothing	ref	RecordTest	defaults	1	2	elixir/record_test.exs:191:12
+nothing	ref	RecordTest	defaults	0	13	elixir/record_test.exs:191:21
+nothing	ref	RecordTest	defaults	2	22	elixir/record_test.exs:205:12
+nothing	ref	RecordTest	file_info	2	1	elixir/record_test.exs:250:12
+nothing	ref	RecordTest	file_info	1	1	elixir/record_test.exs:261:7
+nothing	ref	RecordTest	timestamp	0	1	elixir/record_test.exs:291:14
+nothing	ref	RecordTest	timestamp	2	4	elixir/record_test.exs:292:12
+nothing	ref	RecordTest	timestamp	1	1	elixir/record_test.exs:295:14
+other	ref	:erlang	link	1	2	elixir/registry_test.exs:53:16
+no use	ref	Kernel	raise	1	2	elixir/registry_test.exs:167:57
+no use	ref	:erlang	binary_to_atom	2	3	elixir/registry_test.exs:216:22
+nothing	ref	:ets	lookup	2	3	elixir/registry_test.exs:842:42
+nothing	ref	:ets	tab2list	1	4	elixir/registry_test.exs:848:22
+other	ref	:erlang	exit	2	3	elixir/registry_test.exs:914:12
+no use	ref	RegistryTest	ets_entries	1	1	elixir/registry_test.exs:925:17
+nothing	ref	:ets	all	0	1	elixir/registry_test.exs:930:9
+nothing	ref	:ets	info	2	2	elixir/registry_test.exs:931:37
+nothing	ref	:binary	compile_pattern	1	1	elixir/string_test.exs:99:22
+other	alias	MyTask	1	elixir/task_test.exs:39:15
+other	alias	CustomTask	1	elixir/task_test.exs:49:15
+no use	ref	:module_does_not_exist	undef	0	1	elixir/task_test.exs:227:25
+no use	ref	TaskTest	undef	0	1	elixir/task_test.exs:238:25
+no use	ref	TaskTest	sleep	1	16	elixir/task_test.exs:686:58
+no use	ref	Kernel	exit	1	4	elixir/task_test.exs:796:37
+nothing	alias	Remote.Some	1	elixir/typespec_test.exs:348:44
+nothing	alias	Remote	1	elixir/typespec_test.exs:352:26
+nothing	alias	TypespecTest.TypespecSample	2	elixir/typespec_test.exs:476:51
+other	alias	TypeModuleAttributes	3	elixir/typespec_test.exs:964:17
+other	alias	SpecModuleAttributes	3	elixir/typespec_test.exs:1027:17
+other	alias	A	1	elixir/typespec_test.exs:1237:17
+other	alias	B	1	elixir/typespec_test.exs:1241:17
+other	alias	SomeStruct	1	elixir/typespec_test.exs:1332:17
+other	alias	SampleCallbacks	1	elixir/typespec_test.exs:1488:15
+nothing	ref	TypespecTest.SampleCallbacks	behaviour_info	1	2	elixir/typespec_test.exs:1513:39
+other	alias	GetUntil	1	ex_unit/ex_unit/capture_io_test.exs:6:13
+other	ref	:erlang	group_leader	0	6	ex_unit/ex_unit/capture_io_test.exs:21:35
+nothing	ref	:io	put_chars	1	6	ex_unit/ex_unit/capture_io_test.exs:37:19
+nothing	ref	:io	fwrite	1	2	ex_unit/ex_unit/capture_io_test.exs:61:19
+nothing	ref	:io	get_chars	2	10	ex_unit/ex_unit/capture_io_test.exs:71:19
+nothing	ref	:io	get_line	1	16	ex_unit/ex_unit/capture_io_test.exs:101:19
+nothing	ref	:io	get_password	0	14	ex_unit/ex_unit/capture_io_test.exs:146:19
+nothing	ref	:io	scan_erl_form	1	19	ex_unit/ex_unit/capture_io_test.exs:183:19
+nothing	ref	:io	setopts	1	1	ex_unit/ex_unit/capture_io_test.exs:246:26
+nothing	ref	:io	getopts	0	1	ex_unit/ex_unit/capture_io_test.exs:252:26
+nothing	ref	:io	columns	0	2	ex_unit/ex_unit/capture_io_test.exs:258:19
+nothing	ref	:io	rows	0	2	ex_unit/ex_unit/capture_io_test.exs:268:19
+nothing	ref	:io	put_chars	2	8	ex_unit/ex_unit/capture_io_test.exs:333:19
+nothing	ref	:erlang	group_leader	0	1	ex_unit/ex_unit/capture_io_test.exs:466:17
+nothing	ref	Logger	info	1	2	ex_unit/ex_unit/capture_log_test.exs:38:20
+nothing	ref	Logger	error	1	1	ex_unit/ex_unit/capture_log_test.exs:61:42
+nothing	ref	Logger	debug	1	1	ex_unit/ex_unit/capture_log_test.exs:67:17
+nothing	ref	:gen_event	which_handlers	1	1	ex_unit/ex_unit/capture_log_test.exs:88:20
+nothing	alias	Foo	1	ex_unit/ex_unit/filters_test.exs:150:66
+other	alias	SingularTestTypeCase	1	ex_unit/ex_unit/register_test.exs:15:15
+other	alias	PluralTestTypeCase	1	ex_unit/ex_unit/register_test.exs:43:15
+other	alias	SampleTest	1	ex_unit/ex_unit_test.exs:9:15
+other	alias	SleepOnTest	1	ex_unit/ex_unit_test.exs:39:15
+other	alias	SleepOnSetupAll	1	ex_unit/ex_unit_test.exs:48:15
+other	alias	EventServerTest	1	ex_unit/ex_unit_test.exs:90:15
+other	alias	TimeoutTest	1	ex_unit/ex_unit_test.exs:110:15
+other	alias	ConfiguredTimeoutTest	1	ex_unit/ex_unit_test.exs:125:15
+other	alias	SlowestTest	1	ex_unit/ex_unit_test.exs:141:15
+other	alias	TestIdTestModule	1	ex_unit/ex_unit_test.exs:184:15
+nothing	alias	MissingModule	1	ex_unit/ex_unit_test.exs:195:10
+other	alias	ParityTest	1	ex_unit/ex_unit_test.exs:204:15
+other	alias	LogCapturingTest	1	ex_unit/ex_unit_test.exs:242:15
+no use	ref	ExUnit	run	0	1	ex_unit/ex_unit_test.exs:276:25
+other	alias	TestNotImplemented	1	ex_unit/ex_unit_test.exs:354:15
+other	alias	TestSkipped	1	ex_unit/ex_unit_test.exs:377:15
+other	alias	FirstTestModule	1	ex_unit/ex_unit_test.exs:403:15
+other	alias	SecondTestModule	1	ex_unit/ex_unit_test.exs:408:15
+other	alias	ReservedSetupTagFile	1	ex_unit/ex_unit_test.exs:450:15
+other	alias	ReservedSetupTagAsync	1	ex_unit/ex_unit_test.exs:471:15
+other	alias	ReservedSetupAllTag	1	ex_unit/ex_unit_test.exs:490:15
+other	alias	PredictableSeedTest	1	ex_unit/ex_unit_test.exs:506:15
+other	alias	DifferentModuleWithDifferentSeedTest	1	ex_unit/ex_unit_test.exs:518:15
+other	alias	SetupAllFailsModuleHasSkippedExcludedTest	1	ex_unit/ex_unit_test.exs:541:15
+other	alias	MultipleAfterSuiteTest	1	ex_unit/ex_unit_test.exs:575:17
+other	alias	TestMaxFailuresReached	1	ex_unit/ex_unit_test.exs:619:17
+other	alias	TestMaxFailuresNotReached	1	ex_unit/ex_unit_test.exs:647:17
+other	alias	TestMaxFailuresAlreadyReached	1	ex_unit/ex_unit_test.exs:678:17
+other	alias	TestMaxFailuresSetupAll	1	ex_unit/ex_unit_test.exs:715:17
+other	alias	TestMaxFailuresAsync1	1	ex_unit/ex_unit_test.exs:746:17
+other	alias	TestMaxFailuresAsync2	1	ex_unit/ex_unit_test.exs:751:17
+other	alias	TestMaxFailuresSync	1	ex_unit/ex_unit_test.exs:756:17
+no use	ref	ExUnit.Server	add_sync_module	1	1	ex_unit/ex_unit_test.exs:798:22
+nothing	alias	EEx.Tokenizer	30	eex/eex/tokenizer_test.exs:10:12
+nothing	ref	EEx.Tokenizer	tokenize	4	30	eex/eex/tokenizer_test.exs:10:13
+nothing	ref	:erlang	error	1	1	eex/eex_test.exs:31:14
+nothing	ref	EExTest.Compiled	__info__	1	1	eex/eex_test.exs:610:30
+other	alias	TestEngine	1	eex/eex_test.exs:657:13
+nothing	ref	:ets	insert	2	1	iex/iex/pry_test.exs:111:11
+nothing	ref	:code	which	1	1	iex/iex/pry_test.exs:193:17
+nothing	ref	ExUnit.CaptureIO	capture_io	1	2	iex/iex/server_test.exs:10:14
+nothing	ref	IEx.Case	capture_iex	3	1	iex/iex/server_test.exs:16:14
+nothing	ref	IEx.Case	capture_iex	1	2	iex/iex/server_test.exs:28:14
+nothing	ref	:erlang	trace	3	2	iex/iex/server_test.exs:150:12
+nothing	ref	:erlang	trace_pattern	3	1	iex/iex/server_test.exs:152:12
+nothing	ref	:io_lib	unscan_format	1	1	logger/logger/utils_test.exs:11:15
+nothing	def	AccessTest	59	AccessTest:3
+nothing	def	ApplicationTest	9	ApplicationTest:3
+nothing	def	CharlistTest	5	CharlistTest:3
+nothing	def	Code.Formatter.CallsTest	77	Code.Formatter.CallsTest:3
+nothing	def	Code.SyncTest	7	Code.SyncTest:351
+nothing	def	CollectableTest	5	CollectableTest:3
+nothing	def	EnumTest.Range	74	EnumTest.Range:1354
+nothing	def	Enumerable.StreamTest.HaltAcc	1	Enumerable.StreamTest.HaltAcc:27
+nothing	def	FileTest	73	FileTest:20
+nothing	def	FileTest.Queries	5	FileTest.Queries:738
+nothing	def	FileTest.Rename	23	FileTest.Rename:23
+nothing	def	FloatTest	32	FloatTest:3
+nothing	def	FunctionTest	23	FunctionTest:12
+nothing	def	Inspect.BitStringTest	11	Inspect.BitStringTest:106
+nothing	def	Inspect.Inspect.MapTest.StructWithBothOnlyAndExceptOptions	2	Inspect.Inspect.MapTest.StructWithBothOnlyAndExceptOptions:564
+nothing	def	Inspect.ListTest	19	Inspect.ListTest:262
+nothing	def	Inspect.MapTest.Failing	2	Inspect.MapTest.Failing:433
+nothing	def	Inspect.MapTest.StructWithOnlyOption	2	Inspect.MapTest.StructWithOnlyOption:512
+nothing	def	Inspect.OthersTest.Nested	2	Inspect.OthersTest.Nested:689
+nothing	def	Kernel.CLI.AtExitTest	3	Kernel.CLI.AtExitTest:103
+nothing	def	Kernel.CLI.CompileTest	7	Kernel.CLI.CompileTest:112
+nothing	def	Kernel.DeprecatedTest	5	Kernel.DeprecatedTest:3
+nothing	def	Kernel.DocsTest	13	Kernel.DocsTest:3
+nothing	def	Kernel.ErrorsTest	70	Kernel.ErrorsTest:3
+nothing	def	Kernel.GuardTest	19	Kernel.GuardTest:3
+nothing	def	Kernel.ImplTest.AProtocol	4	Kernel.ImplTest.AProtocol:19
+nothing	def	Kernel.MacrosTest	10	Kernel.MacrosTest:11
+nothing	def	Kernel.Overridable	9	Kernel.Overridable:8
+nothing	def	Kernel.ParserTest	61	Kernel.ParserTest:3
+nothing	def	Kernel.QuoteTest.ErrorsTest	5	Kernel.QuoteTest.ErrorsTest:328
+nothing	def	Kernel.QuoteTest.ImportsHygieneTest	7	Kernel.QuoteTest.ImportsHygieneTest:535
+nothing	def	Kernel.SigilsTest	13	Kernel.SigilsTest:3
+nothing	def	KernelTest.User	2	KernelTest.User:209
+nothing	def	MacroTest	119	MacroTest:18
+nothing	def	MapTest	87	MapTest:3
+nothing	def	MapTest.LocalUser	2	MapTest.LocalUser:440
+nothing	def	MapTest.LocalUser.NestedUser	2	MapTest.LocalUser.NestedUser:437
+nothing	def	Module.Types.ExprTest	23	Module.Types.ExprTest:3
+nothing	def	Module.Types.MapTest.Struct2	2	Module.Types.MapTest.Struct2:100
+nothing	def	Module.Types.UnifyTest	28	Module.Types.UnifyTest:3
+nothing	def	ModuleTest	60	ModuleTest:13
+nothing	def	NaiveDateTimeTest	70	NaiveDateTimeTest:5
+nothing	def	OptionParserTest	67	OptionParserTest:3
+nothing	def	OptionsParserDeprecationsTest	11	OptionsParserDeprecationsTest:385
+nothing	def	Protocol.ConsolidationTest.WithAny.Any	2	Protocol.ConsolidationTest.WithAny.Any:19
+nothing	def	Protocol.ConsolidationTest.WithAny.Map	2	Protocol.ConsolidationTest.WithAny.Map:13
+nothing	def	ProtocolTest	27	ProtocolTest:3
+nothing	def	ProtocolTest.Derivable.Any	3	ProtocolTest.Derivable.Any:32
+nothing	def	ProtocolTest.NoImplStruct	2	ProtocolTest.NoImplStruct:61
+nothing	def	ProtocolTest.Sample	4	ProtocolTest.Sample:9
+nothing	def	ProtocolTest.WithAny	4	ProtocolTest.WithAny:20
+nothing	def	StreamTest	170	StreamTest:3
+nothing	def	StreamTest.Pdict	2	StreamTest.Pdict:9
+nothing	def	String.Chars.BitStringTest	3	String.Chars.BitStringTest:32
+nothing	def	String.Chars.ListTest	6	String.Chars.ListTest:55
+nothing	def	SupervisorTest	17	SupervisorTest:3
+nothing	def	TupleTest	19	TupleTest:3
+nothing	def	URITest	57	URITest:3
+nothing	def	VersionTest	39	VersionTest:3
+nothing	def	ExUnit.AssertionsTest	99	ExUnit.AssertionsTest:21
+nothing	def	ExUnit.DiffTest	44	ExUnit.DiffTest:3
+nothing	def	ExUnit.DoubleCaseTest4	3	ExUnit.DoubleCaseTest4:144
+nothing	def	ExUnit.FiltersTest	29	ExUnit.FiltersTest:3
+nothing	def	ExUnit.NestedCase	4	ExUnit.NestedCase:26
+nothing	def	ExUnit.RunnerStatsTest	6	ExUnit.RunnerStatsTest:3
+nothing	def	Inspect.ExUnit.FormatterTest.BadInspect	1	Inspect.ExUnit.FormatterTest.BadInspect:395
+nothing	def	EExTest	67	EExTest:46
+nothing	def	IEx.InfoTest	27	IEx.InfoTest:3
+nothing	def	IEx.InfoTest.Foo	2	IEx.InfoTest.Foo:11
+nothing	def	IEx.InteractionTest	27	IEx.InteractionTest:3
+nothing	def	Logger.FormatterTest	17	Logger.FormatterTest:1
+nothing	def	Logger.HandlerTest	14	Logger.HandlerTest:1
+nothing	def	Logger.TranslatorTest	52	Logger.TranslatorTest:1
+nothing	def	LoggerTest	49	LoggerTest:1
+nothing	declaration	DynamicSupervisorTest.Custom	1	elixir/dynamic_supervisor_test.exs:57
+nothing	declaration	GenServerTest.CustomStack	1	elixir/gen_server_test.exs:52
+nothing	declaration	quote.Parent.Child	1	elixir/kernel/alias_test.exs:74
+nothing	declaration	InvalidDeprecated	1	elixir/kernel/deprecated_test.exs:12
+nothing	declaration	String.Args	1	elixir/kernel/guard_test.exs:95
+nothing	declaration	Atom.Args	1	elixir/kernel/guard_test.exs:101
+nothing	declaration	OverriddenFunUsage	4	elixir/kernel/guard_test.exs:190
+nothing	declaration	SoftNegationLogicUsage	1	elixir/kernel/guard_test.exs:297
+nothing	declaration	IsRecord2Usage	1	elixir/kernel/guard_test.exs:317
+nothing	declaration	SuperUsage	1	elixir/kernel/guard_test.exs:377
+nothing	declaration	SpawnUsage	1	elixir/kernel/guard_test.exs:383
+nothing	declaration	ReceiveUsage	1	elixir/kernel/guard_test.exs:389
+nothing	declaration	TryUsage	1	elixir/kernel/guard_test.exs:407
+nothing	declaration	Kernel.ImplTest.ImplAttributes	5	elixir/kernel/impl_test.exs:78
+nothing	declaration	Kernel.Overridable	1	elixir/kernel/overridable_test.exs:44
+nothing	declaration	Kernel.OverridableTest.OverridableWithBehaviour	5	elixir/kernel/overridable_test.exs:438
+nothing	declaration	Sample	3	elixir/kernel/warning_test.exs:628
+nothing	declaration	ModuleTest	8	elixir/module_test.exs:442
+nothing	declaration	ModuleTest.OnDefinition	2	elixir/module_test.exs:163
+nothing	declaration	ModuleTest.NonAtomAlias	1	elixir/module_test.exs:314
+nothing	declaration	WithAny.Integer	1	elixir/protocol/consolidation_test.exs:67
+nothing	declaration	Derivable.Any	2	elixir/protocol_test.exs:33
+nothing	declaration	Derivable.unquote(module)	1	elixir/protocol_test.exs:36
+nothing	declaration	Multi.Atom	1	elixir/protocol_test.exs:197
+nothing	declaration	ExUnit.CallbacksTest.SetupTest	1	ex_unit/ex_unit/callbacks_test.exs:80
+nothing	declaration	ExUnit.RegisterTest.PluralTestTypeCase	3	ex_unit/ex_unit/register_test.exs:48
+nothing	declaration	IEx.AutocompleteTest.NoDocs	1	iex/iex/autocomplete_test.exs:404
+nothing	declaration	LoggerTest.SampleNoApp	1	logger/logger_test.exs:529
