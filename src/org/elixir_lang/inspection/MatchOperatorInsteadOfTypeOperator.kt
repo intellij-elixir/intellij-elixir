@@ -38,36 +38,31 @@ internal class MatchOperatorInsteadOfTypeOperator : LocalInspectionTool() {
                         val identifier = atIdentifier.identifierName()
 
                         if (isTypeName(identifier)) {
-                            val child = atUnqualifiedNoParenthesesCall.noParenthesesOneArgument
-                            val grandChildren = child.children
+                            val argument = atUnqualifiedNoParenthesesCall.argument
 
-                            if (grandChildren.size == 1) {
-                                val grandChild = grandChildren[0]
+                            if (argument is Match) {
+                                val infix = argument as Infix
+                                val operator = infix.operator()
+                                val elementStartOffset = operator.textOffset
 
-                                if (grandChild is Match) {
-                                    val infix = grandChild as Infix
-                                    val operator = infix.operator()
-                                    val elementStartOffset = operator.textOffset
+                                val astNode = operator.operatorTokenNode()
+                                val nodeStartOffset = astNode.startOffset
+                                val nodeTextLength = astNode.textLength
+                                val relativeStart = nodeStartOffset - elementStartOffset
+                                val relativeTextRange = TextRange(
+                                        relativeStart,
+                                        relativeStart + nodeTextLength
+                                )
 
-                                    val astNode = operator.operatorTokenNode()
-                                    val nodeStartOffset = astNode.startOffset
-                                    val nodeTextLength = astNode.textLength
-                                    val relativeStart = nodeStartOffset - elementStartOffset
-                                    val relativeTextRange = TextRange(
-                                            relativeStart,
-                                            relativeStart + nodeTextLength
-                                    )
+                                val localQuickFix = ConvertMatchToTypeOperation()
 
-                                    val localQuickFix = ConvertMatchToTypeOperation()
-
-                                    problemsHolder.registerProblem(
-                                            operator,
-                                            "Type specifications separate the name from the definition using `::`, not `=`",
-                                            ProblemHighlightType.ERROR,
-                                            relativeTextRange,
-                                            localQuickFix
-                                    )
-                                }
+                                problemsHolder.registerProblem(
+                                        operator,
+                                        "Type specifications separate the name from the definition using `::`, not `=`",
+                                        ProblemHighlightType.ERROR,
+                                        relativeTextRange,
+                                        localQuickFix
+                                )
                             }
                         }
 

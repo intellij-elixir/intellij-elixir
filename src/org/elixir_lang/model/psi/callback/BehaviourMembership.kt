@@ -13,11 +13,9 @@ import org.elixir_lang.psi.Use
 import org.elixir_lang.psi.Using
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil
-import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.indexName
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.psi.impl.moduleName as quotedModuleName
-import org.elixir_lang.psi.impl.stripAccessExpression
 
 /**
  * Resolves which behaviour modules a module implements, per Elixir semantics: `@behaviour B` must be
@@ -158,13 +156,13 @@ object BehaviourMembership {
      */
     @RequiresReadLock
     private fun namesFromAttr(attr: AtUnqualifiedNoParenthesesCall<*>, contextModule: Call): Set<String> {
-        val value = attr.finalArguments()?.firstOrNull() ?: return emptySet()
+        val value = attr.argument ?: return emptySet()
         val valueText = value.text.trim()
         if (valueText.contains("__MODULE__")) return setOfNotNull(moduleName(contextModule))
 
-        val names = when (val stripped = value.stripAccessExpression()) {
-            is ElixirAtom -> stripped.indexName()?.let { linkedSetOf(it) } ?: linkedSetOf()
-            else -> linkedSetOf(quotedModuleName(stripped)?.name ?: valueText)
+        val names = when (value) {
+            is ElixirAtom -> value.indexName()?.let { linkedSetOf(it) } ?: linkedSetOf()
+            else -> linkedSetOf(quotedModuleName(value)?.name ?: valueText)
         }
         value
             .maybeModularNameToModulars(maxScope = value.containingFile, useCall = null, incompleteCode = false)

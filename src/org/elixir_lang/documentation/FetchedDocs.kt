@@ -12,10 +12,8 @@ import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.structure_view.element.Delegation
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.identifierName
 import org.elixir_lang.psi.impl.prevSiblingSequence
-import org.elixir_lang.psi.impl.stripAccessExpression
 
 sealed class FetchedDocs(open val module: String) {
     data class CallbackDocumentation(override val module: String, val head: String, val doc: String) :
@@ -127,7 +125,4 @@ private fun List<AtUnqualifiedNoParenthesesCall<*>>?.moduleAttributeValueTextLis
 private fun AtUnqualifiedNoParenthesesCall<*>.moduleAttributeValueText(): String? = this.moduleAttributeValue()?.text
 
 @RequiresReadLock
-fun AtUnqualifiedNoParenthesesCall<*>.moduleAttributeValue(): PsiElement? = this
-    .finalArguments()
-    ?.singleOrNull()
-    ?.stripAccessExpression()
+fun AtUnqualifiedNoParenthesesCall<*>.moduleAttributeValue(): PsiElement? = argument

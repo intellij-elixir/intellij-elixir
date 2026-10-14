@@ -125,6 +125,8 @@
 
 ### Bug Fixes
 
+- [#4447](https://github.com/intellij-elixir/intellij-elixir/pull/4447) [@sh41](https://github.com/sh41)
+  - **A module attribute written with a space before parentheses around its value, such as `@spec (f() :: t)` or `@doc ("...")`, is read as it is without them.** Refs [#4289](https://github.com/intellij-elixir/intellij-elixir/issues/4289).
 - [#4429](https://github.com/intellij-elixir/intellij-elixir/pull/4429) [@sh41](https://github.com/sh41)
   - **A decompiled `.beam` shows the defaults of a function whose default values are all small integers, such as `cursor_up(lines \\ 1)` in `IO.ANSI`.**
 - [#4433](https://github.com/intellij-elixir/intellij-elixir/pull/4433) [@sh41](https://github.com/sh41)

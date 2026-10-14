@@ -6,6 +6,7 @@ import com.intellij.psi.PsiReference
 import com.intellij.psi.tree.TokenSet
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
+import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.psi.*
@@ -57,15 +58,11 @@ fun Call.computeReference(): PsiReference? =
                 parent.leftOperand()?.let { parentLeftOperand ->
                     if (parentLeftOperand.isEquivalentTo(this)) {
                         val grandParent = parent.parent
+                        val specification = grandParent as? When ?: parent
 
-                        val maybeArgument = if (grandParent is When) {
-                            grandParent.parent
-                        } else {
-                            grandParent
-                        }
-
-                        (maybeArgument as? ElixirNoParenthesesOneArgument)?.let { argument ->
-                            (argument.parent as? AtUnqualifiedNoParenthesesCall<*>)?.let { moduleAttribute ->
+                        PsiTreeUtil.getParentOfType(specification, AtUnqualifiedNoParenthesesCall::class.java)
+                            ?.takeIf { it.argument == specification }
+                            ?.let { moduleAttribute ->
                                 val name = moduleAttributeName(moduleAttribute)
 
                                 if (name == "@spec") {
@@ -74,7 +71,6 @@ fun Call.computeReference(): PsiReference? =
                                     null
                                 }
                             }
-                        }
                     } else {
                         null
                     }
