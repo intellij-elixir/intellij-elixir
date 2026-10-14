@@ -9,6 +9,7 @@ import com.intellij.model.search.SearchRequest
 import com.intellij.openapi.project.Project
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.DefinitionDeclaration
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.call.Call
 
@@ -28,12 +29,12 @@ import org.elixir_lang.psi.call.Call
 internal class CallbackImplReferenceProvider : PsiSymbolReferenceProvider {
     @RequiresReadLock
     override fun getReferences(element: PsiExternalReferenceHost, hints: PsiSymbolReferenceHints): Collection<PsiSymbolReference> {
-        if (element !is Call || !CallDefinitionClause.`is`(element)) return emptyList()
+        if (element !is Call || !DefinitionDeclaration.`is`(element)) return emptyList()
         // A `def` directly inside a `defprotocol` declares a protocol function, not a callback implementation.
         val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(element)
         if (enclosingModular == null || Protocol.`is`(enclosingModular)) return emptyList()
         if (CallbackImplementation.implementedCallbacks(element).isEmpty()) return emptyList()
-        val nameIdentifier = CallDefinitionClause.nameIdentifier(element) ?: return emptyList()
+        val nameIdentifier = DefinitionDeclaration.nameIdentifier(element) ?: return emptyList()
         val rangeInElement = nameIdentifier.textRange.shiftLeft(element.textRange.startOffset)
         return listOf(CallbackImplReference(element, rangeInElement))
     }

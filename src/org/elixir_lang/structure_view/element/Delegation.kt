@@ -163,6 +163,10 @@ class Delegation(private val modular: Modular, call: Call) : Element<Call?>(call
             )
         }
 
+        /** Whether [call] is a `defdelegate` with no `as:`, so its head names the target's function too. */
+        @RequiresReadLock
+        fun headKeepsTargetName(call: Call): Boolean = `is`(call) && fromCall(call)?.`as`() == null
+
         @RequiresReadLock
         fun fromCall(call: Call): org.elixir_lang.structure_view.element.Delegation? =
             enclosingModular(call)?.let { modular ->

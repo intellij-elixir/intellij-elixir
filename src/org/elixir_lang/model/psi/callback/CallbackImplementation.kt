@@ -8,7 +8,9 @@ import org.elixir_lang.declaration.Capabilities
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.DefinitionDeclaration
 import org.elixir_lang.psi.Using
+import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.stub.type.call.Stub
 import org.elixir_lang.reference.resolver.Module as ModuleResolver
@@ -24,14 +26,17 @@ import org.elixir_lang.structure_view.element.Callback as CallbackElement
  * behaviour's `__using__` quote.
  */
 internal object CallbackImplementation {
-    /** The callbacks of the behaviours [clause] belongs to that it implements. */
+    /**
+     * The callbacks of the behaviours of [within] that [clause] implements. [within] is the call in the module that
+     * implements the behaviours, [clause] itself unless it is injected into that module by a `use`.
+     */
     @RequiresReadLock
-    fun implementedCallbacks(clause: Call): List<Callback> {
+    fun implementedCallbacks(clause: Call, within: Call = clause): List<Callback> {
         val signature = Signature.of(clause) ?: return emptyList()
         val callbacks = mutableListOf<Callback>()
 
-        for (name in behaviourNames(clause)) {
-            for (behaviourModule in ModuleResolver.resolvePreferred(clause, name, incompleteCode = false, inScope = false).map { it.element }) {
+        for (name in behaviourNames(within)) {
+            for (behaviourModule in ModuleResolver.resolvePreferred(within, name, incompleteCode = false, inScope = false).map { it.element }) {
                 ProgressManager.checkCanceled()
                 if (behaviourModule !is Call) continue
                 CallDefinitionClause.modularChildCalls(behaviourModule)
@@ -56,12 +61,11 @@ internal object CallbackImplementation {
     }
 
     /**
-     * The behaviours whose callbacks [call], a definition clause or a `defoverridable`, may implement: those the
-     * module or quote around it implements, and, inside a `__using__` quote, the behaviour that module defines and
-     * those the quote injects.
+     * The behaviours whose callbacks [call], a definition, may implement: those the module or quote around it
+     * implements, and, inside a `__using__` quote, the behaviour that module defines and those the quote injects.
      */
     @RequiresReadLock
-    internal fun behaviourNames(call: Call): Set<String> {
+    private fun behaviourNames(call: Call): Set<String> {
         val names = linkedSetOf<String>()
 
         val enclosing = CallDefinitionClause.enclosingModularMacroCall(call) ?: return names
@@ -97,13 +101,14 @@ internal object CallbackImplementation {
             callback.name == name && callback.arity in arityInterval && callback.macro == capabilities.compileTime
 
         companion object {
-            /** `null` for a clause that implements nothing: a private one, or one with no name and arity. */
+            /** `null` for a definition that implements nothing: a private one, or one with no name and arity. */
             @RequiresReadLock
             fun of(clause: Call): Signature? {
-                val capabilities = CallDefinitionClause.capabilities(clause)?.takeIf { it.public } ?: return null
-                val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return null
+                val declaration = DefinitionDeclaration.of(clause, ResolveState.initial()) ?: return null
+                val capabilities = declaration.capabilities.takeIf { it.public } ?: return null
+                val arityInterval = declaration.arity.arityInterval() ?: return null
 
-                return Signature(nameArity.name, nameArity.arityInterval, capabilities)
+                return Signature(declaration.name, arityInterval, capabilities)
             }
         }
     }

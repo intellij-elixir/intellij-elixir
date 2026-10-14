@@ -2,23 +2,24 @@ package org.elixir_lang.model.psi.function
 
 import com.intellij.model.Symbol
 import com.intellij.model.psi.PsiSymbolReference
-import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
+import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.FunctionArityKeywordPair
 import org.elixir_lang.model.psi.callback.Callback
 import org.elixir_lang.model.psi.callback.CallbackImplementation
-import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.DefinitionDeclaration
 import org.elixir_lang.psi.Import
 import org.elixir_lang.psi.QuotableKeywordPair
+import org.elixir_lang.psi.Unquote
+import org.elixir_lang.psi.Use
+import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.reference.resolver.Module as ModuleResolver
-import org.elixir_lang.structure_view.element.Delegation
+import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
-import org.elixir_lang.structure_view.element.Callback as CallbackElement
 
 /**
  * Symbol reference from the **key** of a `name: arity` keyword pair
@@ -29,8 +30,8 @@ import org.elixir_lang.structure_view.element.Callback as CallbackElement
  * Resolution depends on the governing directive:
  *  - `import :only`/`:except` -> the matching `def`/`defmacro` in the imported module ([FunctionSymbol]).
  *  - `@compile :inline` / `@dialyzer` -> the matching `def`/`defmacro` in the enclosing module.
- *  - `defoverridable` -> the `@callback`/`@macrocallback` it makes overridable ([Callback]), resolved
- *    through the behaviour(s) in scope (see [CallbackImplementation]); this keeps the `defoverridable`
+ *  - `defoverridable` -> the `@callback`/`@macrocallback` the named definition implements ([Callback]), see
+ *    [CallbackImplementation]; this keeps the `defoverridable`
  *    entry renaming in lock-step with the callback, its default `def`, and every override.
  */
 @Suppress("UnstableApiUsage")
@@ -61,33 +62,30 @@ class FunctionArityKeywordPairReference(
                     .flatMap { FunctionSymbol.fromClause(it) }
                     .filter { it.name == occurrence.name && it.arity == occurrence.arity }
 
-            Definitions.UnresolvedModule,
-            Definitions.Callbacks -> emptyList()
+            Definitions.UnresolvedModule -> emptyList()
         }
 
     @RequiresReadLock
-    private fun resolveCallbacks(occurrence: FunctionArityKeywordPair.Occurrence): Collection<Symbol> {
-        val behaviourNames = CallbackImplementation.behaviourNames(occurrence.hostCall)
-        if (behaviourNames.isEmpty()) return emptyList()
+    private fun resolveCallbacks(occurrence: FunctionArityKeywordPair.Occurrence): Collection<Symbol> =
+        when (val definitions = definitions(occurrence)) {
+            is Definitions.Found ->
+                definitions.definitions
+                    .asSequence()
+                    .filterIsInstance<Call>()
+                    .filter { definesKey(it, occurrence) }
+                    .flatMap { CallbackImplementation.implementedCallbacks(it, within = occurrence.hostCall) }
+                    .filter { it.arity == occurrence.arity }
+                    .distinct()
+                    .toList()
 
-        val callbacks = mutableListOf<Symbol>()
-        for (name in behaviourNames) {
-            for (behaviourModule in ModuleResolver.resolvePreferred(host, name, incompleteCode = false, inScope = false).map { it.element }) {
-                ProgressManager.checkCanceled()
-                if (behaviourModule !is Call) continue
-                CallDefinitionClause.modularChildCalls(behaviourModule)
-                    .filterIsInstance<AtUnqualifiedNoParenthesesCall<*>>()
-                    .filter { CallbackElement.`is`(it) }
-                    .forEach { attr ->
-                        Callback.fromModuleAttribute(attr).forEach { callback ->
-                            if (callback.name == occurrence.name && callback.arity == occurrence.arity) {
-                                callbacks += callback
-                            }
-                        }
-                    }
-            }
+            Definitions.UnresolvedModule -> emptyList()
         }
-        return callbacks
+
+    @RequiresReadLock
+    private fun definesKey(definition: Call, occurrence: FunctionArityKeywordPair.Occurrence): Boolean {
+        val declaration = DefinitionDeclaration.of(definition, ResolveState.initial()) ?: return false
+
+        return declaration.name == occurrence.name && declaration.arity.arityInterval()?.contains(occurrence.arity) == true
     }
 
     /** What the key of an [FunctionArityKeywordPair.Occurrence] can name, before its name and arity. */
@@ -100,17 +98,14 @@ class FunctionArityKeywordPairReference(
 
         /** An `import` whose module is not found. */
         data object UnresolvedModule : Definitions
-
-        /** A `defoverridable` key, which names callbacks, not definitions. */
-        data object Callbacks : Definitions
     }
 
     companion object {
         /**
          * The one function that decides what a key can name. At `import`'s `only:` and `except:` that is what the
          * import brings in ([Import.imports]), so a private definition names nothing, in source and in a `.beam`
-         * alike; at `@compile inline:` and `@dialyzer` it is every definition of the enclosing module, private ones
-         * included.
+         * alike; at `@compile inline:`, `@dialyzer` and `defoverridable` it is every definition of the enclosing module,
+         * private ones included, and those a `use` or an `unquote` in it puts into it.
          */
         @RequiresReadLock
         fun definitions(occurrence: FunctionArityKeywordPair.Occurrence): Definitions {
@@ -118,12 +113,13 @@ class FunctionArityKeywordPairReference(
 
             return when (occurrence.host) {
                 FunctionArityKeywordPair.Host.COMPILE_INLINE,
+                FunctionArityKeywordPair.Host.DEFOVERRIDABLE,
                 FunctionArityKeywordPair.Host.DIALYZER ->
                     Definitions.Found(
                         CallDefinitionClause.enclosingModularMacroCall(occurrence.hostCall)
-                            ?.let { CallDefinitionClause.modularChildCalls(it) }
+                            ?.let { CallDefinitionClause.modularChildCalls(it) + injectedChildCalls(it, occurrence.hostCall) }
                             .orEmpty()
-                            .filter { CallDefinitionClause.`is`(it) || Delegation.`is`(it) }
+                            .filter { DefinitionDeclaration.`is`(it) }
                     )
 
                 FunctionArityKeywordPair.Host.IMPORT_ONLY,
@@ -132,9 +128,30 @@ class FunctionArityKeywordPairReference(
                         .takeIf { it.isNotEmpty() }
                         ?.let { modulars -> Definitions.Found(modulars.flatMap { Import.importedDefinitions(it) }) }
                         ?: Definitions.UnresolvedModule
-
-                FunctionArityKeywordPair.Host.DEFOVERRIDABLE -> Definitions.Callbacks
             }
+        }
+
+        /**
+         * The calls the `use`s and `unquote`s written in [module] put into it, as a call to one of their functions sees
+         * them.
+         */
+        @RequiresReadLock
+        private fun injectedChildCalls(module: Call, entrance: Call): List<Call> {
+            val injected = mutableListOf<Call>()
+            val state = ResolveState.initial().put(ENTRANCE, entrance)
+            val keepProcessing = { element: PsiElement, walkState: ResolveState ->
+                if (element is Call && !Import.reachedThroughImport(walkState)) injected += element
+                true
+            }
+
+            CallDefinitionClause.modularChildCalls(module).forEach { child ->
+                when {
+                    Use.`is`(child) -> Use.treeWalkUp(child, state, keepProcessing)
+                    Unquote.`is`(child) -> Unquote.treeWalkUp(child, state, keepProcessing)
+                }
+            }
+
+            return injected
         }
     }
 }
