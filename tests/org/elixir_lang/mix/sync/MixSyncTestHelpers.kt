@@ -3,6 +3,7 @@ package org.elixir_lang.mix.sync
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
+import com.intellij.openapi.components.serviceIfCreated
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.LibraryOrderEntry
@@ -14,8 +15,10 @@ import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.elixir_lang.mix.library.CONSOLIDATED_LIBRARY_BASE_NAME
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.time.Duration.Companion.seconds
 
 /** The name a sync gives the consolidated library of the content root at [contentRootUrl]. */
 internal fun consolidatedLibraryName(project: Project, contentRootUrl: String): String =
@@ -75,6 +78,26 @@ internal object MixSyncTestHelpers {
      * can execute.
      */
     fun drainDirectly(service: MixDepsSyncService) = runSuspendOnPooledThread { service.drain() }
+
+    /**
+     * Waits for the Mix deps syncs queued so far, such as by a fixture's own `mix.exs`, `_build` and `deps` files, so
+     * that a test seeds and checks library state a debounced background sync can no longer change.
+     *
+     * Call it once the fixture's files and content root exist, before seeding any library.
+     */
+    fun awaitMixDepsSyncs(project: Project) {
+        val service = project.serviceIfCreated<MixDepsSyncService>()?.takeUnless { it.isIdle } ?: return
+        val awaitIdle: suspend () -> Boolean = { withTimeoutOrNull(SYNC_TIMEOUT) { service.awaitIdle() } != null }
+        val idle = if (ApplicationManager.getApplication().isDispatchThread) {
+            // A drain commits on the EDT, which this pumps while it waits.
+            runSuspendOnPooledThread(timeoutMillis = 2 * SYNC_TIMEOUT.inWholeMilliseconds, awaitIdle)
+        } else {
+            runBlocking { awaitIdle() }
+        }
+        if (!idle) throw AssertionError("Mix deps syncs still running after $SYNC_TIMEOUT")
+    }
+
+    private val SYNC_TIMEOUT = 60.seconds
 
     /**
      * Removes every project-level library, whoever created it, unlike a sync, which removes only Mix-Kind ones, and
