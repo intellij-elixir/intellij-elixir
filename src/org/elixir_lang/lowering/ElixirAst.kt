@@ -8,8 +8,11 @@ import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
+import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import java.math.BigInteger
+import java.nio.ByteBuffer
+import java.nio.charset.CharacterCodingException
 
 /**
  * Elixir's AST, as `Code.string_to_quoted` returns it, where every node keeps the source range it was lowered from
@@ -115,10 +118,123 @@ sealed class ElixirAst {
             is Placeholder -> tuple(OtpErlangAtom("__cursor__"), meta.toOtp(options), OtpErlangList())
         }
 
-    private companion object {
-        fun tuple(vararg elements: OtpErlangObject) = OtpErlangTuple(elements)
+    companion object {
+        /**
+         * The node quoted [term] is, with [origin] as every node's origin: [toOtp]'s inverse under
+         * [ParserOptions.DEFAULT]. Null for a term no quoted expression is, such as a map or a bitstring.
+         */
+        fun fromOtp(term: OtpErlangObject, origin: TextRange): ElixirAst? {
+            val bare = { Meta(origin, NO_POSITION, NO_POSITION) }
 
-        fun list(elements: List<ElixirAst>, options: ParserOptions): OtpErlangObject {
+            return when (term) {
+                is OtpErlangAtom -> Literal.Atom(bare(), term.atomValue())
+                is OtpErlangLong -> Literal.Integer(bare(), term.bigIntegerValue())
+                is OtpErlangDouble -> Literal.Float(bare(), term.doubleValue())
+                is OtpErlangBinary -> Literal.Binary(bare(), term.binaryValue())
+                is OtpErlangString, is OtpErlangList -> elements(term, origin)?.let { ListNode(bare(), it) }
+                is OtpErlangTuple -> fromTuple(term, origin)
+                else -> null
+            }
+        }
+
+        /** The elements of the proper list [term], which a list of bytes decodes to an [OtpErlangString] as. */
+        private fun elements(term: OtpErlangObject, origin: TextRange): List<ElixirAst>? =
+            when (term) {
+                is OtpErlangString ->
+                    term.stringValue().codePoints().toArray().map {
+                        Literal.Integer(Meta(origin, NO_POSITION, NO_POSITION), it.toBigInteger())
+                    }
+                is OtpErlangList -> term.takeIf { it.lastTail == null }?.elements()?.map { fromOtp(it, origin) ?: return null }
+                else -> null
+            }
+
+        private fun fromTuple(tuple: OtpErlangTuple, origin: TextRange): ElixirAst? {
+            if (tuple.arity() == 2) {
+                return Tuple(Meta(origin, NO_POSITION, NO_POSITION), tuple.elements().map { fromOtp(it, origin) ?: return null })
+            }
+            if (tuple.arity() != 3) return null
+
+            val (head, metaTerm, last) = tuple.elements()
+            val meta = meta(metaTerm, origin) ?: return null
+
+            if (last is OtpErlangAtom) {
+                val context = last.atomValue()
+
+                return Call(
+                    meta,
+                    fromOtp(head, origin) ?: return null,
+                    null,
+                    if (context == "nil") VariableContext.Nil else VariableContext.Atom(context),
+                )
+            }
+
+            val arguments = elements(last, origin) ?: return null
+
+            return when (head) {
+                // `toOtp` writes a pair as `{a, b}`, so `{:{}, meta, [a, b]}` stays a call.
+                TUPLE if arguments.size != 2 -> Tuple(meta, arguments)
+                ALIASES -> Alias(meta, arguments)
+                BLOCK -> Block(meta, arguments)
+                else -> Call(meta, fromOtp(head, origin) ?: return null, arguments)
+            }
+        }
+
+        /**
+         * [term]'s keys, with its `line` as a [Meta.Key.Location] where the line is, as a lowered node's, so its
+         * location reads the same. `column` stays an entry: [ParserOptions.DEFAULT] writes a location's line only.
+         */
+        private fun meta(term: OtpErlangObject, origin: TextRange): Meta? {
+            val keys = keywords(term) ?: return null
+            val integer = { name: String ->
+                keys.firstOrNull { it.name == name }?.let { (it.value as? Meta.Value.Integer)?.value?.toInt() }
+            }
+            val line = integer("line")
+            val position = Meta.Position(line ?: 0, integer("column") ?: 0)
+
+            return Meta(
+                origin,
+                position,
+                position,
+                keys.map { key -> if (line != null && key.name == "line") Meta.Key.Location(position) else key },
+            )
+        }
+
+        /** Each entry of the keyword list [term], or null for any other term. */
+        private fun keywords(term: OtpErlangObject): List<Meta.Key.Entry>? =
+            (term as? OtpErlangList)?.takeIf { it.lastTail == null }?.elements()?.map { element ->
+                val (key, value) = (element as? OtpErlangTuple)?.takeIf { it.arity() == 2 }?.elements() ?: return null
+
+                Meta.Key.Entry((key as? OtpErlangAtom)?.atomValue() ?: return null, value(value) ?: return null)
+            }
+
+        private fun value(term: OtpErlangObject): Meta.Value? =
+            when (term) {
+                is OtpErlangAtom -> Meta.Value.Atom(term.atomValue())
+                is OtpErlangLong -> term.takeIf { it.isLong }?.let { Meta.Value.Integer(it.longValue()) }
+                is OtpErlangBinary -> utf8(term.binaryValue())?.let(Meta.Value::Binary)
+                is OtpErlangList ->
+                    keywords(term)?.let(Meta.Value::Keywords)
+                        ?: term.takeIf { it.lastTail == null }?.elements()?.map { value(it) ?: return null }?.let(Meta.Value::List)
+                is OtpErlangTuple -> Meta.Value.Tuple(term.elements().map { value(it) ?: return null })
+                else -> null
+            }
+
+        /** [bytes] as text, or null where they aren't UTF-8, which a [Meta.Value.Binary] couldn't give back. */
+        private fun utf8(bytes: ByteArray): String? =
+            try {
+                Charsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes)).toString()
+            } catch (_: CharacterCodingException) {
+                null
+            }
+
+        private val NO_POSITION = Meta.Position(0, 0)
+        private val TUPLE = OtpErlangAtom("{}")
+        private val ALIASES = OtpErlangAtom("__aliases__")
+        private val BLOCK = OtpErlangAtom("__block__")
+
+        private fun tuple(vararg elements: OtpErlangObject) = OtpErlangTuple(elements)
+
+        private fun list(elements: List<ElixirAst>, options: ParserOptions): OtpErlangObject {
             val terms = elements.map { it.toOtp(options) }
             val bytes = terms.mapNotNull { term -> (term as? OtpErlangLong)?.takeIf { it.signum() >= 0 && it.bitLength() <= 8 } }
 

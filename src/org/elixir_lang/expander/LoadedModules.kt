@@ -126,6 +126,7 @@ internal object LoadedModules {
                     val functions = byMacro[DEF].orEmpty().map { it.toNameArity() }
                     val macros = byMacro[DEFMACRO].orEmpty().map { it.toNameArity() }
                     val behaviour = if (BEHAVIOUR_INFO in functions) callbacks(reader) else ModuleExports.Behaviour.None
+                    val deprecated = CompiledDeprecations.of(reader)
 
                     if (INFO in functions) {
                         ModuleExports.Present(
@@ -133,9 +134,10 @@ internal object LoadedModules {
                             macros,
                             hasInfo = true,
                             behaviour,
+                            deprecated,
                         )
                     } else {
-                        ModuleExports.Present(functions, macros, hasInfo = false, behaviour)
+                        ModuleExports.Present(functions, macros, hasInfo = false, behaviour, deprecated)
                     }
                 }
                 ReadResult.Absent, is ReadResult.Unreadable -> ModuleExports.Unreadable

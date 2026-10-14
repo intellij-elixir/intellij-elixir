@@ -3,6 +3,7 @@ package org.elixir_lang.beam.chunk.debug_info.v1.elixir_erl.v1.definitions.defin
 import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangObject
+import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.Macro
 import org.elixir_lang.beam.MacroNameArity
@@ -84,12 +85,12 @@ internal object DefaultArgumentClause {
     }
 
     /**
-     * The arguments of [definition]'s one clause and of the `super` call it is, when it is a default clause: every
-     * argument is one `elixir_def` generated, and the call passes more. A user's `super` has named arguments.
+     * The arguments of the debug info [clause] and of the `super` call it is, when it is the clause `elixir_def`
+     * generates for another definition's defaults: every argument is one it generated, and the call passes more. A
+     * user's `super` has named arguments.
      */
-    private fun defaultClause(definition: Definition): Pair<OtpErlangList, OtpErlangList>? {
-        val clause = definition.clausesTerm.let { it as? OtpErlangList }?.singleOrNull() as? OtpErlangTuple ?: return null
-        if (clause.arity() != Clause.EXPECTED_ARITY) return null
+    fun generated(clause: OtpErlangObject): Pair<OtpErlangList, OtpErlangList>? {
+        if (clause !is OtpErlangTuple || clause.arity() != Clause.EXPECTED_ARITY) return null
 
         val arguments = clause.elementAt(1).toOtpErlangList()
         if (!arguments.all { Clause.isGeneratedVariable(it) }) return null
@@ -99,10 +100,17 @@ internal object DefaultArgumentClause {
             ?.let { arguments to it }
     }
 
+    /** [generated] of [definition]'s one clause. */
+    private fun defaultClause(definition: Definition): Pair<OtpErlangList, OtpErlangList>? =
+        (definition.clausesTerm as? OtpErlangList)?.singleOrNull()?.let(::generated)
+
+    /** The arguments of the `super` call [block], which a list of small integers decodes to an [OtpErlangString] as. */
     private fun superArguments(block: OtpErlangObject): OtpErlangList? =
         (block as? OtpErlangTuple)
             ?.takeIf { it.arity() == 3 && (it.elementAt(0) as? OtpErlangAtom)?.atomValue() == "super" }
-            ?.elementAt(2) as? OtpErlangList
+            ?.elementAt(2)
+            ?.takeIf { it is OtpErlangList || it is OtpErlangString }
+            ?.toOtpErlangList()
 
     private fun targetArguments(definition: Definition, arity: Int): OtpErlangList? {
         val macro = definition.macro ?: return null

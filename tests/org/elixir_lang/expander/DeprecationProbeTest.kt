@@ -68,6 +68,15 @@ class DeprecationProbeTest : ExpanderTestCase() {
         ),
     )
 
+    /** A module of the leg's Elixir is read from its `.beam`. */
+    fun testDeprecatedCompiled() = assertWarnsAsTheCompilerDoes(
+        listOf(
+            "defmodule User do\n  Enum.chunk([1, 2], 1)\nend",
+            "defmodule User do\n  def f, do: Enum.chunk([1, 2], 1)\nend",
+            "defmodule User do\n  use GenEvent\nend",
+        ),
+    )
+
     /** Elixir reads a module's deprecations once it has compiled, so a module's own body and its enclosing body don't. */
     fun testAModuleIsReadOnceItHasCompiled() = assertWarnsAsTheCompilerDoes(
         listOf(

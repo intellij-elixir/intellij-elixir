@@ -103,6 +103,22 @@ class ModuleNamesTrackerTest : PlatformTestCase() {
         count()
     }
 
+    fun testDeletedFileReleased() {
+        val file = myFixture.addFileToProject("a.ex", "defmodule A do\nend\n")
+        val nested = myFixture.addFileToProject("dir/b.ex", "defmodule B do\nend\n")
+        val tracker = ModuleNamesTracker.getInstance(project)
+        type(file, "defmodule A".length, "B")
+        type(nested, "defmodule B".length, "C")
+        count()
+        assertEquals(setOf(file.virtualFile, nested.virtualFile), tracker.named)
+
+        WriteAction.runAndWait<Throwable> { file.virtualFile.delete(this) }
+        assertEquals("a deleted file", setOf(nested.virtualFile), tracker.named)
+
+        WriteAction.runAndWait<Throwable> { nested.virtualFile.parent.delete(this) }
+        assertEquals("a file in a deleted directory", emptySet<Any>(), tracker.named)
+    }
+
     private fun count(): Long =
         ReadAction.computeBlocking<Long, Throwable> { ModuleNamesTracker.getInstance(project).modificationCount }
 

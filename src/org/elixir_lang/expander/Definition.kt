@@ -20,7 +20,7 @@ import java.util.IdentityHashMap
  * call is, and the definition is stored once the module body has run.
  */
 internal val DEFINE = Summary { dispatch, node, state, env, run ->
-    val kind = Kind.valueOf(dispatch.name.uppercase())
+    val kind = Kind.of(dispatch.name)
     val scope = definerScopeError(node, env)
 
     when {
@@ -470,16 +470,16 @@ private fun expandDefaults(
 
     if (POST_MODULE_LOCAL_CHECKS_TYPED.isSufficient(run.level)) {
         val position = location(node.meta)
-        val first = full.arity - defaults.size
+        val arities = DefinitionTable.defaultArities(full.arity, defaults.size)
 
-        for (arity in first until full.arity) {
+        for (arity in arities) {
             compiling.calls.getOrPut(NameArity(full.name, arity)) { mutableListOf() } +=
                 LocalCall(
                     node,
                     full,
                     position?.line ?: 0,
                     position?.column ?: 0,
-                    calls.drop(arity - first).flatten(),
+                    calls.drop(arity - arities.first).flatten(),
                     checked = false,
                 )
         }

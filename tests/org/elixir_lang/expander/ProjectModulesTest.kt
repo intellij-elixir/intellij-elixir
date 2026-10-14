@@ -211,17 +211,18 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     fun testLibraryReadsBeam() {
-        val directory = FileUtil.createTempDirectory("project_modules_ebin", null, true)
-        VfsRootAccess.allowRootAccess(testRootDisposable, directory.path)
         val beam = File("testData/org/elixir_lang/expander/loaded_copy/Elixir.LoadedCopy.Dep.beam")
-        beam.copyTo(File(directory, beam.name))
-        val ebin = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(directory)!!
-        BeamLibraryFixture.addLibrary(project, module, "project_modules_ebin", listOf(ebin))
-        IndexingTestUtil.waitUntilIndexesAreReady(project)
+        val ebin = copiedLibrary(beam)
         val a = add("a.ex", "defmodule A do\n  require LoadedCopy.Dep\nend\n")
 
         assertEquals(
-            ModuleExports.Present(listOf(NameArity("f", 0)), emptyList(), true, ModuleExports.Behaviour.None),
+            ModuleExports.Present(
+                listOf(NameArity("f", 0)),
+                emptyList(),
+                true,
+                ModuleExports.Behaviour.None,
+                Deprecations.Known(emptyMap()),
+            ),
             exports(holder, a, "Elixir.LoadedCopy.Dep"),
         )
         val before = expansion(holder, a)
@@ -231,12 +232,49 @@ class ProjectModulesTest : PlatformTestCase() {
         WriteAction.runAndWait<Throwable> { ebin.findChild(beam.name)!!.setBinaryContent(rebuilt) }
 
         assertEquals(
-            ModuleExports.Present(listOf(NameArity("g", 0)), emptyList(), true, ModuleExports.Behaviour.None),
+            ModuleExports.Present(
+                listOf(NameArity("g", 0)),
+                emptyList(),
+                true,
+                ModuleExports.Behaviour.None,
+                Deprecations.Known(emptyMap()),
+            ),
             exports(holder, a, "Elixir.LoadedCopy.Dep"),
         )
         val after = expansion(holder, a)
         assertNotSame("the .beam rebuilt", before, after)
         assertFresh("the .beam rebuilt", a, after)
+    }
+
+    /** A library's deprecations are read from its `.beam`, and read again once it is rebuilt. */
+    fun testCompiledDependency() {
+        val beam = File("testData/org/elixir_lang/expander/deprecated_copy/Elixir.DeprecatedCopy.beam")
+        val ebin = copiedLibrary(beam)
+        val a = add("a.ex", "defmodule A do\n  DeprecatedCopy.old()\nend\n")
+
+        assertEquals(
+            listOf("DeprecatedCopy.old/0 is deprecated. Use new/0 instead line 2"),
+            DeprecationWarnings.of(expansion(holder, a)),
+        )
+
+        val rebuilt = File("testData/org/elixir_lang/expander/deprecated_copy/changed/${beam.name}").readBytes()
+        WriteAction.runAndWait<Throwable> { ebin.findChild(beam.name)!!.setBinaryContent(rebuilt) }
+
+        assertEquals(
+            listOf("DeprecatedCopy.old/0 is deprecated. Use newer/0 instead line 2"),
+            DeprecationWarnings.of(expansion(holder, a)),
+        )
+    }
+
+    /** A macro of the SDK's compiled `EEx` is dispatched to remotely, though `EEx`'s sources are attached too. */
+    fun testCompiledEex() {
+        val eex = File(LegManifest.environment("ELIXIR_LANG_ELIXIR_PATH"), "lib/eex")
+        addLibrary("leg_eex", File(eex, "ebin"), File(eex, "lib"))
+        val a = add("a.ex", "defmodule A do\n  require EEx\n  EEx.function_from_string(:def, :f, \"x\")\nend\n")
+        val rendered = render(a, expansion(holder, a))
+
+        assertTrue(rendered, rendered.contains("Elixir.A stopped `EEx.function_from_string(:def, :f, \"x\")`"))
+        assertFresh("the compiled EEx read", a, expansion(holder, a))
     }
 
     fun testCycleAnswersAbsent() {
@@ -404,6 +442,60 @@ class ProjectModulesTest : PlatformTestCase() {
         val rendered = render(a, expansion(ProjectModules(project), a, older))
 
         assertTrue(rendered, rendered.contains("Elixir.A2 compiled"))
+    }
+
+    /**
+     * A0's call reads C while A1 is unfinished, so C raises at `require A1`. Once A1 has finished, A2's `require C`
+     * reads C again, which now compiles and defines `f`, as Elixir compiles all three.
+     */
+    fun testLaterModuleRereads() {
+        val older = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel)
+        val a = add(
+            "a.ex",
+            "defmodule A0 do\n  def g, do: C.f()\nend\n\ndefmodule A1 do\nend\n\ndefmodule A2 do\n  require C\nend\n",
+        )
+        val c = add("c.ex", "defmodule C do\n  require A1\n  defmacro f, do: :ok\nend\n")
+        val x = add("x.ex", "defmodule X do\nend\n")
+        val holder = ProjectModules(project)
+
+        val rendered = render(a, expansion(holder, a, older))
+
+        assertFalse(rendered, rendered.contains("unloaded_module"))
+        assertTrue(rendered, rendered.contains("Elixir.A2 compiled"))
+        assertFresh("C after a.ex", c, expansion(holder, c, older), older)
+
+        for (atom in listOf("Elixir.A0", "Elixir.A1", "Elixir.A2", "Elixir.C")) {
+            assertEquals(
+                "$atom from x.ex",
+                exports(ProjectModules(project), x, atom, older),
+                exports(holder, x, atom, older),
+            )
+        }
+    }
+
+    /**
+     * A0's call reads C while A1 is unfinished: C passes `A1.m()` as a function call and stops at X's macro. A2 reads C
+     * again once A1 has finished, and C ends at `A1.m()` without reading X. A0's answer still came from X: editing X's
+     * macro into a function lets C compile, and A0 with it.
+     */
+    fun testASupersededAnswerKeepsWhatItRead() {
+        val older = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel)
+        val a = add(
+            "a.ex",
+            "defmodule A0 do\n  def g, do: C.f()\nend\n\ndefmodule A1 do\n  defmacro m, do: :ok\nend\n\n" +
+                "defmodule A2 do\n  require C\nend\n",
+        )
+        add("c.ex", "defmodule C do\n  A1.m()\n  require X\n  X.k()\n  def f, do: :ok\nend\n")
+        val x = add("x.ex", "defmodule X do\n  defmacro k, do: :ok\nend\n")
+        val holder = ProjectModules(project)
+        val before = expansion(holder, a, older)
+        assertFresh("X's macro", a, before, older)
+
+        edit(project, x, "defmodule X do\n  def k, do: :ok\nend\n")
+        val after = expansion(holder, a, older)
+
+        assertFresh("X's macro edited into a function", a, after, older)
+        assertFalse(render(a, after), render(a, before) == render(a, after))
     }
 
     fun testCancelledCachesNothing() {
@@ -581,12 +673,27 @@ class ProjectModulesTest : PlatformTestCase() {
     }
 
     /** The leg's Elixir `.beam`s as a library, which a `defstruct` dispatches to. */
-    private fun addLegElixir() {
-        val directory = LegManifest.ebin()
-        VfsRootAccess.allowRootAccess(testRootDisposable, directory.path)
-        val ebin = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(directory)!!
-        BeamLibraryFixture.addLibrary(project, module, "leg_elixir", listOf(ebin))
+    private fun addLegElixir() = addLibrary("leg_elixir", LegManifest.ebin())
+
+    /** A library holding a copy of [beam], whose `ebin` the test may rewrite. */
+    private fun copiedLibrary(beam: File): VirtualFile {
+        val directory = FileUtil.createTempDirectory("project_modules_ebin", null, true)
+        beam.copyTo(File(directory, beam.name))
+
+        return addLibrary("project_modules_ebin", directory)
+    }
+
+    /** A library of the `.beam`s in [classes], with [sources] attached when given; its classes root is returned. */
+    private fun addLibrary(name: String, classes: File, sources: File? = null): VirtualFile {
+        val fileSystem = LocalFileSystem.getInstance()
+        val roots = listOfNotNull(classes, sources).map {
+            VfsRootAccess.allowRootAccess(testRootDisposable, it.path)
+            fileSystem.refreshAndFindFileByIoFile(it)!!
+        }
+        BeamLibraryFixture.addLibrary(project, module, name, roots.take(1), roots.drop(1))
         IndexingTestUtil.waitUntilIndexesAreReady(project)
+
+        return roots.first()
     }
 
     private fun add(path: String, text: String): PsiFile = myFixture.addFileToProject(path, text)

@@ -14,6 +14,11 @@ internal class DefinitionTable {
 
         val macro: Boolean get() = this == DEFMACRO || this == DEFMACROP
         val public: Boolean get() = this == DEF || this == DEFMACRO
+
+        companion object {
+            /** The kind `def`, `defp`, `defmacro` or `defmacrop`, as [keyword], defines. */
+            fun of(keyword: String): Kind = valueOf(keyword.uppercase())
+        }
     }
 
     /**
@@ -89,7 +94,7 @@ internal class DefinitionTable {
         store(NameArity(name, arity), kind, at, clauses, defaults, default = false, ordered, checksClauses)
             ?.let { return it }
 
-        for (defaultArity in arity - defaults until arity) {
+        for (defaultArity in defaultArities(arity, defaults)) {
             store(NameArity(name, defaultArity), kind, at, 1, 0, default = true, ordered, checksClauses = false)
                 ?.let { return it }
         }
@@ -105,8 +110,7 @@ internal class DefinitionTable {
         defaultRows[name].orEmpty().any { (storedArity, storedDefaults) ->
             storedArity != arity &&
                 storedDefaults != 0 &&
-                ((arity >= storedArity - storedDefaults && arity < storedArity) ||
-                    (storedArity >= arity - defaults && storedArity < arity))
+                (arity in defaultArities(storedArity, storedDefaults) || storedArity in defaultArities(arity, defaults))
         }
 
     /**
@@ -116,6 +120,11 @@ internal class DefinitionTable {
      */
     fun restore(name: String, arity: Int, kind: Kind, at: ElixirAst, clauses: Int, defaults: Int, ordered: Boolean): String? =
         store(NameArity(name, arity), kind, at, clauses, defaults, default = false, ordered, checksClauses = false)
+
+    /** [entry] as a compiled module holds [nameArity], with none of a definition's checks, which its compile passed. */
+    fun put(nameArity: NameArity, entry: Entry) {
+        entries[nameArity] = entry
+    }
 
     /** `elixir_def:take_definition/2`: [nameArity]'s entry, taken out of the table with its `{default, Name}` row. */
     fun remove(nameArity: NameArity): Entry? =
@@ -157,5 +166,10 @@ internal class DefinitionTable {
             }
 
         return null
+    }
+
+    companion object {
+        /** The arities below [arity] a definition with [defaults] default arguments answers to. */
+        fun defaultArities(arity: Int, defaults: Int): IntRange = arity - defaults until arity
     }
 }
