@@ -1,5 +1,7 @@
 package org.elixir_lang.snapshot
 
+import com.intellij.util.system.OS
+import org.elixir_lang.elixir_surface.LegManifest.environment
 import java.io.File
 
 /** The facts `generate.exs` commits under [ROOT]: `<version>/<input>.facts`, one tab-separated fact per line. */
@@ -15,6 +17,10 @@ object CompilerFacts {
 
     /** The Elixir version a facts file's first line names. */
     val HEADER = Regex("""^# Elixir (\S+)\.""")
+
+    /** The leg's `elixir`, which runs `generate.exs`. */
+    fun elixir(): File =
+        File(environment("ELIXIR_LANG_ELIXIR_PATH"), if (OS.CURRENT == OS.Windows) "bin/elixir.bat" else "bin/elixir")
 
     /** Each version directory with each of its facts files. */
     fun committed(): List<Pair<File, File>> =
@@ -88,7 +94,8 @@ object CompilerFacts {
     )
     /** The `def*` keywords a `def` fact names. */
     val DEF_KINDS = setOf("def", "defp", "defmacro", "defmacrop")
-    private val MODULE = Regex("""[A-Z]\w*(?:\.[A-Z]\w*)*|:\w+""")
+    /** A module as `inspect/1` writes its atom: quoted when it is neither an alias nor a plain atom. */
+    private val MODULE = Regex("""[A-Z]\w*(?:\.[A-Z]\w*)*|:[\w@]+|:"(?:[^"\\]|\\.)*"""")
     private val POSITION = Regex("""(.+):(\d+):(\d+)""")
     private val DIAG_POSITION = Regex("""(.+):(\d+)""")
 }
