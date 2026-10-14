@@ -81,9 +81,7 @@ object ElixirLanguageLevelResolver {
         pushed(file)?.let { return it }
         val sdk = ElixirSdkLookup.resolve(file).sdk ?: return ElixirLanguageLevel.FALLBACK
 
-        return PushedVersions.languageLevelOf(sdk)
-            ?: PushedVersions.unpairedLanguageLevelOf(sdk)
-            ?: ElixirLanguageLevel.FALLBACK
+        return PushedVersions.languageLevel(sdk) ?: ElixirLanguageLevel.FALLBACK
     }
 
     /** Indexing parses a copy in a `LightVirtualFile`, which is in no directory, so its original's is read. */

@@ -66,6 +66,12 @@ internal object PushedVersions {
         ElixirSdkLookup.resolve(module).sdk?.let(::unpairedLanguageLevelOf)?.let(::encode)
 
     /**
+     * [sdk]'s language level for a parse: [languageLevelOf], or while a paired Erlang SDK isn't read yet, the OTP major
+     * the Elixir build targeted. `null` until the store has read the Elixir home.
+     */
+    fun languageLevel(sdk: Sdk): ElixirLanguageLevel? = languageLevelOf(sdk) ?: unpairedLanguageLevelOf(sdk)
+
+    /**
      * The Elixir version of [sdk]'s home and the OTP version of the Erlang SDK it is paired with, or `null` until the
      * store has read the Elixir home and any paired Erlang home. The OTP running Elixir is what counts, so without a
      * pairing the OTP major the Elixir build targeted stands in, and without that the OTP is unknown.
