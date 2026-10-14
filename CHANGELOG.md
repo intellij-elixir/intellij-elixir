@@ -717,6 +717,8 @@
 
 ### Build / CI
 
+- [#4450](https://github.com/intellij-elixir/intellij-elixir/pull/4450) [@sh41](https://github.com/sh41)
+  - **`CompiledModuleTest` builds its no-debug-info fixture from the module's own `@compile` instead of switching debug info off for the whole quoter, so a test running in another fork at that moment no longer fails for want of debug info.** Fixes [#4448](https://github.com/intellij-elixir/intellij-elixir/issues/4448).
 - [#4445](https://github.com/intellij-elixir/intellij-elixir/pull/4445) [@sh41](https://github.com/sh41)
   - **A light test that gives up waiting for a Mix deps sync prints the sync's request counts and the test JVM's coroutine and thread dumps.** Refs [#4440](https://github.com/intellij-elixir/intellij-elixir/issues/4440).
 - [#4443](https://github.com/intellij-elixir/intellij-elixir/pull/4443) [@sh41](https://github.com/sh41)
