@@ -1,0 +1,6 @@
+ref	matched	12
+ref	no use	1
+alias	matched	6
+def	matched	6
+declaration	matched	6
+no use	ref	columns.ex:6:22	imported_macro	Kernel	sigil_w	2

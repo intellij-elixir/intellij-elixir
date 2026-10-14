@@ -1,6 +1,7 @@
 # Records what the running Elixir's compiler says about the resolution snapshot's input directories: in
 # `<version>/<input>.facts`, every reference it traced and what it resolved to, every alias it expanded, what each
-# module defines, and the errors of files that do not compile.
+# module defines, and the errors of files that do not compile. A fact's fields are separated by tabs, so a name may
+# hold spaces.
 #
 # The facts are per Elixir version, so run this once with each Elixir CI tests, from this directory:
 # `mise exec elixir@<elixir>-otp-<otp major> erlang@<otp> -- elixir generate.exs`. An argument writes the version
@@ -30,7 +31,11 @@ defmodule CompilerFacts.Tracer do
 end
 
 defmodule CompilerFacts do
-  @inputs [{"callable_declaration", "../../psi/callable_declaration"}, {"inputs", "../inputs"}]
+  @inputs [
+    {"callable_declaration", "../../psi/callable_declaration"},
+    {"columns", "columns"},
+    {"inputs", "../inputs"}
+  ]
 
   def run(argv) do
     root =
@@ -62,15 +67,15 @@ defmodule CompilerFacts do
     {events, modules, errors} = compile(files, [], [], [])
     # Left loaded, a module would make the next input directory's file that defines it look provided.
     purge(modules)
-    sources = Map.new(files, &{&1, &1 |> File.read!() |> String.split("\n")})
+    nodes = Map.new(files, &{&1, nodes(&1)})
 
     diagnostics =
       for {file, line, kind} <- errors do
         path = Path.relative_to(file, input)
-        {path, line, 0, "diag #{path}:#{line} #{kind}"}
+        {path, line, 0, fields(["diag", "#{path}:#{line}" | kind])}
       end
 
-    positioned = Enum.flat_map(events, &event_line(&1, input, sources)) ++ diagnostics
+    positioned = Enum.flat_map(events, &event_line(&1, input, nodes)) ++ diagnostics
 
     definitions = Enum.flat_map(modules, &definition_lines/1)
 
@@ -180,95 +185,106 @@ defmodule CompilerFacts do
     cond do
       # From 1.15 a module's errors are each reported, then summarised in one more that names no position.
       message =~ "errors have been logged" -> :logged
-      match = Regex.run(~r/undefined function (\S+\/\d+)/, message) -> "undefined_function " <> Enum.at(match, 1)
-      match = Regex.run(~r/type (\S+\/\d+) undefined/, message) -> "undefined_type " <> Enum.at(match, 1)
-      match = Regex.run(~r/module (\S+) is not loaded/, message) -> "module_not_available " <> Enum.at(match, 1)
+      match = Regex.run(~r/undefined function (\S+)\/(\d+)/, message) -> ["undefined_function" | tl(match)]
+      match = Regex.run(~r/type (\S+)\/(\d+) undefined/, message) -> ["undefined_type" | tl(match)]
+      match = Regex.run(~r/module (\S+) is not loaded/, message) -> ["module_not_available" | tl(match)]
       true -> raise "unclassified compiler error: " <> message
     end
   end
 
-  defp event_line({file, module, aliases, event}, input, sources) do
+  defp event_line({file, module, aliases, event}, input, nodes) do
     meta = elem(event, 1)
 
     with line when is_integer(line) <- meta[:line],
-         column when is_integer(column) <- meta[:column],
-         text when is_binary(text) <- Enum.at(Map.fetch!(sources, file), line - 1) do
+         column when is_integer(column) <- meta[:column] do
       path = Path.relative_to(file, input)
+      named = Map.get(Map.fetch!(nodes, file), {line, column}, [])
 
-      event_facts(event, module, aliases)
-      |> Enum.flat_map(fn {spelling, fact} ->
-        case spelled(text, column, spelling) do
-          nil -> []
-          column -> [{path, line, column, fact.("#{path}:#{line}:#{column}")}]
-        end
-      end)
+      for {naming, [type | fields]} <- event_facts(event, module),
+          Enum.any?(named, &names?(&1, naming, module, aliases)) do
+        {path, line, column, fields([type, "#{path}:#{line}:#{column}" | fields])}
+      end
     else
       _ -> []
     end
   end
 
-  defp event_facts({:alias_reference, _, alias}, _module, aliases) do
-    [{{:alias, alias, aliases}, &"alias #{&1} #{inspect(alias)}"}]
+  defp event_facts({:alias_reference, _, alias}, _module), do: [{{:alias, alias}, ["alias", inspect(alias)]}]
+
+  defp event_facts({:imported_quoted, _, module, name, arities}, _module) do
+    for arity <- arities, do: {{:name, name}, ref(:imported_quoted, module, name, arity)}
   end
 
-  defp event_facts({:imported_quoted, _, module, name, arities}, _module, _aliases) do
-    for arity <- arities, do: {{:name, name}, &"ref #{&1} imported_quoted #{mfa(module, name, arity)}"}
+  defp event_facts({kind, _, name, arity}, module) when kind in [:local_function, :local_macro] do
+    [{{:name, name}, ref(kind, module, name, arity)}]
   end
 
-  defp event_facts({kind, _, name, arity}, module, _aliases) when kind in [:local_function, :local_macro] do
-    [{{:name, name}, &"ref #{&1} #{kind} #{mfa(module, name, arity)}"}]
+  defp event_facts({kind, _, module, name, arity}, _module), do: [{{:name, name}, ref(kind, module, name, arity)}]
+
+  defp ref(kind, module, name, arity), do: ["ref", "#{kind}", inspect(module), "#{name}", "#{arity}"]
+
+  # The nodes the parser placed at each {line, column}, as what each names: a call's name, at the call and at its dot,
+  # and a capture's call at its `&`; an alias's segments.
+  defp nodes(file) do
+    {:ok, ast} = Code.string_to_quoted(File.read!(file), columns: true, file: file)
+
+    {_, nodes} =
+      Macro.prewalk(ast, %{}, fn node, nodes ->
+        nodes =
+          Enum.reduce(naming(node), nodes, fn {at, naming}, nodes ->
+            Map.update(nodes, at, [naming], &[naming | &1])
+          end)
+
+        {node, nodes}
+      end)
+
+    nodes
   end
 
-  defp event_facts({kind, _, module, name, arity}, _module, _aliases) do
-    [{{:name, name}, &"ref #{&1} #{kind} #{mfa(module, name, arity)}"}]
+  defp naming({:__aliases__, meta, segments}), do: at(meta, {:aliases, segments})
+  defp naming({:&, meta, [{:/, _, [call, _arity]}]}), do: at(meta, {:name, call_name(call)})
+  defp naming({:&, meta, [call]}) when is_tuple(call), do: at(meta, {:name, call_name(call)})
+
+  defp naming({{:., dot_meta, [_, name]}, meta, _}) when is_atom(name) do
+    at(meta, {:name, name}) ++ at(dot_meta, {:name, name})
   end
 
-  defp mfa(module, name, arity), do: "#{inspect(module)}.#{name}/#{arity}"
+  defp naming({name, meta, _}) when is_atom(name), do: at(meta, {:name, name})
+  defp naming(_), do: []
 
-  # The column where the source spells the event's name or alias, or nil when the event borrowed a position that does
-  # not, as code a macro generates does. A remote call's column may be at its `.` and a capture's at its `&`.
-  defp spelled(text, column, spelling) do
-    rest = String.slice(text, column - 1, String.length(text))
-
-    {skipped, rest} =
-      case rest do
-        "." <> rest ->
-          {1, rest}
-
-        "&" <> rest ->
-          case Regex.run(~r/^(?:[A-Z]\w*(?:\.[A-Z]\w*)*|:\w+|__MODULE__)\./, rest) do
-            [qualifier] ->
-              length = String.length(qualifier)
-              {1 + length, String.slice(rest, length, String.length(rest))}
-
-            nil ->
-              {1, rest}
-          end
-
-        rest ->
-          {0, rest}
-      end
-
-    if spells?(rest, spelling), do: column + skipped
-  end
-
-  defp spells?(rest, {:name, name}) do
-    name = Atom.to_string(name)
-
-    String.starts_with?(rest, name) and
-      (not Regex.match?(~r/^\w/, name) or not Regex.match?(~r/^[\w?!]/, String.slice(rest, String.length(name), 1)))
-  end
-
-  defp spells?(rest, {:alias, alias, aliases}) do
-    case Regex.run(~r/^[A-Z]\w*(?:\.[A-Z]\w*)*/, rest) do
-      [written] ->
-        [first | others] = String.split(written, ".")
-        first = Module.concat([first])
-        Module.concat([Keyword.get(aliases, first, first) | others]) == alias
-
-      nil ->
-        false
+  defp at(meta, naming) when is_list(meta) do
+    case {meta[:line], meta[:column]} do
+      {line, column} when is_integer(line) and is_integer(column) -> [{{line, column}, naming}]
+      _ -> []
     end
+  end
+
+  defp at(_, _), do: []
+
+  defp call_name({{:., _, [_, name]}, _, _}), do: name
+  defp call_name({name, _, _}), do: name
+  defp call_name(_), do: nil
+
+  defp names?({:name, name}, {:name, name}, _module, _aliases), do: true
+
+  defp names?({:aliases, [{:__MODULE__, _, _} | others]}, {:alias, alias}, module, _aliases) when is_atom(module) do
+    Module.concat([module | others]) == alias
+  end
+
+  defp names?({:aliases, [first | others]}, {:alias, alias}, _module, aliases) when is_atom(first) do
+    first = Module.concat([first])
+    Module.concat([Keyword.get(aliases, first, first) | others]) == alias
+  end
+
+  defp names?(_, _, _, _), do: false
+
+  # A field holding a tab or newline would make its line unparseable.
+  defp fields(fields) do
+    for field <- fields, String.contains?(field, ["\t", "\n"]) do
+      raise "a fact's field holds a tab or newline: #{inspect(field)}"
+    end
+
+    Enum.join(fields, "\t")
   end
 
   defp definition_lines({_file, module, binary}) do
@@ -276,7 +292,8 @@ defmodule CompilerFacts do
     {:ok, %{definitions: definitions}} = backend.debug_info(:elixir_v1, module, data, [])
 
     for {{name, arity}, kind, meta, _clauses} <- definitions do
-      {{inspect(module), meta[:line], name, arity}, "def #{inspect(module)} #{kind} #{name}/#{arity} #{meta[:line]}"}
+      fields = ["def", inspect(module), "#{kind}", "#{name}", "#{arity}", "#{meta[:line]}"]
+      {{inspect(module), meta[:line], name, arity}, fields(fields)}
     end
   end
 end

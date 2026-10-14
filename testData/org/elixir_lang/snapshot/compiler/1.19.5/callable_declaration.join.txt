@@ -1,0 +1,77 @@
+ref	matched	80
+ref	no use	12
+ref	unknown	1
+ref	nothing	3
+alias	matched	22
+alias	nothing	3
+def	matched	13
+def	nothing	35
+declaration	matched	12
+declaration	nothing	13
+no use	ref	forms.ex:11:3	imported_macro	Kernel	@	1
+no use	ref	forms.ex:12:3	imported_macro	Kernel	@	1
+nothing	alias	forms.ex:13:36	Target
+no use	ref	forms.ex:20:34	remote_function	:erlang	binary_to_atom	2
+no use	ref	forms.ex:20:36	remote_macro	Kernel	to_string	1
+nothing	alias	forms.ex:25:7	Target
+nothing	ref	import_only.ex:10:6	imported_function	Errors	exception	1
+nothing	alias	in_def.ex:6:36	Unresolvable
+no use	ref	quoted_names.ex:8:60	remote_function	:erlang	binary_to_atom	2
+no use	ref	quoted_names.ex:8:62	remote_macro	Kernel	to_string	1
+no use	ref	spec_targets.ex:6:3	imported_macro	Kernel	@	1
+no use	ref	spec_targets.ex:10:3	imported_macro	Kernel	@	1
+no use	ref	through_import.ex:11:3	imported_macro	Kernel	@	1
+nothing	ref	through_import.ex:18:27	imported_function	Views	greet	1
+nothing	ref	through_import.ex:18:64	imported_function	Views	message	1
+unknown	ref	unknown_arity.ex:4:18	local_function	UnknownArity	render	1
+no use	ref	unknown_arity.ex:6:3	imported_macro	Kernel	@	1
+no use	ref	unknown_arity.ex:7:55	imported_macro	Kernel	@	1
+no use	ref	unknown_arity.ex:8:3	imported_macro	Kernel	@	1
+nothing	def	Errors	def	__struct__	0	2
+nothing	def	Errors	def	__struct__	1	2
+nothing	def	Errors	def	exception	1	2
+nothing	def	Errors	def	message	1	2
+nothing	def	InDef	def	delegated	2	6
+nothing	def	InDef	def	__struct__	0	7
+nothing	def	InDef	def	__struct__	1	7
+nothing	def	InDef	def	exception	1	7
+nothing	def	InDef	def	message	1	7
+nothing	def	InDef	def	from_string	1	8
+nothing	def	InDef	defp	log_template	1	9
+nothing	def	InDef	defp	error_text	0	10
+nothing	def	NamelessQuery	def	from_string	0	5
+nothing	def	NamelessQuery	defp	error_text	0	6
+nothing	def	QuotedNames	def	quoted_from_string	1	5
+nothing	def	QuotedNames	defp	quoted_text	0	6
+nothing	def	QuotedNames	def	count	1	7
+nothing	def	QuotedNames	def	dynamic_count	1	8
+nothing	def	ThroughUse	def	__struct__	0	18
+nothing	def	ThroughUse	def	__struct__	1	18
+nothing	def	ThroughUse	def	clause	1	18
+nothing	def	ThroughUse	def	delegated	2	18
+nothing	def	ThroughUse	defp	error_text	0	18
+nothing	def	ThroughUse	def	exception	1	18
+nothing	def	ThroughUse	def	from_string	1	18
+nothing	def	ThroughUse	defp	log_template	1	18
+nothing	def	ThroughUse	def	message	1	18
+nothing	def	UnknownArity	def	render	1	7
+nothing	def	Views	def	greet	1	7
+nothing	def	Views	defp	hidden	0	8
+nothing	def	Views	defp	banner_text	0	9
+nothing	def	Views	def	__struct__	0	10
+nothing	def	Views	def	__struct__	1	10
+nothing	def	Views	def	exception	1	10
+nothing	def	Views	def	message	1	10
+nothing	declaration	EEx	defmacro	function_from_file	3..5	eex.ex:2
+nothing	declaration	EEx	defmacro	function_from_string	3..5	eex.ex:6
+nothing	declaration	Forms	def	public_function	1	forms.ex:5
+nothing	declaration	Forms	defp	private_function	1..2	forms.ex:6
+nothing	declaration	Forms	defmacro	public_macro	1	forms.ex:7
+nothing	declaration	Forms	defmacrop	private_macro	1	forms.ex:8
+nothing	declaration	Forms	defmacro	is_small	1	forms.ex:9
+nothing	declaration	Forms	defmacrop	is_large	1	forms.ex:10
+nothing	declaration	OnlyUser	def	usage	0	import_only.ex:9
+nothing	declaration	Mix.Generator	defmacro	embed_template	2	mix_generator.ex:2
+nothing	declaration	Mix.Generator	defmacro	embed_text	2	mix_generator.ex:6
+nothing	declaration	SpecTargets	def	usage	0	spec_targets.ex:4
+nothing	declaration	User	def	usage	0	through_import.ex:17

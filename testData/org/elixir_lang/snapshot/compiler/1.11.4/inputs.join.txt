@@ -1,0 +1,29 @@
+ref	matched	46
+ref	no use	6
+ref	other	1
+alias	matched	24
+alias	other	1
+def	matched	25
+def	nothing	8
+declaration	matched	24
+declaration	nothing	4
+no use	ref	bracket_variable.ex:2:26	remote_function	Access	get	2
+no use	ref	callback_impl.ex:2:3	imported_macro	Kernel	@	1
+no use	ref	callback_impl.ex:6:3	imported_macro	Kernel	@	1
+no use	ref	capture.ex:3:22	local_function	Capture	run	1
+no use	ref	capture.ex:3:30	remote_function	Capture	run	1
+no use	ref	capture.ex:3:46	local_function	Capture	run	2
+other	alias	definitions.ex:20:13	Nested
+other	ref	protocol_impl.ex:2:3	imported_macro	Protocol	def	1
+nothing	def	Definitions	def	named	1	14
+nothing	def	ProtocolImpl	def	__protocol__	1	1
+nothing	def	ProtocolImpl	def	impl_for	1	1
+nothing	def	ProtocolImpl	def	impl_for!	1	1
+nothing	def	ProtocolImpl	defp	struct_impl_for	1	1
+nothing	def	ProtocolImpl.Atom	def	__impl__	1	5
+nothing	def	String.Chars.Definitions	def	__impl__	1	25
+nothing	def	String.Chars.Definitions.Nested	def	__impl__	1	25
+nothing	declaration	Capture	def	run	1	capture.ex:2
+nothing	declaration	Capture	def	captures	0	capture.ex:3
+nothing	declaration	Definitions	def	unquote(name)	1	definitions.ex:14
+nothing	declaration	LeexAssign	def	mount	3	leex_assign.ex:2
