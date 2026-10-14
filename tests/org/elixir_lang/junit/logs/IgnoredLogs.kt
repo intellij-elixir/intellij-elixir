@@ -78,6 +78,12 @@ internal object IgnoredLogs {
             Regex("""^getService\(\.\.\.\) must not be null"""),
             frame = PROJECT_ENTITY_BACKEND_REMOVAL,
         ),
+        // A watch-roots task queued by an earlier real application reads its extension point through a
+        // `ParsingTestCase`'s mock application, whose empty container (`{}`) has none.
+        Ignored(
+            "#com.intellij.openapi.vfs.impl.local.FileWatcher",
+            Regex("""^Missing extension point: com\.intellij\.vfs\.local\.pluggableFileWatcher in container \{}$"""),
+        ),
     )
 
     fun matches(category: String, message: String, t: Throwable?): Boolean = find(category, message, t) != null
