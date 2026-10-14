@@ -715,6 +715,8 @@
 
 ### Build / CI
 
+- [#4445](https://github.com/intellij-elixir/intellij-elixir/pull/4445) [@sh41](https://github.com/sh41)
+  - **A light test that gives up waiting for a Mix deps sync prints the sync's request counts and the test JVM's coroutine and thread dumps.** Refs [#4440](https://github.com/intellij-elixir/intellij-elixir/issues/4440).
 - [#4443](https://github.com/intellij-elixir/intellij-elixir/pull/4443) [@sh41](https://github.com/sh41)
   - **Each Linux test leg compiles Elixir's own tests with that leg's Elixir and checks what the plugin resolves in them against what the compiler says, and committed files per leg count each kind of difference.** Refs [#4407](https://github.com/intellij-elixir/intellij-elixir/issues/4407).
 - [#4437](https://github.com/intellij-elixir/intellij-elixir/pull/4437) [@sh41](https://github.com/sh41)
