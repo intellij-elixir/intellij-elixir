@@ -24,6 +24,7 @@ import com.intellij.psi.xml.XmlToken
 import com.intellij.psi.xml.XmlTokenType
 import com.intellij.usages.impl.rules.UsageType
 import com.intellij.util.AbstractQuery
+import com.intellij.util.EmptyQuery
 import com.intellij.util.MergeQuery
 import com.intellij.util.Processor
 import com.intellij.util.Query
@@ -44,7 +45,7 @@ import org.elixir_lang.model.psi.callback.Callback
 import org.elixir_lang.model.psi.callback.CallbackImplementation
 import org.elixir_lang.model.psi.function.FunctionArityKeywordPairReference
 import org.elixir_lang.model.psi.function.FunctionSymbol
-import org.elixir_lang.model.psi.function.definitionClause
+import org.elixir_lang.model.psi.function.SpecFunctionReference
 import org.elixir_lang.model.psi.module.ModuleReference
 import org.elixir_lang.model.psi.module.ModuleSymbol
 import org.elixir_lang.model.psi.module_attribute.ModuleAttributeReference
@@ -260,11 +261,11 @@ internal object ElixirUsageQueries {
     }
 
     /**
-     * For each function the implementing definitions [implementerAt] finds at an occurrence of [name] define: its
-     * other clauses, which implement nothing themselves, as a default argument's header leaves them, and its uses. One
-     * search per function, however many definitions define it, and none for a head that keeps its text, whose calls
-     * keep theirs. The implementing definitions are found everywhere, so that a search limited to a client lists its
-     * calls of an implementation defined outside it; only the uses are limited to [searchScope].
+     * For each implementing definition [implementerAt] finds at an occurrence of [name]: the other clauses of the
+     * function it defines, which implement nothing themselves, as a default argument's header leaves them, and its
+     * uses. One search per definition, however many clauses of one function there are, and none for a head that keeps
+     * its text, whose calls keep theirs. The implementing definitions are found everywhere, so that a search limited to
+     * a client lists its calls of an implementation defined outside it; only the uses are limited to [searchScope].
      */
     private fun implementedQuery(
         project: Project,
@@ -272,22 +273,31 @@ internal object ElixirUsageQueries {
         searchScope: SearchScope,
         implementerAt: (PsiElement) -> Implementer?
     ): Query<out PsiUsage> {
-        val implemented = wordQuery(project, name, GlobalSearchScope.allScope(project), WordOccurrenceMapper { leaf, _ ->
-            implementerAt(leaf)?.takeUnless { it.keepsHeadText }?.functions().orEmpty()
+        val implemented = wordQuery(project, name, GlobalSearchScope.allScope(project), { leaf, _ ->
+            listOfNotNull(
+                implementerAt(leaf)?.takeUnless { it.keepsHeadText }?.let {
+                    ImplementedFunctions(FunctionSymbol.definitionKey(it.definition), FunctionSymbol.fromDefinition(it.definition))
+                }
+            )
         })
 
-        return UniqueResultsQuery<FunctionSymbol, FunctionSymbol>(implemented)
-            .flatMapping { function ->
-                // The implementing heads are listed by the implementation query, and a protocol's own declaration is
-                // the target.
-                val siblings = functionDeclarationFamilyQuery(project, function, searchScope)
-                    .filtering { usage ->
-                        val leaf = usage.file.findElementAt(usage.range.startOffset)
+        return UniqueResultsQuery(implemented) { it.key }
+            .flatMapping { implemented ->
+                implemented.functions
+                    .flatMap { function ->
+                        // The implementing heads are listed by the implementation query, and a protocol's own
+                        // declaration is the target.
+                        val siblings = functionDeclarationFamilyQuery(project, function, searchScope)
+                            .filtering { usage ->
+                                val leaf = usage.file.findElementAt(usage.range.startOffset)
 
-                        leaf != null && implementerAt(leaf) == null && !isProtocolDeclaration(leaf)
+                                leaf != null && implementerAt(leaf) == null && !isProtocolDeclaration(leaf)
+                            }
+
+                        listOf(siblings, functionCallSiteQuery(project, function, searchScope))
                     }
-
-                MergeQuery(siblings, functionCallSiteQuery(project, function, searchScope))
+                    .reduceOrNull { merged, next -> MergeQuery(merged, next) }
+                    ?: EmptyQuery.getEmptyQuery()
             }
     }
 
@@ -296,6 +306,9 @@ internal object ElixirUsageQueries {
     private fun isProtocolDeclaration(leaf: PsiElement): Boolean =
         leaf.enclosingCalls().firstOrNull { CallDefinitionClause.`is`(it) }
             ?.let { ProtocolFunction.fromClause(it).isNotEmpty() } == true
+
+    /** The functions one implementing definition defines, and what tells it from the other definitions. */
+    private class ImplementedFunctions(val key: Any?, val functions: List<FunctionSymbol>)
 
     /** [query] without the second of two usages of one file and range. */
     private fun <T : PsiUsage> eachRangeOnce(query: Query<out T>): Query<out T> =
@@ -436,10 +449,6 @@ internal object ElixirUsageQueries {
                 usageTextByName = if (keepsHeadText) { _ -> headName } else null
             )
         }
-
-        /** The functions the definition defines, each of which its calls use. */
-        @RequiresReadLock
-        fun functions(): List<FunctionSymbol> = FunctionSymbol.fromClause(definition)
     }
 
     /** The definition `leaf` is the head name of, when it implements [callback]. */
@@ -893,9 +902,8 @@ internal object ElixirUsageQueries {
                 Callable(call).multiResolve(false)
                     .asSequence()
                     .filter { it.isValidResult }
-                    .mapNotNull { it.element as? Call }
-                    .filter { CallDefinitionClause.`is`(it) }
-                    .any { FunctionSymbol.matches(it, symbol) }
+                    .mapNotNull { it.element }
+                    .any { FunctionSymbol.matches(it, symbol, call) }
             }
 
         /**
@@ -1000,9 +1008,8 @@ internal object ElixirUsageQueries {
             val matches = reference.multiResolve(false)
                 .asSequence()
                 .filter { it.isValidResult }
-                .mapNotNull { it.element as? Call }
-                .filter { CallDefinitionClause.`is`(it) }
-                .any { FunctionSymbol.matches(it, symbol) }
+                .mapNotNull { it.element }
+                .any { FunctionSymbol.matches(it, symbol, capture) }
             if (!matches) return null
 
             return ElixirPsiUsage.create(
@@ -1018,9 +1025,9 @@ internal object ElixirUsageQueries {
             call.enclosingSpecAttributeIfHead() ?: return null
             val matches = PsiSymbolReferenceService.getService()
                 .getReferences(call)
-                .flatMap { it.resolveReference() }
-                .filterIsInstance<FunctionSymbol>()
-                .any { it == symbol }
+                .filterIsInstance<SpecFunctionReference>()
+                .flatMap { it.definitions() }
+                .any { FunctionSymbol.matches(it, symbol, call) }
             if (!matches) return null
 
             val nameElement = call.functionNameElement() ?: return null
@@ -1039,17 +1046,14 @@ internal object ElixirUsageQueries {
             if (occurrence.host == FunctionArityKeywordPair.Host.DEFOVERRIDABLE) return null
             if (occurrence.name != symbol.name || occurrence.arity != symbol.arity) return null
 
-            val matches = PsiSymbolReferenceService.getService()
-                .getReferences(occurrence.hostCall)
-                .asSequence()
-                .filterIsInstance<FunctionArityKeywordPairReference>()
-                .filter { it.absoluteRange.containsOffset(leaf.textRange.startOffset) }
-                .flatMap { it.resolveReference() }
-                .filterIsInstance<FunctionSymbol>()
-                .any { it == symbol }
+            val key = occurrence.pair.keywordKey
+            val matches = FunctionArityKeywordPairReference.definitions(occurrence)
+                .let { it as? FunctionArityKeywordPairReference.Definitions.Found }
+                ?.definitions
+                .orEmpty()
+                .any { FunctionSymbol.matches(it, symbol, key) }
             if (!matches) return null
 
-            val key = occurrence.pair.keywordKey
             return ElixirPsiUsage.create(
                 key,
                 TextRange(0, key.textLength),
@@ -1071,8 +1075,8 @@ internal object ElixirUsageQueries {
             val reference = references.firstOrNull { reference ->
                 reference.multiResolve(false)
                     .asSequence()
-                    .mapNotNull { it.element?.let(::definitionClause) }
-                    .any { FunctionSymbol.matchesAtom(it, symbol) }
+                    .mapNotNull { it.element }
+                    .any { FunctionSymbol.matchesAtom(it, symbol, atom) }
             } ?: return null
 
             return ElixirPsiUsage.create(

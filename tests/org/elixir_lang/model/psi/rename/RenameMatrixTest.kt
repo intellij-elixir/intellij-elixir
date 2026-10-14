@@ -4,6 +4,7 @@ import com.intellij.openapi.command.WriteCommandAction
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.renameTargetAtCaret
 import org.elixir_lang.code_insight.renameUsageRangesAtCaret
+import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaret
 import java.io.File
 
 /**
@@ -160,11 +161,73 @@ class RenameMatrixTest : PlatformTestCase() {
         doTestFromEveryOccurrence("implementation_calls_callback", "size", "fresh", expectedCarets = 6)
 
     /**
+     * One protocol function implemented by a clause in one `defimpl` and by a `defdelegate` with `as:` in another is one
+     * rename from the protocol's `def`, either `defimpl`'s clause or its local call, and `Size.size(x)`. A caret on the
+     * `defdelegate`'s head or its local call is its `to:` function's rename until #4425 is fixed.
+     */
+    fun testProtocolClauseAndDelegationImplementationCalls() =
+        doTestFromEveryOccurrence(
+            "implementation_calls_protocol_clause_and_delegation",
+            "size",
+            "fresh",
+            expectedCarets = 6,
+            carets = setOf(0, 1, 2, 5)
+        )
+
+    /** The same when the `defdelegate`'s `to:` does not resolve, so its head and local call are its own function's. */
+    fun testProtocolUnresolvedDelegationImplementationCalls() =
+        doTestFromEveryOccurrence("implementation_calls_protocol_unresolved_delegation", "size", "fresh", expectedCarets = 6)
+
+    /**
      * A `defp` in a `defimpl` that does not implement the protocol function of its name is renamed with its call, and a
      * call `Size.size(x)` that dispatches to the protocol keeps its name.
      */
     fun testDefimplHelperKeepsProtocolCall() =
         doTestFromEveryOccurrence("defimpl_helper_protocol_call", "size", "fresh", expectedCarets = 5, carets = setOf(2, 3))
+
+    /**
+     * Find Usages and Rename from the `defdelegate`'s head or its local call, which target its `to:` function, find one
+     * set of ranges.
+     */
+    fun testProtocolClauseAndDelegationFindUsagesAgreesWithRename() {
+        val before = loadFixture("implementation_calls_protocol_clause_and_delegation.ex")
+        val occurrences = wordOccurrences(before, "size")
+        for (index in listOf(3, 4)) {
+            myFixture.configureByText("agreement_caret$index.ex", before)
+            myFixture.editor.caretModel.moveToOffset(occurrences[index] + 1)
+
+            val found = myFixture.singleTargetPsiUsagesAtCaret(project).map { it.file.virtualFile.path to it.range }.toSet()
+            val renamed = myFixture.renameUsageRangesAtCaret().map { (file, range) -> file.virtualFile.path to range }.toSet()
+
+            assertTrue("Rename finds ranges from caret #$index", renamed.isNotEmpty())
+            assertEquals("Find Usages and Rename agree from caret #$index", renamed, found)
+        }
+    }
+
+    /**
+     * A `defdelegate` without `as:` in a `defimpl` keeps its head, so its spec, `@compile inline:` key and local call
+     * keep their text, though a sibling `defimpl` defines the same function and is renamed.
+     */
+    fun testProtocolPlainDelegationSiblingKeepsCalls() =
+        doTestFromEveryOccurrence(
+            "implementation_calls_protocol_plain_delegation", "size", "fresh", expectedCarets = 7, carets = setOf(0)
+        )
+
+    /** A `defdelegate` with `as:` implementing a protocol function is renamed with its spec, key, calls and capture. */
+    fun testProtocolDelegationImplementationCalls() =
+        doTestFromEveryOccurrence(
+            "implementation_calls_protocol_delegation", "size", "fresh", expectedCarets = 7, carets = setOf(0, 6)
+        )
+
+    /** The same for a callback implemented by a `defdelegate`, including an `import ... only:` key. */
+    fun testCallbackDelegationImplementationCalls() =
+        doTestFromEveryOccurrence(
+            "implementation_calls_callback_delegation", "area", "surface", expectedCarets = 7, carets = setOf(0)
+        )
+
+    /** A `defdelegate` whose `to:` does not resolve is a function of its own module, with its calls. */
+    fun testFunctionDefdelegateUnresolved() =
+        doTestFromEveryOccurrence("function_defdelegate_unresolved", "run", "fresh", expectedCarets = 5)
 
     /**
      * A `defp` in a `defimpl` implements nothing, so it is renamed with every clause and call in its own `defimpl`, and
@@ -180,6 +243,10 @@ class RenameMatrixTest : PlatformTestCase() {
     /** A public `def` of an arity the protocol does not declare implements nothing, so a sibling `defimpl`'s is kept. */
     fun testDefimplExtraArity() =
         doTestFromEveryOccurrence("defimpl_extra_arity", "size", "fresh", expectedCarets = 5, carets = setOf(2))
+
+    /** Renaming a protocol function renames the other clauses of every `defimpl`'s default-argument header, not one's. */
+    fun testDefimplDefaultArgument() =
+        doTestFromEveryOccurrence("defimpl_default_argument", "size", "fresh", expectedCarets = 5, carets = setOf(0, 1, 3))
 
     /**
      * Renaming from an atom that names a protocol function renames the protocol's `def` and each implementing head too.

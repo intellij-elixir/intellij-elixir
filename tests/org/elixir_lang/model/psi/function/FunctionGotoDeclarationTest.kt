@@ -8,6 +8,7 @@ import org.elixir_lang.code_insight.assertGotoDeclarationLandsIn
 import org.elixir_lang.code_insight.assertNoNavigationAtCaret
 import org.elixir_lang.code_insight.enclosingCallAtCaret
 import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.structure_view.element.Delegation
 
 /**
  * Behavior-level tests for reverse navigation: "Go To Declaration" on a call site navigates to
@@ -35,6 +36,12 @@ class FunctionGotoDeclarationTest : PlatformTestCase() {
     fun testGoToDeclarationNavigatesToFunctionDef() {
         myFixture.configureByFiles("goto_declaration.ex")
         myFixture.assertGotoDeclarationLandsIn("perform", "a def clause") { CallDefinitionClause.`is`(it) }
+    }
+
+    /** A `@spec` above a `defdelegate` names the function the delegation defines, so Go To Declaration lands on it. */
+    fun testGoToDeclarationFromSpecLandsOnDelegation() {
+        myFixture.configureByFiles("goto_declaration_spec_delegation.ex")
+        myFixture.assertGotoDeclarationLandsIn("size", "a defdelegate") { Delegation.`is`(it) }
     }
 
     /** The reference at the call site must resolve to at least one [FunctionSymbol]. */

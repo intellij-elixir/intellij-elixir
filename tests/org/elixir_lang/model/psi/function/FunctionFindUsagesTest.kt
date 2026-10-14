@@ -98,6 +98,36 @@ class FunctionFindUsagesTest : PlatformTestCase() {
         myFixture.assertShowUsagesChosenAtCaret()
     }
 
+    /** A `defdelegate` whose `to:` does not resolve defines a function of its module, which its local calls use. */
+    fun testUnresolvedDelegationLocalCallIsFoundFromTheHead() =
+        assertUnresolvedDelegationUsages("defdelegate run(x), to: Missing")
+
+    fun testUnresolvedDelegationLocalCallIsFoundFromTheLocalCall() =
+        assertUnresolvedDelegationUsages("def go(x), do: run(x)")
+
+    private fun assertUnresolvedDelegationUsages(caretLine: String) {
+        myFixture.configureByFiles("usages_unresolved_delegation.ex")
+        myFixture.editor.caretModel.moveToOffset(myFixture.file.text.indexOf(caretLine) + caretLine.indexOf("run") + 1)
+
+        val lines = myFixture.singleTargetPsiUsagesAtCaret(project)
+            .sortedBy { it.range.startOffset }
+            .map { usage ->
+                val text = usage.file.text
+                text.lines()[text.take(usage.range.startOffset).count { it == '\n' }].trim()
+            }
+
+        assertEquals(
+            listOf(
+                "@spec run(term) :: term",
+                "defdelegate run(x), to: Missing",
+                "def go(x), do: run(x)",
+                "def capture, do: &run/1",
+                "def call(x), do: Facade.run(x)"
+            ),
+            lines
+        )
+    }
+
     /**
      * Runs on the same user-facing "Declaration or Usages" path (asserted via GTDUOutcome),
      * then reads usages from the resolved SearchTarget query.

@@ -58,8 +58,7 @@ class FunctionArityKeywordPairReference(
         when (val definitions = definitions(occurrence)) {
             is Definitions.Found ->
                 definitions.definitions
-                    .mapNotNull { definitionClause(it) }
-                    .flatMap { FunctionSymbol.fromClause(it) }
+                    .flatMap { FunctionSymbol.fromDefinition(it) }
                     .filter { it.name == occurrence.name && it.arity == occurrence.arity }
 
             Definitions.UnresolvedModule -> emptyList()
