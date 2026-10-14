@@ -3,6 +3,10 @@
 Runs Qodana on the files changed between the merge-base with -Base and HEAD, like the CI pr-mode run.
 
 .DESCRIPTION
+Without -Base, the base is main fetched from the repository URL into refs/qodana/base, so no remote
+name matters. -NoFetch reuses that ref, and stops if it was never fetched. An explicit -Base is
+fetched only when it is <remote>/<branch> for an existing remote, unless -NoFetch.
+
 A diff run does `git checkout -f <merge-base>` and then `git checkout -f <HEAD sha>`, which silently
 discards uncommitted work. This script refuses to start if either checkout could destroy anything, and
 switches back to the original branch afterwards (the CLI leaves HEAD detached).
@@ -16,7 +20,7 @@ Extra arguments are passed through to `qodana scan`, e.g. `--show-report`.
 #>
 [CmdletBinding(PositionalBinding = $false)]
 param(
-    [string] $Base = 'upstream/main',
+    [string] $Base = 'refs/qodana/base',
     [switch] $NoFetch,
     [switch] $DryRun,
     [Parameter(ValueFromRemainingArguments)] [string[]] $QodanaArgs = @()
@@ -44,7 +48,16 @@ foreach ($marker in 'MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD', 'rebase-mer
     if (Test-Path (Join-Path $gitDir $marker)) { Stop-Unsafe "a git operation is in progress ($marker)." }
 }
 
-if (-not $NoFetch) {
+if (-not $PSBoundParameters.ContainsKey('Base')) {
+    if (-not $NoFetch) {
+        Invoke-Git fetch --quiet 'https://github.com/intellij-elixir/intellij-elixir.git' "+refs/heads/main:$Base" | Out-Null
+    }
+    else {
+        & git rev-parse --verify --quiet $Base | Out-Null
+        if ($LASTEXITCODE -ne 0) { Stop-Unsafe "$Base was never fetched. Run once without -NoFetch." }
+    }
+}
+elseif (-not $NoFetch) {
     $remote, $branch = $Base -split '/', 2
     if ($branch -and (& git remote) -contains $remote) { Invoke-Git fetch --quiet $remote $branch | Out-Null }
 }

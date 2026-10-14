@@ -715,6 +715,8 @@
 
 ### Build / CI
 
+- [#4437](https://github.com/intellij-elixir/intellij-elixir/pull/4437) [@sh41](https://github.com/sh41)
+  - **The local Qodana diff-scan scripts diff against `main` fetched from the repository itself, so they no longer need a remote named `upstream`.** Fixes [#4431](https://github.com/intellij-elixir/intellij-elixir/issues/4431).
 - [#4438](https://github.com/intellij-elixir/intellij-elixir/pull/4438) [@sh41](https://github.com/sh41)
   - **The unexpected-log check no longer fails a parsing test, after it has passed, on the platform's file watcher logging a missing extension point through the test's mock application.** Fixes [#4436](https://github.com/intellij-elixir/intellij-elixir/issues/4436).
 - [#4434](https://github.com/intellij-elixir/intellij-elixir/pull/4434) [@sh41](https://github.com/sh41)
