@@ -53,7 +53,7 @@ jobs:
     steps:
       - name: Upload Event File
         id: upload-event-file
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: Event File
           path: ${{ github.event_path }}
@@ -325,7 +325,7 @@ jobs:
       - name: Upload Leg Status
         id: upload-leg-status
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: Leg Status (${{ matrix.label }})
           path: leg-status.json
@@ -375,7 +375,7 @@ jobs:
       # upload-artifact rejects an empty name, and losing the XMLs is worse than losing the marker.
       - name: Upload Test Results
         id: upload-test-results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: (!cancelled())
         with:
           name: ${{ steps.leg-status.outputs.artifact-name || format('Test Results ({0})', matrix.label) }}
@@ -436,7 +436,7 @@ jobs:
 
       - name: Upload Test Reports (on failure or when requested)
         id: upload-test-reports
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         # steps.test.outcome is checked as well as failure(): an informational leg tolerates its own
         # test failure, so the job never enters a failed state and failure() alone would skip the
         # upload for precisely the leg whose reports are wanted.
@@ -511,7 +511,7 @@ jobs:
       # know the version-stamped name used for the human-facing upload further down.
       - name: Upload Plugin Distribution
         id: upload-plugin-distribution
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: plugin-distribution
           path: build/distributions/*.zip
@@ -531,7 +531,7 @@ jobs:
 
       - name: Upload Plugin Artifact (contents)
         id: upload-plugin
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.unzip-plugin.outputs.artifact-name }}
           path: build/distributions/unpacked/
