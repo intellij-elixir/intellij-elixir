@@ -582,6 +582,9 @@ object Import {
             ?.let { keepProcessing(importedCall, resolveState) }
             ?: true
 
+    /** Whether the walk that produced [state] reached its element through an `import`, so it is not defined where it is read. */
+    fun reachedThroughImport(state: ResolveState): Boolean = state.get(FILTER) != null
+
     /**
      * The highest arity of [definition] that the `import` the walk reached it through brings in, or `null` when no
      * `import` reached it or its arities are open.

@@ -236,25 +236,28 @@ internal object ElixirUsageQueries {
         override fun map(leaf: PsiElement, offsetInLeaf: Int): Collection<PsiUsage> {
             val callback = callbackPointer.dereference() ?: return emptyList()
 
-            // A `defoverridable name: arity` entry that names this callback (resolved through the
-            // behaviour in scope) - keeps the overridable entry renaming with the callback.
+            // A `defoverridable name: arity` entry that names this callback - keeps the overridable entry
+            // renaming with the callback.
             defoverridableKeyUsage(leaf, callback)?.let { return listOf(it) }
 
-            // Nearest enclosing call-definition clause (def/defp/defmacro/...).
-            val defClause = leaf.enclosingCalls().firstOrNull { CallDefinitionClause.`is`(it) } ?: return emptyList()
+            // Nearest enclosing definition (def/defp/defmacro/..., defdelegate).
+            val defClause = leaf.enclosingCalls().firstOrNull { DefinitionDeclaration.`is`(it) } ?: return emptyList()
 
-            // The occurrence must be the clause's own name, not a call in its body.
-            val nameIdentifier = CallDefinitionClause.nameIdentifier(defClause) ?: return emptyList()
+            // The occurrence must be the definition's own name, not a call in its body.
+            val nameIdentifier = DefinitionDeclaration.nameIdentifier(defClause) ?: return emptyList()
             if (!PsiTreeUtil.isAncestor(nameIdentifier, leaf, false)) return emptyList()
 
             if (!CallbackImplementation.implements(defClause, callback)) return emptyList()
+
+            val headName = nameIdentifier.text
 
             return listOf(
                 ElixirPsiUsage.create(
                     nameIdentifier,
                     TextRange(0, nameIdentifier.textLength),
                     declaration = false,
-                    usageType = IMPLEMENTATION
+                    usageType = IMPLEMENTATION,
+                    usageTextByName = if (Delegation.headKeepsTargetName(defClause)) { _ -> headName } else null
                 )
             )
         }
@@ -355,9 +358,7 @@ internal object ElixirUsageQueries {
             if (!Implementation.`is`(defimpl)) return emptyList()
             if (Implementation.protocolName(defimpl) != protocolFunction.protocolName) return emptyList()
 
-            // Without `as:` the head names the target's function too, so a rename of the head alone would break it.
             val headName = nameIdentifier.text
-            val keepsName = Delegation.`is`(definition) && Delegation.fromCall(definition)?.`as`() == null
 
             return listOf(
                 ElixirPsiUsage.create(
@@ -365,7 +366,7 @@ internal object ElixirUsageQueries {
                     TextRange(0, nameIdentifier.textLength),
                     declaration = false,
                     usageType = IMPLEMENTATION,
-                    usageTextByName = if (keepsName) { _ -> headName } else null
+                    usageTextByName = if (Delegation.headKeepsTargetName(definition)) { _ -> headName } else null
                 )
             )
         }
