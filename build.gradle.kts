@@ -1020,7 +1020,8 @@ tasks.register<CachePathsTask>("quoterCachePaths") {
 
 // --- Elixir parsing corpus ---
 // ElixirLangElixirParsingTestCase parses and quotes every .ex and .exs file of the corpus
-// .github/ci-versions.json declares for this Elixir. Read through `providers` so the configuration cache
+// .github/ci-versions.json declares for this Elixir, and the compiler oracle compiles its applications' tests,
+// which read files of other kinds as they compile. Read through `providers` so the configuration cache
 // is invalidated when the declaration changes.
 val elixirParsingCorpus: List<CorpusEntry> = corpusFor(
     providers.fileContents(layout.projectDirectory.file(".github/ci-versions.json")).asText.get(),
@@ -1041,7 +1042,7 @@ val downloadElixirParsingCorpus: List<TaskProvider<Download>> = elixirParsingCor
 }
 
 val elixirParsingCorpusTask: TaskProvider<Sync> = tasks.register<Sync>("elixirParsingCorpus") {
-    description = "Extracts the .ex and .exs files of the parser tests' corpus"
+    description = "Extracts the parser tests' corpus"
     into(elixirParsingCorpusRoot)
     includeEmptyDirs = false
 
@@ -1049,7 +1050,6 @@ val elixirParsingCorpusTask: TaskProvider<Sync> = tasks.register<Sync>("elixirPa
         dependsOn(download)
         val directory = entry.directory.split('/')
         from(tarTree(resources.gzip(elixirParsingCorpusArchives.file(entry.archiveFileName)))) {
-            include("**/*.ex", "**/*.exs")
             // The archive's top directory is named after the commit; the entry's directory replaces it.
             eachFile {
                 relativePath = RelativePath(true, *(directory + relativePath.segments.drop(1)).toTypedArray())

@@ -3,7 +3,6 @@ package org.elixir_lang.snapshot
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.process.CapturingProcessHandler
 import com.intellij.openapi.util.io.FileUtil
-import com.intellij.util.system.OS
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.elixir_surface.LegManifest.environment
 import org.elixir_lang.junit.UnitTestCase
@@ -65,10 +64,8 @@ class CompilerFactsTest : UnitTestCase() {
     }
 
     private fun generate(root: File) {
-        val executable = if (OS.CURRENT == OS.Windows) "bin/elixir.bat" else "bin/elixir"
-        val elixir = File(environment("ELIXIR_LANG_ELIXIR_PATH"), executable)
-        val commandLine =
-            GeneralCommandLine(elixir.path, "generate.exs", root.path).withWorkingDirectory(File(ROOT).toPath())
+        val commandLine = GeneralCommandLine(CompilerFacts.elixir().path, "generate.exs", root.path)
+            .withWorkingDirectory(File(ROOT).toPath())
         val output = CapturingProcessHandler(commandLine).runProcess(TimeUnit.MINUTES.toMillis(5).toInt())
 
         assertFalse("generate.exs timed out:\n${output.stdout}\n${output.stderr}", output.isTimeout)

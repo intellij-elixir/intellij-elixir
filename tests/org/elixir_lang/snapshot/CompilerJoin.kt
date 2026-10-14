@@ -39,10 +39,16 @@ import org.elixir_lang.snapshot.CompilerFacts.Position
 
 /**
  * What the plugin answers at each compiler fact about the files under [root], whose positions [elixirVersion]'s
- * tokenizer counted. The `ref` facts at one position are one group, matched when any of them is.
+ * tokenizer counted. The `ref` facts at one position are one group, matched when any of them is. Only the
+ * declarations [lists] takes, by module and path, are joined to the `def` facts and listed.
  */
 @Suppress("UnstableApiUsage")
-class CompilerJoin(private val project: Project, private val root: VirtualFile, private val elixirVersion: String) {
+class CompilerJoin(
+    private val project: Project,
+    private val root: VirtualFile,
+    private val elixirVersion: String,
+    private val lists: (module: String, path: String) -> Boolean = { _, _ -> true },
+) {
     /** After [MATCHED], in the order an unmatched group takes the first of. */
     enum class Outcome(val text: String) {
         MATCHED("matched"),
@@ -55,10 +61,19 @@ class CompilerJoin(private val project: Project, private val root: VirtualFile, 
         NOTHING("nothing"),
     }
 
-    /** A [kind] of fact, one of [KINDS], its [outcome], and the [line] that names it. */
-    data class Joined(val kind: String, val outcome: Outcome, val line: String)
+    /**
+     * A [kind] of fact, one of [KINDS], its [outcome], the [line] that names it, what it names as its [target], and its
+     * [position].
+     */
+    data class Joined(
+        val kind: String,
+        val outcome: Outcome,
+        val line: String,
+        val target: String,
+        val position: String,
+    )
 
-    private class Declared(val module: String, val declaration: Declaration, val line: String)
+    private class Declared(val module: String, val declaration: Declaration, val line: String, val position: String)
 
     private val files = mutableMapOf<String, Pair<ElixirFile, Map<Pair<Int, Int>, Int>>?>()
 
@@ -81,11 +96,11 @@ class CompilerJoin(private val project: Project, private val root: VirtualFile, 
         val declarations = declarations()
 
         return positioned.map { (key, group) -> group(key.second, group, undefined) } +
-            defs.map { (fact, line) -> Joined("def", outcome(fact, declarations), line) } +
+            defs.map { (fact, line) -> joined(outcome(fact, declarations), fact, line) } +
             declarations.map { declared ->
                 val outcome = if (defs.any { (fact, _) -> declared.matches(fact) }) Outcome.MATCHED else Outcome.NOTHING
 
-                Joined("declaration", outcome, declared.line)
+                Joined("declaration", outcome, declared.line, declared.module, declared.position)
             }
     }
 
@@ -96,17 +111,28 @@ class CompilerJoin(private val project: Project, private val root: VirtualFile, 
     ): Joined {
         val alias = facts.first().first is Fact.Alias
         val outcomes = if (alias) {
-            facts.map { (fact, line) -> outcome(fact as Fact.Alias) to line }
+            facts.map { (fact, line) -> Triple(outcome(fact as Fact.Alias), fact, line) }
         } else {
             val found = found(position)
 
-            facts.map { (fact, line) -> outcome(fact as Fact.Ref, found, undefined) to line }
+            facts.map { (fact, line) -> Triple(outcome(fact as Fact.Ref, found, undefined), fact, line) }
         }
-        val (outcome, line) =
+        val (outcome, fact, line) =
             outcomes.firstOrNull { it.first == Outcome.MATCHED } ?: outcomes.minBy { it.first.ordinal }
 
-        return Joined(if (alias) "alias" else "ref", outcome, line)
+        return joined(outcome, fact, line)
     }
+
+    private fun joined(outcome: Outcome, fact: Fact, line: String): Joined =
+        when (fact) {
+            is Fact.Ref ->
+                Joined("ref", outcome, line, "${fact.module}\t${fact.name}\t${fact.arity}", text(fact.position))
+            is Fact.Alias -> Joined("alias", outcome, line, fact.module, text(fact.position))
+            is Fact.Def -> Joined("def", outcome, line, fact.module, "${fact.module}:${fact.line}")
+            is Fact.Diag -> error("a diag fact is not joined: $line")
+        }
+
+    private fun text(position: Position): String = "${position.path}:${position.line}:${position.column}"
 
     /** The preferred candidates at the use whose call is at [position], or `null` when there is no use. */
     private fun found(position: Position): List<Found>? {
@@ -196,26 +222,27 @@ class CompilerJoin(private val project: Project, private val root: VirtualFile, 
             declaration.capabilities.defines(fact.kind) &&
             declaration.arity.accepts(fact.arity)
 
-    /** Each declaration of each module in the files under [root], once for each name its module has. */
+    /** Each declaration [lists] takes in the files under [root], once for each name its module has. */
     private fun declarations(): List<Declared> =
         psiFiles().flatMap { file ->
             PsiTreeUtil.findChildrenOfType(file, Call::class.java).filter { Stub.isModular(it) }.flatMap { modular ->
                 val (names, clauses) = definitions(modular)
 
-                names.flatMap { module ->
+                names.filter { lists(it, path(file)) }.flatMap { module ->
                     clauses.mapNotNull { (clause, declaration) ->
                         declaration?.let {
                             val line = StringUtil.offsetToLineNumber(file.viewProvider.contents, clause.textOffset) + 1
+                            val position = "${path(file)}:$line"
                             val fields = listOf(
                                 "declaration",
                                 module,
                                 definer(it.capabilities),
                                 it.name,
                                 it.arity.text(),
-                                "${path(file)}:$line"
+                                position
                             )
 
-                            Declared(module, it, fields.joinToString("\t"))
+                            Declared(module, it, fields.joinToString("\t"), position)
                         }
                     }
                 }
@@ -253,13 +280,26 @@ class CompilerJoin(private val project: Project, private val root: VirtualFile, 
         val KINDS = listOf("ref", "alias", "def", "declaration")
 
         /** A count for each (kind, outcome), then each line not matched, as the facts and declarations came. */
-        fun lines(joined: List<Joined>): List<String> {
-            val counts = joined.groupingBy { it.kind to it.outcome }.eachCount().entries
+        fun lines(joined: List<Joined>): List<String> =
+            counts(joined) + joined.filter { it.outcome != Outcome.MATCHED }.map { "${it.outcome.text}\t${it.line}" }
+
+        /**
+         * A count for each (kind, outcome), then, for each target not matched with each outcome, how many lines have
+         * it and the position of the first, as the facts and declarations came.
+         */
+        fun grouped(joined: List<Joined>): List<String> =
+            counts(joined) + joined.filter { it.outcome != Outcome.MATCHED }
+                .groupBy { Triple(it.outcome, it.kind, it.target) }
+                .map { (key, group) ->
+                    val (outcome, kind, target) = key
+
+                    "${outcome.text}\t$kind\t$target\t${group.size}\t${group.first().position}"
+                }
+
+        private fun counts(joined: List<Joined>): List<String> =
+            joined.groupingBy { it.kind to it.outcome }.eachCount().entries
                 .sortedWith(compareBy({ KINDS.indexOf(it.key.first) }, { it.key.second.ordinal }))
                 .map { (key, count) -> "${key.first}\t${key.second.text}\t$count" }
-
-            return counts + joined.filter { it.outcome != Outcome.MATCHED }.map { "${it.outcome.text}\t${it.line}" }
-        }
 
         /**
          * The offset in [file] at each (line, column) [elixirVersion]'s tokenizer counts: the last. An offset no column
