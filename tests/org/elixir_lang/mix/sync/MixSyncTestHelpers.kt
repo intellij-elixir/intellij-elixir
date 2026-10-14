@@ -1,7 +1,5 @@
 package org.elixir_lang.mix.sync
 
-import com.intellij.diagnostic.ThreadDumper
-import com.intellij.diagnostic.dumpCoroutines
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
@@ -18,6 +16,7 @@ import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
+import org.elixir_lang.junit.hangDump
 import org.elixir_lang.mix.library.CONSOLIDATED_LIBRARY_BASE_NAME
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration.Companion.seconds
@@ -98,9 +97,7 @@ internal object MixSyncTestHelpers {
         }
         if (!idle) {
             throw AssertionError(
-                "Mix deps syncs still running after $SYNC_TIMEOUT: ${service.counts}\n\n" +
-                    "Coroutines:\n${dumpCoroutines() ?: "(coroutine debug probes are not installed)"}\n\n" +
-                    "Threads:\n${ThreadDumper.dumpThreadsToString()}"
+                "Mix deps syncs still running after $SYNC_TIMEOUT: ${service.counts}\n\n${hangDump()}"
             )
         }
     }
