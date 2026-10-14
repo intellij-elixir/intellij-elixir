@@ -197,29 +197,23 @@ class CompiledModuleTest : PlatformTestCase() {
         val stripped: CompiledModule,
     )
 
-    /** [FIXTURE] compiled by the leg's Elixir with debug info, without it, and with it then stripped. */
+    /**
+     * [FIXTURE] compiled by the leg's Elixir with debug info, without it, and with it then stripped. The quoter's
+     * compiler options are shared by every test fork, so the one without debug info comes from its own `@compile`.
+     */
     private fun fixture(): Fixture {
         val compiled = Quoter.compile(
             """
-            source = ${elixirString(FIXTURE)}
-
-            compile = fn debug_info ->
-              previous = Code.get_compiler_option(:debug_info)
-              Code.put_compiler_option(:debug_info, debug_info)
-
-              try do
-                [{module, binary}] = Code.compile_string(source)
-                :code.delete(module)
-                :code.purge(module)
-                binary
-              after
-                Code.put_compiler_option(:debug_info, previous)
-              end
+            compile = fn source ->
+              [{module, binary}] = Code.compile_string(source)
+              :code.delete(module)
+              :code.purge(module)
+              binary
             end
 
-            full = compile.(true)
+            full = compile.(${elixirString(FIXTURE)})
             {:ok, {_, stripped}} = :beam_lib.strip(full)
-            IntellijElixir.Quoter.Probe.send(__ENV__, {full, compile.(false), stripped})
+            IntellijElixir.Quoter.Probe.send(__ENV__, {full, compile.(${elixirString(FIXTURE_WITHOUT_DEBUG_INFO)}), stripped})
             """.trimIndent(),
             60.seconds,
         )
@@ -412,5 +406,8 @@ class CompiledModuleTest : PlatformTestCase() {
               defmacro z(0), do: :zero
             end
         """.trimIndent()
+
+        /** [FIXTURE] whose module opts out of debug info itself. */
+        val FIXTURE_WITHOUT_DEBUG_INFO = FIXTURE.replaceFirst("CompiledFixture do", "CompiledFixture do @compile {:debug_info, false}")
     }
 }
