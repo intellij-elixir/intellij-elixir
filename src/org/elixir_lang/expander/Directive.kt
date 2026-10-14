@@ -471,9 +471,9 @@ private inline fun import(
     val filter = options.filter
     val selector = options.selector
     val internalsFirst = ERLANG_IMPORT_DROPS_BEHAVIOUR_INFO.isSufficient(level)
-    val functions = if (exports.hasInfo || !internalsFirst) exports.functions else exports.functions - INTERNALS
+    val functions = if (exports.hasInfo || !internalsFirst) exports.functions else exports.functions - ModuleExports.INTERNALS
     // Before 1.15 `remove_internals` runs on what the options leave instead.
-    val removedAfter = if (internalsFirst) emptySet() else MODULE_INFO
+    val removedAfter = if (internalsFirst) emptySet() else ModuleExports.MODULE_INFO
 
     when {
         legacy && options.only.hasDuplicate() -> return Expansion.Error("duplicated_import", call)
@@ -575,6 +575,3 @@ internal fun hasMetaKey(meta: Meta, name: String): Boolean = meta.keys.any { it 
 /** `lists:keyfind/3`: the value of [meta]'s first entry named [name]. */
 internal fun metaValue(meta: Meta, name: String): Meta.Value? =
     meta.keys.firstNotNullOfOrNull { key -> (key as? Meta.Key.Entry)?.takeIf { it.name == name }?.value }
-
-private val MODULE_INFO = setOf(NameArity("module_info", 0), NameArity("module_info", 1))
-private val INTERNALS = MODULE_INFO + NameArity("behaviour_info", 1)

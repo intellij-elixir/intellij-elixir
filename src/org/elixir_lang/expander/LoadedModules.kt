@@ -45,7 +45,7 @@ internal object LoadedModules {
     private fun behaviour(result: ExpansionResult): ModuleExports.Behaviour {
         val definitions = result.table.entries
 
-        if (BEHAVIOUR_INFO in definitions) return ModuleExports.Behaviour.Unreadable
+        if (ModuleExports.BEHAVIOUR_INFO in definitions) return ModuleExports.Behaviour.Unreadable
 
         val functions = result.attributes.callbacks ?: return ModuleExports.Behaviour.Unreadable
         val macros = result.attributes.macrocallbacks ?: return ModuleExports.Behaviour.Unreadable
@@ -126,10 +126,10 @@ internal object LoadedModules {
                     val byMacro = exports.value.macroNameAritySortedSetByMacro()
                     val functions = byMacro[DEF].orEmpty().map { it.toNameArity() }
                     val macros = byMacro[DEFMACRO].orEmpty().map { it.toNameArity() }
-                    val behaviour = if (BEHAVIOUR_INFO in functions) callbacks(reader) else ModuleExports.Behaviour.None
+                    val behaviour = if (ModuleExports.BEHAVIOUR_INFO in functions) callbacks(reader) else ModuleExports.Behaviour.None
                     val deprecated = CompiledDeprecations.of(reader)
 
-                    if (INFO in functions) {
+                    if (ModuleExports.INFO in functions) {
                         ModuleExports.Present(
                             functions.filterNot { it in ModuleExports.NOT_IN_INFO },
                             macros,
@@ -199,8 +199,6 @@ internal object LoadedModules {
         return NameArity(name, arity)
     }
 
-    private val INFO = NameArity("__info__", 1)
-    private val BEHAVIOUR_INFO = NameArity("behaviour_info", 1)
     private val STRUCT = NameArity("__struct__", 1)
     private val NIL = OtpErlangAtom("nil")
 }
