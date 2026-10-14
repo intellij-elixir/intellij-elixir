@@ -141,6 +141,7 @@ internal sealed interface Pending {
      * @property statement whether [node] is a statement of the module body
      * @property checksClauses whether Elixir checks the definition for clauses: it has no unquotes, and its head
      *   wasn't quoted
+     * @property delegatesTo what the head calls, when a `defdelegate` defined it
      */
     class Definition(
         val kind: DefinitionTable.Kind,
@@ -153,6 +154,7 @@ internal sealed interface Pending {
         val ordered: Boolean,
         val statement: Boolean,
         val checksClauses: Boolean,
+        val delegatesTo: DefinitionTable.Delegation? = null,
     ) : Pending
 
     /**

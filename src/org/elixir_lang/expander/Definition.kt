@@ -433,6 +433,7 @@ private fun store(
         defaults,
         definition.ordered,
         definition.checksClauses,
+        definition.delegatesTo,
     )
 
 /** `assert_valid_name/5`: the error a definition of [name] and [arity] raises, as one the compiler defines. */

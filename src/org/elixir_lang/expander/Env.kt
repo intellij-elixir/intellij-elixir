@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.util.TextRange
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.KERNEL_TYPESPEC_REQUIRED_BY_DEFAULT
 import org.elixir_lang.language_level.ElixirLanguageLevel
@@ -26,8 +27,12 @@ data class Env(
     /** `{alias, module}`: [alias] names [module]. */
     data class Alias(val alias: String, val module: String)
 
-    /** `{module, [{name, arity}]}`: the names imported from [module]. */
-    data class Imports(val module: String, val nameArities: List<NameArity>)
+    /**
+     * `{module, [{name, arity}]}`: the names imported from [module].
+     *
+     * @property origin the origin of the `import` call that made this entry, or `null` for the empty env's
+     */
+    data class Imports(val module: String, val nameArities: List<NameArity>, val origin: TextRange? = null)
 
     /** `{alias, {counter, module}}`: an alias defined inside the macro expansion that took [counter]. */
     data class MacroAlias(val alias: String, val counter: Counter, val module: String)

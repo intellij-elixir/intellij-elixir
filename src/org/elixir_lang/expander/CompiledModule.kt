@@ -202,7 +202,7 @@ private class Builder(
 
     /** An entry as a compiled module holds it: in source order, its clauses already checked by its compile. */
     private fun entry(kind: Kind, at: ElixirAst, clauses: Int, defaults: Int, default: Boolean): Entry =
-        Entry(kind, at, clauses, defaults, default, ordered = true, checksClauses = false)
+        Entry(kind, listOf(DefinitionTable.Head(at, null)), clauses, defaults, default, ordered = true, checksClauses = false)
 
     private fun head(clause: Call): ElixirAst = lowering.lower(CallDefinitionClause.head(clause)!!)
 

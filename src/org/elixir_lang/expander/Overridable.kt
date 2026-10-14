@@ -87,7 +87,7 @@ internal fun storeOverridable(
     if (!overridable.stored) {
         overridable.stored = true
 
-        compiling.table.restore(name, nameArity.arity, kind, entry.at, entry.clauses, entry.defaults, entry.ordered)
+        compiling.table.restore(name, nameArity.arity, kind, entry.heads, entry.clauses, entry.defaults, entry.ordered)
         // Filed under the original name, as `elixir_locals:reattach` does, whichever name the definition is stored as.
         compiling.calls.getOrPut(nameArity) { mutableListOf() } += overridable.calls
 
