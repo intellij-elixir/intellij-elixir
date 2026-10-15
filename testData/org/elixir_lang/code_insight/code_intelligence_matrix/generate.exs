@@ -332,8 +332,35 @@ defmodule Matrix do
   # `Queue` declares `snoc/2`; its `List` impl has a same-named `defp snoc/3` and its `Tuple` impl an undeclared `def
   # snoc/1`, neither of which the protocol dispatches to. `Stack` has the callback `push/2`; `ListStack` implements it
   # with a head whose default also covers `push/1`.
-  @impl_world_ids ["impl"]
+  @impl_world_ids ["impl", "impl_use"]
   @impl_names [:snoc, :push]
+
+  # The impl world's callback reached the other way a module takes one: a `use`d module's quote holds the `@behaviour`
+  # and the implementing `def`, which belong to the module that `use`s it. A call is of the callback's family, as is the
+  # injected head, though no `@behaviour` is written where it is.
+  @impl_use_lines [
+    "defmodule Src.Impl.ImplUse.Stack do",
+    "  @callback push(stack :: term, item :: term) :: term # @callback",
+    "end",
+    "",
+    "defmodule Src.Impl.ImplUse.Injector do",
+    "  defmacro __using__(_) do",
+    "    quote do",
+    "      @behaviour Src.Impl.ImplUse.Stack",
+    "",
+    "      def push(stack, item), do: [item | stack] # @injected_head",
+    "    end",
+    "  end",
+    "end",
+    "",
+    "defmodule Src.Impl.ImplUse.User do",
+    "  use Src.Impl.ImplUse.Injector",
+    "end",
+    "",
+    "defmodule Src.Impl.ImplUse.Caller do",
+    "  def run, do: Src.Impl.ImplUse.User.push([], 1) # @push_call",
+    "end"
+  ]
   @impl_lines [
     "defprotocol Src.Impl.Impl.Queue do",
     "  def snoc(queue, item) # @declaration",
@@ -1418,20 +1445,23 @@ defmodule Matrix do
   # Which of them are heads is the AST's answer, and what a call is of is the language's: a protocol function and a
   # callback are what their `@callback`s declare, so a module whose `@behaviour` lists the protocol or the behaviour
   # defines that one function there, at every arity its defaults cover. A function nothing declares is its own.
+  defp impl_lines("impl"), do: @impl_lines
+  defp impl_lines("impl_use"), do: @impl_use_lines
+
   defp impl_scenario(backing, form, world) do
     [prefix] = module_names(backing, form, world, 1)
     path = Path.join(["lib", backing.id, (prefix |> Macro.underscore() |> String.replace("/", ".")) <> ".ex"])
-    source = "# #{@header}\n" <> Enum.join(@impl_lines, "\n") <> "\n"
+    source = "# #{@header}\n" <> Enum.join(impl_lines(world), "\n") <> "\n"
     File.mkdir_p!(Path.dirname(path))
     File.write!(path, source)
 
     diagnostics = variable_compile!(source, path)
     if diagnostics != [], do: raise("#{path} compiled with diagnostics: #{inspect(diagnostics)}")
 
-    {_ast, %{heads: heads, calls: calls}} =
+    {_ast, %{heads: heads, calls: calls, uses: uses}} =
       source
       |> Code.string_to_quoted!(columns: true, emit_warnings: false)
-      |> Macro.traverse(%{stack: [], heads: [], calls: []}, &impl_enter/2, &impl_leave/2)
+      |> Macro.traverse(%{stack: [], heads: [], calls: [], uses: [], quoting: 0}, &impl_enter/2, &impl_leave/2)
 
     lines = Enum.with_index(String.split(source, "\n"), 1)
     pattern = ~r/\b(?:#{Enum.join(@impl_names, "|")})(?=\()/
@@ -1453,6 +1483,13 @@ defmodule Matrix do
       end)
 
     if length(located) != length(positions), do: raise("#{path}: #{inspect(positions)} holds a name no line marks")
+
+    # A head written in a `quote` belongs to the module that `use`s the quoting one.
+    heads =
+      Enum.map(heads, fn
+        %{injected: true, module: injector} = head -> %{head | module: Enum.find_value(uses, fn {used, user} -> used == injector && user end)}
+        head -> head
+      end)
 
     head_at = Map.new(heads, &{{&1.line, &1.column}, &1})
     call_at = Enum.group_by(calls, & &1.line)
@@ -1522,6 +1559,11 @@ defmodule Matrix do
   defp impl_enter({:defimpl, _, [{:__aliases__, _, protocol}, [for: {:__aliases__, _, target}] | _]} = node, state),
     do: {node, %{state | stack: [Module.concat(Module.concat(protocol), Module.concat(target)) | state.stack]}}
 
+  defp impl_enter({:use, _, [{:__aliases__, _, parts} | _]} = node, %{stack: [user | _]} = state),
+    do: {node, %{state | uses: [{Module.concat(parts), user} | state.uses]}}
+
+  defp impl_enter({:quote, _, _} = node, state), do: {node, %{state | quoting: state.quoting + 1}}
+
   defp impl_enter({definer, _, [head | _]} = node, state) when definer in [:def, :defp] do
     {name, meta, args} =
       case head do
@@ -1549,13 +1591,15 @@ defmodule Matrix do
   defp impl_leave({kind, _, [{:__aliases__, _, _} | _]} = node, %{stack: [_ | rest]} = state) when kind in [:defmodule, :defprotocol, :defimpl],
     do: {node, %{state | stack: rest}}
 
+  defp impl_leave({:quote, _, _} = node, state), do: {node, %{state | quoting: state.quoting - 1}}
+
   defp impl_leave(node, state), do: {node, state}
 
   # A head covers every arity down to its defaults: `last` is the one a clause with all its parameters has.
   defp impl_head(state, name, meta, args, declares) when name in @impl_names and is_list(args) do
     last = length(args)
     first = last - Enum.count(args, &match?({:\\, _, _}, &1))
-    head = %{module: hd(state.stack), name: name, line: meta[:line], column: meta[:column], first: first, last: last, declares: declares}
+    head = %{module: hd(state.stack), name: name, line: meta[:line], column: meta[:column], first: first, last: last, declares: declares, injected: state.quoting > 0}
     %{state | heads: [head | state.heads]}
   end
 
