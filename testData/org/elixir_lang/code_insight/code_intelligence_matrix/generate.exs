@@ -332,7 +332,7 @@ defmodule Matrix do
   # `Queue` declares `snoc/2`; its `List` impl has a same-named `defp snoc/3` and its `Tuple` impl an undeclared `def
   # snoc/1`, neither of which the protocol dispatches to. `Stack` has the callback `push/2`; `ListStack` implements it
   # with a head whose default also covers `push/1`.
-  @impl_world_ids ["impl", "impl_use"]
+  @impl_world_ids ["impl", "impl_use", "impl_nested"]
   @impl_names [:snoc, :push]
 
   # The impl world's callback reached the other way a module takes one: a `use`d module's quote holds the `@behaviour`
@@ -359,6 +359,40 @@ defmodule Matrix do
     "",
     "defmodule Src.Impl.ImplUse.Caller do",
     "  def run, do: Src.Impl.ImplUse.User.push([], 1) # @push_call",
+    "end"
+  ]
+  # A module or protocol written inside another is named under it and reached by its short name there: a function
+  # of one `Queue` protocol is not a function of the other.
+  @impl_nested_lines [
+    "defmodule Src.Impl.ImplNested.Outer do",
+    "  defmodule Inner do",
+    "    def snoc(queue, item), do: [item | queue] # @inner_head",
+    "  end",
+    "",
+    "  def run, do: Inner.snoc([], 1) # @inner_call",
+    "  def full, do: Src.Impl.ImplNested.Outer.Inner.snoc([], 2) # @full_call",
+    "end",
+    "",
+    "defmodule Src.Impl.ImplNested.First do",
+    "  defprotocol Queue do",
+    "    def snoc(queue, item) # @first_declaration",
+    "  end",
+    "",
+    "  def run, do: Queue.snoc([], 1) # @first_call",
+    "end",
+    "",
+    "defmodule Src.Impl.ImplNested.Second do",
+    "  defprotocol Queue do",
+    "    def snoc(queue, item) # @second_declaration",
+    "  end",
+    "",
+    "  def run, do: Queue.snoc([], 1) # @second_call",
+    "end",
+    "",
+    "defmodule Src.Impl.ImplNested.Caller do",
+    "  alias Src.Impl.ImplNested.Outer",
+    "",
+    "  def run, do: Outer.Inner.snoc([], 3) # @aliased_call",
     "end"
   ]
   @impl_lines [
@@ -1447,6 +1481,7 @@ defmodule Matrix do
   # defines that one function there, at every arity its defaults cover. A function nothing declares is its own.
   defp impl_lines("impl"), do: @impl_lines
   defp impl_lines("impl_use"), do: @impl_use_lines
+  defp impl_lines("impl_nested"), do: @impl_nested_lines
 
   defp impl_scenario(backing, form, world) do
     [prefix] = module_names(backing, form, world, 1)
@@ -1461,7 +1496,7 @@ defmodule Matrix do
     {_ast, %{heads: heads, calls: calls, uses: uses}} =
       source
       |> Code.string_to_quoted!(columns: true, emit_warnings: false)
-      |> Macro.traverse(%{stack: [], heads: [], calls: [], uses: [], quoting: 0}, &impl_enter/2, &impl_leave/2)
+      |> Macro.traverse(%{stack: [], aliases: [], heads: [], calls: [], uses: [], quoting: 0}, &impl_enter/2, &impl_leave/2)
 
     lines = Enum.with_index(String.split(source, "\n"), 1)
     pattern = ~r/\b(?:#{Enum.join(@impl_names, "|")})(?=\()/
@@ -1553,8 +1588,16 @@ defmodule Matrix do
     }
   end
 
-  defp impl_enter({kind, _, [{:__aliases__, _, parts} | _]} = node, state) when kind in [:defmodule, :defprotocol],
-    do: {node, %{state | stack: [Module.concat(parts) | state.stack]}}
+  defp impl_enter({kind, _, [{:__aliases__, _, parts} | _]} = node, %{stack: []} = state) when kind in [:defmodule, :defprotocol],
+    do: {node, %{state | stack: [Module.concat(parts)]}}
+
+  defp impl_enter({kind, _, [{:__aliases__, _, [short | _] = parts} | _]} = node, %{stack: [owner | _]} = state) when kind in [:defmodule, :defprotocol] do
+    full = Module.concat([owner | parts])
+    {node, %{state | stack: [full | state.stack], aliases: [{owner, short, Module.concat(owner, short)} | state.aliases]}}
+  end
+
+  defp impl_enter({:alias, _, [{:__aliases__, _, parts}]} = node, %{stack: [owner | _]} = state),
+    do: {node, %{state | aliases: [{owner, List.last(parts), Module.concat(parts)} | state.aliases]}}
 
   defp impl_enter({:defimpl, _, [{:__aliases__, _, protocol}, [for: {:__aliases__, _, target}] | _]} = node, state),
     do: {node, %{state | stack: [Module.concat(Module.concat(protocol), Module.concat(target)) | state.stack]}}
@@ -1578,7 +1621,7 @@ defmodule Matrix do
     do: {node, impl_head(state, name, meta, args, true)}
 
   defp impl_enter({{:., _, [{:__aliases__, _, parts}, name]}, meta, args} = node, state) when name in @impl_names and is_list(args),
-    do: {node, impl_call(state, Module.concat(parts), name, meta, args)}
+    do: {node, impl_call(state, impl_resolve(state, parts), name, meta, args)}
 
   defp impl_enter({name, meta, args} = node, state) when name in @impl_names and is_list(args) do
     if Enum.any?(state.heads, &(&1.line == meta[:line] and &1.column == meta[:column])),
@@ -1587,6 +1630,14 @@ defmodule Matrix do
   end
 
   defp impl_enter(node, state), do: {node, state}
+
+  # The first segment of a reference is an alias the enclosing modules, or the module itself, made.
+  defp impl_resolve(state, [first | rest] = parts) do
+    case Enum.find(state.aliases, fn {owner, short, _} -> short == first and owner in state.stack end) do
+      {_, _, full} -> Module.concat([full | rest])
+      nil -> Module.concat(parts)
+    end
+  end
 
   defp impl_leave({kind, _, [{:__aliases__, _, _} | _]} = node, %{stack: [_ | rest]} = state) when kind in [:defmodule, :defprotocol, :defimpl],
     do: {node, %{state | stack: rest}}

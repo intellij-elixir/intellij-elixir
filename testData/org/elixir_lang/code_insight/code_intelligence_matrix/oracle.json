@@ -12,6 +12,12 @@
       "backing": "src",
       "form": "def",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
+    },
+    {
+      "backing": "src",
+      "form": "def",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
     },
     {
@@ -193,6 +199,12 @@
       "form": "defp",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "src",
+      "form": "defp",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "src",
@@ -486,6 +498,12 @@
       "backing": "src",
       "form": "defmacro",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
+    },
+    {
+      "backing": "src",
+      "form": "defmacro",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
     },
     {
@@ -745,6 +763,12 @@
       "form": "defmacrop",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "src",
+      "form": "defmacrop",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "src",
@@ -1045,6 +1069,12 @@
       "form": "defguard",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "src",
+      "form": "defguard",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "src",
@@ -1386,6 +1416,12 @@
       "backing": "src",
       "form": "defguardp",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
+    },
+    {
+      "backing": "src",
+      "form": "defguardp",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
     },
     {
@@ -1950,6 +1986,12 @@
       "backing": "src",
       "form": "defdelegate",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
     },
     {
@@ -2455,6 +2497,12 @@
       "form": "defdelegate_compiled",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_compiled",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "src",
@@ -2965,6 +3013,12 @@
       "form": "defdelegate_unresolvable",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_unresolvable",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "src",
@@ -3487,6 +3541,12 @@
       "form": "defdelegate_as",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "src",
@@ -4141,6 +4201,12 @@
       "form": "defdelegate_imports",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_imports",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "src",
@@ -4831,6 +4897,12 @@
       "form": "defdelegate_list",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "src",
@@ -5521,6 +5593,12 @@
       "form": "defdelegate_list_trailing",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_trailing",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "src",
@@ -6211,6 +6289,12 @@
       "form": "defdelegate_list_lines",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_lines",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "src",
@@ -6901,6 +6985,12 @@
       "form": "defdelegate_as_list",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "src",
@@ -7591,6 +7681,12 @@
       "form": "defdelegate_as_attribute",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "src",
@@ -8281,6 +8377,12 @@
       "form": "defdelegate_doc",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "src",
@@ -8971,6 +9073,12 @@
       "form": "eex_function_from",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "src",
@@ -9535,6 +9643,12 @@
       "form": "eex_function_from_kind",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_kind",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "src",
@@ -10189,6 +10303,12 @@
       "form": "eex_function_from_args",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_args",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "src",
@@ -10843,6 +10963,12 @@
       "form": "eex_function_from_computed_name",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_computed_name",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "src",
@@ -11407,6 +11533,12 @@
       "form": "defexception",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "src",
+      "form": "defexception",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "src",
@@ -12103,6 +12235,12 @@
       "form": "generator_embed",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "src",
+      "form": "generator_embed",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "src",
@@ -12793,6 +12931,12 @@
       "form": "attribute",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "src",
+      "form": "attribute",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "src",
@@ -13411,6 +13555,12 @@
       "form": "variable",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "src",
+      "form": "variable",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "src",
@@ -14743,6 +14893,12 @@
       "form": "def",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "def",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_dbgi",
@@ -15337,6 +15493,12 @@
       "form": "defp",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defp",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_dbgi",
@@ -15943,6 +16105,12 @@
       "form": "defmacro",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacro",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_dbgi",
@@ -16537,6 +16705,12 @@
       "form": "defmacrop",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacrop",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_dbgi",
@@ -17239,6 +17413,12 @@
       "form": "defguard",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguard",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_dbgi",
@@ -17868,6 +18048,12 @@
       "backing": "ex_dbgi",
       "form": "defguardp",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguardp",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
     },
     {
@@ -18570,6 +18756,12 @@
       "backing": "ex_dbgi",
       "form": "defdelegate",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
     },
     {
@@ -19171,6 +19363,12 @@
       "form": "defdelegate_compiled",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_compiled",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_dbgi",
@@ -19873,6 +20071,12 @@
       "form": "defdelegate_unresolvable",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_unresolvable",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_dbgi",
@@ -20491,6 +20695,12 @@
       "form": "defdelegate_as",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_dbgi",
@@ -21163,6 +21373,12 @@
       "form": "defdelegate_imports",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_imports",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_dbgi",
@@ -21865,6 +22081,12 @@
       "form": "defdelegate_list",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_dbgi",
@@ -22567,6 +22789,12 @@
       "form": "defdelegate_list_trailing",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_trailing",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_dbgi",
@@ -23269,6 +23497,12 @@
       "form": "defdelegate_list_lines",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_lines",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_dbgi",
@@ -23971,6 +24205,12 @@
       "form": "defdelegate_as_list",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_dbgi",
@@ -24673,6 +24913,12 @@
       "form": "defdelegate_as_attribute",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_dbgi",
@@ -25375,6 +25621,12 @@
       "form": "defdelegate_doc",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_dbgi",
@@ -26077,6 +26329,12 @@
       "form": "eex_function_from",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_dbgi",
@@ -26737,6 +26995,12 @@
       "form": "eex_function_from_kind",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_kind",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_dbgi",
@@ -27397,6 +27661,12 @@
       "form": "eex_function_from_args",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_args",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_dbgi",
@@ -28057,6 +28327,12 @@
       "form": "eex_function_from_computed_name",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_computed_name",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_dbgi",
@@ -28717,6 +28993,12 @@
       "form": "defexception",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defexception",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_dbgi",
@@ -29413,6 +29695,12 @@
       "form": "generator_embed",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "generator_embed",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_dbgi",
@@ -30114,6 +30402,12 @@
       "backing": "ex_dbgi",
       "form": "attribute",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "attribute",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
     },
     {
@@ -30811,6 +31105,12 @@
       "form": "variable",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "variable",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_dbgi",
@@ -31513,6 +31813,12 @@
       "form": "impl",
       "reason": "a `defimpl` is a source concept: a compiled impl is a module of the protocol's name and the target's, with no head to ask",
       "world": "impl"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "impl",
+      "reason": "a `defimpl` is a source concept: a compiled impl is a module of the protocol's name and the target's, with no head to ask",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_dbgi",
@@ -32215,6 +32521,12 @@
       "form": "def",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "def",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -32833,6 +33145,12 @@
       "form": "defp",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defp",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -33463,6 +33781,12 @@
       "form": "defmacro",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacro",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -34081,6 +34405,12 @@
       "form": "defmacrop",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacrop",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -34783,6 +35113,12 @@
       "form": "defguard",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguard",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -35425,6 +35761,12 @@
       "form": "defguardp",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguardp",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -36127,6 +36469,12 @@
       "form": "defdelegate",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -36733,6 +37081,12 @@
       "form": "defdelegate_compiled",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_compiled",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -37435,6 +37789,12 @@
       "form": "defdelegate_unresolvable",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_unresolvable",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -38053,6 +38413,12 @@
       "form": "defdelegate_as",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -38725,6 +39091,12 @@
       "form": "defdelegate_imports",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_imports",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -39427,6 +39799,12 @@
       "form": "defdelegate_list",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -40129,6 +40507,12 @@
       "form": "defdelegate_list_trailing",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_trailing",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -40831,6 +41215,12 @@
       "form": "defdelegate_list_lines",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_lines",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -41533,6 +41923,12 @@
       "form": "defdelegate_as_list",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -42235,6 +42631,12 @@
       "form": "defdelegate_as_attribute",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -42937,6 +43339,12 @@
       "form": "defdelegate_doc",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -43639,6 +44047,12 @@
       "form": "eex_function_from",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -44299,6 +44713,12 @@
       "form": "eex_function_from_kind",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_kind",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -44959,6 +45379,12 @@
       "form": "eex_function_from_args",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_args",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -45619,6 +46045,12 @@
       "form": "eex_function_from_computed_name",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_computed_name",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -46279,6 +46711,12 @@
       "form": "defexception",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defexception",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -46975,6 +47413,12 @@
       "form": "generator_embed",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "generator_embed",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -47676,6 +48120,12 @@
       "backing": "ex_docs",
       "form": "attribute",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "attribute",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
     },
     {
@@ -48373,6 +48823,12 @@
       "form": "variable",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "variable",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -49075,6 +49531,12 @@
       "form": "impl",
       "reason": "a `defimpl` is a source concept: a compiled impl is a module of the protocol's name and the target's, with no head to ask",
       "world": "impl"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "impl",
+      "reason": "a `defimpl` is a source concept: a compiled impl is a module of the protocol's name and the target's, with no head to ask",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_docs",
@@ -49777,6 +50239,12 @@
       "form": "def",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "def",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -50395,6 +50863,12 @@
       "form": "defp",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defp",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -51025,6 +51499,12 @@
       "form": "defmacro",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacro",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -51643,6 +52123,12 @@
       "form": "defmacrop",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacrop",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -52345,6 +52831,12 @@
       "form": "defguard",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguard",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -52987,6 +53479,12 @@
       "form": "defguardp",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguardp",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -53689,6 +54187,12 @@
       "form": "defdelegate",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -54295,6 +54799,12 @@
       "form": "defdelegate_compiled",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_compiled",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -54997,6 +55507,12 @@
       "form": "defdelegate_unresolvable",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -55615,6 +56131,12 @@
       "form": "defdelegate_as",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -56287,6 +56809,12 @@
       "form": "defdelegate_imports",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_imports",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -56989,6 +57517,12 @@
       "form": "defdelegate_list",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -57691,6 +58225,12 @@
       "form": "defdelegate_list_trailing",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -58393,6 +58933,12 @@
       "form": "defdelegate_list_lines",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -59095,6 +59641,12 @@
       "form": "defdelegate_as_list",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -59797,6 +60349,12 @@
       "form": "defdelegate_as_attribute",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -60499,6 +61057,12 @@
       "form": "defdelegate_doc",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -61201,6 +61765,12 @@
       "form": "eex_function_from",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -61861,6 +62431,12 @@
       "form": "eex_function_from_kind",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_kind",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -62521,6 +63097,12 @@
       "form": "eex_function_from_args",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_args",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -63181,6 +63763,12 @@
       "form": "eex_function_from_computed_name",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_computed_name",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -63841,6 +64429,12 @@
       "form": "defexception",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defexception",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -64537,6 +65131,12 @@
       "form": "generator_embed",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "generator_embed",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -65238,6 +65838,12 @@
       "backing": "ex_gen",
       "form": "attribute",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "attribute",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
     },
     {
@@ -65935,6 +66541,12 @@
       "form": "variable",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "variable",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -66637,6 +67249,12 @@
       "form": "impl",
       "reason": "a `defimpl` is a source concept: a compiled impl is a module of the protocol's name and the target's, with no head to ask",
       "world": "impl"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "impl",
+      "reason": "a `defimpl` is a source concept: a compiled impl is a module of the protocol's name and the target's, with no head to ask",
+      "world": "impl_nested"
     },
     {
       "backing": "ex_gen",
@@ -67339,6 +67957,12 @@
       "form": "def",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "def",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_abst",
@@ -67980,6 +68604,12 @@
       "backing": "erl_abst",
       "form": "defp",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defp",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
     },
     {
@@ -68628,6 +69258,12 @@
       "backing": "erl_abst",
       "form": "defmacro",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacro",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
     },
     {
@@ -69325,6 +69961,12 @@
       "form": "defmacrop",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacrop",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_abst",
@@ -70027,6 +70669,12 @@
       "form": "defguard",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguard",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_abst",
@@ -70729,6 +71377,12 @@
       "form": "defguardp",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguardp",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_abst",
@@ -71431,6 +72085,12 @@
       "form": "defdelegate",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_abst",
@@ -72133,6 +72793,12 @@
       "form": "defdelegate_compiled",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_compiled",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_abst",
@@ -72835,6 +73501,12 @@
       "form": "defdelegate_unresolvable",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_unresolvable",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_abst",
@@ -73537,6 +74209,12 @@
       "form": "defdelegate_as",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_abst",
@@ -74239,6 +74917,12 @@
       "form": "defdelegate_imports",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_imports",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_abst",
@@ -74941,6 +75625,12 @@
       "form": "defdelegate_list",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_abst",
@@ -75643,6 +76333,12 @@
       "form": "defdelegate_list_trailing",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_trailing",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_abst",
@@ -76345,6 +77041,12 @@
       "form": "defdelegate_list_lines",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_lines",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_abst",
@@ -77047,6 +77749,12 @@
       "form": "defdelegate_as_list",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_abst",
@@ -77749,6 +78457,12 @@
       "form": "defdelegate_as_attribute",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_abst",
@@ -78451,6 +79165,12 @@
       "form": "defdelegate_doc",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_abst",
@@ -79153,6 +79873,12 @@
       "form": "eex_function_from",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_abst",
@@ -79855,6 +80581,12 @@
       "form": "eex_function_from_kind",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_kind",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_abst",
@@ -80557,6 +81289,12 @@
       "form": "eex_function_from_args",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_args",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_abst",
@@ -81259,6 +81997,12 @@
       "form": "eex_function_from_computed_name",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_computed_name",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_abst",
@@ -81961,6 +82705,12 @@
       "form": "defexception",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defexception",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_abst",
@@ -82663,6 +83413,12 @@
       "form": "generator_embed",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "generator_embed",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_abst",
@@ -83365,6 +84121,12 @@
       "form": "attribute",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "attribute",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_abst",
@@ -84067,6 +84829,12 @@
       "form": "variable",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "variable",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_abst",
@@ -84774,6 +85542,12 @@
       "backing": "erl_abst",
       "form": "impl",
       "reason": "a `defimpl` is a source concept: a compiled impl is a module of the protocol's name and the target's, with no head to ask",
+      "world": "impl_nested"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "impl",
+      "reason": "a `defimpl` is a source concept: a compiled impl is a module of the protocol's name and the target's, with no head to ask",
       "world": "impl_use"
     },
     {
@@ -85476,6 +86250,12 @@
       "backing": "erl_gen",
       "form": "def",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "def",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl_use"
     },
     {
@@ -86167,6 +86947,12 @@
       "form": "defp",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defp",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -86869,6 +87655,12 @@
       "form": "defmacro",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacro",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -87571,6 +88363,12 @@
       "form": "defmacrop",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacrop",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -88273,6 +89071,12 @@
       "form": "defguard",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguard",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -88975,6 +89779,12 @@
       "form": "defguardp",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguardp",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -89677,6 +90487,12 @@
       "form": "defdelegate",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -90379,6 +91195,12 @@
       "form": "defdelegate_compiled",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_compiled",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -91081,6 +91903,12 @@
       "form": "defdelegate_unresolvable",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -91783,6 +92611,12 @@
       "form": "defdelegate_as",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -92485,6 +93319,12 @@
       "form": "defdelegate_imports",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_imports",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -93187,6 +94027,12 @@
       "form": "defdelegate_list",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -93889,6 +94735,12 @@
       "form": "defdelegate_list_trailing",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -94591,6 +95443,12 @@
       "form": "defdelegate_list_lines",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -95293,6 +96151,12 @@
       "form": "defdelegate_as_list",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -95995,6 +96859,12 @@
       "form": "defdelegate_as_attribute",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -96697,6 +97567,12 @@
       "form": "defdelegate_doc",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -97399,6 +98275,12 @@
       "form": "eex_function_from",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -98101,6 +98983,12 @@
       "form": "eex_function_from_kind",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_kind",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -98803,6 +99691,12 @@
       "form": "eex_function_from_args",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_args",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -99505,6 +100399,12 @@
       "form": "eex_function_from_computed_name",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_computed_name",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -100207,6 +101107,12 @@
       "form": "defexception",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defexception",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -100909,6 +101815,12 @@
       "form": "generator_embed",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "generator_embed",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -101611,6 +102523,12 @@
       "form": "attribute",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "attribute",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -102313,6 +103231,12 @@
       "form": "variable",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "variable",
+      "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -103015,6 +103939,12 @@
       "form": "impl",
       "reason": "a `defimpl` is a source concept: a compiled impl is a module of the protocol's name and the target's, with no head to ask",
       "world": "impl"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "impl",
+      "reason": "a `defimpl` is a source concept: a compiled impl is a module of the protocol's name and the target's, with no head to ask",
+      "world": "impl_nested"
     },
     {
       "backing": "erl_gen",
@@ -306655,6 +307585,159 @@
         }
       ],
       "world": "impl"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/src/src.impl.impl_nested.ex",
+      "form": "impl",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [],
+          "module": "Src.Impl.ImplNested.Caller",
+          "source": "lib/src/src.impl.impl_nested.ex",
+          "spec": "lib/src/src.impl.impl_nested.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 9,
+          "file": "lib/src/src.impl.impl_nested.ex",
+          "id": "inner_head",
+          "impl": {
+            "declarations": [
+              "inner_head"
+            ],
+            "family": "Src.Impl.ImplNested.Outer.Inner.snoc/2",
+            "role": "head"
+          },
+          "line": 4,
+          "name": "snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 22,
+          "file": "lib/src/src.impl.impl_nested.ex",
+          "id": "inner_call",
+          "impl": {
+            "declarations": [
+              "inner_head"
+            ],
+            "family": "Src.Impl.ImplNested.Outer.Inner.snoc/2",
+            "role": "call"
+          },
+          "line": 7,
+          "name": "snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 49,
+          "file": "lib/src/src.impl.impl_nested.ex",
+          "id": "full_call",
+          "impl": {
+            "declarations": [
+              "inner_head"
+            ],
+            "family": "Src.Impl.ImplNested.Outer.Inner.snoc/2",
+            "role": "call"
+          },
+          "line": 8,
+          "name": "snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 9,
+          "file": "lib/src/src.impl.impl_nested.ex",
+          "id": "first_declaration",
+          "impl": {
+            "declarations": [
+              "first_declaration"
+            ],
+            "family": "Src.Impl.ImplNested.First.Queue.snoc/2",
+            "role": "declaration"
+          },
+          "line": 13,
+          "name": "snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 22,
+          "file": "lib/src/src.impl.impl_nested.ex",
+          "id": "first_call",
+          "impl": {
+            "declarations": [
+              "first_declaration"
+            ],
+            "family": "Src.Impl.ImplNested.First.Queue.snoc/2",
+            "role": "call"
+          },
+          "line": 16,
+          "name": "snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 9,
+          "file": "lib/src/src.impl.impl_nested.ex",
+          "id": "second_declaration",
+          "impl": {
+            "declarations": [
+              "second_declaration"
+            ],
+            "family": "Src.Impl.ImplNested.Second.Queue.snoc/2",
+            "role": "declaration"
+          },
+          "line": 21,
+          "name": "snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 22,
+          "file": "lib/src/src.impl.impl_nested.ex",
+          "id": "second_call",
+          "impl": {
+            "declarations": [
+              "second_declaration"
+            ],
+            "family": "Src.Impl.ImplNested.Second.Queue.snoc/2",
+            "role": "call"
+          },
+          "line": 24,
+          "name": "snoc"
+        },
+        {
+          "arity": 2,
+          "binding": null,
+          "column": 28,
+          "file": "lib/src/src.impl.impl_nested.ex",
+          "id": "aliased_call",
+          "impl": {
+            "declarations": [
+              "inner_head"
+            ],
+            "family": "Src.Impl.ImplNested.Outer.Inner.snoc/2",
+            "role": "call"
+          },
+          "line": 30,
+          "name": "snoc"
+        }
+      ],
+      "world": "impl_nested"
     },
     {
       "backing": "src",
