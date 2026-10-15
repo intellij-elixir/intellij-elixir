@@ -206,6 +206,7 @@ class LibraryDeclarationRenameTest : PlatformTestCase() {
         myFixture.configureByText("caller.ex", caller)
     }
 
+    @Suppress("UnstableApiUsage")
     private fun assertRenameRefused(
         declaration: VirtualFile,
         caller: String = CALLER,

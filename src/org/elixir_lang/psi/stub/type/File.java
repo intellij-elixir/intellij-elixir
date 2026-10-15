@@ -27,7 +27,7 @@ public class File extends IStubFileElementType<org.elixir_lang.psi.stub.File> {
      * resolved and not only changes to the grammar.
      */
     public static final int VERSION = 22;
-    public static final IStubFileElementType INSTANCE = new File();
+    public static final IStubFileElementType<org.elixir_lang.psi.stub.File> INSTANCE = new File();
 
     public File() {
         super("ELIXIR_FILE", ElixirLanguage.INSTANCE);
@@ -36,8 +36,9 @@ public class File extends IStubFileElementType<org.elixir_lang.psi.stub.File> {
     @Override
     public StubBuilder getBuilder() {
         return new DefaultStubBuilder() {
+            @NotNull
             @Override
-            protected StubElement createStubForFile(@NotNull PsiFile file) {
+            protected StubElement<?> createStubForFile(@NotNull PsiFile file) {
                 if (file instanceof ElixirFile) {
                     return new org.elixir_lang.psi.stub.File((ElixirFile) file);
                 }

@@ -51,17 +51,12 @@ internal class TargetElementEvaluator : TargetElementEvaluatorEx2() {
             else -> super.isAcceptableNamedParent(parent)
         }
 
-        parent is Call -> {
-            if (org.elixir_lang.psi.Module.`is`(parent)) {
-                // `defmodule` declaration heads are owned by the Symbol model (ModuleSymbol declaration provider).
-                // Prevent legacy named-element targeting, which produces Ctrl-hover underline but no actionable target.
-                false
-            } else if (parent.hasMapFieldOptionalityName() && parent.ancestorTypeSpec() != null) {
-                false
-            } else {
+        parent is Call ->
+            // `defmodule` declaration heads are owned by the Symbol model (ModuleSymbol declaration provider).
+            // Prevent legacy named-element targeting, which produces Ctrl-hover underline but no actionable target.
+            !org.elixir_lang.psi.Module.`is`(parent) &&
+                !(parent.hasMapFieldOptionalityName() && parent.ancestorTypeSpec() != null) &&
                 super.isAcceptableNamedParent(parent)
-            }
-        }
 
         else -> super.isAcceptableNamedParent(parent)
     }

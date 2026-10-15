@@ -185,6 +185,7 @@ class FunctionFindUsagesTest : PlatformTestCase() {
             }
             .sorted()
 
+    @Suppress("UnstableApiUsage")
     private fun assertUnresolvedDelegationUsages(caretLine: String) {
         myFixture.configureByFiles("usages_unresolved_delegation.ex")
         myFixture.editor.caretModel.moveToOffset(myFixture.file.text.indexOf(caretLine) + caretLine.indexOf("run") + 1)

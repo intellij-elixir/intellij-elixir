@@ -179,12 +179,10 @@ class StoredStubTest : PlatformTestCase() {
         "MODULE ? Kernel.defmodule/2 do [?] -",
     )
 
-    fun testModuleNamedWithAnAtomLongerThanAnAtomCanBe() = "a".repeat(256).let { name ->
-        assertStored(
-            "defmodule :\"$name\" do\nend\n",
-            "MODULE ? Kernel.defmodule/2 do [?] -",
-        )
-    }
+    fun testModuleNamedWithAnAtomLongerThanAnAtomCanBe() = assertStored(
+        "defmodule :\"${"a".repeat(256)}\" do\nend\n",
+        "MODULE ? Kernel.defmodule/2 do [?] -",
+    )
 
     fun testModuleNamedWithAnUnterminatedQuotedAtom() = assertStored("defmodule :\"a")
 
@@ -495,7 +493,7 @@ class StoredStubTest : PlatformTestCase() {
             }
         }
         @Suppress("UNCHECKED_CAST")
-        (stub.stubType as IStubElementType<StubElement<*>, *>).indexStub(stub, sink)
+        (stub.elementType as IStubElementType<StubElement<*>, *>).indexStub(stub, sink)
 
         return occurrences.sorted().joinToString(", ", "[", "]")
     }

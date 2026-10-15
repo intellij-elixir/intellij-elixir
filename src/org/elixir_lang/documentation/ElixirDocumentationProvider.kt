@@ -100,7 +100,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         return super.getDocumentationElementForLookupItem(psiManager, `object`, element)
     }
 
-    private val LINK_RELATIVE_PATTERN: Pattern =
+    private val linkRelativePattern: Pattern =
         Pattern.compile("((?<kind>[ct]):)?((?<module>.+)\\.)?(?<relative>.+)/(?<arity>\\d+)")
 
     override fun getDocumentationElementForLink(
@@ -108,7 +108,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         link: String,
         context: PsiElement
     ): PsiElement? {
-        val relativeLinkMatcher = LINK_RELATIVE_PATTERN.matcher(link)
+        val relativeLinkMatcher = linkRelativePattern.matcher(link)
 
         return if (relativeLinkMatcher.matches()) {
             val module = relativeLinkMatcher.group("module")
@@ -118,38 +118,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                     val relative = identifierAtomName(relativeLinkMatcher.group("relative")) { languageLevelFor(context) }
                     val arity = relativeLinkMatcher.group("arity").toInt()
 
-                    val resolveResults = if (module != null) {
-                        MarkdownFlavourDescriptor
-                            .modulars(context, module)
-                            .flatMap { modular ->
-                                org.elixir_lang.psi.scope.call_definition_clause.MultiResolve.resolveResults(
-                                    relative,
-                                    arity,
-                                    false,
-                                    modular,
-                                    atom = true
-                                )
-                            }
-                    } else {
-                        context
-                            .let { it as? Call }
-                            ?.let { call ->
-                                call.takeIf(::isModular) ?: enclosingModularMacroCall(call)
-                            }
-                            ?.let { modular ->
-                                org.elixir_lang.psi.scope.call_definition_clause.MultiResolve.resolveResults(
-                                    relative,
-                                    arity,
-                                    false,
-                                    modular,
-                                    atom = true
-                                )
-                            }
-                            ?.toList()
-                            .orEmpty()
-                    }
-
-                    resolveResults
+                    callDefinitionResolveResults(context, module, relative, arity)
                         .let { Resolver.preferred(context, false, it) }.firstNotNullOfOrNull { it.element }
                 }
 
@@ -157,38 +126,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                     val relative = identifierAtomName(relativeLinkMatcher.group("relative")) { languageLevelFor(context) }
                     val arity = relativeLinkMatcher.group("arity").toInt()
 
-                    val resolveResults = if (module != null) {
-                        MarkdownFlavourDescriptor
-                            .modulars(context, module)
-                            .flatMap { modular ->
-                                org.elixir_lang.psi.scope.call_definition_clause.MultiResolve.resolveResults(
-                                    relative,
-                                    arity,
-                                    false,
-                                    modular,
-                                    atom = true
-                                )
-                            }
-                    } else {
-                        context
-                            .let { it as? Call }
-                            ?.let { call ->
-                                call.takeIf(::isModular) ?: enclosingModularMacroCall(call)
-                            }
-                            ?.let { modular ->
-                                org.elixir_lang.psi.scope.call_definition_clause.MultiResolve.resolveResults(
-                                    relative,
-                                    arity,
-                                    false,
-                                    modular,
-                                    atom = true
-                                )
-                            }
-                            ?.toList()
-                            .orEmpty()
-                    }
-
-                    resolveResults
+                    callDefinitionResolveResults(context, module, relative, arity)
                         .filter { resolveResult ->
                             resolveResult
                                 .element
@@ -220,8 +158,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
 
                     resolveResults
                         .let { Resolver.preferred(context, false, it) }
-                        .mapNotNull { it.element }
-                        .firstOrNull()
+                        .firstNotNullOfOrNull { it.element }
                 }
 
                 else -> {
@@ -254,7 +191,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             ?.reference
             ?.let { it as? CaptureNameArity }
             ?.takeIf { it.nameElement == call }
-            ?: call.getReference() as? PsiPolyVariantReference
+            ?: call.reference as? PsiPolyVariantReference
 
     /**
      * Past a delegation's own @doc, prefer source Call elements (CallDefinitionClause), falling back to BEAM stubs
@@ -279,11 +216,11 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         return bestMatch(listOf(delegation) + delegatedTo.map { it.element })
     }
 
-    private tailrec fun getCustomDocumentationElement(contextElement: PsiElement): PsiElement? = when {
-        contextElement is LeafPsiElement || contextElement is ElixirIdentifier || contextElement is ElixirRelativeIdentifier ->
+    private tailrec fun getCustomDocumentationElement(contextElement: PsiElement): PsiElement? = when (contextElement) {
+        is LeafPsiElement, is ElixirIdentifier, is ElixirRelativeIdentifier ->
             getCustomDocumentationElement(contextElement.parent)
 
-        contextElement is ElixirAtom -> {
+        is ElixirAtom -> {
             contextElement.reference
                 ?.let { it as? PsiPolyVariantReference }
                 ?.multiResolve(false)
@@ -294,10 +231,10 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 ?.firstOrNull()
         }
 
-        contextElement is Call && DeclaringForm.named(contextElement)?.form == Form.DELEGATION ->
+        is Call if DeclaringForm.named(contextElement)?.form == Form.DELEGATION ->
             delegationHeadDocumented(contextElement)
 
-        contextElement is Call -> {
+        is Call -> {
             documentedReference(contextElement)
                 ?.let { reference ->
                     val allResults = reference.multiResolve(false)
@@ -328,11 +265,11 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 }
         }
 
-        contextElement is QualifiableAlias && declaringModuleCall(contextElement) != null ->
+        is QualifiableAlias if declaringModuleCall(contextElement) != null ->
             declaringModuleCall(contextElement)
 
-        contextElement is QualifiableAlias && contextElement.getReference() != null ->
-            contextElement.getReference()!!
+        is QualifiableAlias if contextElement.reference != null ->
+            contextElement.reference!!
                 .let { it as PsiPolyVariantReference }
                 .multiResolve(false)
                 .filter(ResolveResult::isValidResult)
@@ -340,7 +277,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 .filterIsInstance<Call>()
                 .singleOrNull { isModular(it) }
 
-        contextElement is QualifiableAlias -> getCustomDocumentationElement(contextElement.parent)
+        is QualifiableAlias -> getCustomDocumentationElement(contextElement.parent)
 
         else -> {
             val quotedAtom = enclosingQuotedAtom(contextElement)
@@ -348,6 +285,44 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             if (quotedAtom != null) getCustomDocumentationElement(quotedAtom) else null
         }
     }
+
+    /** The definitions named [relative] at [arity] in the modules named [module], or in [context]'s module. */
+    private fun callDefinitionResolveResults(
+        context: PsiElement,
+        module: String?,
+        relative: String,
+        arity: Int
+    ): List<ResolveResult> =
+        if (module != null) {
+            MarkdownFlavourDescriptor
+                .modulars(context, module)
+                .flatMap { modular ->
+                    org.elixir_lang.psi.scope.call_definition_clause.MultiResolve.resolveResults(
+                        relative,
+                        arity,
+                        false,
+                        modular,
+                        atom = true
+                    )
+                }
+        } else {
+            context
+                .let { it as? Call }
+                ?.let { call ->
+                    call.takeIf(::isModular) ?: enclosingModularMacroCall(call)
+                }
+                ?.let { modular ->
+                    org.elixir_lang.psi.scope.call_definition_clause.MultiResolve.resolveResults(
+                        relative,
+                        arity,
+                        false,
+                        modular,
+                        atom = true
+                    )
+                }
+                ?.toList()
+                .orEmpty()
+        }
 
     /** The atom whose quoted name holds [element], unless [element] is inside an interpolation in that name. */
     private fun enclosingQuotedAtom(element: PsiElement): ElixirAtom? =

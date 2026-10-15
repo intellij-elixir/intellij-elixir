@@ -1348,6 +1348,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         }
 
     /** A copy of [original] holding [text], as completion makes of the file being edited. */
+    @Suppress("SameParameterValue")
     private fun copyOf(original: PsiFile, text: String): PsiFile =
         read {
             PsiFileFactory.getInstance(project)
