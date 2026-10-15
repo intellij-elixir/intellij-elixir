@@ -125,6 +125,8 @@
 
 ### Bug Fixes
 
+- [#PR-TBD](https://github.com/intellij-elixir/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)
+  - **Renaming a protocol function renames the atom naming it in a dynamic call such as `apply(Size, :size, [data])`, and Find Usages lists that atom.** Fixes [#4444](https://github.com/intellij-elixir/intellij-elixir/issues/4444).
 - [#4442](https://github.com/intellij-elixir/intellij-elixir/pull/4442) [@sh41](https://github.com/sh41)
   - **Renaming a protocol function or a callback renames the calls to its implementations too, so the implementing module still compiles, and Find Usages lists those calls. Renaming from a call to an implementing function renames the protocol function or callback and every implementation with it. A `defp`, or a `def` the protocol does not declare, of the same name in another `defimpl` is no longer listed as a use of the implementations, nor they of it, and Find Usages from a callback lists the other clauses of an implementation whose head has a default argument. Go To Super from an implementation of a compiled protocol reaches the compiled function.** Fixes [#4419](https://github.com/intellij-elixir/intellij-elixir/issues/4419).
   - **Find Usages and Rename from a `defdelegate` whose target does not resolve now include its calls and captures, and a `@spec` or keyword key naming a `defdelegate` resolves to it for Go To Declaration, Find Usages and Rename.**

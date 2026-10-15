@@ -190,10 +190,10 @@ class RenameMatrixTest : PlatformTestCase() {
 
     /**
      * A `defp` in a `defimpl` that does not implement the protocol function of its name is renamed with its call, and a
-     * call `Size.size(x)` that dispatches to the protocol keeps its name.
+     * call `Size.size(x)` that dispatches to the protocol and an atom in `apply(Size, :size, [x])` keep their name.
      */
     fun testDefimplHelperKeepsProtocolCall() =
-        doTestFromEveryOccurrence("defimpl_helper_protocol_call", "size", "fresh", expectedCarets = 5, carets = setOf(2, 3))
+        doTestFromEveryOccurrence("defimpl_helper_protocol_call", "size", "fresh", expectedCarets = 6, carets = setOf(2, 3))
 
     /**
      * Find Usages and Rename from the `defdelegate`'s head or its local call, which target its `to:` function, find one
@@ -259,12 +259,24 @@ class RenameMatrixTest : PlatformTestCase() {
         doTestFromEveryOccurrence("defimpl_default_argument", "size", "fresh", expectedCarets = 5, carets = setOf(0, 1, 3))
 
     /**
-     * Renaming from an atom that names a protocol function renames the protocol's `def` and each implementing head too.
-     * The other carets leave the atom until #4444 is fixed, so only the atom is tried.
+     * An atom in `apply(Size, :size, [x])` names the protocol function, so a rename from the protocol's `def`, an
+     * implementing head, the atom or `Size.size(x)` renames the atom with the rest.
      */
     fun testProtocolImplementationCallsAtom() =
+        doTestFromEveryOccurrence("implementation_calls_protocol_atom", "size", "fresh", expectedCarets = 4)
+
+    /** The same for a protocol function no `defimpl` implements yet. */
+    fun testProtocolUnimplementedAtom() =
+        doTestFromEveryOccurrence("implementation_calls_protocol_atom_unimplemented", "size", "fresh", expectedCarets = 3)
+
+    /** And only the protocol function of the atom's arity. */
+    fun testProtocolUnimplementedAtomArityFamilies() =
         doTestFromEveryOccurrence(
-            "implementation_calls_protocol_atom", "size", "fresh", expectedCarets = 3, carets = setOf(2)
+            "implementation_calls_protocol_atom_arity_families", "size", "fresh", expectedCarets = 4,
+            goldenOverrides = mapOf(
+                1 to "implementation_calls_protocol_atom_arity_families_after_arity2.ex", // caret on `def size(data, options)`
+                3 to "implementation_calls_protocol_atom_arity_families_after_arity2.ex"  // caret on `:size` in `[data, options]`
+            )
         )
 
     /**

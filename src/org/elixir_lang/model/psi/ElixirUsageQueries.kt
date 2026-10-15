@@ -85,7 +85,7 @@ import java.util.concurrent.Callable as JCallable
  *
  * - Every searchable symbol contributes its self-declaration usage.
  * - A [ProtocolFunction] additionally contributes each **call site** that dispatches to it
- *   (`Protocol.function(args)` of matching name/arity) and each implementing `def`/`defmacro`
+ *   (`Protocol.function(args)` of matching name/arity), each atom naming it, and each implementing `def`/`defmacro`
  *   clause inside a `defimpl` of the same protocol, each a declaration, and every use of those
  *   definitions (so rename keeps every implementation in sync, and Find Usages lists what rename touches).
  * - A [FunctionSymbol] that implements a callback or a protocol function also contributes everything that member does.
@@ -180,9 +180,11 @@ internal object ElixirUsageQueries {
             is ProtocolFunction -> {
                 val callSites = protocolCallSiteQuery(project, target, searchScope)
                 val implemented = protocolImplementedQuery(project, target, searchScope)
+                val atoms = protocolAtomQuery(project, target, searchScope)
                 queries += protocolImplementationQuery(project, target, searchScope)
-                // `Size.size(x)` is a dispatching call and, by its module, a call of an implementation.
-                queries += eachRangeOnce(MergeQuery(callSites, implemented))
+                // `Size.size(x)` is a dispatching call and, by its module, a call of an implementation, and an
+                // implementation's search finds the atoms naming the protocol function too.
+                queries += eachRangeOnce(MergeQuery(MergeQuery(callSites, implemented), atoms))
             }
 
             is FunctionSymbol -> {
@@ -319,6 +321,19 @@ internal object ElixirUsageQueries {
         searchScope: SearchScope
     ): Query<out PsiUsage> =
         wordQuery(project, pf.name, searchScope, ProtocolCallSiteMapper(pf.createPointer()))
+
+    /** Each atom naming [pf], as in `apply(Size, :size, [x])`. */
+    private fun protocolAtomQuery(
+        project: Project,
+        pf: ProtocolFunction,
+        searchScope: SearchScope
+    ): Query<out PsiUsage> {
+        val pointer = FunctionSymbol(pf.file, pf.range, pf.protocolName, pf.name, pf.arity, pf.macro).createPointer()
+
+        return wordQuery(project, pf.name, searchScope, { leaf, _ ->
+            listOfNotNull(pointer.dereference()?.let { atomUsage(leaf, it) })
+        })
+    }
 
     private fun protocolImplementationQuery(
         project: Project,
