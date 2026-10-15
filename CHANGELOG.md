@@ -726,6 +726,8 @@
 
 ### Build / CI
 
+- [#4459](https://github.com/intellij-elixir/intellij-elixir/pull/4459) [@sh41](https://github.com/sh41)
+  - **Committed files per leg count the compiler facts the plugin answers, in the fixtures and in Elixir's own tests, by kind of call or `def` keyword, by outcome and by the form or backing of the declarations it matched.** Fixes [#4458](https://github.com/intellij-elixir/intellij-elixir/issues/4458).
 - [#4451](https://github.com/intellij-elixir/intellij-elixir/pull/4451) [@sh41](https://github.com/sh41)
   - **The structure view's navigation test no longer hangs on IntelliJ 2026.3, and prints the test JVM's coroutine and thread dumps if a navigation route does not return.** Fixes [#4449](https://github.com/intellij-elixir/intellij-elixir/issues/4449).
 - [#4450](https://github.com/intellij-elixir/intellij-elixir/pull/4450) [@sh41](https://github.com/sh41)
