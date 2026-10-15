@@ -10,10 +10,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.util.concurrency.annotations.RequiresReadLock
-import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.model.psi.protocol.ProtocolFunction
-import org.elixir_lang.psi.CallDefinitionClause
-import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.operation.capture.NonNumeric
 import org.elixir_lang.reference.CaptureNameArity
 
@@ -59,28 +56,10 @@ class CaptureFunctionReference(
 
     @RequiresReadLock
     override fun resolveReference(): Collection<Symbol> {
-        val clauses = legacyReference.multiResolve(false)
+        val resolved = legacyReference.multiResolve(false)
             .filter { it.isValidResult }
-            .mapNotNull { result ->
-                when (val element = result.element) {
-                    // A source clause is already a `Call`, while a decompiled beam function exposes the
-                    // equivalent clause as its navigation element, so capturing one navigates like calling it.
-                    is Call -> element
-                    is BeamCallDefinition -> element.navigationElement as? Call
-                    else -> null
-                }
-            }
-            .filter { CallDefinitionClause.`is`(it) }
+            .mapNotNull { it.element }
 
-        val functionSymbols = clauses
-            .flatMap { FunctionSymbol.fromClause(it) }
-            .filter { it.arity == legacyReference.arity }
-        if (functionSymbols.isNotEmpty()) return functionSymbols
-
-        // A capture of a protocol function (`&Proto.fun/1`) resolves to the defprotocol clause,
-        // which is owned by ProtocolFunction (FunctionSymbol.fromClause returns empty for it).
-        return clauses
-            .flatMap { ProtocolFunction.fromClause(it) }
-            .filter { it.arity == legacyReference.arity }
+        return FunctionSymbol.fromResolved(resolved, legacyReference.arity)
     }
 }

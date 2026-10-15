@@ -107,7 +107,6 @@ class ProtocolImplementationReadersTest : PlatformTestCase() {
         moveCaretToMember(fixture)
 
         return myFixture.psiUsagesAtCaret(project)
-            .filterNot { it.declaration }
             .mapNotNull { usage -> usage.file.findElementAt(usage.range.startOffset)?.let(::implementingModule) }
             .toSet()
     }

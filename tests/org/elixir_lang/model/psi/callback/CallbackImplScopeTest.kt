@@ -320,7 +320,7 @@ class CallbackImplScopeTest : PlatformTestCase() {
         caretOn(callback, callbackName)
 
         val clauseName = TEXT.indexOf(clause) + clause.lastIndexOf(" ") + 1
-        val usageOffsets = myFixture.psiUsagesAtCaret(project).filterNot { it.declaration }.map { it.range.startOffset }
+        val usageOffsets = myFixture.psiUsagesAtCaret(project).map { it.range.startOffset }
 
         assertEquals("`$clause` at $clauseName among the usages $usageOffsets of `$callback`", listed, clauseName in usageOffsets)
     }
@@ -332,7 +332,7 @@ class CallbackImplScopeTest : PlatformTestCase() {
         val snippetOffset = TEXT.indexOf(call)
         assertTrue("`$call` not found in the fixture", snippetOffset >= 0)
         val callOffset = snippetOffset + call.lastIndexOf(name)
-        val usageOffsets = myFixture.psiUsagesAtCaret(project).filterNot { it.declaration }.map { it.range.startOffset }
+        val usageOffsets = myFixture.psiUsagesAtCaret(project).map { it.range.startOffset }
         assertTrue("Expected the call `$call` at $callOffset among the usages $usageOffsets", callOffset in usageOffsets)
     }
 

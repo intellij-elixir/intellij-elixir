@@ -4,19 +4,28 @@ import com.intellij.find.usages.api.SearchTarget
 import com.intellij.find.usages.api.UsageHandler
 import com.intellij.icons.AllIcons
 import com.intellij.model.Pointer
+import com.intellij.model.Symbol
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.util.TextRange
 import com.intellij.platform.backend.navigation.NavigationRequest
 import com.intellij.platform.backend.navigation.NavigationTarget
 import com.intellij.platform.backend.presentation.TargetPresentation
+import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.ResolveState
 import com.intellij.psi.SmartPointerManager
 import com.intellij.psi.search.SearchScope
+import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.ElixirRenameTarget
+import org.elixir_lang.model.psi.ElixirSymbolWithUsages
+import org.elixir_lang.model.psi.callback.CallbackImplementation
+import org.elixir_lang.model.psi.protocol.ProtocolFunction
+import org.elixir_lang.model.psi.protocol.ProtocolImplementation
 import org.elixir_lang.navigation.ElixirClausePresentation
 import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.DefinitionDeclaration
+import org.elixir_lang.psi.Implementation
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
@@ -56,9 +65,7 @@ class FunctionSymbol(
         // it) and collapses a plain range marker to an empty range - either way the subsequent
         // programmatic commit edits the wrong range and applies nothing. The clause survives the
         // identifier replacement, so its name-identifier range is recomputed correctly on restore.
-        val clause = generateSequence(file.findElementAt(range.startOffset)) { it.parent }
-            .filterIsInstance<Call>()
-            .firstOrNull { CallDefinitionClause.`is`(it) && CallDefinitionClause.nameIdentifier(it)?.textRange == range }
+        val clause = madeFromClause(file, range)
         if (clause != null) {
             val clausePointer = SmartPointerManager.getInstance(file.project)
                 .createSmartPsiElementPointer(clause, file)
@@ -103,6 +110,19 @@ class FunctionSymbol(
         return ElixirClausePresentation.elementText(clause)
     }
 
+    /**
+     * The callbacks and protocol functions the definition this symbol is made from, a clause or a `defdelegate`,
+     * implements.
+     */
+    @RequiresReadLock
+    fun implementedMembers(): List<ElixirSymbolWithUsages> =
+        madeFromDefinition(file, range)
+            ?.let { CallbackImplementation.implementedCallbacks(it) + ProtocolImplementation.membersImplementedBy(it) }
+            .orEmpty()
+
+    @RequiresReadLock
+    override fun renamedWith(): List<ElixirSymbolWithUsages> = implementedMembers()
+
     override fun equals(other: Any?): Boolean =
         other is FunctionSymbol &&
             other.moduleName == moduleName &&
@@ -144,6 +164,157 @@ class FunctionSymbol(
                 FunctionSymbol(declarationFile, nameId.textRange, moduleName, nameArity.name, arity, macro)
             }
         }
+
+        /**
+         * The functions [definition] defines: a clause, a `.beam` definition through its decompiled clause, or a
+         * `defdelegate`. Empty for anything else.
+         */
+        @RequiresReadLock
+        fun fromDefinition(definition: PsiElement): List<FunctionSymbol> {
+            definitionClause(definition)?.let { return fromClause(it) }
+
+            return (definition as? Call)?.takeIf { Delegation.`is`(it) }?.let { fromDelegation(it) }.orEmpty()
+        }
+
+        /**
+         * What a function use of [arity] that resolved to [resolved] is a use of, in rank order: the clauses' functions,
+         * else a protocol function's (a clause directly in a `defprotocol`), else the functions of a `defdelegate`,
+         * which declares one whether or not its `to:` resolves, so it ranks last and a resolvable target wins.
+         */
+        @RequiresReadLock
+        fun fromResolved(resolved: Collection<PsiElement>, arity: Int): List<Symbol> {
+            val clauses = resolved.mapNotNull { definitionClause(it) }
+
+            clauses.flatMap { fromClause(it) }.filter { it.arity == arity }
+                .takeIf { it.isNotEmpty() }?.let { return it }
+            clauses.flatMap { ProtocolFunction.fromClause(it) }.filter { it.arity == arity }
+                .takeIf { it.isNotEmpty() }?.let { return it }
+
+            return resolved.filterIsInstance<Call>().flatMap { fromDelegation(it) }.filter { it.arity == arity }
+        }
+
+        /**
+         * Whether a use at [at] that reaches [definition] is a use of [symbol]: the one place that says so.
+         *
+         * A clause is a use of every symbol equal to the one it defines, except in a `defimpl`. There every
+         * implementation of a function has one symbol, the protocol's, so a definition that implements no protocol
+         * function, such as a helper, is a use of [symbol] only when [symbol] is made from a clause of the same
+         * function in the same `defimpl`. A `defdelegate` is a use of
+         * the symbol made from it alone, found by its file and head range, since a sibling `defimpl`'s `defdelegate`
+         * has an equal symbol; and never at its own head, which its declaration already gives.
+         */
+        @RequiresReadLock
+        fun matches(definition: PsiElement, symbol: FunctionSymbol, at: PsiElement): Boolean {
+            definitionClause(definition)?.let { return matchesClause(it, symbol) }
+
+            val delegation = (definition as? Call)?.takeIf { Delegation.`is`(it) } ?: return false
+            val head = Delegation.nameIdentifier(delegation) ?: return false
+            val atOwnHead = PsiTreeUtil.isAncestor(head, at, false) || PsiTreeUtil.isAncestor(at, head, false)
+
+            return !atOwnHead && symbol in fromDelegation(delegation) && isMadeFrom(symbol, delegation, head)
+        }
+
+        /**
+         * Whether an atom at [atom] that reaches [definition] names [symbol]: as [matches] says, and a protocol's own
+         * declaration too, which a call reaches as a `ProtocolFunction` and an atom names by the protocol's module.
+         */
+        @RequiresReadLock
+        fun matchesAtom(definition: PsiElement, symbol: FunctionSymbol, atom: PsiElement): Boolean {
+            if (matches(definition, symbol, atom)) return true
+
+            val clause = definitionClause(definition) ?: return false
+
+            return ProtocolFunction.fromClause(clause).isNotEmpty() && isFamilyMember(clause, symbol)
+        }
+
+        /**
+         * Whether [symbol] is made from a clause in a `defimpl` that implements no protocol function. Its module name is
+         * the protocol's, so it is no function of a qualified call that names that module.
+         */
+        @RequiresReadLock
+        fun isHelper(symbol: FunctionSymbol): Boolean = helperImplementation(symbol) != null
+
+        /**
+         * What tells two definitions apart where [matches] cannot rely on symbol equality: a clause's symbols, each with
+         * the `defimpl` it is tied to when its clause implements nothing, and a `defdelegate`'s file and head range.
+         */
+        @RequiresReadLock
+        fun definitionKey(definition: PsiElement): Any? {
+            definitionClause(definition)?.let { clause -> return fromClause(clause).map { it to helperImplementation(it) } }
+
+            val delegation = (definition as? Call)?.takeIf { Delegation.`is`(it) } ?: return null
+            val head = Delegation.nameIdentifier(delegation) ?: return null
+
+            return delegation.containingFile.originalFile.let { it.virtualFile ?: it } to head.textRange
+        }
+
+        /**
+         * Whether [clause] is a declaration in [symbol]'s function family: a clause of the same module, name, arity
+         * and kind, the protocol's own included. A clause in a `defimpl` is a member as [matches] says.
+         */
+        @RequiresReadLock
+        fun isFamilyMember(clause: Call, symbol: FunctionSymbol): Boolean {
+            val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(clause) ?: return false
+            if (Implementation.`is`(enclosingModular)) return matchesClause(clause, symbol)
+            if (helperImplementation(symbol) != null) return false
+
+            val moduleName = runCatching { org.elixir_lang.psi.Module.name(enclosingModular) }
+                .getOrElse { if (it is ProcessCanceledException) throw it else null }
+                ?: return false
+            if (moduleName != symbol.moduleName) return false
+
+            val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return false
+
+            return nameArity.name == symbol.name &&
+                symbol.arity in nameArity.arityInterval &&
+                (CallDefinitionClause.capabilities(clause)?.quotesArguments == true) == symbol.macro
+        }
+
+        @RequiresReadLock
+        private fun matchesClause(clause: Call, symbol: FunctionSymbol): Boolean {
+            if (symbol !in fromClause(clause)) return false
+
+            val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(clause) ?: return false
+            if (!Implementation.`is`(enclosingModular)) return true
+
+            helperImplementation(symbol)?.let { return it == enclosingModular }
+
+            return implements(clause, symbol)
+        }
+
+        /**
+         * The `defimpl` of the clause [symbol] is made from when that clause implements no protocol function, whether a
+         * `defp` or a public `def` the protocol does not declare, else `null`.
+         */
+        @RequiresReadLock
+        private fun helperImplementation(symbol: FunctionSymbol): Call? {
+            val clause = madeFromClause(symbol.file, symbol.range) ?: return null
+            val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(clause)?.takeIf { Implementation.`is`(it) }
+                ?: return null
+
+            return enclosingModular.takeUnless { implements(clause, symbol) }
+        }
+
+        /** Whether [clause], in a `defimpl`, implements the protocol function [symbol] is named by. */
+        @RequiresReadLock
+        private fun implements(clause: Call, symbol: FunctionSymbol): Boolean =
+            ProtocolImplementation.implementsMember(clause, symbol.name, symbol.arity, symbol.macro)
+
+        /** The clause or `defdelegate` whose name identifier is [range] in [file]. */
+        @RequiresReadLock
+        private fun madeFromDefinition(file: PsiFile, range: TextRange): Call? =
+            generateSequence(file.findElementAt(range.startOffset)) { it.parent }
+                .filterIsInstance<Call>()
+                .firstOrNull { DefinitionDeclaration.`is`(it) && DefinitionDeclaration.nameIdentifier(it)?.textRange == range }
+
+        /** The clause whose name identifier is [range] in [file]. */
+        @RequiresReadLock
+        private fun madeFromClause(file: PsiFile, range: TextRange): Call? =
+            madeFromDefinition(file, range)?.takeIf { CallDefinitionClause.`is`(it) }
+
+        private fun isMadeFrom(symbol: FunctionSymbol, definition: Call, head: PsiElement): Boolean =
+            definition.containingFile.originalFile.virtualFile == symbol.file.virtualFile &&
+                head.textRange == symbol.range
 
         /**
          * The symbols a `defdelegate` declares in its own module.

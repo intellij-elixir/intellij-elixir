@@ -1,14 +1,20 @@
 package org.elixir_lang.code_insight
 
 import com.intellij.openapi.actionSystem.IdeActions
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.util.concurrency.annotations.RequiresReadLock
-import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.beam.BeamLibraryTestCase
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.call.Call
+import java.io.File
 
-class GotoSuperTest : PlatformTestCase() {
+class GotoSuperTest : BeamLibraryTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/code_insight/goto_super"
+
+    /** `Count`, a compiled protocol, from `beam/count.ex.txt`. */
+    override val ebinDirectory: File
+        get() = File("testData/org/elixir_lang/model/psi/protocol/implementation_rule/ebin").absoluteFile
 
     @RequiresReadLock
     fun testDefimplFunctionNavigatesToProtocolFunction() {
@@ -37,5 +43,19 @@ class GotoSuperTest : PlatformTestCase() {
         myFixture.performEditorAction(IdeActions.ACTION_GOTO_SUPER)
 
         assertEquals(myFixture.file.text.indexOf("def run(value)") + "def ".length, myFixture.caretOffset)
+    }
+
+    fun testDefimplOfACompiledProtocolNavigatesToTheCompiledFunction() {
+        myFixture.configureByText(
+            "count_impl.ex",
+            "defimpl Count, for: List do\n  def <caret>count(list), do: length(list)\nend\n"
+        )
+
+        myFixture.performEditorAction(IdeActions.ACTION_GOTO_SUPER)
+
+        assertEquals(
+            listOf("Elixir.Count.beam"),
+            FileEditorManager.getInstance(project).selectedFiles.map { it.name }
+        )
     }
 }

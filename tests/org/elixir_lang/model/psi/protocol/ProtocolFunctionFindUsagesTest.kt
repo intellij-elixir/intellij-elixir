@@ -1,16 +1,18 @@
 package org.elixir_lang.model.psi.protocol
 
+import com.intellij.psi.search.GlobalSearchScope
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
 import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaret
+import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaretInScope
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
 
 /**
  * Behavior-level tests for forward Find/Show Usages: invoking Find Usages on a `defprotocol def` lists the
  * **call sites** that dispatch to it (`Protocol.function(args)`) as well as its `defimpl` implementations
- * (the latter so rename keeps every implementation in sync, consistent with how `@callback` usages include
- * their implementations). Implementations are additionally reachable via "Go To Implementation"
+ * and the uses of those (what rename touches, consistent with how `@callback` usages include their
+ * implementations). Implementations are additionally reachable via "Go To Implementation"
  * (`Ctrl+Alt+B`) / the gutter marker. The helper below counts only call sites (implementation `def` clauses
  * are filtered out via [CallDefinitionClause]).
  *
@@ -21,7 +23,7 @@ import org.elixir_lang.psi.call.Call
  * `FindUsagesAction` and then polls for a `UsageView`, which is unreliable headless (the view is never
  * surfaced even though target arbitration is correct - verified separately: exactly one `SEARCH_TARGET`
  * = `perform/1`, no ambiguity popup). Asserting on the query's usages is deterministic and still
- * behavior-level: real caret → real symbol → real searcher → real usages. Assertions never touch
+ * behavior-level: real caret -> real symbol -> real searcher -> real usages. Assertions never touch
  * internal resolver classes, so they survive refactoring.
  */
 class ProtocolFunctionFindUsagesTest : PlatformTestCase() {
@@ -44,7 +46,7 @@ class ProtocolFunctionFindUsagesTest : PlatformTestCase() {
     /**
      * Ctrl-Click decision (the original thrust): on a protocol function definition - a declaration/`SearchTarget` - the
      * "Go To Declaration or Usages" handler that Ctrl-Click uses
-     * (`GotoDeclarationAction implements CtrlMouseAction` → `GotoDeclarationOrUsageHandler2`) chooses
+     * (`GotoDeclarationAction implements CtrlMouseAction` -> `GotoDeclarationOrUsageHandler2`) chooses
      * **Show Usages** rather than doing nothing or navigating to itself.
      */
     fun testCtrlClickOnProtocolFunctionChoosesShowUsages() {
@@ -59,6 +61,96 @@ class ProtocolFunctionFindUsagesTest : PlatformTestCase() {
             callSiteUsageCount("usages_non_implementing.ex")
         )
     }
+
+    /**
+     * The calls to an implementation are uses of the protocol function, as a rename of it renames them: the
+     * implementation's local call and capture, and a call qualified by the implementing module, besides its `@spec`.
+     * The protocol's `def` and the implementing head are declarations.
+     */
+    fun testCallToImplementationIsListed() {
+        myFixture.configureByFiles("usages_implementation_calls.ex")
+
+        assertEquals(
+            listOf(
+                "def size(data)" to true,
+                "@spec size(list) :: integer" to false,
+                "def size(list), do: length(list)" to true,
+                "def twice(list), do: size(list) * 2" to false,
+                "def capture, do: &size/1" to false,
+                "def by_implementation(data), do: UsagesImplementationCalls.List.size(data)" to false
+            ),
+            usageEntriesAtCaret()
+        )
+    }
+
+    /**
+     * Find Usages limited to a client's file lists its call of an implementation, though the implementing `defimpl`
+     * is outside that scope. The protocol's own declaration is always listed.
+     */
+    fun testCallToImplementationIsListedInAScopeWithoutTheImplementation() {
+        myFixture.configureByFiles("usages_scoped_implementation_calls.ex", "usages_scoped_implementation_calls_client.ex")
+        val client = myFixture.findFileInTempDir("usages_scoped_implementation_calls_client.ex")
+
+        val usages = myFixture.singleTargetPsiUsagesAtCaretInScope(project, GlobalSearchScope.fileScope(project, client))
+
+        assertEquals(
+            listOf("def size(data)", "def by_implementation(data), do: UsagesScopedImplementationCalls.List.size(data)"),
+            usages.sortedBy { it.range.startOffset }.map { usage ->
+                val text = usage.file.text
+                text.lines()[text.take(usage.range.startOffset).count { it == '\n' }].trim()
+            }
+        )
+    }
+
+    /**
+     * Every implementation of a protocol function shares one function, but a `defp` of the same name in another
+     * `defimpl` implements nothing: its local call is not a use of the implementations.
+     */
+    fun testCallToAPrivateHelperIsNotAUseOfTheImplementations() {
+        myFixture.configureByFiles("usages_private_helper_call.ex")
+
+        assertEquals(
+            listOf("def size(data)", "def size(list), do: length(list)", "def twice(list), do: size(list) * 2"),
+            usageLinesAtCaret()
+        )
+    }
+
+    /** A `defp` in a `defimpl` implements nothing, so a use of it is not a use of another implementation. */
+    fun testCallToAPrivateHelperIsNotAUseOfAnImplementation() {
+        myFixture.configureByFiles("usages_private_helper_own_call.ex")
+
+        assertEquals(
+            listOf("def count(map), do: size(map)", "defp size(map), do: map_size(map)"),
+            usageLinesAtCaret()
+        )
+    }
+
+    /** An atom naming a `defp` in another `defimpl` is a use of that `defp`, not of the implementations. */
+    fun testAtomNamingAPrivateHelperIsNotAUseOfTheImplementations() {
+        myFixture.configureByFiles("usages_private_helper_atom.ex")
+
+        assertEquals(
+            listOf("def size(data)", "def size(list), do: length(list)", "def twice(list), do: size(list) * 2"),
+            usageLinesAtCaret()
+        )
+    }
+
+    /** Each usage's line and whether it is a declaration. */
+    private fun usageEntriesAtCaret(): List<Pair<String, Boolean>> =
+        myFixture.singleTargetPsiUsagesAtCaret(project)
+            .sortedBy { it.range.startOffset }
+            .map { usage ->
+                val text = usage.file.text
+                text.lines()[text.take(usage.range.startOffset).count { it == '\n' }].trim() to usage.declaration
+            }
+
+    private fun usageLinesAtCaret(): List<String> =
+        myFixture.singleTargetPsiUsagesAtCaret(project)
+            .sortedBy { it.range.startOffset }
+            .map { usage ->
+                val text = usage.file.text
+                text.lines()[text.take(usage.range.startOffset).count { it == '\n' }].trim()
+            }
 
     /**
      * Runs Find Usages on the `defprotocol def` at the caret in [files] and counts non-declaration usages

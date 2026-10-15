@@ -12,6 +12,7 @@ import org.elixir_lang.beam.BeamLibraryTestCase
 import org.elixir_lang.beam.psi.CallDefinition
 import org.elixir_lang.beam.psi.Module as BeamModule
 import org.elixir_lang.code_insight.line_marker_provider.Implementation as ImplementationMarker
+import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaret
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.psi.DefinitionDeclaration
 import org.elixir_lang.psi.call.Call
@@ -50,6 +51,31 @@ class ProtocolImplementationBeamTest : BeamLibraryTestCase() {
             .flatMap { markerTargets(ImplementationMarker().getLineMarkerInfo(it)) }
 
         assertEquals(listOf("Count"), targets.filterIsInstance<CallDefinition>().map { it.parent.name }.distinct())
+    }
+
+    /**
+     * Every implementation of a compiled protocol's function shares one function, as of a source protocol, so a local
+     * call in one `defimpl` is a use of the others' implementations too.
+     */
+    fun testLocalCallInAnImplementationOfACompiledProtocolIsAUseOfTheOthers() {
+        myFixture.configureByText("count_calls.ex", COUNT_CALLS)
+
+        val lines = myFixture.singleTargetPsiUsagesAtCaret(project)
+            .sortedBy { it.range.startOffset }
+            .map { usage ->
+                val text = usage.file.text
+                text.lines()[text.take(usage.range.startOffset).count { it == '\n' }].trim()
+            }
+
+        assertEquals(
+            listOf(
+                "def count(list), do: length(list)",
+                "def twice(list), do: count(list) * 2",
+                "def count(map), do: map_size(map)",
+                "def twice(map), do: count(map) * 2"
+            ),
+            lines
+        )
     }
 
     fun testACompiledFunctionImplementsAFunctionMember() {
@@ -111,6 +137,11 @@ class ProtocolImplementationBeamTest : BeamLibraryTestCase() {
         const val SHAPE_IMPLS =
             "defimpl Shape, for: List do\n  defmacro describe(shape), do: shape\nend\n\n" +
                 "defimpl Shape, for: Tuple do\n  def describe(shape), do: shape\nend\n"
+        const val COUNT_CALLS =
+            "defimpl Count, for: List do\n  def count(list), do: length(list)\n" +
+                "  def twice(list), do: <caret>count(list) * 2\nend\n\n" +
+                "defimpl Count, for: Map do\n  def count(map), do: map_size(map)\n" +
+                "  def twice(map), do: count(map) * 2\nend\n"
         const val COUNT_IMPLS =
             "defimpl Count, for: List do\n  def count(list), do: length(list)\nend\n\n" +
                 "defimpl Count, for: Tuple do\n  defmacro count(tuple), do: tuple\nend\n"

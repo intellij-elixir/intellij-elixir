@@ -72,9 +72,58 @@ class CallbackFindUsagesTest : PlatformTestCase() {
     }
 
     /**
-     * Runs Find Usages on the `@callback` at the caret in [files] and counts non-declaration usages
-     * located on the name of a call-definition clause (`def`/`defmacro`) - i.e. implementations. The
-     * callback's own self-declaration usage is excluded via [com.intellij.find.usages.api.PsiUsage.declaration]. We resolve each
+     * The calls to an implementation are uses of the callback, as a rename of it renames them: the implementing
+     * function's local call and capture, and a call qualified by the implementing module, besides its `@spec`. The
+     * `@callback` and the implementing head are declarations.
+     */
+    fun testCallToImplementationIsListed() {
+        myFixture.configureByFiles("usages_implementation_calls.ex")
+
+        assertEquals(
+            listOf(
+                "@callback size(term) :: integer" to true,
+                "@spec size(list) :: integer" to false,
+                "def size(list), do: length(list)" to true,
+                "def twice(list), do: size(list) * 2" to false,
+                "def capture, do: &size/1" to false,
+                "def by_implementation(data), do: UsagesImplementationCallsImpl.size(data)" to false
+            ),
+            usageEntriesAtCaret()
+        )
+    }
+
+    /**
+     * A default argument's header implements the callback, and its separate clauses of the longer arity belong to the
+     * same function, so they are listed with it, as declarations, and so is the call to it.
+     */
+    fun testSeparateClausesOfADefaultArgumentHeaderAreListed() {
+        myFixture.configureByFiles("usages_implementation_defaults.ex")
+
+        assertEquals(
+            listOf(
+                "@callback run(term) :: term" to true,
+                "def run(x, option \\\\ nil)" to true,
+                "def run(x, :a), do: x" to true,
+                "def run(x, option), do: {x, option}" to true,
+                "def twice(x), do: run(x, :a)" to false
+            ),
+            usageEntriesAtCaret()
+        )
+    }
+
+    /** Each usage's line and whether it is a declaration. */
+    private fun usageEntriesAtCaret(): List<Pair<String, Boolean>> =
+        myFixture.singleTargetPsiUsagesAtCaret(project)
+            .sortedBy { it.range.startOffset }
+            .map { usage ->
+                val text = usage.file.text
+                text.lines()[text.take(usage.range.startOffset).count { it == '\n' }].trim() to usage.declaration
+            }
+
+    /**
+     * Runs Find Usages on the `@callback` at the caret in [files] and counts usages located on the name of a
+     * call-definition clause (`def`/`defmacro`) - i.e. implementations, which are declarations of the function. The
+     * callback's own self-declaration usage is on the `@callback`, not on a clause. We resolve each
      * usage by its `(file, range)` - the searcher models a [com.intellij.find.usages.api.PsiUsage] as file + absolute range (so its
      * `.element` is the file, not the def name), matching how the tool window navigates.
      */
@@ -82,7 +131,6 @@ class CallbackFindUsagesTest : PlatformTestCase() {
     private fun implementationDefUsageCount(vararg files: String): Int {
         myFixture.configureByFiles(*files)
         return myFixture.singleTargetPsiUsagesAtCaret(project)
-            .filterNot { it.declaration }
             .count { usage ->
                 val element = usage.file.findElementAt(usage.range.startOffset)
                 element != null && generateSequence(element) { it.parent }

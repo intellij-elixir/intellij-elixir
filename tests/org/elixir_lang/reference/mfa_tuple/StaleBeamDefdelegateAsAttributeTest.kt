@@ -6,9 +6,9 @@ import java.io.File
 
 /**
  * `Mod.f/2` is a `defdelegate` whose `as:` is a module attribute, and a compiled copy of `Mod` has an older
- * `f(old_q, old_x)`. Find Usages from the alias's `f` lists the call that reaches the source `f` by the module's own
- * name, as it does with no compiled copy, not the `apply` and MFA tuple that name the module as an atom, which reach
- * the compiled copy's `f` alone.
+ * `f(old_q, old_x)`. Find Usages from the alias's `f` lists the calls that reach the source `f`, by the alias and by
+ * the module's own name, as it does with no compiled copy, not the `apply` and MFA tuple that name the module as an
+ * atom, which reach the compiled copy's `f` alone.
  */
 class StaleBeamDefdelegateAsAttributeTest : BeamLibraryTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/reference/mfa_tuple/stale_beam_defdelegate_as_attribute"
@@ -52,7 +52,7 @@ class StaleBeamDefdelegateAsAttributeTest : BeamLibraryTestCase() {
             .sorted()
 
         assertEquals(
-            listOf("def at_qualified"),
+            listOf("def at_aliased", "def at_qualified"),
             lines.map { it.trim().substringBefore("(") }
         )
     }

@@ -14,6 +14,8 @@ import com.intellij.find.usages.impl.AllSearchOptions
 import com.intellij.find.usages.impl.buildQuery
 import com.intellij.find.usages.impl.searchTargets
 import com.intellij.model.psi.impl.targetSymbols
+import com.intellij.openapi.util.TextRange
+import com.intellij.refactoring.rename.api.PsiRenameUsage
 import com.intellij.refactoring.rename.api.RenameTarget
 import com.intellij.refactoring.rename.impl.FileUpdates
 import com.intellij.refactoring.rename.impl.RenameOptions
@@ -407,18 +409,25 @@ fun CodeInsightTestFixture.psiUsagesAtCaret(project: Project): List<PsiUsage> =
  * target.
  */
 fun CodeInsightTestFixture.singleTargetPsiUsagesAtCaret(project: Project): List<PsiUsage> =
-    psiUsagesAtCaret(project) { it.single() }
+    psiUsagesAtCaret(project, GlobalSearchScope.allScope(project)) { it.single() }
+
+/**
+ * [singleTargetPsiUsagesAtCaret] for Find Usages limited to [scope], as its "Search in" scope limits it.
+ */
+fun CodeInsightTestFixture.singleTargetPsiUsagesAtCaretInScope(project: Project, scope: GlobalSearchScope): List<PsiUsage> =
+    psiUsagesAtCaret(project, scope) { it.single() }
 
 @Suppress("UnstableApiUsage")
 private fun CodeInsightTestFixture.psiUsagesAtCaret(
     project: Project,
+    scope: GlobalSearchScope = GlobalSearchScope.allScope(project),
     selectTarget: (List<SearchTarget>) -> SearchTarget?
 ): List<PsiUsage> {
     PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
     val targetFile = symbolResolutionFile(project)
     val offset = caretOffset
     val allOptions = AllSearchOptions(
-        UsageOptions.createOptions(GlobalSearchScope.allScope(project)),
+        UsageOptions.createOptions(scope),
         textSearch = false
     )
     return onPooledThread {
@@ -485,6 +494,23 @@ fun CodeInsightTestFixture.renameTargetDirectly(target: RenameTarget, newName: S
         fileUpdates?.doUpdate()
         // committing under the same write lock forestalls the background commit the change would otherwise queue
         PsiDocumentManager.getInstance(project).commitAllDocuments()
+    }
+}
+
+/**
+ * The file and range of every usage the platform's rename search finds for the single rename target at the caret,
+ * in the order the search yields them: what Rename would rewrite, before it rewrites it.
+ */
+@Suppress("UnstableApiUsage")
+fun CodeInsightTestFixture.renameUsageRangesAtCaret(): List<Pair<PsiFile, TextRange>> {
+    val target = renameTargetsAtCaret().single()
+    val options = RenameOptions(TextOptions(commentStringOccurrences = false, textOccurrences = false), GlobalSearchScope.projectScope(project))
+    return onPooledThread {
+        ReadAction.nonBlocking(Callable {
+            buildQuery(project, target, options).findAll()
+                .mapNotNull { it.dereference() as? PsiRenameUsage }
+                .map { it.file to it.range }
+        }).executeSynchronously()
     }
 }
 
