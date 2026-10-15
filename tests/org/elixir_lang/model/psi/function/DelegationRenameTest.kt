@@ -36,6 +36,23 @@ class DelegationRenameTest : PlatformTestCase() {
         assertEquals(WITH_AS.replace("renamee", "fresh"), myFixture.file.text)
     }
 
+    /** A use names the delegation, so with `as:` the rename leaves the target and `as:` as they are. */
+    fun testRenameFromTheUseWithAs() {
+        myFixture.configureByText("m.ex", WITH_AS)
+        myFixture.editor.caretModel.moveToOffset(WITH_AS.indexOf("M.renamee") + 3)
+
+        myFixture.renameTargetAtCaret("fresh")
+
+        assertEquals(WITH_AS.replace("renamee", "fresh"), myFixture.file.text)
+    }
+
+    fun testFindUsagesFromTheUseWithAs() {
+        myFixture.configureByText("m.ex", WITH_AS)
+        myFixture.editor.caretModel.moveToOffset(WITH_AS.indexOf("M.renamee") + 3)
+
+        assertEquals(listOf(6, 7), usageLines())
+    }
+
     /** Runs [check] with the caret on each occurrence of `renamee` in a fresh copy of [WITHOUT_AS]. */
     private fun assertEveryOccurrence(check: (caret: String) -> Unit) {
         val text = WITHOUT_AS

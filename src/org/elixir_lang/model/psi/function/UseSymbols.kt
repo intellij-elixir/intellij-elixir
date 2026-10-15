@@ -6,13 +6,14 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
-import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Found
+import org.elixir_lang.declaration.atItsHead
 import org.elixir_lang.declaration.Use
+import org.elixir_lang.declaration.passed
 import org.elixir_lang.declaration.preferred
 import org.elixir_lang.declaration.sourceFor
 import org.elixir_lang.model.psi.atom.contentTextRange
@@ -27,8 +28,8 @@ import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.structure_view.element.Delegation
 
 /**
- * The Symbols a use names, from the preference step: each admitted candidate's, and for a delegation those of what it
- * delegates to, or its own when it delegates to nothing admitted.
+ * The Symbols a use names, from the preference step: each admitted candidate's. A use of a delegation names the
+ * delegation, whose Go To lands on what it delegates to.
  */
 @Suppress("UnstableApiUsage")
 internal object UseSymbols {
@@ -49,37 +50,22 @@ internal object UseSymbols {
 
     @RequiresReadLock
     private fun of(use: Use, arity: (Found) -> Int): List<Symbol> =
-        preferred(use, sourceFor(Feature.SYMBOL_REFERENCES).candidates(use, false), false).flatMap { preferred ->
-            val used = arity(preferred.found)
-            val targetArity = targetArity(preferred.found.candidate.declaration, used)
-
-            preferred.delegatedTo
-                .flatMap { symbols(it, targetArity) }
-                .ifEmpty { symbols(preferred.found, used) }
-        }
+        preferred(use, sourceFor(Feature.SYMBOL_REFERENCES).candidates(use, false), false)
+            .flatMap { symbols(it.found, arity(it.found)) }
 
     /** The arity of the one Symbol a head declares: its lowest, as a head with defaults declares one Symbol for its name. */
     fun headArity(declaration: Declaration): Int? = declaration.arity.arityInterval()?.minimum
 
-    /** The Symbols of what [delegation] delegates to, read from the step's `delegatedTo` at the use its head is. */
+    /** The Symbols of what [delegation] delegates to, read from the step's `directlyDelegatedTo` at the use its head is. */
     @RequiresReadLock
     fun delegatedTo(delegation: Call): List<Symbol> {
         val use = (Delegation.head(delegation) as? Call)?.let(Use::of) as? Use.Named ?: return emptyList()
-        val paired = preferred(use, sourceFor(Feature.SYMBOL_REFERENCES).candidates(use, false), false)
-            .firstOrNull { it.found.element == delegation }
-            ?: return emptyList()
-        val targetArity = targetArity(paired.found.candidate.declaration, use.arity)
+        val paired = atItsHead(delegation, use, Feature.SYMBOL_REFERENCES) ?: return emptyList()
+        val targetArity = paired.found.candidate.declaration.arity.passed() ?: use.arity
 
-        return paired.delegatedTo.flatMap { symbols(it, targetArity) }
+        return paired.directlyDelegatedTo
+            .flatMap { symbols(it, targetArity) }
     }
-
-    /** A delegation head with defaults calls its target with every argument. */
-    private fun targetArity(delegation: Declaration, used: Int): Int =
-        when (val arity = delegation.arity) {
-            is ArityKnowledge.Exact -> arity.arity
-            is ArityKnowledge.Range -> arity.maximum
-            is ArityKnowledge.Open, ArityKnowledge.Unknown -> used
-        }
 
     @RequiresReadLock
     private fun symbols(found: Found, arity: Int): List<Symbol> {

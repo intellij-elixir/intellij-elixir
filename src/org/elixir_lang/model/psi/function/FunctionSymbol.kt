@@ -4,7 +4,9 @@ import com.intellij.find.usages.api.SearchTarget
 import com.intellij.find.usages.api.UsageHandler
 import com.intellij.icons.AllIcons
 import com.intellij.model.Pointer
+import com.intellij.navigation.NavigatableSymbol
 import com.intellij.openapi.progress.ProcessCanceledException
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
 import com.intellij.platform.backend.navigation.NavigationRequest
 import com.intellij.platform.backend.navigation.NavigationTarget
@@ -53,7 +55,7 @@ class FunctionSymbol(
     val name: String,
     val arity: Int,
     val macro: Boolean
-) : ElixirRenameTarget, NavigationTarget, SearchTarget {
+) : ElixirRenameTarget, NavigatableSymbol, SearchTarget {
 
     override val searchText: String get() = name
     override val targetName: String get() = name
@@ -83,11 +85,26 @@ class FunctionSymbol(
         }
     }
 
-    // --- NavigationTarget ---
-    override fun computePresentation(): TargetPresentation = presentation()
+    // --- NavigatableSymbol ---
+    /** A delegation's Go To lands on every declaration of what it delegates to, or on the delegation when that is nothing. */
+    @RequiresReadLock
+    override fun getNavigationTargets(project: Project): Collection<NavigationTarget> =
+        anchor()
+            ?.takeIf { it.form == Form.DELEGATION }
+            ?.let { UseSymbols.delegatedTo(it.call) }
+            // A target that is a delegation too is landed on, not followed.
+            ?.mapNotNull { target -> (target as? FunctionSymbol)?.let(::Place) ?: target as? NavigationTarget }
+            ?.ifEmpty { null }
+            ?: listOf(Place(this))
 
-    override fun navigationRequest(): NavigationRequest? =
-        NavigationRequest.sourceNavigationRequest(file, range)
+    /** Where [symbol] is declared, as a row of Go To. */
+    private class Place(private val symbol: FunctionSymbol) : NavigationTarget {
+        override fun createPointer(): Pointer<out NavigationTarget> = Pointer.delegatingPointer(symbol.createPointer(), ::Place)
+
+        override fun computePresentation(): TargetPresentation = symbol.presentation()
+
+        override fun navigationRequest(): NavigationRequest? = NavigationRequest.sourceNavigationRequest(symbol.file, symbol.range)
+    }
 
     // --- SearchTarget ---
     override val maximalSearchScope: SearchScope? get() = null

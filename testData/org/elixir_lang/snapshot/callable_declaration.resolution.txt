@@ -360,7 +360,7 @@ quoted_names.ex:12:7  symbol  FunctionCallReference  `quoted_from_string`  ->  q
 quoted_names.ex:13:7  psi  Callable  `quoted_text`  ->  quoted_names.ex:6:3 `Mix.Generator.embed_text(:"quoted", "Quoted")`
 quoted_names.ex:13:7  symbol  FunctionCallReference  `quoted_text`  ->  quoted_names.ex:6:30 FunctionSymbol(QuotedNames.quoted_text/0, macro=false)
 quoted_names.ex:14:7  psi  Callable  `count`  ->  quoted_names.ex:21:3 `def size(x), do: x` | quoted_names.ex:7:3 `defdelegate count(x), to: QuotedNamesTarget, as: :"size"`
-quoted_names.ex:14:7  symbol  FunctionCallReference  `count`  ->  quoted_names.ex:21:7 FunctionSymbol(QuotedNamesTarget.size/1, macro=false)
+quoted_names.ex:14:7  symbol  FunctionCallReference  `count`  ->  quoted_names.ex:7:15 FunctionSymbol(QuotedNames.count/1, macro=false)
 quoted_names.ex:15:7  psi  Callable  `dynamic_count`  ->  quoted_names.ex:8:3 `defdelegate dynamic_count(x), to: QuotedNamesTarget, as: :"#{:size}"`
 quoted_names.ex:15:7  symbol  FunctionCallReference  `dynamic_count`  ->  quoted_names.ex:8:15 FunctionSymbol(QuotedNames.dynamic_count/1, macro=false)
 quoted_names.ex:20:1  module  QuotedNamesTarget

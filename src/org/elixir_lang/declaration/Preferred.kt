@@ -9,8 +9,16 @@ import org.elixir_lang.reference.Resolver
 import org.elixir_lang.structure_view.element.Delegation
 import org.elixir_lang.structure_view.element.Overridable
 
-/** A candidate [found] at a use, and, for a delegation, what it delegates to, preferred as [found] is. */
-data class Preferred(val found: Found, val delegatedTo: List<Found>)
+/**
+ * A candidate [found] at a use, and, for a delegation, what it delegates to, preferred as [found] is: through any
+ * delegation it reaches, so a target that is a delegation too comes with what that delegation delegates to.
+ */
+data class Preferred(val found: Found, val delegatedTo: List<Found>) {
+    /** What [found] delegates to itself: [delegatedTo] less what a target that is a delegation too delegates to. */
+    @get:RequiresReadLock
+    val directlyDelegatedTo: List<Found>
+        get() = delegatedTo.filter { target -> target.via.none { it != found.element && Delegation.`is`(it) } }
+}
 
 /**
  * [found] at [use] in the one order of preference: each delegation target paired with its delegation, then the

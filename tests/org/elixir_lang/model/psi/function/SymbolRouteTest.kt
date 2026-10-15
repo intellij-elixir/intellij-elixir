@@ -45,12 +45,50 @@ class SymbolRouteTest : PlatformTestCase() {
         assertEquals(listOf("FunctionSymbol(M.f/1, macro=false) m.ex:2 \"defdelegate f(a, b \\\\ 1)\""), callSymbols())
     }
 
+    /** A use of a delegation names the delegation, and its Go To lands on what it delegates to. */
     fun testDelegationWithTarget() {
         myFixture.addFileToProject("t.ex", "defmodule T do\n  def x(a), do: a\nend\n")
         myFixture.addFileToProject("m.ex", "defmodule M do\n  defdelegate x(a), to: T\nend\n")
         myFixture.configureByText("use.ex", "defmodule U do\n  def run, do: M.<caret>x(1)\nend\n")
 
-        assertEquals(listOf("FunctionSymbol(T.x/1, macro=false) t.ex:2 \"def x(a)\""), callSymbols())
+        assertEquals(listOf("FunctionSymbol(M.x/1, macro=false) m.ex:2 \"defdelegate x(a)\""), callSymbols())
+        assertEquals(listOf("t.ex:2: def x(a), do: a"), goToAtCaret())
+        assertEquals(listOf("FunctionSymbol(T.x/1, macro=false) t.ex:2 \"def x(a)\""), renamedWith())
+    }
+
+    /** A delegation used in its target's module is still the delegation, and Go To still lands on the target. */
+    fun testDelegationUsedInItsTargetsModule() {
+        myFixture.addFileToProject("m.ex", "defmodule M do\n  defdelegate x(a), to: T\nend\n")
+        myFixture.configureByText("t.ex", "defmodule T do\n  def x(a), do: a\n\n  def run, do: M.<caret>x(1)\nend\n")
+
+        assertEquals(listOf("FunctionSymbol(M.x/1, macro=false) m.ex:2 \"defdelegate x(a)\""), callSymbols())
+        assertEquals(listOf("t.ex:2: def x(a), do: a"), goToAtCaret())
+    }
+
+    fun testDelegationToAProtocolFunction() {
+        myFixture.addFileToProject("p.ex", "defprotocol P do\n  def f(a)\nend\n")
+        myFixture.addFileToProject("m.ex", "defmodule M do\n  defdelegate f(a), to: P\nend\n")
+        myFixture.configureByText("use.ex", "defmodule U do\n  def run, do: M.<caret>f(1)\nend\n")
+
+        assertEquals(listOf("FunctionSymbol(M.f/1, macro=false) m.ex:2 \"defdelegate f(a)\""), callSymbols())
+        assertEquals(listOf("p.ex:2: def f(a)"), goToAtCaret())
+    }
+
+    /** Go To lands on what the delegation delegates to, even when that is a delegation too, which it does not follow. */
+    fun testDelegationToADelegation() {
+        myFixture.addFileToProject("t.ex", "defmodule T do\n  def x(a), do: a\nend\n")
+        myFixture.addFileToProject("n.ex", "defmodule N do\n  defdelegate x(a), to: T\nend\n")
+        myFixture.addFileToProject("m.ex", "defmodule M do\n  defdelegate x(a), to: N\nend\n")
+        myFixture.configureByText("use.ex", "defmodule U do\n  def run, do: M.<caret>x(1)\nend\n")
+
+        assertEquals(listOf("n.ex:2: defdelegate x(a), to: T"), goToAtCaret())
+    }
+
+    /** A `@spec` written in parentheses names the delegation as the bare one does, so Go To lands on its target. */
+    fun testSpecInParenthesesOfADelegationGoesToItsTarget() {
+        myFixture.addFileToProject("t.ex", "defmodule T do\n  def x(a), do: a\nend\n")
+        myFixture.configureByText("s.ex", "defmodule S do\n  @spec(<caret>x(t) :: t)\n  defdelegate x(a), to: T\nend\n")
+
         assertEquals(listOf("t.ex:2: def x(a), do: a"), goToAtCaret())
     }
 
@@ -60,8 +98,20 @@ class SymbolRouteTest : PlatformTestCase() {
         myFixture.addFileToProject("m.ex", "defmodule M do\n  defdelegate x(a, b \\\\ 1), to: T\nend\n")
         myFixture.configureByText("use.ex", "defmodule U do\n  def run, do: M.<caret>x(1)\nend\n")
 
-        assertEquals(listOf("FunctionSymbol(T.x/2, macro=false) t.ex:2 \"def x(a, b)\""), callSymbols())
+        assertEquals(listOf("FunctionSymbol(M.x/1, macro=false) m.ex:2 \"defdelegate x(a, b \\\\ 1)\""), callSymbols())
         assertEquals(listOf("t.ex:2: def x(a, b), do: {a, b}"), goToAtCaret())
+        assertEquals(listOf("FunctionSymbol(T.x/2, macro=false) t.ex:2 \"def x(a, b)\""), renamedWith())
+    }
+
+    /** With `as:` the delegation's name is its own, so nothing is renamed with it. */
+    fun testDelegationWithAs() {
+        myFixture.addFileToProject("t.ex", "defmodule T do\n  def x(a), do: a\nend\n")
+        myFixture.addFileToProject("m.ex", "defmodule M do\n  defdelegate y(a), to: T, as: :x\nend\n")
+        myFixture.configureByText("use.ex", "defmodule U do\n  def run, do: M.<caret>y(1)\nend\n")
+
+        assertEquals(listOf("FunctionSymbol(M.y/1, macro=false) m.ex:2 \"defdelegate y(a)\""), callSymbols())
+        assertEquals(listOf("t.ex:2: def x(a), do: a"), goToAtCaret())
+        assertEquals(emptyList<String>(), renamedWith())
     }
 
     fun testGeneratedException() {
@@ -170,12 +220,13 @@ class SymbolRouteTest : PlatformTestCase() {
         assertEquals(listOf("FunctionSymbol(T.hello/1, macro=false) t.ex:3 \"T.hello/1\""), captureSymbols())
     }
 
-    fun testCaptureOfADelegationWithDefaultsNamesTheTarget() {
+    fun testCaptureOfADelegationWithDefaultsNamesTheDelegation() {
         myFixture.addFileToProject("t.ex", "defmodule T do\n  def x(a, b), do: {a, b}\nend\n")
         myFixture.addFileToProject("m.ex", "defmodule M do\n  defdelegate x(a, b \\\\ 1), to: T\nend\n")
         myFixture.configureByText("capture.ex", "defmodule C do\n  def run, do: &M.<caret>x/1\nend\n")
 
-        assertEquals(listOf("FunctionSymbol(T.x/2, macro=false) t.ex:2 \"def x(a, b)\""), captureSymbols())
+        assertEquals(listOf("FunctionSymbol(M.x/1, macro=false) m.ex:2 \"defdelegate x(a, b \\\\ 1)\""), captureSymbols())
+        assertEquals(listOf("t.ex:2: def x(a, b), do: {a, b}"), goToAtCaret())
     }
 
     fun testSpecNamesItsFunction() {
@@ -290,6 +341,13 @@ class SymbolRouteTest : PlatformTestCase() {
             .single()
             .resolveReference()
             .toList()
+
+    /** What a rename of the call's Symbol renames with it. */
+    private fun renamedWith(): List<String> =
+        symbolsAtCaret<FunctionCallReference>()
+            .filterIsInstance<FunctionSymbol>()
+            .flatMap { it.renamedWith() }
+            .map(::render)
 
     private fun goToAtCaret(): List<String> =
         myFixture.gotoDeclarationTargetsAtCaret().orEmpty().mapNotNull { it.destination?.let(::describe) }.sorted()
