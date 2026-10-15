@@ -25,6 +25,14 @@ fun preferred(use: Use, found: List<Found>, incompleteCode: Boolean): List<Prefe
             preferred.copy(delegatedTo = overridden(admitted(preferred.delegatedTo, incompleteCode) { it }) { it })
         }
 
+/**
+ * [delegation] as the step prefers it at [use], the use its own head is, from [feature]'s source: with what it delegates
+ * to.
+ */
+@RequiresReadLock
+fun atItsHead(delegation: Call, use: Use.Named, feature: Feature): Preferred? =
+    preferred(use, sourceFor(feature).candidates(use, false), false).firstOrNull { it.found.element == delegation }
+
 /** Each delegation target goes with its delegation, and nothing is dropped. */
 @RequiresReadLock
 internal fun paired(found: List<Found>): List<Preferred> {

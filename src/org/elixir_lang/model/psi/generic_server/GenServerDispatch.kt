@@ -5,7 +5,7 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.annotations.RequiresReadLock
-import org.elixir_lang.navigation.ElixirClausePresentation
+import org.elixir_lang.navigation.DeclarationHead
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.Modular
@@ -98,8 +98,10 @@ internal object GenServerDispatch {
     @RequiresReadLock
     private fun targetFor(clause: Call): GenServerHandlerTarget? {
         val nameIdentifier = CallDefinitionClause.nameIdentifier(clause) ?: return null
-        val presentation = runCatching { ElixirClausePresentation.elementText(clause) }
-            .getOrElse { if (it is ProcessCanceledException) throw it else nameIdentifier.text }
+        val presentation =
+            runCatching { CallDefinitionClause.declaration(clause, ResolveState.initial())?.let { DeclarationHead.text(it, clause) } }
+                .getOrElse { if (it is ProcessCanceledException) throw it else null }
+                ?: nameIdentifier.text
         return GenServerHandlerTarget(clause.containingFile, nameIdentifier.textRange, presentation)
     }
 }

@@ -11,16 +11,17 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.search.searches.DefinitionsScopedSearch
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
-import org.elixir_lang.code_insight.assertGotoDeclarationChosenAtCaret
 import org.elixir_lang.code_insight.assertGotoDeclarationLandsIn
+import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
 import org.elixir_lang.code_insight.line_marker_provider.Implementation as ImplementationMarker
 import org.elixir_lang.code_insight.line_marker_provider.Protocol as ProtocolMarker
 import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
+import org.elixir_lang.navigation.ElixirGotoTargetPresentationProvider
+import org.elixir_lang.navigation.ElixirImplementationCellRenderer
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.DefinitionDeclaration
 import org.elixir_lang.psi.Implementation
-import org.elixir_lang.psi.Module
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.call.Call
 
@@ -42,7 +43,8 @@ class ProtocolImplementationReadersTest : PlatformTestCase() {
 
     fun testRenameRenamesPublicFunctionImplementations() = assertEquals(PUBLIC, renamed(SIZE))
 
-    fun testGotoDeclarationFromEachImplementation() = assertEquals(PUBLIC, gotoDeclaration(SIZE))
+    /** A delegation's head is the delegation's own declaration, so only the `def` refers to the protocol function. */
+    fun testGotoDeclarationFromEachImplementation() = assertEquals(setOf("List"), gotoDeclaration(SIZE))
 
     fun testCtrlClickOnImplementingDefLandsOnTheProtocolFunction() {
         myFixture.configureByFile(SIZE.file)
@@ -54,17 +56,19 @@ class ProtocolImplementationReadersTest : PlatformTestCase() {
         }
     }
 
-    /** A delegation's head already resolves to the function it delegates to, which Go To Declaration follows. */
-    fun testCtrlClickOnImplementingDelegationChoosesGotoDeclaration() {
+    /** A delegation's head declares the delegation, as a `def`'s head declares the `def`. */
+    fun testCtrlClickOnImplementingDelegationShowsItsUsages() {
         myFixture.configureByFile(SIZE.file)
         moveCaretToImplementer(SIZE, "Atom")
 
-        myFixture.assertGotoDeclarationChosenAtCaret()
-        myFixture.assertGotoDeclarationLandsIn("atom_size", "`Sizes.atom_size/1`") { definition ->
-            CallDefinitionClause.`is`(definition) &&
-                CallDefinitionClause.enclosingModularMacroCall(definition)?.let { Module.name(it) } == "Sizes"
-        }
+        myFixture.assertShowUsagesChosenAtCaret()
     }
+
+    fun testGotoImplementationRowsShowEachImplementationsHead() =
+        assertEquals(mapOf("List" to "def size(list)", "Atom" to "defdelegate size(atom)"), gotoImplementationRows(SIZE))
+
+    fun testProtocolGutterRowsShowEachImplementationsHead() =
+        assertEquals(mapOf("List" to "def size(list)", "Atom" to "defdelegate size(atom)"), protocolGutterRows(SIZE))
 
     fun testGotoSuperFromEachImplementation() = assertEquals(PUBLIC, gotoSuper(SIZE))
 
@@ -181,6 +185,31 @@ class ProtocolImplementationReadersTest : PlatformTestCase() {
             ?: return emptySet()
 
         return DefinitionsScopedSearch.search(source).findAll().mapNotNullTo(mutableSetOf(), ::implementingModule)
+    }
+
+    /** Each implementation Go To Implementation lists, by module, as its row in the chooser shows it. */
+    private fun gotoImplementationRows(fixture: Fixture): Map<String, String?> {
+        myFixture.configureByFile(fixture.file)
+        moveCaretToMember(fixture)
+
+        val source = TargetElementUtil.getInstance()
+            .findTargetElement(myFixture.editor, ImplementationSearcher.getFlags(), myFixture.caretOffset)!!
+
+        return DefinitionsScopedSearch.search(source).findAll().associate { implementation ->
+            implementingModule(implementation)!! to
+                ElixirGotoTargetPresentationProvider().getTargetPresentation(implementation, false)?.presentableText
+        }
+    }
+
+    /** Each implementation the protocol function's gutter icon leads to, by module, as its popup row shows it. */
+    private fun protocolGutterRows(fixture: Fixture): Map<String, String> {
+        myFixture.configureByFile(fixture.file)
+        val member = memberRange(fixture)
+
+        return leaves()
+            .filter { it.textOffset in member.startOffset..member.endOffset }
+            .flatMap { markerTargets(ProtocolMarker().getLineMarkerInfo(it)) }
+            .associate { implementingModule(it)!! to ElixirImplementationCellRenderer().getElementText(it) }
     }
 
     private fun markerTargets(info: com.intellij.codeInsight.daemon.LineMarkerInfo<*>?): List<PsiElement> =

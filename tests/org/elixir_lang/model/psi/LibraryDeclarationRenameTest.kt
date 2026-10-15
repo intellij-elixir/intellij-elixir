@@ -119,6 +119,15 @@ class LibraryDeclarationRenameTest : PlatformTestCase() {
         assertRenameRefused(declaration, IMPLEMENTER, CALLBACK_SOURCE)
     }
 
+    /** The same from the head of a `defdelegate` with no `as:` to the implementing function, which names it too. */
+    fun testImplementedCallbackInALibraryIsRefusedFromADelegationHead() {
+        val declaration = outsideProject("path_dependency_callback_delegation/lib", "lib.ex", CALLBACK_SOURCE)
+
+        addSourcesLibrary(declaration.parent)
+
+        assertRenameRefused(declaration, DELEGATION_TO_IMPLEMENTER, CALLBACK_SOURCE)
+    }
+
     /** The same from an atom naming the implementing function. */
     fun testImplementedCallbackInALibraryIsRefusedFromAnAtom() {
         val declaration = outsideProject("path_dependency_callback_atom/lib", "lib.ex", CALLBACK_SOURCE)
@@ -241,5 +250,8 @@ class LibraryDeclarationRenameTest : PlatformTestCase() {
         const val IMPLEMENTER_ATOM =
             "defmodule Caller do\n  @behaviour Lib\n\n  @impl true\n  def fun, do: :ok\n\n  def run, do: apply(Caller, :fu<caret>n, [])\nend\n"
         const val CALLER = "defmodule Caller do\n  def run, do: Lib.fu<caret>n()\nend\n"
+        const val DELEGATION_TO_IMPLEMENTER =
+            "defmodule Caller do\n  @behaviour Lib\n\n  @impl true\n  def fun, do: :ok\nend\n\n" +
+                "defmodule Delegating do\n  defdelegate fu<caret>n(), to: Caller\nend\n"
     }
 }

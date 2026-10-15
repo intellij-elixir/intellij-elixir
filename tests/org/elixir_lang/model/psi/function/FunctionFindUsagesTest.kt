@@ -1,6 +1,8 @@
 package org.elixir_lang.model.psi.function
 
+import com.intellij.codeInsight.TargetElementUtil
 import com.intellij.find.usages.api.PsiUsage
+import com.intellij.psi.PsiElement
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
 import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaret
@@ -14,6 +16,15 @@ import org.elixir_lang.psi.call.Call
  */
 class FunctionFindUsagesTest : PlatformTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/model/psi/function"
+
+    /** Find Usages at a call of a one-clause function offers its Symbol alone, not the `def` call beside it. */
+    fun testCallOfAOneClauseFunctionOffersNoSecondTarget() {
+        myFixture.configureByText("m.ex", "defmodule M do\n  def f(x), do: x\n\n  def run, do: <caret>f(1)\nend\n")
+        val reference = TargetElementUtil.findReference(myFixture.editor, myFixture.caretOffset)
+            ?: error("no reference at the call")
+
+        assertEquals(emptyList<PsiElement>(), TargetElementUtil.getInstance().getTargetCandidates(reference).toList())
+    }
 
     fun testSameModuleUnqualifiedCallSiteIsFound() {
         assertTrue(

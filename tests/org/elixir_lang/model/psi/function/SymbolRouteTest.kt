@@ -33,8 +33,16 @@ class SymbolRouteTest : PlatformTestCase() {
         myFixture.addFileToProject("m.ex", "defmodule M do\n  defdelegate f(a), to: Nowhere\nend\n")
         myFixture.configureByText("use.ex", "defmodule U do\n  def run, do: M.<caret>f(1)\nend\n")
 
-        assertEquals(listOf("FunctionSymbol(M.f/1, macro=false) m.ex:2 \"M.f/1\""), callSymbols())
+        assertEquals(listOf("FunctionSymbol(M.f/1, macro=false) m.ex:2 \"defdelegate f(a)\""), callSymbols())
         assertEquals(listOf("m.ex:2: defdelegate f(a), to: Nowhere"), goToAtCaret())
+    }
+
+    /** A delegation's label is its head as written, defaults included. */
+    fun testUnresolvedDelegationWithDefaults() {
+        myFixture.addFileToProject("m.ex", "defmodule M do\n  defdelegate f(a, b \\\\ 1), to: Nowhere\nend\n")
+        myFixture.configureByText("use.ex", "defmodule U do\n  def run, do: M.<caret>f(1)\nend\n")
+
+        assertEquals(listOf("FunctionSymbol(M.f/1, macro=false) m.ex:2 \"defdelegate f(a, b \\\\ 1)\""), callSymbols())
     }
 
     fun testDelegationWithTarget() {
@@ -184,7 +192,7 @@ class SymbolRouteTest : PlatformTestCase() {
         myFixture.addFileToProject("t.ex", "defmodule T do\n  def x(a), do: a\nend\n")
         myFixture.configureByText("s.ex", "defmodule S do\n  @spec <caret>x(t) :: t\n  defdelegate x(a), to: T\nend\n")
 
-        assertEquals(listOf("FunctionSymbol(S.x/1, macro=false) s.ex:3 \"S.x/1\""), specSymbols())
+        assertEquals(listOf("FunctionSymbol(S.x/1, macro=false) s.ex:3 \"defdelegate x(a)\""), specSymbols())
     }
 
     fun testSpecNamesAnEExFunction() {
@@ -209,6 +217,7 @@ class SymbolRouteTest : PlatformTestCase() {
         val specified = symbolsAtCaret<SpecFunctionReference>()
 
         assertEquals(1, specified.size)
+        assertEquals("the head's Symbol", declaredSymbols(myFixture.file, myFixture.file.text.indexOf(":log") + 1), specified)
         assertEquals(listOf("s.ex:4: Mix.Generator.embed_template(:log, \"Log\")"), goToAtCaret())
     }
 

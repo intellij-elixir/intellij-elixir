@@ -2,6 +2,7 @@ package org.elixir_lang.declaration
 
 import com.intellij.codeInsight.lookup.LookupElementBuilder
 import com.intellij.codeInsight.lookup.LookupElementPresentation
+import com.intellij.model.psi.PsiSymbolReferenceService
 import com.intellij.openapi.editor.colors.TextAttributesKey
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.psi.ElementDescriptionUtil
@@ -18,6 +19,8 @@ import org.elixir_lang.beam.BeamLibraryTestCase
 import org.elixir_lang.beam.psi.CallDefinition
 import org.elixir_lang.beam.psi.impl.ModuleImpl
 import org.elixir_lang.code_insight.lookup.element_renderer.CallDefinitionClause
+import org.elixir_lang.model.psi.function.FunctionCallReference
+import org.elixir_lang.model.psi.function.FunctionSymbol
 import org.elixir_lang.structure_view.element.Timed
 import java.io.File
 
@@ -89,6 +92,22 @@ class CompiledPresentationTest : BeamLibraryTestCase() {
             listOf("abs", "is_struct").associateWith { name ->
                 keysAt(code.indexOf("Kernel.$name(") + "Kernel.".length, name.length)
             }
+        )
+    }
+
+    /** A call of a compiled function is labelled with the head of its decompiled clause. */
+    @Suppress("UnstableApiUsage")
+    fun testCallLabel() {
+        myFixture.configureByText("caller.ex", "defmodule Caller do\n  def calls(x), do: Kernel.a<caret>bs(x)\nend\n")
+
+        assertEquals(
+            listOf("def abs(number)"),
+            generateSequence(myFixture.file.findElementAt(myFixture.caretOffset)) { it.parent }
+                .map { PsiSymbolReferenceService.getService().getReferences(it).filterIsInstance<FunctionCallReference>() }
+                .first { it.isNotEmpty() }
+                .single()
+                .resolveReference()
+                .map { (it as FunctionSymbol).presentation().presentableText }
         )
     }
 

@@ -202,6 +202,19 @@ class StoredStubTest : PlatformTestCase() {
         "PUBLIC_FUNCTION k Kernel.def/2 do [k] -",
     )
 
+    /** A macro named `defmodule` writes a head, not a module, as a release tool's redefinition does. */
+    fun testDefmacroNamedDefmoduleIsNoModule() = assertStored(
+        "defmodule K do\n  defmacro defmodule(name, do: block) do\n    {name, block}\n  end\nend\n",
+        "MODULE K Kernel.defmodule/2 do [K] -",
+        "PUBLIC_MACRO defmodule Kernel.defmacro/2 do [defmodule] -",
+    )
+
+    fun testParenthesizedDefmacroNamedDefmoduleIsNoModule() = assertStored(
+        "defmodule K do\n  defmacro(defmodule(name, do: block), do: {name, block})\nend\n",
+        "MODULE K Kernel.defmodule/2 do [K] -",
+        "PUBLIC_MACRO defmodule Kernel.defmacro/2 do [defmodule] -",
+    )
+
     fun testModuleCreate() = assertStored(
         "Module.create(Bar, quote(do: nil), Macro.Env.location(__ENV__))\n",
         "- Bar Module.create/3 - [Bar] -",

@@ -2,6 +2,7 @@ package org.elixir_lang.model.psi.function
 
 import com.intellij.model.Symbol
 import com.intellij.openapi.progress.ProcessCanceledException
+import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
@@ -14,12 +15,15 @@ import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.preferred
 import org.elixir_lang.declaration.sourceFor
+import org.elixir_lang.model.psi.atom.contentTextRange
 import org.elixir_lang.model.psi.protocol.ProtocolFunction
 import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.impl.call.finalArguments
+import org.elixir_lang.psi.impl.stripAccessExpression
+import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.structure_view.element.Delegation
 
 /**
@@ -57,6 +61,18 @@ internal object UseSymbols {
     /** The arity of the one Symbol a head declares: its lowest, as a head with defaults declares one Symbol for its name. */
     fun headArity(declaration: Declaration): Int? = declaration.arity.arityInterval()?.minimum
 
+    /** The Symbols of what [delegation] delegates to, read from the step's `delegatedTo` at the use its head is. */
+    @RequiresReadLock
+    fun delegatedTo(delegation: Call): List<Symbol> {
+        val use = (Delegation.head(delegation) as? Call)?.let(Use::of) as? Use.Named ?: return emptyList()
+        val paired = preferred(use, sourceFor(Feature.SYMBOL_REFERENCES).candidates(use, false), false)
+            .firstOrNull { it.found.element == delegation }
+            ?: return emptyList()
+        val targetArity = targetArity(paired.found.candidate.declaration, use.arity)
+
+        return paired.delegatedTo.flatMap { symbols(it, targetArity) }
+    }
+
     /** A delegation head with defaults calls its target with every argument. */
     private fun targetArity(delegation: Declaration, used: Int): Int =
         when (val arity = delegation.arity) {
@@ -76,11 +92,9 @@ internal object UseSymbols {
                 val call = found.element as? Call ?: return emptyList()
 
                 when (declared.form) {
-                    Form.CLAUSE -> symbols(call, CallDefinitionClause.nameIdentifier(call), declaration, arity)
-                    Form.DELEGATION -> symbols(call, Delegation.nameIdentifier(call), declaration, arity)
+                    Form.CLAUSE, Form.DELEGATION, Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED ->
+                        symbols(call, DeclaringForm.names(call, declared.form).singleOrNull(), declaration, arity)
                     Form.EXCEPTION -> symbols(call, call.functionNameElement(), declaration, arity)
-                    Form.EEX_FUNCTION_FROM -> symbols(call, call.finalArguments()?.getOrNull(1), declaration, arity)
-                    Form.GENERATOR_EMBED -> symbols(call, call.finalArguments()?.firstOrNull(), declaration, arity)
                     Form.CALLBACK -> emptyList()
                 }
             }
@@ -91,9 +105,18 @@ internal object UseSymbols {
         }
     }
 
+    /** The text a rename replaces: an atom's content, without its `:` or quotes, or the whole name. */
     @RequiresReadLock
-    private fun symbols(call: Call, nameIdentifier: PsiElement?, declaration: Declaration, arity: Int): List<Symbol> {
-        val range = nameIdentifier?.textRange ?: return emptyList()
+    fun nameRange(nameIdentifier: PsiElement): TextRange =
+        when (val name = nameIdentifier.stripAccessExpression()) {
+            is ElixirAtom -> contentTextRange(name).shiftRight(name.textRange.startOffset)
+            else -> nameIdentifier.textRange
+        }
+
+    /** The Symbol of [declaration], which [call] makes under [nameIdentifier], at [arity]: what a use and a declaration share. */
+    @RequiresReadLock
+    fun symbols(call: Call, nameIdentifier: PsiElement?, declaration: Declaration, arity: Int): List<Symbol> {
+        val range = nameIdentifier?.let(::nameRange) ?: return emptyList()
         val modular = CallDefinitionClause.enclosingModularMacroCall(call) ?: return emptyList()
         val moduleName = runCatching { org.elixir_lang.psi.Module.name(modular) }
             .getOrElse { if (it is ProcessCanceledException) throw it else null }

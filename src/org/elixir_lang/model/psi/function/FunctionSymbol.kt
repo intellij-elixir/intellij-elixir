@@ -17,19 +17,22 @@ import com.intellij.psi.search.SearchScope
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.declaration.Capabilities
+import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Presentation
 import org.elixir_lang.model.psi.ElixirRenameTarget
 import org.elixir_lang.model.psi.ElixirSymbolWithUsages
 import org.elixir_lang.model.psi.callback.CallbackImplementation
 import org.elixir_lang.model.psi.protocol.ProtocolFunction
 import org.elixir_lang.model.psi.protocol.ProtocolImplementation
-import org.elixir_lang.navigation.ElixirClausePresentation
+import org.elixir_lang.navigation.DeclarationHead
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.DefinitionDeclaration
 import org.elixir_lang.psi.Implementation
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
+import org.elixir_lang.psi.scope.call_definition_clause.Declarations
 import org.elixir_lang.structure_view.element.Delegation
 import java.util.*
 
@@ -60,21 +63,19 @@ class FunctionSymbol(
         val name = this.name
         val arity = this.arity
         val macro = this.macro
-        // Anchor to the enclosing call-definition clause (a stable ancestor) rather than to the
-        // name-identifier element or a bare file range: an in-place (Shift+F6) rename fully replaces
-        // the identifier's text, which swaps out the identifier leaf (collapsing a pointer anchored to
-        // it) and collapses a plain range marker to an empty range - either way the subsequent
-        // programmatic commit edits the wrong range and applies nothing. The clause survives the
-        // identifier replacement, so its name-identifier range is recomputed correctly on restore.
-        val clause = madeFromClause(file, range)
-        if (clause != null) {
-            val clausePointer = SmartPointerManager.getInstance(file.project)
-                .createSmartPsiElementPointer(clause, file)
+        // Anchor to the declaring call (a stable ancestor) rather than to the name element or a bare file range: an
+        // in-place (Shift+F6) rename fully replaces the name's text, which swaps out the name leaf (collapsing a
+        // pointer anchored to it) and collapses a plain range marker to an empty range - either way the subsequent
+        // programmatic commit edits the wrong range and applies nothing. The declaring call survives the name's
+        // replacement, so its name's range is recomputed correctly on restore.
+        val anchor = anchor()
+        if (anchor != null) {
+            val (call, form) = anchor
+            val callPointer = SmartPointerManager.getInstance(file.project).createSmartPsiElementPointer(call, file)
             return Pointer {
-                val restoredClause = clausePointer.dereference() ?: return@Pointer null
-                val restoredRange = CallDefinitionClause.nameIdentifier(restoredClause)?.textRange
-                    ?: return@Pointer null
-                FunctionSymbol(restoredClause.containingFile, restoredRange, moduleName, name, arity, macro)
+                val restored = callPointer.dereference() ?: return@Pointer null
+                val restoredName = DeclaringForm.names(restored, form).singleOrNull() ?: return@Pointer null
+                FunctionSymbol(restored.containingFile, UseSymbols.nameRange(restoredName), moduleName, name, arity, macro)
             }
         }
         return Pointer.fileRangePointer(file, range) { restoredFile, restoredRange ->
@@ -95,20 +96,24 @@ class FunctionSymbol(
         get() = UsageHandler.createEmptyUsageHandler("$name/$arity")
 
     override fun presentation(): TargetPresentation =
-        TargetPresentation.builder(clausePresentationText() ?: "$moduleName.$name/$arity")
+        TargetPresentation.builder(headText() ?: "$moduleName.$name/$arity")
             .containerText(moduleName)
             .icon(if (macro) AllIcons.Nodes.AbstractMethod else AllIcons.Nodes.Method)
             .presentation()
 
+    /** The declaring call whose name this Symbol's range is. */
     @RequiresReadLock
-    private fun clausePresentationText(): String? {
-        val leaf = file.findElementAt(range.startOffset) ?: return null
-        val clause = generateSequence(leaf) { it.parent }
-            .filterIsInstance<Call>()
-            .firstOrNull { CallDefinitionClause.`is`(it) }
-            ?: return null
+    private fun anchor(): DeclaringForm.Declaring? =
+        file.findElementAt(range.startOffset)
+            ?.let(DeclaringForm::named)
+            ?.takeIf { (call, form) -> DeclaringForm.names(call, form).singleOrNull()?.let(UseSymbols::nameRange) == range }
 
-        return ElixirClausePresentation.elementText(clause)
+    @RequiresReadLock
+    private fun headText(): String? {
+        val (call, form) = anchor() ?: return null
+        val declaration = Declarations.named(form, call, name) ?: return null
+
+        return DeclarationHead.text(declaration, call)
     }
 
     /**
@@ -121,8 +126,39 @@ class FunctionSymbol(
             ?.let { CallbackImplementation.implementedCallbacks(it) + ProtocolImplementation.membersImplementedBy(it) }
             .orEmpty()
 
+    /**
+     * What a rename of this Symbol also renames: what it implements, and for a delegation without `as:`, whose head
+     * names its targets too, those targets, each with what it implements and delegates to in turn.
+     */
     @RequiresReadLock
-    override fun renamedWith(): List<ElixirSymbolWithUsages> = implementedMembers()
+    override fun renamedWith(): List<ElixirSymbolWithUsages> =
+        (reachable<ElixirSymbolWithUsages>(this) { (it as? FunctionSymbol)?.renamedDirectlyWith().orEmpty() } - this).toList()
+
+    @RequiresReadLock
+    private fun renamedDirectlyWith(): List<ElixirSymbolWithUsages> =
+        implementedMembers() +
+            anchor()
+                ?.call
+                ?.takeIf { Delegation.headKeepsTargetName(it) }
+                ?.let { UseSymbols.delegatedTo(it).filterIsInstance<ElixirSymbolWithUsages>() }
+                .orEmpty()
+
+    /**
+     * An embed's or `defexception`'s call does not write the function's name, and an EEx function's local calls are not
+     * found as its uses, so a rename of what they declare would not rewrite it whole.
+     */
+    @get:RequiresReadLock
+    override val declaringMacro: String?
+        get() = file.findElementAt(range.startOffset)
+            ?.let(DeclaringForm::enclosing)
+            ?.takeIf { (_, form) ->
+                when (form) {
+                    Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED, Form.EXCEPTION -> true
+                    Form.CLAUSE, Form.DELEGATION, Form.CALLBACK -> false
+                }
+            }
+            ?.call
+            ?.functionName()
 
     override fun equals(other: Any?): Boolean =
         other is FunctionSymbol &&

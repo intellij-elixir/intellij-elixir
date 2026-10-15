@@ -105,6 +105,25 @@ internal object ElixirUsageQueries {
         target: ElixirSymbolWithUsages,
         searchScope: SearchScope
     ): Collection<Query<out Usage>> {
+        val queries = ownSearchRequests(project, target, searchScope)
+        val implemented = (target as? ElixirRenameTarget)?.renamedWith().orEmpty()
+        if (implemented.isEmpty()) return queries
+
+        val all = queries + implemented.flatMap { ownSearchRequests(project, it, searchScope) }
+
+        return listOf(
+            UniqueResultsQuery(all.reduce { merged, next -> MergeQuery(merged, next) }) { usage ->
+                (usage as? PsiUsage)?.let { it.file to it.range } ?: usage
+            }
+        )
+    }
+
+    @RequiresReadLock
+    private fun ownSearchRequests(
+        project: Project,
+        target: ElixirSymbolWithUsages,
+        searchScope: SearchScope
+    ): List<Query<out Usage>> {
         val queries = mutableListOf<Query<out Usage>>()
         queries += ElixirDirectUsageQuery(
             ElixirPsiUsage.create(
@@ -147,19 +166,7 @@ internal object ElixirUsageQueries {
             }
         }
 
-        // A function that implements a callback or a protocol function is one symbol with it: a use of the function is a
-        // use of the member, so a rename from a call to the function, or from an atom naming it, also renames the member
-        // and every implementation.
-        val implemented = (target as? ElixirRenameTarget)?.renamedWith().orEmpty()
-        if (implemented.isEmpty()) return queries
-
-        val all = queries + implemented.flatMap { searchRequests(project, it, searchScope) }
-
-        return listOf(
-            UniqueResultsQuery(all.reduce { merged, next -> MergeQuery(merged, next) }) { usage ->
-                (usage as? PsiUsage)?.let { it.file to it.range } ?: usage
-            }
-        )
+        return queries
     }
 
     /**

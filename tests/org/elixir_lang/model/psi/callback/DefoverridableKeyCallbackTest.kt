@@ -4,15 +4,13 @@ import com.intellij.ide.impl.HeadlessDataManager
 import com.intellij.model.psi.PsiSymbolReferenceService
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
-import org.elixir_lang.code_insight.assertGotoDeclarationLandsIn
+import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
 import org.elixir_lang.code_insight.enclosingCallAtCaret
 import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
 import org.elixir_lang.model.psi.FunctionArityKeywordPair
 import org.elixir_lang.model.psi.function.FunctionArityKeywordPairReference
-import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.DefinitionDeclaration
-import org.elixir_lang.psi.Module
 import org.elixir_lang.psi.QuotableKeywordPair
 
 /**
@@ -194,7 +192,8 @@ class DefoverridableKeyCallbackTest : PlatformTestCase() {
         assertTrue("`id: 1` among $usages", usages.contains(offsetOf("id: 1", "id")))
     }
 
-    fun testGotoDeclarationFromADelegationNamesItsCallback() {
+    /** A delegation head declares its own function, so it names no callback. */
+    fun testADelegationHeadNamesNoCallback() {
         myFixture.configureByFile("key.ex")
         caretOn("defdelegate id", "id")
 
@@ -203,7 +202,7 @@ class DefoverridableKeyCallbackTest : PlatformTestCase() {
             .flatMap { it.resolveReference() }
             .filterIsInstance<Callback>()
 
-        assertEquals(listOf("id/1"), callbacks.map(::describe))
+        assertEquals(emptyList<String>(), callbacks.map(::describe))
     }
 
     /** Without `as:` the head names its target's function too, so renaming only the head would break the call. */
@@ -215,14 +214,22 @@ class DefoverridableKeyCallbackTest : PlatformTestCase() {
         assertTrue(myFixture.file.text.contains("defdelegate id(socket), to: Ids"))
     }
 
-    fun testCtrlClickOnADelegationHeadGoesToItsTarget() {
+    fun testCtrlClickOnADelegationHeadShowsItsUsages() {
         myFixture.configureByFile("key.ex")
         caretOn("defdelegate id", "id")
 
-        myFixture.assertGotoDeclarationLandsIn("id", "`Ids.id/1`") { definition ->
-            CallDefinitionClause.`is`(definition) &&
-                CallDefinitionClause.enclosingModularMacroCall(definition)?.let { Module.name(it) } == "Ids"
-        }
+        myFixture.assertShowUsagesChosenAtCaret()
+    }
+
+    /** Without `as:` the head names its target's function too, so the two rename together. */
+    fun testRenamingADelegationHeadRenamesItsTarget() {
+        myFixture.configureByFile("key.ex")
+        caretOn("defdelegate id", "id")
+        myFixture.renameTargetAtCaret("fresh")
+
+        val text = myFixture.file.text
+        assertTrue(text, text.contains("defdelegate fresh(socket), to: Ids"))
+        assertTrue(text, text.contains("def fresh(socket), do: socket"))
     }
 
     /** The callbacks the `defoverridable` key at the caret resolves to. */

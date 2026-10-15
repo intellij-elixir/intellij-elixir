@@ -16,7 +16,7 @@ class AnswerChangeTest : PlatformTestCase() {
     }
 
     fun testCallbackHeadNamedByUnquote() = assertNoLongerReachesUnquoteName("unquotes.ex:16:13")
-    fun testDelegationHeadNamedByUnquote() = assertNoLongerReachesUnquoteName("unquotes.ex:18:15")
+    fun testDelegationCallNamedByUnquote() = assertNoLongerReachesUnquoteName("unquotes.ex:29:28")
     fun testUseNamedByUnquote() = assertNoLongerReachesUnquoteName("unquotes.ex:28:31")
 
     fun testLiteralAtomHeadIsFoundByItsAtom() {
@@ -66,7 +66,7 @@ class AnswerChangeTest : PlatformTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang"
 
     companion object {
-        val CHANGED = setOf("unquotes.ex:16:13", "unquotes.ex:18:15", "unquotes.ex:28:31")
+        val CHANGED = setOf("unquotes.ex:16:13", "unquotes.ex:28:31", "unquotes.ex:29:28")
 
         private const val UNQUOTES = "unquotes"
         private const val UNQUOTE_NAME = "unquotes.ex:9:3 (invalid)"

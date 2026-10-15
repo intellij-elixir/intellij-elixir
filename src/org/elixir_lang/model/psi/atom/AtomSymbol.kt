@@ -18,7 +18,7 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.ElixirRenameTarget
 import org.elixir_lang.model.psi.ElixirSymbolWithUsages
 import org.elixir_lang.model.psi.function.FunctionSymbol
-import org.elixir_lang.navigation.ElixirClausePresentation
+import org.elixir_lang.navigation.DeclarationHead
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
 import java.util.*
@@ -86,7 +86,9 @@ class AtomSymbol(
 
     @RequiresReadLock
     private fun clausePresentationText(): String? =
-        displayText ?: (declarationElement() as? Call)?.let(ElixirClausePresentation::elementText)
+        displayText ?: (declarationElement() as? Call)?.let { clause ->
+            CallDefinitionClause.declaration(clause, ResolveState.initial())?.let { DeclarationHead.text(it, clause) }
+        }
 
     override fun equals(other: Any?): Boolean =
         other is AtomSymbol &&
@@ -138,7 +140,7 @@ class AtomSymbol(
 
             val presentationText =
                 if (navigationClause != null && CallDefinitionClause.`is`(navigationClause)) {
-                    ElixirClausePresentation.elementText(navigationClause)
+                    DeclarationHead.text(callDefinition.declaration(), navigationClause)
                 } else {
                     null
                 }

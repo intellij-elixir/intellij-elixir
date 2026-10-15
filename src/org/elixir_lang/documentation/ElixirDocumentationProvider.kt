@@ -17,6 +17,10 @@ import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.None
 import org.elixir_lang.beam.psi.BeamFileImpl
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.declaration.DelegationPrecedence
+import org.elixir_lang.declaration.Feature
+import org.elixir_lang.declaration.Form
+import org.elixir_lang.declaration.Use
+import org.elixir_lang.declaration.atItsHead
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver.languageLevelFor
 import org.elixir_lang.lowering.identifierAtomName
 import org.elixir_lang.psi.*
@@ -26,7 +30,9 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.childExpressions
 import org.elixir_lang.psi.impl.declaringModuleCall
 import org.elixir_lang.psi.impl.identifierName
+import org.elixir_lang.psi.impl.isInterpolatedWithin
 import org.elixir_lang.psi.operation.capture.NonNumeric
+import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.psi.stub.type.call.Stub.isModular
 import org.elixir_lang.reference.CaptureNameArity
 import org.elixir_lang.reference.Resolver
@@ -250,6 +256,29 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             ?.takeIf { it.nameElement == call }
             ?: call.getReference() as? PsiPolyVariantReference
 
+    /**
+     * Past a delegation's own @doc, prefer source Call elements (CallDefinitionClause), falling back to BEAM stubs
+     * (CallDefinitionImpl).
+     */
+    private fun bestMatch(elements: List<PsiElement>): PsiElement? =
+        DelegationPrecedence.documented(
+            elements,
+            { it is Call && Delegation.`is`(it) },
+            { SourceFileDocsHelper.fetchDocs(it) != null }
+        ) {
+            elements.filterIsInstance<Call>().firstOrNull { CallDefinitionClause.`is`(it) }
+                ?: elements.filterIsInstance<BeamCallDefinition>().firstOrNull()
+        }
+
+    /** A `defdelegate` [head] documents its delegation, then what it delegates to. */
+    private fun delegationHeadDocumented(head: Call): PsiElement? {
+        val delegation = DeclaringForm.named(head)?.call ?: return null
+        val use = Use.of(head) as? Use.Named ?: return null
+        val delegatedTo = atItsHead(delegation, use, Feature.DOCUMENTATION)?.delegatedTo.orEmpty()
+
+        return bestMatch(listOf(delegation) + delegatedTo.map { it.element })
+    }
+
     private tailrec fun getCustomDocumentationElement(contextElement: PsiElement): PsiElement? = when {
         contextElement is LeafPsiElement || contextElement is ElixirIdentifier || contextElement is ElixirRelativeIdentifier ->
             getCustomDocumentationElement(contextElement.parent)
@@ -265,6 +294,9 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 ?.firstOrNull()
         }
 
+        contextElement is Call && DeclaringForm.named(contextElement)?.form == Form.DELEGATION ->
+            delegationHeadDocumented(contextElement)
+
         contextElement is Call -> {
             documentedReference(contextElement)
                 ?.let { reference ->
@@ -273,18 +305,6 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                     val validElements = allResults
                         .filter(ResolveResult::isValidResult)
                         .mapNotNull(ResolveResult::getElement)
-
-                    // Past a delegation's own @doc, prefer source Call elements (CallDefinitionClause), falling
-                    // back to BEAM stubs (CallDefinitionImpl).
-                    fun bestMatch(elements: List<PsiElement>): PsiElement? =
-                        DelegationPrecedence.documented(
-                            elements,
-                            { it is Call && Delegation.`is`(it) },
-                            { SourceFileDocsHelper.fetchDocs(it) != null }
-                        ) {
-                            elements.filterIsInstance<Call>().firstOrNull { CallDefinitionClause.`is`(it) }
-                                ?: elements.filterIsInstance<BeamCallDefinition>().firstOrNull()
-                        }
 
                     // If no exact arity match (validResult), fall back to results with an exact name match
                     // from the same module (e.g., Enum.map/2 when call site has wrong arity).
@@ -331,7 +351,8 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
 
     /** The atom whose quoted name holds [element], unless [element] is inside an interpolation in that name. */
     private fun enclosingQuotedAtom(element: PsiElement): ElixirAtom? =
-        PsiTreeUtil.getParentOfType(element, ElixirLine::class.java, false, ElixirInterpolation::class.java)
+        PsiTreeUtil.getParentOfType(element, ElixirLine::class.java, false)
+            ?.takeUnless { element.isInterpolatedWithin(it) }
             ?.parent as? ElixirAtom
 
     private fun formatDocs(element: PsiElement, fetchedDocs: FetchedDocs): String {
