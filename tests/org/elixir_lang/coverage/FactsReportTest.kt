@@ -11,6 +11,7 @@ import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.SourceOrigin
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.elixir_surface.LegManifest.environment
+import org.elixir_lang.snapshot.CompilerCorpusJoinTestCase
 import org.elixir_lang.snapshot.CompilerFacts
 import org.elixir_lang.snapshot.CompilerFacts.INPUTS
 import org.elixir_lang.snapshot.CompilerJoin
@@ -192,6 +193,24 @@ class FactsReportTest : SnapshotTestCase() {
                 "def\tdef\tmatched\tclause\t1",
             ).joinToString("\n", postfix = "\n"),
             FactsReport.sum("1.20.4", listOf(first, second))
+        )
+    }
+
+    fun testCorpusReportIsTheSumOfItsShards() {
+        val elixirVersion = environment("ELIXIR_VERSION")
+        val shards = (0 until CompilerCorpusJoinTestCase.SHARDS).map { shard ->
+            val report = File("$ROOT/$elixirVersion/corpus-$shard.report")
+
+            assertTrue("No committed report for Elixir $elixirVersion, corpus shard $shard: $report", report.isFile)
+            report.readText()
+        }
+
+        LegManifest.assertMatchesFile(
+            ROOT,
+            elixirVersion,
+            "corpus.report",
+            FactsReport.sum(elixirVersion, shards),
+            regenerate(elixirVersion)
         )
     }
 

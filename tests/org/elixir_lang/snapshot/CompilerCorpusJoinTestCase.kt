@@ -6,6 +6,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileFilter
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.LightProjectDescriptor
+import org.elixir_lang.coverage.FactsReport
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.elixir_surface.LegManifest.environment
 import org.elixir_lang.snapshot.CompilerFacts.Fact
@@ -53,6 +54,8 @@ abstract class CompilerCorpusJoinTestCase(private val shard: Int) : SnapshotTest
                 "join ${(done - copied) / NANOS_PER_MILLI} ms"
         )
 
+        val regenerate = LegManifest.regenerateCommand(this::class, elixirVersion, environment("ERLANG_VERSION"))
+
         assertEquals(
             "Joined, by kind, other than once for each position or def fact",
             counted(sharded),
@@ -64,7 +67,14 @@ abstract class CompilerCorpusJoinTestCase(private val shard: Int) : SnapshotTest
             elixirVersion,
             "corpus-$shard.join.txt",
             CompilerJoin.grouped(joined).joinToString("\n", postfix = "\n"),
-            LegManifest.regenerateCommand(this::class, elixirVersion, environment("ERLANG_VERSION"))
+            regenerate
+        )
+        LegManifest.assertMatchesFile(
+            FactsReport.ROOT,
+            elixirVersion,
+            "corpus-$shard.report",
+            FactsReport.report(elixirVersion, joined, shard),
+            regenerate
         )
     }
 

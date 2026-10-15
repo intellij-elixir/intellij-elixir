@@ -1,0 +1,52 @@
+# Elixir 1.12.3
+kind	sub-kind	outcome	label	count
+ref	imported_function	matched	clause	13437
+ref	imported_function	matched	delegation	11
+ref	imported_function	no use	none	63
+ref	imported_function	other	none	1
+ref	imported_function	nothing	none	684
+ref	imported_macro	matched	clause	20112
+ref	imported_macro	no use	none	2436
+ref	imported_macro	other	none	148
+ref	imported_macro	nothing	none	7
+ref	local_function	matched	clause	2605
+ref	local_function	matched	delegation	7
+ref	local_function	matched	eex_function_from	1
+ref	local_function	no use	none	66
+ref	local_function	other	none	2
+ref	local_function	nothing	none	3
+ref	local_macro	matched	clause	653
+ref	local_macro	no use	none	5
+ref	local_macro	nothing	none	76
+ref	remote_function	matched	callback+clause	56
+ref	remote_function	matched	clause	9090
+ref	remote_function	matched	compiled	8
+ref	remote_function	matched	delegation	96
+ref	remote_function	matched	eex_function_from	2
+ref	remote_function	matched	exception	1
+ref	remote_function	no use	none	414
+ref	remote_function	other	none	87
+ref	remote_function	nothing	none	605
+ref	remote_macro	matched	clause	83
+ref	remote_macro	no use	none	323
+ref	remote_macro	nothing	none	58
+alias	-	matched	none	13027
+alias	-	no use	none	29
+alias	-	other	none	248
+alias	-	nothing	none	445
+def	def	matched	clause	192
+def	def	nothing	none	6794
+def	defmacro	matched	clause	69
+def	defmacro	nothing	none	13
+def	defmacrop	matched	clause	38
+def	defmacrop	nothing	none	12
+def	defp	matched	clause	224
+def	defp	nothing	none	77
+declaration	def	matched	clause	246
+declaration	def	nothing	clause	179
+declaration	defmacro	matched	clause	67
+declaration	defmacro	nothing	clause	48
+declaration	defmacrop	matched	clause	40
+declaration	defmacrop	nothing	clause	7
+declaration	defp	matched	clause	240
+declaration	defp	nothing	clause	15
