@@ -55,16 +55,28 @@ internal object UseSymbols {
 
     @RequiresReadLock
     private fun of(use: Use, remote: Boolean, arity: (Found) -> Int): List<Symbol> {
-        val found = preferred(use, sourceFor(Feature.SYMBOL_REFERENCES).candidates(use, false), false).map { it.found }
+        val found = step(use).map { it.found }
 
         return RejectedCall.named(found, Found::candidate, remote, ::admits)
             ?.flatMap { named -> (named.arities.minOrNull() ?: named.from)?.let { symbols(named.candidate, it) }.orEmpty() }
             ?.map(::NearMiss)
-            ?: found.filter(::admitted).flatMap { symbols(it, arity(it)) }
+            ?: admitted(found, arity)
     }
+
+    /** The Symbols of the candidates the step admits for [use], never a [NearMiss]: what a call site names. */
+    @RequiresReadLock
+    fun admitted(use: Use.Named): List<Symbol> = admitted(step(use).map { it.found }) { use.arity }
+
+    @RequiresReadLock
+    private fun admitted(found: List<Found>, arity: (Found) -> Int): List<Symbol> =
+        found.filter(::admitted).flatMap { symbols(it, arity(it)) }
 
     /** The arity of the one Symbol a head declares: its lowest, as a head with defaults declares one Symbol for its name. */
     fun headArity(declaration: Declaration): Int? = declaration.arity.arityInterval()?.minimum
+
+    @RequiresReadLock
+    private fun step(use: Use): List<Preferred> =
+        preferred(use, sourceFor(Feature.SYMBOL_REFERENCES).candidates(use, false), false)
 
     /** Whether each `import` [found] was reached through brings it in at [arity]. */
     @RequiresReadLock

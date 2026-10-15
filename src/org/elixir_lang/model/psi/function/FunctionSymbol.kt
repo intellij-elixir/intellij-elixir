@@ -138,12 +138,18 @@ class FunctionSymbol(
 
     /**
      * The callbacks and protocol functions the definition this symbol is made from, a clause or a `defdelegate`,
-     * implements.
+     * implements. Made from a protocol's own declaration, as an atom's symbol can be, it is that protocol function.
      */
     @RequiresReadLock
     fun implementedMembers(): List<ElixirSymbolWithUsages> =
         madeFromDefinition(file, range)
-            ?.let { CallbackImplementation.implementedCallbacks(it) + ProtocolImplementation.membersImplementedBy(it) }
+            ?.let {
+                buildList {
+                    addAll(CallbackImplementation.implementedCallbacks(it))
+                    addAll(ProtocolImplementation.membersImplementedBy(it))
+                    addAll(ProtocolFunction.fromClause(it).filter { member -> member.arity == arity })
+                }
+            }
             .orEmpty()
 
     /**

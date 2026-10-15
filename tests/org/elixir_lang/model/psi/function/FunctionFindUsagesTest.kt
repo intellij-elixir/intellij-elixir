@@ -80,6 +80,14 @@ class FunctionFindUsagesTest : PlatformTestCase() {
         )
     }
 
+    /** A bare call reaches `Kernel` without an `import`. */
+    fun testBareCallToAKernelFunctionIsFound() {
+        myFixture.addFileToProject("use.ex", "defmodule Use do\n  def run(x), do: kernel_only(x)\nend\n")
+        myFixture.configureByText("kernel.ex", "defmodule Kernel do\n  def <caret>kernel_only(x), do: x\nend\n")
+
+        assertEquals(1, callSiteCount(myFixture.singleTargetPsiUsagesAtCaret(project)))
+    }
+
     fun testRecursiveFunctionIncludesFamilyDeclarationsAndCallSite() {
         val (totalCount, callSiteCount) = functionUsageCounts("recursive_family.ex")
         assertEquals(3, totalCount)
