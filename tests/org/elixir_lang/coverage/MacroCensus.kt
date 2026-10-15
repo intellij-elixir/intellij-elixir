@@ -12,6 +12,10 @@ import org.elixir_lang.expander.Summaries
 import java.io.File
 import java.util.concurrent.TimeUnit
 
+/** The macro [dispatch] names, as `Module.name/arity`. */
+internal fun macroName(dispatch: Dispatch): String =
+    "${Module.indexName(dispatch.receiver)}.${dispatch.name}/${dispatch.arity}"
+
 /**
  * The macros Elixir's compiler dispatched while compiling a Mix project and its dependencies, each told apart as
  * modelled or [Opaque][isOpaque] by the expander's own summary registry.
@@ -39,7 +43,7 @@ internal class MacroCensus(val elixirVersion: String, val project: String, val e
         /** Whether no summary models the macro, which stops the expander at its call. */
         val isOpaque: Boolean get() = Summaries.of(dispatch) == null
 
-        val macro: String get() = "${Module.indexName(dispatch.receiver)}.${dispatch.name}/${dispatch.arity}"
+        val macro: String get() = macroName(dispatch)
     }
 
     /** The split between events with and without a column holds only where every event was parsed with columns on. */

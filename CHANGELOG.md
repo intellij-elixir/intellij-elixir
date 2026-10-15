@@ -726,6 +726,8 @@
 
 ### Build / CI
 
+- [#4461](https://github.com/intellij-elixir/intellij-elixir/pull/4461) [@sh41](https://github.com/sh41)
+  - **A test-side report expands every file of a Mix project and its dependencies and shows, for each module, how many units the expander reached, how the module ended and what stopped it first.** Refs [#4460](https://github.com/intellij-elixir/intellij-elixir/issues/4460).
 - [#4459](https://github.com/intellij-elixir/intellij-elixir/pull/4459) [@sh41](https://github.com/sh41)
   - **Committed files per leg count the compiler facts the plugin answers, in the fixtures and in Elixir's own tests, by kind of call or `def` keyword, by outcome and by the form or backing of the declarations it matched.** Fixes [#4458](https://github.com/intellij-elixir/intellij-elixir/issues/4458).
 - [#4451](https://github.com/intellij-elixir/intellij-elixir/pull/4451) [@sh41](https://github.com/sh41)
