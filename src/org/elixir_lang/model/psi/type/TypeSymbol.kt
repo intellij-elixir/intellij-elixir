@@ -10,12 +10,16 @@ import com.intellij.platform.backend.navigation.NavigationRequest
 import com.intellij.platform.backend.navigation.NavigationTarget
 import com.intellij.platform.backend.presentation.TargetPresentation
 import com.intellij.psi.PsiFile
+import com.intellij.psi.ResolveState
 import com.intellij.psi.SmartPointerManager
 import com.intellij.psi.search.SearchScope
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.ElixirRenameTarget
+import org.elixir_lang.model.psi.function.UseSymbols
+import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.CallDefinitionSpecification
 import org.elixir_lang.structure_view.element.Type as TypeElement
 import java.util.*
@@ -42,15 +46,14 @@ class TypeSymbol(
         // the subsequent programmatic commit edits the wrong range and applies nothing. The attribute
         // survives the identifier replacement, so its name-identifier range is recomputed on restore.
         val attribute = generateSequence(file.findElementAt(range.startOffset)) { it.parent }
-            .filterIsInstance<org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall<*>>()
-            .firstOrNull { TypeElement.`is`(it) && TypeElement.nameIdentifier(it)?.textRange == range }
+            .filterIsInstance<AtUnqualifiedNoParenthesesCall<*>>()
+            .firstOrNull { TypeElement.`is`(it) && nameRange(it) == range }
         if (attribute != null) {
             val attributePointer = SmartPointerManager.getInstance(file.project)
                 .createSmartPsiElementPointer(attribute, file)
             return Pointer {
                 val restoredAttribute = attributePointer.dereference() ?: return@Pointer null
-                val restoredRange = TypeElement.nameIdentifier(restoredAttribute)?.textRange
-                    ?: return@Pointer null
+                val restoredRange = nameRange(restoredAttribute) ?: return@Pointer null
                 TypeSymbol(restoredAttribute.containingFile, restoredRange, moduleName, name, arity)
             }
         }
@@ -88,12 +91,14 @@ class TypeSymbol(
         @RequiresReadLock
         fun fromTypeAttribute(typeAttribute: Call): List<TypeSymbol> {
             if (!TypeElement.`is`(typeAttribute)) return emptyList()
-            val typeAttributeCall = typeAttribute as? org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall<*> ?: return emptyList()
+            val typeAttributeCall = typeAttribute as? AtUnqualifiedNoParenthesesCall<*> ?: return emptyList()
             val specification = TypeElement.specification(typeAttributeCall) ?: return emptyList()
             val typeHead = CallDefinitionSpecification.specificationType(specification) ?: return emptyList()
-            val name = typeHead.functionName() ?: return emptyList()
-            val arity = typeHead.resolvedFinalArity()
-            val nameId = TypeElement.nameIdentifier(typeAttributeCall) ?: return emptyList()
+            // A type head is named as a definition head is, so `unquote(:t)()` is `t/0`.
+            val nameArity = CallDefinitionHead.nameArityInterval(typeHead, ResolveState.initial()) ?: return emptyList()
+            val name = nameArity.name
+            val arity = nameArity.arityInterval.minimum
+            val range = nameRange(typeAttributeCall) ?: return emptyList()
             val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(typeAttributeCall) ?: return emptyList()
             val moduleName = runCatching { org.elixir_lang.psi.Module.name(enclosingModular) }
                 .getOrElse { if (it is ProcessCanceledException) throw it else null }
@@ -105,7 +110,15 @@ class TypeSymbol(
             // source type `originalFile` is the file itself, so this is a no-op there.
             val declarationFile = typeAttributeCall.containingFile.originalFile
 
-            return listOf(TypeSymbol(declarationFile, nameId.textRange, moduleName, name, arity))
+            return listOf(TypeSymbol(declarationFile, range, moduleName, name, arity))
         }
+
+        /** The text a rename of the type [typeAttribute] declares replaces, read from its head as a definition's is. */
+        @RequiresReadLock
+        private fun nameRange(typeAttribute: AtUnqualifiedNoParenthesesCall<*>): TextRange? =
+            TypeElement.specification(typeAttribute)
+                ?.let(CallDefinitionSpecification::specificationType)
+                ?.let(CallDefinitionHead::nameElement)
+                ?.let(UseSymbols::nameRange)
     }
 }

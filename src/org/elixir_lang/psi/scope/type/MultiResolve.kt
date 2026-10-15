@@ -16,6 +16,7 @@ import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.operation.*
 import org.elixir_lang.psi.scope.ResolveResultOrderedSet
 import org.elixir_lang.psi.scope.WhileIn.whileIn
+import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.Type as TypeElement
 
 class MultiResolve
@@ -48,10 +49,9 @@ private constructor(private val name: String,
             }
 
     private fun executeOnTypeHeadName(definition: Call, typeHead: Call, state: ResolveState): Boolean =
-            typeHead.functionName()?.let { name ->
+            CallDefinitionHead.nameArityInterval(typeHead, ResolveState.initial())?.let { (name, arityInterval) ->
                 if (name.startsWith(this.name)) {
-                    val arity = typeHead.resolvedFinalArity()
-                    val validResult = name == this.name && arity == this.arity
+                    val validResult = name == this.name && arityInterval.minimum == this.arity
 
                     resolveResultOrderedSet.add(definition, typeHead.text, validResult, state.visitedElementSet())
 
