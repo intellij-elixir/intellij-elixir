@@ -373,8 +373,7 @@ private class Group(val scenario: Scenario) {
         openAt(place)
         val keys = nameStarts(myFixture.editor.document.charsSequence, myFixture.editor.caretModel.offset - 1).flatMap(::highlightKeysAt)
         val macro = scenario.form in MACRO_FORMS
-        // A guard is a macro Elixir allows in a guard, and it has keys of its own; they fall back to the function
-        // keys, so an unconfigured scheme shows it as a function, but the key says what it is.
+        // A guard is a macro Elixir allows in a guard, and it has keys of its own; they fall back to the macro keys.
         val guard = scenario.form in GUARD_FORMS
 
         if (binding == null) {
