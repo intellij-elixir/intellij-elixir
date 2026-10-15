@@ -1396,12 +1396,17 @@ private class Group(val scenario: Scenario) {
 
         val heads = Expected.heads(module, definition.name, definition.maxArity)
         val definer = heads.first().definer
+        // `defexception` writes no name: what it generates is described as the call that generates it.
+        val generated = scenario.form == "defexception"
+        val describedName = if (generated) "defexception" else definition.name
         val (expected, actual) = when (location) {
-            "name" -> setOf(definition.name) to targets.map { (it as? PsiNamedElement)?.name }
-            "shortName" -> setOf(definition.name) to targets.map { ElementDescriptionUtil.getElementDescription(it, UsageViewShortNameLocation.INSTANCE) }
-            "type" -> setOf(if (definer in MACRO_FORMS) "macro" else "function") to
+            "name" -> setOf(describedName) to targets.map { (it as? PsiNamedElement)?.name }
+            "shortName" -> setOf(describedName) to targets.map { ElementDescriptionUtil.getElementDescription(it, UsageViewShortNameLocation.INSTANCE) }
+            "type" -> setOf(if (generated) "exception" else if (definer in MACRO_FORMS) "macro" else "function") to
                 targets.map { ElementDescriptionUtil.getElementDescription(it, UsageViewTypeLocation.INSTANCE) }
-            "nodeText" -> {
+            "nodeText" -> if (generated) {
+                setOf("defexception [:message]") to targets.map { ElementDescriptionUtil.getElementDescription(it, UsageViewNodeTextLocation.INSTANCE) }
+            } else {
                 // A `.beam` with neither debug info nor docs records each exported arity, but not which are defaults.
                 val labels = if (backing == Backing.EX_GEN && definition.minArity < definition.maxArity) {
                     (definition.minArity..definition.maxArity).map { arity -> "$definer ${definition.name}(${(1..arity).joinToString(", ") { "arg$it" }})" }
