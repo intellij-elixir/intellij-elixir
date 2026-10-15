@@ -1274,9 +1274,7 @@ private class Group(val scenario: Scenario) {
             val functionHeads = named().flatMap(::headLines).toSet()
             assertEquals("Go To Declaration from ${place.id} landed on a function head", emptyList<String>(), landed.filter { it in functionHeads })
         } else {
-            // A `@spec` describes the definition it is written over, so from a delegate's spec the user lands on the
-            // `defdelegate` itself, not on the function it delegates to.
-            val expected = if (specName(place.id)) headLines(binding) else goToDeclarationLines(binding)
+            val expected = goToDeclarationLines(binding)
             assertEquals("Go To Declaration from ${place.id} landed on the wrong heads", expected, landed)
         }
     }
@@ -1695,7 +1693,7 @@ private class Group(val scenario: Scenario) {
     private fun describedDefinition(binding: Binding): Pair<DeclaringModule, Definition> {
         val (module, definition) = definition(binding)
         val target = delegatedTarget(module, definition)
-            ?.takeUnless { place is Place.Head || specName(place.id) || (module.compiled && backing in setOf(Backing.EX_GEN, Backing.ERL_GEN)) }
+            ?.takeUnless { place is Place.Head || (module.compiled && backing in setOf(Backing.EX_GEN, Backing.ERL_GEN)) }
             ?: return module to definition
         val name = module.delegateAs.orEmpty() + definition.name
 
