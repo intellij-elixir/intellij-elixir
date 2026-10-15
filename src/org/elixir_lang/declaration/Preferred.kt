@@ -1,10 +1,13 @@
 package org.elixir_lang.declaration
 
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.model.psi.FunctionArityKeywordPair
+import org.elixir_lang.psi.Use as UseCall
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.reference.Resolver
 import org.elixir_lang.structure_view.element.Delegation
+import org.elixir_lang.structure_view.element.Overridable
 
 /** A candidate [found] at a use, and, for a delegation, what it delegates to, preferred as [found] is. */
 data class Preferred(val found: Found, val delegatedTo: List<Found>)
@@ -59,24 +62,32 @@ internal fun <T> admitted(list: List<T>, incompleteCode: Boolean, found: (T) -> 
         Resolver.preferValid(list) { found(it).candidate.applicability.admitted }
     }
 
-/** An overridable declaration goes beside a user definition of its name and arity in the same module. */
+/**
+ * An overridable declaration goes when user definitions in the same module replace every arity it declares: a head
+ * with defaults keeps the arities no user replaces.
+ */
 internal fun <T> overridden(list: List<T>, found: (T) -> Found): List<T> {
     val users = list.map(found).filter { role(it) == Role.USER }
 
     return list.filterNot { element ->
         val overridable = found(element)
         val declaration = overridable.candidate.declaration
+        val interval = declaration.arity.arityInterval()
+        val maximum = interval?.maximum
 
-        isOverridable(overridable) &&
-            users.any {
-                it.candidate.declaration.name == declaration.name &&
-                    it.candidate.declaration.overlaps(declaration) &&
-                    it.declaringModuleName() == overridable.declaringModuleName()
+        isOverridable(overridable) && interval != null && maximum != null &&
+            (interval.minimum..maximum).all { arity ->
+                users.any {
+                    it.candidate.declaration.name == declaration.name &&
+                        it.candidate.declaration.overlaps(ArityKnowledge.Exact(arity)) &&
+                        it.declaringModuleName() == overridable.declaringModuleName()
+                }
             }
     }
 }
 
 /** Whether a later user definition in [found]'s module with its name and arity replaces it. */
+@RequiresReadLock
 fun isOverridable(found: Found): Boolean = role(found) == Role.OVERRIDABLE
 
 /** What a declaration is to [overridden]. */
@@ -87,7 +98,8 @@ private fun role(found: Found): Role =
         is Declared.Compiled -> Role.USER
         is Declared.Source ->
             when (declared.form) {
-                Form.CLAUSE, Form.DELEGATION, Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED -> Role.USER
+                Form.CLAUSE, Form.DELEGATION -> if (followedByItsDefoverridable(found)) Role.OVERRIDABLE else Role.USER
+                Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED -> Role.USER
                 // The two functions `defexception` declares, `exception/1` and `message/1`.
                 Form.EXCEPTION -> Role.OVERRIDABLE
                 // A contract, not a body.
@@ -95,10 +107,28 @@ private fun role(found: Found): Role =
             }
     }
 
+/**
+ * `defoverridable` takes only what is defined when it runs, so it makes overridable a definition it follows in the same
+ * body, a `use`'s `quote` included, and what a `use` it follows injects, a `use` inside another's `quote` included.
+ */
+private fun followedByItsDefoverridable(found: Found): Boolean {
+    val definition = found.element as? Call ?: return false
+    val uses = if (found.candidate.reach == Reach.USE) found.via.filter { UseCall.`is`(it) } else emptyList()
+    val declaration = found.candidate.declaration
+
+    return (listOf(definition) + uses)
+        .asSequence()
+        .flatMap { position -> generateSequence(position.nextSibling) { it.nextSibling } }
+        .filterIsInstance<Call>()
+        .filter { Overridable.`is`(it) }
+        .flatMap { FunctionArityKeywordPair.occurrencesIn(it) }
+        .any { it.name == declaration.name && declaration.overlaps(ArityKnowledge.Exact(it.arity)) }
+}
+
 /** Whether the two share an arity. An `Unknown` arity shares none, so a declaration of it stays. */
-private fun Declaration.overlaps(other: Declaration): Boolean {
+private fun Declaration.overlaps(otherArity: ArityKnowledge): Boolean {
     val interval = arity.arityInterval()
-    val otherInterval = other.arity.arityInterval()
+    val otherInterval = otherArity.arityInterval()
 
     return interval != null && otherInterval != null && interval.overlaps(otherInterval)
 }
