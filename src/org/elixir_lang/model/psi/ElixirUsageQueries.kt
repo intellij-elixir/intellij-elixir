@@ -462,7 +462,7 @@ internal object ElixirUsageQueries {
         // The reference's range is the name between the colon and any quotes, however many tokens an escape splits
         // it into, so a rename replaces the name and not the leaf that happened to be handed on.
         val reference = references.firstOrNull { reference ->
-            reference.multiResolve(false)
+            reference.preferredResults()
                 .asSequence()
                 .mapNotNull { it.element }
                 .any { FunctionSymbol.matchesAtom(it, symbol, atom) }

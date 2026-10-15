@@ -125,6 +125,16 @@ class RenameMatrixTest : PlatformTestCase() {
     fun testFunctionApplyAtom() =
         doTestFromEveryOccurrence("function_apply_atom", "renamee", "fresh", expectedCarets = 2)
 
+    /** An atom follows only the function of its own arity: `:renamee` in `apply(Mod, :renamee, [x, y])` is `renamee/2`. */
+    fun testFunctionApplyAtomArityFamilies() =
+        doTestFromEveryOccurrence(
+            "function_apply_atom_arity_families", "renamee", "fresh", expectedCarets = 4,
+            goldenOverrides = mapOf(
+                1 to "function_apply_atom_arity_families_after_arity2.ex", // caret on `def renamee(x, y)`
+                3 to "function_apply_atom_arity_families_after_arity2.ex"  // caret on `:renamee` in `[x, y]`
+            )
+        )
+
     /** `defguard` and its use in a `when` clause. */
     fun testFunctionDefguard() = doTestFromEveryOccurrence("function_defguard", "renamee", "fresh", expectedCarets = 2)
 
