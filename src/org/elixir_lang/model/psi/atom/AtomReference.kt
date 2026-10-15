@@ -60,38 +60,32 @@ class AtomReference(
             .resolveWithCaching(this, Resolver, false, incompleteCode)
     }
 
+    /**
+     * The definitions this atom names: those of its arity, or every same-named one when none has it or the arity is
+     * unknown. A wrong-arity definition is in [multiResolve], marked invalid.
+     */
+    @RequiresReadLock
+    fun preferredResults(): List<ResolveResult> = ReferenceResolver.preferIsValidResult(multiResolve(false).toList())
+
     override fun resolve(): PsiElement? =
-        ReferenceResolver.preferred(myElement, false, multiResolve(false).toList())
+        ReferenceResolver.preferred(myElement, false, preferredResults())
             .firstOrNull()
             ?.element
 
     override fun isSoft(): Boolean = true
 
     @RequiresReadLock
-    override fun resolveReference(): Collection<Symbol> {
-        val name = functionName ?: return emptyList()
-        val modulars = moduleElement.maybeModularNameToModulars(
-            maxScope = myElement.containingFile,
-            useCall = null,
-            incompleteCode = false
-        )
-
-        if (modulars.isEmpty()) return emptyList()
-
-        return modulars
-            .flatMap { modular ->
-                CallDefinitionClauseMultiResolve.resolveResults(name, arity, false, modular, atom = true)
-            }
-            .map { visitedResult -> visitedResult.element }
+    override fun resolveReference(): Collection<Symbol> =
+        preferredResults()
+            .mapNotNull { it.element }
             .flatMap { element ->
                 when (element) {
-                    is Call -> sourceCallSymbols(element, name)
+                    is Call -> AtomSymbol.fromClause(element)
                     is BeamCallDefinition -> AtomSymbol.fromBeamCallDefinition(element)
                     else -> emptyList()
                 }
             }
             .distinct()
-    }
 
     private object Resolver : ResolveCache.PolyVariantResolver<AtomReference> {
         override fun resolve(reference: AtomReference, incompleteCode: Boolean): Array<ResolveResult> {
@@ -121,15 +115,6 @@ class AtomReference(
                 .toTypedArray()
         }
     }
-}
-
-@RequiresReadLock
-private fun sourceCallSymbols(call: Call, name: String): List<AtomSymbol> {
-    if (!CallDefinitionClause.`is`(call)) return emptyList()
-    val nameArity = CallDefinitionClause.nameArityInterval(call, ResolveState.initial()) ?: return emptyList()
-    if (nameArity.name != name) return emptyList()
-    if (CallDefinitionClause.capabilities(call)?.quotesArguments == true) return emptyList()
-    return AtomSymbol.fromClause(call)
 }
 
 @RequiresReadLock

@@ -125,6 +125,30 @@ class ProtocolFunctionFindUsagesTest : PlatformTestCase() {
         )
     }
 
+    /** An atom in `apply/3` naming the protocol function is a use of it. */
+    fun testAtomNamingTheProtocolFunctionIsListed() {
+        myFixture.configureByFiles("usages_atom.ex")
+
+        assertEquals(
+            listOf(
+                "def size(data)" to true,
+                "def size(list), do: length(list)" to true,
+                "def by_atom(data), do: apply(UsagesAtom, :size, [data])" to false
+            ),
+            usageEntriesAtCaret()
+        )
+    }
+
+    /** The same for a protocol function no `defimpl` implements yet. */
+    fun testAtomNamingAnUnimplementedProtocolFunctionIsListed() {
+        myFixture.configureByFiles("usages_atom_unimplemented.ex")
+
+        assertEquals(
+            listOf("def size(data)", "def by_atom(data), do: apply(UsagesAtomUnimplemented, :size, [data])"),
+            usageLinesAtCaret()
+        )
+    }
+
     /** An atom naming a `defp` in another `defimpl` is a use of that `defp`, not of the implementations. */
     fun testAtomNamingAPrivateHelperIsNotAUseOfTheImplementations() {
         myFixture.configureByFiles("usages_private_helper_atom.ex")

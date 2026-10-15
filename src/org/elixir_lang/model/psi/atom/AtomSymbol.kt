@@ -16,6 +16,8 @@ import com.intellij.psi.SmartPointerManager
 import com.intellij.psi.search.SearchScope
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.ElixirRenameTarget
+import org.elixir_lang.model.psi.ElixirSymbolWithUsages
+import org.elixir_lang.model.psi.function.FunctionSymbol
 import org.elixir_lang.navigation.ElixirClausePresentation
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
@@ -98,6 +100,12 @@ class AtomSymbol(
     override fun hashCode(): Int = Objects.hash(moduleName, name, arity, macro, file.virtualFile, range)
 
     override fun toString(): String = "AtomSymbol($moduleName.$name/$arity, macro=$macro)"
+
+    /** The function this atom names, the same symbol for every use query and for rename. */
+    fun functionSymbol(): FunctionSymbol = FunctionSymbol(file, range, moduleName, name, arity, macro)
+
+    @RequiresReadLock
+    override fun renamedWith(): List<ElixirSymbolWithUsages> = functionSymbol().renamedWith()
 
     @RequiresReadLock
     fun declarationElement(): PsiElement? =

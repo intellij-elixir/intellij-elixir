@@ -119,6 +119,15 @@ class LibraryDeclarationRenameTest : PlatformTestCase() {
         assertRenameRefused(declaration, IMPLEMENTER, CALLBACK_SOURCE)
     }
 
+    /** The same from an atom naming the implementing function. */
+    fun testImplementedCallbackInALibraryIsRefusedFromAnAtom() {
+        val declaration = outsideProject("path_dependency_callback_atom/lib", "lib.ex", CALLBACK_SOURCE)
+
+        addSourcesLibrary(declaration.parent)
+
+        assertRenameRefused(declaration, IMPLEMENTER_ATOM, CALLBACK_SOURCE)
+    }
+
     fun testScratchFileRenames() {
         val scratch = ScratchRootType.getInstance().createScratchFile(
             project,
@@ -229,6 +238,8 @@ class LibraryDeclarationRenameTest : PlatformTestCase() {
         const val CALLBACK_SOURCE = "defmodule Lib do\n  @callback fun() :: :ok\nend\n"
         const val IMPLEMENTER =
             "defmodule Caller do\n  @behaviour Lib\n\n  @impl true\n  def fun, do: :ok\n\n  def run, do: fu<caret>n()\nend\n"
+        const val IMPLEMENTER_ATOM =
+            "defmodule Caller do\n  @behaviour Lib\n\n  @impl true\n  def fun, do: :ok\n\n  def run, do: apply(Caller, :fu<caret>n, [])\nend\n"
         const val CALLER = "defmodule Caller do\n  def run, do: Lib.fu<caret>n()\nend\n"
     }
 }

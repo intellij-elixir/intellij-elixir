@@ -85,7 +85,7 @@ import java.util.concurrent.Callable as JCallable
  *
  * - Every searchable symbol contributes its self-declaration usage.
  * - A [ProtocolFunction] additionally contributes each **call site** that dispatches to it
- *   (`Protocol.function(args)` of matching name/arity) and each implementing `def`/`defmacro`
+ *   (`Protocol.function(args)` of matching name/arity), each atom naming it, and each implementing `def`/`defmacro`
  *   clause inside a `defimpl` of the same protocol, each a declaration, and every use of those
  *   definitions (so rename keeps every implementation in sync, and Find Usages lists what rename touches).
  * - A [FunctionSymbol] that implements a callback or a protocol function also contributes everything that member does.
@@ -148,8 +148,9 @@ internal object ElixirUsageQueries {
         }
 
         // A function that implements a callback or a protocol function is one symbol with it: a use of the function is a
-        // use of the member, so a rename from a call to the function also renames the member and every implementation.
-        val implemented = (target as? FunctionSymbol)?.implementedMembers().orEmpty()
+        // use of the member, so a rename from a call to the function, or from an atom naming it, also renames the member
+        // and every implementation.
+        val implemented = (target as? ElixirRenameTarget)?.renamedWith().orEmpty()
         if (implemented.isEmpty()) return queries
 
         val all = queries + implemented.flatMap { searchRequests(project, it, searchScope) }
@@ -180,9 +181,11 @@ internal object ElixirUsageQueries {
             is ProtocolFunction -> {
                 val callSites = protocolCallSiteQuery(project, target, searchScope)
                 val implemented = protocolImplementedQuery(project, target, searchScope)
+                val atoms = protocolAtomQuery(project, target, searchScope)
                 queries += protocolImplementationQuery(project, target, searchScope)
-                // `Size.size(x)` is a dispatching call and, by its module, a call of an implementation.
-                queries += eachRangeOnce(MergeQuery(callSites, implemented))
+                // `Size.size(x)` is a dispatching call and, by its module, a call of an implementation, and an
+                // implementation's search finds the atoms naming the protocol function too.
+                queries += eachRangeOnce(MergeQuery(MergeQuery(callSites, implemented), atoms))
             }
 
             is FunctionSymbol -> {
@@ -194,11 +197,8 @@ internal object ElixirUsageQueries {
                 // An AtomSymbol IS a function reference (module/name/arity/macro, anchored at the
                 // def clause's name identifier - see AtomSymbol.fromClause), so renaming from the
                 // atom must rename everything renaming from the def would: the declaration
-                // family, call sites, specs, captures, keyword pairs - and the atoms themselves,
-                // which FunctionCallSiteMapper's own atomUsage branch already finds. Reuse the
-                // function queries via the field-for-field equivalent FunctionSymbol.
-                val functionSymbol =
-                    FunctionSymbol(target.file, target.range, target.moduleName, target.name, target.arity, target.macro)
+                // family, call sites, specs, captures, keyword pairs - and the atoms themselves.
+                val functionSymbol = target.functionSymbol()
                 queries += functionDeclarationFamilyQuery(project, functionSymbol, searchScope)
                 queries += functionCallSiteQuery(project, functionSymbol, searchScope)
             }
@@ -320,6 +320,19 @@ internal object ElixirUsageQueries {
         searchScope: SearchScope
     ): Query<out PsiUsage> =
         wordQuery(project, pf.name, searchScope, ProtocolCallSiteMapper(pf.createPointer()))
+
+    /** Each atom naming [pf], as in `apply(Size, :size, [x])`. */
+    private fun protocolAtomQuery(
+        project: Project,
+        pf: ProtocolFunction,
+        searchScope: SearchScope
+    ): Query<out PsiUsage> {
+        val pointer = FunctionSymbol(pf.file, pf.range, pf.protocolName, pf.name, pf.arity, pf.macro).createPointer()
+
+        return wordQuery(project, pf.name, searchScope, { leaf, _ ->
+            listOfNotNull(pointer.dereference()?.let { atomUsage(leaf, it) })
+        })
+    }
 
     private fun protocolImplementationQuery(
         project: Project,
@@ -449,6 +462,32 @@ internal object ElixirUsageQueries {
                 usageTextByName = if (keepsHeadText) { _ -> headName } else null
             )
         }
+    }
+
+    /** The atom [leaf] is in, when it names [symbol]. */
+    @RequiresReadLock
+    private fun atomUsage(leaf: PsiElement, symbol: FunctionSymbol): PsiUsage? {
+        val atom = PsiTreeUtil.getParentOfType(leaf, ElixirAtom::class.java, false) ?: return null
+        val references = PsiSymbolReferenceService.getService()
+            .getReferences(atom)
+            .filterIsInstance<AtomReference>()
+        if (references.isEmpty()) return null
+
+        // The reference's range is the name between the colon and any quotes, however many tokens an escape splits
+        // it into, so a rename replaces the name and not the leaf that happened to be handed on.
+        val reference = references.firstOrNull { reference ->
+            reference.preferredResults()
+                .asSequence()
+                .mapNotNull { it.element }
+                .any { FunctionSymbol.matchesAtom(it, symbol, atom) }
+        } ?: return null
+
+        return ElixirPsiUsage.create(
+            atom,
+            reference.absoluteRange.shiftLeft(atom.textRange.startOffset),
+            declaration = false,
+            usageType = CALL
+        )
     }
 
     /** The definition `leaf` is the head name of, when it implements [callback]. */
@@ -1057,31 +1096,6 @@ internal object ElixirUsageQueries {
             return ElixirPsiUsage.create(
                 key,
                 TextRange(0, key.textLength),
-                declaration = false,
-                usageType = CALL
-            )
-        }
-
-        @RequiresReadLock
-        private fun atomUsage(leaf: PsiElement, symbol: FunctionSymbol): PsiUsage? {
-            val atom = PsiTreeUtil.getParentOfType(leaf, ElixirAtom::class.java, false) ?: return null
-            val references = PsiSymbolReferenceService.getService()
-                .getReferences(atom)
-                .filterIsInstance<AtomReference>()
-            if (references.isEmpty()) return null
-
-            // The reference's range is the name between the colon and any quotes, however many tokens an escape splits
-            // it into, so a rename replaces the name and not the leaf that happened to be handed on.
-            val reference = references.firstOrNull { reference ->
-                reference.multiResolve(false)
-                    .asSequence()
-                    .mapNotNull { it.element }
-                    .any { FunctionSymbol.matchesAtom(it, symbol, atom) }
-            } ?: return null
-
-            return ElixirPsiUsage.create(
-                atom,
-                reference.absoluteRange.shiftLeft(atom.textRange.startOffset),
                 declaration = false,
                 usageType = CALL
             )
