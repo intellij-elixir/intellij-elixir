@@ -71,7 +71,7 @@ sealed class Use {
             ThreadingAssertions.assertReadAccess()
 
             val functionName = call.functionName() ?: return null
-            val arity = call.resolvedPrimaryArity() ?: 0
+            val arity = Unquote.arity(call)
 
             return if (call is Qualified && Unquote.isQualified(call, functionName)) {
                 AnyName(call, arity)

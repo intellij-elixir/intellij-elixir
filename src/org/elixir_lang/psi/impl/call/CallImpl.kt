@@ -781,28 +781,38 @@ object CallImpl {
         val primaryArity = call.primaryArity()
         var resolvedPrimaryArity = primaryArity
 
-        /* do block and piping attach to the outer most parentheses, only count do block and piping for primary if there
-           are no secondary. */
-        if (call.secondaryArity() == null) {
-            if (call.doBlock != null) {
-                resolvedPrimaryArity = (resolvedPrimaryArity ?: 0) + 1
-            }
+        if (hasPrimaryDoBlock(call)) {
+            resolvedPrimaryArity = (resolvedPrimaryArity ?: 0) + 1
+        }
 
-            val parent = call.parent
-
-            if (parent.isPipe()) {
-                val parentPipeOperation = parent as Arrow
-                val pipedInto = parentPipeOperation.rightOperand()
-
-                /* only the right operand has its arity increased because it is the operand that has the output of the
-                   left operand prepended to its arguments */
-                if (pipedInto != null && call.isEquivalentTo(pipedInto)) {
-                    resolvedPrimaryArity = (resolvedPrimaryArity ?: 0) + 1
-                }
-            }
+        // piping attaches to the outer most parentheses, so only count it for primary if there are no secondary
+        if (call.secondaryArity() == null && isPipedInto(call)) {
+            resolvedPrimaryArity = (resolvedPrimaryArity ?: 0) + 1
         }
 
         return resolvedPrimaryArity
+    }
+
+    /**
+     * Whether [call]'s `do` block is an argument of its primary arguments: a `do` block attaches to the outer most
+     * parentheses, so it is when there are no secondary.
+     */
+    @RequiresReadLock
+    @Contract(pure = true)
+    @JvmStatic
+    fun hasPrimaryDoBlock(call: Call): Boolean = call.secondaryArity() == null && call.doBlock != null
+
+    /**
+     * Whether [call] is the right operand of a pipe, which prepends the left operand's value to its arguments. The left
+     * operand gains no argument.
+     */
+    @RequiresReadLock
+    @Contract(pure = true)
+    @JvmStatic
+    fun isPipedInto(call: Call): Boolean {
+        val parent = call.parent
+
+        return parent.isPipe() && (parent as Arrow).rightOperand()?.let { call.isEquivalentTo(it) } == true
     }
 
     @RequiresReadLock

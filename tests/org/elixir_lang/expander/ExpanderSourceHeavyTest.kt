@@ -458,6 +458,104 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
     }
 
+    /** A piped value is one more argument: `:x |> Left.unquote(name)(1)` calls with two. */
+    fun testAPipedArgumentCountsInANamelessUsesArity() {
+        val file = file(
+            """
+            defmodule A do
+              def zero, do: 0
+              def one(a), do: a
+              def two(a, b), do: {a, b}
+            end
+
+            defmodule U do
+              defmacro bare(name), do: quote(do: :x |> A.unquote(name))
+              defmacro one(name), do: quote(do: :x |> A.unquote(name)(1))
+            end
+            """
+        )
+
+        assertEquals(
+            listOf(
+                "A.one/1 OWN OPAQUE via [] line 3\nA.two/2 OWN WRONG_ARITY via [] line 4\nA.zero/0 OWN WRONG_ARITY via [] line 2",
+                "A.one/1 OWN WRONG_ARITY via [] line 3\nA.two/2 OWN OPAQUE via [] line 4\nA.zero/0 OWN WRONG_ARITY via [] line 2",
+            ),
+            listOf("bare" to "A.unquote(name)", "one" to "A.unquote(name)(1)").map { (macro, call) ->
+                candidates(file, "defmacro $macro(", call).lines().filter { it.startsWith("A.") }.sorted().joinToString("\n")
+            },
+        )
+    }
+
+    /**
+     * A `do` block is one more argument to the argument list it follows: `Left.unquote(name) do ... end` is a call to
+     * `unquote/2`, which Elixir does not unquote, and `Left.unquote(name)(1) do ... end` calls with two.
+     */
+    fun testADoBlockCountsInTheArgumentListItFollows() {
+        val file = file(
+            """
+            defmodule A do
+              def zero, do: 0
+              def one(a), do: a
+              def two(a, b), do: {a, b}
+            end
+
+            defmodule U do
+              defmacro bare(name) do
+                quote do
+                  A.unquote(name) do :ok end
+                end
+              end
+
+              defmacro one(name) do
+                quote do
+                  A.unquote(name)(1) do :ok end
+                end
+              end
+            end
+            """
+        )
+
+        assertEquals(
+            listOf(
+                "",
+                "A.one/1 OWN WRONG_ARITY via [] line 3\nA.two/2 OWN OPAQUE via [] line 4\nA.zero/0 OWN WRONG_ARITY via [] line 2",
+            ),
+            listOf("bare" to "A.unquote(name) do :ok end", "one" to "A.unquote(name)(1) do :ok end").map { (macro, call) ->
+                candidates(file, "defmacro $macro(", call).lines().filter { it.startsWith("A.") }.sorted().joinToString("\n")
+            },
+        )
+    }
+
+    /** `Left.unquote(name)(args)` calls with `args`, so `unquote`'s own argument is not counted. */
+    fun testANamelessUsesArityIsItsSecondArgumentList() {
+        val file = file(
+            """
+            defmodule A do
+              def zero, do: 0
+              def one(a), do: a
+              def two(a, b), do: {a, b}
+            end
+
+            defmodule U do
+              defmacro bare(name), do: quote(do: A.unquote(name))
+              defmacro empty(name), do: quote(do: A.unquote(name)())
+              defmacro pair(name), do: quote(do: A.unquote(name)(1, 2))
+            end
+            """
+        )
+
+        assertEquals(
+            listOf(
+                "A.one/1 OWN WRONG_ARITY via [] line 3\nA.two/2 OWN WRONG_ARITY via [] line 4\nA.zero/0 OWN OPAQUE via [] line 2",
+                "A.one/1 OWN WRONG_ARITY via [] line 3\nA.two/2 OWN WRONG_ARITY via [] line 4\nA.zero/0 OWN OPAQUE via [] line 2",
+                "A.one/1 OWN WRONG_ARITY via [] line 3\nA.two/2 OWN OPAQUE via [] line 4\nA.zero/0 OWN WRONG_ARITY via [] line 2",
+            ),
+            listOf("bare" to "A.unquote(name)", "empty" to "A.unquote(name)()", "pair" to "A.unquote(name)(1, 2)").map { (macro, call) ->
+                candidates(file, "defmacro $macro(", call).lines().filter { it.startsWith("A.") }.sorted().joinToString("\n")
+            },
+        )
+    }
+
     fun testAnExplicitKernelImportIsAnImport() {
         val file = file(
             """

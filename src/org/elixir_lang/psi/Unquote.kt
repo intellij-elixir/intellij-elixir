@@ -11,6 +11,7 @@ import org.elixir_lang.psi.call.name.Function.UNQUOTE
 import org.elixir_lang.psi.call.name.Function.UNQUOTE_SPLICING
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.call.qualification.Qualified
+import org.elixir_lang.psi.impl.call.CallImpl
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.childExpressions
 import org.elixir_lang.psi.impl.stripAccessExpression
@@ -65,11 +66,27 @@ object Unquote {
     fun isQualified(qualified: Qualified): Boolean =
             isQualified(qualified, qualified.functionName())
 
+    /**
+     * Whether [qualified], named [name], is `Left.unquote(x)` in a `quote`: `unquote`'s own arguments are one, counting
+     * a `do` block that follows them but not a piped value, which only joins the call `unquote` makes.
+     */
     @RequiresReadLock
     fun isQualified(qualified: Qualified, name: String?): Boolean =
             name == UNQUOTE &&
-                    qualified.resolvedPrimaryArity() == 1 &&
+                    (qualified.primaryArity() ?: 0) + (if (CallImpl.hasPrimaryDoBlock(qualified)) 1 else 0) == 1 &&
                     CallDefinitionClause.enclosingModularMacroCall(qualified)?.let { QuoteMacro.`is`(it) } == true
+
+    /**
+     * The arity of the call [call] makes: `Left.unquote(x)(args)` calls with `args`, and `Left.unquote(x)` with none,
+     * plus a value piped into either.
+     */
+    @RequiresReadLock
+    fun arity(call: Call): Int =
+            if (call is Qualified && isQualified(call)) {
+                (call.resolvedSecondaryArity() ?: 0) + if (CallImpl.isPipedInto(call)) 1 else 0
+            } else {
+                call.resolvedPrimaryArity() ?: 0
+            }
 
     fun ancestorUnquote(descendent: PsiElement): Call? =
             descendent.parent?.parent?.parent?.let { it as? Call }?.takeIf { `is`(it) }
