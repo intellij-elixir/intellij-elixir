@@ -194,9 +194,8 @@ internal object ElixirUsageQueries {
                 // An AtomSymbol IS a function reference (module/name/arity/macro, anchored at the
                 // def clause's name identifier - see AtomSymbol.fromClause), so renaming from the
                 // atom must rename everything renaming from the def would: the declaration
-                // family, call sites, specs, captures, keyword pairs - and the atoms themselves,
-                // which FunctionCallSiteMapper's own atomUsage branch already finds. Reuse the
-                // function queries via the field-for-field equivalent FunctionSymbol.
+                // family, call sites, specs, captures, keyword pairs - and the atoms themselves.
+                // Reuse the function queries via the field-for-field equivalent FunctionSymbol.
                 val functionSymbol =
                     FunctionSymbol(target.file, target.range, target.moduleName, target.name, target.arity, target.macro)
                 queries += functionDeclarationFamilyQuery(project, functionSymbol, searchScope)
@@ -449,6 +448,32 @@ internal object ElixirUsageQueries {
                 usageTextByName = if (keepsHeadText) { _ -> headName } else null
             )
         }
+    }
+
+    /** The atom [leaf] is in, when it names [symbol]. */
+    @RequiresReadLock
+    private fun atomUsage(leaf: PsiElement, symbol: FunctionSymbol): PsiUsage? {
+        val atom = PsiTreeUtil.getParentOfType(leaf, ElixirAtom::class.java, false) ?: return null
+        val references = PsiSymbolReferenceService.getService()
+            .getReferences(atom)
+            .filterIsInstance<AtomReference>()
+        if (references.isEmpty()) return null
+
+        // The reference's range is the name between the colon and any quotes, however many tokens an escape splits
+        // it into, so a rename replaces the name and not the leaf that happened to be handed on.
+        val reference = references.firstOrNull { reference ->
+            reference.multiResolve(false)
+                .asSequence()
+                .mapNotNull { it.element }
+                .any { FunctionSymbol.matchesAtom(it, symbol, atom) }
+        } ?: return null
+
+        return ElixirPsiUsage.create(
+            atom,
+            reference.absoluteRange.shiftLeft(atom.textRange.startOffset),
+            declaration = false,
+            usageType = CALL
+        )
     }
 
     /** The definition `leaf` is the head name of, when it implements [callback]. */
@@ -1057,31 +1082,6 @@ internal object ElixirUsageQueries {
             return ElixirPsiUsage.create(
                 key,
                 TextRange(0, key.textLength),
-                declaration = false,
-                usageType = CALL
-            )
-        }
-
-        @RequiresReadLock
-        private fun atomUsage(leaf: PsiElement, symbol: FunctionSymbol): PsiUsage? {
-            val atom = PsiTreeUtil.getParentOfType(leaf, ElixirAtom::class.java, false) ?: return null
-            val references = PsiSymbolReferenceService.getService()
-                .getReferences(atom)
-                .filterIsInstance<AtomReference>()
-            if (references.isEmpty()) return null
-
-            // The reference's range is the name between the colon and any quotes, however many tokens an escape splits
-            // it into, so a rename replaces the name and not the leaf that happened to be handed on.
-            val reference = references.firstOrNull { reference ->
-                reference.multiResolve(false)
-                    .asSequence()
-                    .mapNotNull { it.element }
-                    .any { FunctionSymbol.matchesAtom(it, symbol, atom) }
-            } ?: return null
-
-            return ElixirPsiUsage.create(
-                atom,
-                reference.absoluteRange.shiftLeft(atom.textRange.startOffset),
                 declaration = false,
                 usageType = CALL
             )
