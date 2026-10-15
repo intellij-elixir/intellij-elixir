@@ -12,11 +12,11 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.psi.Module as BeamModule
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Form
+import org.elixir_lang.declaration.SameFunction
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.Definition
 import org.elixir_lang.psi.Modular
 import org.elixir_lang.psi.NamedElement
-import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.StubBased
 import org.elixir_lang.psi.definition
@@ -83,15 +83,8 @@ class Provider : GotoRelatedProvider() {
                     .callDefinitionClauseCallSequence(decompiledModularDefiner)
                     .filter { decompiledDefiner ->
                         declarations(Form.CLAUSE, decompiledDefiner).any { decompiled ->
-                            val decompiledArity = decompiled.arity.arityInterval()
-
-                            declared.any { declaration ->
-                                val declaredArity = declaration.arity.arityInterval()
-
-                                // An arity not yet knowable matches by name alone.
-                                declaration.name == decompiled.name &&
-                                    (declaredArity == null || decompiledArity == null || declaredArity.overlaps(decompiledArity))
-                            }
+                            // An arity not yet knowable matches by name alone.
+                            declared.any { it.sameFunction(decompiled) != SameFunction.NO }
                         }
                     }
                     .asIterable()

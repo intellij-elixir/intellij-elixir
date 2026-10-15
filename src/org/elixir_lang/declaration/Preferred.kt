@@ -2,8 +2,8 @@ package org.elixir_lang.declaration
 
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.FunctionArityKeywordPair
-import org.elixir_lang.psi.Use as UseCall
 import org.elixir_lang.psi.arityInterval
+import org.elixir_lang.psi.Use as UseCall
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.reference.Resolver
 import org.elixir_lang.structure_view.element.Delegation
@@ -101,8 +101,8 @@ internal fun <T> overridden(list: List<T>, found: (T) -> Found): List<T> {
         isOverridable(overridable) && interval != null && maximum != null &&
             (interval.minimum..maximum).all { arity ->
                 users.any {
-                    it.candidate.declaration.name == declaration.name &&
-                        it.candidate.declaration.overlaps(ArityKnowledge.Exact(arity)) &&
+                    it.candidate.declaration.sameFunction(declaration.name, ArityKnowledge.Exact(arity)) ==
+                        SameFunction.YES &&
                         it.declaringModuleName() == overridable.declaringModuleName()
                 }
             }
@@ -145,13 +145,5 @@ private fun followedByItsDefoverridable(found: Found): Boolean {
         .filterIsInstance<Call>()
         .filter { Overridable.`is`(it) }
         .flatMap { FunctionArityKeywordPair.occurrencesIn(it) }
-        .any { it.name == declaration.name && declaration.overlaps(ArityKnowledge.Exact(it.arity)) }
-}
-
-/** Whether the two share an arity. An `Unknown` arity shares none, so a declaration of it stays. */
-private fun Declaration.overlaps(otherArity: ArityKnowledge): Boolean {
-    val interval = arity.arityInterval()
-    val otherInterval = otherArity.arityInterval()
-
-    return interval != null && otherInterval != null && interval.overlaps(otherInterval)
+        .any { declaration.sameFunction(it.name, ArityKnowledge.Exact(it.arity)) == SameFunction.YES }
 }
