@@ -3,12 +3,17 @@ package org.elixir_lang.declaration
 import com.intellij.psi.PsiElement
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.model.psi.atom.mfaReferenceDecision
+import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.Unquote
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.functionNameAtomValue
+import org.elixir_lang.psi.impl.quotedAtomValue
+import org.elixir_lang.structure_view.element.CallDefinitionSpecification
 
 /** What a use can reach, and what is visible at a position: the one place features ask. */
 interface CandidateSource {
@@ -53,25 +58,71 @@ data class Visible(val lookupName: String, val name: String?, val declaration: D
 
 /** A use of a callable. */
 sealed class Use {
-    abstract val entrance: Call
-    abstract val arity: Int
+    /** A call, used at [arity]: a capture's name is used at the capture's arity. */
+    sealed class OfCall : Use() {
+        abstract val entrance: Call
+        abstract val arity: Int
+    }
 
     /** A use that names [name], an atom value. */
     @ConsistentCopyVisibility
-    data class Named internal constructor(override val entrance: Call, val name: String, override val arity: Int) : Use()
+    data class Named internal constructor(override val entrance: Call, val name: String, override val arity: Int) : OfCall()
 
     /** A qualified `unquote`, which names no declaration but can reach any in the qualifier's module. */
     @ConsistentCopyVisibility
-    data class AnyName internal constructor(override val entrance: Call, override val arity: Int) : Use()
+    data class AnyName internal constructor(override val entrance: Call, override val arity: Int) : OfCall()
+
+    /** A `@spec` [head], which names only what its own [modular] declares. */
+    @ConsistentCopyVisibility
+    data class Specified internal constructor(val head: Call, val modular: Call, val name: String, val arity: Int) : Use()
+
+    /**
+     * An MFA [atom] naming [name] in the modules [module] names, from outside them. [arity] `null` is any arity: Elixir
+     * checks only a literal one.
+     */
+    @ConsistentCopyVisibility
+    data class Remote internal constructor(
+        val atom: ElixirAtom,
+        val module: PsiElement,
+        val name: String,
+        val arity: Int?
+    ) : Use()
 
     companion object {
         /** `null` when [call] names nothing, as when its name has no atom value. */
         @RequiresReadLock
-        fun of(call: Call): Use? {
+        fun of(call: Call): OfCall? = of(call, Unquote.arity(call))
+
+        /** The use of a capture's [name], `f` or `Mod.f` in `&f/2` or `&Mod.f/2`, at the capture's [arity]. */
+        @RequiresReadLock
+        fun capture(name: Call, arity: Int): OfCall? = of(name, arity)
+
+        /** The use of the function a `@spec` [head] specifies, `f(t)` in `@spec f(t) :: t`. */
+        @RequiresReadLock
+        fun specification(head: Call, moduleAttribute: AtUnqualifiedNoParenthesesCall<*>): Specified? {
+            ThreadingAssertions.assertReadAccess()
+
+            val modular = CallDefinitionClause.enclosingModularMacroCall(moduleAttribute) ?: return null
+            val (name, arity) = CallDefinitionSpecification.typeNameArity(head) ?: return null
+
+            return Specified(head, modular, name, arity)
+        }
+
+        /** The use of the function an MFA [atom] names, `:f` in `{M, :f, 1}` or `apply(M, :f, [a])`. */
+        @RequiresReadLock
+        fun mfa(atom: ElixirAtom): Remote? {
+            ThreadingAssertions.assertReadAccess()
+
+            val context = atom.mfaReferenceDecision().context ?: return null
+            val name = quotedAtomValue(atom) ?: return null
+
+            return Remote(atom, context.moduleElement, name, context.arity)
+        }
+
+        private fun of(call: Call, arity: Int): OfCall? {
             ThreadingAssertions.assertReadAccess()
 
             val functionName = call.functionName() ?: return null
-            val arity = Unquote.arity(call)
 
             return if (call is Qualified && Unquote.isQualified(call, functionName)) {
                 AnyName(call, arity)

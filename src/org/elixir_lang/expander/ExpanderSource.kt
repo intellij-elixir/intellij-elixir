@@ -47,19 +47,22 @@ internal object ExpanderSource : CandidateSource {
     override fun candidates(use: Use, incompleteCode: Boolean): List<Found> {
         ThreadingAssertions.assertReadAccess()
 
-        return inputs(use.entrance)?.let { answer(use, it) }.orEmpty()
+        return when (use) {
+            is Use.OfCall -> inputs(use.entrance)?.let { answer(use, it) }.orEmpty()
+            is Use.Specified, is Use.Remote -> emptyList()
+        }
     }
 
     /** [use]'s candidates, its file expanded with [inputs] in place of its SDK's. */
     @TestOnly
     @RequiresReadLock
-    internal fun candidates(use: Use, inputs: ProjectModules.Inputs): List<Found> {
+    internal fun candidates(use: Use.OfCall, inputs: ProjectModules.Inputs): List<Found> {
         ThreadingAssertions.assertReadAccess()
 
         return answer(use, inputs)
     }
 
-    private fun answer(use: Use, inputs: ProjectModules.Inputs): List<Found> {
+    private fun answer(use: Use.OfCall, inputs: ProjectModules.Inputs): List<Found> {
         val call = use.entrance
         val at = at(call, inputs) ?: return emptyList()
         val name = (use as? Use.Named)?.name
@@ -453,7 +456,7 @@ internal object ExpanderSource : CandidateSource {
         }
     }
 
-    private fun found(reached: Reached, use: Use): Found? =
+    private fun found(reached: Reached, use: Use.OfCall): Found? =
         applicability(reached, use)?.let { applicability ->
             Found(
                 Candidate(reached.defined.declaration, reached.reach, applicability),
@@ -466,7 +469,7 @@ internal object ExpanderSource : CandidateSource {
      * As the walk decides it, where behind a delegation the name it calls is the name looked up, but a private
      * definition a remote call reaches is [Applicability.PRIVATE].
      */
-    private fun applicability(reached: Reached, use: Use): Applicability? {
+    private fun applicability(reached: Reached, use: Use.OfCall): Applicability? {
         val declaration = reached.defined.declaration
         val applicability = when (use) {
             is Use.Named -> Applicability.of(declaration, reached.searched ?: use.name, reached.named, use.arity, reached.heads)

@@ -192,7 +192,7 @@ class ExpanderSourceBudgetHeavyTest : HeavyTestCase() {
         phase: String,
         files: List<PhoenixCorpus.Asked>,
         sampled: Boolean,
-        ask: (PhoenixCorpus.Asked, Use) -> Any?,
+        ask: (PhoenixCorpus.Asked, Use.OfCall) -> Any?,
     ) {
         var total = 0L
         corpus.quiet {

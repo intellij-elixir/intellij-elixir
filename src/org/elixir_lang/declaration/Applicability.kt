@@ -51,6 +51,19 @@ enum class Applicability {
         }
 
         /**
+         * How [declaration] applies at a use of any arity, [named] as for [of], reached through the `defdelegate` heads
+         * of arities [crossed], from the use outward. The use is undecided, so none is valid, but behind a delegation
+         * only what the head passes on fits.
+         */
+        fun ofAnyArity(declaration: Declaration, named: Boolean, crossed: List<ArityKnowledge>): Applicability? {
+            if (!named) return null
+
+            val passed = crossed.firstOrNull()?.passed() ?: return OPAQUE
+
+            return if (fits(declaration, passed, crossed.drop(1)) == false) WRONG_ARITY else OPAQUE
+        }
+
+        /**
          * Whether [declaration] takes what a use of [arity] arguments passes it through the `defdelegate` heads of
          * arities [crossed], from the use outward: each head must take the arity reaching it. `null` when a head has
          * no largest arity, so what reaches [declaration] is not known, or when [declaration]'s own arity is unknown.
@@ -60,8 +73,7 @@ enum class Applicability {
 
             for (head in crossed) {
                 if (!head.admits(reaching)) return false
-                // A head fills in its defaults, so it calls its target with all its arguments.
-                reaching = head.arityInterval()?.maximum ?: return null
+                reaching = head.passed() ?: return null
             }
 
             return declaration.arity.arityInterval()?.contains(reaching)
@@ -71,3 +83,9 @@ enum class Applicability {
 
 /** Whether a declaration of this arity takes [arity] arguments; an unknown arity may take any. */
 fun ArityKnowledge.admits(arity: Int): Boolean = arityInterval()?.contains(arity) != false
+
+/**
+ * How many arguments a `defdelegate` head of this arity calls its target with: all of them, as it fills in its defaults.
+ * `null` when it has no largest arity.
+ */
+fun ArityKnowledge.passed(): Int? = arityInterval()?.maximum

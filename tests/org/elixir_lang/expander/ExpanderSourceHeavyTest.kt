@@ -1376,7 +1376,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
     }
 
     /** The use that is the call [call], found in the only occurrence of [context], or its last with [last]. */
-    private fun use(file: PsiFile, context: String, call: String, last: Boolean = false): Use {
+    private fun use(file: PsiFile, context: String, call: String, last: Boolean = false): Use.OfCall {
         val text = file.text
         val at = if (last) text.lastIndexOf(context) else text.indexOf(context)
         assertTrue("`$context` in the file", at >= 0)

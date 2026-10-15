@@ -38,9 +38,9 @@ private constructor(
         private val name: String?,
         /**
          * If `name` is `null`, then `resolvedPrimaryArity` must be valid or `incompleteCode` `true` or no match will be
-         * found at all.
+         * found at all. `null` is any arity, which every interval admits and at which no result is valid.
          */
-        private val resolvedPrimaryArity: Int,
+        private val resolvedPrimaryArity: Int?,
         private val incompleteCode: Boolean,
         /**
          * Whether [name] is an atom value, recorded as what each declaration found here was searched under, and the key
@@ -52,7 +52,7 @@ private constructor(
                     ?.let { nameArityInterval ->
                         addIfNameOrArityToResolveResults(
                             element, nameArityInterval, state, Form.CLAUSE,
-                            importAdmits(state, nameArityInterval.name) { capabilities(element)?.compileTime == true }
+                            importAdmits(state, nameArityInterval) { capabilities(element)?.compileTime == true }
                         )
                     }
                     ?: true
@@ -60,7 +60,7 @@ private constructor(
     override fun execute(element: BeamCallDefinition, state: ResolveState): Boolean =
         addIfNameOrArityToResolveResults(
             element, element.nameArityInterval, state,
-            importAdmits(state, element.nameArityInterval.name) { element.capabilities.compileTime }
+            importAdmits(state, element.nameArityInterval) { element.capabilities.compileTime }
         )
 
     override fun executeOnCallback(element: AtUnqualifiedNoParenthesesCall<*>, state: ResolveState): Boolean =
@@ -75,8 +75,9 @@ private constructor(
 
             CallDefinitionHead.nameArityInterval(head, state)?.let { headNameArityInterval ->
                 val headName = headNameArityInterval.name
-                val admitted = importAdmits(state, headName) { false }
-                val validArity = resolvedPrimaryArity in headNameArityInterval.arityInterval && admitted
+                val admitted = importAdmits(state, headNameArityInterval) { false }
+                val headAdmits = admits(headNameArityInterval.arityInterval) && admitted
+                val validArity = resolvedPrimaryArity != null && headAdmits
 
                 if ((this.name == null && (incompleteCode || validArity)) ||
                         (this.name != null && headName.startsWith(this.name))) {
@@ -89,7 +90,7 @@ private constructor(
 
                     // A target reached through a head that does not fit the call would be kept as invalid, and the
                     // first result for an element wins, so it would hide the same target reached through one that fits.
-                    element.keywordArgument("to")?.takeIf { headValidResult || incompleteCode }?.let { definingModuleName ->
+                    element.keywordArgument("to")?.takeIf { (headAdmits && headName == this.name) || incompleteCode }?.let { definingModuleName ->
                         val modulars = definingModuleName.maybeModularNameToModulars(element.containingFile, useCall = null, incompleteCode = incompleteCode)
 
                         val asAtom = element.keywordArgument("as")?.let { it as? ElixirAtom }
@@ -164,7 +165,7 @@ private constructor(
                                     0
                                 }
 
-                                val validResult = (resolvedPrimaryArity == arity) && (name == this.name)
+                                val validResult = resolvedPrimaryArity != null && resolvedPrimaryArity == arity && name == this.name
 
                                 addToResolveResults(element, name, validResult, state, Form.EEX_FUNCTION_FROM)
                             } else {
@@ -192,7 +193,7 @@ private constructor(
                 }
 
                 if (this.name != null && name.startsWith(this.name)) {
-                    val validResult = (resolvedPrimaryArity in arityRange) && (name == this.name)
+                    val validResult = resolvedPrimaryArity != null && resolvedPrimaryArity in arityRange && name == this.name
 
                     addToResolveResults(element, name, validResult, state, Form.GENERATOR_EMBED)
                 } else {
@@ -201,11 +202,20 @@ private constructor(
             } ?: true
 
     /**
-     * Whether the `import` [state] reached a definition through, if any, brings in [name] at the use's arity. An arity
-     * it leaves out is a wrong arity: the definition stays an invalid result.
+     * Whether the `import` [state] reached a definition through, if any, brings in [nameArityInterval]'s name at the
+     * use's arity, or at any arity of it when the use's is any. An arity it leaves out is a wrong arity: the definition
+     * stays an invalid result.
      */
-    private inline fun importAdmits(state: ResolveState, name: String, macro: () -> Boolean): Boolean =
-        state.get(Import.FILTER)?.admits(name, resolvedPrimaryArity, macro()) ?: true
+    private inline fun importAdmits(state: ResolveState, nameArityInterval: NameArityInterval, macro: () -> Boolean): Boolean =
+        state.get(Import.FILTER)?.let { filter ->
+            if (resolvedPrimaryArity != null) {
+                filter.admits(nameArityInterval.name, resolvedPrimaryArity, macro())
+            } else {
+                filter.admits(nameArityInterval.name, nameArityInterval.arityInterval, macro())
+            }
+        } ?: true
+
+    private fun admits(arityInterval: ArityInterval): Boolean = resolvedPrimaryArity?.let { it in arityInterval } ?: true
 
     private fun addIfNameOrArityToResolveResults(call: Call,
                                                  nameArityInterval: NameArityInterval,
@@ -213,7 +223,7 @@ private constructor(
                                                  form: Form,
                                                  imported: Boolean): Boolean {
         val name = nameArityInterval.name
-        val validArity = resolvedPrimaryArity in nameArityInterval.arityInterval && imported
+        val validArity = resolvedPrimaryArity != null && admits(nameArityInterval.arityInterval) && imported
 
         return addIfNameOrArityToResolveResults(call, name, validArity, state, form, imported)
     }
@@ -223,7 +233,7 @@ private constructor(
                                                  state: ResolveState,
                                                  imported: Boolean): Boolean {
         val name = nameArityInterval.name
-        val validArity = resolvedPrimaryArity in nameArityInterval.arityInterval && imported
+        val validArity = resolvedPrimaryArity != null && admits(nameArityInterval.arityInterval) && imported
 
         return addIfNameOrArityToResolveResults(callDefinition, name, validArity, state, imported)
     }
@@ -354,7 +364,7 @@ private constructor(
         @JvmOverloads
         @JvmStatic
         fun resolveResults(name: String?,
-                           resolvedFinalArity: Int,
+                           resolvedFinalArity: Int?,
                            incompleteCode: Boolean,
                            entrance: PsiElement,
                            resolveState: ResolveState = ResolveState.initial(),
