@@ -528,19 +528,19 @@ through_use.ex:18:7  psi  Module  `Using`  ->  through_use.ex:1:1 `defmodule Usi
 through_use.ex:18:7  symbol  ModuleReference  `Using`  ->  through_use.ex:1:11 ModuleSymbol(Using)
 through_use.ex:20:3  definition  ThroughUse  usage/0  clause  public function runtime
 through_use.ex:22:7  psi  Callable  `clause`  ->  through_use.ex:18:3 `use Using` | through_use.ex:7:7 `def clause(a), do: a`
-through_use.ex:22:7  symbol  FunctionCallReference  `clause`  ->  nothing
+through_use.ex:22:7  symbol  FunctionCallReference  `clause`  ->  through_use.ex:7:11 FunctionSymbol(Using.clause/1, macro=false, injected)
 through_use.ex:23:7  psi  Callable  `delegated`  ->  through_use.ex:18:3 `use Using` | through_use.ex:8:7 `defdelegate delegated(a, b), to: Unresolvable`
-through_use.ex:23:7  symbol  FunctionCallReference  `delegated`  ->  nothing
+through_use.ex:23:7  symbol  FunctionCallReference  `delegated`  ->  through_use.ex:8:19 FunctionSymbol(Using.delegated/2, macro=false, injected)
 through_use.ex:24:7  psi  Callable  `exception`  ->  through_use.ex:18:3 `use Using` | through_use.ex:9:7 `defexception [:message]`
-through_use.ex:24:7  symbol  FunctionCallReference  `exception`  ->  nothing
+through_use.ex:24:7  symbol  FunctionCallReference  `exception`  ->  through_use.ex:9:7 FunctionSymbol(Using.exception/1, macro=false, injected)
 through_use.ex:25:7  psi  Callable  `message`  ->  through_use.ex:18:3 `use Using` | through_use.ex:9:7 `defexception [:message]`
-through_use.ex:25:7  symbol  FunctionCallReference  `message`  ->  nothing
+through_use.ex:25:7  symbol  FunctionCallReference  `message`  ->  through_use.ex:9:7 FunctionSymbol(Using.message/1, macro=false, injected)
 through_use.ex:26:7  psi  Callable  `from_string`  ->  through_use.ex:10:7 `EEx.function_from_string(:def, :from_string, "<%= a %>", [:a])` | through_use.ex:18:3 `use Using`
-through_use.ex:26:7  symbol  FunctionCallReference  `from_string`  ->  nothing
+through_use.ex:26:7  symbol  FunctionCallReference  `from_string`  ->  through_use.ex:10:39 FunctionSymbol(Using.from_string/1, macro=false, injected)
 through_use.ex:27:7  psi  Callable  `log_template`  ->  through_use.ex:11:7 `Mix.Generator.embed_template(:log, "Log")` | through_use.ex:18:3 `use Using`
-through_use.ex:27:7  symbol  FunctionCallReference  `log_template`  ->  nothing
+through_use.ex:27:7  symbol  FunctionCallReference  `log_template`  ->  through_use.ex:11:37 FunctionSymbol(Using.log_template/1, macro=false, injected)
 through_use.ex:28:7  psi  Callable  `error_text`  ->  through_use.ex:12:7 `Mix.Generator.embed_text(:error, "Error")` | through_use.ex:18:3 `use Using`
-through_use.ex:28:7  symbol  FunctionCallReference  `error_text`  ->  nothing
+through_use.ex:28:7  symbol  FunctionCallReference  `error_text`  ->  through_use.ex:12:33 FunctionSymbol(Using.error_text/0, macro=false, injected)
 unknown_arity.ex:1:1  module  UnknownArity
 unknown_arity.ex:1:1  psi  Callable  `defmodule`  ->  nothing
 unknown_arity.ex:2:3  psi  Callable  `require`  ->  nothing

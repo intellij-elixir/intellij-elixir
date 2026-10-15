@@ -92,6 +92,12 @@ class DelegationRenameTest : PlatformTestCase() {
         assertRefused(CHAIN_TO_OPTIONS, "x(1)\nend\n", reason)
     }
 
+    /** A delegation a `quote` injects is called in modules not known until the `quote` is used, even with a found target. */
+    fun testRenameIsRefusedAtAnInjectedHeadWithAFoundTarget() {
+        assertRefused(INJECTED, "d(a), to:", "declared by `quote`")
+        assertRefused(INJECTED, "d(1)\nend\n", "declared by `quote`")
+    }
+
     /** The rename with the caret at [caret] in [text] is refused with a reason containing [reason], and the file is unchanged. */
     private fun assertRefused(text: String, caret: String, reason: String) {
         myFixture.configureByText("refused.ex", text)
@@ -142,6 +148,11 @@ class DelegationRenameTest : PlatformTestCase() {
         const val WRONG_ARITY =
             "defmodule T do\n  def d(a, b), do: {a, b}\n  def t_use, do: T.d(1, 2)\nend\n\n" +
                 "defmodule M do\n  defdelegate d(a), to: T\n  def m_use, do: M.d(1)\nend\n"
+
+        const val INJECTED =
+            "defmodule T do\n  def d(a), do: a\nend\n\n" +
+                "defmodule U do\n  defmacro __using__(_) do\n    quote do\n      defdelegate d(a), to: T\n    end\n  end\nend\n\n" +
+                "defmodule M do\n  use U\n  def m_use, do: d(1)\nend\n"
 
         const val CHAIN =
             "defmodule N do\n  defdelegate x(a), to: Nowhere\nend\n\n" +

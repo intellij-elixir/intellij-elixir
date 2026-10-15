@@ -113,7 +113,7 @@ class ProtocolFunction(
             if (!CallDefinitionClause.`is`(clause)) return emptyList()
             val defprotocol = CallDefinitionClause.enclosingModularMacroCall(clause) ?: return emptyList()
             if (!Protocol.`is`(defprotocol)) return emptyList()
-            val protocolName = FunctionSymbol.moduleName(defprotocol) ?: return emptyList()
+            val protocolName = FunctionSymbol.owner(defprotocol)?.moduleName ?: return emptyList()
             val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return emptyList()
             val nameId = CallDefinitionClause.nameIdentifier(clause) ?: return emptyList()
             val macro = CallDefinitionClause.capabilities(clause)?.let(FunctionSymbol::isMacro) == true

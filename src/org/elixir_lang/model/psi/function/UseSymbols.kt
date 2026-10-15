@@ -155,15 +155,23 @@ internal object UseSymbols {
     fun symbols(call: Call, nameIdentifier: PsiElement?, declaration: Declaration, arity: Int): List<Symbol> {
         val range = nameIdentifier?.let(::nameRange) ?: return emptyList()
         val modular = CallDefinitionClause.enclosingModularMacroCall(call) ?: return emptyList()
-        val moduleName = FunctionSymbol.moduleName(modular) ?: return emptyList()
+        val owner = FunctionSymbol.owner(modular) ?: return emptyList()
         val macro = FunctionSymbol.isMacro(declaration.capabilities)
 
         return listOf(
             if (Protocol.`is`(modular)) {
-                ProtocolFunction(call.containingFile, range, moduleName, declaration.name, arity, macro)
+                ProtocolFunction(call.containingFile, range, owner.moduleName, declaration.name, arity, macro)
             } else {
                 // A decompiled clause's `originalFile` is the compiled file the decompiled editor opens.
-                FunctionSymbol(call.containingFile.originalFile, range, moduleName, declaration.name, arity, macro)
+                FunctionSymbol(
+                    call.containingFile.originalFile,
+                    range,
+                    owner.moduleName,
+                    declaration.name,
+                    arity,
+                    macro,
+                    owner.injected
+                )
             }
         )
     }

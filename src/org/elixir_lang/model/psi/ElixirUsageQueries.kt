@@ -938,7 +938,8 @@ internal object ElixirUsageQueries {
         private fun matchesCallSite(call: Call, symbol: FunctionSymbol): Boolean =
             if ((call.names(symbol) ||
                     call !is Qualified &&
-                    call.resolvedModuleName() == symbol.moduleName &&
+                    call.resolvedModuleName()?.let { FunctionSymbol.Owner(it, injected = false) } ==
+                    FunctionSymbol.Owner(symbol.moduleName, symbol.injected) &&
                     call.functionName() == symbol.name &&
                     call.resolvedFinalArity() == symbol.arity) &&
                 !FunctionSymbol.isHelper(symbol)

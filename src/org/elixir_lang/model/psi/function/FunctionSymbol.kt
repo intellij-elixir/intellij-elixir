@@ -5,7 +5,6 @@ import com.intellij.find.usages.api.UsageHandler
 import com.intellij.icons.AllIcons
 import com.intellij.model.Pointer
 import com.intellij.navigation.NavigatableSymbol
-import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
 import com.intellij.platform.backend.navigation.NavigationRequest
@@ -48,7 +47,7 @@ import java.util.*
  * "Usages" are the call sites that invoke it, computed by `ElixirSymbolUsageSearcher`.
  *
  * NOTE: intentionally a regular class, not a `data class` - [equals]/[hashCode] are by semantic
- * identity `(moduleName, name, arity, macro)` and must NOT include [file]/[range].
+ * identity `(moduleName, name, arity, macro, injected)` and must NOT include [file]/[range].
  */
 @Suppress("UnstableApiUsage")
 class FunctionSymbol(
@@ -57,7 +56,9 @@ class FunctionSymbol(
     val moduleName: String,
     val name: String,
     val arity: Int,
-    val macro: Boolean
+    val macro: Boolean,
+    /** Written in a `quote` that [moduleName] injects, so it is no definition of [moduleName]'s own. */
+    val injected: Boolean = false
 ) : ElixirRenameTarget, NavigatableSymbol, SearchTarget {
 
     override val searchText: String get() = name
@@ -68,6 +69,7 @@ class FunctionSymbol(
         val name = this.name
         val arity = this.arity
         val macro = this.macro
+        val injected = this.injected
         // Anchor to the declaring call (a stable ancestor) rather than to the name element or a bare file range: an
         // in-place (Shift+F6) rename fully replaces the name's text, which swaps out the name leaf (collapsing a
         // pointer anchored to it) and collapses a plain range marker to an empty range - either way the subsequent
@@ -80,11 +82,13 @@ class FunctionSymbol(
             return Pointer {
                 val restored = callPointer.dereference() ?: return@Pointer null
                 val restoredName = DeclaringForm.names(restored, form).singleOrNull() ?: return@Pointer null
-                FunctionSymbol(restored.containingFile, UseSymbols.nameRange(restoredName), moduleName, name, arity, macro)
+                val restoredRange = UseSymbols.nameRange(restoredName)
+
+                FunctionSymbol(restored.containingFile, restoredRange, moduleName, name, arity, macro, injected)
             }
         }
         return Pointer.fileRangePointer(file, range) { restoredFile, restoredRange ->
-            FunctionSymbol(restoredFile, restoredRange, moduleName, name, arity, macro)
+            FunctionSymbol(restoredFile, restoredRange, moduleName, name, arity, macro, injected)
         }
     }
 
@@ -187,12 +191,13 @@ class FunctionSymbol(
             }
 
     /**
-     * An embed's or `defexception`'s call does not write the function's name, and an EEx function's local calls are not
-     * found as its uses, so a rename of what they declare would not rewrite it whole.
+     * An embed's or `defexception`'s call does not write the function's name, an EEx function's local calls are not
+     * found as its uses, and a function a `quote` injects is called in modules not known until it is used, so a rename
+     * of what they declare would not rewrite it whole.
      */
     @get:RequiresReadLock
     override val declaringMacro: String?
-        get() = file.findElementAt(range.startOffset)
+        get() = if (injected) "quote" else file.findElementAt(range.startOffset)
             ?.let(DeclaringForm::enclosing)
             ?.takeIf { (_, form) ->
                 when (form) {
@@ -208,11 +213,16 @@ class FunctionSymbol(
             other.moduleName == moduleName &&
             other.name == name &&
             other.arity == arity &&
-            other.macro == macro
+            other.macro == macro &&
+            other.injected == injected
 
-    override fun hashCode(): Int = Objects.hash(moduleName, name, arity, macro)
+    override fun hashCode(): Int = Objects.hash(moduleName, name, arity, macro, injected)
 
-    override fun toString(): String = "FunctionSymbol($moduleName.$name/$arity, macro=$macro)"
+    override fun toString(): String =
+        "FunctionSymbol($moduleName.$name/$arity, macro=$macro${if (injected) ", injected" else ""})"
+
+    /** The module a definition keys to, [injected] when the definition is written in a `quote` inside it. */
+    data class Owner(val moduleName: String, val injected: Boolean)
 
     companion object {
         /** Whether a declaration with [capabilities] is presented as a macro: a guard is, as it is expanded at compile time. */
@@ -223,17 +233,21 @@ class FunctionSymbol(
             }
 
         /**
-         * The module of a function defined directly in [modular]: a `defmodule`'s or `defprotocol`'s canonical name,
-         * nested in the modules around it, and a `defimpl`'s protocol, so every implementation of a function is one.
-         * A module whose name is computed, `defmodule unquote(name)`, and any other call are named by their first
-         * argument's text.
+         * The module a function defined directly in [modular] keys to: a `defmodule`'s or `defprotocol`'s canonical
+         * name, nested in the modules around it, and a `defimpl`'s protocol, so every implementation of a function is
+         * one. A module whose name is computed, `defmodule unquote(name)`, is named by its first argument's text. In a
+         * `quote`, the module around it, marked injected: the modules the `quote` lands in are not known here.
          */
         @RequiresReadLock
-        fun moduleName(modular: Call): String? =
-            when {
-                Implementation.`is`(modular) -> Implementation.protocolName(modular)
-                Stub.isModular(modular) -> {
-                    val syntactic = SyntacticCall.of(modular)
+        fun owner(modular: Call): Owner? {
+            val keyed = generateSequence(modular) { CallDefinitionClause.enclosingModularMacroCall(it) }
+                .firstOrNull { Stub.isModular(it) }
+                ?: return null
+            val moduleName =
+                if (Implementation.`is`(keyed)) {
+                    Implementation.protocolName(keyed)
+                } else {
+                    val syntactic = SyntacticCall.of(keyed)
 
                     CanonicallyNamedImpl.canonicalNameSet(syntactic)
                         .firstOrNull()
@@ -241,10 +255,9 @@ class FunctionSymbol(
                         ?: org.elixir_lang.psi.Module.moduleName(syntactic)?.name
                         ?: syntactic.firstPrimaryArgumentText()
                 }
-                else ->
-                    runCatching { org.elixir_lang.psi.Module.name(modular) }
-                        .getOrElse { if (it is ProcessCanceledException) throw it else null }
-            }
+
+            return moduleName?.let { Owner(it, injected = keyed != modular) }
+        }
 
         /**
          * Build the [FunctionSymbol] symbol(s) for a `def`/`defp`/`defmacro`/`defmacrop` clause in a regular
@@ -261,7 +274,7 @@ class FunctionSymbol(
             val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(clause) ?: return emptyList()
             // Protocol function declarations are owned by ProtocolFunction, not FunctionSymbol.
             if (Protocol.`is`(enclosingModular)) return emptyList()
-            val moduleName = moduleName(enclosingModular) ?: return emptyList()
+            val owner = owner(enclosingModular) ?: return emptyList()
             val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return emptyList()
             val nameId = CallDefinitionClause.nameIdentifier(clause) ?: return emptyList()
             val macro = CallDefinitionClause.capabilities(clause)?.let(::isMacro) == true
@@ -270,7 +283,15 @@ class FunctionSymbol(
             // decompiled editor at these offsets. For a source function `originalFile` is the file itself (no-op).
             val declarationFile = clause.containingFile.originalFile
             return nameArity.arityInterval.closed().map { arity ->
-                FunctionSymbol(declarationFile, nameId.textRange, moduleName, nameArity.name, arity, macro)
+                FunctionSymbol(
+                    declarationFile,
+                    nameId.textRange,
+                    owner.moduleName,
+                    nameArity.name,
+                    arity,
+                    macro,
+                    owner.injected
+                )
             }
         }
 
@@ -350,7 +371,7 @@ class FunctionSymbol(
             if (Implementation.`is`(enclosingModular)) return matchesClause(clause, symbol)
             if (helperImplementation(symbol) != null) return false
 
-            if (moduleName(enclosingModular) != symbol.moduleName) return false
+            if (owner(enclosingModular) != Owner(symbol.moduleName, symbol.injected)) return false
 
             val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return false
 
@@ -416,7 +437,7 @@ class FunctionSymbol(
             val declaration = Delegation.declaration(delegation, ResolveState.initial()) ?: return emptyList()
             val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(delegation) ?: return emptyList()
             if (Protocol.`is`(enclosingModular)) return emptyList()
-            val moduleName = moduleName(enclosingModular) ?: return emptyList()
+            val owner = owner(enclosingModular) ?: return emptyList()
             val arityInterval = declaration.arity.arityInterval() ?: return emptyList()
             val nameId = Delegation.nameIdentifier(delegation) ?: return emptyList()
             val declarationFile = delegation.containingFile.originalFile
@@ -425,10 +446,11 @@ class FunctionSymbol(
                 FunctionSymbol(
                     declarationFile,
                     nameId.textRange,
-                    moduleName,
+                    owner.moduleName,
                     declaration.name,
                     arity,
-                    isMacro(declaration.capabilities)
+                    isMacro(declaration.capabilities),
+                    owner.injected
                 )
             }
         }
