@@ -123,7 +123,7 @@ class AtomSymbol(
                 ?: return emptyList()
             val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return emptyList()
             val nameId = CallDefinitionClause.nameIdentifier(clause) ?: return emptyList()
-            val macro = CallDefinitionClause.capabilities(clause)?.quotesArguments == true
+            val macro = CallDefinitionClause.capabilities(clause)?.let(FunctionSymbol::isMacro) == true
             return nameArity.arityInterval.closed().map { arity ->
                 AtomSymbol(clause.containingFile, nameId.textRange, moduleName, nameArity.name, arity, macro)
             }

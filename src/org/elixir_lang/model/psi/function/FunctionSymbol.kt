@@ -4,7 +4,6 @@ import com.intellij.find.usages.api.SearchTarget
 import com.intellij.find.usages.api.UsageHandler
 import com.intellij.icons.AllIcons
 import com.intellij.model.Pointer
-import com.intellij.model.Symbol
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.util.TextRange
 import com.intellij.platform.backend.navigation.NavigationRequest
@@ -17,6 +16,8 @@ import com.intellij.psi.SmartPointerManager
 import com.intellij.psi.search.SearchScope
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.declaration.Capabilities
+import org.elixir_lang.declaration.Presentation
 import org.elixir_lang.model.psi.ElixirRenameTarget
 import org.elixir_lang.model.psi.ElixirSymbolWithUsages
 import org.elixir_lang.model.psi.callback.CallbackImplementation
@@ -135,6 +136,13 @@ class FunctionSymbol(
     override fun toString(): String = "FunctionSymbol($moduleName.$name/$arity, macro=$macro)"
 
     companion object {
+        /** Whether a declaration with [capabilities] is presented as a macro: a guard is, as it is expanded at compile time. */
+        fun isMacro(capabilities: Capabilities): Boolean =
+            when (capabilities.presentation) {
+                Presentation.FUNCTION -> false
+                Presentation.MACRO, Presentation.GUARD -> true
+            }
+
         /**
          * Build the [FunctionSymbol] symbol(s) for a `def`/`defp`/`defmacro`/`defmacrop` clause in a regular
          * module (not inside a `defprotocol` - those are `ProtocolFunction`).
@@ -155,7 +163,7 @@ class FunctionSymbol(
                 ?: return emptyList()
             val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return emptyList()
             val nameId = CallDefinitionClause.nameIdentifier(clause) ?: return emptyList()
-            val macro = CallDefinitionClause.capabilities(clause)?.quotesArguments == true
+            val macro = CallDefinitionClause.capabilities(clause)?.let(::isMacro) == true
             // For a decompiled beam function, this clause lives in an in-memory mirror file built from the `.beam`'s
             // decompiled text; its `originalFile` is the navigable compiled file whose virtual file opens the
             // decompiled editor at these offsets. For a source function `originalFile` is the file itself (no-op).
@@ -174,23 +182,6 @@ class FunctionSymbol(
             definitionClause(definition)?.let { return fromClause(it) }
 
             return (definition as? Call)?.takeIf { Delegation.`is`(it) }?.let { fromDelegation(it) }.orEmpty()
-        }
-
-        /**
-         * What a function use of [arity] that resolved to [resolved] is a use of, in rank order: the clauses' functions,
-         * else a protocol function's (a clause directly in a `defprotocol`), else the functions of a `defdelegate`,
-         * which declares one whether or not its `to:` resolves, so it ranks last and a resolvable target wins.
-         */
-        @RequiresReadLock
-        fun fromResolved(resolved: Collection<PsiElement>, arity: Int): List<Symbol> {
-            val clauses = resolved.mapNotNull { definitionClause(it) }
-
-            clauses.flatMap { fromClause(it) }.filter { it.arity == arity }
-                .takeIf { it.isNotEmpty() }?.let { return it }
-            clauses.flatMap { ProtocolFunction.fromClause(it) }.filter { it.arity == arity }
-                .takeIf { it.isNotEmpty() }?.let { return it }
-
-            return resolved.filterIsInstance<Call>().flatMap { fromDelegation(it) }.filter { it.arity == arity }
         }
 
         /**
@@ -267,7 +258,7 @@ class FunctionSymbol(
 
             return nameArity.name == symbol.name &&
                 symbol.arity in nameArity.arityInterval &&
-                (CallDefinitionClause.capabilities(clause)?.quotesArguments == true) == symbol.macro
+                (CallDefinitionClause.capabilities(clause)?.let(::isMacro) == true) == symbol.macro
         }
 
         @RequiresReadLock
@@ -341,7 +332,7 @@ class FunctionSymbol(
                     moduleName,
                     declaration.name,
                     arity,
-                    declaration.capabilities.quotesArguments
+                    isMacro(declaration.capabilities)
                 )
             }
         }
