@@ -125,6 +125,8 @@
 
 ### Bug Fixes
 
+- [#4457](https://github.com/intellij-elixir/intellij-elixir/pull/4457) [@sh41](https://github.com/sh41)
+  - **Go to Definition from `Module.unquote(name)(args)` inside a `quote` offers the definitions that take as many arguments as `args`, not those that take one.** Fixes [#4453](https://github.com/intellij-elixir/intellij-elixir/issues/4453).
 - [#4455](https://github.com/intellij-elixir/intellij-elixir/pull/4455) [@sh41](https://github.com/sh41)
   - **Renaming a protocol function renames the atom naming it in a dynamic call such as `apply(Size, :size, [data])`, and Find Usages lists that atom. A rename started from an atom naming a function that implements a callback or a protocol function renames the callback or protocol function too.** Fixes [#4444](https://github.com/intellij-elixir/intellij-elixir/issues/4444).
 - [#4442](https://github.com/intellij-elixir/intellij-elixir/pull/4442) [@sh41](https://github.com/sh41)

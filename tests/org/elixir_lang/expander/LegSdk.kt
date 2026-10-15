@@ -14,10 +14,12 @@ import org.elixir_lang.sdk.Type as SdkRoots
 
 /** The leg's Erlang and Elixir as [Module]'s SDK, with the Elixir SDK's code paths as its class roots. */
 internal object LegSdk {
+    const val ERLANG = "leg Erlang"
+
     fun setUp(module: Module, disposable: Disposable): Sdk {
         val erlangHome = LegManifest.environment("ERLANG_SDK_HOME")
         val elixirHome = LegManifest.environment("ELIXIR_LANG_ELIXIR_PATH")
-        val erlang = SdkFixtures.registerAndWaitForFill(SdkFixtures.erlangSdk("leg Erlang", erlangHome), disposable)
+        val erlang = SdkFixtures.registerAndWaitForFill(SdkFixtures.erlangSdk(ERLANG, erlangHome), disposable)
         val elixir = SdkFixtures.registerAndWaitForFill(SdkFixtures.elixirSdk("leg", elixirHome), disposable)
         WriteAction.runAndWait<Throwable> {
             elixir.sdkModificator.apply {

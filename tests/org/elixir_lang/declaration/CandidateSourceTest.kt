@@ -151,6 +151,115 @@ class CandidateSourceTest : PlatformTestCase() {
         assertEquals(emptyList<String>(), actual.filter { it.startsWith("3 ") || it.startsWith("5 ") })
     }
 
+    /** A piped value is one more argument: `:x |> Left.unquote(name)(1)` calls with two. */
+    fun testAPipedArgumentCountsInANamelessUsesArity() {
+        configure("unquote_arity.ex")
+
+        assertEquals(
+            listOf("Arities.unquote(piped) [3 one=OPAQUE]", "Arities.unquote(piped)(1) [4 two=OPAQUE]"),
+            listOf("Arities.unquote(piped)", "Arities.unquote(piped)(1)").map { text ->
+                "$text ${candidates(text, false).filter { lineOf(it.element) in 2..4 }.map(::describe).sorted()}"
+            }
+        )
+    }
+
+    /**
+     * A `do` block is one more argument to the argument list it follows: `Left.unquote(name) do ... end` is a call to
+     * `unquote/2`, which Elixir does not unquote, and `Left.unquote(name)(1) do ... end` calls with two.
+     */
+    fun testADoBlockCountsInTheArgumentListItFollows() {
+        configure("unquote_arity.ex")
+
+        assertEquals(
+            listOf("Arities.unquote(block) []", "Arities.unquote(block)(1) [4 two=OPAQUE]"),
+            listOf("Arities.unquote(block)", "Arities.unquote(block)(1)").map { text ->
+                "$text ${candidates(text, false).filter { lineOf(it.element) in 2..4 }.map(::describe).sorted()}"
+            }
+        )
+    }
+
+    /** `Left.unquote(name)(args)` calls with `args`, so `unquote`'s own argument is not counted. */
+    fun testANamelessUsesArityIsItsSecondArgumentList() {
+        configure("unquote_arity.ex")
+
+        assertEquals(
+            listOf(
+                "Arities.unquote(name) ic=false [2 zero=OPAQUE]",
+                "Arities.unquote(name) ic=true [2 zero=OPAQUE, 3 one=WRONG_ARITY, 4 two=WRONG_ARITY]",
+                "Arities.unquote(name)() ic=false [2 zero=OPAQUE]",
+                "Arities.unquote(name)() ic=true [2 zero=OPAQUE, 3 one=WRONG_ARITY, 4 two=WRONG_ARITY]",
+                "Arities.unquote(name)(1, 2) ic=false [4 two=OPAQUE]",
+                "Arities.unquote(name)(1, 2) ic=true [2 zero=WRONG_ARITY, 3 one=WRONG_ARITY, 4 two=OPAQUE]"
+            ),
+            listOf("Arities.unquote(name)", "Arities.unquote(name)()", "Arities.unquote(name)(1, 2)").flatMap { text ->
+                listOf(false, true).map { incompleteCode ->
+                    val found = candidates(text, incompleteCode).filter { lineOf(it.element) in 2..4 }.map(::describe).sorted()
+
+                    "$text ic=$incompleteCode $found"
+                }
+            }
+        )
+    }
+
+    /** Each `defdelegate` head a nameless use crosses must take the arity reaching it, and passes on its largest. */
+    fun testANamelessUseFitsADelegationThroughTheHeadsCrossed() {
+        configure("applicability.ex")
+
+        assertEquals(
+            listOf(
+                "FitDelegator.unquote(name)(1) [42 f=OPAQUE via [47], 42 f=WRONG_ARITY via [48], 43 h=WRONG_ARITY via [49]]",
+                "FitChain.unquote(name)(1) [42 f=OPAQUE via [59, 47]]"
+            ),
+            listOf("FitDelegator.unquote(name)(1)", "FitChain.unquote(name)(1)").map { text ->
+                val targets = candidates(text, true)
+                    .filter { lineOf(it.element) in 42..43 }
+                    .map { "${describe(it)} via ${it.via.map(::lineOf)}" }
+                    .sorted()
+
+                "$text $targets"
+            }
+        )
+    }
+
+    /** A head with no largest arity passes on an arity that is not known, so its target's fit is not decidable. */
+    fun testANamedUseThroughAHeadWithNoLargestArityIsOpaque() {
+        configure("applicability.ex")
+
+        assertEquals(
+            listOf("69 open=OPAQUE via [74]", "70 open=OPAQUE via [74]"),
+            candidates("OpenDelegator.open(1, 2)", false)
+                .filter { lineOf(it.element) in 69..70 }
+                .map { "${describe(it)} via ${it.via.map(::lineOf)}" }
+                .sorted()
+        )
+    }
+
+    /** An `import` that leaves out the use's arity leaves the head, and what it delegates to, a wrong arity. */
+    fun testANamedUseAnImportLeavesOutIsAWrongArityThroughADelegation() {
+        configure("applicability.ex")
+
+        assertEquals(
+            listOf("80 pair=WRONG_ARITY via [88, 84]", "84 pair=WRONG_ARITY via [88]"),
+            candidates("pair(1)", true)
+                .filter { lineOf(it.element) in 80..84 }
+                .map { "${describe(it)} via ${it.via.map(::lineOf)}" }
+                .sorted()
+        )
+    }
+
+    /** An `import` that leaves out the use's arity rejects what a head with no largest arity delegates to as well. */
+    fun testANamedUseAnImportLeavesOutIsAWrongArityThroughAHeadWithNoLargestArity() {
+        configure("applicability.ex")
+
+        assertEquals(
+            listOf("69 open=WRONG_ARITY via [94, 74]", "70 open=WRONG_ARITY via [94, 74]"),
+            candidates("open(1)", true)
+                .filter { lineOf(it.element) in 69..70 }
+                .map { "${describe(it)} via ${it.via.map(::lineOf)}" }
+                .sorted()
+        )
+    }
+
     private fun configure(file: String) {
         myFixture.copyDirectoryToProject("", "")
         myFixture.configureFromTempProjectFile(file)

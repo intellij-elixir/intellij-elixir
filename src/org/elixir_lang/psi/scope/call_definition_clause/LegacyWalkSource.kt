@@ -1,9 +1,11 @@
 package org.elixir_lang.psi.scope.call_definition_clause
 
+import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.code_insight.completion.callDefinitionClauseVisible
 import org.elixir_lang.declaration.Applicability
+import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Candidate
 import org.elixir_lang.declaration.CandidateSource
 import org.elixir_lang.declaration.Found
@@ -16,6 +18,7 @@ import org.elixir_lang.psi.qualification.Unqualified
 import org.elixir_lang.psi.scope.ReachedDeclaration
 import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
 import org.elixir_lang.reference.resolver.Callable
+import org.elixir_lang.structure_view.element.Delegation
 
 /** The candidates today's call walk finds, read before `Resolver.preferred` narrows them for `multiResolve`. */
 object LegacyWalkSource : CandidateSource {
@@ -51,12 +54,21 @@ object LegacyWalkSource : CandidateSource {
 
     private fun applicability(reached: ReachedDeclaration, use: Use): Applicability? =
         when (use) {
-            is Use.AnyName -> Applicability.ofAnyName(reached.declaration, reached.searchedAtom, use.arity)
+            is Use.AnyName ->
+                Applicability.ofAnyName(reached.declaration, reached.searchedAtom, use.arity, reached.via.map(::headArity))
             is Use.Named ->
                 if (reached.headNamed) {
-                    reached.searchedAtom?.let { Applicability.of(reached.declaration, it, reached.valid) }
+                    reached.searchedAtom?.let {
+                        val named = reached.declaration.name == it && reached.admitted
+
+                        Applicability.of(reached.declaration, it, named, use.arity, reached.via.map(::headArity))
+                    }
                 } else {
                     null
                 }
         }
+
+    /** The arity [delegation]'s head declares. */
+    private fun headArity(delegation: Call): ArityKnowledge =
+        Delegation.declaration(delegation, ResolveState.initial())?.arity ?: ArityKnowledge.Unknown
 }

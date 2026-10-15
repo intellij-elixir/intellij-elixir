@@ -458,6 +458,173 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
     }
 
+    /** A piped value is one more argument: `:x |> Left.unquote(name)(1)` calls with two. */
+    fun testAPipedArgumentCountsInANamelessUsesArity() {
+        val file = file(
+            """
+            defmodule A do
+              def zero, do: 0
+              def one(a), do: a
+              def two(a, b), do: {a, b}
+            end
+
+            defmodule U do
+              defmacro bare(name), do: quote(do: :x |> A.unquote(name))
+              defmacro one(name), do: quote(do: :x |> A.unquote(name)(1))
+            end
+            """
+        )
+
+        assertEquals(
+            listOf(
+                "A.one/1 OWN OPAQUE via [] line 3\nA.two/2 OWN WRONG_ARITY via [] line 4\nA.zero/0 OWN WRONG_ARITY via [] line 2",
+                "A.one/1 OWN WRONG_ARITY via [] line 3\nA.two/2 OWN OPAQUE via [] line 4\nA.zero/0 OWN WRONG_ARITY via [] line 2",
+            ),
+            listOf("bare" to "A.unquote(name)", "one" to "A.unquote(name)(1)").map { (macro, call) ->
+                candidates(file, "defmacro $macro(", call).lines().filter { it.startsWith("A.") }.sorted().joinToString("\n")
+            },
+        )
+    }
+
+    /**
+     * A `do` block is one more argument to the argument list it follows: `Left.unquote(name) do ... end` is a call to
+     * `unquote/2`, which Elixir does not unquote, and `Left.unquote(name)(1) do ... end` calls with two.
+     */
+    fun testADoBlockCountsInTheArgumentListItFollows() {
+        val file = file(
+            """
+            defmodule A do
+              def zero, do: 0
+              def one(a), do: a
+              def two(a, b), do: {a, b}
+            end
+
+            defmodule U do
+              defmacro bare(name) do
+                quote do
+                  A.unquote(name) do :ok end
+                end
+              end
+
+              defmacro one(name) do
+                quote do
+                  A.unquote(name)(1) do :ok end
+                end
+              end
+            end
+            """
+        )
+
+        assertEquals(
+            listOf(
+                "",
+                "A.one/1 OWN WRONG_ARITY via [] line 3\nA.two/2 OWN OPAQUE via [] line 4\nA.zero/0 OWN WRONG_ARITY via [] line 2",
+            ),
+            listOf("bare" to "A.unquote(name) do :ok end", "one" to "A.unquote(name)(1) do :ok end").map { (macro, call) ->
+                candidates(file, "defmacro $macro(", call).lines().filter { it.startsWith("A.") }.sorted().joinToString("\n")
+            },
+        )
+    }
+
+    /** `Left.unquote(name)(args)` calls with `args`, so `unquote`'s own argument is not counted. */
+    fun testANamelessUsesArityIsItsSecondArgumentList() {
+        val file = file(
+            """
+            defmodule A do
+              def zero, do: 0
+              def one(a), do: a
+              def two(a, b), do: {a, b}
+            end
+
+            defmodule U do
+              defmacro bare(name), do: quote(do: A.unquote(name))
+              defmacro empty(name), do: quote(do: A.unquote(name)())
+              defmacro pair(name), do: quote(do: A.unquote(name)(1, 2))
+            end
+            """
+        )
+
+        assertEquals(
+            listOf(
+                "A.one/1 OWN WRONG_ARITY via [] line 3\nA.two/2 OWN WRONG_ARITY via [] line 4\nA.zero/0 OWN OPAQUE via [] line 2",
+                "A.one/1 OWN WRONG_ARITY via [] line 3\nA.two/2 OWN WRONG_ARITY via [] line 4\nA.zero/0 OWN OPAQUE via [] line 2",
+                "A.one/1 OWN WRONG_ARITY via [] line 3\nA.two/2 OWN OPAQUE via [] line 4\nA.zero/0 OWN WRONG_ARITY via [] line 2",
+            ),
+            listOf("bare" to "A.unquote(name)", "empty" to "A.unquote(name)()", "pair" to "A.unquote(name)(1, 2)").map { (macro, call) ->
+                candidates(file, "defmacro $macro(", call).lines().filter { it.startsWith("A.") }.sorted().joinToString("\n")
+            },
+        )
+    }
+
+    /** Each `defdelegate` head a nameless use crosses must take the arity reaching it, and passes on its largest. */
+    fun testANamelessUseFitsADelegationThroughTheHeadsCrossed() {
+        val file = file(
+            """
+            defmodule T do
+              def f(a, b), do: {a, b}
+              def h(a, b \\ 1), do: {a, b}
+            end
+
+            defmodule D do
+              defdelegate f(a, b \\ 1), to: T
+              defdelegate one(a), to: T, as: :f
+              defdelegate two(a, b), to: T, as: :h
+
+              defmacro go(name), do: quote(do: D.unquote(name)(1))
+            end
+
+            defmodule C do
+              defdelegate g(a), to: D, as: :f
+
+              defmacro go(name), do: quote(do: C.unquote(name)(1))
+            end
+            """
+        )
+
+        assertEquals(
+            listOf(
+                """
+                T.f/2 DELEGATION_TARGET OPAQUE via [defdelegate f(a, b \\ 1), to: T] line 2
+                T.f/2 DELEGATION_TARGET WRONG_ARITY via [defdelegate one(a), to: T, as: :f] line 2
+                T.h/1..2 DELEGATION_TARGET WRONG_ARITY via [defdelegate two(a, b), to: T, as: :h] line 3
+                """.trimIndent(),
+                """T.f/2 DELEGATION_TARGET OPAQUE via [defdelegate g(a), to: D, as: :f | defdelegate f(a, b \\ 1), to: T] line 2""",
+            ),
+            listOf("D.unquote(name)(1)", "C.unquote(name)(1)").map { call ->
+                candidates(file, call, call).lines().filter { it.startsWith("T.") }.sorted().joinToString("\n")
+            },
+        )
+    }
+
+    /** An `import` that leaves out the use's arity leaves the head, and what it delegates to, a wrong arity. */
+    fun testANamedUseAnImportLeavesOutIsAWrongArityThroughADelegation() {
+        val file = file(
+            """
+            defmodule T do
+              def pair(a, b), do: {a, b}
+            end
+
+            defmodule D do
+              defdelegate pair(a, b \\ 1), to: T
+            end
+
+            defmodule U do
+              import D, only: [pair: 2]
+
+              def uses, do: pair(1)
+            end
+            """
+        )
+
+        assertEquals(
+            """
+            D.pair/2 IMPORT WRONG_ARITY via [import D, only: [pair: 2]] line 6
+            T.pair/2 UNHELD_DELEGATION_TARGET WRONG_ARITY via [import D, only: [pair: 2] | defdelegate pair(a, b \\ 1), to: T] line 2
+            """.trimIndent(),
+            candidates(file, "def uses", "pair(1)").lines().filter { it.startsWith("D.") || it.startsWith("T.") }.sorted().joinToString("\n"),
+        )
+    }
+
     fun testAnExplicitKernelImportIsAnImport() {
         val file = file(
             """

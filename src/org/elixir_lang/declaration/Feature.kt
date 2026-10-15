@@ -1,5 +1,6 @@
 package org.elixir_lang.declaration
 
+import org.elixir_lang.expander.ExpanderSource
 import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
 
 /** A feature that asks a [CandidateSource] for candidates. */
@@ -15,16 +16,28 @@ enum class Feature {
     HEEX_COMPONENTS
 }
 
+/** Set to [EXPANDER] only by the test harness, to put [ExpanderSource] behind every feature. */
+internal const val SOURCE_PROPERTY = "org.elixir_lang.declaration.source"
+
+internal const val EXPANDER = "expander"
+
+/** Whether the test harness has put [ExpanderSource] behind every feature. */
+internal fun expanderSwitchOn(): Boolean = System.getProperty(SOURCE_PROPERTY) == EXPANDER
+
 /** The source that answers [feature]. */
 fun sourceFor(feature: Feature): CandidateSource =
-    when (feature) {
-        Feature.SYMBOL_REFERENCES,
-        Feature.DOCUMENTATION,
-        Feature.PARAMETER_INFO,
-        Feature.HIGHLIGHTING,
-        Feature.REFERENCES_INSPECTION,
-        Feature.COMPLETION,
-        Feature.FIND_USAGES_AND_RENAME,
-        Feature.STRUCTURE_VIEW,
-        Feature.HEEX_COMPONENTS -> LegacyWalkSource
+    if (expanderSwitchOn()) {
+        ExpanderSource
+    } else {
+        when (feature) {
+            Feature.SYMBOL_REFERENCES,
+            Feature.DOCUMENTATION,
+            Feature.PARAMETER_INFO,
+            Feature.HIGHLIGHTING,
+            Feature.REFERENCES_INSPECTION,
+            Feature.COMPLETION,
+            Feature.FIND_USAGES_AND_RENAME,
+            Feature.STRUCTURE_VIEW,
+            Feature.HEEX_COMPONENTS -> LegacyWalkSource
+        }
     }

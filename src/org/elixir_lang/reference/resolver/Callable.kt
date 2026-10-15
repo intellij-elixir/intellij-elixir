@@ -67,7 +67,7 @@ object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Cal
 
                     // The file as well: a non-physical file's edits do not move MODIFICATION_COUNT.
                     CachedValueProvider.Result.create(
-                        resolveAll(call, call.resolvedPrimaryArity() ?: 0, incompleteCode),
+                        resolveAll(call, Unquote.arity(call), incompleteCode),
                         PsiModificationTracker.MODIFICATION_COUNT,
                         call.containingFile
                     )
