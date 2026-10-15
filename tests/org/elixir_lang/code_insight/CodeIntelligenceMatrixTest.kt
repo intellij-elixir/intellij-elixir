@@ -776,17 +776,23 @@ private class Group(val scenario: Scenario) {
             return
         }
 
+        if (scenario.form in RENAME_REFUSED_FORMS) {
+            assertRenameRefused("its name is not written where it is declared", definition(binding).second.name)
+            return
+        }
+
         val (module, definition) = definition(binding)
+        val renamedTogether = renamedTogether(module, definition)
+
         val newName = renamed(definition.name)
         val positions = scenario.sites
-            .filter { site -> site.binding?.let { sameDefinition(module, definition, it) } == true }
+            .filter { site -> site.binding?.let { bound -> renamedTogether.any { sameDefinition(it.first, it.second, bound) } } == true }
             .map { it.file to (it.line to it.column) }
-        // A declaration spells the name as its form does: an embed's atom is the name without the suffix the embed adds.
-        val declarationName = EMBED_SUFFIXES.firstOrNull { scenario.form == GENERATOR_EMBED && newName.endsWith(it) }
-            ?.let(newName::removeSuffix) ?: newName
-        val declarationPositions = module.declarations
-            .filter { it.name == definition.name && it.arity == definition.maxArity }
-            .map { (it.file ?: module.source) to (it.line to it.column) }
+        val declarationPositions = renamedTogether.flatMap { (together, head) ->
+            together.declarations
+                .filter { it.name == head.name && it.arity == head.maxArity }
+                .map { (it.file ?: together.source) to (it.line to it.column) }
+        }
 
         val targets = myFixture.renameTargetsAtCaret()
         rename(
@@ -799,7 +805,7 @@ private class Group(val scenario: Scenario) {
             val path = callerFiles.entries.firstOrNull { it.value == file }?.key
                 ?: scenario.modules.single { sourceFiles[it] == file }.source
             val heads = declarationPositions.filter { it.first == path }.map { it.second }
-            val declared = replaceNames(keepDelegationTarget(module, originals.getValue(file), heads), heads, declarationName)
+            val declared = replaceNames(keepDelegationTarget(module, definition, originals.getValue(file), heads), heads, newName)
             val expected = replaceNames(declared, positions.filter { it.first == path }.map { it.second }, newName)
             val actual = FileDocumentManager.getInstance().getDocument(file)!!.text
 
@@ -1152,9 +1158,7 @@ private class Group(val scenario: Scenario) {
      * The new name keeps the scenario prefix, or two scenarios sharing the project would rename to the same name.
      */
     private fun renamed(name: String): String =
-        scope + "renamed" + name.takeLast(1).takeIf { it == "?" || it == "!" }.orEmpty() +
-            // An embed's function is its atom plus a suffix, so a name without the suffix is one no embed can declare.
-            EMBED_SUFFIXES.firstOrNull { scenario.form == GENERATOR_EMBED && name.endsWith(it) }.orEmpty()
+        scope + "renamed" + name.takeLast(1).takeIf { it == "?" || it == "!" }.orEmpty()
 
     /**
      * Rename at the caret is refused because [why]: nothing is offered, or whichever of the offered targets the user
@@ -1202,11 +1206,12 @@ private class Group(val scenario: Scenario) {
     }
 
     /**
-     * Renaming a `defdelegate` renames the delegation, not what it calls: the target keeps its name, so a delegation
-     * without `as:` gains `as: :<its old name>` to go on calling it. One that already has `as:` keeps it unchanged.
+     * A `defdelegate` without `as:` whose target is not found, or is not editable (compiled, or in a library), is renamed
+     * alone: it gains `as: :<its old name>` to go on calling the target, which keeps its name.
      */
-    private fun keepDelegationTarget(module: DeclaringModule, text: String, heads: List<Pair<Int, Int>>): String {
+    private fun keepDelegationTarget(module: DeclaringModule, definition: Definition, text: String, heads: List<Pair<Int, Int>>): String {
         if (module.delegateTo == null || module.delegateAs != null) return text
+        if (delegatedTarget(module, definition)?.compiled == false) return text
         val lines = text.split('\n').toMutableList()
 
         for ((line, column) in heads) {
@@ -1220,6 +1225,35 @@ private class Group(val scenario: Scenario) {
         }
 
         return lines.joinToString("\n")
+    }
+
+    /**
+     * What one rename of [definition] renames: itself and, for a `defdelegate` without `as:`, the definition it delegates
+     * to and every other such delegation of that definition - one rename whichever of them it starts from. A delegation
+     * with `as:` renames alone, because its target has another name.
+     */
+    private fun renamedTogether(module: DeclaringModule, definition: Definition): List<Pair<DeclaringModule, Definition>> {
+        val together = mutableListOf(module to definition)
+
+        fun add(other: DeclaringModule, definition: Definition) {
+            if (together.none { it.first === other && it.second === definition }) together += other to definition
+        }
+
+        if (module.delegateTo != null && module.delegateAs == null) {
+            delegatedTarget(module, definition)?.takeUnless { it.compiled }?.let { target ->
+                add(target, target.definitions.first { it.name == definition.name && definition.maxArity in it.minArity..it.maxArity })
+            }
+        }
+
+        for ((target, targetDefinition) in together.toList()) {
+            for (delegator in scenario.modules.filter { it.delegateTo == target.module && it.delegateAs == null }) {
+                delegator.definitions
+                    .filter { it.name == targetDefinition.name && delegatedTarget(delegator, it) === target }
+                    .forEach { add(delegator, it) }
+            }
+        }
+
+        return together
     }
 
     /** [text] with the identifier at each 1-based (line, column) replaced by [newName]. */
@@ -1838,16 +1872,18 @@ private class Group(val scenario: Scenario) {
         "${file.name}:$line `${String(file.contentsToByteArray(), file.charset).split('\n')[line - 1].trim()}`"
 
     companion object {
+        private val DELEGATE_TO = Regex("\\bto: [A-Z][\\w.]*")
         private val IDENTIFIER = Regex("[\\p{L}\\p{N}_\\p{Mn}\\p{Mc}]+[?!]?")
 
         /** The `@1a2b3c` a default `toString()` ends with. */
         private val IDENTITY_HASH = Regex("@[0-9a-f]+$")
-        private val DELEGATE_TO = Regex("\\bto: [A-Z][\\w.]*")
 
-        /** The form whose declarations are `Mix.Generator` embeds, and the suffixes an embed adds to its atom. */
-        private const val GENERATOR_EMBED = "generator_embed"
+        /**
+         * The forms whose functions no name written at the declaration spells: a `Mix.Generator` embed adds a suffix to its
+         * atom, and `defexception` generates `exception/1` and `message/1`. Rename is refused at them, wherever it is asked.
+         */
+        private val RENAME_REFUSED_FORMS = setOf("generator_embed", "defexception", "eex_function_from_computed_name")
         private const val USING = "__using__"
-        private val EMBED_SUFFIXES = listOf("_template", "_text")
 
         /**
          * A guard's own keys, looked up by name: a plugin without them still compiles this suite, and its guard cells
