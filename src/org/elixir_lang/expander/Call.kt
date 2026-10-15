@@ -234,6 +234,8 @@ internal fun expandRemoteCall(node: ElixirAst.Call, state: ExState, env: Env, ru
     val name = (right as ElixirAst.Literal.Atom).name
 
     return Expander.expand(left, receiverState(state, env, run), env, run).thenValue { after, receiverEnv, receiver ->
+        run.observer.receiver(left, receiver)
+
         if (receiver is Term.Atom) {
             dispatchRequire(receiver.name, name, node, state, receiverEnv, run) { functionReceiver, functionName ->
                 remoteFunction(functionReceiver, functionName, node, state, after, receiverEnv, run)

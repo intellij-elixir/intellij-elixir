@@ -40,6 +40,17 @@ fun preferFunctionHeads(clauses: Iterable<Call>): Map<String, Call> =
         }
 
 /**
+ * One entry per function name of a module, as completion offers them: [head] of each [preferFunctionHeads] pick of
+ * [clauses], then, for each name no clause has, the first of [delegations] by that name.
+ */
+fun <T> eachNameOnce(clauses: Iterable<Call>, delegations: Iterable<Pair<String, T>>, head: (String, Call) -> T): List<T> {
+    val heads = preferFunctionHeads(clauses)
+
+    return heads.map { (name, clause) -> head(name, clause) } +
+        delegations.filter { (name, _) -> name !in heads }.distinctBy { (name, _) -> name }.map { (_, delegation) -> delegation }
+}
+
+/**
  * One [Signature] per definition among [preferred], in the order found. A definition is a module's name and the
  * arities it covers, so a bodiless head with default arguments and the clauses below it are one, and `foo/1` and
  * `foo/2`, or the `foo/2` of two modules, are two. A definition with a bare function head is shown by it, else by the

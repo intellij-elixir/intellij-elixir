@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.util.TextRange
 import org.elixir_lang.Module
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.ALIAS_AS_NIL_REJECTED
@@ -470,9 +471,9 @@ private inline fun import(
     val filter = options.filter
     val selector = options.selector
     val internalsFirst = ERLANG_IMPORT_DROPS_BEHAVIOUR_INFO.isSufficient(level)
-    val functions = if (exports.hasInfo || !internalsFirst) exports.functions else exports.functions - INTERNALS
+    val functions = if (exports.hasInfo || !internalsFirst) exports.functions else exports.functions - ModuleExports.INTERNALS
     // Before 1.15 `remove_internals` runs on what the options leave instead.
-    val removedAfter = if (internalsFirst) emptySet() else MODULE_INFO
+    val removedAfter = if (internalsFirst) emptySet() else ModuleExports.MODULE_INFO
 
     when {
         legacy && options.only.hasDuplicate() -> return Expansion.Error("duplicated_import", call)
@@ -496,7 +497,7 @@ private inline fun import(
     val newFunctions = if (selector == Import.Filter.Selector.MACROS) {
         env.functions.filter { it.module != module }
     } else {
-        calculateKey(module, env.functions, imported.functions, exceptGiven, removedAfter, level) {
+        calculateKey(module, env.functions, imported.functions, exceptGiven, removedAfter, level, call.meta.origin) {
             return Expansion.Error("special_form_conflict", call)
         }
     }
@@ -505,7 +506,7 @@ private inline fun import(
         Import.Filter.Selector.FUNCTIONS -> env.macros.filter { it.module != module }
         Import.Filter.Selector.MACROS if noMacros -> return Expansion.Error("no_macros", call)
         else ->
-            calculateKey(module, env.macros, imported.macros, exceptGiven, removedAfter, level) {
+            calculateKey(module, env.macros, imported.macros, exceptGiven, removedAfter, level, call.meta.origin) {
                 return Expansion.Error("special_form_conflict", call)
             }
     }
@@ -528,8 +529,9 @@ private fun isUnclassifiedSigil(nameArity: NameArity): Boolean {
 }
 
 /**
- * `calculate_key/6`, and before 1.17 the end of `calculate/6`: [module]'s entry of [new] less [removed] put first in
- * [old], or none when that is empty. [conflict] is called for a special form the level raises on.
+ * `calculate_key/6`, and before 1.17 the end of `calculate/6`: [module]'s entry of [new] less [removed], made by the
+ * `import` at [origin], put first in [old], or none when that is empty. [conflict] is called for a special form the
+ * level raises on.
  */
 private inline fun calculateKey(
     module: String,
@@ -538,6 +540,7 @@ private inline fun calculateKey(
     exceptGiven: Boolean,
     removed: Set<NameArity>,
     level: ElixirLanguageLevel,
+    origin: TextRange,
     conflict: () -> Nothing,
 ): List<Env.Imports> {
     val others = old.filter { it.module != module }
@@ -554,7 +557,7 @@ private inline fun calculateKey(
         conflict()
     }
 
-    return listOf(Env.Imports(module, set)) + others
+    return listOf(Env.Imports(module, set, origin)) + others
 }
 
 /** Whether [term] is, or holds, a list with a `|` tail. */
@@ -572,6 +575,3 @@ internal fun hasMetaKey(meta: Meta, name: String): Boolean = meta.keys.any { it 
 /** `lists:keyfind/3`: the value of [meta]'s first entry named [name]. */
 internal fun metaValue(meta: Meta, name: String): Meta.Value? =
     meta.keys.firstNotNullOfOrNull { key -> (key as? Meta.Key.Entry)?.takeIf { it.name == name }?.value }
-
-private val MODULE_INFO = setOf(NameArity("module_info", 0), NameArity("module_info", 1))
-private val INTERNALS = MODULE_INFO + NameArity("behaviour_info", 1)

@@ -20,7 +20,7 @@ object Expander {
      * counter. An error Elixir reports and carries on after isn't returned, and a definition or module [ast] defines is
      * never compiled; [expandFile] does both.
      */
-    fun expand(
+    internal fun expand(
         ast: ElixirAst,
         state: ExState,
         env: Env,
@@ -123,7 +123,7 @@ object Expander {
         ProgressManager.checkCanceled()
         // A built node shares its source node's origin, so an observer would take it for that node.
         val observed = !ast.meta.built
-        if (observed) run.observer.entering(ast, state, env) else run.observer.builtIn(env)
+        if (observed) run.observer.entering(ast, state, env) else run.observer.builtIn(ast, env)
 
         val expansion = run.supplied(ast, body())
 
@@ -219,7 +219,7 @@ internal class Run(
         val loadedExports = LoadedModules.exports(result)
         compiledStructs[result.module] = loadedStruct
         compiled[result.module] = loadedExports
-        observer.loaded(result.module, loadedExports, loadedStruct)
+        observer.loaded(result, loadedExports, loadedStruct)
     }
 
     /** What each bitstring expanded builds, by node, for the bitstring that nests it. */

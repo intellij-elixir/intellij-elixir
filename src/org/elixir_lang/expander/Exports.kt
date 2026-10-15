@@ -29,7 +29,19 @@ sealed class ModuleExports {
         val hasInfo: Boolean,
         val behaviour: Behaviour = Behaviour.Unreadable,
         val deprecated: Deprecations = Deprecations.Unreadable,
-    ) : ModuleExports()
+    ) : ModuleExports() {
+        /**
+         * Every function a remote call reaches: [functions], and with [hasInfo] those of [NOT_IN_INFO] the module
+         * exports, `behaviour_info/1` only for a behaviour.
+         */
+        val exported: List<NameArity>
+            get() =
+                if (hasInfo) {
+                    functions + NOT_IN_INFO.filter { it != BEHAVIOUR_INFO || behaviour != Behaviour.None }
+                } else {
+                    functions
+                }
+    }
 
     /** What a module's `behaviour_info/1` answers. */
     sealed class Behaviour {
@@ -47,16 +59,20 @@ sealed class ModuleExports {
     }
 
     companion object {
-        /**
-         * The exports `__info__(:functions)` leaves out: `__info__/1`, which `elixir_erl` adds beside the module's
-         * `def`s, and `module_info/0,1` and `behaviour_info/1`, which the Erlang compiler adds.
-         */
-        val NOT_IN_INFO: Set<NameArity> = setOf(
-            NameArity("__info__", 1),
-            NameArity("module_info", 0),
-            NameArity("module_info", 1),
-            NameArity("behaviour_info", 1),
-        )
+        /** `module_info/0,1`, which the Erlang compiler adds to every module. */
+        val MODULE_INFO: Set<NameArity> = setOf(NameArity("module_info", 0), NameArity("module_info", 1))
+
+        /** `behaviour_info/1`, which the Erlang compiler adds to a behaviour. */
+        val BEHAVIOUR_INFO = NameArity("behaviour_info", 1)
+
+        /** What `elixir_import:remove_internals/1` removes: [MODULE_INFO] and a behaviour's [BEHAVIOUR_INFO]. */
+        val INTERNALS: Set<NameArity> = MODULE_INFO + BEHAVIOUR_INFO
+
+        /** `__info__/1`, which `elixir_erl` adds beside the module's `def`s. */
+        val INFO = NameArity("__info__", 1)
+
+        /** The exports `__info__(:functions)` leaves out: [INTERNALS] and [INFO]. */
+        val NOT_IN_INFO: Set<NameArity> = INTERNALS + INFO
     }
 }
 

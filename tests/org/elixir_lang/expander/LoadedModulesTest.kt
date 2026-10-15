@@ -108,6 +108,11 @@ class LoadedModulesTest : ProbeTestCase() {
         )
     }
 
+    /** A module whose body raises isn't loaded, whatever it defined before the raise. */
+    fun testARaisedModuleIsAbsent() {
+        assertEquals(ModuleExports.Absent, sourceExports("n = :f\ndef unquote(n)(), do: 1\ndef g, do: 2\n1.f()"))
+    }
+
     /** The behaviour [LoadedModules] gives the module whose body is [body], with its callbacks sorted. */
     private fun sourceBehaviour(body: String): ModuleExports.Behaviour? =
         (sourceExports(body) as? ModuleExports.Present)?.behaviour?.let {

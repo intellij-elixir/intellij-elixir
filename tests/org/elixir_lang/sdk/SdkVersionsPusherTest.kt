@@ -465,6 +465,24 @@ class SdkVersionsPusherTest : HeavyTestCase() {
         assertEquals("1.18.4|26.2.5.21", read { pusher.getImmediateValue(project, directory) })
     }
 
+    /** With nothing pushed, a parse can't wait for the paired home to be read, so the build's OTP major stands in. */
+    fun testAPairedErlangSdkNotReadYetGivesTheResolverTheUnpairedLevel() {
+        val elixirSdk = pairedElixirSdk(
+            "OTP unread resolver",
+            fakeHome("elixir/otp-unread-resolver"),
+            fakeHome("erlang/otp-unread-resolver"),
+        )
+        ModuleRootModificationUtil.setModuleSdk(module, elixirSdk)
+        SdkVersionsStore.getInstance().setElixirVersions(
+            fakeHome("elixir/otp-unread-resolver"),
+            ElixirVersions("1.18.4", OtpMajor.Known("27"))
+        )
+        val file = elixirFile(module, "otp-unread-resolver")
+        PushedVersions.KEY.setPersistentValue(file.parent, null)
+
+        assertEquals(ElixirLanguageLevel.of("1.18.4", "27"), ElixirLanguageLevelResolver.languageLevelFor(parsed(file)))
+    }
+
     /** A paired Erlang SDK that was removed is never read, and waiting would leave the content root at the default. */
     fun testAContentRootWithNoVersionsWhileThePairedErlangSdkIsUnreadGetsTheBuildsOtpMajor() {
         val directory = unreadPairingDirectory("otp-never-read")

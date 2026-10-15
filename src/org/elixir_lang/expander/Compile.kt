@@ -133,13 +133,15 @@ internal sealed interface Pending {
      * @property node the `def*` call
      * @property head the call and guard being defined
      * @property body the options, or `null` for a bodiless head
-     * @property unnamedAt the name's unquote fragment, when its value isn't an atom
+     * @property unnamedAt the name's unquote fragment, when its value isn't an atom, or the first fragment that stops a
+     *   head whose name or argument count a fragment decides
      * @property stop the first other fragment whose value isn't a literal
      * @property env the env at [node]
      * @property ordered whether [node] is a statement of the module body, and named
      * @property statement whether [node] is a statement of the module body
      * @property checksClauses whether Elixir checks the definition for clauses: it has no unquotes, and its head
      *   wasn't quoted
+     * @property delegatesTo what the head calls, when a `defdelegate` defined it
      */
     class Definition(
         val kind: DefinitionTable.Kind,
@@ -152,6 +154,7 @@ internal sealed interface Pending {
         val ordered: Boolean,
         val statement: Boolean,
         val checksClauses: Boolean,
+        val delegatesTo: DefinitionTable.Delegation? = null,
     ) : Pending
 
     /**
@@ -285,73 +288,80 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
 
     units += ExpansionResult.Unit(Owner.ModuleBody, module.body, true, body)
 
-    if (ended?.raises != true) {
-        var ordered = true
-        val queue = ArrayDeque(module.settle?.invoke(run.pending) ?: run.pending)
+    // A body that raised keeps the definitions it queued before the raise, and the attributes they read, as one that
+    // stopped does. Elixir evaluates none of it, so no clause is expanded and nothing else it queued runs.
+    val raised = ended?.raises == true
+    var ordered = true
+    val queue = ArrayDeque(module.settle?.invoke(run.pending) ?: run.pending)
 
-        while (queue.isNotEmpty()) {
-            val unitEnded = when (val pending = queue.removeFirst()) {
-                is Pending.Definition -> {
-                    ordered = ordered && pending.ordered
+    while (queue.isNotEmpty()) {
+        val unitEnded = when (val pending = queue.removeFirst()) {
+            is Pending.Module if raised -> null
+            is Pending.Effect if raised -> null
+            is Pending.Definition -> {
+                ordered = ordered && pending.ordered
 
-                    val (owner, stored) = storeDefinition(pending, compiling, run)
-                    val expansion = certain(stored, ordered, pending.node)
+                val (owner, stored) = storeDefinition(pending, compiling, run, expand = !raised)
+                val expansion = certain(stored, ordered, pending.node)
 
-                    compiling.storedReads(owner)
+                compiling.storedReads(owner)
 
-                    if (expansion !is Expansion.Error) {
-                        takeDefinitionAttributes(pending, owner as Owner.Definition, compiling)
-                    }
+                if (expansion !is Expansion.Error) {
+                    takeDefinitionAttributes(pending, owner as Owner.Definition, compiling)
+                }
 
+                if (raised) {
+                    null
+                } else {
                     units += ExpansionResult.Unit(owner, pending.node, ordered, expansion)
                     ended(expansion, run)
                 }
-                is Pending.Attribute -> {
-                    val effect = pending.resolve?.invoke(compiling.attributes) ?: pending.effect
+            }
+            is Pending.Attribute -> {
+                val effect = pending.resolve?.invoke(compiling.attributes) ?: pending.effect
 
-                    compiling.effects += AttributeLog.Logged(effect, pending.at, pending.statement)
+                compiling.effects += AttributeLog.Logged(effect, pending.at, pending.statement)
 
-                    when (val outcome = compiling.attributes.apply(effect, pending.statement)) {
-                        is EffectOutcome.Raises -> Ended.Raised(Expansion.Error(outcome.kind, pending.at))
-                        // Whether Elixir raises there isn't known, so nothing after it can be compared.
-                        EffectOutcome.Unchecked -> Ended.Stopped(pending.at)
-                        EffectOutcome.Stored -> null
-                    }
-                }
-                is Pending.Effect -> {
-                    ordered = ordered && pending.ordered
-
-                    val applied = pending.apply(compiling)?.let { certain(it, ordered, pending.node) }
-
-                    (applied as? Expansion.Opaque)?.let(effectOpaque::add)
-                    applied?.let { ended(it, run) }.also { queue.addAll(0, pending.queued()) }
-                }
-                is Pending.Module -> {
-                    errors += run.errors.subList(errorsFrom, run.errors.size)
-                    warnings += run.warnings.subList(warningsFrom, run.warnings.size)
-
-                    val result = compileModule(pending, run)
-
-                    errorsFrom = run.errors.size
-                    warningsFrom = run.warnings.size
-                    nested += result
-                    when (val inner = result.ended) {
-                        Ended.Compiled -> null
-                        // `elixir_module:compile/6` raises once the nested module's checks have run.
-                        Ended.Tainted -> Ended.Raised(Expansion.Error("compile_error", pending.node))
-                        is Ended.Raised, is Ended.Crashed, is Ended.Stopped -> inner
-                    }
+                when (val outcome = compiling.attributes.apply(effect, pending.statement)) {
+                    is EffectOutcome.Raises -> Ended.Raised(Expansion.Error(outcome.kind, pending.at))
+                    // Whether Elixir raises there isn't known, so nothing after it can be compared.
+                    EffectOutcome.Unchecked -> Ended.Stopped(pending.at)
+                    EffectOutcome.Stored -> null
                 }
             }
+            is Pending.Effect -> {
+                ordered = ordered && pending.ordered
 
-            ended = ended ?: unitEnded
+                val applied = pending.apply(compiling)?.let { certain(it, ordered, pending.node) }
 
-            // A unit that raises ends the module body's evaluation, even after an earlier unit stopped.
-            if (unitEnded?.raises == true) break
+                (applied as? Expansion.Opaque)?.let(effectOpaque::add)
+                applied?.let { ended(it, run) }.also { queue.addAll(0, pending.queued()) }
+            }
+            is Pending.Module -> {
+                errors += run.errors.subList(errorsFrom, run.errors.size)
+                warnings += run.warnings.subList(warningsFrom, run.warnings.size)
+
+                val result = compileModule(pending, run)
+
+                errorsFrom = run.errors.size
+                warningsFrom = run.warnings.size
+                nested += result
+                when (val inner = result.ended) {
+                    Ended.Compiled -> null
+                    // `elixir_module:compile/6` raises once the nested module's checks have run.
+                    Ended.Tainted -> Ended.Raised(Expansion.Error("compile_error", pending.node))
+                    is Ended.Raised, is Ended.Crashed, is Ended.Stopped -> inner
+                }
+            }
         }
 
-        if (ended == null) storeNotOverridden(compiling)?.let { ended = Ended.Raised(it) }
+        ended = ended ?: unitEnded
+
+        // A unit that raises ends the module body's evaluation, even after an earlier unit stopped.
+        if (unitEnded?.raises == true) break
     }
+
+    if (ended == null) storeNotOverridden(compiling)?.let { ended = Ended.Raised(it) }
 
     if (ended == null) ended = beforeCompile(module, compiling, (body as Expansion.Expanded).env, run)
 

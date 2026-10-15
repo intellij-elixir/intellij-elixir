@@ -125,11 +125,14 @@ internal fun define(
         }
 
         val statement = run.compiling[env.module]?.isStatement(node) == true
+        val substituted = substitute(head, replacements)
+
+        if (!isReadWhole(extractGuards(substituted).first)) unnamedAt = unnamedAt ?: stop
 
         run.pending += Pending.Definition(
             kind,
             node,
-            substitute(head, replacements),
+            substituted,
             body?.let { substitute(it, replacements) },
             unnamedAt,
             stop,
@@ -336,6 +339,15 @@ private fun substituteAll(nodes: List<ElixirAst>, replacements: Map<ElixirAst, E
     return if (substituted.indices.all { substituted[it] === nodes[it] }) nodes else substituted
 }
 
+/**
+ * Whether `store_definition/5` reads [call]'s name and `length(Args)` with no fragment the expander can't evaluate
+ * deciding either: [call] isn't itself a fragment, and no direct argument is a splice.
+ */
+private fun isReadWhole(call: ElixirAst): Boolean =
+    !isCall(call, "unquote", 1) &&
+        !isCall(call, "unquote_splicing", 1) &&
+        (call as? ElixirAst.Call)?.arguments.orEmpty().none { isCall(it, "unquote_splicing", 1) }
+
 /** `elixir_utils:extract_guards/1`: [head] without its guards, and each guard of its `when`s, which `extract_or_guards/1` splits. */
 internal fun extractGuards(head: ElixirAst): Pair<ElixirAst, List<ElixirAst>> =
     whenArguments(head)?.takeIf { it.size == 2 }?.let { (call, guards) -> call to orGuards(guards) } ?: (head to emptyList())
@@ -346,11 +358,15 @@ private fun orGuards(node: ElixirAst): List<ElixirAst> =
 /**
  * `elixir_def:store_definition/5`: [definition]'s name checked, its defaults and clause expanded in the env where it
  * was defined, and the definition stored unless that raised. The owner names the definition as far as it is known.
+ *
+ * @param expand whether the defaults and clause are expanded; where they aren't, the definition is stored as one that
+ *   stops at its node
  */
 internal fun storeDefinition(
     definition: Pending.Definition,
     compiling: Compiling,
     run: Run,
+    expand: Boolean = true,
 ): Pair<Owner, Expansion> {
     val kind = definition.kind
     val node = definition.node
@@ -383,10 +399,10 @@ internal fun storeDefinition(
     reservedNameError(kind, name, arity)?.let { return owner to Expansion.Error(it, node) }
 
     val defaults = defaultsArgs.mapNotNull { arg -> (arg as? ElixirAst.Call)?.takeIf { isCall(it, "\\\\", 2) } }
-    definition.stop?.let { stop ->
+    if (definition.stop != null || !expand) {
         store(definition, name, arity, defaults.size, compiling)
 
-        return owner to Expansion.Unported(stop)
+        return owner to Expansion.Unported(definition.stop ?: node)
     }
 
     val env = definition.env.copy(function = NameArity(name, arity))
@@ -421,6 +437,7 @@ private fun store(
         defaults,
         definition.ordered,
         definition.checksClauses,
+        definition.delegatesTo,
     )
 
 /** `assert_valid_name/5`: the error a definition of [name] and [arity] raises, as one the compiler defines. */

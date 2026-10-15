@@ -187,6 +187,7 @@ private fun captureRequire(
         captureExpr(captureAt(amp, call, run), call, arguments, state, env, run, escape)
     } else {
         Expander.expand(module, state, env, run).thenValue { s, e, value ->
+            run.observer.receiver(module, value)
             val at = captureAt(amp, call, run, plainRemote = true)
             // The `fn` calls the expanded module part. Only an atom's is known without the expanded tree, so any other
             // module part is expanded again in the `fn`.

@@ -9,7 +9,7 @@ import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.beam.psi.Module as BeamModule
-import org.elixir_lang.code_insight.preferFunctionHeads
+import org.elixir_lang.code_insight.eachNameOnce
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Visible
@@ -117,23 +117,19 @@ private fun offers(scope: Call, arity: Arity?): List<Offer> {
         .filter { CallDefinitionClausePsi.capabilities(it)?.public == true }
         .filter { ofArity(CallDefinitionClausePsi.nameArityInterval(it, ResolveState.initial()), arity) }
 
-    val clauseOffers = preferFunctionHeads(publicClauses).map { (name, bestClause) -> Offer(name, bestClause, Form.CLAUSE) }
-    val clauseNames = clauseOffers.map(Offer::name).toSet()
-
-    return clauseOffers + delegationOffers(childCalls, clauseNames, arity)
+    return eachNameOnce(publicClauses, delegationOffers(childCalls, arity)) { name, clause -> Offer(name, clause, Form.CLAUSE) }
 }
 
 /**
- * The functions this module declares only with `defdelegate`.
+ * The functions this module declares with `defdelegate`, each by its name.
  *
  * `Delegation.is` and `CallDefinitionClause.is` are disjoint, so delegates need their own pass or they
- * are never offered. Names already in [clauseNames] are skipped so a `def` keeps its richer
- * presentation; visibility is not filtered because there is no `defdelegatep`.
+ * are never offered. Visibility is not filtered because there is no `defdelegatep`.
  *
  * A delegate's insert handler appends parentheses like a `def`'s, so it inserts `Mod.values()` and opens
  * parameter info, and stays a bare name for a capture or an MFA atom, where a name is not a call.
  */
-private fun delegationOffers(childCalls: List<Call>, clauseNames: Set<String>, arity: Arity?): List<Offer> =
+private fun delegationOffers(childCalls: List<Call>, arity: Arity?): List<Pair<String, Offer>> =
     childCalls
         .filter { Delegation.`is`(it) }
         .mapNotNull { delegation ->
@@ -143,11 +139,8 @@ private fun delegationOffers(childCalls: List<Call>, clauseNames: Set<String>, a
                 ?.let { arguments -> CallDefinitionHead.nameArityInterval(arguments[0], ResolveState.initial()) }
                 ?.takeIf { ofArity(it, arity) }
                 ?.name
-                ?.takeIf { it !in clauseNames }
-                ?.let { name -> name to delegation }
+                ?.let { name -> name to Offer(name, delegation, Form.DELEGATION) }
         }
-        .distinctBy { (name, _) -> name }
-        .map { (name, delegation) -> Offer(name, delegation, Form.DELEGATION) }
 
 private fun offers(moduleImpl: BeamModule, arity: Arity?): List<Offer> =
     moduleImpl.callDefinitions()

@@ -24,7 +24,7 @@ internal class DefinitionTable {
     /**
      * One definition.
      *
-     * @property at its first head
+     * @property heads each head stored, in order; a compiled module's entry holds its first only
      * @property clauses the clauses stored, none for a bodiless head
      * @property defaults the most defaults any of its heads gave
      * @property default whether it was first stored for a default arity of another definition
@@ -33,16 +33,30 @@ internal class DefinitionTable {
      */
     data class Entry(
         val kind: Kind,
-        val at: ElixirAst,
+        val heads: List<Head>,
         val clauses: Int,
         val defaults: Int,
         val default: Boolean,
         val ordered: Boolean,
         val checksClauses: Boolean,
     ) {
+        /** Its first head. */
+        val at: ElixirAst get() = heads.first().at
+
         /** The line of its first head. */
         val line: Int get() = lineOf(at.meta)
     }
+
+    /**
+     * One head of a definition.
+     *
+     * @property at the `def*` call
+     * @property delegation what the head calls, when a `defdelegate` defined it
+     */
+    data class Head(val at: ElixirAst, val delegation: Delegation?)
+
+    /** A `defdelegate`'s `to:` module and the function it calls there, as its `delegate_to` doc has them. */
+    data class Delegation(val module: String, val function: String)
 
     /** Each named definition, in the order it was first stored. */
     val entries: Map<NameArity, Entry>
@@ -71,7 +85,7 @@ internal class DefinitionTable {
      * `elixir_def:store_definition/10`: a head of [name] and [arity], or of no known name when [name] is `null`, with
      * [clauses] clauses and [defaults] defaults, then a clause for each default arity: the kind of the error the store
      * raises, if it raises, in which case nothing more is stored. For an unnamed head, [ordered] is whether it is a
-     * statement of the module body.
+     * statement of the module body. [delegation] is the head's, not its default arities'.
      */
     fun define(
         name: String?,
@@ -82,6 +96,7 @@ internal class DefinitionTable {
         defaults: Int,
         ordered: Boolean,
         checksClauses: Boolean,
+        delegation: Delegation? = null,
     ): String? {
         if (name == null) {
             unnamed += Unnamed(kind, lineOf(at.meta), ordered)
@@ -91,11 +106,11 @@ internal class DefinitionTable {
 
         if (conflictsWithPreviousDefaults(name, arity, defaults)) return "defs_with_defaults"
 
-        store(NameArity(name, arity), kind, at, clauses, defaults, default = false, ordered, checksClauses)
+        store(NameArity(name, arity), kind, listOf(Head(at, delegation)), clauses, defaults, default = false, ordered, checksClauses)
             ?.let { return it }
 
         for (defaultArity in defaultArities(arity, defaults)) {
-            store(NameArity(name, defaultArity), kind, at, 1, 0, default = true, ordered, checksClauses = false)
+            store(NameArity(name, defaultArity), kind, listOf(Head(at, null)), 1, 0, default = true, ordered, checksClauses = false)
                 ?.let { return it }
         }
 
@@ -118,8 +133,8 @@ internal class DefinitionTable {
      * definition as it was, with no check against the defaults of another arity and no clause for its default arities,
      * which were never taken. The kind of the error the store raises, if it raises.
      */
-    fun restore(name: String, arity: Int, kind: Kind, at: ElixirAst, clauses: Int, defaults: Int, ordered: Boolean): String? =
-        store(NameArity(name, arity), kind, at, clauses, defaults, default = false, ordered, checksClauses = false)
+    fun restore(name: String, arity: Int, kind: Kind, heads: List<Head>, clauses: Int, defaults: Int, ordered: Boolean): String? =
+        store(NameArity(name, arity), kind, heads, clauses, defaults, default = false, ordered, checksClauses = false)
 
     /** [entry] as a compiled module holds [nameArity], with none of a definition's checks, which its compile passed. */
     fun put(nameArity: NameArity, entry: Entry) {
@@ -133,13 +148,13 @@ internal class DefinitionTable {
         }
 
     /**
-     * `elixir_def:store_definition/11`: the first head is kept, the most defaults, and the last head's [checksClauses].
+     * `elixir_def:store_definition/11`: every head is kept, the most defaults, and the last head's [checksClauses].
      * A store of another kind raises `changed_kind`, and a second with defaults `duplicate_defaults`.
      */
     private fun store(
         nameArity: NameArity,
         kind: Kind,
-        at: ElixirAst,
+        heads: List<Head>,
         clauses: Int,
         defaults: Int,
         default: Boolean,
@@ -152,12 +167,13 @@ internal class DefinitionTable {
 
         entries[nameArity] =
             if (stored == null) {
-                Entry(kind, at, clauses, defaults, default, ordered, checksClauses)
+                Entry(kind, heads, clauses, defaults, default, ordered, checksClauses)
             } else {
                 if (stored.kind != kind) return "changed_kind"
                 if (defaults > 0 && stored.defaults > 0) return "duplicate_defaults"
 
                 stored.copy(
+                    heads = stored.heads + heads,
                     clauses = stored.clauses + clauses,
                     defaults = maxOf(stored.defaults, defaults),
                     ordered = stored.ordered && ordered,

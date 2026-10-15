@@ -1,17 +1,18 @@
 package org.elixir_lang.expander
 
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.psi.Import.Term
 
 /**
  * Told of each node [Expander] reaches, before any clause runs, and as it is left. A node the expander built
  * ([org.elixir_lang.lowering.Meta.built]) is neither entered nor left, but its env is reported by [builtIn] and its
  * dispatches are reported.
  */
-fun interface ExpansionObserver {
+internal fun interface ExpansionObserver {
     fun entering(node: ElixirAst, state: ExState, env: Env)
 
-    /** A node the expander built is reached in [env], which its dispatches are in. */
-    fun builtIn(env: Env) {}
+    /** [node], which the expander built, is reached in [env], which its dispatches are in. */
+    fun builtIn(node: ElixirAst, env: Env) {}
 
     /** [node]'s [expansion], as [Expander.expand] returns it. */
     fun left(node: ElixirAst, expansion: Expansion) {}
@@ -21,6 +22,9 @@ fun interface ExpansionObserver {
      * function, or of a macro whose expansion is modelled.
      */
     fun dispatched(node: ElixirAst, dispatch: Dispatch) {}
+
+    /** [qualifier], the receiver of a remote call or a remote capture, expanded to [value]. */
+    fun receiver(qualifier: ElixirAst, value: Term) {}
 
     /** [capture], a capture of a remote function, dispatches next: the `&`, which a built capture is not entered as. */
     fun capturing(capture: ElixirAst) {}
@@ -36,7 +40,8 @@ fun interface ExpansionObserver {
     /** The struct [node] builds, updates or matches expands as [module]'s, with [keys] given as written. */
     fun structExpanded(node: ElixirAst, module: String, keys: List<String>) {}
 
-    fun loaded(module: String, exports: ModuleExports, struct: ModuleStruct) {}
+    /** [result]'s module loaded, with the [exports] and [struct] Elixir gives it. */
+    fun loaded(result: ExpansionResult, exports: ModuleExports, struct: ModuleStruct) {}
 
     companion object {
         val NONE = ExpansionObserver { _, _, _ -> }

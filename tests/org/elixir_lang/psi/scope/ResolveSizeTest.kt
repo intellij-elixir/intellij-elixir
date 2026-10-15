@@ -266,25 +266,8 @@ class ResolveSizeTest : PlatformTestCase() {
 
     private var withoutTable = 0
 
-    /** For [counters], or every counter when none is named. */
-    private fun assertSizeIndependent(perSize: Map<Int, List<Map<Counter, Long>>>, vararg counters: Counter) {
-        val failures = mutableListOf<String>()
-        val smallest = SIZES.first()
-
-        for (counter in counters.ifEmpty { Counter.entries.toTypedArray() }) {
-            val later = perSize.mapValues { (_, perUse) -> perUse.drop(1).map { it.getValue(counter) } }
-            if (later.values.distinct().size > 1) failures += "$counter uses 2..$USES differ by size: $later"
-
-            val firstSmall = perSize.getValue(smallest)[0].getValue(counter)
-            for (size in SIZES.drop(1)) {
-                val first = perSize.getValue(size)[0].getValue(counter)
-                val bound = (firstSmall + 1) * (size / smallest) * 2
-                if (first > bound) failures += "$counter first use at $size = $first > linear bound $bound"
-            }
-        }
-
-        assertTrue(failures.joinToString("\n"), failures.isEmpty())
-    }
+    private fun assertSizeIndependent(perSize: Map<Int, List<Map<Counter, Long>>>) =
+        org.elixir_lang.assertSizeIndependent(perSize, Counter.entries)
 
     private companion object {
         val SIZES = listOf(10, 100, 1000)

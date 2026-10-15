@@ -1216,7 +1216,7 @@ internal class ExpansionProbes(
             }
         }
 
-        override fun builtIn(env: Env) {
+        override fun builtIn(node: ElixirAst, env: Env) {
             this.env = env
         }
 

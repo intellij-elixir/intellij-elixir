@@ -4,7 +4,6 @@ import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.code_insight.completion.callDefinitionClauseVisible
 import org.elixir_lang.declaration.Applicability
-import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Candidate
 import org.elixir_lang.declaration.CandidateSource
 import org.elixir_lang.declaration.Found
@@ -52,27 +51,12 @@ object LegacyWalkSource : CandidateSource {
 
     private fun applicability(reached: ReachedDeclaration, use: Use): Applicability? =
         when (use) {
-            // The walk finds no name-less use valid, so the arity decides, but behind a `defdelegate` only the name it
-            // delegates to is reached.
-            is Use.AnyName ->
-                when {
-                    reached.searchedAtom != null && reached.searchedAtom != reached.declaration.name -> null
-                    admits(reached.declaration.arity, use.arity) -> Applicability.OPAQUE
-                    else -> Applicability.WRONG_ARITY
-                }
+            is Use.AnyName -> Applicability.ofAnyName(reached.declaration, reached.searchedAtom, use.arity)
             is Use.Named ->
                 if (reached.headNamed) {
                     reached.searchedAtom?.let { Applicability.of(reached.declaration, it, reached.valid) }
                 } else {
                     null
                 }
-        }
-
-    private fun admits(arity: ArityKnowledge, used: Int): Boolean =
-        when (arity) {
-            is ArityKnowledge.Exact -> arity.arity == used
-            is ArityKnowledge.Range -> used in arity.minimum..arity.maximum
-            is ArityKnowledge.Open -> used >= arity.minimum
-            ArityKnowledge.Unknown -> true
         }
 }
