@@ -14,7 +14,6 @@ import com.intellij.psi.PsiReference
 import com.intellij.psi.PsiReferenceService
 import com.intellij.psi.PsiReferenceService.Hints.NO_HINTS
 import org.elixir_lang.declaration.Declaration
-import org.elixir_lang.declaration.Declared
 import org.elixir_lang.model.psi.ElixirSymbolWithUsages
 import org.elixir_lang.model.psi.generic_server.GenServerHandlerTarget
 import org.elixir_lang.psi.call.Call
@@ -112,10 +111,7 @@ class ResolutionSnapshot(private val root: VirtualFile) {
 
     private fun describe(declaration: Declaration): String {
         val arity = declaration.arity.text()
-        val form = when (val declared = declaration.declared) {
-            is Declared.Source -> declared.form.name.lowercase()
-            is Declared.Compiled -> "compiled"
-        }
+        val form = declaration.declared.label()
         val capabilities = declaration.capabilities
         val time = if (capabilities.compileTime) "compile-time" else "runtime"
 

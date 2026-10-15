@@ -1,0 +1,16 @@
+# Elixir 1.17.3
+kind	sub-kind	outcome	label	count
+ref	imported_function	matched	clause	1
+ref	imported_macro	matched	clause	32
+ref	imported_macro	no use	none	2
+ref	imported_macro	other	none	1
+ref	local_function	matched	none	1
+ref	local_function	no use	none	2
+ref	remote_function	matched	clause	3
+ref	remote_function	no use	none	2
+alias	-	matched	none	13
+def	def	matched	clause	25
+def	def	nothing	none	7
+def	defp	nothing	none	1
+declaration	def	matched	clause	24
+declaration	def	nothing	clause	4

@@ -1,0 +1,8 @@
+# Elixir 1.12.3
+kind	sub-kind	outcome	label	count
+ref	imported_macro	matched	clause	7
+ref	imported_macro	no use	none	1
+ref	remote_function	matched	delegation	6
+alias	-	matched	none	7
+def	def	matched	clause	6
+declaration	def	matched	clause	6
