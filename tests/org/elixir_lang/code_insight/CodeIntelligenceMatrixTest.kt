@@ -796,8 +796,7 @@ private class Group(val scenario: Scenario) {
 
         val targets = myFixture.renameTargetsAtCaret()
         rename(
-            targets.singleOrNull()
-                ?: throw AssertionError("Expected exactly one rename target at the caret, got ${targets.size}: $targets"),
+            singleRenameTarget(targets),
             newName
         )
 
@@ -958,8 +957,7 @@ private class Group(val scenario: Scenario) {
         val positions = attributeSites().map { it.file to (it.line to it.column) }
         val targets = myFixture.renameTargetsAtCaret()
         rename(
-            targets.singleOrNull()
-                ?: throw AssertionError("Expected exactly one rename target at the caret, got ${targets.size}: $targets"),
+            singleRenameTarget(targets),
             newName
         )
 
@@ -1022,8 +1020,7 @@ private class Group(val scenario: Scenario) {
             .map { it.file to (it.line to it.column) }
         val targets = myFixture.renameTargetsAtCaret()
         rename(
-            targets.singleOrNull()
-                ?: throw AssertionError("Expected exactly one rename target at the caret, got ${targets.size}: $targets"),
+            singleRenameTarget(targets),
             newName
         )
 
@@ -1085,8 +1082,7 @@ private class Group(val scenario: Scenario) {
         val positions = scenario.sites.filter { it.impl!!.family == family }.map { it.file to (it.line to it.column) }
         val targets = myFixture.renameTargetsAtCaret()
         rename(
-            targets.singleOrNull()
-                ?: throw AssertionError("Expected exactly one rename target at the caret, got ${targets.size}: $targets"),
+            singleRenameTarget(targets),
             newName
         )
 
@@ -1256,6 +1252,13 @@ private class Group(val scenario: Scenario) {
         return together
     }
 
+    /** The caret's one rename target; several is the plugin's answer for the cell, not a harness fault. */
+    private fun <T> singleRenameTarget(targets: List<T>): T =
+        targets.singleOrNull() ?: throw AssertionError(
+            if (targets.isEmpty()) "Expected exactly one rename target at the caret, got 0: []"
+            else "Rename offered ${targets.size} targets at the caret, expected one: $targets"
+        )
+
     /** [text] with the identifier at each 1-based (line, column) replaced by [newName]. */
     private fun replaceNames(text: String, positions: List<Pair<Int, Int>>, newName: String): String {
         val lines = text.split('\n').toMutableList()
@@ -1267,8 +1270,11 @@ private class Group(val scenario: Scenario) {
                 ?: throw AssertionError("No identifier at $line:$column of `$current`")
             // `Mod."f"` becomes `Mod.g`, as `mix format` writes it: the quotes stay only where the new name needs them.
             val quoted = current.startsWith(".\"", start - 2) && current.getOrNull(start + length) == '"'
+            // `:"f"` becomes `:g` for the same reason.
+            val quotedAtom = current.startsWith(":\"", start - 2) && current.getOrNull(start + length) == '"'
             lines[line - 1] =
                 if (quoted) current.substring(0, start - 1) + Spelling.of(newName, Position.REMOTE_CALL) + current.substring(start + length + 1)
+                else if (quotedAtom) current.substring(0, start - 1) + Spelling.of(newName, Position.ATOM) + current.substring(start + length + 1)
                 else current.substring(0, start) + newName + current.substring(start + length)
         }
 
