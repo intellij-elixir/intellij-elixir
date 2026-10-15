@@ -7,15 +7,23 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.platform.ide.navigation.NavigationOptions
 import com.intellij.platform.ide.navigation.NavigationService
-import com.intellij.platform.ide.progress.runWithModalProgressBlocking
 import com.intellij.pom.Navigatable
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.psi.PsiElement
+import com.intellij.util.concurrency.AppExecutorUtil
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.future.asCompletableFuture
 import org.elixir_lang.junit.LightTestCase
+import org.elixir_lang.junit.hangDump
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.structure_view.element.CallDefinition
 import org.elixir_lang.structure_view.element.CallDefinitionClause
 import org.elixir_lang.structure_view.element.EExFunctionFrom
+import org.elixir_lang.util.ElixirCoroutineService
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Activating a structure view element opens its target at the target's offset, by each route the platform takes:
@@ -45,15 +53,55 @@ class NavigationTest : LightTestCase() {
     private enum class Route { WRAPPER_NODE, DIRECT, NAVIGATION_SERVICE }
 
     private fun navigate(element: StructureViewTreeElement, route: Route) {
-        when (route) {
-            Route.WRAPPER_NODE -> TreeElementWrapper(project, element, model).navigate(true)
-            Route.DIRECT -> (element as Navigatable).navigate(true)
-            Route.NAVIGATION_SERVICE -> runWithModalProgressBlocking(project, "navigate") {
-                val request = readAction { (element as Navigatable).navigationRequest() }
+        bounded("${element.javaClass.simpleName} by $route") { onJob ->
+            when (route) {
+                Route.WRAPPER_NODE -> TreeElementWrapper(project, element, model).navigate(true)
+                Route.DIRECT -> (element as Navigatable).navigate(true)
+                // Not under modal progress: from 2026.3 the previous route's navigation can still be finishing on the
+                // EDT at NON_MODAL, which a modal loop never runs, and the service queues this request behind it.
+                Route.NAVIGATION_SERVICE -> {
+                    val navigation = project.service<ElixirCoroutineService>().scope.async {
+                        val request = readAction { (element as Navigatable).navigationRequest() }
 
-                project.service<NavigationService>().navigate(request!!, NavigationOptions.defaultOptions())
+                        project.service<NavigationService>().navigate(request!!, NavigationOptions.defaultOptions())
+                    }
+
+                    onJob(navigation)
+                    PlatformTestUtil.waitForFuture(navigation.asCompletableFuture())
+                }
             }
         }
+    }
+
+    /**
+     * Runs [route], and if it has not returned after [ROUTE_TIMEOUT] prints the coroutines and threads to stderr, which
+     * the test report keeps even when the run is killed, then cancels the job [route] registered, so that a route
+     * waiting in a coroutine returns and the test fails with the dump.
+     */
+    private fun bounded(description: String, route: (onJob: (Job) -> Unit) -> Unit) {
+        val dump = AtomicReference<String>()
+        val job = AtomicReference<Job>()
+        val watchdog = AppExecutorUtil.getAppScheduledExecutorService().schedule(
+            {
+                val message = "Navigating $description did not return within $ROUTE_TIMEOUT\n\n${hangDump()}"
+
+                dump.set(message)
+                System.err.println(message)
+                job.get()?.cancel()
+            },
+            ROUTE_TIMEOUT.inWholeMilliseconds,
+            TimeUnit.MILLISECONDS
+        )
+
+        try {
+            route(job::set)
+        } catch (e: Throwable) {
+            throw AssertionError(dump.get() ?: throw e, e)
+        } finally {
+            watchdog.cancel(false)
+        }
+
+        dump.get()?.let { throw AssertionError(it) }
     }
 
     private fun assertNavigatesTo(element: StructureViewTreeElement, target: PsiElement) {
@@ -118,4 +166,8 @@ class NavigationTest : LightTestCase() {
     }
 
     override fun getTestDataPath(): String = "testData/org/elixir_lang/structure_view/ex_unit"
+
+    private companion object {
+        val ROUTE_TIMEOUT = 30.seconds
+    }
 }
