@@ -4,7 +4,6 @@ import com.intellij.find.usages.api.SearchTarget
 import com.intellij.find.usages.api.UsageHandler
 import com.intellij.icons.AllIcons
 import com.intellij.model.Pointer
-import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.util.TextRange
 import com.intellij.platform.backend.navigation.NavigationRequest
 import com.intellij.platform.backend.navigation.NavigationTarget
@@ -114,9 +113,7 @@ class ProtocolFunction(
             if (!CallDefinitionClause.`is`(clause)) return emptyList()
             val defprotocol = CallDefinitionClause.enclosingModularMacroCall(clause) ?: return emptyList()
             if (!Protocol.`is`(defprotocol)) return emptyList()
-            val protocolName = runCatching { org.elixir_lang.psi.Module.name(defprotocol) }
-                .getOrElse { if (it is ProcessCanceledException) throw it else null }
-                ?: return emptyList()
+            val protocolName = FunctionSymbol.moduleName(defprotocol) ?: return emptyList()
             val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return emptyList()
             val nameId = CallDefinitionClause.nameIdentifier(clause) ?: return emptyList()
             val macro = CallDefinitionClause.capabilities(clause)?.let(FunctionSymbol::isMacro) == true

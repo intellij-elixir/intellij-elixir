@@ -33,8 +33,11 @@ import org.elixir_lang.psi.Implementation
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.call.SyntacticCall
+import org.elixir_lang.psi.impl.call.CanonicallyNamedImpl
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.psi.scope.call_definition_clause.Declarations
+import org.elixir_lang.psi.stub.type.call.Stub
 import org.elixir_lang.structure_view.element.Delegation
 import java.util.*
 
@@ -214,6 +217,30 @@ class FunctionSymbol(
             }
 
         /**
+         * The module of a function defined directly in [modular]: a `defmodule`'s or `defprotocol`'s canonical name,
+         * nested in the modules around it, and a `defimpl`'s protocol, so every implementation of a function is one.
+         * A module whose name is computed, `defmodule unquote(name)`, and any other call are named by their first
+         * argument's text.
+         */
+        @RequiresReadLock
+        fun moduleName(modular: Call): String? =
+            when {
+                Implementation.`is`(modular) -> Implementation.protocolName(modular)
+                Stub.isModular(modular) -> {
+                    val syntactic = SyntacticCall.of(modular)
+
+                    CanonicallyNamedImpl.canonicalNameSet(syntactic)
+                        .firstOrNull()
+                        ?.takeIf { org.elixir_lang.Module.atom(it) != null }
+                        ?: org.elixir_lang.psi.Module.moduleName(syntactic)?.name
+                        ?: syntactic.firstPrimaryArgumentText()
+                }
+                else ->
+                    runCatching { org.elixir_lang.psi.Module.name(modular) }
+                        .getOrElse { if (it is ProcessCanceledException) throw it else null }
+            }
+
+        /**
          * Build the [FunctionSymbol] symbol(s) for a `def`/`defp`/`defmacro`/`defmacrop` clause in a regular
          * module (not inside a `defprotocol` - those are `ProtocolFunction`).
          *
@@ -228,9 +255,7 @@ class FunctionSymbol(
             val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(clause) ?: return emptyList()
             // Protocol function declarations are owned by ProtocolFunction, not FunctionSymbol.
             if (Protocol.`is`(enclosingModular)) return emptyList()
-            val moduleName = runCatching { org.elixir_lang.psi.Module.name(enclosingModular) }
-                .getOrElse { if (it is ProcessCanceledException) throw it else null }
-                ?: return emptyList()
+            val moduleName = moduleName(enclosingModular) ?: return emptyList()
             val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return emptyList()
             val nameId = CallDefinitionClause.nameIdentifier(clause) ?: return emptyList()
             val macro = CallDefinitionClause.capabilities(clause)?.let(::isMacro) == true
@@ -319,10 +344,7 @@ class FunctionSymbol(
             if (Implementation.`is`(enclosingModular)) return matchesClause(clause, symbol)
             if (helperImplementation(symbol) != null) return false
 
-            val moduleName = runCatching { org.elixir_lang.psi.Module.name(enclosingModular) }
-                .getOrElse { if (it is ProcessCanceledException) throw it else null }
-                ?: return false
-            if (moduleName != symbol.moduleName) return false
+            if (moduleName(enclosingModular) != symbol.moduleName) return false
 
             val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return false
 
@@ -388,9 +410,7 @@ class FunctionSymbol(
             val declaration = Delegation.declaration(delegation, ResolveState.initial()) ?: return emptyList()
             val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(delegation) ?: return emptyList()
             if (Protocol.`is`(enclosingModular)) return emptyList()
-            val moduleName = runCatching { org.elixir_lang.psi.Module.name(enclosingModular) }
-                .getOrElse { if (it is ProcessCanceledException) throw it else null }
-                ?: return emptyList()
+            val moduleName = moduleName(enclosingModular) ?: return emptyList()
             val arityInterval = declaration.arity.arityInterval() ?: return emptyList()
             val nameId = Delegation.nameIdentifier(delegation) ?: return emptyList()
             val declarationFile = delegation.containingFile.originalFile

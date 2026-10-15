@@ -215,6 +215,19 @@ class RenameMatrixTest : PlatformTestCase() {
         }
     }
 
+    /** `A.P` and `B.P` are two protocols, though each is `P` inside its own module. */
+    fun testNestedProtocolsOfOneNameAreRenamedApart() =
+        doTestFromEveryOccurrence(
+            "implementation_calls_nested_protocols",
+            "size",
+            "fresh",
+            expectedCarets = 4,
+            goldenOverrides = mapOf(
+                1 to "implementation_calls_nested_protocols_b_after.ex",
+                3 to "implementation_calls_nested_protocols_b_after.ex"
+            )
+        )
+
     /**
      * A `defdelegate` without `as:` in a `defimpl` keeps its head, so its spec, `@compile inline:` key and local call
      * keep their text, though a sibling `defimpl` defines the same function and is renamed.

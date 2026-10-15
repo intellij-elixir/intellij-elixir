@@ -1,7 +1,6 @@
 package org.elixir_lang.model.psi.function
 
 import com.intellij.model.Symbol
-import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.util.concurrency.annotations.RequiresReadLock
@@ -144,9 +143,7 @@ internal object UseSymbols {
     fun symbols(call: Call, nameIdentifier: PsiElement?, declaration: Declaration, arity: Int): List<Symbol> {
         val range = nameIdentifier?.let(::nameRange) ?: return emptyList()
         val modular = CallDefinitionClause.enclosingModularMacroCall(call) ?: return emptyList()
-        val moduleName = runCatching { org.elixir_lang.psi.Module.name(modular) }
-            .getOrElse { if (it is ProcessCanceledException) throw it else null }
-            ?: return emptyList()
+        val moduleName = FunctionSymbol.moduleName(modular) ?: return emptyList()
         val macro = FunctionSymbol.isMacro(declaration.capabilities)
 
         return listOf(
