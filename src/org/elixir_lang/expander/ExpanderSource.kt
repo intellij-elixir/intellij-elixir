@@ -152,6 +152,9 @@ internal object ExpanderSource : CandidateSource {
         val headArity: ArityKnowledge = declaration.arity,
     ) {
         val head: Head get() = Head(element, declaration.name, headArity)
+
+        /** Whether [declaration] takes [arity] arguments, which is not known past a head with no largest arity. */
+        fun admits(arity: Int?): Boolean = arity == null || declaration.arity.admits(arity)
     }
 
     /** One head of a definition: the PSI that declares it, which a list of `defdelegate` heads shares, and its name and arity. */
@@ -162,8 +165,10 @@ internal object ExpanderSource : CandidateSource {
      *
      * @property paths the `import` calls crossed, outermost first
      * @property delegations the `defdelegate` calls crossed, from the use outward
+     * @property heads the arity each of [delegations] declares in its head
      * @property searched the name looked up where it was found
-     * @property valid whether name and arity fit through every head crossed
+     * @property named whether everything but the arity fits through every head crossed: each name, and each `import`
+     *   that leaves out some of a definition's arities bringing it in at the arity reaching it
      * @property remote whether a remote call reaches it, which a private definition refuses
      */
     private class Reached(
@@ -171,8 +176,9 @@ internal object ExpanderSource : CandidateSource {
         val reach: Reach,
         val paths: List<Call>,
         val delegations: List<Call>,
+        val heads: List<ArityKnowledge>,
         val searched: String?,
-        val valid: Boolean,
+        val named: Boolean,
         val remote: Boolean,
     )
 
@@ -198,7 +204,7 @@ internal object ExpanderSource : CandidateSource {
         file: ElixirFile,
         env: Env,
         name: String?,
-        arity: Int,
+        arity: Int?,
         crossed: Set<Head>,
     ): List<Reached> =
         importedDefined(at, file, env, name)
@@ -208,7 +214,13 @@ internal object ExpanderSource : CandidateSource {
                 val reached = runs.map { (defined, reach, call) -> reached(defined, reach, listOfNotNull(call), name, arity, remote = false) }
 
                 // The runs of one head share its delegation, which is followed once.
-                reached + throughDelegation(at, reached.first(), reached.any(Reached::valid), crossed)
+                reached + throughDelegation(
+                    at,
+                    reached.first(),
+                    reached.any(Reached::named),
+                    runs.any { it.defined.admits(arity) },
+                    crossed,
+                )
             }
 
     /** A definition an import brings in, how, and the `import` call that brings it in, if any. */
@@ -256,7 +268,7 @@ internal object ExpanderSource : CandidateSource {
         at: At,
         module: String,
         name: String?,
-        arity: Int,
+        arity: Int?,
         imports: Boolean,
         crossed: Set<Head>,
     ): List<Reached> =
@@ -282,36 +294,45 @@ internal object ExpanderSource : CandidateSource {
         reach: Reach,
         paths: List<Call>,
         name: String?,
-        arity: Int,
+        arity: Int?,
         remote: Boolean,
         crossed: Set<Head>,
     ): List<Reached> {
         val reached = reached(defined, reach, paths, name, arity, remote)
 
-        return listOf(reached) + throughDelegation(at, reached, reached.valid, crossed)
+        return listOf(reached) + throughDelegation(at, reached, reached.named, defined.admits(arity), crossed)
     }
 
-    /** [defined], looked up as [name] at [arity]. */
-    private fun reached(defined: Defined, reach: Reach, paths: List<Call>, name: String?, arity: Int, remote: Boolean): Reached {
-        val valid = name != null && defined.declaration.name == name && defined.declaration.arity.admits(arity)
+    /** [defined], looked up as [name] at [arity], which is `null` past a head with no largest arity. */
+    private fun reached(defined: Defined, reach: Reach, paths: List<Call>, name: String?, arity: Int?, remote: Boolean): Reached {
+        val declaration = defined.declaration
+        // An `import` that leaves out some of a head's arities brings in only the rest.
+        val admitted = declaration.arity == defined.headArity || defined.admits(arity)
+        val named = name != null && declaration.name == name && admitted
 
-        return Reached(defined, reach, paths, emptyList(), name, valid, remote)
+        return Reached(defined, reach, paths, emptyList(), emptyList(), name, named, remote)
     }
 
     /**
-     * What [delegation] reaches: its target module's lookup of the function it calls, at its head's largest arity, valid
-     * only where [valid] is. A `defdelegate` head already crossed is not crossed again. A head the use reaches itself,
-     * with nothing [crossed], is followed whatever its validity; one reached through a delegation only where it admits
-     * the arity that delegation calls it at, as no other head runs.
+     * What [delegation] reaches: its target module's lookup of the function it calls, at its head's largest arity,
+     * named only where [named] is. A `defdelegate` head already crossed is not crossed again. A head the use reaches
+     * itself, with nothing [crossed], is followed whatever its validity; one reached through a delegation only where
+     * it [admits] the arity that delegation calls it at, as no other head runs.
      */
-    private fun throughDelegation(at: At, delegation: Reached, valid: Boolean, crossed: Set<Head>): List<Reached> {
+    private fun throughDelegation(
+        at: At,
+        delegation: Reached,
+        named: Boolean,
+        admits: Boolean,
+        crossed: Set<Head>,
+    ): List<Reached> {
         val target = delegation.defined.delegation ?: return emptyList()
-        if (crossed.isNotEmpty() && !valid) return emptyList()
+        if (crossed.isNotEmpty() && !admits) return emptyList()
         val element = delegation.defined.element as? Call ?: return emptyList()
         val head = delegation.defined.head
         if (head in crossed) return emptyList()
         val within = crossed + head
-        val arity = delegation.defined.headArity.arityInterval()?.maximum ?: MAX_ARITY
+        val arity = delegation.defined.headArity.arityInterval()?.maximum
 
         return inModule(at, target.module, target.function, arity, imports = true, within)
             .filter { it.defined.head !in within }
@@ -321,8 +342,9 @@ internal object ExpanderSource : CandidateSource {
                     if (delegation.reach.held && it.reach.remote) Reach.DELEGATION_TARGET else Reach.UNHELD_DELEGATION_TARGET,
                     delegation.paths + it.paths,
                     listOf(element) + it.delegations,
+                    listOf(delegation.defined.headArity) + it.heads,
                     it.searched,
-                    valid && it.valid,
+                    named && it.named,
                     it.remote,
                 )
             }
@@ -447,8 +469,8 @@ internal object ExpanderSource : CandidateSource {
     private fun applicability(reached: Reached, use: Use): Applicability? {
         val declaration = reached.defined.declaration
         val applicability = when (use) {
-            is Use.Named -> Applicability.of(declaration, reached.searched ?: use.name, reached.valid)
-            is Use.AnyName -> Applicability.ofAnyName(declaration, reached.searched, use.arity)
+            is Use.Named -> Applicability.of(declaration, reached.searched ?: use.name, reached.named, use.arity, reached.heads)
+            is Use.AnyName -> Applicability.ofAnyName(declaration, reached.searched, use.arity, reached.heads)
         }
 
         return if (applicability == Applicability.VALID && reached.remote && declaration.visibility == Visibility.PRIVATE) {
@@ -527,7 +549,4 @@ internal object ExpanderSource : CandidateSource {
 
     private const val KERNEL = "Elixir.Kernel"
     private const val SPECIAL_FORMS = "Elixir.Kernel.SpecialForms"
-
-    /** The BEAM's largest arity, which an unbounded arity reaches up to. */
-    private const val MAX_ARITY = 255
 }

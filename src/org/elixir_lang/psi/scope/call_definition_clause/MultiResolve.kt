@@ -75,8 +75,8 @@ private constructor(
 
             CallDefinitionHead.nameArityInterval(head, state)?.let { headNameArityInterval ->
                 val headName = headNameArityInterval.name
-                val validArity =
-                    resolvedPrimaryArity in headNameArityInterval.arityInterval && importAdmits(state, headName) { false }
+                val admitted = importAdmits(state, headName) { false }
+                val validArity = resolvedPrimaryArity in headNameArityInterval.arityInterval && admitted
 
                 if ((this.name == null && (incompleteCode || validArity)) ||
                         (this.name != null && headName.startsWith(this.name))) {
@@ -85,7 +85,7 @@ private constructor(
                     // the defdelegate is valid or invalid regardless of whether the `to:` (and `:as` resolves as
                     // `defdelegate` still defines a function in the module with the head's name and arity even if it
                     // will fail at runtime to call the delegated function
-                    addToResolveResults(element, headName, headValidResult, state, Form.DELEGATION)
+                    addToResolveResults(element, headName, headValidResult, state, Form.DELEGATION, admitted)
 
                     // A target reached through a head that does not fit the call would be kept as invalid, and the
                     // first result for an element wins, so it would hide the same target reached through one that fits.
@@ -121,14 +121,14 @@ private constructor(
                                             nameInDefiningModule,
                                             headValidResult && modularResultResult.isValidResult,
                                             state.reachedThroughDelegation(element, modularResultResult.reach),
-                                            throughDelegation(modularResultResult.reached, element, headNamed, headValidResult, state, modularResultResultElement)
+                                            throughDelegation(modularResultResult.reached, element, headNamed, headValidResult, admitted, state, modularResultResultElement)
                                         )
                                         is BeamCallDefinition -> addToResolveResults(
                                             modularResultResultElement,
                                             nameInDefiningModule,
                                             headValidResult && modularResultResult.isValidResult,
                                             state.reachedThroughDelegation(element, modularResultResult.reach),
-                                            throughDelegation(modularResultResult.reached, element, headNamed, headValidResult, state, modularResultResultElement)
+                                            throughDelegation(modularResultResult.reached, element, headNamed, headValidResult, admitted, state, modularResultResultElement)
                                         )
                                         // Anything else is not a definition a delegation can target.
                                         else -> Unit
@@ -215,7 +215,7 @@ private constructor(
         val name = nameArityInterval.name
         val validArity = resolvedPrimaryArity in nameArityInterval.arityInterval && imported
 
-        return addIfNameOrArityToResolveResults(call, name, validArity, state, form)
+        return addIfNameOrArityToResolveResults(call, name, validArity, state, form, imported)
     }
 
     private fun addIfNameOrArityToResolveResults(callDefinition: BeamCallDefinition,
@@ -225,15 +225,20 @@ private constructor(
         val name = nameArityInterval.name
         val validArity = resolvedPrimaryArity in nameArityInterval.arityInterval && imported
 
-        return addIfNameOrArityToResolveResults(callDefinition, name, validArity, state)
+        return addIfNameOrArityToResolveResults(callDefinition, name, validArity, state, imported)
     }
 
-    private fun addIfNameOrArityToResolveResults(call: Call, name: String, validArity: Boolean, state: ResolveState, form: Form): Boolean =
+    private fun addIfNameOrArityToResolveResults(call: Call,
+                                                 name: String,
+                                                 validArity: Boolean,
+                                                 state: ResolveState,
+                                                 form: Form,
+                                                 admitted: Boolean = true): Boolean =
             if ((this.name == null && (incompleteCode || validArity)) ||
                     (this.name != null && name.startsWith(this.name))) {
                 val validResult = validArity && name == this.name
 
-                addToResolveResults(call, name, validResult, state, form)
+                addToResolveResults(call, name, validResult, state, form, admitted)
             } else {
                 true
             }
@@ -241,12 +246,13 @@ private constructor(
     private fun addIfNameOrArityToResolveResults(callDefinition: BeamCallDefinition,
                                                  name: String,
                                                  validArity: Boolean,
-                                                 state: ResolveState) : Boolean =
+                                                 state: ResolveState,
+                                                 admitted: Boolean) : Boolean =
         if ((this.name == null && (incompleteCode || validArity)) ||
             (this.name != null && name.startsWith(this.name))) {
             val validResult = validArity && name == this.name
 
-            addToResolveResults(callDefinition, name, validResult, state)
+            addToResolveResults(callDefinition, name, validResult, state, admitted)
         } else {
             true
         }
@@ -257,8 +263,15 @@ private constructor(
 
     private val resolveResultOrderedSet = ResolveResultOrderedSet()
 
-    private fun addToResolveResults(call: Call, name: String, validResult: Boolean, state: ResolveState, form: Form): Boolean =
-            addToResolveResults(call, name, validResult, state, declared(form, call, name, validResult, state))
+    private fun addToResolveResults(
+        call: Call,
+        name: String,
+        validResult: Boolean,
+        state: ResolveState,
+        form: Form,
+        admitted: Boolean = true
+    ): Boolean =
+            addToResolveResults(call, name, validResult, state, declared(form, call, name, validResult, admitted, state))
 
     private fun addToResolveResults(
         call: Call,
@@ -280,13 +293,14 @@ private constructor(
     private fun addToResolveResults(callDefinition: BeamCallDefinition,
                                     name: String,
                                     validResult: Boolean,
-                                    state: ResolveState): Boolean =
+                                    state: ResolveState,
+                                    admitted: Boolean): Boolean =
         addToResolveResults(
             callDefinition,
             name,
             validResult,
             state,
-            listOf(ReachedDeclaration(callDefinition.declaration(), this.name.takeIf { atom }, true, validResult))
+            listOf(ReachedDeclaration(callDefinition.declaration(), this.name.takeIf { atom }, true, validResult, admitted))
         )
 
     private fun addToResolveResults(callDefinition: BeamCallDefinition,
@@ -307,9 +321,9 @@ private constructor(
     }
 
     /** The declaration [call] makes that the walk spells [name], when that name has an atom value. */
-    private fun declared(form: Form, call: Call, name: String, valid: Boolean, state: ResolveState): List<ReachedDeclaration> =
+    private fun declared(form: Form, call: Call, name: String, valid: Boolean, admitted: Boolean, state: ResolveState): List<ReachedDeclaration> =
         Declarations.named(form, call, name, state)
-            ?.let { listOf(ReachedDeclaration(it, this.name.takeIf { atom }, true, valid)) }
+            ?.let { listOf(ReachedDeclaration(it, this.name.takeIf { atom }, true, valid, admitted)) }
             .orEmpty()
 
     /**
@@ -321,6 +335,7 @@ private constructor(
         delegation: Call,
         headNamed: Boolean,
         headValidResult: Boolean,
+        headAdmitted: Boolean,
         state: ResolveState,
         target: PsiElement
     ): List<ReachedDeclaration> =
@@ -328,6 +343,7 @@ private constructor(
             it.copy(
                 headNamed = headNamed && it.headNamed,
                 valid = headValidResult && it.valid,
+                admitted = headAdmitted && it.admitted,
                 via = listOf(delegation) + it.via,
                 reach = state.reachedThroughDelegation(delegation, it.reach).reached(target),
                 visitedElementSet = state.visitedElementSet() + it.visitedElementSet

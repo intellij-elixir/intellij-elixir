@@ -37,3 +37,61 @@ defmodule Uses do
     end
   end
 end
+
+defmodule FitTarget do
+  def f(a, b), do: {a, b}
+  def h(a, b \\ 1), do: {a, b}
+end
+
+defmodule FitDelegator do
+  defdelegate f(a, b \\ 1), to: FitTarget
+  defdelegate one(a), to: FitTarget, as: :f
+  defdelegate two(a, b), to: FitTarget, as: :h
+
+  defmacro dynamic(name) do
+    quote do
+      FitDelegator.unquote(name)(1)
+    end
+  end
+end
+
+defmodule FitChain do
+  defdelegate g(a), to: FitDelegator, as: :f
+
+  defmacro dynamic(name) do
+    quote do
+      FitChain.unquote(name)(1)
+    end
+  end
+end
+
+defmodule OpenTarget do
+  def open(a, b), do: {a, b}
+  def open(a, b, c), do: {a, b, c}
+end
+
+defmodule OpenDelegator do
+  defdelegate open(a, unquote_splicing(rest)), to: OpenTarget
+
+  def uses, do: OpenDelegator.open(1, 2)
+end
+
+defmodule PairTarget do
+  def pair(a, b), do: {a, b}
+end
+
+defmodule PairDelegator do
+  defdelegate pair(a, b \\ 1), to: PairTarget
+end
+
+defmodule PairUser do
+  import PairDelegator, only: [pair: 2]
+
+  def uses, do: pair(1)
+end
+
+defmodule OpenUser do
+  import OpenDelegator, only: [open: 2]
+
+  def uses, do: open(1)
+end

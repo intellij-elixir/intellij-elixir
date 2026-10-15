@@ -35,6 +35,8 @@ class VisitedElementSetResolveResult(
  *   `defdelegate` whose `as:` or head names no atom.
  * @property headNamed whether the use named every `defdelegate` head crossed exactly, rather than a prefix of it.
  * @property valid whether name and arity fit, through every head crossed.
+ * @property admitted whether each `import` crossed, through every head crossed, brings in what it reaches at the arity
+ *   reaching it.
  * @property via the `defdelegate` calls crossed, outermost first, which the visited set never holds.
  * @property reach how the route that reached [declaration] reached it, which for an element reached by more than one
  *   route need not be its result's [VisitedElementSetResolveResult.reach]; `null` until the walk adds it to a result.
@@ -45,6 +47,7 @@ data class ReachedDeclaration(
     val searchedAtom: String?,
     val headNamed: Boolean,
     val valid: Boolean,
+    val admitted: Boolean = true,
     val via: List<Call> = emptyList(),
     val reach: Reach? = null,
     val visitedElementSet: Set<PsiElement> = emptySet()

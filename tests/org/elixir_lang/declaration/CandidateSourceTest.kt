@@ -201,6 +201,65 @@ class CandidateSourceTest : PlatformTestCase() {
         )
     }
 
+    /** Each `defdelegate` head a nameless use crosses must take the arity reaching it, and passes on its largest. */
+    fun testANamelessUseFitsADelegationThroughTheHeadsCrossed() {
+        configure("applicability.ex")
+
+        assertEquals(
+            listOf(
+                "FitDelegator.unquote(name)(1) [42 f=OPAQUE via [47], 42 f=WRONG_ARITY via [48], 43 h=WRONG_ARITY via [49]]",
+                "FitChain.unquote(name)(1) [42 f=OPAQUE via [59, 47]]"
+            ),
+            listOf("FitDelegator.unquote(name)(1)", "FitChain.unquote(name)(1)").map { text ->
+                val targets = candidates(text, true)
+                    .filter { lineOf(it.element) in 42..43 }
+                    .map { "${describe(it)} via ${it.via.map(::lineOf)}" }
+                    .sorted()
+
+                "$text $targets"
+            }
+        )
+    }
+
+    /** A head with no largest arity passes on an arity that is not known, so its target's fit is not decidable. */
+    fun testANamedUseThroughAHeadWithNoLargestArityIsOpaque() {
+        configure("applicability.ex")
+
+        assertEquals(
+            listOf("69 open=OPAQUE via [74]", "70 open=OPAQUE via [74]"),
+            candidates("OpenDelegator.open(1, 2)", false)
+                .filter { lineOf(it.element) in 69..70 }
+                .map { "${describe(it)} via ${it.via.map(::lineOf)}" }
+                .sorted()
+        )
+    }
+
+    /** An `import` that leaves out the use's arity leaves the head, and what it delegates to, a wrong arity. */
+    fun testANamedUseAnImportLeavesOutIsAWrongArityThroughADelegation() {
+        configure("applicability.ex")
+
+        assertEquals(
+            listOf("80 pair=WRONG_ARITY via [88, 84]", "84 pair=WRONG_ARITY via [88]"),
+            candidates("pair(1)", true)
+                .filter { lineOf(it.element) in 80..84 }
+                .map { "${describe(it)} via ${it.via.map(::lineOf)}" }
+                .sorted()
+        )
+    }
+
+    /** An `import` that leaves out the use's arity rejects what a head with no largest arity delegates to as well. */
+    fun testANamedUseAnImportLeavesOutIsAWrongArityThroughAHeadWithNoLargestArity() {
+        configure("applicability.ex")
+
+        assertEquals(
+            listOf("69 open=WRONG_ARITY via [94, 74]", "70 open=WRONG_ARITY via [94, 74]"),
+            candidates("open(1)", true)
+                .filter { lineOf(it.element) in 69..70 }
+                .map { "${describe(it)} via ${it.via.map(::lineOf)}" }
+                .sorted()
+        )
+    }
+
     private fun configure(file: String) {
         myFixture.copyDirectoryToProject("", "")
         myFixture.configureFromTempProjectFile(file)
