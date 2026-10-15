@@ -15,6 +15,7 @@ import org.elixir_lang.call.Visibility
 import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Capabilities
 import org.elixir_lang.declaration.Declaration
+import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Definer
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Found
@@ -62,8 +63,9 @@ class CompilerJoin(
     }
 
     /**
-     * A [kind] of fact, one of [KINDS], its [outcome], the [line] that names it, what it names as its [target], and its
-     * [position].
+     * A [kind] of fact, one of [KINDS], its [outcome], the [line] that names it, what it names as its [target], its
+     * [position], and the declarations the rule that made it [Outcome.MATCHED] accepted, in the order the join read
+     * them. A `declaration` holds its own, whatever its outcome; a fact that matched none holds none.
      */
     data class Joined(
         val kind: String,
@@ -71,9 +73,13 @@ class CompilerJoin(
         val line: String,
         val target: String,
         val position: String,
+        val matched: List<Declared> = emptyList(),
     )
 
-    private class Declared(val module: String, val declaration: Declaration, val line: String, val position: String)
+    /** An [outcome] and the declarations the rule that decided it matched, none unless it is [Outcome.MATCHED]. */
+    private data class Answer(val outcome: Outcome, val matched: List<Declared> = emptyList())
+
+    private class Listed(val module: String, val declaration: Declaration, val line: String, val position: String)
 
     private val files = mutableMapOf<String, Pair<ElixirFile, Map<Pair<Int, Int>, Int>>?>()
 
@@ -97,10 +103,17 @@ class CompilerJoin(
 
         return positioned.map { (key, group) -> group(key.second, group, undefined) } +
             defs.map { (fact, line) -> joined(outcome(fact, declarations), fact, line) } +
-            declarations.map { declared ->
-                val outcome = if (defs.any { (fact, _) -> declared.matches(fact) }) Outcome.MATCHED else Outcome.NOTHING
+            declarations.map { listed ->
+                val outcome = if (defs.any { (fact, _) -> listed.matches(fact) }) Outcome.MATCHED else Outcome.NOTHING
 
-                Joined("declaration", outcome, declared.line, declared.module, declared.position)
+                Joined(
+                    "declaration",
+                    outcome,
+                    listed.line,
+                    listed.module,
+                    listed.position,
+                    listOf(listed.declaration.declared)
+                )
             }
     }
 
@@ -110,27 +123,36 @@ class CompilerJoin(
         undefined: Set<Triple<Pair<String, Int>, String, Int>>,
     ): Joined {
         val alias = facts.first().first is Fact.Alias
-        val outcomes = if (alias) {
-            facts.map { (fact, line) -> Triple(outcome(fact as Fact.Alias), fact, line) }
+        val answers = if (alias) {
+            facts.map { (fact, line) -> Triple(Answer(outcome(fact as Fact.Alias)), fact, line) }
         } else {
             val found = found(position)
 
             facts.map { (fact, line) -> Triple(outcome(fact as Fact.Ref, found, undefined), fact, line) }
         }
-        val (outcome, fact, line) =
-            outcomes.firstOrNull { it.first == Outcome.MATCHED } ?: outcomes.minBy { it.first.ordinal }
+        val (answer, fact, line) =
+            answers.firstOrNull { it.first.outcome == Outcome.MATCHED } ?: answers.minBy { it.first.outcome.ordinal }
 
-        return joined(outcome, fact, line)
+        return joined(answer, fact, line)
     }
 
-    private fun joined(outcome: Outcome, fact: Fact, line: String): Joined =
-        when (fact) {
-            is Fact.Ref ->
-                Joined("ref", outcome, line, "${fact.module}\t${fact.name}\t${fact.arity}", text(fact.position))
-            is Fact.Alias -> Joined("alias", outcome, line, fact.module, text(fact.position))
-            is Fact.Def -> Joined("def", outcome, line, fact.module, "${fact.module}:${fact.line}")
+    private fun joined(answer: Answer, fact: Fact, line: String): Joined {
+        val (outcome, matched) = answer
+
+        return when (fact) {
+            is Fact.Ref -> Joined(
+                "ref",
+                outcome,
+                line,
+                "${fact.module}\t${fact.name}\t${fact.arity}",
+                text(fact.position),
+                matched
+            )
+            is Fact.Alias -> Joined("alias", outcome, line, fact.module, text(fact.position), matched)
+            is Fact.Def -> Joined("def", outcome, line, fact.module, "${fact.module}:${fact.line}", matched)
             is Fact.Diag -> error("a diag fact is not joined: $line")
         }
+    }
 
     private fun text(position: Position): String = "${position.path}:${position.line}:${position.column}"
 
@@ -158,26 +180,29 @@ class CompilerJoin(
         fact: Fact.Ref,
         found: List<Found>?,
         undefined: Set<Triple<Pair<String, Int>, String, Int>>,
-    ): Outcome {
-        found ?: return Outcome.NO_USE
+    ): Answer {
+        found ?: return Answer(Outcome.NO_USE)
 
         val key = Triple(fact.position.path to fact.position.line, fact.name, fact.arity)
 
         if (fact.kind in DispatchEvents.LOCAL_KINDS && key in undefined) {
-            return if (found.any { it.candidate.applicability.admitted }) Outcome.RESOLVED else Outcome.MATCHED
+            return Answer(if (found.any { it.candidate.applicability.admitted }) Outcome.RESOLVED else Outcome.MATCHED)
         }
 
         val named = found.filter {
             it.candidate.declaration.name == fact.name && it.declaringModuleName() == fact.module
         }
 
+        val accepted = named.filter {
+            it.candidate.applicability.admitted && it.candidate.declaration.arity.accepts(fact.arity)
+        }
+
         return when {
-            named.any { it.candidate.applicability.admitted && it.candidate.declaration.arity.accepts(fact.arity) } ->
-                Outcome.MATCHED
-            named.any { it.candidate.declaration.arity == ArityKnowledge.Unknown } -> Outcome.UNKNOWN
-            named.isNotEmpty() -> Outcome.ARITY
-            found.isNotEmpty() -> Outcome.OTHER
-            else -> Outcome.NOTHING
+            accepted.isNotEmpty() -> Answer(Outcome.MATCHED, accepted.map { it.candidate.declaration.declared })
+            named.any { it.candidate.declaration.arity == ArityKnowledge.Unknown } -> Answer(Outcome.UNKNOWN)
+            named.isNotEmpty() -> Answer(Outcome.ARITY)
+            found.isNotEmpty() -> Answer(Outcome.OTHER)
+            else -> Answer(Outcome.NOTHING)
         }
     }
 
@@ -204,26 +229,27 @@ class CompilerJoin(
         }
     }
 
-    private fun outcome(fact: Fact.Def, declarations: List<Declared>): Outcome {
+    private fun outcome(fact: Fact.Def, declarations: List<Listed>): Answer {
         val named = declarations.filter { it.module == fact.module && it.declaration.name == fact.name }
+        val matching = named.filter { it.matches(fact) }
 
         return when {
-            named.any { it.matches(fact) } -> Outcome.MATCHED
-            named.any { it.declaration.arity == ArityKnowledge.Unknown } -> Outcome.UNKNOWN
-            named.any { it.declaration.arity.accepts(fact.arity) } -> Outcome.DEFINER
-            named.isNotEmpty() -> Outcome.ARITY
-            else -> Outcome.NOTHING
+            matching.isNotEmpty() -> Answer(Outcome.MATCHED, matching.map { it.declaration.declared })
+            named.any { it.declaration.arity == ArityKnowledge.Unknown } -> Answer(Outcome.UNKNOWN)
+            named.any { it.declaration.arity.accepts(fact.arity) } -> Answer(Outcome.DEFINER)
+            named.isNotEmpty() -> Answer(Outcome.ARITY)
+            else -> Answer(Outcome.NOTHING)
         }
     }
 
-    private fun Declared.matches(fact: Fact.Def): Boolean =
+    private fun Listed.matches(fact: Fact.Def): Boolean =
         module == fact.module &&
             declaration.name == fact.name &&
             declaration.capabilities.defines(fact.kind) &&
             declaration.arity.accepts(fact.arity)
 
     /** Each declaration [lists] takes in the files under [root], once for each name its module has. */
-    private fun declarations(): List<Declared> =
+    private fun declarations(): List<Listed> =
         psiFiles().flatMap { file ->
             PsiTreeUtil.findChildrenOfType(file, Call::class.java).filter { Stub.isModular(it) }.flatMap { modular ->
                 val (names, clauses) = definitions(modular)
@@ -242,7 +268,7 @@ class CompilerJoin(
                                 position
                             )
 
-                            Declared(module, it, fields.joinToString("\t"), position)
+                            Listed(module, it, fields.joinToString("\t"), position)
                         }
                     }
                 }
