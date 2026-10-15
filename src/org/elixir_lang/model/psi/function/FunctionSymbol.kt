@@ -161,6 +161,23 @@ class FunctionSymbol(
                 .orEmpty()
 
     /**
+     * A delegation without `as:` calls its target by its head's name, so renaming the head without the target breaks it
+     * when the target is not found, and `as:` can only be added to options that are a keyword list.
+     */
+    @RequiresReadLock
+    override fun delegationRefusal(): String? =
+        anchor()
+            ?.call
+            ?.takeIf { Delegation.headKeepsTargetName(it) }
+            ?.let { call ->
+                if (!Delegation.optionsAreKeywordList(call)) {
+                    "its options are not a keyword list, so `as:` cannot be added"
+                } else {
+                    UseSymbols.unfoundTarget(call)?.let { "its target $it is not found" }
+                }
+            }
+
+    /**
      * An embed's or `defexception`'s call does not write the function's name, and an EEx function's local calls are not
      * found as its uses, so a rename of what they declare would not rewrite it whole.
      */

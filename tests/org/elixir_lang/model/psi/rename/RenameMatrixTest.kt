@@ -199,6 +199,7 @@ class RenameMatrixTest : PlatformTestCase() {
      * Find Usages and Rename from the `defdelegate`'s head or its local call, which target its `to:` function, find one
      * set of ranges.
      */
+    @Suppress("UnstableApiUsage")
     fun testProtocolClauseAndDelegationFindUsagesAgreesWithRename() {
         val before = loadFixture("implementation_calls_protocol_clause_and_delegation.ex")
         val occurrences = wordOccurrences(before, "size")
@@ -235,9 +236,18 @@ class RenameMatrixTest : PlatformTestCase() {
             "implementation_calls_callback_delegation", "area", "surface", expectedCarets = 7, carets = setOf(0)
         )
 
-    /** A `defdelegate` whose `to:` does not resolve is a function of its own module, with its calls. */
+    /**
+     * A `defdelegate` with no `as:` whose `to:` does not resolve calls a target by its head's name that a rename cannot
+     * find, so renaming the head and its calls alone would break it: the rename is refused from every occurrence.
+     */
     fun testFunctionDefdelegateUnresolved() =
-        doTestFromEveryOccurrence("function_defdelegate_unresolved", "run", "fresh", expectedCarets = 5)
+        doTestFromEveryOccurrence(
+            "function_defdelegate_unresolved",
+            "run",
+            "fresh",
+            expectedCarets = 5,
+            refusal = "run cannot be renamed: its target Missing.run/1 is not found"
+        )
 
     /**
      * A `defp` in a `defimpl` implements nothing, so it is renamed with every clause and call in its own `defimpl`, and
@@ -467,7 +477,9 @@ class RenameMatrixTest : PlatformTestCase() {
      * arities of one function name). Aggregates all failing caret positions into one assertion so
      * a run reports the complete gap map for the scenario. [expectedCarets] guards the fixture
      * itself: if the occurrence count drifts, the matrix silently loses coverage. [carets] limits the attempts to
-     * those occurrence indices, for a fixture where a caret on some occurrence is a different rename target.
+     * those occurrence indices, for a fixture where a caret on some occurrence is a different rename target. With
+     * [refusal], each attempt must instead be refused with that reason and leave the file unchanged, and there is no
+     * golden.
      */
     private fun doTestFromEveryOccurrence(
         fixtureName: String,
@@ -475,10 +487,11 @@ class RenameMatrixTest : PlatformTestCase() {
         newName: String,
         expectedCarets: Int,
         goldenOverrides: Map<Int, String> = emptyMap(),
-        carets: Set<Int>? = null
+        carets: Set<Int>? = null,
+        refusal: String? = null
     ) {
         val before = loadFixture("$fixtureName.ex")
-        val defaultAfter = loadFixture("${fixtureName}_after.ex")
+        val defaultAfter = if (refusal == null) loadFixture("${fixtureName}_after.ex") else before
         val occurrences = wordOccurrences(before, oldName)
         assertEquals(
             "$fixtureName.ex should contain exactly $expectedCarets occurrences of '$oldName'",
@@ -496,12 +509,16 @@ class RenameMatrixTest : PlatformTestCase() {
             try {
                 myFixture.renameTargetAtCaret(newName)
                 val actual = myFixture.file.text
-                if (actual != after) {
+                if (refusal != null) {
+                    failures += "caret #$index (${describeCaret(before, offset)}): renamed, but should be refused as $refusal"
+                } else if (actual != after) {
                     failures += "caret #$index (${describeCaret(before, offset)}): ${firstDifference(actual, after)}"
                 }
             } catch (e: Throwable) {
                 val reason = e.message?.lineSequence()?.firstOrNull() ?: e.javaClass.simpleName
-                failures += "caret #$index (${describeCaret(before, offset)}): ${e.javaClass.simpleName}: $reason"
+                if (refusal == null || reason != refusal || myFixture.file.text != before) {
+                    failures += "caret #$index (${describeCaret(before, offset)}): ${e.javaClass.simpleName}: $reason"
+                }
             } finally {
                 // Each iteration must start from a clean project: a leftover (partially) renamed
                 // copy would offer duplicate rename targets to the next iteration.

@@ -44,7 +44,7 @@ capture.ex:3:39  symbol  CaptureFunctionReference  `run`  ->  capture.ex:2:7 Fun
 capture.ex:3:42  symbol  FunctionCallReference  `/`  ->  nothing
 capture.ex:3:46  symbol  FunctionCallReference  `&`  ->  nothing
 capture.ex:3:47  psi  CaptureNameArity  `run`  ->  capture.ex:2:3 `def run(x), do: x` (invalid)
-capture.ex:3:47  symbol  CaptureFunctionReference  `run`  ->  nothing
+capture.ex:3:47  symbol  CaptureFunctionReference  `run`  ->  NearMiss(target=FunctionSymbol(Capture.run/1, macro=false))
 capture.ex:3:50  symbol  FunctionCallReference  `/`  ->  nothing
 definitions.ex:1:1  module  Definitions
 definitions.ex:1:1  psi  Callable  `defmodule`  ->  nothing

@@ -211,7 +211,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
     private fun delegationHeadDocumented(head: Call): PsiElement? {
         val delegation = DeclaringForm.named(head)?.call ?: return null
         val use = Use.of(head) as? Use.Named ?: return null
-        val delegatedTo = atItsHead(delegation, use, Feature.DOCUMENTATION)?.delegatedTo.orEmpty()
+        val delegatedTo = atItsHead(delegation, use, Feature.DOCUMENTATION)?.admittedDelegatedTo.orEmpty()
 
         return bestMatch(listOf(delegation) + delegatedTo.map { it.element })
     }

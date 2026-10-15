@@ -14,10 +14,17 @@ import org.elixir_lang.structure_view.element.Overridable
  * delegation it reaches, so a target that is a delegation too comes with what that delegation delegates to.
  */
 data class Preferred(val found: Found, val delegatedTo: List<Found>) {
-    /** What [found] delegates to itself: [delegatedTo] less what a target that is a delegation too delegates to. */
+    /**
+     * What [found] delegates to at what its use passes on: the admitted of [delegatedTo]. A target only at another arity,
+     * which the step keeps when nothing is admitted, is not delegated to.
+     */
+    val admittedDelegatedTo: List<Found>
+        get() = delegatedTo.filter { it.candidate.applicability.admitted }
+
+    /** What [found] delegates to itself: [admittedDelegatedTo] less what a target that is a delegation too delegates to. */
     @get:RequiresReadLock
     val directlyDelegatedTo: List<Found>
-        get() = delegatedTo.filter { target -> target.via.none { it != found.element && Delegation.`is`(it) } }
+        get() = admittedDelegatedTo.filter { target -> target.via.none { it != found.element && Delegation.`is`(it) } }
 }
 
 /**

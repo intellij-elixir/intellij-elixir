@@ -280,6 +280,8 @@ class OverridableTest : PlatformTestCase() {
         )
 
         assertEquals(listOf("2 -> []", "6 -> []"), kept(incompleteCode = false))
+        atName()
+        assertEquals(listOf("preferred.ex:2", "preferred.ex:6"), goTo())
     }
 
     /** Replacing every arity a default head declares replaces the head. */

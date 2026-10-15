@@ -9,7 +9,8 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 
 /**
  * An [ElixirSymbolWithUsages] the user can rename, unless it, or a symbol its rename also rewrites, is declared in
- * compiled code, in a library or SDK, or by a macro whose declarations a rename cannot rewrite.
+ * compiled code, in a library or SDK, or by a macro whose declarations a rename cannot rewrite, or it, or a delegation
+ * its rename also rewrites, would be left calling a function that is not there.
  *
  * The platform offers any [RenameTarget] a symbol resolves to, and a compiled declaration has no document to edit
  * and a library's source is not the project's to edit, so only the validator can refuse.
@@ -25,6 +26,10 @@ interface ElixirRenameTarget : ElixirSymbolWithUsages, RenameTarget {
     @RequiresReadLock
     fun renamedWith(): List<ElixirSymbolWithUsages> = emptyList()
 
+    /** Why a rename of this delegation would leave it calling a function that is not there, or `null`. */
+    @RequiresReadLock
+    fun delegationRefusal(): String? = null
+
     /** The macro whose call declares this symbol when a rename cannot rewrite what that call declares, or `null`. */
     @get:RequiresReadLock
     val declaringMacro: String?
@@ -37,6 +42,10 @@ interface ElixirRenameTarget : ElixirSymbolWithUsages, RenameTarget {
                     ?.let {
                         "$targetName cannot be renamed: a function renamed with it is $it"
                     }
+                ?: delegationRefusal()?.let { "$targetName cannot be renamed: $it" }
+                ?: renamedWith()
+                    .firstNotNullOfOrNull { (it as? ElixirRenameTarget)?.delegationRefusal() }
+                    ?.let { "$targetName cannot be renamed: a function renamed with it delegates without `as:`, and $it" }
         }
 
         return object : RenameValidator {

@@ -211,7 +211,7 @@ import_only.ex:10:31  symbol  FunctionCallReference  `message`  ->  nothing
 import_only.ex:10:45  psi  Callable  `pad`  ->  import_only.ex:3:3 `def pad(a, b \\ 1), do: {a, b}` | import_only.ex:7:3 `import Errors, only: [exception: 1, pad: 1]`
 import_only.ex:10:45  symbol  FunctionCallReference  `pad`  ->  import_only.ex:3:7 FunctionSymbol(Errors.pad/1, macro=false)
 import_only.ex:10:53  psi  Callable  `pad`  ->  import_only.ex:3:3 `def pad(a, b \\ 1), do: {a, b}` (invalid) | import_only.ex:7:3 `import Errors, only: [exception: 1, pad: 1]` (invalid)
-import_only.ex:10:53  symbol  FunctionCallReference  `pad`  ->  nothing
+import_only.ex:10:53  symbol  FunctionCallReference  `pad`  ->  NearMiss(target=FunctionSymbol(Errors.pad/1, macro=false))
 in_def.ex:1:1  module  InDef
 in_def.ex:1:1  psi  Callable  `defmodule`  ->  nothing
 in_def.ex:2:3  psi  Callable  `require`  ->  nothing
