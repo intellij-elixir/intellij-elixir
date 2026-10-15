@@ -6,7 +6,6 @@ import com.intellij.psi.PsiRecursiveElementWalkingVisitor
 import com.intellij.psi.PsiReferenceService
 import com.intellij.psi.PsiReferenceService.Hints.NO_HINTS
 import org.elixir_lang.declaration.Declaration
-import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Use
@@ -101,10 +100,7 @@ class CandidateSourceSnapshotTest : SnapshotTestCase() {
 
     private fun describe(declaration: Declaration): String {
         val arity = declaration.arity.text()
-        val form = when (val declared = declaration.declared) {
-            is Declared.Source -> declared.form.name.lowercase()
-            is Declared.Compiled -> "compiled"
-        }
+        val form = declaration.declared.label()
 
         return "${declaration.name}/$arity $form"
     }
