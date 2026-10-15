@@ -265,6 +265,14 @@ class RenameMatrixTest : PlatformTestCase() {
     fun testProtocolImplementationCallsAtom() =
         doTestFromEveryOccurrence("implementation_calls_protocol_atom", "size", "fresh", expectedCarets = 4)
 
+    /** An atom in `apply(Size.List, :size, [x])` names an implementation, so it is renamed with the protocol function. */
+    fun testProtocolImplementationAtom() =
+        doTestFromEveryOccurrence("implementation_calls_protocol_implementation_atom", "size", "fresh", expectedCarets = 4)
+
+    /** An atom in `apply(Impl, :size, [x])` names a callback's implementation, so it is renamed with the callback. */
+    fun testCallbackImplementationAtom() =
+        doTestFromEveryOccurrence("implementation_calls_callback_atom", "size", "fresh", expectedCarets = 7)
+
     /** The same for a protocol function no `defimpl` implements yet. */
     fun testProtocolUnimplementedAtom() =
         doTestFromEveryOccurrence("implementation_calls_protocol_atom_unimplemented", "size", "fresh", expectedCarets = 3)

@@ -148,8 +148,9 @@ internal object ElixirUsageQueries {
         }
 
         // A function that implements a callback or a protocol function is one symbol with it: a use of the function is a
-        // use of the member, so a rename from a call to the function also renames the member and every implementation.
-        val implemented = (target as? FunctionSymbol)?.implementedMembers().orEmpty()
+        // use of the member, so a rename from a call to the function, or from an atom naming it, also renames the member
+        // and every implementation.
+        val implemented = (target as? ElixirRenameTarget)?.renamedWith().orEmpty()
         if (implemented.isEmpty()) return queries
 
         val all = queries + implemented.flatMap { searchRequests(project, it, searchScope) }
@@ -197,9 +198,7 @@ internal object ElixirUsageQueries {
                 // def clause's name identifier - see AtomSymbol.fromClause), so renaming from the
                 // atom must rename everything renaming from the def would: the declaration
                 // family, call sites, specs, captures, keyword pairs - and the atoms themselves.
-                // Reuse the function queries via the field-for-field equivalent FunctionSymbol.
-                val functionSymbol =
-                    FunctionSymbol(target.file, target.range, target.moduleName, target.name, target.arity, target.macro)
+                val functionSymbol = target.functionSymbol()
                 queries += functionDeclarationFamilyQuery(project, functionSymbol, searchScope)
                 queries += functionCallSiteQuery(project, functionSymbol, searchScope)
             }
