@@ -594,8 +594,9 @@ internal object Quote {
                     val tOpts = if (args.size == 2) doQuote(args[0]) else null
                     val tArg = withoutUnquote().doQuote(args.last())
                     val meta = if (escape) metaOf(call) else keystore(metaOf(call), "context", contextNode())
+                    val tuple = s.tuple(s.atom("quote"), meta(meta), s.list(listOfNotNull(tOpts, tArg)))
 
-                    s.tuple(s.atom("quote"), meta(meta), s.list(listOfNotNull(tOpts, tArg)))
+                    if (escape) placedAt(call, tuple) else tuple
                 }
                 unquote && isCall(node, "unquote", 1) -> unquoted(node.meta, (node as ElixirAst.Call).arguments!!.single())
                 !escape && node is ElixirAst.Alias && (node.segments.first() as? ElixirAst.Literal.Atom)?.name.let {

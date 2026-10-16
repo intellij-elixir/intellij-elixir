@@ -2,6 +2,7 @@ package org.elixir_lang.expander
 
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILER_PARSES_COLUMNS
 import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.ParserOptions
 
 /**
@@ -37,6 +38,17 @@ class EscapeTest : ExpanderTestCase() {
             "{'{}',[],[{'{}',[],['.',[{line,1}],[{'{}',[],[f,[{line,1}],nil]}]]},[{line,1}],[1]]}",
             from116 = "{'{}',[],[{'{}',[],['.',[{line,1},{column,2}],[{'{}',[],[f,[{line,1},{column,1}],nil]}]]},[{line,1},{column,2}],[1]]}",
         )
+
+    /** The tuple an escaped `quote` builds is placed at the `quote`, so what evaluates it knows which call it quotes. */
+    fun testAnEscapedQuoteIsPlacedAtTheQuote() {
+        val level = ElixirLanguageLevel.of("1.20.4")
+        val node = lower("[quote(do: 1)]", level)
+        val run = Run(level, ExpansionObserver.NONE, exports, structs)
+        val escape = Quote.escape(node, node.meta, Env.empty(level, kernel), run) as Quote.Escaped.Built
+        val tuple = (escape.node as ElixirAst.ListNode).elements.single()
+
+        assertEquals((node as ElixirAst.ListNode).elements.single().meta.origin, tuple.meta.origin)
+    }
 
     /** [code]'s escape on each leg: [before116], then [from116] from 1.16 and [from119] from 1.19, each defaulting to the one before. */
     private fun assertEscaped(code: String, before116: String, from116: String = before116, from119: String = from116) {
