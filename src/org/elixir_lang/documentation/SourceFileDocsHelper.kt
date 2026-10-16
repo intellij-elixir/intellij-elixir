@@ -2,7 +2,11 @@ package org.elixir_lang.documentation
 
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
+import org.elixir_lang.psi.arityInterval
+import org.elixir_lang.declaration.Form
 import org.elixir_lang.lowering.AtomName
+import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
+import org.elixir_lang.psi.scope.call_definition_clause.Declarations
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
@@ -13,7 +17,6 @@ import org.elixir_lang.psi.impl.siblingExpressions
 import org.elixir_lang.psi.stub.type.call.Stub
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.structure_view.element.CallDefinitionHead
-import org.elixir_lang.structure_view.element.Delegation
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 
 object SourceFileDocsHelper {
@@ -131,7 +134,7 @@ object SourceFileDocsHelper {
                                                 ) {
                                                     FetchedDocs
                                                         .FunctionOrMacroDocumentation
-                                                        .fromCallDefinitionClauseCall(module, sibling, siblingHead)
+                                                        .fromCallDefinitionClauseCall(module, sibling, siblingHead.text)
                                                 } else {
                                                     null
                                                 }
@@ -148,30 +151,42 @@ object SourceFileDocsHelper {
                 }
             }
         }
-        Delegation.`is`(call) -> delegationDocs(call)
-        else -> null
+        else -> declaredHead(call)?.let { ownDocs(call, it) }
     }
 
+    /** The head a delegation, an EEx function or an embed shows its docs under, or `null` when [call] is none of them. */
+    @RequiresReadLock
+    private fun declaredHead(call: Call): String? =
+        when (val form = DeclaringForm.declaredBy(call)) {
+            Form.DELEGATION -> call.finalArguments()?.takeIf { it.size == 2 }?.get(0)?.text
+            Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED ->
+                Declarations.of(form, call, ResolveState.initial()).singleOrNull()?.let { named ->
+                    val arities = named.declaration?.arity?.arityInterval()
+                    val arity = when {
+                        arities == null -> ""
+                        arities.maximum == arities.minimum -> "/${arities.minimum}"
+                        arities.maximum == null -> "/${arities.minimum}.."
+                        else -> "/${arities.minimum}..${arities.maximum}"
+                    }
+
+                    named.text + arity
+                }
+            Form.CLAUSE, Form.CALLBACK, Form.EXCEPTION, null -> null
+        }
+
     /**
-     * The `@doc` written on a `defdelegate` itself, or `null` when it has none.
+     * The `@doc` written on a declaration that is not a clause, shown with [head], or `null` when it has none.
      *
      * A delegation's own `@doc` is the more specific answer, so it replaces the target's. Null rather
      * than an empty document is what lets the caller fall through to the target.
      */
     @RequiresReadLock
-    private fun delegationDocs(call: Call): FetchedDocs? =
-        call
-            .finalArguments()
-            ?.takeIf { it.size == 2 }
-            ?.let { arguments ->
-                enclosingModularMacroCall(call)?.let { modular ->
-                    val module = moduleName(modular)
-
-                    FetchedDocs.FunctionOrMacroDocumentation
-                        .fromCallDefinitionClauseCall(module, call, arguments[0])
-                        .takeIf { it.doc != null }
-                }
-            }
+    private fun ownDocs(call: Call, head: String): FetchedDocs? =
+        enclosingModularMacroCall(call)?.let { modular ->
+            FetchedDocs.FunctionOrMacroDocumentation
+                .fromCallDefinitionClauseCall(moduleName(modular), call, head)
+                .takeIf { it.doc != null }
+        }
 
     @RequiresReadLock
     private fun moduleName(modular: PsiElement): String =

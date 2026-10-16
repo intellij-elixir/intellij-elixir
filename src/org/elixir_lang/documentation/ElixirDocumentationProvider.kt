@@ -141,9 +141,9 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
     private fun delegationHeadDocumented(head: Call): PsiElement? {
         val delegation = DeclaringForm.named(head)?.call ?: return null
         val use = Use.of(head) as? Use.Named ?: return null
-        val delegatedTo = atItsHead(delegation, use, Feature.DOCUMENTATION)?.admittedDelegatedTo.orEmpty()
+        val preferred = atItsHead(delegation, use, Feature.DOCUMENTATION) ?: return null
 
-        return Documented.documented(listOf(delegation) + delegatedTo.map { it.element })
+        return Documented.documented(listOf(preferred.found) + preferred.admittedDelegatedTo)
     }
 
     private tailrec fun getCustomDocumentationElement(contextElement: PsiElement): PsiElement? = when (contextElement) {
@@ -171,7 +171,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 val callName = contextElement.functionName()
 
                 Documented.documented(
-                    choice.reached.filter { element ->
+                    choice.reached.filter { (_, element) ->
                         when (element) {
                             is BeamCallDefinition -> element.exportedName() == callName
                             is Call -> CallDefinitionClause.nameArityInterval(element, ResolveState.initial())
