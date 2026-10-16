@@ -20,8 +20,6 @@ import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.atItsHead
-import org.elixir_lang.language_level.ElixirLanguageLevelResolver.languageLevelFor
-import org.elixir_lang.lowering.identifierAtomName
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.ModuleAttribute.isDocumentationName
 import org.elixir_lang.psi.call.Call
@@ -38,7 +36,6 @@ import org.elixir_lang.reference.Resolver
 import org.intellij.markdown.html.HtmlGenerator
 import org.intellij.markdown.parser.MarkdownParser
 import java.util.function.Consumer
-import java.util.regex.Pattern
 
 
 private val LOG = logger<ElixirDocumentationProvider>()
@@ -97,62 +94,11 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         return super.getDocumentationElementForLookupItem(psiManager, `object`, element)
     }
 
-    private val linkRelativePattern: Pattern =
-        Pattern.compile("((?<kind>[ct]):)?((?<module>.+)\\.)?(?<relative>.+)/(?<arity>\\d+)")
-
     override fun getDocumentationElementForLink(
         psiManager: PsiManager,
         link: String,
         context: PsiElement
-    ): PsiElement? {
-        val relativeLinkMatcher = linkRelativePattern.matcher(link)
-
-        return if (relativeLinkMatcher.matches()) {
-            val module = relativeLinkMatcher.group("module")
-
-            when (val kind = relativeLinkMatcher.group("kind")) {
-                null, "c" -> FunctionLink.target(
-                    context,
-                    module,
-                    relativeLinkMatcher.group("relative"),
-                    relativeLinkMatcher.group("arity").toInt(),
-                    callback = kind == "c"
-                )
-
-                "t" -> {
-                    val relative = identifierAtomName(relativeLinkMatcher.group("relative")) { languageLevelFor(context) }
-                    val arity = relativeLinkMatcher.group("arity").toInt()
-
-                    val resolveResults = if (module != null) {
-                        MarkdownFlavourDescriptor
-                            .modulars(context, module)
-                            .flatMap { modular ->
-                                org.elixir_lang.psi.scope.type.MultiResolve.resolveResults(
-                                    relative,
-                                    arity,
-                                    false,
-                                    modular
-                                )
-                            }
-                    } else {
-                        org.elixir_lang.psi.scope.type.MultiResolve.resolveResults(relative, arity, false, context)
-                    }
-
-                    resolveResults
-                        .let { Resolver.preferred(context, false, it) }
-                        .firstNotNullOfOrNull { it.element }
-                }
-
-                else -> {
-                    LOG.warn("Don't know how to find element for link ($link) of kind ($kind) for ${context.javaClass.name}")
-
-                    null
-                }
-            }
-        } else {
-            MarkdownFlavourDescriptor.modulars(context, link).firstOrNull()
-        }
-    }
+    ): PsiElement? = DocumentationLink.element(link, context)
 
     override fun getCustomDocumentationElement(
         editor: Editor,
