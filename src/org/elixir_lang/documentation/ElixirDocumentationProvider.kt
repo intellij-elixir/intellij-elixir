@@ -16,7 +16,6 @@ import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.MarkdownByL
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.None
 import org.elixir_lang.beam.psi.BeamFileImpl
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
-import org.elixir_lang.declaration.DelegationPrecedence
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Use
@@ -34,10 +33,10 @@ import org.elixir_lang.psi.impl.isInterpolatedWithin
 import org.elixir_lang.psi.operation.capture.NonNumeric
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.psi.stub.type.call.Stub.isModular
+import org.elixir_lang.reference.resolver.Callable
 import org.elixir_lang.reference.CaptureNameArity
 import org.elixir_lang.reference.Resolver
 import org.elixir_lang.structure_view.element.Callback
-import org.elixir_lang.structure_view.element.Delegation
 import org.intellij.markdown.html.HtmlGenerator
 import org.intellij.markdown.parser.MarkdownParser
 import java.util.function.Consumer
@@ -182,30 +181,32 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
     }
 
     /**
-     * The reference to resolve for documentation on [call]. Inside `&Mod.name/arity` the name carries no
-     * reference of its own - it lives on the enclosing capture operator, which is the only element that
-     * also spans the `/arity` - so a captured name is looked up through that instead.
+     * What [call] documents. Inside `&Mod.name/arity` the name carries no reference of its own - it lives on the
+     * enclosing capture operator, which is the only element that also spans the `/arity` - so a captured name is
+     * looked up through that instead.
      */
-    private fun documentedReference(call: Call): PsiPolyVariantReference? =
-        PsiTreeUtil.getParentOfType(call, NonNumeric::class.java)
+    private fun documentedChoice(call: Call): Documented.Choice? {
+        val capture = PsiTreeUtil.getParentOfType(call, NonNumeric::class.java)
             ?.reference
             ?.let { it as? CaptureNameArity }
             ?.takeIf { it.nameElement == call }
-            ?: call.reference as? PsiPolyVariantReference
 
-    /**
-     * Past a delegation's own @doc, prefer source Call elements (CallDefinitionClause), falling back to BEAM stubs
-     * (CallDefinitionImpl).
-     */
-    private fun bestMatch(elements: List<PsiElement>): PsiElement? =
-        DelegationPrecedence.documented(
-            elements,
-            { it is Call && Delegation.`is`(it) },
-            { SourceFileDocsHelper.fetchDocs(it) != null }
-        ) {
-            elements.filterIsInstance<Call>().firstOrNull { CallDefinitionClause.`is`(it) }
-                ?: elements.filterIsInstance<BeamCallDefinition>().firstOrNull()
+        return if (capture != null) {
+            Use.capture(call, capture.arity)?.let(Documented::of)
+        } else {
+            when (val reference = call.reference) {
+                is org.elixir_lang.reference.Callable -> Use.of(call)?.let {
+                    Documented.of(it, bound = Callable.bound(call, false))
+                }
+
+                is org.elixir_lang.reference.CallDefinitionClause ->
+                    Use.specification(call, reference.moduleAttribute)?.let(Documented::of)
+
+                is PsiPolyVariantReference -> Documented.of(reference.multiResolve(false).toList())
+                else -> null
+            }
         }
+    }
 
     /** A `defdelegate` [head] documents its delegation, then what it delegates to. */
     private fun delegationHeadDocumented(head: Call): PsiElement? {
@@ -213,7 +214,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         val use = Use.of(head) as? Use.Named ?: return null
         val delegatedTo = atItsHead(delegation, use, Feature.DOCUMENTATION)?.admittedDelegatedTo.orEmpty()
 
-        return bestMatch(listOf(delegation) + delegatedTo.map { it.element })
+        return Documented.documented(listOf(delegation) + delegatedTo.map { it.element })
     }
 
     private tailrec fun getCustomDocumentationElement(contextElement: PsiElement): PsiElement? = when (contextElement) {
@@ -234,35 +235,24 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         is Call if DeclaringForm.named(contextElement)?.form == Form.DELEGATION ->
             delegationHeadDocumented(contextElement)
 
-        is Call -> {
-            documentedReference(contextElement)
-                ?.let { reference ->
-                    val allResults = reference.multiResolve(false)
+        is Call -> documentedChoice(contextElement)?.let { choice ->
+            // multiResolve matches names by prefix for completion, so a wrong-arity call falls back to the reached
+            // definitions with exactly the called name, not to every name it starts.
+            choice.element ?: run {
+                val callName = contextElement.functionName()
 
-                    val validElements = allResults
-                        .filter(ResolveResult::isValidResult)
-                        .mapNotNull(ResolveResult::getElement)
+                Documented.documented(
+                    choice.reached.filter { element ->
+                        when (element) {
+                            is BeamCallDefinition -> element.exportedName() == callName
+                            is Call -> CallDefinitionClause.nameArityInterval(element, ResolveState.initial())
+                                ?.name == callName
 
-                    // If no exact arity match (validResult), fall back to results with an exact name match
-                    // from the same module (e.g., Enum.map/2 when call site has wrong arity).
-                    // multiResolve uses startsWith for name matching (for completion), so we must
-                    // filter to exact name matches to avoid showing docs for map_size when hovering map.
-                    bestMatch(validElements) ?: run {
-                        val callName = contextElement.functionName()
-                        val exactNameElements = allResults
-                            .mapNotNull(ResolveResult::getElement)
-                            .filter { element ->
-                                when (element) {
-                                    is BeamCallDefinition -> element.exportedName() == callName
-                                    is Call -> CallDefinitionClause.nameArityInterval(element, ResolveState.initial())
-                                        ?.name == callName
-
-                                    else -> false
-                                }
-                            }
-                        bestMatch(exactNameElements)
+                            else -> false
+                        }
                     }
-                }
+                )
+            }
         }
 
         is QualifiableAlias if declaringModuleCall(contextElement) != null ->

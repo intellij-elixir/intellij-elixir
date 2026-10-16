@@ -46,17 +46,27 @@ object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Cal
 
     @RequiresReadLock
     fun answer(call: Call, incompleteCode: Boolean): Answer {
-        // A variable declares nothing, so the step never sees it.
-        val variables = walk(call, incompleteCode)
-            .filter { it.reached.isEmpty() }
-            .map { PsiElementResolveResult(it.element, it.isValidResult) }
-        val bound = variables.any { it.isValidResult }
+        val variables = variables(call, incompleteCode)
+        val bound = bound(variables)
         val projection = org.elixir_lang.declaration.Use.of(call)
             ?.let { Resolved.projection(it, incompleteCode, bound) }
             .orEmpty()
 
         return Answer(variables, bound, projection)
     }
+
+    /** Whether a valid variable binds [call]'s name, which then names the variable and no function. */
+    @RequiresReadLock
+    fun bound(call: Call, incompleteCode: Boolean): Boolean = bound(variables(call, incompleteCode))
+
+    private fun bound(variables: List<ResolveResult>): Boolean = variables.any { it.isValidResult }
+
+    /** The variables [call] may name. A variable declares nothing, so the step never sees it. */
+    @RequiresReadLock
+    private fun variables(call: Call, incompleteCode: Boolean): List<ResolveResult> =
+        walk(call, incompleteCode)
+            .filter { it.reached.isEmpty() }
+            .map { PsiElementResolveResult(it.element, it.isValidResult) }
 
     private val WALK =
         Key<CachedValue<ConcurrentMap<Arity, List<VisitedElementSetResolveResult>>>>("org.elixir_lang.reference.resolver.Callable.WALK")
