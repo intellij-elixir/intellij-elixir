@@ -73,6 +73,17 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
         assertTrue("Expected the entry anchored to hold Two., got: $documentation", documentation.substringAfter("""id="$anchor"""").substringBefore("id=\"").contains("Two."))
     }
 
+    /** A call interpolated into a quoted atom is a call: the atom around it does not decide the arity. */
+    fun testACallInterpolatedInAQuotedAtomOpensAtItsArity() {
+        configure("def calls(a), do: :\"#{pu<caret>sh(a, a)}\"")
+
+        val anchor = myFixture.documentationAnchorAtCaret(project)
+        val documentation = quickDocumentationAtCaret().orEmpty()
+
+        assertNotNull("Expected an anchor, got: $documentation", anchor)
+        assertTrue("Expected the entry anchored to hold Two., got: $documentation", documentation.substringAfter("""id="$anchor"""").substringBefore("id=\"").contains("Two."))
+    }
+
     fun testACapturedFunctionOpensAtItsArity() {
         configure("def calls, do: &pu<caret>sh/3")
 

@@ -77,7 +77,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         return if (head != null) {
             head.call.takeIf { head.form == Form.DELEGATION }?.let { delegation -> Reaching(delegation, moduleOf(delegation), inside = true) }
         } else {
-            val reached = callAt(original)?.let(::documentedChoice)?.reached.orEmpty()
+            val reached = choiceAt(original)?.reached.orEmpty()
 
             reached
                 .firstOrNull { it.element == element && it.candidate.reach.delegationTarget }
@@ -94,7 +94,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                     Reaching(
                         delegation,
                         injectedInto ?: moduleOf(delegation),
-                        inside = use != null && Documented.held(use, reached.firstOrNull { it.element == delegation })
+                        inside = use != null && Documented.held(use.use, reached.firstOrNull { it.element == delegation })
                     )
                 }
         }
@@ -112,21 +112,28 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             ?.takeIf { it.entries.size > 1 }
             ?.let { arities -> arity?.let(arities::entryAt)?.id }
 
-    /** The use written where [original] is: at a call or a capture. */
-    private fun useAt(original: PsiElement?): Use? = callAt(original)?.let(::useOf)
-
-    /** What the use written where [original] is documents: at a call or a capture. */
-    private fun choiceAt(original: PsiElement?): Documented.Choice? = callAt(original)?.let(::documentedChoice)
-
-    /** The arity used where [original] is written. */
-    private fun calledArity(original: PsiElement?): Int? {
-        return headAt(original)?.declaration?.let(UseSymbols::headArity) ?: when (val use = useAt(original)) {
+    /** The arity used where [original] is written: at a call, a capture, an MFA atom or a declaration's head. */
+    private fun calledArity(original: PsiElement?): Int? =
+        headAt(original)?.declaration?.let(UseSymbols::headArity) ?: when (val use = useAt(original)?.use) {
             is Use.OfCall -> use.arity
             is Use.Specified -> use.arity
             is Use.Remote -> use.arity
-            null -> null
+            else -> null
         }
-    }
+
+    // As the climb does: a caret in an interpolation belongs to the code there, not to the atom around it.
+    private fun atomAt(element: PsiElement?): ElixirAtom? =
+        PsiTreeUtil.getParentOfType(element, ElixirAtom::class.java, false)?.takeUnless { element?.isInterpolatedWithin(it) == true }
+
+    /** The use written at the caret, and whether a valid variable binds its name: the one read of it. */
+    private class UseAt(val use: Use, val bound: Boolean)
+
+    private fun useAt(original: PsiElement?): UseAt? =
+        atomAt(original)?.let(Use::mfa)?.let { UseAt(it, bound = false) }
+            ?: callAt(original)?.let { call -> useOf(call)?.let { UseAt(it, bound = isBound(call, it)) } }
+
+    private fun choiceAt(original: PsiElement?): Documented.Choice? =
+        useAt(original)?.let { Documented.of(it.use, it.bound) }
 
     /** A declaring call whose name is written where the caret is, and what the call declares, when that is one function. */
     private class Head(val call: Call, val form: Form, val declaration: Declaration?)
@@ -217,11 +224,10 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
      * looked up through that instead.
      */
     private fun documentedChoice(call: Call): Documented.Choice? =
-        useOf(call)?.let { use ->
-            val bound = use is Use.OfCall && captureOf(call) == null && Callable.bound(call, false)
+        useOf(call)?.let { use -> Documented.of(use, isBound(call, use)) }
 
-            Documented.of(use, bound)
-        }
+    /** Whether a valid variable binds [call]'s name, which a use of it then names; a captured name is no such use. */
+    private fun isBound(call: Call, use: Use): Boolean = use is Use.OfCall && captureOf(call) == null && Callable.bound(call, false)
 
     private fun captureOf(call: Call): CaptureNameArity? =
         PsiTreeUtil.getParentOfType(call, NonNumeric::class.java)
@@ -252,15 +258,18 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         is LeafPsiElement, is ElixirIdentifier, is ElixirRelativeIdentifier ->
             getCustomDocumentationElement(contextElement.parent)
 
-        is ElixirAtom -> {
-            contextElement.reference
-                ?.let { it as? PsiPolyVariantReference }
-                ?.multiResolve(false)
-                ?.filter(ResolveResult::isValidResult)
-                ?.mapNotNull(ResolveResult::getElement)
-                ?.filterIsInstance<PsiNamedElement>()
-                ?.let { Resolver.preferSource(it) }
-                ?.firstOrNull()
+        is ElixirAtom -> when (val use = Use.mfa(contextElement)) {
+            null ->
+                contextElement.reference
+                    ?.let { it as? PsiPolyVariantReference }
+                    ?.multiResolve(false)
+                    ?.filter(ResolveResult::isValidResult)
+                    ?.mapNotNull(ResolveResult::getElement)
+                    ?.filterIsInstance<PsiNamedElement>()
+                    ?.let { Resolver.preferSource(it) }
+                    ?.firstOrNull()
+
+            else -> Documented.of(use).element
         }
 
         is Call -> documentedChoice(contextElement)?.let { choice ->

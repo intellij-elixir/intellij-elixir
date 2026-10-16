@@ -37,6 +37,64 @@ class MfaAtomQuickDocumentationTest : QuickDocumentationTestCase() {
         assertNull(quickDocumentationAtCaret())
     }
 
+    /** `apply/3` and an MFA tuple call a function, so an atom naming only a macro documents nothing, as it always has. */
+    fun testQuickDocOnAnApplyAtomNamingOnlyAMacroShowsNothing() {
+        configureMacro("apply(Macros, :tri<caret>ple, [1])")
+        assertNull(quickDocumentationAtCaret())
+    }
+
+    fun testQuickDocOnAnMfaTupleAtomNamingOnlyAMacroShowsNothing() {
+        configureMacro("{Macros, :tri<caret>ple, 1}")
+        assertNull(quickDocumentationAtCaret())
+    }
+
+    /** `apply/3` and an MFA tuple reach what another module exports, so a `defp` of that name and arity is not documented. */
+    fun testQuickDocOnAnApplyAtomNamingOnlyAPrivateFunctionShowsNothing() {
+        configurePrivate("apply(Vault, :sec<caret>ret, [1])")
+        assertNull(quickDocumentationAtCaret())
+    }
+
+    fun testQuickDocOnAnMfaTupleAtomNamingOnlyAPrivateFunctionShowsNothing() {
+        configurePrivate("{Vault, :sec<caret>ret, 1}")
+        assertNull(quickDocumentationAtCaret())
+    }
+
+    private fun configurePrivate(usage: String) {
+        myFixture.configureByText(
+            "usage.ex",
+            """
+            defmodule Vault do
+              @doc "Not callable from outside."
+              defp secret(n), do: n
+            end
+
+            defmodule Usage do
+              def run(x) do
+                $usage
+              end
+            end
+            """.trimIndent()
+        )
+    }
+
+    private fun configureMacro(usage: String) {
+        myFixture.configureByText(
+            "usage.ex",
+            """
+            defmodule Macros do
+              @doc "Triples at compile time."
+              defmacro triple(n), do: quote(do: unquote(n) * 3)
+            end
+
+            defmodule Usage do
+              def run(x) do
+                $usage
+              end
+            end
+            """.trimIndent()
+        )
+    }
+
     private fun assertShowsDouble(usage: String, name: String = "double") {
         configure(usage, name)
 

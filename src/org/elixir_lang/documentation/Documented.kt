@@ -26,8 +26,13 @@ internal object Documented {
     /** What [use] documents; [bound] is whether a valid variable binds its name. */
     @RequiresReadLock
     fun of(use: Use, bound: Boolean = false): Choice {
+        // `apply/3` and an MFA tuple call a function another module exports, so an atom naming only a macro or a
+        // private function documents nothing.
         val projection = Resolved.projection(
             Resolved.step(use, incompleteCode = false, bound, Feature.DOCUMENTATION)
+                .mapNotNull { preferred ->
+                    preferred.takeIf { keeps(use, it.found) }?.copy(delegatedTo = preferred.delegatedTo.filter { keeps(use, it) })
+                }
                 // The name at a `@spec` is the name a delegation's head writes, so a delegation comes with its targets.
                 .map { preferred -> if (use is Use.Specified) withTargets(preferred) else preferred }
         )
@@ -41,6 +46,9 @@ internal object Documented {
 
     /** As `RejectedCall` decides whether a private function is callable: an unqualified use of what the module holds. */
     fun held(use: Use, found: Found?): Boolean = !UseSymbols.remote(use) && found?.candidate?.reach?.held == true
+
+    private fun keeps(use: Use, found: Found): Boolean =
+        use !is Use.Remote || found.candidate.reach.remotelyReaches(found.candidate.declaration.capabilities, runtime = true)
 
     /** The delegation [preferred] is, with what it delegates to at its own head; any other as it is. */
     @RequiresReadLock

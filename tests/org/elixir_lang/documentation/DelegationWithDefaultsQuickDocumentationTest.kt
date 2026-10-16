@@ -48,6 +48,8 @@ class DelegationWithDefaultsQuickDocumentationTest : QuickDocumentationTestCase(
             defmodule Caller$module do
               def at_full(a), do: $module.snoc(a, a)
               def at_call(a), do: $module.snoc(a)
+              def at_apply(a), do: apply($module, :snoc, [a])
+              def at_mfa(a), do: {$module, :snoc, 1}
               def at_capture(a), do: &$module.snoc/1
             end
         """.trimIndent()
@@ -55,6 +57,8 @@ class DelegationWithDefaultsQuickDocumentationTest : QuickDocumentationTestCase(
         return mapOf(
             "full" to "$module.sn<caret>oc(a, a)",
             "call" to "$module.sn<caret>oc(a)",
+            "apply" to "apply($module, :sn<caret>oc",
+            "mfa" to "{$module, :sn<caret>oc, 1}",
             "capture" to "&$module.sn<caret>oc/1"
         ).mapValues { (_, caretAt) ->
             myFixture.configureByText("caller_$module.ex", caller.replace(caretAt.replace("<caret>", ""), caretAt))
