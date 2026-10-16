@@ -93,6 +93,19 @@ class ProjectModulesTest : PlatformTestCase() {
         )
     }
 
+    /** A macro's clauses read for a sibling umbrella app keep its file relative to the macro's own app. */
+    fun testAKeptQuoteReadFromASiblingAppIsRelativeToItsOwnApp() {
+        add("umbrella/mix.exs", MIX_EXS)
+        add("umbrella/apps/a/mix.exs", MIX_EXS)
+        add("umbrella/apps/b/mix.exs", MIX_EXS)
+        add("umbrella/apps/a/lib/a.ex", kept("A"))
+        val b = add("umbrella/apps/b/lib/b.ex", "defmodule B do\n  require A\n  def f, do: A.m()\nend\n")
+        val inputs = ProjectModules.Inputs(ElixirLanguageLevel.of("1.13.4"), legKernel)
+        val clauses = ReadAction.nonBlocking(Callable { holder.clauses(b, "Elixir.A", inputs) }).executeSynchronously()
+
+        assertEquals("lib/a.ex", keptFiles(listOfNotNull(clauses)))
+    }
+
     /** A `mix.exs` written above a file that keeps a quote's location moves the file's directory. */
     fun testAMixProjectAddedAboveAKeptQuoteRecomputes() {
         val inputs = ProjectModules.Inputs(ElixirLanguageLevel.of("1.13.4"), legKernel)
@@ -778,18 +791,26 @@ class ProjectModulesTest : PlatformTestCase() {
 
     /** The files the `keep:` entries of [file]'s escaped quotes name, or `none`. */
     private fun keptFiles(file: PsiFile, inputs: ProjectModules.Inputs): String {
-        val blocks = mutableListOf<ElixirAst>()
+        val loaded = mutableListOf<ModuleClauses>()
         val observer = object : ExpansionObserver {
             override fun entering(node: ElixirAst, state: ExState, env: Env) {}
 
-            override fun clausesLoaded(clauses: ModuleClauses) {
-                val bodies = clauses.definitions.values.flatMap { it.clauses.orEmpty() }.map { it.body }
-
-                blocks += bodies.flatMap(::nodes).mapNotNull(clauses.quotes::of)
+            override fun clausesLoaded(module: String, clauses: ModuleClauses?) {
+                clauses?.let { loaded += it }
             }
         }
         ReadAction.nonBlocking(Callable { holder.observe(file as ElixirFile, inputs, observer) }).executeSynchronously()
 
+        return keptFiles(loaded)
+    }
+
+    /** The files the `keep:` entries of [modules]' escaped quotes name, or `none`. */
+    private fun keptFiles(modules: List<ModuleClauses>): String {
+        val blocks = modules.flatMap { clauses ->
+            val bodies = clauses.definitions.values.flatMap { it.clauses.orEmpty() }.map { it.body }
+
+            bodies.flatMap(::nodes).mapNotNull(clauses.quotes::of)
+        }
         val files = blocks.flatMap(::nodes).mapNotNull { node ->
             val (key, value) = (node as? ElixirAst.Tuple)?.elements?.takeIf { it.size == 2 } ?: return@mapNotNull null
 

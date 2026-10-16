@@ -410,8 +410,8 @@ class ModuleClausesTest : ExpanderTestCase() {
         val observer = object : ExpansionObserver {
             override fun entering(node: ElixirAst, state: ExState, env: Env) {}
 
-            override fun clausesLoaded(clauses: ModuleClauses) {
-                loaded += clauses
+            override fun clausesLoaded(module: String, clauses: ModuleClauses?) {
+                clauses?.let { loaded += it }
             }
         }
 

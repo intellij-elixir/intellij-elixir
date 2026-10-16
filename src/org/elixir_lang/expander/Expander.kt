@@ -226,7 +226,7 @@ internal class Run(
         compiledStructs[result.module] = loadedStruct
         compiled[result.module] = loadedExports
         observer.loaded(result, loadedExports, loadedStruct)
-        if (loadedExports is ModuleExports.Present) observer.clausesLoaded(clauses())
+        observer.clausesLoaded(result.module, if (loadedExports is ModuleExports.Present) clauses() else null)
     }
 
     /** What each bitstring expanded builds, by node, for the bitstring that nests it. */

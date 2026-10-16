@@ -2,6 +2,7 @@ package org.elixir_lang.expander
 
 import org.elixir_lang.NameArity
 import org.elixir_lang.lowering.ElixirAst
+import java.util.Collections
 import java.util.IdentityHashMap
 
 /**
@@ -21,6 +22,17 @@ internal class ModuleClauses(
 ) {
     enum class Source { SOURCE, DBGI }
 
+    /**
+     * The bytes these clauses retain: each clause, each node its arguments, guards, body and quotes hold, and the bytes
+     * of each binary those hold, once for each array.
+     */
+    fun weight(): Long {
+        val clauses = definitions.values.flatMap { it.clauses.orEmpty() }
+        val roots = clauses.flatMap { it.args + it.guards + it.body } + quotes.blocks
+
+        return BYTES_PER_NODE * clauses.size + weigh(roots)
+    }
+
     /** Each `quote` a module's definitions hold, as the escaped block its expansion built. */
     class Quotes {
         private val byNode = IdentityHashMap<ElixirAst, ElixirAst>()
@@ -30,6 +42,8 @@ internal class ModuleClauses(
         }
 
         fun of(call: ElixirAst): ElixirAst? = byNode[call]
+
+        val blocks: Collection<ElixirAst> get() = byNode.values
     }
 
     /** @property clauses `null` where they aren't known */
@@ -44,6 +58,25 @@ internal class ModuleClauses(
     class Clause(val args: List<ElixirAst>, val guards: List<ElixirAst>, val body: ElixirAst)
 
     companion object {
+        /** As measured over the clauses of the Elixir 1.20.4 apps' `.beam`s, with their mirrors released. */
+        const val BYTES_PER_NODE = 192L
+
+        private fun weigh(roots: List<ElixirAst>): Long {
+            val pending = ArrayDeque(roots)
+            val arrays = Collections.newSetFromMap(IdentityHashMap<ByteArray, Boolean>())
+            var count = 0L
+            var bytes = 0L
+
+            while (pending.isNotEmpty()) {
+                val node = pending.removeLast()
+                count++
+                if (node is ElixirAst.Literal.Binary && arrays.add(node.bytes)) bytes += node.bytes.size
+                pending.addAll(children(node))
+            }
+
+            return BYTES_PER_NODE * count + bytes
+        }
+
         /**
          * The clauses [module], which [compiling] compiled from [file], loads with. A definition's aren't known where
          * Elixir may not hold it, or where it is a default arity whose defaults weren't all expanded.
