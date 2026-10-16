@@ -125,6 +125,8 @@
 
 ### Bug Fixes
 
+- [#4472](https://github.com/intellij-elixir/intellij-elixir/pull/4472) [@sh41](https://github.com/sh41)
+  - **A decompiled `.beam` whose code has an anonymous function clause such as `fn 1 -> :a end` is shown instead of "BEAM format could not be read".** Fixes [#4470](https://github.com/intellij-elixir/intellij-elixir/issues/4470).
 - [#4467](https://github.com/intellij-elixir/intellij-elixir/pull/4467) [@sh41](https://github.com/sh41)
   - **Find Usages from a call to a function with several clauses or a `defdelegate` no longer asks which declaration to search.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
 - [#4463](https://github.com/intellij-elixir/intellij-elixir/pull/4463) [@sh41](https://github.com/sh41)
