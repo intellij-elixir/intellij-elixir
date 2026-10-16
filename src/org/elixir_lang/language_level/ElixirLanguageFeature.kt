@@ -1223,12 +1223,15 @@ enum class ElixirLanguageFeature(
     UNQUOTE_SHALLOW_VALIDATED(sinceElixir = "1.18.0-rc.0"),
 
     /**
-     * A `quote`'s `bind_quoted` bindings leave out the `column` of the `quote`'s metadata.
+     * `Macro.escape/2` quotes the metadata of a `quote` it escapes, and the metadata argument of an unquoted call, as
+     * it quotes any other term, and a `quote`'s `bind_quoted` bindings leave out the `column` of the `quote`'s metadata.
+     * Before it, from [QUOTE_META_DROPS_COLUMN], the escaped metadata's `column` is dropped and the rest kept as it is;
+     * before both, all of it is kept as it is.
      *
      * `elixir-lang/elixir@dea845602` ("Escape meta within existing quote extensions", #14832), first released in
      * v1.19.0.
      */
-    QUOTE_BINDING_META_DROPS_COLUMN(sinceElixir = "1.19.0"),
+    QUOTE_EXTENSION_META_ESCAPED(sinceElixir = "1.19.0"),
 
     /**
      * An `unquote` inside a `quote` is passed to `:elixir_quote.unquote/1` in place of `shallow_validate_ast/1`, and a

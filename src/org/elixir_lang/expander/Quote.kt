@@ -2,7 +2,7 @@ package org.elixir_lang.expander
 
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILER_PARSES_COLUMNS
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTED_DEF_CONTEXT_SKIPS_GUARD
-import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_BINDING_META_DROPS_COLUMN
+import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_EXTENSION_META_ESCAPED
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_IMPORTS_EVERY_ARITY
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_IN_PATTERN_WITH_UNQUOTE_RAISES
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_KEEP_READS_LINE_OPTION
@@ -261,7 +261,7 @@ internal object Quote {
         val block = if (bindQuoted.isNullOrEmpty()) {
             quoted
         } else {
-            val bindingMeta = s.keywords(q.sourceMeta(call.meta, QUOTE_BINDING_META_DROPS_COLUMN.isSufficient(level)))
+            val bindingMeta = s.keywords(q.sourceMeta(call.meta, QUOTE_EXTENSION_META_ESCAPED.isSufficient(level)))
             val bindings = bindQuoted.map { (key, value) ->
                 s.tuple(
                     s.atom("="),
@@ -614,7 +614,7 @@ internal object Quote {
                     }
                     val meta = if (escape) metaOf(node) else importMeta(node, metaOf(node), name, 0)
 
-                    s.tuple(s.atom(name), meta(meta), context)
+                    s.tuple(s.atom(name), if (escape) s.keywords(meta) else meta(meta), context)
                 }
                 unquote && node is ElixirAst.Call && node.callee is ElixirAst.Call &&
                     node.callee.arguments?.size == 1 &&
@@ -668,7 +668,7 @@ internal object Quote {
                     val meta = if (escape) metaOf(node) else annotate(node.callee, metaOf(node), args)
                     val tLeft = doQuote(node.callee)
 
-                    s.tuple(tLeft, meta(meta), doQuoteList(args))
+                    s.tuple(tLeft, if (escape) s.keywords(meta) else meta(meta), doQuoteList(args))
                 }
                 node is ElixirAst.ListNode -> doQuoteList(node.elements)
                 else -> s.literal(node as ElixirAst.Literal)
@@ -676,7 +676,7 @@ internal object Quote {
 
         /** The import head of `do_quote/2`: `{Name, Meta, Args}`. */
         private fun namedTuple(node: ElixirAst, name: String, meta: Keywords, args: List<ElixirAst>): ElixirAst {
-            if (escape) return placedAt(node, s.tuple(s.atom(name), meta(meta), doQuoteList(args)))
+            if (escape) return placedAt(node, s.tuple(s.atom(name), s.keywords(meta), doQuoteList(args)))
 
             val importMeta = importMeta(node, meta, name, args.size)
             val annotatedMeta = annotate(s.atom(name), importMeta, args)
@@ -852,11 +852,15 @@ internal object Quote {
                 null -> throw Stop(Expansion.Unported(node))
             }
 
-        /** `meta/2`, which an escape quotes as it is. */
+        /** `meta/2`. */
         private fun meta(meta: Keywords): ElixirAst {
-            if (escape) return s.keywords(meta)
+            val dropsColumn = QUOTE_META_DROPS_COLUMN.isSufficient(level)
 
-            val kept = keep(if (QUOTE_META_DROPS_COLUMN.isSufficient(level)) keydelete(meta, "column") else meta)
+            if (escape) {
+                return s.keywords(if (dropsColumn && !QUOTE_EXTENSION_META_ESCAPED.isSufficient(level)) keydelete(meta, "column") else meta)
+            }
+
+            val kept = keep(if (dropsColumn) keydelete(meta, "column") else meta)
 
             return s.keywords(if (generated) listOf("generated" to s.atom("true")) + kept else kept)
         }

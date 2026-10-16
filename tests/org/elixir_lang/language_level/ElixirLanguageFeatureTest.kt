@@ -130,7 +130,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             QUOTED_DEF_CONTEXT_SKIPS_GUARD to ("1.15.8" to "1.16.0-rc.0"),
             QUOTE_META_DROPS_COLUMN to ("1.15.8" to "1.16.0-rc.0"),
             UNQUOTE_SHALLOW_VALIDATED to ("1.17.3" to "1.18.0-rc.0"),
-            QUOTE_BINDING_META_DROPS_COLUMN to ("1.19.0-rc.2" to "1.19.0"),
+            QUOTE_EXTENSION_META_ESCAPED to ("1.19.0-rc.2" to "1.19.0"),
             UNQUOTE_VALIDATED_BY_UNQUOTE to ("1.20.0-rc.6" to "1.20.0"),
             QUOTE_IN_PATTERN_WITH_UNQUOTE_RAISES to ("1.20.1" to "1.20.2"),
             DIRECTIVE_WARNS_AT_RUN_TIME to ("1.17.3" to "1.18.0-rc.0"),
