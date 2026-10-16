@@ -19,14 +19,14 @@ internal object Documented {
 
     /** What [use] documents; [bound] is whether a valid variable binds its name. */
     @RequiresReadLock
-    fun of(use: Use, bound: Boolean = false): Choice =
-        of(Resolved.results(Resolved.projection(use, incompleteCode = false, bound, Feature.DOCUMENTATION)))
+    fun of(use: Use, bound: Boolean = false): Choice {
+        val results = Resolved.results(Resolved.projection(use, incompleteCode = false, bound, Feature.DOCUMENTATION))
 
-    fun of(results: List<ResolveResult>): Choice =
-        Choice(
+        return Choice(
             element = documented(results.filter(ResolveResult::isValidResult).mapNotNull(ResolveResult::getElement)),
             reached = results.mapNotNull(ResolveResult::getElement)
         )
+    }
 
     /**
      * Past a delegation's own `@doc`, prefer source Call elements (CallDefinitionClause), falling back to BEAM stubs

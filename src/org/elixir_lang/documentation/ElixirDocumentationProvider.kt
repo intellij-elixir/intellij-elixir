@@ -124,14 +124,14 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             Use.capture(call, capture.arity)?.let(Documented::of)
         } else {
             when (val reference = call.reference) {
-                is org.elixir_lang.reference.Callable -> Use.of(call)?.let {
+                is org.elixir_lang.reference.Callable,
+                is org.elixir_lang.psi.__module__.Reference -> Use.of(call)?.let {
                     Documented.of(it, bound = Callable.bound(call, false))
                 }
 
                 is org.elixir_lang.reference.CallDefinitionClause ->
                     Use.specification(call, reference.moduleAttribute)?.let(Documented::of)
 
-                is PsiPolyVariantReference -> Documented.of(reference.multiResolve(false).toList())
                 else -> null
             }
         }
