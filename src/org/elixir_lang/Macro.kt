@@ -49,12 +49,7 @@ object Macro {
 
     fun variable(name: OtpErlangAtom) = expr(name, NIL)
 
-    fun callArguments(callExpression: OtpErlangTuple): OtpErlangList =
-        when (val arguments = callExpression.elementAt(2)) {
-            is OtpErlangList -> arguments
-            is OtpErlangString -> OtpErlangList(arguments.stringValue())
-            else -> TODO()
-        }
+    fun callArguments(callExpression: OtpErlangTuple): OtpErlangList = callExpression.elementAt(2).toOtpErlangList()
 
     fun isAliases(macro: OtpErlangObject): Boolean {
         var aliases = false
@@ -197,7 +192,7 @@ object Macro {
             if (isInterpolated(tuple)) {
                 interpolate(tuple)
             } else {
-                val result = (tuple.elementAt(2) as OtpErlangList).joinToString(", ") { part ->
+                val result = tuple.elementAt(2).toOtpErlangList().joinToString(", ") { part ->
                     val partString = bitPartToString(part)
 
                     if (partString.startsWith('<') || partString.endsWith('>')) {
@@ -285,7 +280,7 @@ object Macro {
     // https://github.com/elixir-lang/elixir/blob/v1.6.0-rc.1/lib/elixir/lib/macro.ex?utf8=%E2%9C%93#L931-L933
     private fun ifBlockBlockToString(term: OtpErlangObject): String? =
         ifTagged3TupleTo(term, "__block__") { tuple ->
-            (tuple.elementAt(2) as OtpErlangList).joinToString("\n") { toString(it) }
+            tuple.elementAt(2).toOtpErlangList().joinToString("\n") { toString(it) }
         }
 
     // https://github.com/elixir-lang/elixir/blob/v1.6.0-rc.1/lib/elixir/lib/macro.ex#L645-L651
@@ -658,7 +653,7 @@ object Macro {
                 (dotTuple.elementAt(2) as? OtpErlangList)?.let { dotArguments ->
                     if (dotArguments.arity() == 2 && dotArguments.elementAt(1) == OtpErlangAtom("{}")) {
                         val left = dotArguments.elementAt(0)
-                        val arguments = tuple.elementAt(2) as OtpErlangList
+                        val arguments = tuple.elementAt(2).toOtpErlangList()
 
                         "${toString(left)}.{${argumentsToString(arguments)}}"
                     } else {
@@ -854,7 +849,7 @@ object Macro {
     // https://github.com/elixir-lang/elixir/blob/v1.6.0-rc.1/lib/elixir/lib/macro.ex#L628-L636
     private fun ifWhenSplatToString(macro: OtpErlangObject): String? =
         ifTagged3TupleTo(macro, "when") { tuple ->
-            val arguments = tuple.elementAt(2) as OtpErlangList
+            val arguments = tuple.elementAt(2).toOtpErlangList()
             val (left, right) = splitLast(arguments)
 
             "(${left.joinToString(", ") { toString(it) }}) when ${toString(right)}"
@@ -1024,7 +1019,7 @@ object Macro {
 
             val (left, right) = argumentList
 
-            val leftString = commaJoinOrEmptyParentheses(left as OtpErlangList, emptyParentheses)
+            val leftString = commaJoinOrEmptyParentheses(left.toOtpErlangList(), emptyParentheses)
 
             leftString + "-> " + toString(right)
         }
