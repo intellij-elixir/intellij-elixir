@@ -3,7 +3,6 @@ package org.elixir_lang.reference.resolver
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.RecursionManager
-import com.intellij.psi.PsiCompiledElement
 import com.intellij.psi.PsiElementResolveResult
 import com.intellij.psi.ResolveResult
 import com.intellij.psi.ResolveState
@@ -12,10 +11,10 @@ import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
-import com.intellij.psi.util.PsiUtilCore
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Arity
+import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
@@ -34,9 +33,15 @@ object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Cal
     override fun resolve(callable: org.elixir_lang.reference.Callable, incompleteCode: Boolean): Array<ResolveResult> {
         ApplicationManager.getApplication().assertReadAccessAllowed()
         val element = callable.element
+        // A variable declares nothing, so the step never sees it.
+        val undeclared = walk(element, incompleteCode)
+            .filter { it.reached.isEmpty() }
+            .map { PsiElementResolveResult(it.element, it.isValidResult) }
+        val declared = org.elixir_lang.declaration.Use.of(element)
+            ?.let { Resolved.results(Resolved.projection(it, incompleteCode)) }
+            .orEmpty()
 
-        return expand(org.elixir_lang.reference.Resolver.preferred(element, incompleteCode, walk(element, incompleteCode)))
-            .toTypedArray()
+        return (undeclared + declared).toTypedArray()
     }
 
     private val WALK =
@@ -48,7 +53,7 @@ object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Cal
     /** The calls whose walk is under way on this thread, for complete or incomplete code. */
     private val walking: ThreadLocal<MutableSet<Call>> = ThreadLocal.withInitial { mutableSetOf() }
 
-    /** What the walk finds for [call] before `Resolver.preferred` narrows it, which `multiResolve` and the candidates share. */
+    /** What the walk finds for [call], which `multiResolve` and the candidates share. */
     @RequiresReadLock
     fun walk(call: Call, incompleteCode: Boolean): List<VisitedElementSetResolveResult> =
         walk(call, Unquote.arity(call), incompleteCode)
@@ -101,82 +106,8 @@ object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Cal
     @TestOnly
     fun walkCount(): Int = walks.get()
 
-    fun resolve(call: Call, resolvedPrimaryArity: Arity, incompleteCode: Boolean): Array<ResolveResult> {
-        val preferred = resolvePreferred(call, resolvedPrimaryArity, incompleteCode)
-        val expanded = expand(preferred)
-
-        return expanded.toTypedArray()
-    }
-
-    /** A call the walk passes through on its way to a declaration, which [expand] adds to the results. */
+    /** A call the walk passes through on its way to a declaration. */
     internal fun isPath(call: Call): Boolean = Delegation.`is`(call) || Import.`is`(call) || Use.`is`(call)
-
-    internal fun expand(visitedElementSetResolveResultList: List<VisitedElementSetResolveResult>): List<PsiElementResolveResult> =
-        visitedElementSetResolveResultList
-            .flatMap { visitedElementSetResolveResult ->
-                val visitedElementSet = visitedElementSetResolveResult.visitedElementSet
-                val validResult = visitedElementSetResolveResult.isValidResult
-
-                val pathResolveResultList =
-                    visitedElementSet
-                        .filter { visitedElement -> (visitedElement as? Call)?.let(::isPath) ?: false }
-                        .map { PsiElementResolveResult(it, validResult) }
-
-                val terminalResolveResult = PsiElementResolveResult(
-                    visitedElementSetResolveResult.element,
-                    visitedElementSetResolveResult.isValidResult
-                )
-
-                listOf(terminalResolveResult) + pathResolveResultList
-            }
-            // deduplicate shared `defdelegate`, `import`, or `use`
-            .groupBy { resolveResultKey(it) }
-            .map { (_, resolveResults) ->
-                resolveResults.maxByOrNull { if (it.isValidResult) 1 else 0 } ?: resolveResults.first()
-            }
-            .let(::deduplicateEquivalentResults)
-
-    private fun deduplicateEquivalentResults(resolveResults: List<PsiElementResolveResult>): List<PsiElementResolveResult> {
-        val deduplicated = mutableListOf<PsiElementResolveResult>()
-
-        for (candidate in resolveResults) {
-            val existingIndex = deduplicated.indexOfFirst { existing ->
-                existing.element.manager.areElementsEquivalent(existing.element, candidate.element)
-            }
-
-            if (existingIndex == -1) {
-                deduplicated.add(candidate)
-            } else if (candidate.isValidResult && !deduplicated[existingIndex].isValidResult) {
-                deduplicated[existingIndex] = candidate
-            }
-        }
-
-        return deduplicated
-    }
-
-    // A compiled element's navigationElement is its mirror, and building that decompiles the whole module.
-    private fun resolveResultKey(resolveResult: PsiElementResolveResult): Any {
-        if (resolveResult.element is PsiCompiledElement) return resolveResult.element
-
-        val element = resolveResult.element.navigationElement
-        val filePath = element.containingFile?.virtualFile?.path ?: ""
-        val range = element.textRange
-        val startOffset = range?.startOffset ?: -1
-        val endOffset = range?.endOffset ?: -1
-        val elementType = PsiUtilCore.getElementType(element)?.toString() ?: ""
-
-        return "$filePath#$startOffset:$endOffset:$elementType"
-    }
-
-    private fun resolvePreferred(
-        element: Call,
-        resolvedPrimaryArity: Arity,
-        incompleteCode: Boolean
-    ): List<VisitedElementSetResolveResult> {
-        val all = resolveAll(element, resolvedPrimaryArity, incompleteCode)
-
-        return org.elixir_lang.reference.Resolver.preferred(element, incompleteCode, all)
-    }
 
     private fun resolveAll(element: Call, resolvedPrimaryArity: Arity, incompleteCode: Boolean) =
         /* DO NOT use `getName()` as it will return the NameIdentifier's text, which for `defmodule` is the Alias,

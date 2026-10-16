@@ -1,0 +1,189 @@
+package org.elixir_lang.reference.callable
+
+import com.intellij.codeInsight.TargetElementUtil
+import com.intellij.openapi.application.ReadAction
+import com.intellij.psi.PsiDocumentManager
+import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiPolyVariantReference
+import com.intellij.psi.PsiReference
+import com.intellij.psi.impl.source.resolve.reference.impl.PsiMultiReference
+import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.reference.CallDefinitionClause
+import org.elixir_lang.reference.Callable
+import org.elixir_lang.reference.CaptureNameArity
+
+/**
+ * What a call's, a capture's and a `@spec` head's reference resolves to: the first valid of its `multiResolve(false)`,
+ * else nothing. Find Usages reads it through `TargetElementUtil.getTargetCandidates`, offering the reference's elements
+ * beside the Symbol's search target unless a declaration the Symbol owns is among them.
+ */
+class ResolveTest : PlatformTestCase() {
+    /** The wrong-arity `def` is a candidate, never the target, and Find Usages offers the Symbol alone. */
+    fun testALoneWrongArityDefinitionIsNoTarget() {
+        myFixture.configureByText("m.ex", "defmodule M do\n  def f(a), do: a\n\n  def run, do: <caret>f()\nend\n")
+
+        assertResolves<Callable>(null, listOf("m.ex:2: def f(a), do: a (false)"))
+    }
+
+    fun testSeveralValidClausesGiveTheFirst() {
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  def f(1), do: 1\n  def f(n), do: n\n\n  def run, do: <caret>f(2)\nend\n"
+        )
+
+        assertResolves<Callable>("m.ex:2: def f(1), do: 1", listOf("m.ex:2: def f(1), do: 1 (true)", "m.ex:3: def f(n), do: n (true)"))
+    }
+
+    fun testACallOfADelegationResolvesToTheDelegation() {
+        delegation()
+        myFixture.configureByText("use.ex", "defmodule U do\n  def run, do: M.<caret>x(1)\nend\n")
+
+        assertResolves<Callable>(DELEGATION, listOf("$DELEGATION (true)", "$TARGET (true)"))
+    }
+
+    /** The `import` the use reaches the delegation through is how it was reached, not something it names. */
+    fun testAnImportedDelegationResolvesToTheDelegationWithoutTheImport() {
+        delegation()
+        myFixture.configureByText("use.ex", "defmodule U do\n  import M\n\n  def run, do: <caret>x(1)\nend\n")
+
+        assertResolves<Callable>(DELEGATION, listOf("$DELEGATION (true)", "$TARGET (true)"))
+    }
+
+    fun testACaptureOfSeveralValidClausesGivesTheFirst() {
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  def f(1), do: 1\n  def f(n), do: n\n\n  def run, do: &<caret>f/1\nend\n"
+        )
+
+        assertResolves<CaptureNameArity>(
+            "m.ex:2: def f(1), do: 1",
+            listOf("m.ex:2: def f(1), do: 1 (true)", "m.ex:3: def f(n), do: n (true)")
+        )
+    }
+
+    fun testACaptureOfADelegationResolvesToTheDelegation() {
+        delegation()
+        myFixture.configureByText("use.ex", "defmodule U do\n  def run, do: &M.<caret>x/1\nend\n")
+
+        assertResolves<CaptureNameArity>(DELEGATION, listOf("$DELEGATION (true)", "$TARGET (true)"))
+    }
+
+    /** The wrong-arity `def` is a candidate, never the target, and Find Usages offers the Symbol alone. */
+    fun testACaptureAtAWrongArityIsNoTarget() {
+        myFixture.configureByText("m.ex", "defmodule M do\n  def f(a), do: a\n\n  def run, do: &<caret>f/2\nend\n")
+
+        assertResolves<CaptureNameArity>(null, listOf("m.ex:2: def f(a), do: a (false)"))
+    }
+
+    fun testASpecOfSeveralClausesGivesTheFirst() {
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  @spec <caret>f(term) :: term\n  def f(1), do: 1\n  def f(n), do: n\nend\n"
+        )
+
+        assertResolves<CallDefinitionClause>(
+            "m.ex:3: def f(1), do: 1",
+            listOf("m.ex:3: def f(1), do: 1 (true)", "m.ex:4: def f(n), do: n (true)")
+        )
+    }
+
+    fun testASpecOfADelegationResolvesToTheDelegation() {
+        myFixture.addFileToProject("t.ex", "defmodule T do\n  def x(a), do: a\nend\n")
+        myFixture.configureByText("m.ex", "defmodule M do\n  @spec <caret>x(term) :: term\n  defdelegate x(a), to: T\nend\n")
+
+        assertResolves<CallDefinitionClause>("m.ex:3: defdelegate x(a), to: T", listOf("m.ex:3: defdelegate x(a), to: T (true)"))
+    }
+
+    /** A `@callback` is a contract, not a body: a candidate, but never the target, of a call or a `@spec`. */
+    fun testACallBesideACallbackOfItsNameResolvesToTheDefinition() {
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  @callback f(term) :: term\n  def f(a), do: a\n\n  def run, do: <caret>f(1)\nend\n"
+        )
+
+        assertResolves<Callable>(
+            "m.ex:3: def f(a), do: a",
+            listOf("m.ex:2: @callback f(term) :: term (false)", "m.ex:3: def f(a), do: a (true)")
+        )
+    }
+
+    fun testASpecBesideACallbackOfItsNameResolvesToTheDefinition() {
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  @callback f(term) :: term\n  @spec <caret>f(term) :: term\n  def f(a), do: a\nend\n"
+        )
+
+        assertResolves<CallDefinitionClause>(
+            "m.ex:4: def f(a), do: a",
+            listOf("m.ex:2: @callback f(term) :: term (false)", "m.ex:4: def f(a), do: a (true)")
+        )
+    }
+
+    fun testASpecWithOnlyACallbackOfItsNameIsNoTarget() {
+        myFixture.configureByText("m.ex", "defmodule M do\n  @callback f(term) :: term\n  @spec <caret>f(term) :: term\nend\n")
+
+        assertResolves<CallDefinitionClause>(null, listOf("m.ex:2: @callback f(term) :: term (false)"))
+    }
+
+    /**
+     * The variable is the target: a function of the name beside it is a candidate, but never what the use names. Find
+     * Usages offers no second target: a guard of `TargetElementEvaluator`'s `VariableSymbol.isHead` arm.
+     */
+    fun testAVariableBesideAFunctionOfItsNameIsTheTarget() {
+        myFixture.configureByText("m.ex", "defmodule M do\n  def f, do: 1\n\n  def run(f), do: <caret>f\nend\n")
+
+        assertResolves<Callable>("m.ex:4: def run(f), do: f", listOf("m.ex:4: def run(f), do: f (true)", "m.ex:2: def f, do: 1 (true)"))
+    }
+
+    private fun delegation() {
+        myFixture.addFileToProject("t.ex", "defmodule T do\n  def x(a), do: a\nend\n")
+        myFixture.addFileToProject("m.ex", "defmodule M do\n  defdelegate x(a), to: T\nend\n")
+    }
+
+    private inline fun <reified T : PsiPolyVariantReference> assertResolves(resolved: String?, results: List<String>) {
+        readAction {
+            val reference = references().filterIsInstance<T>().single()
+
+            assertEquals(
+                "multiResolve(false)",
+                results,
+                reference.multiResolve(false).map { "${describe(it.element!!)} (${it.isValidResult})" }
+            )
+            assertEquals("resolve()", resolved, reference.resolve()?.let(::describe))
+        }
+        assertEquals("Find Usages' second targets", emptyList<String>(), secondTargets())
+    }
+
+    private fun references(): List<PsiReference> =
+        when (val reference = myFixture.file.findReferenceAt(myFixture.caretOffset)) {
+            is PsiMultiReference -> reference.references.toList()
+            null -> emptyList()
+            else -> listOf(reference)
+        }
+
+    /** What Find Usages offers beside the Symbol's search targets: the PSI elements the platform reads off the reference. */
+    private fun secondTargets(): List<String> =
+        readAction {
+            TargetElementUtil.getInstance()
+                .getTargetCandidates(TargetElementUtil.findReference(myFixture.editor, myFixture.caretOffset)!!)
+                .map(::describe)
+        }
+
+    private fun describe(element: PsiElement): String {
+        val file = element.containingFile
+        val document = PsiDocumentManager.getInstance(project).getDocument(file)!!
+        val line = document.getLineNumber(element.textRange.startOffset)
+        val text = document.getText(
+            com.intellij.openapi.util.TextRange(document.getLineStartOffset(line), document.getLineEndOffset(line))
+        )
+
+        return "${file.name}:${line + 1}: ${text.trim()}"
+    }
+
+    private fun <T> readAction(block: () -> T): T = ReadAction.computeBlocking<T, Throwable> { block() }
+
+    private companion object {
+        const val DELEGATION = "m.ex:2: defdelegate x(a), to: T"
+        const val TARGET = "t.ex:2: def x(a), do: a"
+    }
+}

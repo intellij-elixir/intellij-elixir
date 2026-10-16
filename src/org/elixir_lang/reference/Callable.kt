@@ -21,6 +21,7 @@ import com.intellij.usageView.UsageViewTypeLocation
 import com.intellij.util.IncorrectOperationException
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.annotator.Parameter
+import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.model.psi.variable.VariableReference
 import org.elixir_lang.model.psi.variable.VariableSymbol
 import org.elixir_lang.psi.*
@@ -117,7 +118,7 @@ class Callable : PsiReferenceBase<Call>, PsiPolyVariantReference {
      *
      * @return the target element, or null if it was not possible to resolve the reference to a valid target.
      */
-    override fun resolve(): PsiElement? = multiResolve(false).singleOrNull()?.element
+    override fun resolve(): PsiElement? = Resolved.target(this)
 
     /*
      * Protected Instance Methods

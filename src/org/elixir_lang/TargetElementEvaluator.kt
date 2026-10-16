@@ -2,6 +2,7 @@ package org.elixir_lang
 
 import com.intellij.codeInsight.TargetElementEvaluatorEx2
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.PsiReference
 import com.intellij.psi.ResolveResult
 import com.intellij.psi.util.PsiTreeUtil
@@ -113,9 +114,12 @@ internal class TargetElementEvaluator : TargetElementEvaluatorEx2() {
                     if (isOnDefmoduleHead) {
                         mutableListOf()
                     } else {
-                        val resolved = reference.resolve()
+                        // With no valid result, as at a wrong-arity call, the Symbol still owns the declarations it found.
+                        val resolved = reference.resolve()?.let(::listOf)
+                            ?: (reference as? PsiPolyVariantReference)?.multiResolve(false)?.mapNotNull(ResolveResult::getElement)
+                            ?: emptyList()
                         when {
-                            resolved != null && (Callback.isHead(resolved) || TypeElement.isHead(resolved) || ModuleAttributeSymbol.isHead(resolved) || VariableSymbol.isHead(resolved) || DeclaringForm.isDeclaration(resolved)) -> {
+                            resolved.any { Callback.isHead(it) || TypeElement.isHead(it) || ModuleAttributeSymbol.isHead(it) || VariableSymbol.isHead(it) || DeclaringForm.isDeclaration(it) } -> {
                                 // Call-definition clause heads (including `@callback`/`@macrocallback` and protocol
                                 // function declarations) are owned by the Symbol model; return empty list to prevent
                                 // redundant legacy target beside the symbol's target - avoids the ambiguity popup.

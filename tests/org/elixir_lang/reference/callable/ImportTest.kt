@@ -4,6 +4,7 @@ import com.intellij.psi.PsiPolyVariantReference
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.psi.call.Call
 
+/** An imported function is what its call resolves to; the `import` it is reached through is not a result. */
 class ImportTest : PlatformTestCase() {
     fun testImportModule() {
         myFixture.configureByFiles("import_module.ex", "imported.ex")
@@ -22,7 +23,7 @@ class ImportTest : PlatformTestCase() {
         val polyVariantReference = reference as PsiPolyVariantReference?
 
         val resolveResults = polyVariantReference!!.multiResolve(false)
-        assertEquals(2, resolveResults.size)
+        assertEquals(1, resolveResults.size)
 
         val firstResolveResult = resolveResults[0]
         assertTrue(firstResolveResult.isValidResult)
@@ -30,11 +31,6 @@ class ImportTest : PlatformTestCase() {
         assertEquals("""def imported() do
     imported(1)
   end""", firstResolved!!.text)
-
-        val secondResolveResult = resolveResults[1]
-        assertTrue(secondResolveResult.isValidResult)
-        val secondResolved = secondResolveResult.element
-        assertEquals("import Imported", secondResolved!!.text)
     }
 
     fun testImportModuleExceptNameArity() {
@@ -55,7 +51,7 @@ class ImportTest : PlatformTestCase() {
         val polyVariantReference = reference as PsiPolyVariantReference?
 
         val resolveResults = polyVariantReference!!.multiResolve(false)
-        assertEquals(2, resolveResults.size)
+        assertEquals(1, resolveResults.size)
 
         val firstResolveResult = resolveResults[0]
         assertTrue(firstResolveResult.isValidResult)
@@ -63,11 +59,6 @@ class ImportTest : PlatformTestCase() {
         assertEquals("""def imported() do
     imported(1)
   end""", firstResolved!!.text)
-
-        val secondResolveResult = resolveResults[1]
-        assertTrue(secondResolveResult.isValidResult)
-        val secondResolved = secondResolveResult.element
-        assertEquals("import Imported, except: [unimported: 0]", secondResolved!!.text)
     }
 
     fun testImportModuleOnlyNameArity() {
@@ -88,7 +79,13 @@ class ImportTest : PlatformTestCase() {
         val polyVariantReference = reference as PsiPolyVariantReference?
 
         val resolveResults = polyVariantReference!!.multiResolve(false)
-        assertEquals(2, resolveResults.size)
+        assertEquals(1, resolveResults.size)
+
+        val firstResolveResult = resolveResults[0]
+        assertTrue(firstResolveResult.isValidResult)
+        assertEquals("""def imported() do
+    imported(1)
+  end""", firstResolveResult.element!!.text)
     }
 
     override fun getTestDataPath(): String = "testData/org/elixir_lang/reference/callable/import"

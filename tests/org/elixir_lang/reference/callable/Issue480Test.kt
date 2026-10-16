@@ -18,7 +18,8 @@ class Issue480Test : PlatformTestCase() {
 
     fun testRemote() {
         myFixture.configureByFiles("remote.ex", "referenced.ex")
-        assertUnresolvableReferenceNameArityRange("changeset", 1)
+        assertReferenceAndResolvedNameArityRange("changeset", 1)
+        assertEquals("def changeset(params) do", (myFixture.file.findReferenceAt(myFixture.caretOffset)!!.resolve() as Call).text.lines().first())
     }
 
     fun testDirectModuleQualifier() {

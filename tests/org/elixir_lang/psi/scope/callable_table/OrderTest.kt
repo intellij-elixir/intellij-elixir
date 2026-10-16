@@ -20,7 +20,7 @@ class OrderTest : PlatformTestCase() {
         assertOrder("order", "order.ex:36:20", "multiResolve", listOf("order.ex:37:3"))
 
     fun testImportBeforeLocalKeepsTheImportFirst() =
-        assertOrder("order", "order.ex:2:23", "multiResolve", listOf("imported.ex:2:3", "order.ex:3:3", "order.ex:4:3"))
+        assertOrder("order", "order.ex:2:23", "multiResolve", listOf("imported.ex:2:3", "order.ex:4:3"))
 
     fun testDelegationStopStaysInsideTheDelegation() =
         assertOrder("forms", "forms.ex:55:16", "walk", listOf("forms.ex:9:3", "forms.ex:4:3", "forms.ex:5:3 (invalid)"))

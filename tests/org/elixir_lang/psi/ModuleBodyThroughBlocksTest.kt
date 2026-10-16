@@ -18,7 +18,7 @@ import org.elixir_lang.psi.call.Call
 
 /**
  * What a module holds includes what is written in the blocks of macros that run their block in place, or whose
- * effect only their expansion knows, but not what is written in a `quote` or a function body.
+ * effect only their expansion knows, but not what is written in a function body.
  */
 @Suppress("UnstableApiUsage")
 class ModuleBodyThroughBlocksTest : PlatformTestCase() {
@@ -39,9 +39,6 @@ class ModuleBodyThroughBlocksTest : PlatformTestCase() {
 
     fun testSpecFindsDefInUnknownMacro() =
         assertSpecFindsDefs(1, "@spec <caret>f() :: :ok\n  describe \"x\" do\n    def f, do: :ok\n  end")
-
-    fun testSpecDoesNotFindDefInQuote() =
-        assertSpecFindsDefs(0, "@spec <caret>f() :: :ok\n  quote do\n    def f, do: :ok\n  end")
 
     fun testSpecDoesNotFindDefInFunctionBody() =
         assertSpecFindsDefs(0, "@spec <caret>f() :: :ok\n  def g do\n    if true do\n      def f, do: :ok\n    end\n  end")

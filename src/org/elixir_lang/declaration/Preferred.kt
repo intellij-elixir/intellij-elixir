@@ -113,6 +113,10 @@ internal fun <T> overridden(list: List<T>, found: (T) -> Found): List<T> {
 @RequiresReadLock
 fun isOverridable(found: Found): Boolean = role(found) == Role.OVERRIDABLE
 
+/** Whether [found] is a contract, not a body, as a `@callback` is: a candidate, but never what a use names. */
+@RequiresReadLock
+internal fun isContract(found: Found): Boolean = role(found) == Role.NONE
+
 /** What a declaration is to [overridden]. */
 private enum class Role { USER, OVERRIDABLE, NONE }
 

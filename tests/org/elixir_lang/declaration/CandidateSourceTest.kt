@@ -2,7 +2,6 @@ package org.elixir_lang.declaration
 
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
@@ -10,6 +9,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.scope.call_definition_clause.Declarations
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
+import org.elixir_lang.reference.resolver.Callable
 
 /** Each candidate written `line name=applicability`, `line` being where its element starts. */
 class CandidateSourceTest : PlatformTestCase() {
@@ -278,7 +278,7 @@ class CandidateSourceTest : PlatformTestCase() {
 
     /** That the walk reaches an element at [line], so that it being no candidate is not vacuous. */
     private fun assertReaches(text: String, incompleteCode: Boolean, line: Int) {
-        val reached = (call(text).reference as PsiPolyVariantReference).multiResolve(incompleteCode).map { lineOf(it.element!!) }
+        val reached = Callable.walk(call(text), incompleteCode).map { lineOf(it.element) }
 
         assertTrue("nothing at line $line in $reached", line in reached)
     }

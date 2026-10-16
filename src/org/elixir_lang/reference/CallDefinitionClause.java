@@ -8,6 +8,7 @@ import com.intellij.psi.PsiPolyVariantReference;
 import com.intellij.psi.PsiReferenceBase;
 import com.intellij.psi.ResolveResult;
 import com.intellij.psi.impl.source.resolve.ResolveCache;
+import org.elixir_lang.declaration.Resolved;
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall;
 import org.elixir_lang.psi.call.Call;
 import org.jetbrains.annotations.NotNull;
@@ -94,7 +95,6 @@ public class CallDefinitionClause extends PsiReferenceBase<Call> implements PsiP
     @Nullable
     @Override
     public PsiElement resolve() {
-        ResolveResult[] resolveResults = multiResolve(false);
-        return resolveResults.length == 1 ? resolveResults[0].getElement() : null;
+        return Resolved.target(this);
     }
 }

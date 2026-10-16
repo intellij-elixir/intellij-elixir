@@ -6,22 +6,19 @@ import com.intellij.psi.PsiReferenceService
 import com.intellij.psi.PsiReferenceService.Hints.NO_HINTS
 import org.elixir_lang.declaration.Applicability
 import org.elixir_lang.declaration.Feature
-import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Use
+import org.elixir_lang.declaration.isContract
+import org.elixir_lang.declaration.preferred
 import org.elixir_lang.declaration.sourceFor
-import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
-import org.elixir_lang.reference.Resolver
 import org.elixir_lang.reference.resolver.Callable
 
 /**
  * How the candidate list at every use relates to `multiResolve`, in both `incompleteCode` modes:
- * 1. `multiResolve` is the walk narrowed by `Resolver.preferred` and expanded with the paths it crossed;
- * 2. every `multiResolve` target is a candidate, a path, a variable, a prefix match, or reached through a
- *    prefix-matched `defdelegate` head;
- * 3. every candidate is a `multiResolve` target, or was dropped by the valid or same-module rule of
- *    `Resolver.preferred`; the source rule never drops one, since the module entry already prefers source;
- * 4. the valid candidates are the valid targets that are neither paths nor variables, but for those dropped as in 3.
+ * 1. every `multiResolve` target is a variable or a declaration the preference step keeps, found or delegated to;
+ * 2. every declaration the step keeps is a `multiResolve` target, so a candidate is missing only where the step
+ *    dropped it;
+ * 3. a declaration target is valid exactly when one of the candidates the step keeps at it is valid and no
+ *    contract.
  */
 class CandidateAgreementTest : SnapshotTestCase() {
     fun testCallableDeclaration() {
@@ -32,18 +29,25 @@ class CandidateAgreementTest : SnapshotTestCase() {
         assertAgreement("snapshot/inputs")
     }
 
-    /** `two/2` beside `two/1`, so that the valid preference drops a candidate. */
+    /**
+     * `two/2` beside `two/1`, so that the step drops a candidate; and `f/1` beside its `@callback`, a kept candidate
+     * that is never valid.
+     */
     fun testPreferences() {
-        val dropped = assertAgreement("declaration/candidate_source/agreement")
+        val (dropped, keptContracts) = assertAgreement("declaration/candidate_source/agreement")
 
-        assertTrue("prefer valid dropped a candidate: $dropped", PREFER_VALID in dropped)
+        assertTrue("the step dropped a candidate: $dropped", "two" in dropped)
+        assertTrue("the step kept a contract: $keptContracts", "f" in keptContracts)
     }
 
-    /** @return the rules that dropped a candidate. */
-    private fun assertAgreement(inputDirectory: String): Set<String> {
+    /** The names of the candidates the step dropped, and of the contracts it kept. */
+    private data class Seen(val dropped: Set<String>, val keptContracts: Set<String>)
+
+    private fun assertAgreement(inputDirectory: String): Seen {
         val (_, files) = copyInputs(inputDirectory)
         val disagreements = mutableListOf<String>()
         val dropped = mutableSetOf<String>()
+        val keptContracts = mutableSetOf<String>()
         var uses = 0
 
         for (file in files.flatMap { it.viewProvider.allFiles }) {
@@ -57,7 +61,8 @@ class CandidateAgreementTest : SnapshotTestCase() {
 
                         for (incompleteCode in listOf(false, true)) {
                             val use = "${file.name}:${reference.element.textOffset} `${reference.element.text.lines().first()}` ic=$incompleteCode"
-                            disagreements += disagreements(reference, incompleteCode, dropped).map { "$use: $it" }
+                            disagreements +=
+                                disagreements(reference, incompleteCode, dropped, keptContracts).map { "$use: $it" }
                         }
                     }
                 }
@@ -67,102 +72,53 @@ class CandidateAgreementTest : SnapshotTestCase() {
         assertTrue(uses > 0)
         assertEquals(emptyList<String>(), disagreements)
 
-        return dropped
+        return Seen(dropped, keptContracts)
     }
 
     private fun disagreements(
         reference: org.elixir_lang.reference.Callable,
         incompleteCode: Boolean,
-        dropped: MutableSet<String>
+        dropped: MutableSet<String>,
+        keptContracts: MutableSet<String>
     ): List<String> {
         val call = reference.element
-        val walk = Callable.walk(call, incompleteCode)
-        val preferValid = if (incompleteCode) walk else Resolver.preferIsValidResult(walk)
-        val sourceElements = Resolver.preferSource(preferValid.map { it.element }).toSet()
-        val preferSource = preferValid.filter { it.element in sourceElements }
-        val preferSameModule = Resolver.preferElementUnderSameModule(call, preferSource)
         val multi = reference.multiResolve(incompleteCode).toList()
-        val found = Use.of(call)?.let { sourceFor(Feature.SYMBOL_REFERENCES).candidates(it, incompleteCode) }.orEmpty()
+        val variables = Callable.walk(call, incompleteCode).filter { it.reached.isEmpty() }.map { it.element }.toSet()
+        val use = Use.of(call)
+        val found = use?.let { sourceFor(Feature.SYMBOL_REFERENCES).candidates(it, incompleteCode) }.orEmpty()
+        val kept = use?.let { preferred(it, found, incompleteCode) }.orEmpty().flatMap { listOf(it.found) + it.admittedDelegatedTo }
+        val keptElements = kept.map { it.element }.toSet()
         val disagreements = mutableListOf<String>()
 
-        if (preferSameModule != Resolver.preferred(call, incompleteCode, walk)) {
-            disagreements += "the preferences applied one by one are not Resolver.preferred"
-        }
-
         // 1
-        if (Callable.expand(preferSameModule).map { it.element to it.isValidResult } !=
-            multi.map { it.element to it.isValidResult }
-        ) {
-            disagreements += "multiResolve is not expand(preferred(walk))"
+        for (target in multi.map { it.element!! }) {
+            if (target !in variables && target !in keptElements) {
+                disagreements += "multiResolve target ${target.text.lines().first()} is no variable and no declaration the step keeps"
+            }
         }
 
         // 2
-        for (target in multi.map { it.element!! }) {
-            if (found.none { it.element == target } &&
-                !isPath(target, preferSameModule) &&
-                walk.none { it.element == target && (it.reach == null || unnamed(it)) }
-            ) {
-                disagreements += "multiResolve target ${target.text.lines().first()} is no candidate, path, variable or prefix match"
-            }
+        val multiElements = multi.mapNotNull { it.element }.toSet()
+
+        for (element in keptElements - multiElements) {
+            disagreements += "the step keeps ${element.text.lines().first()}, which is not in multiResolve"
         }
+
+        found.filter { it.element !in keptElements }.mapTo(dropped) { it.candidate.declaration.name }
+        kept.filter { isContract(it) }.mapTo(keptContracts) { it.candidate.declaration.name }
 
         // 3
-        val multiElements = multi.map { it.element }.toSet()
-        val droppedFound = mutableSetOf<Found>()
-
-        for (candidate in found.filter { it.element !in multiElements }) {
-            val rule = when {
-                preferValid.none { it.element == candidate.element } -> PREFER_VALID
-                preferSource.none { it.element == candidate.element } -> PREFER_SOURCE
-                preferSameModule.none { it.element == candidate.element } -> PREFER_SAME_MODULE
-                else -> null
+        for (result in multi.filter { it.element in keptElements && it.element !in variables }) {
+            val valid = kept.any {
+                it.element == result.element && it.candidate.applicability == Applicability.VALID && !isContract(it)
             }
 
-            if (rule == null) {
-                disagreements += "candidate ${candidate.element.text.lines().first()} is not in multiResolve and no rule dropped it"
-            } else if (rule == PREFER_SOURCE) {
-                disagreements += "candidate ${candidate.element.text.lines().first()} was dropped by the source stage, " +
-                    "so the walk reached a compiled copy of a module its entry would have left out"
-            } else {
-                dropped += rule
-                droppedFound += candidate
+            if (result.isValidResult != valid) {
+                disagreements += "${result.element!!.text.lines().first()} is valid=${result.isValidResult}, " +
+                    "but its kept candidates say valid=$valid"
             }
-        }
-
-        // 4
-        val validFound = found
-            .filter { it.candidate.applicability == Applicability.VALID && it !in droppedFound }
-            .map { it.element }
-            .toSet()
-        val validTargets = multi
-            .filter { it.isValidResult }
-            .map { it.element!! }
-            .filter { target -> walk.any { it.element == target && it.reach != null } }
-            .toSet()
-
-        if (validFound != validTargets) {
-            disagreements += "valid candidates ${validFound.map { it.text.lines().first() }} are not the valid targets " +
-                "${validTargets.map { it.text.lines().first() }}"
         }
 
         return disagreements
-    }
-
-    /** Whether no declaration at [result] is named by the use: each is a prefix match, or behind a prefix-matched head. */
-    private fun unnamed(result: VisitedElementSetResolveResult): Boolean =
-        result.reached.isNotEmpty() &&
-            result.reached.all { reached ->
-                !reached.headNamed ||
-                    reached.searchedAtom?.let { Applicability.of(reached.declaration, it, reached.valid) } == null
-            }
-
-    private fun isPath(target: PsiElement, preferred: List<VisitedElementSetResolveResult>): Boolean =
-        (target as? Call)?.let(Callable::isPath) == true &&
-            preferred.any { target in it.visitedElementSet }
-
-    private companion object {
-        const val PREFER_VALID = "prefer valid"
-        const val PREFER_SOURCE = "prefer source"
-        const val PREFER_SAME_MODULE = "prefer same module"
     }
 }

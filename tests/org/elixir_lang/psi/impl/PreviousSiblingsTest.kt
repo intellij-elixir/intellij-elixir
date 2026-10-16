@@ -48,7 +48,7 @@ class PreviousSiblingsTest : PlatformTestCase() {
             """
         )
 
-        assertResolves("helper_fun()", "helpers.ex:2:3", "caller.ex:3:5")
+        assertResolves("helper_fun()", "helpers.ex:2:3")
     }
 
     fun testImportAfterTheCallInTheFunctionBodyIsNotSeen() {
@@ -79,11 +79,11 @@ class PreviousSiblingsTest : PlatformTestCase() {
             end
             """
         )
-        assertResolves("helper_fun()", "helpers.ex:2:3", "caller.ex:3:5")
+        assertResolves("helper_fun()", "helpers.ex:2:3")
 
         edit { it.replace("import Helper", "import Other") }
 
-        assertResolves("helper_fun()", "helpers.ex:10:3", "caller.ex:3:5")
+        assertResolves("helper_fun()", "helpers.ex:10:3")
     }
 
     fun testAnImportInsertedInTheFunctionBodyIsSeen() {
@@ -101,7 +101,7 @@ class PreviousSiblingsTest : PlatformTestCase() {
 
         edit { it.replace("    :ok\n", "    :ok\n    import Helper\n") }
 
-        assertResolves("helper_fun()", "helpers.ex:2:3", "caller.ex:4:5")
+        assertResolves("helper_fun()", "helpers.ex:2:3")
     }
 
     fun testAliasBeforeTheDefinition() {

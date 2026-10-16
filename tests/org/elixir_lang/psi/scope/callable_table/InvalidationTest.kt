@@ -87,7 +87,7 @@ class InvalidationTest : PlatformTestCase() {
             WriteAction.runAndWait<Throwable> { root.findChild(BEAM)!!.setBinaryContent(File(REPLACED, "v2/$BEAM").readBytes()) }
             IndexingTestUtil.waitUntilIndexesAreReady(project)
 
-            assertEquals(listOf(BEAM, "replaced_user.ex"), files(importer, "two()"))
+            assertEquals(listOf(BEAM), files(importer, "two()"))
         }
     }
 
@@ -122,7 +122,7 @@ class InvalidationTest : PlatformTestCase() {
         }
         IndexingTestUtil.waitUntilIndexesAreReady(project)
 
-        assertEquals(listOf("queue.beam", "sdk_user.ex"), files(importer, "new()"))
+        assertEquals(listOf("queue.beam"), files(importer, "new()"))
     }
 
     private fun assertEditingAnImportedModule() {
@@ -147,12 +147,12 @@ class InvalidationTest : PlatformTestCase() {
             """.trimIndent()
         )
 
-        assertEquals(listOf("exporter.ex:2:3", "importer.ex:5:3"), answer(importer, "one()"))
+        assertEquals(listOf("exporter.ex:2:3"), answer(importer, "one()"))
         assertEquals(emptyList<String>(), answer(importer, "two()"))
 
         insert(exporter, "  def one", "  def two, do: 2\n")
 
-        assertEquals(listOf("exporter.ex:2:3", "importer.ex:5:3"), answer(importer, "two()"))
+        assertEquals(listOf("exporter.ex:2:3"), answer(importer, "two()"))
     }
 
     private fun assertEditingTheOwnModule() {
