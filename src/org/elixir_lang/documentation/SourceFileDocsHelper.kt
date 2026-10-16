@@ -20,6 +20,7 @@ import org.elixir_lang.psi.call.CanonicallyNamed
 import org.elixir_lang.psi.impl.identifierName
 import org.elixir_lang.psi.impl.siblingExpressions
 import org.elixir_lang.psi.stub.type.call.Stub
+import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.psi.impl.call.finalArguments
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 
@@ -138,11 +139,11 @@ object SourceFileDocsHelper {
     private fun declarationOf(declaring: Call, form: Form, state: ResolveState): Declaration? =
         Declarations.of(form, declaring, state).singleOrNull()?.declaration
 
-    /** The head [declaring] shows its docs under: the one it writes, or `name/arity` for an EEx function or an embed. */
+    /** The head [declaring] shows its docs under: the one it writes with [name], or `name/arity` for an EEx function or an embed. */
     @RequiresReadLock
-    private fun headOf(declaring: Call, form: Form): String? =
+    private fun headOf(declaring: Call, form: Form, name: String): String? =
         when (form) {
-            Form.CLAUSE -> CallDefinitionClause.head(declaring)?.text
+            Form.CLAUSE -> CallDefinitionClause.head(declaring)?.let { spelled(it, name) }
             Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED -> declaredHead(declaring)
             Form.DELEGATION, Form.CALLBACK, Form.EXCEPTION -> null
         }
@@ -169,7 +170,7 @@ object SourceFileDocsHelper {
                 val form = functionForm(sibling)
                 val declaration = form?.let { declarationOf(sibling, it, state) }?.takeIf { it.name == used.name }
                 val arities = declaration?.arity?.arityInterval()
-                val head = form?.let { headOf(sibling, it) }
+                val head = form?.let { headOf(sibling, it, used.name) }
 
                 if (declaration == null || arities == null || head == null) {
                     null
@@ -260,9 +261,29 @@ object SourceFileDocsHelper {
                 .takeIf { it.doc != null }
         }
 
+    /**
+     * [head] written with [name], the name Elixir gives the function: a name written as a quoted atom, or with a
+     * combining mark, reads as that atom. A head already written with it, or an operator's, is its own text.
+     */
     @RequiresReadLock
-    private fun moduleName(modular: PsiElement): String =
-        (modular as? CanonicallyNamed)?.canonicalName()?.let { org.elixir_lang.Module.inspect(it) }.orEmpty()
+    private fun spelled(head: PsiElement, name: String): String {
+        val stripped = CallDefinitionHead.strip(head) as? Call ?: return head.text
+        val parameters = CallDefinitionHead.parameters(stripped)
+
+        if (parameters == null || CallDefinitionHead.nameIdentifier(head)?.text == name) return head.text
+
+        val guard = head.text.takeIf { it.startsWith(stripped.text) }?.removePrefix(stripped.text).orEmpty()
+
+        return "$name(${parameters.joinToString(", ") { it.text }})$guard"
+    }
+
+    /** The module [modular] is, or `null` where it is none, as a `quote` is not: the module that calls `use` is not known here. */
+    @RequiresReadLock
+    private fun moduleName(modular: PsiElement): String? =
+        (modular as? Call)
+            ?.takeIf { Stub.isModular(it) }
+            ?.let { (it as? CanonicallyNamed)?.canonicalName() }
+            ?.let { org.elixir_lang.Module.inspect(it) }
 
     internal val HIDDEN_DOCUMENTATION = setOf("false", "nil")
 }

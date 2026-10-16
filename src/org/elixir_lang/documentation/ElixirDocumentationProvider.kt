@@ -17,8 +17,6 @@ import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.MarkdownByL
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.None
 import org.elixir_lang.beam.psi.BeamFileImpl
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
-import org.elixir_lang.declaration.Feature
-import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.atItsHead
 import org.elixir_lang.psi.*
@@ -47,7 +45,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
 
     fun render(element: PsiElement, originalElement: PsiElement?, linkedArity: Int? = null): Rendered? =
         // Where no use is known, as for a link followed, the function is seen from outside its module.
-        fetchDocs(element, remote = callAt(originalElement)?.let(::documentedChoice)?.takeIf { it.element == element }?.inside != true)?.let { fetched ->
+        fetchDocs(element, remote = choiceAt(originalElement)?.takeIf { it.element == element }?.inside != true)?.let { fetched ->
             Rendered(formatDocs(element, fetched), anchor(fetched, linkedArity ?: calledArity(originalElement)))
         }
 
@@ -59,13 +57,19 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             ?.takeIf { it.entries.size > 1 }
             ?.let { arities -> arity?.let(arities::entryAt)?.id }
 
-    /** The arity used where [original] is written: at a call, a capture or a `defdelegate` head. */
-    private fun calledArity(original: PsiElement?): Int? {
-        val call = callAt(original) ?: return null
-        val use = useOf(call)
-            ?: Use.of(call)?.takeIf { DeclaringForm.named(call)?.form == Form.DELEGATION }
+    /** The use written where [original] is: at a call, a capture or a declaration's head. */
+    private fun useAt(original: PsiElement?): Use? =
+        callAt(original)?.let { call -> useOf(call) ?: Use.of(call)?.takeIf { DeclaringForm.named(call) != null } }
 
-        return when (use) {
+    /** What the use written where [original] is documents: at a call, a capture or a declaration's head. */
+    private fun choiceAt(original: PsiElement?): Documented.Choice? =
+        callAt(original)?.let { call ->
+            documentedChoice(call) ?: Use.of(call)?.takeIf { DeclaringForm.named(call) != null }?.let { Documented.of(it) }
+        }
+
+    /** The arity used where [original] is written. */
+    private fun calledArity(original: PsiElement?): Int? {
+        return when (val use = useAt(original)) {
             is Use.OfCall -> use.arity
             is Use.Specified -> use.arity
             is Use.Remote -> use.arity
@@ -181,15 +185,6 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         }
     }
 
-    /** A `defdelegate` [head] documents its delegation, then what it delegates to. */
-    private fun delegationHeadDocumented(head: Call): PsiElement? {
-        val delegation = DeclaringForm.named(head)?.call ?: return null
-        val use = Use.of(head) as? Use.Named ?: return null
-        val preferred = atItsHead(delegation, use, Feature.DOCUMENTATION) ?: return null
-
-        return Documented.documented(listOf(preferred.found) + preferred.admittedDelegatedTo)
-    }
-
     private tailrec fun getCustomDocumentationElement(contextElement: PsiElement): PsiElement? = when (contextElement) {
         is LeafPsiElement, is ElixirIdentifier, is ElixirRelativeIdentifier ->
             getCustomDocumentationElement(contextElement.parent)
@@ -204,9 +199,6 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 ?.let { Resolver.preferSource(it) }
                 ?.firstOrNull()
         }
-
-        is Call if DeclaringForm.named(contextElement)?.form == Form.DELEGATION ->
-            delegationHeadDocumented(contextElement)
 
         is Call -> documentedChoice(contextElement)?.let { choice ->
             // multiResolve matches names by prefix for completion, so a wrong-arity call falls back to the reached
@@ -260,7 +252,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
 
         documentationHtml.append(DocumentationMarkup.DEFINITION_START)
 
-        documentationHtml.append("<i>module</i> <b>").append(fetchedDocs.module).append("</b>\n")
+        fetchedDocs.module?.let { documentationHtml.append("<i>module</i> <b>").append(it).append("</b>\n") }
 
         when (fetchedDocs) {
             is FetchedDocs.CallbackDocumentation -> {
