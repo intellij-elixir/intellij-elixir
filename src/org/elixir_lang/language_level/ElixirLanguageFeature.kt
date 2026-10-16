@@ -1234,6 +1234,15 @@ enum class ElixirLanguageFeature(
     QUOTE_EXTENSION_META_ESCAPED(sinceElixir = "1.19.0"),
 
     /**
+     * `Macro.escape/2` reads a tuple as a `quote`, an `unquote` or an unquoted call, or prunes its metadata, only where
+     * its metadata is a list. Before it, any metadata matches.
+     *
+     * `elixir-lang/elixir@4e478b375` ("Correctly Macro.escape :quote triplet without meta", #13594), first released in
+     * v1.17.0-rc.0.
+     */
+    ESCAPE_HEADS_NEED_LIST_META(sinceElixir = "1.17.0-rc.0"),
+
+    /**
      * An `unquote` inside a `quote` is passed to `:elixir_quote.unquote/1` in place of `shallow_validate_ast/1`, and a
      * `quote` outside a pattern or guard is wrapped in `:elixir_quote.validate_quote/1`.
      *

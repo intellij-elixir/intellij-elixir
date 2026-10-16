@@ -6,10 +6,13 @@ import org.elixir_lang.expander.DefinitionTable.Kind
 import org.elixir_lang.expander.ExpansionResult.Owner
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFAULT_ARGUMENTS_THREAD_STATE
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINER_REFUSED_IN_MATCH_OR_GUARD
+import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPE_HEADS_NEED_LIST_META
 import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_HEAD_GUARDS_CONTINUE
 import org.elixir_lang.language_level.ElixirLanguageFeature.HAS_UNQUOTES_NAME_AT_QUOTE_LEVEL
 import org.elixir_lang.language_level.ElixirLanguageFeature.HAS_UNQUOTES_QUOTE_AWARE
 import org.elixir_lang.language_level.ElixirLanguageFeature.POST_MODULE_LOCAL_CHECKS_TYPED
+import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_EXTENSION_META_ESCAPED
+import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_META_DROPS_COLUMN
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
@@ -117,7 +120,7 @@ internal fun define(
 
         for ((piece, term) in pieces.zip((terms as Term.List).elements)) {
             val fragment = (piece as? Piece.Fragment)?.call ?: continue
-            val literal = literalOf(fragment, term, escaped = false)
+            val literal = literalOf(fragment, term, escaped = false, run.level)
 
             when {
                 literal != null -> replacements[fragment] = literal
@@ -154,19 +157,19 @@ internal fun define(
  * expression that builds it, in which a tuple is a tuple; one that isn't is the code `unquote` inserts, in which a tuple
  * of three is a call and one of any other size but two isn't code at all.
  */
-internal fun literalOf(fragment: ElixirAst, term: Term, escaped: Boolean): ElixirAst? =
+internal fun literalOf(fragment: ElixirAst, term: Term, escaped: Boolean, level: ElixirLanguageLevel): ElixirAst? =
     when (term) {
         is Term.Atom -> ElixirAst.Literal.Atom(fragment.meta, term.name)
         is Term.Integer -> ElixirAst.Literal.Integer(fragment.meta, term.value)
         is Term.Binary -> term.bytes?.let { ElixirAst.Literal.Binary(fragment.meta, it) }
         is Term.List -> {
-            val elements = term.elements.map { literalOf(fragment, it, escaped) ?: return null }
+            val elements = term.elements.map { literalOf(fragment, it, escaped, level) ?: return null }
 
             when {
                 term.tail == null -> ElixirAst.ListNode(fragment.meta, elements)
                 // `do_quote_simple_list/3`: the last element and the tail as `{'|', [], [Last, Tail]}`.
                 escaped -> {
-                    val tail = literalOf(fragment, term.tail, escaped = true) ?: return null
+                    val tail = literalOf(fragment, term.tail, escaped = true, level) ?: return null
                     val bar = ElixirAst.Call(fragment.meta, ElixirAst.Literal.Atom(fragment.meta, "|"), listOf(elements.last(), tail))
 
                     ElixirAst.ListNode(fragment.meta, elements.dropLast(1) + bar)
@@ -174,14 +177,43 @@ internal fun literalOf(fragment: ElixirAst, term: Term, escaped: Boolean): Elixi
                 else -> null
             }
         }
-        is Term.Tuple ->
-            if (escaped) ElixirAst.Tuple(fragment.meta, term.elements.map { literalOf(fragment, it, escaped = true) ?: return null }) else null
+        is Term.Tuple -> if (escaped) escapedTuple(fragment, term, level) else null
         is Term.Pair -> ElixirAst.Tuple(
             fragment.meta,
-            listOf(literalOf(fragment, term.first, escaped) ?: return null, literalOf(fragment, term.second, escaped) ?: return null),
+            listOf(literalOf(fragment, term.first, escaped, level) ?: return null, literalOf(fragment, term.second, escaped, level) ?: return null),
         )
         else -> null
     }
+
+/**
+ * The tuple [term] as `do_quote/2` escapes it: the metadata of `{quote, Meta, Args}` goes through `meta/2`, which drops
+ * its `column` from [QUOTE_META_DROPS_COLUMN] until [QUOTE_EXTENSION_META_ESCAPED]. `null` there for metadata that isn't
+ * a proper list. From [ESCAPE_HEADS_NEED_LIST_META] a tuple whose metadata isn't a list isn't a `quote`.
+ */
+private fun escapedTuple(fragment: ElixirAst, term: Term.Tuple, level: ElixirLanguageLevel): ElixirAst? {
+    val elements = term.elements.toMutableList()
+    val quote = elements.size == 3 && (elements[0] as? Term.Atom)?.name == "quote" &&
+        (!ESCAPE_HEADS_NEED_LIST_META.isSufficient(level) || elements[1] is Term.List) &&
+        (elements[2] as? Term.List)?.takeIf { it.tail == null }?.elements?.size in 1..2
+
+    if (quote && QUOTE_META_DROPS_COLUMN.isSufficient(level) && !QUOTE_EXTENSION_META_ESCAPED.isSufficient(level)) {
+        val meta = (elements[1] as? Term.List)?.takeIf { it.tail == null } ?: return null
+        // `lists:keydelete/3`: the first tuple whose first element is `column`.
+        val column = meta.elements.indexOfFirst { element ->
+            val first = when (element) {
+                is Term.Pair -> element.first
+                is Term.Tuple -> element.elements.firstOrNull()
+                else -> null
+            }
+
+            (first as? Term.Atom)?.name == "column"
+        }
+
+        elements[1] = Term.List(meta.elements.filterIndexed { index, _ -> index != column })
+    }
+
+    return ElixirAst.Tuple(fragment.meta, elements.map { literalOf(fragment, it, escaped = true, level) ?: return null })
+}
 
 /**
  * `elixir_quote:has_unquotes/1`: whether [node] makes its definition one with unquote fragments. Before
