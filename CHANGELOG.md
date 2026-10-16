@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4479](https://github.com/intellij-elixir/intellij-elixir/pull/4479) [@sh41](https://github.com/sh41)
+  - **Quick Documentation lists a function's arities in order and opens at the one used, works on the name in a declaration, and links an undocumented `defdelegate` to its target.** Fixes [#4471](https://github.com/intellij-elixir/intellij-elixir/issues/4471).
+
 - [#4371](https://github.com/intellij-elixir/intellij-elixir/pull/4371) [@sh41](https://github.com/sh41)
   - **Elixir files parse in about half the time.** Refs [#4363](https://github.com/intellij-elixir/intellij-elixir/issues/4363).
 
@@ -125,6 +128,8 @@
 
 ### Bug Fixes
 
+- [#4479](https://github.com/intellij-elixir/intellij-elixir/pull/4479) [@sh41](https://github.com/sh41)
+  - **Quick Documentation is right where it was wrong or empty**: calls at the wrong arity, `apply/3` and `{Module, :name, arity}`, links written as atoms, a `@moduledoc` under an `if`, and `__MODULE__`. Fixes [#4471](https://github.com/intellij-elixir/intellij-elixir/issues/4471).
 - [#4475](https://github.com/intellij-elixir/intellij-elixir/pull/4475) [@sh41](https://github.com/sh41)
   - **Completing an atom no longer decompiles every compiled module whose name matches, which could exhaust memory in a project whose SDK includes OTP.** Fixes [#4474](https://github.com/intellij-elixir/intellij-elixir/issues/4474).
 - [#4472](https://github.com/intellij-elixir/intellij-elixir/pull/4472) [@sh41](https://github.com/sh41)
