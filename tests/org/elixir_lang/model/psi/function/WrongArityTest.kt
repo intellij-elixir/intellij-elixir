@@ -137,6 +137,17 @@ class WrongArityTest : PlatformTestCase() {
         assertFalse("Expected no target's @doc, got: $documentation", documentation.contains("Pairs."))
     }
 
+    /** Nor does Quick Documentation at a call of that delegation. */
+    fun testACallOfADelegationWhoseTargetTakesAnotherArityDocumentsNoTarget() {
+        myFixture.addFileToProject("t.ex", "defmodule T do\n  @doc \"Pairs.\"\n  def d(a, b), do: {a, b}\nend\n")
+        myFixture.configureByText("m.ex", "defmodule M do\n  defdelegate d(a), to: T\n\n  def run, do: <caret>d(1)\nend\n")
+
+        val documentation = myFixture.quickDocumentationAtCaret(project).orEmpty()
+
+        assertFalse("Expected no target at another arity, got: $documentation", documentation.contains("d(a, b)"))
+        assertFalse("Expected no target's @doc, got: $documentation", documentation.contains("Pairs."))
+    }
+
     fun testDelegationToNothingIsTheNearMiss() {
         myFixture.configureByText("m.ex", "defmodule M do\n  defdelegate d(a), to: Nowhere\n\n  def run, do: <caret>d(1, 2)\nend\n")
 

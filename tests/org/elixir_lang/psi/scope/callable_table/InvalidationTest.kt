@@ -61,7 +61,7 @@ class InvalidationTest : PlatformTestCase() {
 
         assertEquals(emptyList<String>(), files(copy, "two()"))
 
-        insert(copy, "  def one", "  def two, do: 2\n")
+        insertTwo(copy)
 
         assertEquals(listOf("copied.ex"), files(copy, "two()"))
     }
@@ -87,7 +87,7 @@ class InvalidationTest : PlatformTestCase() {
             WriteAction.runAndWait<Throwable> { root.findChild(BEAM)!!.setBinaryContent(File(REPLACED, "v2/$BEAM").readBytes()) }
             IndexingTestUtil.waitUntilIndexesAreReady(project)
 
-            assertEquals(listOf(BEAM, "replaced_user.ex"), files(importer, "two()"))
+            assertEquals(listOf(BEAM), files(importer, "two()"))
         }
     }
 
@@ -122,7 +122,7 @@ class InvalidationTest : PlatformTestCase() {
         }
         IndexingTestUtil.waitUntilIndexesAreReady(project)
 
-        assertEquals(listOf("queue.beam", "sdk_user.ex"), files(importer, "new()"))
+        assertEquals(listOf("queue.beam"), files(importer, "new()"))
     }
 
     private fun assertEditingAnImportedModule() {
@@ -147,12 +147,12 @@ class InvalidationTest : PlatformTestCase() {
             """.trimIndent()
         )
 
-        assertEquals(listOf("exporter.ex:2:3", "importer.ex:5:3"), answer(importer, "one()"))
+        assertEquals(listOf("exporter.ex:2:3"), answer(importer, "one()"))
         assertEquals(emptyList<String>(), answer(importer, "two()"))
 
-        insert(exporter, "  def one", "  def two, do: 2\n")
+        insertTwo(exporter)
 
-        assertEquals(listOf("exporter.ex:2:3", "importer.ex:5:3"), answer(importer, "two()"))
+        assertEquals(listOf("exporter.ex:2:3"), answer(importer, "two()"))
     }
 
     private fun assertEditingTheOwnModule() {
@@ -170,7 +170,7 @@ class InvalidationTest : PlatformTestCase() {
         assertEquals(listOf("own.ex:4:3"), answer(file, "one()"))
         assertEquals(emptyList<String>(), answer(file, "two()"))
 
-        insert(file, "  def one", "  def two, do: 2\n")
+        insertTwo(file)
 
         assertEquals(listOf("own.ex:4:3"), answer(file, "two()"))
     }
@@ -190,11 +190,11 @@ class InvalidationTest : PlatformTestCase() {
         return reference.multiResolve(false).filter { it.isValidResult }.map { it.element!!.containingFile.name }.distinct()
     }
 
-    private fun insert(file: PsiFile, before: String, text: String) {
+    private fun insertTwo(file: PsiFile) {
         // A copy's document is its view provider's, as completion's is.
         val document = file.viewProvider.document!!
         WriteCommandAction.runWriteCommandAction(project) {
-            document.insertString(document.text.indexOf(before), text)
+            document.insertString(document.text.indexOf("  def one"), "  def two, do: 2\n")
         }
         PsiDocumentManager.getInstance(project).commitDocument(document)
     }

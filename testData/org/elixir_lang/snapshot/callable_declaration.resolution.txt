@@ -180,7 +180,7 @@ forms.ex:26:21  symbol  VariableReference  `x`  ->  forms.ex:26:7 VariableSymbol
 forms.ex:27:3  psi  Callable  `if`  ->  nothing
 forms.ex:27:3  symbol  FunctionCallReference  `if`  ->  nothing
 forms.ex:27:16  psi  GeneralAtomReference  `:ok`  ->  nothing
-forms.ex:28:3  psi  Callable  `quote`  ->  forms.ex:21:3 `Mix.Generator.embed_text(:"quoted", "Quoted")` (invalid)
+forms.ex:28:3  psi  Callable  `quote`  ->  nothing
 forms.ex:28:3  symbol  FunctionCallReference  `quote`  ->  nothing
 import_only.ex:1:1  module  Errors
 import_only.ex:1:1  psi  Callable  `defmodule`  ->  nothing
@@ -208,9 +208,9 @@ import_only.ex:10:6  psi  Callable  `exception`  ->  nothing
 import_only.ex:10:6  symbol  FunctionCallReference  `exception`  ->  nothing
 import_only.ex:10:31  psi  Callable  `message`  ->  nothing
 import_only.ex:10:31  symbol  FunctionCallReference  `message`  ->  nothing
-import_only.ex:10:45  psi  Callable  `pad`  ->  import_only.ex:3:3 `def pad(a, b \\ 1), do: {a, b}` | import_only.ex:7:3 `import Errors, only: [exception: 1, pad: 1]`
+import_only.ex:10:45  psi  Callable  `pad`  ->  import_only.ex:3:3 `def pad(a, b \\ 1), do: {a, b}`
 import_only.ex:10:45  symbol  FunctionCallReference  `pad`  ->  import_only.ex:3:7 FunctionSymbol(Errors.pad/1, macro=false)
-import_only.ex:10:53  psi  Callable  `pad`  ->  import_only.ex:3:3 `def pad(a, b \\ 1), do: {a, b}` (invalid) | import_only.ex:7:3 `import Errors, only: [exception: 1, pad: 1]` (invalid)
+import_only.ex:10:53  psi  Callable  `pad`  ->  import_only.ex:3:3 `def pad(a, b \\ 1), do: {a, b}` (invalid)
 import_only.ex:10:53  symbol  FunctionCallReference  `pad`  ->  NearMiss(target=FunctionSymbol(Errors.pad/1, macro=false))
 in_def.ex:1:1  module  InDef
 in_def.ex:1:1  psi  Callable  `defmodule`  ->  nothing
@@ -385,7 +385,7 @@ spec_targets.ex:2:11  psi  Module  `EEx`  ->  eex.ex:1:1 `defmodule EEx do`
 spec_targets.ex:2:11  symbol  ModuleReference  `EEx`  ->  eex.ex:1:11 ModuleSymbol(EEx)
 spec_targets.ex:4:3  definition  SpecTargets  usage/0  clause  public function runtime
 spec_targets.ex:4:18  psi  GeneralAtomReference  `:ok`  ->  nothing
-spec_targets.ex:6:9  psi  CallDefinitionClause  `greet(term)`  ->  nothing
+spec_targets.ex:6:9  psi  CallDefinitionClause  `greet(term)`  ->  spec_targets.ex:7:3 `EEx.function_from_string(:def, :greet, "<%= name %>", [:name])`
 spec_targets.ex:6:9  symbol  SpecFunctionReference  `greet`  ->  spec_targets.ex:7:35 FunctionSymbol(SpecTargets.greet/1, macro=false)
 spec_targets.ex:6:15  symbol  TypeReference  `term`  ->  nothing
 spec_targets.ex:6:24  psi  Module  `String`  ->  nothing
@@ -401,7 +401,7 @@ spec_targets.ex:7:58  psi  GeneralAtomReference  `:name`  ->  nothing
 spec_targets.ex:9:3  psi  Callable  `defexception`  ->  nothing
 spec_targets.ex:9:3  symbol  FunctionCallReference  `defexception`  ->  nothing
 spec_targets.ex:9:17  psi  GeneralAtomReference  `:message`  ->  nothing
-spec_targets.ex:10:9  psi  CallDefinitionClause  `message(t)`  ->  nothing
+spec_targets.ex:10:9  psi  CallDefinitionClause  `message(t)`  ->  spec_targets.ex:9:3 `defexception [:message]`
 spec_targets.ex:10:9  symbol  SpecFunctionReference  `message`  ->  spec_targets.ex:9:3 FunctionSymbol(SpecTargets.message/1, macro=false)
 spec_targets.ex:10:17  symbol  TypeReference  `t`  ->  nothing
 spec_targets.ex:10:23  psi  Module  `String`  ->  nothing
@@ -458,7 +458,7 @@ through_import.ex:15:3  symbol  FunctionCallReference  `import`  ->  nothing
 through_import.ex:15:10  psi  Module  `Views`  ->  through_import.ex:1:1 `defmodule Views do`
 through_import.ex:15:10  symbol  ModuleReference  `Views`  ->  through_import.ex:1:11 ModuleSymbol(Views)
 through_import.ex:17:3  definition  User  usage/0  clause  public function runtime
-through_import.ex:18:6  psi  Callable  `plain`  ->  through_import.ex:15:3 `import Views` | through_import.ex:5:3 `def plain(x), do: x`
+through_import.ex:18:6  psi  Callable  `plain`  ->  through_import.ex:5:3 `def plain(x), do: x`
 through_import.ex:18:6  symbol  FunctionCallReference  `plain`  ->  through_import.ex:5:7 FunctionSymbol(Views.plain/1, macro=false)
 through_import.ex:18:16  psi  Callable  `secret`  ->  nothing
 through_import.ex:18:16  symbol  FunctionCallReference  `secret`  ->  nothing
@@ -527,19 +527,19 @@ through_use.ex:18:3  symbol  FunctionCallReference  `use`  ->  nothing
 through_use.ex:18:7  psi  Module  `Using`  ->  through_use.ex:1:1 `defmodule Using do`
 through_use.ex:18:7  symbol  ModuleReference  `Using`  ->  through_use.ex:1:11 ModuleSymbol(Using)
 through_use.ex:20:3  definition  ThroughUse  usage/0  clause  public function runtime
-through_use.ex:22:7  psi  Callable  `clause`  ->  through_use.ex:18:3 `use Using` | through_use.ex:7:7 `def clause(a), do: a`
+through_use.ex:22:7  psi  Callable  `clause`  ->  through_use.ex:7:7 `def clause(a), do: a`
 through_use.ex:22:7  symbol  FunctionCallReference  `clause`  ->  through_use.ex:7:11 FunctionSymbol(Using.clause/1, macro=false, injected)
-through_use.ex:23:7  psi  Callable  `delegated`  ->  through_use.ex:18:3 `use Using` | through_use.ex:8:7 `defdelegate delegated(a, b), to: Unresolvable`
+through_use.ex:23:7  psi  Callable  `delegated`  ->  through_use.ex:8:7 `defdelegate delegated(a, b), to: Unresolvable`
 through_use.ex:23:7  symbol  FunctionCallReference  `delegated`  ->  through_use.ex:8:19 FunctionSymbol(Using.delegated/2, macro=false, injected)
-through_use.ex:24:7  psi  Callable  `exception`  ->  through_use.ex:18:3 `use Using` | through_use.ex:9:7 `defexception [:message]`
+through_use.ex:24:7  psi  Callable  `exception`  ->  through_use.ex:9:7 `defexception [:message]`
 through_use.ex:24:7  symbol  FunctionCallReference  `exception`  ->  through_use.ex:9:7 FunctionSymbol(Using.exception/1, macro=false, injected)
-through_use.ex:25:7  psi  Callable  `message`  ->  through_use.ex:18:3 `use Using` | through_use.ex:9:7 `defexception [:message]`
+through_use.ex:25:7  psi  Callable  `message`  ->  through_use.ex:9:7 `defexception [:message]`
 through_use.ex:25:7  symbol  FunctionCallReference  `message`  ->  through_use.ex:9:7 FunctionSymbol(Using.message/1, macro=false, injected)
-through_use.ex:26:7  psi  Callable  `from_string`  ->  through_use.ex:10:7 `EEx.function_from_string(:def, :from_string, "<%= a %>", [:a])` | through_use.ex:18:3 `use Using`
+through_use.ex:26:7  psi  Callable  `from_string`  ->  through_use.ex:10:7 `EEx.function_from_string(:def, :from_string, "<%= a %>", [:a])`
 through_use.ex:26:7  symbol  FunctionCallReference  `from_string`  ->  through_use.ex:10:39 FunctionSymbol(Using.from_string/1, macro=false, injected)
-through_use.ex:27:7  psi  Callable  `log_template`  ->  through_use.ex:11:7 `Mix.Generator.embed_template(:log, "Log")` | through_use.ex:18:3 `use Using`
+through_use.ex:27:7  psi  Callable  `log_template`  ->  through_use.ex:11:7 `Mix.Generator.embed_template(:log, "Log")`
 through_use.ex:27:7  symbol  FunctionCallReference  `log_template`  ->  through_use.ex:11:37 FunctionSymbol(Using.log_template/1, macro=false, injected)
-through_use.ex:28:7  psi  Callable  `error_text`  ->  through_use.ex:12:7 `Mix.Generator.embed_text(:error, "Error")` | through_use.ex:18:3 `use Using`
+through_use.ex:28:7  psi  Callable  `error_text`  ->  through_use.ex:12:7 `Mix.Generator.embed_text(:error, "Error")`
 through_use.ex:28:7  symbol  FunctionCallReference  `error_text`  ->  through_use.ex:12:33 FunctionSymbol(Using.error_text/0, macro=false, injected)
 unknown_arity.ex:1:1  module  UnknownArity
 unknown_arity.ex:1:1  psi  Callable  `defmodule`  ->  nothing
@@ -548,7 +548,7 @@ unknown_arity.ex:2:3  symbol  FunctionCallReference  `require`  ->  nothing
 unknown_arity.ex:2:11  psi  Module  `EEx`  ->  eex.ex:1:1 `defmodule EEx do`
 unknown_arity.ex:2:11  symbol  ModuleReference  `EEx`  ->  eex.ex:1:11 ModuleSymbol(EEx)
 unknown_arity.ex:4:3  definition  UnknownArity  usage/0  clause  public function runtime
-unknown_arity.ex:4:18  psi  Callable  `render`  ->  unknown_arity.ex:7:3 `EEx.function_from_string(:def, :render, "<%= a %>", @args)` (invalid)
+unknown_arity.ex:4:18  psi  Callable  `render`  ->  unknown_arity.ex:7:3 `EEx.function_from_string(:def, :render, "<%= a %>", @args)`
 unknown_arity.ex:4:18  symbol  FunctionCallReference  `render`  ->  unknown_arity.ex:7:35 FunctionSymbol(UnknownArity.render/1, macro=false)
 unknown_arity.ex:6:10  psi  GeneralAtomReference  `:a`  ->  nothing
 unknown_arity.ex:7:3  psi  Module  `EEx`  ->  eex.ex:1:1 `defmodule EEx do`
@@ -558,7 +558,7 @@ unknown_arity.ex:7:7  symbol  FunctionCallReference  `function_from_string`  -> 
 unknown_arity.ex:7:28  psi  GeneralAtomReference  `:def`  ->  nothing
 unknown_arity.ex:7:34  psi  GeneralAtomReference  `:render`  ->  nothing
 unknown_arity.ex:7:56  symbol  ModuleAttributeReference  `args`  ->  unknown_arity.ex:6:4 ModuleAttributeSymbol(UnknownArity.@args, (72,76))
-unknown_arity.ex:8:9  psi  CallDefinitionClause  `render(term)`  ->  nothing
+unknown_arity.ex:8:9  psi  CallDefinitionClause  `render(term)`  ->  unknown_arity.ex:7:3 `EEx.function_from_string(:def, :render, "<%= a %>", @args)`
 unknown_arity.ex:8:9  symbol  SpecFunctionReference  `render`  ->  unknown_arity.ex:7:35 FunctionSymbol(UnknownArity.render/1, macro=false)
 unknown_arity.ex:8:16  symbol  TypeReference  `term`  ->  nothing
 unknown_arity.ex:8:25  psi  Module  `String`  ->  nothing

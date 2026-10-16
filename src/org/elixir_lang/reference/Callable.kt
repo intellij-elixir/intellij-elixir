@@ -21,6 +21,7 @@ import com.intellij.usageView.UsageViewTypeLocation
 import com.intellij.util.IncorrectOperationException
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.annotator.Parameter
+import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.model.psi.variable.VariableReference
 import org.elixir_lang.model.psi.variable.VariableSymbol
 import org.elixir_lang.psi.*
@@ -117,7 +118,7 @@ class Callable : PsiReferenceBase<Call>, PsiPolyVariantReference {
      *
      * @return the target element, or null if it was not possible to resolve the reference to a valid target.
      */
-    override fun resolve(): PsiElement? = multiResolve(false).singleOrNull()?.element
+    override fun resolve(): PsiElement? = Resolved.target(this)
 
     /*
      * Protected Instance Methods
@@ -151,8 +152,7 @@ class Callable : PsiReferenceBase<Call>, PsiPolyVariantReference {
             "utf8"
         )
 
-        @JvmField
-        val IGNORED = "_"
+        const val IGNORED = "_"
 
         @Contract(pure = true)
         fun bitStringSegmentOptionElementDescription(
@@ -335,7 +335,7 @@ class Callable : PsiReferenceBase<Call>, PsiPolyVariantReference {
                 val parent = call.parent
 
                 if (parent is ElixirNoParenthesesOneArgument) {
-                    val grandParent = parent.getParent()
+                    val grandParent = parent.parent
 
                     if (grandParent is Call) {
                         if (org.elixir_lang.psi.CallDefinitionClause.`is`(grandParent)) {
@@ -479,7 +479,7 @@ class Callable : PsiReferenceBase<Call>, PsiPolyVariantReference {
         private fun isVariable(call: Call): Boolean =
             when {
                 call is UnqualifiedNoArgumentsCall<*> -> {
-                    val name = call.getName()
+                    val name = call.name
 
                     // _ is an "ignored" not a variable
                     if (name == null || name != IGNORED) {
@@ -515,7 +515,7 @@ class Callable : PsiReferenceBase<Call>, PsiPolyVariantReference {
                         sibling = sibling.nextSibling
                     }
 
-                    selfAndFollowingSiblingList.toTypedArray().let { LocalSearchScope(it) }
+                    LocalSearchScope(selfAndFollowingSiblingList.toTypedArray())
                 }
             }
 

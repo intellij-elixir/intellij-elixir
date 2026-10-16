@@ -125,6 +125,8 @@
 
 ### Bug Fixes
 
+- [#4467](https://github.com/intellij-elixir/intellij-elixir/pull/4467) [@sh41](https://github.com/sh41)
+  - **Find Usages from a call to a function with several clauses or a `defdelegate` no longer asks which declaration to search.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
 - [#4463](https://github.com/intellij-elixir/intellij-elixir/pull/4463) [@sh41](https://github.com/sh41)
   - **Go to Declaration, Find Usages, Rename and Parameter Info handle more `defdelegate`, `defoverridable`, `quote`-defined and nested-module cases correctly.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
 - [#4457](https://github.com/intellij-elixir/intellij-elixir/pull/4457) [@sh41](https://github.com/sh41)

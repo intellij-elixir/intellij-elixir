@@ -12,6 +12,7 @@ import com.intellij.psi.impl.source.resolve.ResolveCache
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.code_insight.completion.callDefinitionClauseLookupElements
 import org.elixir_lang.code_insight.completion.insert_handler.QualifiedName
+import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
@@ -84,7 +85,7 @@ class CaptureNameArity(element: NonNumeric, val nameElement: Call, val arity: Ar
     override fun multiResolve(incompleteCode: Boolean): Array<ResolveResult> =
        resolveWithCaching(myElement.project, this, incompleteCode)
 
-    override fun resolve(): PsiElement? = multiResolve(false).singleOrNull()?.element
+    override fun resolve(): PsiElement? = Resolved.target(this)
 
     private fun resolveWithCaching(
             project: Project,

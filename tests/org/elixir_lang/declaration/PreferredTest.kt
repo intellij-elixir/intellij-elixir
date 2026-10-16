@@ -135,6 +135,24 @@ class PreferredTest : PlatformTestCase() {
         assertEquals(listOf("2 -> []"), preferredLines(incompleteCode = false))
     }
 
+    /** Admitted: beside a variable binding the name, a valid result too, a declaration that does not fit is dropped. */
+    fun testABoundNameKeepsOnlyTheAdmitted() {
+        configure(
+            """
+            defmodule Processor do
+              def process(item), do: item
+
+              def calls(x, y), do: process(x, y<caret>)
+            end
+            """
+        )
+
+        assertEquals(lines(2), candidateLines())
+        assertEquals(listOf("2 -> []"), preferredLines(incompleteCode = false))
+        assertEquals(emptyList<String>(), preferredLines(incompleteCode = false, bound = true))
+        assertEquals(listOf("2 -> []"), preferredLines(incompleteCode = true, bound = true))
+    }
+
     /** Overridden: the user's `exception/1` overrides the one `defexception` declares. */
     fun testAUsersDeclarationOverridesWhatDefexceptionDeclares() {
         configure(
@@ -323,8 +341,12 @@ class PreferredTest : PlatformTestCase() {
     private fun candidateLines(): Set<Int> = candidates().map { line(it.element) }.toSet()
 
     /** Each entry as `line -> [lines of what it reaches]`, in the order given. */
-    private fun preferredLines(incompleteCode: Boolean, found: List<Found> = candidates()): List<String> =
-        preferred(use(), found, incompleteCode).map { entry ->
+    private fun preferredLines(
+        incompleteCode: Boolean,
+        found: List<Found> = candidates(),
+        bound: Boolean = false
+    ): List<String> =
+        preferred(use(), found, incompleteCode, bound).map { entry ->
             "${line(entry.found.element)} -> ${entry.delegatedTo.map { line(it.element) }}"
         }
 

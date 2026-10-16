@@ -40,7 +40,6 @@ class VariableReference(
                     .filter { it.isValidResult }
                     .map { it.element }
                     .mapNotNull { resolved -> declarationSymbol(resolved) }
-                    .distinct()
                 if (symbols.isNotEmpty()) return symbols
             }
 
@@ -58,8 +57,7 @@ class VariableReference(
             VariableSymbol.fromDeclaration(resolved)
                 ?: generateSequence(resolved) { it.parent }
                     .filterIsInstance<Call>()
-                    .mapNotNull { call -> VariableSymbol.fromDeclaration(call) }
-                    .firstOrNull()
+                    .firstNotNullOfOrNull { call -> VariableSymbol.fromDeclaration(call) }
 
         @RequiresReadLock
         private fun functionHeadParameterSymbols(element: PsiElement, name: String): List<VariableSymbol> {
@@ -108,7 +106,6 @@ class VariableReference(
                 .filter { it.isValidResult }
                 .map { it.element }
                 .mapNotNull(VariableSymbol::fromDeclaration)
-                .distinct()
         }
     }
 }

@@ -2,7 +2,6 @@ package org.elixir_lang.declaration
 
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
@@ -10,6 +9,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.scope.call_definition_clause.Declarations
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
+import org.elixir_lang.reference.resolver.Callable
 
 /** Each candidate written `line name=applicability`, `line` being where its element starts. */
 class CandidateSourceTest : PlatformTestCase() {
@@ -55,19 +55,19 @@ class CandidateSourceTest : PlatformTestCase() {
     fun testNamelessUseReachesBothExceptionDeclarations() {
         configure("applicability.ex")
 
-        assertContainsCandidates("Uses.unquote(f)(1)", false, "19 exception=OPAQUE", "19 message=OPAQUE")
+        assertUnquoteCallCandidates(false, "19 exception=OPAQUE", "19 message=OPAQUE")
     }
 
     fun testNamelessUseIsOpaqueWhereTheArityFits() {
         configure("applicability.ex")
 
-        assertContainsCandidates("Uses.unquote(f)(1)", false, "16 foo=OPAQUE", "20 fo_local=OPAQUE")
+        assertUnquoteCallCandidates(false, "16 foo=OPAQUE", "20 fo_local=OPAQUE")
     }
 
     fun testNamelessUseIsWrongArityWhereTheArityDoesNotFit() {
         configure("applicability.ex")
 
-        assertContainsCandidates("Uses.unquote(f)(1)", true, "24 uses=WRONG_ARITY")
+        assertUnquoteCallCandidates(true, "24 uses=WRONG_ARITY")
     }
 
     fun testQuotedEExNameNearMissIsWrongArity() {
@@ -268,8 +268,8 @@ class CandidateSourceTest : PlatformTestCase() {
     private fun assertCandidates(text: String, incompleteCode: Boolean, vararg expected: String) =
         assertEquals(expected.toList(), candidates(text, incompleteCode).map(::describe))
 
-    private fun assertContainsCandidates(text: String, incompleteCode: Boolean, vararg expected: String) {
-        val actual = candidates(text, incompleteCode).map(::describe)
+    private fun assertUnquoteCallCandidates(incompleteCode: Boolean, vararg expected: String) {
+        val actual = candidates("Uses.unquote(f)(1)", incompleteCode).map(::describe)
 
         for (candidate in expected) {
             assertTrue("$candidate not in $actual", candidate in actual)
@@ -278,7 +278,7 @@ class CandidateSourceTest : PlatformTestCase() {
 
     /** That the walk reaches an element at [line], so that it being no candidate is not vacuous. */
     private fun assertReaches(text: String, incompleteCode: Boolean, line: Int) {
-        val reached = (call(text).reference as PsiPolyVariantReference).multiResolve(incompleteCode).map { lineOf(it.element!!) }
+        val reached = Callable.walk(call(text), incompleteCode).map { lineOf(it.element) }
 
         assertTrue("nothing at line $line in $reached", line in reached)
     }

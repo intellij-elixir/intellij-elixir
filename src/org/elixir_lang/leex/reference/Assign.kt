@@ -1,9 +1,11 @@
 package org.elixir_lang.leex.reference
 
 import com.intellij.openapi.util.TextRange
+import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiPolyVariantReferenceBase
 import com.intellij.psi.ResolveResult
 import com.intellij.psi.impl.source.resolve.ResolveCache
+import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.psi.AtOperation
 import org.elixir_lang.leex.reference.resolver.Assign
 
@@ -21,4 +23,6 @@ class Assign(usage: AtOperation): PsiPolyVariantReferenceBase<AtOperation>(usage
                             false,
                             incompleteCode
                     )
+
+    override fun resolve(): PsiElement? = Resolved.target(this)
 }

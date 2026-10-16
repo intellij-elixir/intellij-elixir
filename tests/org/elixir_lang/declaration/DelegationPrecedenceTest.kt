@@ -39,17 +39,6 @@ class DelegationPrecedenceTest {
     }
 
     @Test
-    fun namedFirstPutsDelegationsBeforeWhatTheyDelegateToKeepingEachOrder() {
-        val second = Reached("second delegation", delegation = true)
-        val other = Reached("other", delegation = false)
-
-        assertEquals(
-            listOf(delegation, second, target, other),
-            DelegationPrecedence.namedFirst(listOf(target, delegation, other, second), Reached::delegation)
-        )
-    }
-
-    @Test
     fun aDelegationWithItsOwnDocIsDocumentedBeforeWhatComesFirst() {
         assertEquals(documentedDelegation, documented(listOf(target, documentedDelegation), otherwise = target))
     }

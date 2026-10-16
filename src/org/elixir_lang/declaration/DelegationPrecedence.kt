@@ -9,10 +9,6 @@ object DelegationPrecedence {
     /** Whether [narrowed] can stand in for what was reached: a list of delegations alone names no definition. */
     fun <T> standsIn(narrowed: List<T>, isDelegation: (T) -> Boolean): Boolean = narrowed.any { !isDelegation(it) }
 
-    /** [reached] in the order a use names them: the delegations, then what they delegate to. */
-    fun <T> namedFirst(reached: List<T>, isDelegation: (T) -> Boolean): List<T> =
-        reached.partition(isDelegation).let { (delegations, others) -> delegations + others }
-
     /** What quick documentation shows for [reached]: the first delegation with its own `@doc`, else [otherwise]. */
     fun <T> documented(
         reached: List<T>,

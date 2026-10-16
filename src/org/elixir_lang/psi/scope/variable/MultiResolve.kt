@@ -122,7 +122,7 @@ class MultiResolve(private val name: String, private val incompleteCode: Boolean
                               incompleteCode: Boolean,
                               entrance: PsiElement): List<VisitedElementSetResolveResult> =
             if (name == Callable.IGNORED) {
-                listOf<VisitedElementSetResolveResult>(VisitedElementSetResolveResult(entrance, true, emptySet()))
+                listOf(VisitedElementSetResolveResult(entrance, true, emptySet()))
             } else {
                 val resolveState = ResolveState.initial().put(ENTRANCE, entrance).putInitialVisitedElement(entrance)
 
@@ -162,7 +162,10 @@ class MultiResolve(private val name: String, private val incompleteCode: Boolean
                     treeWalkUpResolveState
             )
 
+            // The walk can reach one declaration by more than one route.
             return multiResolve.resolveResultList
+                .groupBy { it.element }
+                .map { (_, routes) -> routes.firstOrNull { it.isValidResult } ?: routes.first() }
         }
 
         private fun nameInAnyQuote(entrance: PsiElement,

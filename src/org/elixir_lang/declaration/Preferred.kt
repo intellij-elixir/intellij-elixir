@@ -30,14 +30,17 @@ data class Preferred(val found: Found, val delegatedTo: List<Found>) {
 /**
  * [found] at [use] in the one order of preference: each delegation target paired with its delegation, then the
  * admitted unless [incompleteCode], then the user's declaration over the one it overrides. The last two also order each
- * [Preferred.delegatedTo].
+ * [Preferred.delegatedTo]. [bound] is whether a valid result that declares nothing, such as a variable, binds the name
+ * at [use]: with it, only the admitted are kept.
  */
 @RequiresReadLock
 @Suppress("UNUSED_PARAMETER")
-fun preferred(use: Use, found: List<Found>, incompleteCode: Boolean): List<Preferred> =
-    overridden(admitted(paired(found), incompleteCode, Preferred::found), Preferred::found)
+fun preferred(use: Use, found: List<Found>, incompleteCode: Boolean, bound: Boolean = false): List<Preferred> =
+    overridden(admitted(paired(found), incompleteCode, bound, Preferred::found), Preferred::found)
         .map { preferred ->
-            preferred.copy(delegatedTo = overridden(admitted(preferred.delegatedTo, incompleteCode) { it }) { it })
+            preferred.copy(
+                delegatedTo = overridden(admitted(preferred.delegatedTo, incompleteCode, bound = false) { it }) { it }
+            )
         }
 
 /**
@@ -78,11 +81,11 @@ private fun Found.isDelegation(): Boolean =
     (candidate.declaration.declared as? Declared.Source)?.form == Form.DELEGATION
 
 /** Only what a complete call can use, unless the code is incomplete. */
-internal fun <T> admitted(list: List<T>, incompleteCode: Boolean, found: (T) -> Found): List<T> =
-    if (incompleteCode) {
-        list
-    } else {
-        Resolver.preferValid(list) { found(it).candidate.applicability.admitted }
+internal fun <T> admitted(list: List<T>, incompleteCode: Boolean, bound: Boolean, found: (T) -> Found): List<T> =
+    when {
+        incompleteCode -> list
+        bound -> list.filter { found(it).candidate.applicability.admitted }
+        else -> Resolver.preferValid(list) { found(it).candidate.applicability.admitted }
     }
 
 /**
@@ -112,6 +115,10 @@ internal fun <T> overridden(list: List<T>, found: (T) -> Found): List<T> {
 /** Whether a later user definition in [found]'s module with its name and arity replaces it. */
 @RequiresReadLock
 fun isOverridable(found: Found): Boolean = role(found) == Role.OVERRIDABLE
+
+/** Whether [found] is a contract, not a body, as a `@callback` is: a candidate, but never what a use names. */
+@RequiresReadLock
+internal fun isContract(found: Found): Boolean = role(found) == Role.NONE
 
 /** What a declaration is to [overridden]. */
 private enum class Role { USER, OVERRIDABLE, NONE }
