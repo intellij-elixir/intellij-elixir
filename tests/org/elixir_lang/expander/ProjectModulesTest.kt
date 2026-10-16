@@ -394,17 +394,21 @@ class ProjectModulesTest : PlatformTestCase() {
         )
     }
 
-    /** A macro of the SDK's compiled `EEx` is dispatched to remotely, though `EEx`'s sources are attached too. */
+    /**
+     * A macro of the SDK's compiled `EEx` is dispatched to remotely, though `EEx`'s sources are attached too, and its
+     * output stops at the `def` whose name is a fragment.
+     */
     fun testCompiledEex() {
-        val eex = File(LegManifest.environment("ELIXIR_LANG_ELIXIR_PATH"), "lib/eex")
-        addLibrary("leg_eex", File(eex, "ebin"), File(eex, "lib"))
+        val lib = File(LegManifest.environment("ELIXIR_LANG_ELIXIR_PATH"), "lib")
+        addLibrary("leg_elixir", File(lib, "elixir/ebin"))
+        addLibrary("leg_eex", File(lib, "eex/ebin"), File(lib, "eex/lib"))
         val a = add("a.ex", "defmodule A do\n  require EEx\n  EEx.function_from_string(:def, :f, \"x\")\nend\n")
         val rendered = render(a, expansion(holder, a))
 
         assertEquals(
             "top expanded\n" +
-                "Elixir.A stopped `EEx.function_from_string(:def, :f, \"x\")` opaque Elixir.EEx.function_from_string " +
-                "errors[] loads Unreadable",
+                "Elixir.A stopped `EEx.function_from_string(:def, :f, \"x\")` unported unquote errors[] " +
+                "loads Unreadable",
             rendered,
         )
         assertFresh("the compiled EEx read", a, expansion(holder, a))

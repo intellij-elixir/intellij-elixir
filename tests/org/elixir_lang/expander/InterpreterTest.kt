@@ -2444,6 +2444,151 @@ class InterpreterTest : PlatformTestCase() {
                 """defmacro m, do: raise(%ArgumentError{message: "no"})""",
                 pins = buildsPartOf("Elixir.ArgumentError"),
             ),
+            // `elixir_erl_pass:translate/3`'s `super`: the definition its `{super, {Kind, Name}}` names, a macro's
+            // given `__CALLER__`.
+            macro(
+                "form:super-overridable",
+                """
+                defmacro m, do: Macro.escape({1, __CALLER__.module})
+                defoverridable m: 0
+                defmacro m, do: Macro.escape({super(), 2})
+                """,
+            ),
+            macro(
+                "form:super-overridable-function",
+                """
+                def f(x), do: x
+                defoverridable f: 1
+                def f(x), do: {super(x), 2}
+                defmacro m, do: Macro.escape(f(1))
+                """,
+            ),
+            macro(
+                "form:super-capture",
+                """
+                def f(x), do: x
+                defoverridable f: 1
+                def f(x), do: {(&super/1).(x), 2}
+                defmacro m, do: Macro.escape(f(1))
+                """,
+            ),
+            macro(
+                "form:super-capture-call",
+                """
+                def f(x), do: x
+                defoverridable f: 1
+                def f(x), do: {(&super(&1)).(x), 2}
+                defmacro m, do: Macro.escape(f(1))
+                """,
+            ),
+            macro(
+                "form:super-capture-expression",
+                """
+                def f(x), do: x
+                defoverridable f: 1
+                def f(x), do: {(&super({&1})).(x), 2}
+                defmacro m, do: Macro.escape(f(1))
+                """,
+            ),
+            // `elixir_def:unpack_expanded/7`'s default arity calls the full one through `super`.
+            macro("form:super-default", "defmacro m(x \\\\ 1), do: x"),
+            macro(
+                "form:super-default-function",
+                """
+                def f(x, y \\ 2), do: {x, y}
+                defmacro m, do: Macro.escape(f(1))
+                """,
+            ),
+            // Before 1.14 a default's own variables take the default arity's first versions, so `y` is `a`.
+            macro(
+                "form:super-default-shared-version",
+                """
+                def f(a, b \\ (y = 1; y + 1)), do: {a, b}
+                defmacro m, do: Macro.escape(f(5))
+                """,
+            ),
+            // A `case` clause matches the shared version, as Erlang's does; a fun head and a generator bind afresh.
+            macro(
+                "form:super-default-shared-version-case",
+                """
+                def f(a, b \\ (case 7 do y -> y end)), do: {a, b}
+                defmacro m, do: Macro.escape(f(5))
+                """,
+            ),
+            macro(
+                "form:super-default-shared-version-fn",
+                """
+                def f(a, b \\ :lists.map(fn y -> y end, [1, 2])), do: {a, b}
+                defmacro m, do: Macro.escape(f(5))
+                """,
+            ),
+            macro(
+                "form:super-default-shared-version-for",
+                """
+                def f(a, b \\ (for y <- [1, 2], do: y)), do: {a, b}
+                defmacro m, do: Macro.escape(f(5))
+                """,
+            ),
+            macro(
+                "form:super-default-shared-version-for-bitstring",
+                """
+                def f(a, b \\ (for <<y <- <<1, 2>> >>, do: y)), do: {a, b}
+                defmacro m, do: Macro.escape(f(5))
+                """,
+            ),
+            macro(
+                "form:super-default-shared-version-for-reduce",
+                """
+                def f(a, b \\ (for _ <- [1, 2], reduce: 0 do y -> y + 1 end)), do: {a, b}
+                defmacro m, do: Macro.escape(f(5))
+                """,
+            ),
+            // The clause a bitstring generator skips through binds afresh too, and a variable repeated in a fresh
+            // pattern matches what the pattern itself bound.
+            macro(
+                "form:super-default-shared-version-for-bitstring-skip",
+                """
+                def f(a, b \\ (for <<y, 0 <- <<1, 1, 2, 0>> >>, do: y)), do: {a, b}
+                defmacro m, do: Macro.escape(f(5))
+                """,
+            ),
+            macro(
+                "form:super-default-shared-version-fn-repeated",
+                """
+                def f(a, b \\ :lists.map(fn {y, y} -> :same; _ -> :diff end, [{1, 1}, {1, 2}])), do: {a, b}
+                defmacro m, do: Macro.escape(f(5))
+                """,
+            ),
+            macro(
+                "form:super-default-shared-version-for-repeated",
+                """
+                def f(a, b \\ (for {y, y} <- [{1, 1}, {5, 5}, {1, 2}], do: y)), do: {a, b}
+                defmacro m, do: Macro.escape(f(5))
+                """,
+            ),
+            // A `rescue` variable is bound by a `=` that heads the clause's body, a lone variable `else` is the last
+            // clause of the `case`, and before 1.13 `with y <- e` is `y = e`, so a clash raises as each of those does.
+            macro(
+                "form:super-default-shared-version-rescue",
+                """
+                def f(a, b \\ (try do raise "x" rescue y -> y.message end)), do: {a, b}
+                defmacro m, do: Macro.escape(f(5))
+                """,
+            ),
+            macro(
+                "form:super-default-shared-version-with-else",
+                """
+                def f(a, b \\ (with :x <- 1 do 0 else y -> y end)), do: {a, b}
+                defmacro m, do: Macro.escape(f(5))
+                """,
+            ),
+            macro(
+                "form:super-default-shared-version-with-variable",
+                """
+                def f(a, b \\ (with y <- 1, do: y)), do: {a, b}
+                defmacro m, do: Macro.escape(f(5))
+                """,
+            ),
             // A macro's argument is marked `stop_generated` where an import or `Macro.expand_once/2` calls it, not a
             // remote call.
             Row(

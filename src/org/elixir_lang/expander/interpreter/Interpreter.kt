@@ -510,7 +510,7 @@ internal class Evaluation(
                     decline("a quote in debug info")
                 }
             "receive" if args.size == 1 -> decline("receive")
-            "super" -> decline("super")
+            "super" -> superCall(node, args, frame)
             // Outside a pattern, only in the size `expand_specs/7` infers for a pin: `byte_size(^x)`.
             "^" if args.size == 1 -> eval(args.single(), frame)
             else -> if (frame.source) dispatched(name, args, node, frame) else local(name, args, frame)
@@ -523,7 +523,7 @@ internal class Evaluation(
             is Dispatched.Remote -> remoteCall(atom(dispatched.module), dispatched.name, args, frame)
             is Dispatched.Macro -> eval(dispatched.output, frame)
             is Dispatched.Value -> otpOf(dispatched.value)
-            is Dispatched.Apply, is Dispatched.Fn, is Dispatched.Clauses, null ->
+            is Dispatched.Apply, is Dispatched.Super, is Dispatched.Fn, is Dispatched.Clauses, null ->
                 decline("calls $name/${args.size}, which its expansion didn't reach")
         }
 
@@ -531,6 +531,39 @@ internal class Evaluation(
     private fun value(node: ElixirAst, frame: Frame): OtpErlangObject =
         (frame.module.dispatches.of(node) as? Dispatched.Value)?.let { otpOf(it.value) }
             ?: decline("a form its expansion didn't reach")
+
+    /**
+     * `translate/3`'s `super` [node]: a call of the definition its `{super, {Kind, Name}}` names, or a source `super`'s
+     * expansion stored, and a macro's given `__CALLER__`.
+     */
+    private fun superCall(node: ElixirAst.Call, args: List<ElixirAst>, frame: Frame): OtpErlangObject {
+        val (kind, name) = superOf(node, frame) ?: decline("a super its expansion didn't reach")
+        val definition = frame.module.definitions[NameArity(name, args.size)]
+            ?.takeIf { it.kind.macro == kind.macro }
+            ?: decline("super calls $name/${args.size}, which ${frame.module.module} doesn't hold")
+        val values = args.map { eval(it, frame) }
+
+        return if (kind.macro) {
+            val function = ModuleExports.macroExport(NameArity(name, args.size))
+
+            invoke(frame.module, definition, function.name, values, function.arity)
+        } else {
+            invoke(frame.module, definition, name, values)
+        }
+    }
+
+    /** The kind and name of the definition [node], a `super`, calls. */
+    private fun superOf(node: ElixirAst.Call, frame: Frame): Dispatched.Super? {
+        (frame.module.dispatches.of(node) as? Dispatched.Super)?.let { return it }
+
+        val (kind, name) = (metaValue(node.meta, "super") as? Meta.Value.Tuple)
+            ?.elements
+            ?.map { (it as? Meta.Value.Atom)?.name ?: return null }
+            ?.takeIf { it.size == 2 }
+            ?: return null
+
+        return DefinitionTable.Kind.entries.find { it.name.lowercase() == kind }?.let { Dispatched.Super(it, name) }
+    }
 
     /** An attribute's [value], as the escaped value `@` gives in a function evaluates to. */
     private fun otpOf(value: Term): OtpErlangObject {
@@ -680,7 +713,7 @@ internal class Evaluation(
         val remote = if (frame.source) {
             when (dispatched) {
                 is Dispatched.Remote -> return OtpErlangExternalFun(dispatched.module, dispatched.name, arity)
-                Dispatched.Local -> false
+                Dispatched.Local, is Dispatched.Super -> false
                 Dispatched.Apply -> true
                 else -> decline("a capture its expansion didn't reach")
             }
@@ -695,7 +728,9 @@ internal class Evaluation(
             return OtpErlangExternalFun(module.atomValue(), (name as? ElixirAst.Literal.Atom)?.name ?: decline("a capture's name"), arity)
         }
 
-        val name = (callee as? ElixirAst.Literal.Atom)?.name ?: decline("a capture's name")
+        val name = (dispatched as? Dispatched.Super)?.name
+            ?: (callee as? ElixirAst.Literal.Atom)?.name
+            ?: decline("a capture's name")
         val module = frame.module
         val definition = module.definitions[NameArity(name, arity)]
             ?.takeIf { !it.kind.macro }

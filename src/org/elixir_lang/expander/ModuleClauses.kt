@@ -109,7 +109,7 @@ internal class ModuleClauses(
                         is Dispatched.Macro -> dispatched.output
                         is Dispatched.Fn -> dispatched.fn
                         is Dispatched.Clauses -> dispatched.options
-                        is Dispatched.Remote, Dispatched.Local, Dispatched.Apply, is Dispatched.Value -> null
+                        is Dispatched.Remote, Dispatched.Local, is Dispatched.Super, Dispatched.Apply, is Dispatched.Value -> null
                     }
                 }
                 segmentByNode.values.mapNotNullTo(this, Segment::size)
@@ -138,6 +138,9 @@ internal class ModuleClauses(
 
         /** A call of a function of the clause's own module. */
         data object Local : Dispatched
+
+        /** `super`, a call of the definition stored as [name], of [kind], for the one being defined. */
+        data class Super(val kind: DefinitionTable.Kind, val name: String) : Dispatched
 
         /** A remote call whose receiver is known only at run time. */
         data object Apply : Dispatched
