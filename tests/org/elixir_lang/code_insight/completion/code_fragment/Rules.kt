@@ -37,8 +37,18 @@ data class Span(val begin: Int, val end: Int)
  *
  * @property span the name segment of `surround_context`'s span that holds the caret
  * @property path the steps from the root to `__cursor__`, without it; `null` for `{:error, _}`
+ * @property surround `surround_context`'s context; `null` for `:none`, or where it was not asked
+ * @property literal whether the text before the caret ends inside a literal
+ * @property atomStart whether an atom starts at the `:` before the caret
  */
-class Elixir(val cursor: CursorContext, val span: Span?, val path: List<Step>?)
+class Elixir(
+    val cursor: CursorContext,
+    val span: Span?,
+    val path: List<Step>?,
+    val surround: SurroundContext?,
+    val literal: Boolean,
+    val atomStart: Boolean,
+)
 
 /**
  * What basic completion did at a point.
@@ -74,8 +84,11 @@ enum class Check { PREFIX, KINDS, RANGE, CONTAINER }
 /** Each check's verdict, and the failed checks with their offending values. */
 class Judgement(val checks: Map<Check, Verdict>, val failed: List<String>)
 
+/** Inside a literal Elixir's answers describe the literal's text, which completion does not complete. */
 fun judge(elixir: Elixir, plugin: Plugin, scope: Scope): Judgement {
-    val rule = rule(elixir.cursor, elixir.path, scope)
+    if (elixir.literal) return Judgement(Check.entries.associateWith { Verdict.NO_RULE }, emptyList())
+
+    val rule = rule(elixir.cursor, elixir.path, scope, elixir.atomStart)
     val items = plugin.items
     val failed = mutableListOf<String>()
 
@@ -85,7 +98,7 @@ fun judge(elixir: Elixir, plugin: Plugin, scope: Scope): Judgement {
     }
     val kinds = when {
         rule.kinds == null -> Verdict.NO_RULE
-        items.isEmpty() -> if (rule.kinds.isEmpty()) Verdict.AGREE else Verdict.EMPTY
+        items.isEmpty() -> Verdict.EMPTY
         else -> listOf(
             failed.check("kind", items.filter { it.kind !in rule.kinds }.map { it.kind.name.lowercase() }),
             failed.check("owner", items.filter { rule.owners[it.kind]?.invoke(it.owner) == false }.map { it.owner.toString() }),
@@ -100,7 +113,9 @@ fun judge(elixir: Elixir, plugin: Plugin, scope: Scope): Judgement {
         if (end) failed.add("range end")
         if (begin || end) Verdict.DIFFER else Verdict.AGREE
     } ?: Verdict.NO_RULE
-    val container = elixir.path?.let { path ->
+    // At `end|` Elixir's container is outside the block `end` closes.
+    val closing = elixir.surround == Keyword("end") && elixir.span?.end == plugin.caret
+    val container = elixir.path?.takeUnless { closing }?.let { path ->
         val heads = plugin.heads
         val compared = compared(elixir.cursor, path)
 
@@ -184,12 +199,13 @@ private class Rule(
     val callName: ((String) -> Boolean)? = null,
 )
 
-private fun rule(cursor: CursorContext, path: List<Step>?, scope: Scope): Rule =
+private fun rule(cursor: CursorContext, path: List<Step>?, scope: Scope, atomStart: Boolean): Rule =
     when (cursor) {
         is Alias -> Rule(lastSegment(cursor.name), setOf(MODULE), mapOf(MODULE to namedUnderParent(cursor.name, scope)))
         is InsideAlias -> Rule(lastSegment(cursor.name), setOf(MODULE))
         is BlockKeywordOrBinaryOperator -> Rule(cursor.hint, setOf(KEYWORD, CALL))
-        is Dot -> dot(cursor, path, scope)
+        // IEx offers what the variable holds at runtime.
+        is Dot -> if (rootedAtVariable(cursor)) Rule(cursor.hint, null) else dot(cursor, path, scope)
         is DotArity -> Rule(cursor.hint, setOf(CALL), callOwner(cursor.receiver, scope)) { it == cursor.hint }
         is DotCall, is AnonymousCall -> Rule("", setOf(VARIABLE, CALL))
         Expr -> expr(path)
@@ -206,10 +222,19 @@ private fun rule(cursor: CursorContext, path: List<Step>?, scope: Scope): Rule =
             }
         is OperatorArity -> Rule(cursor.operator, setOf(CALL)) { it == cursor.operator }
         is OperatorCall -> if (cursor.operator == "|") expr(path) else Rule("", setOf(VARIABLE, CALL))
-        None -> Rule(null, emptySet())
+        // An explicit request completes from an empty prefix, and Elixir names no kind to offer.
+        None -> Rule("", null)
         is Sigil -> Rule("", setOf(if (cursor.hint.isEmpty()) CALL else OTHER))
         is Struct -> struct(cursor.inside, path, scope)
-        is UnquotedAtom -> Rule(cursor.hint, setOf(MODULE, ATOM))
+        // `cursor_context` reads `key:|` and `t :|:` as an atom's start: it sees no text after the caret.
+        is UnquotedAtom -> if (cursor.hint.isEmpty() && !atomStart) Rule(null, null) else Rule(cursor.hint, setOf(MODULE, ATOM))
+    }
+
+private fun rootedAtVariable(dot: Dot): Boolean =
+    when (val receiver = dot.receiver) {
+        is Var -> true
+        is Dot -> rootedAtVariable(receiver)
+        is Alias, Expr, is InsideAlias, is LocalOrVar, is ModuleAttribute, is UnquotedAtom -> false
     }
 
 private fun dot(cursor: Dot, path: List<Step>?, scope: Scope): Rule =

@@ -108,7 +108,11 @@ class CodeFragmentOracleTest : PlatformTestCase() {
         val container = (answer.container as? Container.Quoted)?.ast
         val path = container?.let(::path)
         val plugin = observe(case, answer.offset, answer.cursor)
-        val judgement = judge(Elixir(answer.cursor, span, path), plugin, container?.let(::scope) ?: Scope())
+        val judgement = judge(
+            Elixir(answer.cursor, span, path, surround?.context, answer.literal, answer.atomStart),
+            plugin,
+            container?.let(::scope) ?: Scope(),
+        )
 
         return listOf(
             "${case.name}@${"%04d".format(answer.n)}",
@@ -117,6 +121,8 @@ class CodeFragmentOracleTest : PlatformTestCase() {
                 span?.let { span -> "${it.context} ${span.begin}-${span.end}" }
                     ?: "${it.context} ${offset(it.begin)}-${offset(it.end)} (no segment at the caret)"
             } ?: answer.surround?.toString() ?: "-",
+            if (answer.literal) "literal" else "-",
+            if (answer.atomStart) "atomStart" else "-",
             path?.let { compared(answer.cursor, it).joinToString(" ", "[", "]", transform = Step::shown) } ?: Container.Error.toString(),
             items(plugin.items),
             "${plugin.items.map { plugin.caret - it.pattern.length }.distinct().sorted().joinToString(",").ifEmpty { "_" }}-${plugin.identifierEnd}",

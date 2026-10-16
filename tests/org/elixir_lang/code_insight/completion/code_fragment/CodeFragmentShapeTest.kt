@@ -97,8 +97,6 @@ class CodeFragmentShapeTest {
         val variable = Dot(Var("x"), "")
 
         assertEquals(none, failed(variable, field("a", ""), call("Map", ""), module("Mod", "")))
-        assertEquals(listOf("kind"), failed(variable, variable("y", "")))
-        assertEquals(listOf("kind"), failed(Dot(Var("x"), "ke"), module("Mod", "ke")))
         assertEquals(listOf("prefix"), failed(Dot(ModuleAttribute("a"), "ke"), field("key", "")))
         assertEquals(none, failed(Dot(Expr, "ba"), variable("bar", "ba"), module("Mod", "ba")))
         assertEquals(listOf("prefix"), failed(Dot(Expr, "ba"), variable("bar", "")))
@@ -275,9 +273,69 @@ class CodeFragmentShapeTest {
 
     @Test
     fun testRuleNone() {
+        // An explicit request completes from an empty prefix, and Elixir names no kind there.
+        assertEquals(checks(AGREE, NO_RULE, NO_RULE, AGREE), judged(None, variable("x", "")).checks)
+        assertEquals(listOf("prefix"), failed(None, variable("x", "x")))
+        assertEquals(checks(NO_RULE, NO_RULE, NO_RULE, AGREE), judged(None).checks)
         assertEquals(none, failed(None, path = listOf(Step("foo/1", true)), heads = listOf(Step("foo/1"))))
-        assertEquals(listOf("kind"), failed(None, variable("x", "")))
         assertEquals(listOf("container"), failed(None, path = listOf(Step("x/1", true)), heads = emptyList()))
+    }
+
+    @Test
+    fun testRuleInsideALiteral() {
+        // `"ab|`: completion offers nothing Elixir's answers describe.
+        val literal = { literal: Boolean ->
+            judged(LocalOrVar("ab"), module("Mod", "x"), span = Span(5, 8), path = listOf(Step("foo/1")), heads = emptyList(), literal = literal)
+        }
+
+        assertEquals(checks(DIFFER, DIFFER, DIFFER, DIFFER), literal(false).checks)
+        assertEquals(checks(NO_RULE, NO_RULE, NO_RULE, NO_RULE), literal(true).checks)
+        assertEquals(none, literal(true).failed)
+        assertEquals(checks(NO_RULE, NO_RULE, NO_RULE, NO_RULE), judged(LocalOrVar("ab"), literal = true).checks)
+    }
+
+    @Test
+    fun testRuleKeywordColon() {
+        // `key:|` and `t :|:`: no atom starts at the colon.
+        assertEquals(checks(NO_RULE, NO_RULE, NO_RULE, AGREE), judged(UnquotedAtom(""), variable("key", "key")).checks)
+        assertEquals(checks(NO_RULE, NO_RULE, NO_RULE, AGREE), judged(UnquotedAtom("")).checks)
+        // `:|`, where an atom starts.
+        assertEquals(listOf("prefix", "kind"), failed(UnquotedAtom(""), variable("key", "key"), atomStart = true))
+        assertEquals(none, failed(UnquotedAtom(""), module(":lists", ""), atomStart = true))
+    }
+
+    @Test
+    fun testRuleVariableDot() {
+        // IEx offers what the variable's value holds at runtime.
+        assertEquals(checks(AGREE, NO_RULE, NO_RULE, AGREE), judged(Dot(Var("x"), ""), variable("y", "")).checks)
+        assertEquals(checks(AGREE, NO_RULE, NO_RULE, AGREE), judged(Dot(Var("x"), "ke"), module("Mod", "ke")).checks)
+        assertEquals(checks(AGREE, NO_RULE, NO_RULE, AGREE), judged(Dot(Dot(Var("map"), "key"), "ne"), module("Mod", "ne")).checks)
+        assertEquals(checks(AGREE, NO_RULE, NO_RULE, AGREE), judged(Dot(Var("__MODULE__"), ""), variable("y", "")).checks)
+        // Prefix, range and container keep their rules.
+        assertEquals(listOf("prefix"), failed(Dot(Var("x"), "ke"), field("key", "")))
+        assertEquals(listOf("range end"), failed(Dot(Var("x"), "ke"), field("key", "ke"), span = Span(8, 10), identifierEnd = 11))
+        assertEquals(listOf("container"), failed(Dot(Var("x"), ""), path = listOf(Step("foo/1"), Step("x/1", true)), heads = emptyList()))
+        // An attribute's dot keeps its kinds rule.
+        assertEquals(listOf("kind"), failed(Dot(ModuleAttribute("a"), ""), variable("y", "")))
+        assertEquals(listOf("kind"), failed(Dot(Dot(ModuleAttribute("a"), "b"), ""), variable("y", "")))
+    }
+
+    @Test
+    fun testRuleEndKeyword() {
+        val path = listOf(Step("foo/1"))
+        val heads = listOf(Step("def/2"))
+
+        // `end|`: the plugin still reads inside the block that `end` closes.
+        assertEquals(none, failed(BlockKeywordOrBinaryOperator("end"), path = path, heads = heads, surround = Keyword("end"), span = Span(7, 10)))
+        // `en|d`
+        assertEquals(
+            listOf("container"),
+            failed(BlockKeywordOrBinaryOperator("en"), path = path, heads = heads, surround = Keyword("end"), span = Span(8, 11), identifierEnd = 11),
+        )
+        assertEquals(
+            listOf("container"),
+            failed(BlockKeywordOrBinaryOperator("do"), path = path, heads = heads, surround = Keyword("do"), span = Span(8, 10)),
+        )
     }
 
     @Test
@@ -316,8 +374,8 @@ class CodeFragmentShapeTest {
         assertEquals(none, failed(Struct(ModuleAttribute("s")), attribute("s", "s")))
         assertEquals(listOf("prefix"), failed(Struct(ModuleAttribute("s")), attribute("s", "@s")))
         assertEquals(listOf("kind"), failed(Struct(ModuleAttribute("s")), variable("s", "s")))
-        assertEquals(none, failed(Struct(Dot(Var("x"), "y")), field("y", "y"), call("Kernel", "y")))
-        assertEquals(listOf("kind"), failed(Struct(Dot(Var("x"), "y")), module("Mod", "y")))
+        assertEquals(none, failed(Struct(Dot(LocalOrVar("x"), "y")), field("y", "y"), call("Kernel", "y")))
+        assertEquals(listOf("kind"), failed(Struct(Dot(LocalOrVar("x"), "y")), module("Mod", "y")))
         assertEquals(listOf("owner"), failed(Struct(Dot(Alias("Hello"), "y")), call("Other", "y")))
     }
 
@@ -396,18 +454,12 @@ class CodeFragmentShapeTest {
 
     @Test
     fun testChecks() {
-        fun checks(prefix: Verdict, kinds: Verdict, range: Verdict, container: Verdict) =
-            mapOf(Check.PREFIX to prefix, Check.KINDS to kinds, Check.RANGE to range, Check.CONTAINER to container)
-
         val span = Span(9, 10)
 
         assertEquals(checks(AGREE, AGREE, NO_RULE, AGREE), judged(LocalOrVar("x"), variable("x", "x")).checks)
         // With no item the prefix compares nothing, and the kinds check is empty.
         assertEquals(checks(NO_RULE, EMPTY, NO_RULE, AGREE), judged(LocalOrVar("x")).checks)
         assertEquals(checks(NO_RULE, NO_RULE, NO_RULE, NO_RULE), judged(CaptureArg("&1"), other("x", "x"), path = null).checks)
-        assertEquals(checks(NO_RULE, DIFFER, NO_RULE, AGREE), judged(None, variable("x", "")).checks)
-        // `:none` allows no item, so offering none agrees.
-        assertEquals(checks(NO_RULE, AGREE, NO_RULE, AGREE), judged(None).checks)
         // Each check decides alone.
         assertEquals(
             checks(DIFFER, AGREE, AGREE, DIFFER),
@@ -631,6 +683,11 @@ class CodeFragmentShapeTest {
             decodeSurround(surround(tagged("alias", "Hello.World"), position(2, 3), position(2, 14))),
         )
         assertEquals(SurroundAnswer(null), decodeSurround(atom("none")))
+
+        val flags = point(atom("true"), atom("false")).decode()
+
+        assertEquals(true to false, flags.literal to flags.atomStart)
+        assertEquals(false to true, point(atom("false"), atom("true")).decode().let { it.literal to it.atomStart })
     }
 
     @Test
@@ -660,7 +717,12 @@ class CodeFragmentShapeTest {
                 )
             )
         }
+        assertThrows(IllegalArgumentException::class.java) { point(atom("nil"), atom("false")).decode() }
+        assertThrows(IllegalArgumentException::class.java) { point(atom("false"), OtpErlangLong(1)).decode() }
     }
+
+    private fun point(literal: OtpErlangObject, atomStart: OtpErlangObject) =
+        Asked.Point(0, 0, atom("none"), tuple(atom("error"), atom("x")), null, literal, atomStart)
 
     private val none = emptyList<String>()
 
@@ -675,7 +737,15 @@ class CodeFragmentShapeTest {
         caret: Int = 10,
         identifierEnd: Int = caret,
         scope: Scope = Scope(),
-    ): Judgement = judge(Elixir(cursor, span, path), Plugin(caret, items.toList(), identifierEnd, heads), scope)
+        surround: SurroundContext? = null,
+        literal: Boolean = false,
+        atomStart: Boolean = false,
+    ): Judgement =
+        judge(
+            Elixir(cursor, span, path, surround, literal, atomStart),
+            Plugin(caret, items.toList(), identifierEnd, heads),
+            scope,
+        )
 
     private fun failed(
         cursor: CursorContext,
@@ -686,10 +756,26 @@ class CodeFragmentShapeTest {
         caret: Int = 10,
         identifierEnd: Int = caret,
         scope: Scope = Scope(),
+        surround: SurroundContext? = null,
+        atomStart: Boolean = false,
     ): List<String> =
-        judged(cursor, *items, path = path, heads = heads, span = span, caret = caret, identifierEnd = identifierEnd, scope = scope)
+        judged(
+            cursor,
+            *items,
+            path = path,
+            heads = heads,
+            span = span,
+            caret = caret,
+            identifierEnd = identifierEnd,
+            scope = scope,
+            surround = surround,
+            atomStart = atomStart,
+        )
             .failed
             .map { it.substringBefore('(') }
+
+    private fun checks(prefix: Verdict, kinds: Verdict, range: Verdict, container: Verdict) =
+        mapOf(Check.PREFIX to prefix, Check.KINDS to kinds, Check.RANGE to range, Check.CONTAINER to container)
 
     private fun attribute(name: String, pattern: String) = Item(name, pattern, ATTRIBUTE)
 
