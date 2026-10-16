@@ -17,12 +17,13 @@ import org.elixir_lang.psi.impl.identifierName
 import org.elixir_lang.psi.impl.prevSiblingSequence
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 
-sealed class FetchedDocs(open val module: String) {
-    data class CallbackDocumentation(override val module: String, val head: String, val doc: String) :
+/** What the documentation of one declaration holds; [module] is `null` where the module is not known, as in a `quote`. */
+sealed class FetchedDocs(open val module: String?) {
+    data class CallbackDocumentation(override val module: String?, val head: String, val doc: String) :
         FetchedDocs(module)
 
     data class FunctionOrMacroDocumentation(
-        override val module: String,
+        override val module: String?,
         val deprecated: OtpErlangObject?,
         val doc: Doc?,
         val impls: List<String>,
@@ -57,7 +58,7 @@ sealed class FetchedDocs(open val module: String) {
 
             @RequiresReadLock
             fun fromCallDefinitionClauseCall(
-                module: String,
+                module: String?,
                 call: Call,
                 head: String
             ): FunctionOrMacroDocumentation {
@@ -95,7 +96,7 @@ sealed class FetchedDocs(open val module: String) {
     }
 
     /** Every function of one name in a module, ascending by arity: an [Entry] each, as default arguments cover several arities of one. */
-    data class Arities(override val module: String, val entries: List<Entry>) : FetchedDocs(module) {
+    data class Arities(override val module: String?, val entries: List<Entry>) : FetchedDocs(module) {
         data class Entry(val arities: ArityInterval, val documentation: FunctionOrMacroDocumentation) {
             /** Names this entry in a link to it. */
             val id: String get() = "arity-${arities.maximum ?: arities.minimum}"
@@ -114,9 +115,9 @@ sealed class FetchedDocs(open val module: String) {
         }
     }
 
-    data class ModuleDocumentation(override val module: String, val moduledoc: String) : FetchedDocs(module)
+    data class ModuleDocumentation(override val module: String?, val moduledoc: String) : FetchedDocs(module)
 
-    data class TypeDocumentation(override val module: String, val head: String, val typedoc: String) :
+    data class TypeDocumentation(override val module: String?, val head: String, val typedoc: String) :
         FetchedDocs(module)
 }
 

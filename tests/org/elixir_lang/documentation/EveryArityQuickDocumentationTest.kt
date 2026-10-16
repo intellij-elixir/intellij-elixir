@@ -222,6 +222,30 @@ class EveryArityQuickDocumentationTest : QuickDocumentationTestCase() {
         assertTrue("Expected push(a, b, c), got: $documentation", "push(a, b, c)" in documentation)
     }
 
+    /** A head is inside its module, so it lists every arity of its name whatever their visibility. */
+    fun testAPrivateHeadListsEveryArityOfItsName() {
+        myFixture.configureByText(
+            "head.ex",
+            """
+            defmodule Head do
+              @doc "One."
+              def push(a), do: a
+
+              @doc false
+              def push(a, b), do: {a, b}
+
+              defp pu<caret>sh(a, b, c), do: {a, b, c}
+            end
+            """.trimIndent()
+        )
+
+        val documentation = quickDocumentationAtCaret().orEmpty()
+
+        assertEquals("Expected a link per arity, got: $documentation", 3, linkedIds(documentation).distinct().size)
+        assertTrue("Expected push(a), got: $documentation", "One." in documentation)
+        assertTrue("Expected push(a, b), got: $documentation", "push(a, b)" in documentation)
+    }
+
     /** A call is documented where it lands, even on an arity that is private or hidden. */
     fun testACallToAPrivateArityDocumentsThatArity() {
         myFixture.configureByText(

@@ -17,10 +17,11 @@ import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.MarkdownByL
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.None
 import org.elixir_lang.beam.psi.BeamFileImpl
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
-import org.elixir_lang.declaration.Feature
+import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.atItsHead
+import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.ModuleAttribute.isDocumentationName
 import org.elixir_lang.psi.call.Call
@@ -47,9 +48,13 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
 
     fun render(element: PsiElement, originalElement: PsiElement?, linkedArity: Int? = null): Rendered? =
         // Where no use is known, as for a link followed, the function is seen from outside its module.
-        fetchDocs(element, remote = callAt(originalElement)?.let(::documentedChoice)?.takeIf { it.element == element }?.inside != true)?.let { fetched ->
+        fetchDocs(element, remote = !isInside(element, originalElement))?.let { fetched ->
             Rendered(formatDocs(element, fetched), anchor(fetched, linkedArity ?: calledArity(originalElement)))
         }
+
+    /** Whether [original] is inside the module that holds [element]: the name of the call that declares [element] is, whatever it spells. */
+    private fun isInside(element: PsiElement, original: PsiElement?): Boolean =
+        headAt(original)?.call == element || choiceAt(original)?.takeIf { it.element == element }?.inside == true
 
     override fun generateDoc(element: PsiElement, originalElement: PsiElement?): String? =
         render(element, originalElement)?.html
@@ -59,19 +64,33 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             ?.takeIf { it.entries.size > 1 }
             ?.let { arities -> arity?.let(arities::entryAt)?.id }
 
-    /** The arity used where [original] is written: at a call, a capture or a `defdelegate` head. */
-    private fun calledArity(original: PsiElement?): Int? {
-        val call = callAt(original) ?: return null
-        val use = useOf(call)
-            ?: Use.of(call)?.takeIf { DeclaringForm.named(call)?.form == Form.DELEGATION }
+    /** The use written where [original] is: at a call or a capture. */
+    private fun useAt(original: PsiElement?): Use? = callAt(original)?.let(::useOf)
 
-        return when (use) {
+    /** What the use written where [original] is documents: at a call or a capture. */
+    private fun choiceAt(original: PsiElement?): Documented.Choice? = callAt(original)?.let(::documentedChoice)
+
+    /** The arity used where [original] is written. */
+    private fun calledArity(original: PsiElement?): Int? {
+        return headAt(original)?.declaration?.let(UseSymbols::headArity) ?: when (val use = useAt(original)) {
             is Use.OfCall -> use.arity
             is Use.Specified -> use.arity
             is Use.Remote -> use.arity
             null -> null
         }
     }
+
+    /** A declaring call whose name is written where the caret is, and what the call declares, when that is one function. */
+    private class Head(val call: Call, val form: Form, val declaration: Declaration?)
+
+    /**
+     * The one read of a declaring call's name: what it declares, which its spelling may not give, as `unquote(:f)(a, b)`
+     * declares `f/2` and spells `unquote/1`.
+     */
+    private fun headAt(original: PsiElement?): Head? =
+        original?.let(DeclaringForm::named)?.let { (call, form) ->
+            Head(call, form, SourceFileDocsHelper.declaredFunction(call, form)?.declaration)
+        }
 
     private tailrec fun callAt(element: PsiElement?): Call? = when (element) {
         is LeafPsiElement, is ElixirIdentifier, is ElixirRelativeIdentifier -> callAt(element.parent)
@@ -181,15 +200,6 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         }
     }
 
-    /** A `defdelegate` [head] documents its delegation, then what it delegates to. */
-    private fun delegationHeadDocumented(head: Call): PsiElement? {
-        val delegation = DeclaringForm.named(head)?.call ?: return null
-        val use = Use.of(head) as? Use.Named ?: return null
-        val preferred = atItsHead(delegation, use, Feature.DOCUMENTATION) ?: return null
-
-        return Documented.documented(listOf(preferred.found) + preferred.admittedDelegatedTo)
-    }
-
     private tailrec fun getCustomDocumentationElement(contextElement: PsiElement): PsiElement? = when (contextElement) {
         is LeafPsiElement, is ElixirIdentifier, is ElixirRelativeIdentifier ->
             getCustomDocumentationElement(contextElement.parent)
@@ -204,9 +214,6 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 ?.let { Resolver.preferSource(it) }
                 ?.firstOrNull()
         }
-
-        is Call if DeclaringForm.named(contextElement)?.form == Form.DELEGATION ->
-            delegationHeadDocumented(contextElement)
 
         is Call -> documentedChoice(contextElement)?.let { choice ->
             // multiResolve matches names by prefix for completion, so a wrong-arity call falls back to the reached
@@ -260,7 +267,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
 
         documentationHtml.append(DocumentationMarkup.DEFINITION_START)
 
-        documentationHtml.append("<i>module</i> <b>").append(fetchedDocs.module).append("</b>\n")
+        fetchedDocs.module?.let { documentationHtml.append("<i>module</i> <b>").append(it).append("</b>\n") }
 
         when (fetchedDocs) {
             is FetchedDocs.CallbackDocumentation -> {
