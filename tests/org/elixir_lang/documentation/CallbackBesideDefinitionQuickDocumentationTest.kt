@@ -21,5 +21,6 @@ class CallbackBesideDefinitionQuickDocumentationTest : QuickDocumentationTestCas
         val documentation = quickDocumentationAtCaret()
 
         assertTrue("Expected the definition's @doc, got: $documentation", documentation?.contains("definition") == true)
+        assertFalse("Expected not the callback's, got: $documentation", documentation?.contains("contract") == true)
     }
 }

@@ -9,11 +9,10 @@ import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.Doc
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.MarkdownByLanguage
 import org.elixir_lang.beam.term.inspect
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
-import org.elixir_lang.psi.CallDefinitionClause
-import org.elixir_lang.structure_view.element.Delegation
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.identifierName
 import org.elixir_lang.psi.impl.prevSiblingSequence
+import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 
 sealed class FetchedDocs(open val module: String) {
     data class CallbackDocumentation(override val module: String, val head: String, val doc: String) :
@@ -52,7 +51,7 @@ sealed class FetchedDocs(open val module: String) {
             fun fromCallDefinitionClauseCall(
                 module: String,
                 call: Call,
-                head: PsiElement
+                head: String
             ): FunctionOrMacroDocumentation {
                 val callDefinitionAttributeListByName = callDefinitionAttributeListByName(call)
                 val deprecated = callDefinitionAttributeListByName[DEPRECATED]?.joinModuleAttributeQuoteText()
@@ -61,7 +60,7 @@ sealed class FetchedDocs(open val module: String) {
                     ?.let { MarkdownByLanguage.english(it) }
                 val impls = callDefinitionAttributeListByName[IMPL].moduleAttributeValueTextList()
                 val specs = callDefinitionAttributeListByName[SPEC].moduleAttributeValueTextList()
-                val heads = listOf(head.text)
+                val heads = listOf(head)
 
                 return FunctionOrMacroDocumentation(module, deprecated, doc, impls, specs, heads)
             }
@@ -93,20 +92,18 @@ sealed class FetchedDocs(open val module: String) {
         FetchedDocs(module)
 }
 
-private val DEPRECATED = "deprecated"
-private val DOC = "doc"
-private val IMPL = "impl"
-private val SPEC = "spec"
+private const val DEPRECATED = "deprecated"
+private const val DOC = "doc"
+private const val IMPL = "impl"
+private const val SPEC = "spec"
 private val CALL_DEFINITION_ATTRIBUTE_NAME_SET: Set<String> = setOf(DEPRECATED, DOC, IMPL, SPEC)
 
 private fun callDefinitionAttributeListByName(callDefinitionCall: Call): Map<String, List<AtUnqualifiedNoParenthesesCall<*>>> =
     callDefinitionCall
         .prevSiblingSequence()
         .drop(1)
-        // A defdelegate ends the run of attributes belonging to whatever follows it, exactly as a def
-        // does. Without it the walk runs past any number of delegations and attaches an @doc written
-        // for one of them to a later, undocumented definition.
-        .takeWhile { it !is Call || !(CallDefinitionClause.`is`(it) || Delegation.`is`(it)) }
+        // Every declaration takes the attributes written above it, so the run ends at the previous one.
+        .takeWhile { it !is Call || DeclaringForm.declaredBy(it) == null }
         .filterIsInstance<AtUnqualifiedNoParenthesesCall<*>>()
         .filter { CALL_DEFINITION_ATTRIBUTE_NAME_SET.contains(it.atIdentifier.identifierName()) }
         .groupBy { it.atIdentifier.identifierName() }
