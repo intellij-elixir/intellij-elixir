@@ -11,15 +11,19 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
  * stay candidates, offered by `multiResolve` to explain why a use does not compile, but are never its target.
  */
 object Resolved {
-    /** The step's answer at [use] from [feature]'s source: each candidate with what it delegates to. */
+    /**
+     * The step's answer at [use] from [feature]'s source: each candidate with what it delegates to. Only the candidates
+     * [reachable] by the use are preferred, so one it cannot reach does not displace the arity it can.
+     */
     @RequiresReadLock
     fun step(
         use: Use,
         incompleteCode: Boolean,
         bound: Boolean = false,
-        feature: Feature = Feature.SYMBOL_REFERENCES
+        feature: Feature = Feature.SYMBOL_REFERENCES,
+        reachable: (Found) -> Boolean = { true }
     ): List<Preferred> =
-        preferred(use, sourceFor(feature).candidates(use, incompleteCode), incompleteCode, bound)
+        preferred(use, sourceFor(feature).candidates(use, incompleteCode).filter(reachable), incompleteCode, bound)
 
     /** [step] as one list: each [Preferred]'s found, then its admittedDelegatedTo. */
     fun projection(step: List<Preferred>): List<Found> = step.flatMap { listOf(it.found) + it.admittedDelegatedTo }

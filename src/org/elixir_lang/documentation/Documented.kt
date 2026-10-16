@@ -8,6 +8,7 @@ import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Preferred
+import org.elixir_lang.declaration.RejectedCall
 import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.atItsHead
@@ -18,37 +19,54 @@ import org.elixir_lang.structure_view.element.Delegation
 /** The one site that chooses what a use documents, from the candidates the documentation source gives it. */
 internal object Documented {
     /**
-     * What a use documents, and every candidate it reaches, valid or not. It is [inside] when the element is held by the
-     * module the use is in, which can then call every function it defines.
+     * What a use documents, the delegation it reached that element through when it did, and whether each is [inside]: held
+     * by the module the use is in, which can then call every function it defines.
      */
-    class Choice(val element: PsiElement?, val reached: List<Found>, val inside: Boolean)
+    class Choice(val element: PsiElement?, val delegation: Found?, val inside: Boolean, val insideDelegation: Boolean)
 
     /** What [use] documents; [bound] is whether a valid variable binds its name. */
     @RequiresReadLock
     fun of(use: Use, bound: Boolean = false): Choice {
         // `apply/3` and an MFA tuple call a function another module exports, so an atom naming only a macro or a
         // private function documents nothing.
-        val projection = Resolved.projection(
-            Resolved.step(use, incompleteCode = false, bound, Feature.DOCUMENTATION)
-                .mapNotNull { preferred ->
-                    preferred.takeIf { keeps(use, it.found) }?.copy(delegatedTo = preferred.delegatedTo.filter { keeps(use, it) })
-                }
-                // The name at a `@spec` is the name a delegation's head writes, so a delegation comes with its targets.
-                .map { preferred -> if (use is Use.Specified) withTargets(preferred) else preferred }
-        )
+        val step = Resolved.step(use, incompleteCode = false, bound, Feature.DOCUMENTATION) { keeps(use, it) }
+            // The name at a `@spec` is the name a delegation's head writes, so a delegation comes with its targets.
+            .map { preferred -> if (use is Use.Specified) withTargets(preferred) else preferred }
+        val projection = Resolved.projection(step)
         val valid = Resolved.results(projection).filter { it.isValidResult }.mapNotNull { it.element }.toSet()
 
-        val element = documented(projection.filter { it.element in valid })
-        val inside = element != null && held(use, projection.firstOrNull { it.element == element })
+        val documented = documented(projection.filter { it.element in valid })
+        val chosen = if (documented != null) step else nearMiss(use, projection)
+        val shown = if (documented != null) projection else Resolved.projection(chosen)
+        val element = documented ?: documented(shown)
+        val delegation = chosen.firstOrNull { reaches(it, element) }?.found
 
-        return Choice(element, reached = projection, inside = inside)
+        return Choice(
+            element,
+            delegation,
+            inside = element != null && held(use, shown.firstOrNull { it.element == element }),
+            insideDelegation = delegation != null && held(use, delegation)
+        )
     }
 
     /** As `RejectedCall` decides whether a private function is callable: an unqualified use of what the module holds. */
-    fun held(use: Use, found: Found?): Boolean = !UseSymbols.remote(use) && found?.candidate?.reach?.held == true
+    private fun held(use: Use, found: Found?): Boolean = !UseSymbols.remote(use) && found?.candidate?.reach?.held == true
 
     private fun keeps(use: Use, found: Found): Boolean =
         use !is Use.Remote || found.candidate.reach.remotelyReaches(found.candidate.declaration.capabilities, runtime = true)
+
+    /** Whether [preferred] is a delegation that [element] is one of the targets of. */
+    @RequiresReadLock
+    private fun reaches(preferred: Preferred, element: PsiElement?): Boolean =
+        element != null && preferred.found.isDelegation() && preferred.admittedDelegatedTo.any { it.element == element }
+
+    /** With no valid target, what [use] is a near miss for: each head [RejectedCall.named] gives, a delegation with its targets. */
+    @RequiresReadLock
+    private fun nearMiss(use: Use, projection: List<Found>): List<Preferred> {
+        return RejectedCall.named(projection, Found::candidate, UseSymbols.remote(use), UseSymbols::admits)
+            ?.map { withTargets(Preferred(it.candidate, emptyList())) }
+            .orEmpty()
+    }
 
     /** The delegation [preferred] is, with what it delegates to at its own head; any other as it is. */
     @RequiresReadLock

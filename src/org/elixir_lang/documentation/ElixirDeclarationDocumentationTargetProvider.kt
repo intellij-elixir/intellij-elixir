@@ -6,10 +6,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.ElixirLanguage
-import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Form
-import org.elixir_lang.declaration.Use
-import org.elixir_lang.declaration.atItsHead
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 
@@ -43,8 +40,7 @@ internal class ElixirDeclarationDocumentationTargetProvider : DocumentationTarge
     /** A `defdelegate` [head] documents its delegation, then what it delegates to. */
     private fun delegationHeadDocumented(head: Call): PsiElement? {
         val delegation = DeclaringForm.named(head)?.call ?: return null
-        val use = Use.of(head) as? Use.Named ?: return null
-        val preferred = atItsHead(delegation, use, Feature.DOCUMENTATION) ?: return null
+        val preferred = Documented.atItsHead(delegation) ?: return null
 
         return Documented.documented(listOf(preferred.found) + preferred.admittedDelegatedTo)
     }

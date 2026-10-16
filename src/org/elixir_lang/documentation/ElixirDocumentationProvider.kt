@@ -16,7 +16,6 @@ import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.Hidden
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.MarkdownByLanguage
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.None
 import org.elixir_lang.beam.psi.BeamFileImpl
-import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Reach
@@ -37,7 +36,6 @@ import org.elixir_lang.psi.stub.type.call.Stub.isModular
 import org.elixir_lang.reference.resolver.Callable
 import org.elixir_lang.reference.CaptureNameArity
 import org.elixir_lang.reference.Resolver
-import org.elixir_lang.structure_view.element.Delegation
 import org.intellij.markdown.html.HtmlGenerator
 import org.intellij.markdown.parser.MarkdownParser
 import java.util.function.Consumer
@@ -77,26 +75,15 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         return if (head != null) {
             head.call.takeIf { head.form == Form.DELEGATION }?.let { delegation -> Reaching(delegation, moduleOf(delegation), inside = true) }
         } else {
-            val reached = choiceAt(original)?.reached.orEmpty()
+            val choice = choiceAt(original)?.takeIf { it.element == element }
+            val found = choice?.delegation
 
-            reached
-                .firstOrNull { it.element == element && it.candidate.reach.delegationTarget }
-                ?.via
-                ?.firstOrNull { Delegation.`is`(it) }
-                ?.let { delegation ->
-                    // What a `use` injects is in the module that holds the `use`, which `quote` does not name.
-                    val injectedInto = reached
-                        .firstOrNull { it.element == delegation && it.candidate.reach == Reach.USE }
-                        ?.declaringModuleName()
+            (found?.element as? Call)?.let { delegation ->
+                // What a `use` injects is in the module that holds the `use`, which `quote` does not name.
+                val injectedInto = found.takeIf { it.candidate.reach == Reach.USE }?.declaringModuleName()
 
-                    val use = useAt(original)
-
-                    Reaching(
-                        delegation,
-                        injectedInto ?: moduleOf(delegation),
-                        inside = use != null && Documented.held(use.use, reached.firstOrNull { it.element == delegation })
-                    )
-                }
+                Reaching(delegation, injectedInto ?: moduleOf(delegation), inside = choice.insideDelegation)
+            }
         }
     }
 
@@ -272,25 +259,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             else -> Documented.of(use).element
         }
 
-        is Call -> documentedChoice(contextElement)?.let { choice ->
-            // multiResolve matches names by prefix for completion, so a wrong-arity call falls back to the reached
-            // definitions with exactly the called name, not to every name it starts.
-            choice.element ?: run {
-                val callName = contextElement.functionName()
-
-                Documented.documented(
-                    choice.reached.filter { (_, element) ->
-                        when (element) {
-                            is BeamCallDefinition -> element.exportedName() == callName
-                            is Call -> CallDefinitionClause.nameArityInterval(element, ResolveState.initial())
-                                ?.name == callName
-
-                            else -> false
-                        }
-                    }
-                )
-            }
-        }
+        is Call -> documentedChoice(contextElement)?.element
 
         is QualifiableAlias if declaringModuleCall(contextElement) != null ->
             declaringModuleCall(contextElement)
