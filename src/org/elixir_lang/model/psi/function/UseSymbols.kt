@@ -86,7 +86,7 @@ internal object UseSymbols {
 
     /** Whether each `import` [found] was reached through brings it in at [arity]. */
     @RequiresReadLock
-    private fun admits(found: Found, arity: Int): Boolean {
+    internal fun admits(found: Found, arity: Int): Boolean {
         val declaration = found.candidate.declaration
 
         return found.via.filter { Import.`is`(it) }.all { importCall ->
