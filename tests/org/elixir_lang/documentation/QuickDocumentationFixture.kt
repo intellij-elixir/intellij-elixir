@@ -5,6 +5,7 @@ import com.intellij.lang.documentation.ide.IdeDocumentationTargetProvider
 import com.intellij.model.Pointer
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.Project
+import com.intellij.platform.backend.documentation.DocumentationData
 import com.intellij.platform.backend.documentation.DocumentationTarget
 import com.intellij.openapi.progress.runBlockingMaybeCancellable
 import com.intellij.platform.backend.documentation.impl.computeDocumentationBlocking
@@ -55,7 +56,16 @@ fun CodeInsightTestFixture.documentationHintAtCaret(project: Project): String? =
  * it: through the registered link handlers, not through a provider the test picks. `null` when nothing is reached.
  */
 @Suppress("UnstableApiUsage", "OverrideOnly")
-fun CodeInsightTestFixture.followedLinkAtCaret(project: Project, url: String): String? {
+fun CodeInsightTestFixture.followedLinkAtCaret(project: Project, url: String): String? =
+    followedDocumentation(project, url)?.html
+
+/** The anchor the documentation a click on [url] opens is scrolled to, or `null` when nothing is reached or it has none. */
+@Suppress("UnstableApiUsage", "OverrideOnly")
+fun CodeInsightTestFixture.followedAnchorAtCaret(project: Project, url: String): String? =
+    followedDocumentation(project, url)?.anchor
+
+@Suppress("UnstableApiUsage", "OverrideOnly")
+private fun CodeInsightTestFixture.followedDocumentation(project: Project, url: String): DocumentationData? {
     val target = IdeDocumentationTargetProvider.getInstance(project)
         .documentationTargets(editor, file, editor.caretModel.offset)
         .firstOrNull()
@@ -63,7 +73,7 @@ fun CodeInsightTestFixture.followedLinkAtCaret(project: Project, url: String): S
     val pointer = pointerTo(target)
     val linked = runBlockingMaybeCancellable { resolveLinkToTarget(pointer, url) } ?: return null
 
-    return computeDocumentationBlocking(linked)?.html
+    return computeDocumentationBlocking(linked)
 }
 
 // DocumentationTarget is @ApiStatus.OverrideOnly, so calling createPointer() on the
@@ -79,6 +89,11 @@ private fun renderedDocumentation(target: DocumentationTarget): String? =
 @Suppress("OverrideOnly", "UnstableApiUsage")
 private fun pointerTo(target: DocumentationTarget): Pointer<out DocumentationTarget> =
     ReadAction.compute<Pointer<out DocumentationTarget>, RuntimeException> { target.createPointer() }
+
+/** The anchor the documentation at the caret opens at, as the platform reads it from the rendered result. */
+@Suppress("OverrideOnly", "UnstableApiUsage")
+fun CodeInsightTestFixture.documentationAnchorAtCaret(project: Project): String? =
+    documentationTargetAtCaret(project)?.let { computeDocumentationBlocking(pointerTo(it))?.anchor }
 
 /** The target the platform offers first at the caret. */
 @Suppress("UnstableApiUsage")
