@@ -125,6 +125,8 @@
 
 ### Bug Fixes
 
+- [#4475](https://github.com/intellij-elixir/intellij-elixir/pull/4475) [@sh41](https://github.com/sh41)
+  - **Completing an atom no longer decompiles every compiled module whose name matches, which could exhaust memory in a project whose SDK includes OTP.** Fixes [#4474](https://github.com/intellij-elixir/intellij-elixir/issues/4474).
 - [#4472](https://github.com/intellij-elixir/intellij-elixir/pull/4472) [@sh41](https://github.com/sh41)
   - **A decompiled `.beam` whose code has an anonymous function clause such as `fn 1 -> :a end` is shown instead of "BEAM format could not be read".** Fixes [#4470](https://github.com/intellij-elixir/intellij-elixir/issues/4470).
 - [#4467](https://github.com/intellij-elixir/intellij-elixir/pull/4467) [@sh41](https://github.com/sh41)
