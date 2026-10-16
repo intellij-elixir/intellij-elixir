@@ -24,9 +24,11 @@ internal object Documented {
      */
     class Choice(val element: PsiElement?, val delegation: Found?, val inside: Boolean, val insideDelegation: Boolean)
 
-    /** What [use] documents; [bound] is whether a valid variable binds its name. */
+    /** What [use] documents; [bound] is whether a valid variable binds its name. A use of an unknown name documents nothing. */
     @RequiresReadLock
     fun of(use: Use, bound: Boolean = false): Choice {
+        if (use is Use.AnyName) return Choice(element = null, delegation = null, inside = false, insideDelegation = false)
+
         // `apply/3` and an MFA tuple call a function another module exports, so an atom naming only a macro or a
         // private function documents nothing.
         val step = Resolved.step(use, incompleteCode = false, bound, Feature.DOCUMENTATION)
