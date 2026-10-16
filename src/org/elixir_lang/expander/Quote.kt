@@ -6,6 +6,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_BINDING_META_D
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_IMPORTS_EVERY_ARITY
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_IN_PATTERN_WITH_UNQUOTE_RAISES
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_KEEP_READS_LINE_OPTION
+import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_KEEP_STORES_FULL_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_META_DROPS_COLUMN
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_OPTIONS_EXPANDED_FIRST
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_CALL_META_KEPT
@@ -167,15 +168,20 @@ internal object Quote {
             }
         }
 
-        val line = options["line"]?.let { value ->
-            when (val term = values.keyfind("line")) {
-                is Term.Integer -> Option.Static(Line.At(term.value))
-                TRUE -> Option.Static(Line.Keep)
-                FALSE -> Option.Static(Line.Drop)
-                else -> Option.Dynamic(value)
-            }
-        } ?: Option.Static(Line.Drop)
-        val file = options["file"]?.let { value ->
+        val kept = options["location"]?.let { keptFile(call, values.keyfind("location"), env, run) }
+        val line = if (kept != null) {
+            Option.Static(if (QUOTE_KEEP_READS_LINE_OPTION.isSufficient(level)) Line.Keep else Line.Drop)
+        } else {
+            options["line"]?.let { value ->
+                when (val term = values.keyfind("line")) {
+                    is Term.Integer -> Option.Static(Line.At(term.value))
+                    TRUE -> Option.Static(Line.Keep)
+                    FALSE -> Option.Static(Line.Drop)
+                    else -> Option.Dynamic(value)
+                }
+            } ?: Option.Static(Line.Drop)
+        }
+        val file = kept?.let { Option.Static(it) } ?: options["file"]?.let { value ->
             when (val term = values.keyfind("file")) {
                 is Term.Binary -> Option.Static(term)
                 NIL -> Option.Static(null)
@@ -402,10 +408,37 @@ internal object Quote {
             name in QUOTE_OPTIONS
         }
 
-        // Any `location:` is `:keep`, which reads `E.file`, or a `case_clause` crash.
-        if (readAsOption || "location" in options) throw Stop(Expansion.Unported(call))
+        if (readAsOption) throw Stop(Expansion.Unported(call))
 
         return options
+    }
+
+    /**
+     * The file `location: :keep` stores, [run]'s, which before [QUOTE_KEEP_STORES_FULL_PATH] is relative to the
+     * directory it was compiled in. A definition in another file isn't ported. Any other [location] is a `case_clause`
+     * crash.
+     */
+    private fun keptFile(call: ElixirAst.Call, location: Term?, env: Env, run: Run): Term.Binary {
+        val file = run.file
+        val moved = env.function != null && run.compiling[env.module]?.definitionMoved == true
+        if ((location as? Term.Atom)?.name != "keep" || file == null || moved) throw Stop(Expansion.Unported(call))
+        if (QUOTE_KEEP_STORES_FULL_PATH.isSufficient(run.level)) return Term.Binary(file.toByteArray())
+
+        val directory = run.directories.of(file) ?: throw Stop(Expansion.Unported(call))
+
+        return Term.Binary(relativeTo(file, directory).toByteArray())
+    }
+
+    /** `Path.relative_to/2`: [path] relative to [directory] when below it, otherwise [path] itself. */
+    private fun relativeTo(path: String, directory: String): String {
+        val segments = splitPath(path)
+        val base = splitPath(directory)
+
+        return if (segments.size > base.size && segments.subList(0, base.size) == base) {
+            segments.drop(base.size).joinToString("/")
+        } else {
+            path
+        }
     }
 
     /** `bind_quoted:`'s `[{Key, Value}]`, validated as `elixir_expand` validates it. */
@@ -903,3 +936,7 @@ internal object Quote {
             else -> null
         }
 }
+
+/** `Path.split/1`: an absolute path's root, then each name. */
+private fun splitPath(path: String): List<String> =
+    listOfNotNull("/".takeIf { path.startsWith("/") }) + path.split("/").filter(String::isNotEmpty)

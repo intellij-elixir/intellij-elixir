@@ -182,12 +182,14 @@ private class Built(private val meta: Meta) {
 /**
  * `elixir_def:retrieve_location/2` (`Def:218–232`), which takes `@file` as [definition] starts, before its name is
  * checked and its arguments and body are expanded. A definition that isn't a statement of the module body may start at
- * any point, so every later read of `@file` is unknown.
+ * any point, so every later read of `@file` is unknown. What it took, if it took one.
  */
-internal fun takeFile(definition: Pending.Definition, compiling: Compiling) {
-    compiling.attributes.take("file")
+internal fun takeFile(definition: Pending.Definition, compiling: Compiling): AttributeValue? {
+    val taken = compiling.attributes.take("file")
 
     if (!compiling.isStatement(definition.node)) compiling.attributes.markUnknown("file")
+
+    return taken
 }
 
 /**

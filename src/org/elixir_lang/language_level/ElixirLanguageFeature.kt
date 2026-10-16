@@ -1170,6 +1170,15 @@ enum class ElixirLanguageFeature(
     QUOTED_IMPORT_FUNCTION_TRACED(sinceElixir = "1.18.4"),
 
     /**
+     * `quote location: :keep` stores the file whole. Before it, the file is relative to the working directory it was
+     * compiled in.
+     *
+     * `elixir-lang/elixir@e67a61108` ("Store complete path on quote keep"), first released in v1.15.0-rc.0,
+     * and its backport `7535c0c40`, first released in v1.14.4.
+     */
+    QUOTE_KEEP_STORES_FULL_PATH(sinceElixir = "1.14.4"),
+
+    /**
      * A `quote` given `file:` keeps the `line:` option in `keep: {file, line}`: a node's own line for `line: true`,
      * and 0 by default. Before it, `file:` keeps every node's own line whatever `line:` says.
      *

@@ -41,8 +41,9 @@ object Expander {
 
     /**
      * A file's top-level [forms] expanded from [env] as Elixir at [level] compiles them: the forms, then each module
-     * they define, in turn, with [counters] giving each macro expansion its hygiene counter. A file of only modules
-     * compiles each directly from [DEFMODULE_FAST_PATH].
+     * they define, in turn, with [counters] giving each macro expansion its hygiene counter. [file] is the file's path,
+     * and [directories] gives the directory a file was compiled in. A file of only modules compiles each directly from
+     * [DEFMODULE_FAST_PATH].
      */
     internal fun expandFile(
         forms: ElixirAst,
@@ -53,8 +54,9 @@ object Expander {
         observer: ExpansionObserver = ExpansionObserver.NONE,
         counters: Counters = Counters(),
         file: String? = null,
+        directories: CompileDirectories = CompileDirectories.UNKNOWN,
     ): FileExpansion {
-        val run = Run(level, observer, exports, structs, counters, file)
+        val run = Run(level, observer, exports, structs, counters, file, directories)
         val state = ExState.empty(level)
 
         if (DEFMODULE_FAST_PATH.isSufficient(level) && env.module == null && onlyDefmodule(forms)) {
@@ -153,6 +155,7 @@ internal class Run(
     val counters: Counters = Counters(),
     /** The path of the file the run expands, where it is known. */
     val file: String? = null,
+    val directories: CompileDirectories = CompileDirectories.UNKNOWN,
 ) {
     /** The modules whose exports the run read, in the order it read them. */
     val consulted = mutableListOf<String>()

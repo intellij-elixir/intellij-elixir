@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.util.io.OSAgnosticPathUtil
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.DefinitionTable.Kind
 import org.elixir_lang.expander.ExpansionResult.Owner
@@ -358,6 +359,69 @@ internal fun orGuards(node: ElixirAst): List<ElixirAst> =
     whenArguments(node)?.takeIf { it.size == 2 }?.let { (guard, rest) -> listOf(guard) + orGuards(rest) } ?: listOf(node)
 
 /**
+ * Whether `run_with_location_change/3` moves a definition into another file: whether the file of [file], the `@file` it
+ * took, or else of the `keep:` that `elixir_utils:meta_keep/1` reads off [head]'s name and arguments, made absolute as
+ * `filename:absname/1` makes it, isn't [run]'s. A file that can't be read moves it.
+ */
+private fun moved(file: AttributeValue?, head: ElixirAst, run: Run): Boolean {
+    val path = when (file) {
+        null -> keptFile(extractGuards(head).first.meta) ?: return false
+        AttributeValue.Unknown -> return true
+        is AttributeValue.Known -> fileOf(file.term) ?: return true
+    }
+    val joined = when {
+        OSAgnosticPathUtil.isAbsolute(path) -> path
+        else -> run.file?.let(run.directories::of)?.let { "$it/$path" } ?: return true
+    }
+
+    return absname(joined) != run.file?.let(::absname)
+}
+
+/**
+ * `filename:absname/1` of [path], already absolute, as `join1b/4` joins it on Windows: a drive letter lowercased, `\`
+ * read as `/`, a `//` root kept, and a repeated separator or a `.` before one dropped.
+ */
+private fun absname(path: String): String {
+    val slashed = path.replace('\\', '/')
+    val drive = slashed.getOrNull(1) == ':' && slashed[0].lowercaseChar() in 'a'..'z'
+    val root = when {
+        drive -> "${slashed[0].lowercaseChar()}:"
+        slashed.startsWith("//") -> "//"
+        else -> ""
+    }
+    val joined = StringBuilder(root)
+
+    for (char in slashed.substring(root.length)) {
+        when {
+            char != '/' -> joined.append(char)
+            joined.endsWith("/.") -> joined.setLength(joined.length - 1)
+            !joined.endsWith("/") -> joined.append(char)
+        }
+    }
+
+    val name = joined.toString()
+
+    // `maybe_remove_dirsep/2`: a trailing separator is dropped, but not a root's.
+    return if (name.endsWith("/") && name != "$root/" && name != "//") name.dropLast(1) else name
+}
+
+/** `meta_keep/1`: the file of [meta]'s first `keep:`, where that is `{File, Line}` with a binary and an integer. */
+private fun keptFile(meta: Meta): String? {
+    val keep = meta.keys.firstNotNullOfOrNull { key -> (key as? Meta.Key.Entry)?.takeIf { it.name == "keep" } } ?: return null
+    val (file, line) = (keep.value as? Meta.Value.Tuple)?.elements?.takeIf { it.size == 2 } ?: return null
+
+    return (file as? Meta.Value.Binary)?.text?.takeIf { line is Meta.Value.Integer }
+}
+
+/** The file of `@file`'s [term], a binary or `{File, Line}` as `retrieve_location/2` takes it, or `null` for any other. */
+private fun fileOf(term: Term): String? =
+    when (term) {
+        is Term.Binary -> term.bytes?.toString(Charsets.UTF_8)
+        is Term.Pair -> (term.first as? Term.Binary)?.bytes?.takeIf { term.second is Term.Integer }?.toString(Charsets.UTF_8)
+        else -> null
+    }
+
+/**
  * `elixir_def:store_definition/5`: [definition]'s name checked, its defaults and clause expanded in the env where it
  * was defined, and the definition stored unless that raised. The owner names the definition as far as it is known.
  *
@@ -375,7 +439,7 @@ internal fun storeDefinition(
     val unnamedAt = definition.unnamedAt
 
     // `retrieve_location/2`, before the name is checked. Only `invalid_def` comes before it in Elixir, and it raises.
-    takeFile(definition, compiling)
+    compiling.definitionMoved = moved(takeFile(definition, compiling), definition.head, run)
 
     if (unnamedAt != null) {
         compiling.table.define(null, 0, kind, node, 0, 0, definition.statement, definition.checksClauses)

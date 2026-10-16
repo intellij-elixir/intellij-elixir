@@ -58,6 +58,12 @@ internal class Compiling(body: ElixirAst, level: ElixirLanguageLevel) {
     /** The reads of the definition being stored, which take its owner once it is. */
     private val definitionReads = mutableListOf<Pair<String, Pair<ElixirAst, Term>>>()
 
+    /**
+     * Whether the definition being expanded is in a file other than the run's, as `retrieve_location/2` gives it: it
+     * took `@file`, or it has a `keep:` location.
+     */
+    var definitionMoved = false
+
     /** The struct `defstruct` recorded, if it has run. */
     var struct: ModuleStruct? = null
 

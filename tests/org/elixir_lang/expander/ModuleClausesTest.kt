@@ -9,8 +9,8 @@ import org.elixir_lang.lowering.inspect
  * clause as `def_to_clauses/6` gives them, and the escaped block of each `quote` a body holds.
  */
 class ModuleClausesTest : ExpanderTestCase() {
-    override val exports: Exports = ModuleFixtures.EXPORTS
-    override val kernel: KernelImports = ModuleFixtures.KERNEL
+    override val exports: Exports = AttributeFixtures.EXPORTS
+    override val kernel: KernelImports = AttributeFixtures.KERNEL
 
     fun testEachClauseIsItsArgumentsGuardsAndBody() =
         assertClauses(
@@ -65,6 +65,149 @@ class ModuleClausesTest : ExpanderTestCase() {
               def h/1: (x0) -> super(x0, z = 1; z)
             """,
             version = "1.13.4",
+        )
+
+    /**
+     * A kept quote in a definition that took `@file` keeps that file, which isn't ported, so B stops at it and loads no
+     * clauses. The next definition is in the module's file again.
+     */
+    fun testAKeptQuoteUnderFileStops() =
+        assertClauses(
+            """
+            defmodule A do
+              @file "x.ex"
+              def f, do: 1
+              defmacro n, do: quote(location: :keep, do: v)
+            end
+
+            defmodule B do
+              @file "x.ex"
+              defmacro m, do: quote(location: :keep, do: v)
+            end
+            """,
+            """
+            module Elixir.A from /project/a.ex
+              def f/0: () -> 1
+              defmacro n/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"/project/a.ex", 4}], A]}
+            """,
+        )
+
+    /** `@file` naming the module's own file doesn't move the definition, so its kept quote keeps that file. */
+    fun testAKeptQuoteUnderFileNamingItsOwnFileKeepsIt() =
+        assertClauses(
+            """
+            defmodule A do
+              @file "/project/a.ex"
+              defmacro m, do: quote(location: :keep, do: v)
+            end
+            """,
+            """
+            module Elixir.A from /project/a.ex
+              defmacro m/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"/project/a.ex", 3}], A]}
+            """,
+        )
+
+    /** A relative `@file` is made absolute as `filename:absname/1` makes it, against the directory the file compiles in. */
+    fun testAKeptQuoteUnderARelativeFileNamingItsOwnFileKeepsIt() =
+        assertClauses(
+            """
+            defmodule A do
+              @file "./a.ex"
+              defmacro m, do: quote(location: :keep, do: v)
+            end
+            """,
+            """
+            module Elixir.A from /project/a.ex
+              defmacro m/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"/project/a.ex", 3}], A]}
+            """,
+            directories = { "/project" },
+        )
+
+    /** `filename:absname/1` drops an absolute path's `.` names and repeated separators. */
+    fun testAKeptQuoteUnderAnUnnormalisedFileNamingItsOwnFileKeepsIt() =
+        assertClauses(
+            """
+            defmodule A do
+              @file "/project/.//a.ex"
+              defmacro m, do: quote(location: :keep, do: v)
+            end
+            """,
+            """
+            module Elixir.A from /project/a.ex
+              defmacro m/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"/project/a.ex", 3}], A]}
+            """,
+        )
+
+    /** `filename:absname/1` keeps `..`, so a path through it names another file and moves the definition. */
+    fun testAFileThroughAParentNamesAnotherFile() =
+        assertClauses(
+            """
+            defmodule A do
+              @file "/project/b/../a.ex"
+              defmacro m, do: quote(location: :keep, do: v)
+            end
+            """,
+            "",
+        )
+
+    /** A drive-letter path is absolute wherever the plugin runs, as file paths are on Windows. */
+    fun testAKeptQuoteUnderADriveLetterFileNamingItsOwnFileKeepsIt() =
+        assertClauses(
+            """
+            defmodule A do
+              @file "C:/project/a.ex"
+              defmacro m, do: quote(location: :keep, do: v)
+            end
+            """,
+            """
+            module Elixir.A from C:/project/a.ex
+              defmacro m/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"C:/project/a.ex", 3}], A]}
+            """,
+            file = "C:/project/a.ex",
+        )
+
+    /** On Windows `filename:absname/1` keeps a `//` root, so a file on a network share names itself. */
+    fun testAKeptQuoteUnderAUncFileNamingItsOwnFileKeepsIt() =
+        assertClauses(
+            """
+            defmodule A do
+              @file "//server/share/a.ex"
+              defmacro m, do: quote(location: :keep, do: v)
+            end
+            """,
+            """
+            module Elixir.A from //server/share/a.ex
+              defmacro m/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"//server/share/a.ex", 3}], A]}
+            """,
+            file = "//server/share/a.ex",
+        )
+
+    /** On Windows `filename:absname/1` lowercases a drive letter, so either case names the same file. */
+    fun testAKeptQuoteUnderALowercaseDriveLetterFileNamingItsOwnFileKeepsIt() =
+        assertClauses(
+            """
+            defmodule A do
+              @file "c:/project/a.ex"
+              defmacro m, do: quote(location: :keep, do: v)
+            end
+            """,
+            """
+            module Elixir.A from C:/project/a.ex
+              defmacro m/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"C:/project/a.ex", 3}], A]}
+            """,
+            file = "C:/project/a.ex",
+        )
+
+    /** `filename:absname/1` drops a `.` only before a separator, so a path ending in one names another file. */
+    fun testAFileEndingInADotNamesAnotherFile() =
+        assertClauses(
+            """
+            defmodule A do
+              @file "/project/a.ex/."
+              defmacro m, do: quote(location: :keep, do: v)
+            end
+            """,
+            "",
         )
 
     fun testAHeadHasNoClause() =
@@ -242,14 +385,26 @@ class ModuleClausesTest : ExpanderTestCase() {
         )
 
     /** The clauses each module of [code] loads with, as [render] shows them. */
-    private fun assertClauses(code: String, expected: String, version: String = VERSION) {
+    private fun assertClauses(
+        code: String,
+        expected: String,
+        version: String = VERSION,
+        file: String = FILE,
+        directories: CompileDirectories = CompileDirectories.UNKNOWN,
+    ) {
         val source = code.trimIndent()
+        val rendered = loaded(source, version, file, directories).joinToString("\n") { render(it, source) }
 
-        assertEquals(expected.trimIndent(), loaded(source, version).joinToString("\n") { render(it, source) })
+        assertEquals(expected.trimIndent(), rendered)
     }
 
-    /** The clauses each module of [source] loads with at [version], expanded as the file [FILE]. */
-    private fun loaded(source: String, version: String = VERSION): List<ModuleClauses> {
+    /** The clauses each module of [source] loads with at [version], expanded as [file], compiled where [directories] says. */
+    private fun loaded(
+        source: String,
+        version: String = VERSION,
+        file: String = FILE,
+        directories: CompileDirectories = CompileDirectories.UNKNOWN,
+    ): List<ModuleClauses> {
         val level = ElixirLanguageLevel.of(version)
         val loaded = mutableListOf<ModuleClauses>()
         val observer = object : ExpansionObserver {
@@ -260,7 +415,10 @@ class ModuleClausesTest : ExpanderTestCase() {
             }
         }
 
-        Expander.expandFile(lower(source, level), Env.empty(level, kernel), level, exports, structs, observer, file = FILE)
+        Expander.expandFile(
+            lower(source, level), Env.empty(level, kernel), level, exports, structs, observer, file = file,
+            directories = directories,
+        )
 
         return loaded
     }

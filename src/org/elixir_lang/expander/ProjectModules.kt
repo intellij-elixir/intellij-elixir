@@ -19,6 +19,7 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
+import org.elixir_lang.mix.Project.MIX_EXS
 import org.elixir_lang.navigation.isDecompiled
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.Import.Term
@@ -360,6 +361,11 @@ internal class ProjectModules(private val project: Project) {
                 }
             },
             file = virtualFile?.path,
+            directories = { path ->
+                // A `mix.exs` created or deleted above the file moves its answer.
+                stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+                virtualFile?.fileSystem?.findFileByPath(path)?.let(::compileDirectory)
+            },
         )
         used.forEach { stamps.addAll(it.stamps) }
 
@@ -368,6 +374,13 @@ internal class ProjectModules(private val project: Project) {
 
         return Held(Loaded(inputs, modules, uncompiled, stamps), expansion, results, lowering, transient, envs, receivers)
     }
+
+    /**
+     * The directory Elixir compiled [file] in: the innermost Mix project's holding it, as Mix compiles a dependency and
+     * each umbrella app in its own.
+     */
+    private fun compileDirectory(file: VirtualFile): String? =
+        generateSequence(file.parent) { it.parent }.firstOrNull { it.findChild(MIX_EXS) != null }?.path
 
     /** A [Copy] as held: its file, and whether it is a `.beam`. */
     private class HeldCopy(val virtualFile: VirtualFile, val compiled: Boolean)

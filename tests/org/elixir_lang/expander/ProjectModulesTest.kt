@@ -25,6 +25,7 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.psi.ElixirFile
 import java.io.File
 import java.util.concurrent.Callable
@@ -69,6 +70,40 @@ class ProjectModulesTest : PlatformTestCase() {
         val renamed = expansion(holder, a)
         assertNotSame("(e) B asked first after m is renamed m2", macroAdded, renamed)
         assertFresh("(e) B asked first after m is renamed m2", a, renamed)
+    }
+
+    /**
+     * Before 1.14.4 a kept quote's file is relative to the directory of the innermost Mix project holding it, each
+     * umbrella app's own, and unknown outside any.
+     */
+    fun testAKeptQuotesFileIsRelativeToItsOwnMixProject() {
+        add("umbrella/mix.exs", MIX_EXS)
+        add("umbrella/apps/a/mix.exs", MIX_EXS)
+        add("umbrella/apps/b/mix.exs", MIX_EXS)
+        val files = listOf(
+            "a" to add("umbrella/apps/a/lib/a.ex", kept("A")),
+            "b" to add("umbrella/apps/b/lib/nested/b.ex", kept("B")),
+            "outside" to add("outside.ex", kept("Outside")),
+        )
+        val inputs = ProjectModules.Inputs(ElixirLanguageLevel.of("1.13.4"), legKernel)
+
+        assertEquals(
+            "a: lib/a.ex\nb: lib/nested/b.ex\noutside: none",
+            files.joinToString("\n") { (name, file) -> "$name: ${keptFiles(file, inputs)}" },
+        )
+    }
+
+    /** A `mix.exs` written above a file that keeps a quote's location moves the file's directory. */
+    fun testAMixProjectAddedAboveAKeptQuoteRecomputes() {
+        val inputs = ProjectModules.Inputs(ElixirLanguageLevel.of("1.13.4"), legKernel)
+        val a = add("later/lib/a.ex", kept("A"))
+        val before = expansion(holder, a, inputs)
+
+        add("later/mix.exs", MIX_EXS)
+        val after = expansion(holder, a, inputs)
+
+        assertFresh("a mix.exs added above", a, after, inputs)
+        assertFalse("A's answer moves", render(a, before) == render(a, after))
     }
 
     fun testStructRead() {
@@ -738,6 +773,46 @@ class ProjectModulesTest : PlatformTestCase() {
 
     private fun add(path: String, text: String): PsiFile = myFixture.addFileToProject(path, text)
 
+    /** A module [name] with a macro whose `quote` keeps its location. */
+    private fun kept(name: String) = "defmodule $name do\n  defmacro m do\n    quote location: :keep, do: f()\n  end\nend\n"
+
+    /** The files the `keep:` entries of [file]'s escaped quotes name, or `none`. */
+    private fun keptFiles(file: PsiFile, inputs: ProjectModules.Inputs): String {
+        val blocks = mutableListOf<ElixirAst>()
+        val observer = object : ExpansionObserver {
+            override fun entering(node: ElixirAst, state: ExState, env: Env) {}
+
+            override fun clausesLoaded(clauses: ModuleClauses) {
+                val bodies = clauses.definitions.values.flatMap { it.clauses.orEmpty() }.map { it.body }
+
+                blocks += bodies.flatMap(::nodes).mapNotNull(clauses.quotes::of)
+            }
+        }
+        ReadAction.nonBlocking(Callable { holder.observe(file as ElixirFile, inputs, observer) }).executeSynchronously()
+
+        val files = blocks.flatMap(::nodes).mapNotNull { node ->
+            val (key, value) = (node as? ElixirAst.Tuple)?.elements?.takeIf { it.size == 2 } ?: return@mapNotNull null
+
+            ((value as? ElixirAst.Tuple)?.elements?.firstOrNull() as? ElixirAst.Literal.Binary)
+                ?.takeIf { (key as? ElixirAst.Literal.Atom)?.name == "keep" }
+                ?.bytes
+                ?.decodeToString()
+        }
+
+        return files.distinct().joinToString().ifEmpty { "none" }
+    }
+
+    /** [node] and every node below it. */
+    private fun nodes(node: ElixirAst): List<ElixirAst> =
+        listOf(node) + when (node) {
+            is ElixirAst.Tuple -> node.elements.flatMap(::nodes)
+            is ElixirAst.Call -> nodes(node.callee) + node.arguments.orEmpty().flatMap(::nodes)
+            is ElixirAst.ListNode -> node.elements.flatMap(::nodes)
+            is ElixirAst.Block -> node.expressions.flatMap(::nodes)
+            is ElixirAst.Alias -> node.segments.flatMap(::nodes)
+            is ElixirAst.Literal, is ElixirAst.Placeholder -> emptyList()
+        }
+
     /** [file]'s content replaced on disk, as a checkout or another editor writes it, with no document. */
     private fun rewrite(file: VirtualFile, text: String) {
         WriteAction.runAndWait<Throwable> { file.setBinaryContent(text.toByteArray()) }
@@ -758,6 +833,7 @@ class ProjectModulesTest : PlatformTestCase() {
 
     private companion object {
         const val A_CALLS_B = "defmodule A do\n  require B\n  B.m()\nend\n"
+        const val MIX_EXS = "defmodule MixProject do\nend\n"
 
         const val DEPRECATED =
             "defmodule A do\n  @deprecated \"Use A.new/0 instead\"\n  def old, do: 1\n" +
