@@ -46,10 +46,9 @@ public class Variants extends Atom {
 
             for (VisitedElementSetResolveResult resolveResult :
                     org.elixir_lang.reference.resolver.Module.INSTANCE.resolvePreferred(entrance, atomName, false, false)) {
-                PsiElement navigationElement = resolveResult.getElement().getNavigationElement();
                 lookupElementList.add(
                         LookupElementBuilder
-                                .createWithSmartPointer(Module.inspect(atomName), navigationElement)
+                                .createWithSmartPointer(Module.inspect(atomName), resolveResult.getElement())
                                 .withLookupStrings(List.of(":" + atom, ":\"" + atom + "\""))
                                 .withInsertHandler(insertHandler)
                 );
