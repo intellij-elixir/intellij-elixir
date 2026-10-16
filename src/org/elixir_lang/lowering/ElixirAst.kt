@@ -89,41 +89,60 @@ sealed class ElixirAst {
             is Literal, is ListNode -> false
         }
 
-    /** The AST as `Code.string_to_quoted` under [options] returns it; a [Placeholder] becomes `__cursor__`. */
-    fun toOtp(options: ParserOptions = ParserOptions.DEFAULT): OtpErlangObject =
-        when (this) {
+    /**
+     * The AST as `Code.string_to_quoted` under [options] returns it; a [Placeholder] becomes `__cursor__`. [onNode] is
+     * given each node with the term it became, children first.
+     */
+    @JvmOverloads
+    fun toOtp(
+        options: ParserOptions = ParserOptions.DEFAULT,
+        onNode: ((ElixirAst, OtpErlangObject) -> Unit)? = null,
+    ): OtpErlangObject {
+        val term = when (this) {
             is Call -> tuple(
-                callee.toOtp(options),
+                callee.toOtp(options, onNode),
                 meta.toOtp(options),
-                arguments?.let { list(it, options) } ?: OtpErlangAtom(
+                arguments?.let { list(it, options, onNode) } ?: OtpErlangAtom(
                     when (context) {
                         VariableContext.Nil -> "nil"
                         is VariableContext.Atom -> context.name
                     }
                 )
             )
-            is Alias -> tuple(OtpErlangAtom("__aliases__"), meta.toOtp(options), list(segments, options))
+            is Alias -> tuple(OtpErlangAtom("__aliases__"), meta.toOtp(options), list(segments, options, onNode))
             is Literal.Atom -> OtpErlangAtom(name)
             is Literal.Integer -> OtpErlangLong(value)
             is Literal.Float -> OtpErlangDouble(value)
             is Literal.Binary -> OtpErlangBinary(bytes)
-            is ListNode -> list(elements, options)
+            is ListNode -> list(elements, options, onNode)
             is Tuple ->
                 if (elements.size == 2) {
-                    tuple(elements[0].toOtp(options), elements[1].toOtp(options))
+                    tuple(elements[0].toOtp(options, onNode), elements[1].toOtp(options, onNode))
                 } else {
-                    tuple(OtpErlangAtom("{}"), meta.toOtp(options), list(elements, options))
+                    tuple(OtpErlangAtom("{}"), meta.toOtp(options), list(elements, options, onNode))
                 }
-            is Block -> tuple(OtpErlangAtom("__block__"), meta.toOtp(options), list(expressions, options))
+            is Block -> tuple(OtpErlangAtom("__block__"), meta.toOtp(options), list(expressions, options, onNode))
             is Placeholder -> tuple(OtpErlangAtom("__cursor__"), meta.toOtp(options), OtpErlangList())
         }
+
+        onNode?.invoke(this, term)
+
+        return term
+    }
 
     companion object {
         /**
          * The node quoted [term] is, with [origin] as every node's origin: [toOtp]'s inverse under
-         * [ParserOptions.DEFAULT]. Null for a term no quoted expression is, such as a map or a bitstring.
+         * [ParserOptions.DEFAULT]. Null for a term no quoted expression is, such as a map or a bitstring. A term
+         * [known] gives a node for is that node, origin and all.
          */
-        fun fromOtp(term: OtpErlangObject, origin: TextRange): ElixirAst? {
+        fun fromOtp(
+            term: OtpErlangObject,
+            origin: TextRange,
+            known: (OtpErlangObject) -> ElixirAst? = { null },
+        ): ElixirAst? {
+            known(term)?.let { return it }
+
             val bare = { Meta(origin, NO_POSITION, NO_POSITION) }
 
             return when (term) {
@@ -131,26 +150,38 @@ sealed class ElixirAst {
                 is OtpErlangLong -> Literal.Integer(bare(), term.bigIntegerValue())
                 is OtpErlangDouble -> Literal.Float(bare(), term.doubleValue())
                 is OtpErlangBinary -> Literal.Binary(bare(), term.binaryValue())
-                is OtpErlangString, is OtpErlangList -> elements(term, origin)?.let { ListNode(bare(), it) }
-                is OtpErlangTuple -> fromTuple(term, origin)
+                is OtpErlangString, is OtpErlangList -> elements(term, origin, known)?.let { ListNode(bare(), it) }
+                is OtpErlangTuple -> fromTuple(term, origin, known)
                 else -> null
             }
         }
 
         /** The elements of the proper list [term], which a list of bytes decodes to an [OtpErlangString] as. */
-        private fun elements(term: OtpErlangObject, origin: TextRange): List<ElixirAst>? =
+        private fun elements(
+            term: OtpErlangObject,
+            origin: TextRange,
+            known: (OtpErlangObject) -> ElixirAst?,
+        ): List<ElixirAst>? =
             when (term) {
                 is OtpErlangString ->
                     term.stringValue().codePoints().toArray().map {
                         Literal.Integer(Meta(origin, NO_POSITION, NO_POSITION), it.toBigInteger())
                     }
-                is OtpErlangList -> term.takeIf { it.lastTail == null }?.elements()?.map { fromOtp(it, origin) ?: return null }
+                is OtpErlangList ->
+                    term.takeIf { it.lastTail == null }?.elements()?.map { fromOtp(it, origin, known) ?: return null }
                 else -> null
             }
 
-        private fun fromTuple(tuple: OtpErlangTuple, origin: TextRange): ElixirAst? {
+        private fun fromTuple(
+            tuple: OtpErlangTuple,
+            origin: TextRange,
+            known: (OtpErlangObject) -> ElixirAst?,
+        ): ElixirAst? {
             if (tuple.arity() == 2) {
-                return Tuple(Meta(origin, NO_POSITION, NO_POSITION), tuple.elements().map { fromOtp(it, origin) ?: return null })
+                return Tuple(
+                    Meta(origin, NO_POSITION, NO_POSITION),
+                    tuple.elements().map { fromOtp(it, origin, known) ?: return null },
+                )
             }
             if (tuple.arity() != 3) return null
 
@@ -162,20 +193,20 @@ sealed class ElixirAst {
 
                 return Call(
                     meta,
-                    fromOtp(head, origin) ?: return null,
+                    fromOtp(head, origin, known) ?: return null,
                     null,
                     if (context == "nil") VariableContext.Nil else VariableContext.Atom(context),
                 )
             }
 
-            val arguments = elements(last, origin) ?: return null
+            val arguments = elements(last, origin, known) ?: return null
 
             return when (head) {
                 // `toOtp` writes a pair as `{a, b}`, so `{:{}, meta, [a, b]}` stays a call.
                 TUPLE if arguments.size != 2 -> Tuple(meta, arguments)
                 ALIASES -> Alias(meta, arguments)
                 BLOCK -> Block(meta, arguments)
-                else -> Call(meta, fromOtp(head, origin) ?: return null, arguments)
+                else -> Call(meta, fromOtp(head, origin, known) ?: return null, arguments)
             }
         }
 
@@ -234,11 +265,16 @@ sealed class ElixirAst {
 
         private fun tuple(vararg elements: OtpErlangObject) = OtpErlangTuple(elements)
 
-        private fun list(elements: List<ElixirAst>, options: ParserOptions): OtpErlangObject {
-            val terms = elements.map { it.toOtp(options) }
+        private fun list(
+            elements: List<ElixirAst>,
+            options: ParserOptions,
+            onNode: ((ElixirAst, OtpErlangObject) -> Unit)?,
+        ): OtpErlangObject {
+            val terms = elements.map { it.toOtp(options, onNode) }
             val bytes = terms.mapNotNull { term -> (term as? OtpErlangLong)?.takeIf { it.signum() >= 0 && it.bitLength() <= 8 } }
 
-            return if (terms.isNotEmpty() && bytes.size == terms.size) {
+            // A list of bytes decodes as a string, but where [onNode] is given each element stays the term it was given.
+            return if (onNode == null && terms.isNotEmpty() && bytes.size == terms.size) {
                 OtpErlangString(String(CharArray(bytes.size) { bytes[it].longValue().toInt().toChar() }))
             } else {
                 OtpErlangList(terms.toTypedArray())
