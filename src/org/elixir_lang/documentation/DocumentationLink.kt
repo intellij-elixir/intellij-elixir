@@ -14,6 +14,9 @@ internal object DocumentationLink {
     private val relativePattern: Pattern =
         Pattern.compile("((?<kind>[ct]):)?((?<module>.+)\\.)?(?<relative>.+)/(?<arity>\\d+)")
 
+    /** The arity [link] names, or `null` where it is a module's, or its arity is too big for an integer. */
+    fun arity(link: String): Int? = relativePattern.matcher(link).takeIf { it.matches() }?.group("arity")?.toIntOrNull()
+
     /** The element [link] opens when followed from [context]: a function, callback or type, else a module. */
     fun element(link: String, context: PsiElement): PsiElement? {
         val matcher = relativePattern.matcher(link)

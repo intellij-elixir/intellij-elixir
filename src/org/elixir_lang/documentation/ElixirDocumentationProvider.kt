@@ -8,6 +8,7 @@ import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
+import com.intellij.openapi.util.text.StringUtil
 import com.intellij.psi.*
 import com.intellij.psi.impl.source.tree.LeafPsiElement
 import com.intellij.psi.util.PsiTreeUtil
@@ -41,8 +42,42 @@ import java.util.function.Consumer
 private val LOG = logger<ElixirDocumentationProvider>()
 
 internal class ElixirDocumentationProvider : DocumentationProvider {
+    /** Rendered documentation, and the anchor it opens at: the entry of the arity the original element uses, or the arity a followed link gave. */
+    class Rendered(val html: String, val anchor: String?)
+
+    fun render(element: PsiElement, originalElement: PsiElement?, linkedArity: Int? = null): Rendered? =
+        // Where no use is known, as for a link followed, the function is seen from outside its module.
+        fetchDocs(element, remote = callAt(originalElement)?.let(::documentedChoice)?.takeIf { it.element == element }?.inside != true)?.let { fetched ->
+            Rendered(formatDocs(element, fetched), anchor(fetched, linkedArity ?: calledArity(originalElement)))
+        }
+
     override fun generateDoc(element: PsiElement, originalElement: PsiElement?): String? =
-        fetchDocs(element)?.let { formatDocs(element, it) }
+        render(element, originalElement)?.html
+
+    private fun anchor(fetched: FetchedDocs, arity: Int?): String? =
+        (fetched as? FetchedDocs.Arities)
+            ?.takeIf { it.entries.size > 1 }
+            ?.let { arities -> arity?.let(arities::entryAt)?.id }
+
+    /** The arity used where [original] is written: at a call, a capture or a `defdelegate` head. */
+    private fun calledArity(original: PsiElement?): Int? {
+        val call = callAt(original) ?: return null
+        val use = useOf(call)
+            ?: Use.of(call)?.takeIf { DeclaringForm.named(call)?.form == Form.DELEGATION }
+
+        return when (use) {
+            is Use.OfCall -> use.arity
+            is Use.Specified -> use.arity
+            is Use.Remote -> use.arity
+            null -> null
+        }
+    }
+
+    private tailrec fun callAt(element: PsiElement?): Call? = when (element) {
+        is LeafPsiElement, is ElixirIdentifier, is ElixirRelativeIdentifier -> callAt(element.parent)
+        is Call -> element
+        else -> null
+    }
 
     override fun generateHoverDoc(element: PsiElement, originalElement: PsiElement?): String? =
         generateDoc(element, originalElement)
@@ -114,23 +149,32 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
      * enclosing capture operator, which is the only element that also spans the `/arity` - so a captured name is
      * looked up through that instead.
      */
-    private fun documentedChoice(call: Call): Documented.Choice? {
-        val capture = PsiTreeUtil.getParentOfType(call, NonNumeric::class.java)
+    private fun documentedChoice(call: Call): Documented.Choice? =
+        useOf(call)?.let { use ->
+            val bound = use is Use.OfCall && captureOf(call) == null && Callable.bound(call, false)
+
+            Documented.of(use, bound)
+        }
+
+    private fun captureOf(call: Call): CaptureNameArity? =
+        PsiTreeUtil.getParentOfType(call, NonNumeric::class.java)
             ?.reference
             ?.let { it as? CaptureNameArity }
             ?.takeIf { it.nameElement == call }
 
+    /** The use [call] is, read from its reference's kind; `null` where it has no reference to document through. */
+    private fun useOf(call: Call): Use? {
+        val capture = captureOf(call)
+
         return if (capture != null) {
-            Use.capture(call, capture.arity)?.let(Documented::of)
+            Use.capture(call, capture.arity)
         } else {
             when (val reference = call.reference) {
                 is org.elixir_lang.reference.Callable,
-                is org.elixir_lang.psi.__module__.Reference -> Use.of(call)?.let {
-                    Documented.of(it, bound = Callable.bound(call, false))
-                }
+                is org.elixir_lang.psi.__module__.Reference -> Use.of(call)
 
                 is org.elixir_lang.reference.CallDefinitionClause ->
-                    Use.specification(call, reference.moduleAttribute)?.let(Documented::of)
+                    Use.specification(call, reference.moduleAttribute)
 
                 else -> null
             }
@@ -229,6 +273,25 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 }
             }
 
+            is FetchedDocs.Arities -> {
+                val linked = fetchedDocs.entries.size > 1
+
+                for (entry in fetchedDocs.entries) {
+                    for (head in entry.documentation.heads) {
+                        if (linked) {
+                            documentationHtml
+                                .append("<a href=\"#").append(entry.id).append("\">")
+                                .append(StringUtil.escapeXmlEntities(head))
+                                .append("</a>")
+                        } else {
+                            documentationHtml.append(head)
+                        }
+
+                        documentationHtml.append("\n")
+                    }
+                }
+            }
+
             is FetchedDocs.ModuleDocumentation -> Unit
             is FetchedDocs.TypeDocumentation -> {
                 documentationHtml.append(fetchedDocs.head).append("\n")
@@ -257,77 +320,22 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 }
             }
 
-            is FetchedDocs.FunctionOrMacroDocumentation -> {
-                fetchedDocs.doc?.let { doc ->
-                    when (doc) {
-                        is None -> Unit
-                        is Hidden ->
-                            documentationHtml
-                                .append(DocumentationMarkup.CONTENT_START)
-                                .append(false)
-                                .append(DocumentationMarkup.CONTENT_END)
+            is FetchedDocs.FunctionOrMacroDocumentation -> appendFunctionContent(documentationHtml, element, fetchedDocs)
 
-                        is MarkdownByLanguage ->
-                            doc.formattedByLanguage.values.map { formatted ->
-                                documentationHtml
-                                    .append(DocumentationMarkup.CONTENT_START)
-                                    .append(html(element, formatted))
-                                    .append(DocumentationMarkup.CONTENT_END)
-                            }
-                    }
-                }
+            is FetchedDocs.Arities -> {
+                val linked = fetchedDocs.entries.size > 1
 
-                val deprecated = fetchedDocs.deprecated
-                val impls = fetchedDocs.impls
-                val implsIsNotEmpty = impls.isNotEmpty()
-                val specs = fetchedDocs.specs
-                val specsIsNotEmpty = specs.isNotEmpty()
-
-                if (deprecated != null || implsIsNotEmpty || specsIsNotEmpty) {
-                    documentationHtml.append(DocumentationMarkup.SECTIONS_START)
-
-                    if (deprecated != null) {
+                for (entry in fetchedDocs.entries) {
+                    if (linked) {
                         documentationHtml
-                            .append(DocumentationMarkup.SECTION_HEADER_START)
-                            .append("Deprecated")
-                            .append(DocumentationMarkup.SECTION_SEPARATOR)
-                            .append(html(element, deprecated))
-                            .append(DocumentationMarkup.SECTION_END)
+                            .append(DocumentationMarkup.CONTENT_START)
+                            .append("<a id=\"").append(entry.id).append("\"></a><b>")
+                            .append(entry.documentation.heads.joinToString("<br>") { StringUtil.escapeXmlEntities(it) })
+                            .append("</b>")
+                            .append(DocumentationMarkup.CONTENT_END)
                     }
 
-                    if (implsIsNotEmpty) {
-                        documentationHtml
-                            .append(DocumentationMarkup.SECTION_HEADER_START)
-                            .append("Behaviors Implemented")
-                            .append(DocumentationMarkup.SECTION_SEPARATOR)
-                            .append("<ul>")
-
-                        for (impl in impls) {
-                            documentationHtml
-                                .append("<pre>")
-                                .append(impl)
-                                .append("</pre>")
-                        }
-
-                        documentationHtml
-                            .append("</ul>")
-                            .append(DocumentationMarkup.SECTION_END)
-                    }
-
-                    if (specsIsNotEmpty) {
-                        documentationHtml
-                            .append(DocumentationMarkup.SECTION_HEADER_START)
-                            .append("Specifications")
-                            .append(DocumentationMarkup.SECTION_SEPARATOR)
-
-                        for (spec in specs) {
-                            documentationHtml.append(spec).append("<br />\n")
-                        }
-
-                        documentationHtml.append(DocumentationMarkup.SECTION_END)
-                    }
-
-                    documentationHtml.append(DocumentationMarkup.SECTIONS_END)
+                    appendFunctionContent(documentationHtml, element, entry.documentation)
                 }
             }
 
@@ -343,6 +351,85 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
 
 
         return documentationHtml.toString()
+    }
+
+    private fun appendFunctionContent(
+        documentationHtml: StringBuilder,
+        element: PsiElement,
+        function: FetchedDocs.FunctionOrMacroDocumentation
+    ) {
+        function.doc?.let { doc ->
+            when (doc) {
+                is None -> Unit
+                is Hidden ->
+                    documentationHtml
+                        .append(DocumentationMarkup.CONTENT_START)
+                        .append(false)
+                        .append(DocumentationMarkup.CONTENT_END)
+
+                is MarkdownByLanguage ->
+                    doc.formattedByLanguage.values.map { formatted ->
+                        documentationHtml
+                            .append(DocumentationMarkup.CONTENT_START)
+                            .append(html(element, formatted))
+                            .append(DocumentationMarkup.CONTENT_END)
+                    }
+            }
+        }
+
+        val deprecated = function.deprecated
+        val impls = function.impls
+        val implsIsNotEmpty = impls.isNotEmpty()
+        val specs = function.specs
+        val specsIsNotEmpty = specs.isNotEmpty()
+
+        if (deprecated != null || implsIsNotEmpty || specsIsNotEmpty) {
+            documentationHtml.append(DocumentationMarkup.SECTIONS_START)
+
+            if (deprecated != null) {
+                documentationHtml
+                    .append(DocumentationMarkup.SECTION_HEADER_START)
+                    .append("Deprecated")
+                    .append(DocumentationMarkup.SECTION_SEPARATOR)
+                    .append(html(element, deprecated))
+                    .append(DocumentationMarkup.SECTION_END)
+            }
+
+            if (implsIsNotEmpty) {
+                documentationHtml
+                    .append(DocumentationMarkup.SECTION_HEADER_START)
+                    .append("Behaviors Implemented")
+                    .append(DocumentationMarkup.SECTION_SEPARATOR)
+                    .append("<ul>")
+
+                for (impl in impls) {
+                    documentationHtml
+                        .append("<pre>")
+                        .append(impl)
+                        .append("</pre>")
+                }
+
+                documentationHtml
+                    .append("</ul>")
+                    .append(DocumentationMarkup.SECTION_END)
+            }
+
+            if (specsIsNotEmpty) {
+                documentationHtml
+                    .append(DocumentationMarkup.SECTION_HEADER_START)
+                    .append("Specifications")
+                    .append(DocumentationMarkup.SECTION_SEPARATOR)
+
+                for (spec in specs) {
+                    documentationHtml.append(spec).append("<br />\n")
+                }
+
+                documentationHtml.append(DocumentationMarkup.SECTION_END)
+            }
+
+            documentationHtml.append(DocumentationMarkup.SECTIONS_END)
+        }
+    
     }
 
     private fun html(element: PsiElement, otpErlangObject: OtpErlangObject): String =
@@ -368,15 +455,15 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             .generateHtml()
     }
 
-    private fun fetchDocs(element: PsiElement): FetchedDocs? =
+    private fun fetchDocs(element: PsiElement, remote: Boolean): FetchedDocs? =
     // For compiled Beam elements, prefer docs from the decompiled source mirror so hover uses
         // the cached inline docs from decompilation.
         if (element.containingFile?.originalFile is BeamFileImpl) {
             val sourceElement = (element as? PsiCompiledElement)?.mirror ?: element.navigationElement
 
-            SourceFileDocsHelper.fetchDocs(sourceElement)
+            SourceFileDocsHelper.fetchDocs(sourceElement, remote)
                 ?: BeamDocsHelper.fetchDocs(element)
         } else {
-            SourceFileDocsHelper.fetchDocs(element)
+            SourceFileDocsHelper.fetchDocs(element, remote)
         }
 }

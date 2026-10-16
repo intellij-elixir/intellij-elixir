@@ -169,6 +169,40 @@ class EExFunctionQuickDocumentationTest : QuickDocumentationTestCase() {
         assertTrue("Expected the head, got: $documentation", documentation?.contains("page_template/0..1") == true)
     }
 
+    private fun configureEExBesideADef(caller: String) {
+        myFixture.copyFileToProject("eex.ex")
+        myFixture.configureByText(
+            "beside.ex",
+            """
+            defmodule Beside do
+              require EEx
+
+              @doc "Renders with one."
+              EEx.function_from_string(:def, :render, "<%= @a %>", [:assigns])
+
+              @doc "Renders with two."
+              def render(assigns, extra), do: {assigns, extra}
+
+              $caller
+            end
+            """.trimIndent()
+        )
+    }
+
+    /** An EEx function is one arity of its name, listed beside a `def` of that name at another. */
+    fun testACallListsAnEExFunctionBesideADefOfTheSameName() {
+        configureEExBesideADef("def page(assigns), do: ren<caret>der(assigns)")
+
+        assertBothArities(quickDocumentationAtCaret().orEmpty())
+    }
+
+    /** A call that lands on a `def` lists the EEx function beside it, as one that lands on the EEx function lists the `def`. */
+    fun testACallToADefListsAnEExFunctionBesideIt() {
+        configureEExBesideADef("def page(assigns), do: ren<caret>der(assigns, assigns)")
+
+        assertBothArities(quickDocumentationAtCaret().orEmpty())
+    }
+
     /** A function's docs are its own clauses': a macro call of the same shape beside it, with its own `@doc`, is not one. */
     fun testAFunctionsDocIsNotMergedWithASameShapedMacroCalls() {
         myFixture.configureByText(

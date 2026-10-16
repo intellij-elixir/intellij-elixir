@@ -22,26 +22,28 @@ import org.elixir_lang.ElixirLanguage
 
 /**
  * What Quick Documentation, Ctrl+hover and a followed link show for [targetElement], used at [sourceElement]; the
- * documentation opens at [anchor] when it has one.
+ * documentation opens at [anchor] when it has one, else at the entry for [linkedArity], the arity of the link followed.
  */
 @Suppress("UnstableApiUsage")
 internal class ElixirDocumentationTarget private constructor(
     val targetElement: PsiElement,
     private val sourceElement: PsiElement?,
-    private val anchor: String?
+    private val anchor: String?,
+    private val linkedArity: Int?
 ) : DocumentationTarget {
     override fun createPointer(): Pointer<out DocumentationTarget> {
         val target = targetElement.createSmartPointer()
         val source = sourceElement?.createSmartPointer()
         // Read here: inside the lambda `anchor` would capture this target, and its PSI with it.
         val anchor = anchor
+        val linkedArity = linkedArity
 
         return Pointer<ElixirDocumentationTarget> {
             target.element?.let { targetElement ->
                 if (source == null) {
-                    ElixirDocumentationTarget(targetElement, null, anchor)
+                    ElixirDocumentationTarget(targetElement, null, anchor, linkedArity)
                 } else {
-                    source.element?.let { ElixirDocumentationTarget(targetElement, it, anchor) }
+                    source.element?.let { ElixirDocumentationTarget(targetElement, it, anchor, linkedArity) }
                 }
             }
         }
@@ -79,8 +81,8 @@ internal class ElixirDocumentationTarget private constructor(
 
     override fun computeDocumentation(): DocumentationResult? =
         ElixirDocumentationProvider()
-            .generateDoc(targetElement, sourceElement)
-            ?.let { DocumentationResult.documentation(it).anchor(anchor) }
+            .render(targetElement, sourceElement, linkedArity)
+            ?.let { DocumentationResult.documentation(it.html).anchor(anchor ?: it.anchor) }
 
     private fun hint(element: PsiElement): String? {
         val name = ElementDescriptionUtil.getElementDescription(element, UsageViewShortNameLocation.INSTANCE)
@@ -110,9 +112,9 @@ internal class ElixirDocumentationTarget private constructor(
          * The target for [element], or `null` for a file or folder, whose documentation the platform's target
          * completes with the file's details, and for anything not written in Elixir.
          */
-        fun of(element: PsiElement, sourceElement: PsiElement?, anchor: String? = null): ElixirDocumentationTarget? =
+        fun of(element: PsiElement, sourceElement: PsiElement?, anchor: String? = null, linkedArity: Int? = null): ElixirDocumentationTarget? =
             if (element !is PsiFileSystemItem && element.language.isKindOf(ElixirLanguage)) {
-                ElixirDocumentationTarget(element, sourceElement, anchor)
+                ElixirDocumentationTarget(element, sourceElement, anchor, linkedArity)
             } else {
                 null
             }
