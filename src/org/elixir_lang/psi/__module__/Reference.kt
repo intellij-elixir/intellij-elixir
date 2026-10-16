@@ -9,6 +9,7 @@ import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.PsiReferenceBase
 import com.intellij.psi.ResolveResult
 import com.intellij.psi.impl.source.resolve.ResolveCache
+import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.psi.call.Call
 
 class Reference(call: Call, val useCall: Call?) : PsiReferenceBase<Call>(call), PsiPolyVariantReference {
@@ -30,7 +31,7 @@ class Reference(call: Call, val useCall: Call?) : PsiReferenceBase<Call>(call), 
      *
      * @return the target element, or `null` if it was not possible to resolve the reference to a valid target.
      */
-    override fun resolve(): PsiElement? = multiResolve(false).singleOrNull()?.element
+    override fun resolve(): PsiElement? = Resolved.target(this)
 }
 
 private class ResolveWithCachingComputable(

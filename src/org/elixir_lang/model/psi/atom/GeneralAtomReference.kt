@@ -8,10 +8,10 @@ import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.PsiReferenceBase
 import com.intellij.psi.ResolveResult
 import com.intellij.psi.impl.source.resolve.ResolveCache
+import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.scope.atom.Variants
 import org.elixir_lang.reference.resolver.atom.Resolvable
-import org.elixir_lang.reference.Resolver as ReferenceResolver
 
 class GeneralAtomReference(atom: ElixirAtom) :
     PsiReferenceBase<ElixirAtom>(atom, TextRange.create(0, atom.textLength)),
@@ -30,10 +30,7 @@ class GeneralAtomReference(atom: ElixirAtom) :
             .resolveWithCaching(this, Resolver, false, incompleteCode)
     }
 
-    override fun resolve(): PsiElement? =
-        ReferenceResolver.preferred(myElement, false, multiResolve(false).toList())
-            .firstOrNull()
-            ?.element
+    override fun resolve(): PsiElement? = Resolved.target(this)
 
     private object Resolver : ResolveCache.PolyVariantResolver<GeneralAtomReference> {
         override fun resolve(reference: GeneralAtomReference, incompleteCode: Boolean): Array<ResolveResult> =

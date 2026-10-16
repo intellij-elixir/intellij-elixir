@@ -10,6 +10,7 @@ import com.intellij.psi.ResolveResult
 import com.intellij.psi.impl.source.resolve.ResolveCache
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.IncorrectOperationException
+import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.psi.ElementFactory
 import org.elixir_lang.psi.ElixirAlias
 import org.elixir_lang.psi.QualifiableAlias
@@ -51,7 +52,7 @@ class Module(qualifiableAlias: QualifiableAlias) :
             )
     }
 
-    override fun resolve(): PsiElement? = multiResolve(false).singleOrNull()?.element
+    override fun resolve(): PsiElement? = Resolved.target(this)
 }
 
 private fun textRange(qualifiableAlias: QualifiableAlias): TextRange = when (qualifiableAlias) {
