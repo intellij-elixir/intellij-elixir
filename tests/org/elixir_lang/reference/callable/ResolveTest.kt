@@ -35,6 +35,45 @@ class ResolveTest : PlatformTestCase() {
         assertResolves<Callable>("m.ex:2: def f(1), do: 1", listOf("m.ex:2: def f(1), do: 1 (true)", "m.ex:3: def f(n), do: n (true)"))
     }
 
+    /** `@args` gives the EEx function no known arity, so the call's candidate is `OPAQUE`. */
+    fun testALoneOpaqueCandidateIsTheTarget() {
+        myFixture.addFileToProject(
+            "eex.ex",
+            "defmodule EEx do\n  defmacro function_from_string(kind, name, source, args \\\\ [], options \\\\ []) do\n" +
+                "    {kind, name, source, args, options}\n  end\nend\n"
+        )
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  require EEx\n  @args [:a]\n  EEx.function_from_string(:def, :render, \"<%= a %>\", @args)\n\n" +
+                "  def run, do: <caret>render(1)\nend\n"
+        )
+
+        val eex = "m.ex:4: EEx.function_from_string(:def, :render, \"<%= a %>\", @args)"
+
+        assertResolves<Callable>(eex, listOf("$eex (true)"))
+    }
+
+    /** A name `unquote` gives is unknown, so every function of the module is an `OPAQUE` candidate, and none the target. */
+    fun testAQualifiedUnquoteOfSeveralFunctionsIsNoTarget() {
+        myFixture.addFileToProject("m.ex", "defmodule M do\n  def f(a), do: a\n  def g(a), do: a\nend\n")
+        myFixture.configureByText(
+            "use.ex",
+            "defmodule U do\n  defmacro m(name) do\n    quote do\n      M.<caret>unquote(name)(1)\n    end\n  end\nend\n"
+        )
+
+        assertResolves<Callable>(null, listOf("m.ex:2: def f(a), do: a (true)", "m.ex:3: def g(a), do: a (true)"))
+    }
+
+    fun testAQualifiedUnquoteOfALoneFunctionIsTheTarget() {
+        myFixture.addFileToProject("m.ex", "defmodule M do\n  def f(a), do: a\nend\n")
+        myFixture.configureByText(
+            "use.ex",
+            "defmodule U do\n  defmacro m(name) do\n    quote do\n      M.<caret>unquote(name)(1)\n    end\n  end\nend\n"
+        )
+
+        assertResolves<Callable>("m.ex:2: def f(a), do: a", listOf("m.ex:2: def f(a), do: a (true)"))
+    }
+
     fun testACallOfADelegationResolvesToTheDelegation() {
         delegation()
         myFixture.configureByText("use.ex", "defmodule U do\n  def run, do: M.<caret>x(1)\nend\n")

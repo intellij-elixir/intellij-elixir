@@ -548,7 +548,7 @@ unknown_arity.ex:2:3  symbol  FunctionCallReference  `require`  ->  nothing
 unknown_arity.ex:2:11  psi  Module  `EEx`  ->  eex.ex:1:1 `defmodule EEx do`
 unknown_arity.ex:2:11  symbol  ModuleReference  `EEx`  ->  eex.ex:1:11 ModuleSymbol(EEx)
 unknown_arity.ex:4:3  definition  UnknownArity  usage/0  clause  public function runtime
-unknown_arity.ex:4:18  psi  Callable  `render`  ->  unknown_arity.ex:7:3 `EEx.function_from_string(:def, :render, "<%= a %>", @args)` (invalid)
+unknown_arity.ex:4:18  psi  Callable  `render`  ->  unknown_arity.ex:7:3 `EEx.function_from_string(:def, :render, "<%= a %>", @args)`
 unknown_arity.ex:4:18  symbol  FunctionCallReference  `render`  ->  unknown_arity.ex:7:35 FunctionSymbol(UnknownArity.render/1, macro=false)
 unknown_arity.ex:6:10  psi  GeneralAtomReference  `:a`  ->  nothing
 unknown_arity.ex:7:3  psi  Module  `EEx`  ->  eex.ex:1:1 `defmodule EEx do`
@@ -558,7 +558,7 @@ unknown_arity.ex:7:7  symbol  FunctionCallReference  `function_from_string`  -> 
 unknown_arity.ex:7:28  psi  GeneralAtomReference  `:def`  ->  nothing
 unknown_arity.ex:7:34  psi  GeneralAtomReference  `:render`  ->  nothing
 unknown_arity.ex:7:56  symbol  ModuleAttributeReference  `args`  ->  unknown_arity.ex:6:4 ModuleAttributeSymbol(UnknownArity.@args, (72,76))
-unknown_arity.ex:8:9  psi  CallDefinitionClause  `render(term)`  ->  unknown_arity.ex:7:3 `EEx.function_from_string(:def, :render, "<%= a %>", @args)` (invalid)
+unknown_arity.ex:8:9  psi  CallDefinitionClause  `render(term)`  ->  unknown_arity.ex:7:3 `EEx.function_from_string(:def, :render, "<%= a %>", @args)`
 unknown_arity.ex:8:9  symbol  SpecFunctionReference  `render`  ->  unknown_arity.ex:7:35 FunctionSymbol(UnknownArity.render/1, macro=false)
 unknown_arity.ex:8:16  symbol  TypeReference  `term`  ->  nothing
 unknown_arity.ex:8:25  psi  Module  `String`  ->  nothing

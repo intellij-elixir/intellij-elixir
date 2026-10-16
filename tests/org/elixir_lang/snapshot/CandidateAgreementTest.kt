@@ -4,7 +4,6 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiRecursiveElementWalkingVisitor
 import com.intellij.psi.PsiReferenceService
 import com.intellij.psi.PsiReferenceService.Hints.NO_HINTS
-import org.elixir_lang.declaration.Applicability
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.isContract
@@ -17,7 +16,7 @@ import org.elixir_lang.reference.resolver.Callable
  * 1. every `multiResolve` target is a variable or a declaration the preference step keeps, found or delegated to;
  * 2. every declaration the step keeps is a `multiResolve` target, so a candidate is missing only where the step
  *    dropped it;
- * 3. a declaration target is valid exactly when one of the candidates the step keeps at it is valid and no
+ * 3. a declaration target is valid exactly when one of the candidates the step keeps at it is admitted and no
  *    contract.
  */
 class CandidateAgreementTest : SnapshotTestCase() {
@@ -114,7 +113,7 @@ class CandidateAgreementTest : SnapshotTestCase() {
         // 3
         for (result in multi.filter { it.element in keptElements && it.element !in variables }) {
             val valid = kept.any {
-                it.element == result.element && it.candidate.applicability == Applicability.VALID && !isContract(it)
+                it.element == result.element && it.candidate.applicability.admitted && !isContract(it)
             }
 
             if (result.isValidResult != valid) {

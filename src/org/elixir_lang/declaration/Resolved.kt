@@ -18,22 +18,35 @@ object Resolved {
             .flatMap { listOf(it.found) + it.admittedDelegatedTo }
 
     /**
-     * [projection] as `multiResolve` gives it: one result per element, valid when any of its candidates is and no
-     * contract.
+     * [projection] as `multiResolve` gives it: a result per element, valid when one of its candidates is admitted and
+     * no contract, and [Opaque] when each such candidate is `OPAQUE`.
      */
     @RequiresReadLock
     fun results(projection: List<Found>): List<ResolveResult> =
         projection
             .groupBy { it.element }
             .map { (element, found) ->
-                PsiElementResolveResult(
-                    element,
-                    found.any { it.candidate.applicability == Applicability.VALID && !isContract(it) }
-                )
+                val admitted = found.filter { it.candidate.applicability.admitted && !isContract(it) }
+
+                when {
+                    admitted.any { it.candidate.applicability == Applicability.VALID } ->
+                        PsiElementResolveResult(element, true)
+                    admitted.isNotEmpty() -> Opaque(element)
+                    else -> PsiElementResolveResult(element, false)
+                }
             }
 
-    /** [reference]'s target: the first valid of its results, a delegation the use names before what it delegates to. */
+    /**
+     * [reference]'s target: the first valid of its results that is not [Opaque], a delegation the use names before what
+     * it delegates to; else its only valid result.
+     */
     @JvmStatic
-    fun target(reference: PsiPolyVariantReference): PsiElement? =
-        reference.multiResolve(false).firstOrNull(ResolveResult::isValidResult)?.element
+    fun target(reference: PsiPolyVariantReference): PsiElement? {
+        val valid = reference.multiResolve(false).filter(ResolveResult::isValidResult)
+
+        return (valid.firstOrNull { it !is Opaque } ?: valid.singleOrNull())?.element
+    }
+
+    /** A valid result only because its name or arity is unknown at the use, so one of several is no target. */
+    private class Opaque(element: PsiElement) : PsiElementResolveResult(element, true)
 }
