@@ -359,6 +359,7 @@ internal class ProjectModules(private val project: Project) {
                     observer.loaded(result, exports, struct)
                 }
             },
+            file = virtualFile?.path,
         )
         used.forEach { stamps.addAll(it.stamps) }
 

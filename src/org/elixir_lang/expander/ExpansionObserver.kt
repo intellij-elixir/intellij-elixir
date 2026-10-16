@@ -43,6 +43,9 @@ internal fun interface ExpansionObserver {
     /** [result]'s module loaded, with the [exports] and [struct] Elixir gives it. */
     fun loaded(result: ExpansionResult, exports: ModuleExports, struct: ModuleStruct) {}
 
+    /** A source module loaded with [clauses]. */
+    fun clausesLoaded(clauses: ModuleClauses) {}
+
     companion object {
         val NONE = ExpansionObserver { _, _, _ -> }
     }

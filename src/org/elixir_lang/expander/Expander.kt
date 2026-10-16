@@ -52,8 +52,9 @@ object Expander {
         structs: Structs,
         observer: ExpansionObserver = ExpansionObserver.NONE,
         counters: Counters = Counters(),
+        file: String? = null,
     ): FileExpansion {
-        val run = Run(level, observer, exports, structs, counters)
+        val run = Run(level, observer, exports, structs, counters, file)
         val state = ExState.empty(level)
 
         if (DEFMODULE_FAST_PATH.isSufficient(level) && env.module == null && onlyDefmodule(forms)) {
@@ -150,6 +151,8 @@ internal class Run(
     exports: Exports,
     val structs: Structs,
     val counters: Counters = Counters(),
+    /** The path of the file the run expands, where it is known. */
+    val file: String? = null,
 ) {
     /** The modules whose exports the run read, in the order it read them. */
     val consulted = mutableListOf<String>()
@@ -213,13 +216,14 @@ internal class Run(
         return LoadedModules.recorded(inProgress.struct, inProgress.table)
     }
 
-    /** [result]'s module loaded, as Elixir loads a module once it compiles. */
-    fun load(result: ExpansionResult) {
+    /** [result]'s module loaded, as Elixir loads a module once it compiles, with its [clauses]. */
+    fun load(result: ExpansionResult, clauses: () -> ModuleClauses) {
         val loadedStruct = LoadedModules.struct(result)
         val loadedExports = LoadedModules.exports(result)
         compiledStructs[result.module] = loadedStruct
         compiled[result.module] = loadedExports
         observer.loaded(result, loadedExports, loadedStruct)
+        if (loadedExports is ModuleExports.Present) observer.clausesLoaded(clauses())
     }
 
     /** What each bitstring expanded builds, by node, for the bitstring that nests it. */

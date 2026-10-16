@@ -13,12 +13,14 @@ import java.math.BigInteger
  * @property count how many times it was made overridable, which names the hidden definition
  * @property entry the definition taken out of the table, the latest one
  * @property calls the local calls of [entry]'s body, taken out with it and put back when it is stored
+ * @property clauses [entry]'s clauses, taken out and put back with it
  * @property stored whether `super` or the end of the body stored it
  */
 internal class Overridable(
     val count: Int,
     val entry: DefinitionTable.Entry,
     val calls: List<LocalCall<ElixirAst>>,
+    val clauses: List<ModuleClauses.Clause>,
 ) {
     var stored = false
 }
@@ -39,7 +41,8 @@ internal fun makeOverridable(compiling: Compiling, nameArity: NameArity): Overri
 
     if (hidden.isNotEmpty()) compiling.calls[nameArity] = hidden.toMutableList()
 
-    compiling.overridable[nameArity] = Overridable((previous?.count ?: 0) + 1, entry, calls)
+    compiling.overridable[nameArity] =
+        Overridable((previous?.count ?: 0) + 1, entry, calls, compiling.clauses.remove(nameArity).orEmpty())
 
     // The generated `__struct__` is no longer what builds the struct, and what replaces it isn't followed.
     if (buildsStruct(nameArity) && compiling.struct is ModuleStruct.Present) {
@@ -88,6 +91,7 @@ internal fun storeOverridable(
         overridable.stored = true
 
         compiling.table.restore(name, nameArity.arity, kind, entry.heads, entry.clauses, entry.defaults, entry.ordered)
+        compiling.clauses.getOrPut(NameArity(name, nameArity.arity)) { mutableListOf() } += overridable.clauses
         // Filed under the original name, as `elixir_locals:reattach` does, whichever name the definition is stored as.
         compiling.calls.getOrPut(nameArity) { mutableListOf() } += overridable.calls
 

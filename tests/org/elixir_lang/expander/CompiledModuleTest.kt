@@ -118,6 +118,14 @@ class CompiledModuleTest : PlatformTestCase() {
             (compiled.bodies as CompiledModule.Bodies.Read).clauses.mapValues { it.value.size },
         )
         assertEquals(emptyList<String>(), differingBodies("CompiledFixture", fixture.debugInfoBeam) {})
+
+        val clauses = ModuleClauses.of(compiled, fixture.debugInfoBeam.path)!!
+
+        assertEquals(
+            listOf("Elixir.CompiledFixture", ModuleClauses.Source.DBGI, fixture.debugInfoBeam.path),
+            listOf(clauses.module, clauses.source, clauses.file),
+        )
+        assertEquals(compiled.table.kinds, clauses.definitions.mapValues { it.value.kind })
         assertEquals(Deprecations.Known(mapOf(NameArity("h", 1) to "Use g/1 instead")), compiled.deprecations)
     }
 
@@ -289,14 +297,16 @@ class CompiledModuleTest : PlatformTestCase() {
 
     /**
      * Each [beam] definition clause whose body isn't an `fn` clause `elixir_utils:extract_splat_guards/1` reads back as that
-     * clause's arguments and guards, with its mirror clause's range, or the module's for one the mirror has no clause of;
-     * [compared] is called for each clause.
+     * clause's arguments and guards, with its mirror clause's range, or the module's for one the mirror has no clause of,
+     * or whose [ModuleClauses.Clause] isn't those arguments, guards and body; [compared] is called for each clause.
      */
     private fun differingBodies(module: String, beam: File, compared: () -> Unit): List<String> {
         val mirror = mirror(beam)
         val mirrored = mirrorClauses(mirror)
         val modular = ReadAction.computeBlocking<TextRange, Throwable> { mirror.modulars().single().textRange }
-        val bodies = (read(beam, mirror).bodies as CompiledModule.Bodies.Read).clauses
+        val compiled = read(beam, mirror)
+        val bodies = (compiled.bodies as CompiledModule.Bodies.Read).clauses
+        val definitionClauses = ModuleClauses.of(compiled, beam.path)!!.definitions
 
         return definitions(beam).flatMap { definition ->
             val nameArity = "${definition.name}/${definition.arity}"
@@ -305,18 +315,30 @@ class CompiledModuleTest : PlatformTestCase() {
                 ?.map { ReadAction.computeBlocking<TextRange, Throwable> { it.textRange } }
                 ?: clauses.map { modular }
             val read = bodies[NameArity(definition.name!!, definition.arity!!)].orEmpty()
-            val counted = "$module $nameArity: ${read.size} bodies, ${clauses.size} clauses".takeIf { read.size != clauses.size }
+            val split = definitionClauses[NameArity(definition.name!!, definition.arity!!)]?.clauses.orEmpty()
+            val counted = "$module $nameArity: ${read.size} bodies, ${split.size} split, ${clauses.size} clauses"
+                .takeIf { read.size != clauses.size || split.size != clauses.size }
 
-            listOfNotNull(counted) + clauses.zip(read).withIndex().mapNotNull { (index, pair) ->
+            listOfNotNull(counted) + clauses.zip(read.zip(split)).withIndex().flatMap { (index, pair) ->
                 compared()
 
-                val (clause, body) = pair
+                val (clause, readPair) = pair
+                val (body, splitClause) = readPair
                 val (_, arguments, guards, block) = clause.elements()
                 val actual = fnClause(body.toOtp()) to body.meta.origin
                 val expected = listOf(arguments.toOtpErlangList(), guards, block) to origins.getOrNull(index)
+                val actualSplit = listOf(
+                    OtpErlangList(splitClause.args.map { it.toOtp() }.toTypedArray()),
+                    OtpErlangList(splitClause.guards.map { it.toOtp() }.toTypedArray()),
+                    splitClause.body.toOtp(),
+                )
 
-                "$module $nameArity clause $index: ${actual.first.map(::inspect)} at ${actual.second}"
-                    .takeIf { actual != expected }
+                listOfNotNull(
+                    "$module $nameArity clause $index: ${actual.first.map(::inspect)} at ${actual.second}"
+                        .takeIf { actual != expected },
+                    "$module $nameArity split clause $index: ${actualSplit.map(::inspect)}"
+                        .takeIf { actualSplit != expected.first },
+                )
             }
         }
     }

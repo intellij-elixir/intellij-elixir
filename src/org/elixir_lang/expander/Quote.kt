@@ -29,13 +29,20 @@ private typealias Keywords = List<Pair<String, ElixirAst>>
 internal object Quote {
     /** `{quote, Meta, [Opts]}`: the `do:` taken out of [call]'s only argument, a list, into a second one. */
     fun expandKeywords(call: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion =
-        withDoArgument(call)?.let { Expander.expand(it, state, env, run) } ?: Expansion.Error("missing_option", call)
+        withDoArgument(call)?.let { expand(it, state, env, run, written = call) } ?: Expansion.Error("missing_option", call)
 
-    /** `{quote, Meta, [Opts, Do]}` where `Do` is a list. */
-    fun expand(call: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion =
+    /**
+     * `{quote, Meta, [Opts, Do]}` where `Do` is a list, which is [written] in the source. In a definition's body, the
+     * escaped block is recorded for [written].
+     */
+    fun expand(call: ElixirAst.Call, state: ExState, env: Env, run: Run, written: ElixirAst.Call = call): Expansion =
         when (val built = build(call, state, env, run, 0)) {
             is Built.Stopped -> built.expansion
-            is Built.Escaped ->
+            is Built.Escaped -> {
+                if (env.function != null && built.known && !built.prelude) {
+                    run.compiling[env.module]?.quotes?.put(written, built.block)
+                }
+
                 Expander.expand(built.quoted, built.state, built.env, run).let {
                     // `{'__block__', [], Prelude ++ [Quoted]}`, the bindings' escaped `__block__`, or from 1.20 outside
                     // a pattern or guard, either in `:elixir_quote.validate_quote/1`.
@@ -43,6 +50,7 @@ internal object Quote {
 
                     if (built.prelude || built.block !== built.quoted || validated) it.withValue(NODE) else it
                 }
+            }
         }
 
     /**
@@ -635,13 +643,17 @@ internal object Quote {
 
         /** The import head of `do_quote/2`: `{Name, Meta, Args}`. */
         private fun namedTuple(node: ElixirAst, name: String, meta: Keywords, args: List<ElixirAst>): ElixirAst {
-            if (escape) return s.tuple(s.atom(name), meta(meta), doQuoteList(args))
+            if (escape) return placedAt(node, s.tuple(s.atom(name), meta(meta), doQuoteList(args)))
 
             val importMeta = importMeta(node, meta, name, args.size)
             val annotatedMeta = annotate(s.atom(name), importMeta, args)
 
-            return s.tuple(s.atom(name), meta(annotatedMeta), doQuoteList(args))
+            return placedAt(node, s.tuple(s.atom(name), meta(annotatedMeta), doQuoteList(args)))
         }
+
+        /** [tuple] at [node]'s origin, so what evaluates it knows which call it quotes. */
+        private fun placedAt(node: ElixirAst, tuple: ElixirAst.Tuple): ElixirAst.Tuple =
+            tuple.meta.let { ElixirAst.Tuple(Meta(node.meta.origin, it.start, it.end, it.keys, built = true), tuple.elements) }
 
         /**
          * `annotate/2` for a node whose first element is [target] and whose arguments are [args]: its own metadata, and

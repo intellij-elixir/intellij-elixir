@@ -23,6 +23,12 @@ internal class Compiling(body: ElixirAst, level: ElixirLanguageLevel) {
     /** Each definition's local calls, in expansion order. */
     val calls = LinkedHashMap<NameArity, MutableList<LocalCall<ElixirAst>>>()
 
+    /** Each definition's clauses, in the order they were stored. */
+    val clauses = LinkedHashMap<NameArity, MutableList<ModuleClauses.Clause>>()
+
+    /** Each `quote` the definitions' bodies hold. */
+    val quotes = ModuleClauses.Quotes()
+
     /**
      * The calls a hidden definition's body brought back under the name it was made overridable as, which stay when that
      * name is made overridable again where its checks visit the hidden definition's own body, and go otherwise.
@@ -393,7 +399,7 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
         compiling.struct,
     )
 
-    run.load(result)
+    run.load(result) { ModuleClauses.of(result.module, compiling, run.file) }
 
     return result
 }

@@ -11,6 +11,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.HAS_UNQUOTES_QUOTE_A
 import org.elixir_lang.language_level.ElixirLanguageFeature.POST_MODULE_LOCAL_CHECKS_TYPED
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
 import java.util.Collections
 import java.util.IdentityHashMap
@@ -352,7 +353,8 @@ private fun isReadWhole(call: ElixirAst): Boolean =
 internal fun extractGuards(head: ElixirAst): Pair<ElixirAst, List<ElixirAst>> =
     whenArguments(head)?.takeIf { it.size == 2 }?.let { (call, guards) -> call to orGuards(guards) } ?: (head to emptyList())
 
-private fun orGuards(node: ElixirAst): List<ElixirAst> =
+/** `elixir_utils:extract_or_guards/1`: each guard of [node]'s `when`s. */
+internal fun orGuards(node: ElixirAst): List<ElixirAst> =
     whenArguments(node)?.takeIf { it.size == 2 }?.let { (guard, rest) -> listOf(guard) + orGuards(rest) } ?: listOf(node)
 
 /**
@@ -405,13 +407,24 @@ internal fun storeDefinition(
         return owner to Expansion.Unported(definition.stop ?: node)
     }
 
-    val env = definition.env.copy(function = NameArity(name, arity))
+    val nameArity = NameArity(name, arity)
+    val env = definition.env.copy(function = nameArity)
     val fresh = ExState.empty(run.level).copy(caller = kind.macro)
     val args = defaultsArgs.map { arg -> if (arg in defaults) (arg as ElixirAst.Call).arguments!![0] else arg }
-    val expansion = expandDefaults(defaults, fresh, env, run, compiling, node)
-        .then { _, _ -> clause(node, args, guards, definition.body, fresh, env, run) }
+    val body = definition.body?.let { clauseBody(node, it) }
+    val defaulted = expandDefaults(defaults, fresh, env, run, compiling, node)
+    val expansion = defaulted.then { _, _ -> clause(node, args, guards, definition.body, body, fresh, env, run) }
 
     if (expansion is Expansion.Error) return owner to expansion
+
+    body?.let { compiling.clauses.getOrPut(nameArity) { mutableListOf() } += ModuleClauses.Clause(args, guards, it) }
+    if (defaulted is Expansion.Expanded) {
+        val counter = if (DEFAULT_ARGUMENTS_THREAD_STATE.isSufficient(run.level)) defaulted.state.version else 0
+
+        for (clause in defaultClauses(kind, name, defaultsArgs, defaults, counter)) {
+            compiling.clauses.getOrPut(NameArity(name, clause.args.size)) { mutableListOf() } += clause
+        }
+    }
 
     // The store follows the expansion, so from 1.15 the body's errors are reported before the store raises. A body
     // that isn't expanded may raise before the store does.
@@ -508,14 +521,68 @@ private fun expandDefaults(
 }
 
 /**
- * `def_to_clauses/6`, then `elixir_clauses:def/3` for the clause: the arguments as a pattern, the guard, then the body.
- * A bodiless head stores no clause: each argument that isn't a variable is an error, and so is a guard.
+ * `unpack_expanded/7`: the clause of each default arity of [defaultsArgs], whose [defaults] are expanded. It binds the
+ * arguments it is given to variables numbered from [counter], and calls the full arity through `super` with the
+ * defaults it lacks.
+ */
+private fun defaultClauses(
+    kind: Kind,
+    name: String,
+    defaultsArgs: List<ElixirAst>,
+    defaults: List<ElixirAst.Call>,
+    counter: Int,
+): List<ModuleClauses.Clause> =
+    defaultsArgs.indices.filter { defaultsArgs[it] in defaults }.map { index ->
+        val default = defaultsArgs[index] as ElixirAst.Call
+        val synthetic = Synthetic(default.meta)
+        // `default_var/1`.
+        val variable = { version: Int ->
+            val keys = listOf(
+                Meta.Key.Entry("generated", Meta.Value.Atom("true")),
+                Meta.Key.Entry("version", Meta.Value.Integer(version.toLong())),
+            )
+
+            synthetic.variable("x$version", "elixir_def", keys)
+        }
+        val base = (0 until index).map { variable(counter + it) }
+        var next = counter + index
+        val rest = defaultsArgs.drop(index).map { arg ->
+            if (arg in defaults) null to (arg as ElixirAst.Call).arguments!![1] else variable(next++).let { it to it }
+        }
+        val superKeys = listOf(
+            Meta.Key.Entry("super", Meta.Value.Tuple(listOf(Meta.Value.Atom(kind.name.lowercase()), Meta.Value.Atom(name)))),
+        ) + default.meta.keys
+
+        ModuleClauses.Clause(
+            base + rest.mapNotNull { it.first },
+            emptyList(),
+            synthetic.call("super", base + rest.map { it.second }, superKeys),
+        )
+    }
+
+/** `def_to_clauses/6`'s body of [node]'s [options]: a `do` alone is its body, and with more a `try`; `null` without one. */
+private fun clauseBody(node: ElixirAst.Call, options: ElixirAst): ElixirAst? {
+    val pairs = (options as? ElixirAst.ListNode)?.elements
+
+    return when {
+        pairs?.singleOrNull()?.let(::keyOf) == "do" -> (pairs.single() as ElixirAst.Tuple).elements[1]
+        pairs?.any { keyOf(it) == "do" } == true ->
+            ElixirAst.Call(node.meta, ElixirAst.Literal.Atom(node.meta, "try"), listOf(options))
+        else -> null
+    }
+}
+
+/**
+ * `def_to_clauses/6`, then `elixir_clauses:def/3` for the clause: the arguments as a pattern, the guard, then the
+ * [body] of [options]. A bodiless head stores no clause: each argument that isn't a variable is an error, and so is a
+ * guard.
  */
 private fun clause(
     node: ElixirAst.Call,
     args: List<ElixirAst>,
     guards: List<ElixirAst>,
     options: ElixirAst?,
+    body: ElixirAst?,
     state: ExState,
     env: Env,
     run: Run,
@@ -532,13 +599,7 @@ private fun clause(
         return Expansion.Expanded(state, env, NODE)
     }
 
-    val pairs = (options as? ElixirAst.ListNode)?.elements
-    val body = when {
-        pairs?.singleOrNull()?.let(::keyOf) == "do" -> (pairs.single() as ElixirAst.Tuple).elements[1]
-        pairs?.any { keyOf(it) == "do" } == true ->
-            ElixirAst.Call(node.meta, ElixirAst.Literal.Atom(node.meta, "try"), listOf(options))
-        else -> return Expansion.Error("missing_option", node)
-    }
+    if (body == null) return Expansion.Error("missing_option", node)
 
     return match(state, state, env, node) { s, e -> expandArgs(args, s, e, run) }
         .then { s, e ->
