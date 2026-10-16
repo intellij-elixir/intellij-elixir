@@ -55,19 +55,19 @@ class CandidateSourceTest : PlatformTestCase() {
     fun testNamelessUseReachesBothExceptionDeclarations() {
         configure("applicability.ex")
 
-        assertContainsCandidates("Uses.unquote(f)(1)", false, "19 exception=OPAQUE", "19 message=OPAQUE")
+        assertUnquoteCallCandidates(false, "19 exception=OPAQUE", "19 message=OPAQUE")
     }
 
     fun testNamelessUseIsOpaqueWhereTheArityFits() {
         configure("applicability.ex")
 
-        assertContainsCandidates("Uses.unquote(f)(1)", false, "16 foo=OPAQUE", "20 fo_local=OPAQUE")
+        assertUnquoteCallCandidates(false, "16 foo=OPAQUE", "20 fo_local=OPAQUE")
     }
 
     fun testNamelessUseIsWrongArityWhereTheArityDoesNotFit() {
         configure("applicability.ex")
 
-        assertContainsCandidates("Uses.unquote(f)(1)", true, "24 uses=WRONG_ARITY")
+        assertUnquoteCallCandidates(true, "24 uses=WRONG_ARITY")
     }
 
     fun testQuotedEExNameNearMissIsWrongArity() {
@@ -268,8 +268,8 @@ class CandidateSourceTest : PlatformTestCase() {
     private fun assertCandidates(text: String, incompleteCode: Boolean, vararg expected: String) =
         assertEquals(expected.toList(), candidates(text, incompleteCode).map(::describe))
 
-    private fun assertContainsCandidates(text: String, incompleteCode: Boolean, vararg expected: String) {
-        val actual = candidates(text, incompleteCode).map(::describe)
+    private fun assertUnquoteCallCandidates(incompleteCode: Boolean, vararg expected: String) {
+        val actual = candidates("Uses.unquote(f)(1)", incompleteCode).map(::describe)
 
         for (candidate in expected) {
             assertTrue("$candidate not in $actual", candidate in actual)

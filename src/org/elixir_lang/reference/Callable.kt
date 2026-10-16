@@ -152,8 +152,7 @@ class Callable : PsiReferenceBase<Call>, PsiPolyVariantReference {
             "utf8"
         )
 
-        @JvmField
-        val IGNORED = "_"
+        const val IGNORED = "_"
 
         @Contract(pure = true)
         fun bitStringSegmentOptionElementDescription(
@@ -336,7 +335,7 @@ class Callable : PsiReferenceBase<Call>, PsiPolyVariantReference {
                 val parent = call.parent
 
                 if (parent is ElixirNoParenthesesOneArgument) {
-                    val grandParent = parent.getParent()
+                    val grandParent = parent.parent
 
                     if (grandParent is Call) {
                         if (org.elixir_lang.psi.CallDefinitionClause.`is`(grandParent)) {
@@ -480,7 +479,7 @@ class Callable : PsiReferenceBase<Call>, PsiPolyVariantReference {
         private fun isVariable(call: Call): Boolean =
             when {
                 call is UnqualifiedNoArgumentsCall<*> -> {
-                    val name = call.getName()
+                    val name = call.name
 
                     // _ is an "ignored" not a variable
                     if (name == null || name != IGNORED) {
@@ -516,7 +515,7 @@ class Callable : PsiReferenceBase<Call>, PsiPolyVariantReference {
                         sibling = sibling.nextSibling
                     }
 
-                    selfAndFollowingSiblingList.toTypedArray().let { LocalSearchScope(it) }
+                    LocalSearchScope(selfAndFollowingSiblingList.toTypedArray())
                 }
             }
 

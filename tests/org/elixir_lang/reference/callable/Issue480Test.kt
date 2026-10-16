@@ -13,43 +13,43 @@ import org.elixir_lang.psi.call.Call
 class Issue480Test : PlatformTestCase() {
     fun testLocal() {
         myFixture.configureByFiles("local.ex", "referenced.ex")
-        assertReferenceAndResolvedNameArityRange("changeset", 2)
+        assertReferenceAndResolvedNameArityRange(2)
     }
 
     fun testRemote() {
         myFixture.configureByFiles("remote.ex", "referenced.ex")
-        assertReferenceAndResolvedNameArityRange("changeset", 1)
+        assertReferenceAndResolvedNameArityRange(1)
         assertEquals("def changeset(params) do", (myFixture.file.findReferenceAt(myFixture.caretOffset)!!.resolve() as Call).text.lines().first())
     }
 
     fun testDirectModuleQualifier() {
         myFixture.configureByFiles("direct_module_qualifier.ex", "referenced.ex")
-        assertReferenceAndResolvedNameArityRange("changeset", 1)
+        assertReferenceAndResolvedNameArityRange(1)
     }
 
     fun testAliasedModuleQualifier() {
         myFixture.configureByFiles("aliased_module_qualifier.ex", "referenced.ex")
-        assertReferenceAndResolvedNameArityRange("changeset", 1)
+        assertReferenceAndResolvedNameArityRange(1)
     }
 
     fun testDoubleAliasesModuleQualifier() {
         myFixture.configureByFiles("double_aliased_module_qualifier.ex", "referenced.ex")
-        assertReferenceAndResolvedNameArityRange("changeset", 1)
+        assertReferenceAndResolvedNameArityRange(1)
     }
 
     fun testMapAccessQualifier() {
         myFixture.configureByFiles("map_access_qualifier.ex", "referenced.ex")
-        assertUnresolvableReferenceNameArityRange("__struct__", 1)
+        assertUnresolvableReferenceNameArityRange("__struct__")
     }
 
     fun testUnresolvedAliasQualifier() {
         myFixture.configureByFiles("unresolved_alias_qualifier.ex", "referenced.ex")
-        assertUnresolvableReferenceNameArityRange("changeset", 1)
+        assertUnresolvableReferenceNameArityRange("changeset")
     }
 
     override fun getTestDataPath(): String = "testData/org/elixir_lang/reference/callable/issue_480"
 
-    private fun assertUnresolvableReferenceNameArityRange(name: String, arity: Int) {
+    private fun assertUnresolvableReferenceNameArityRange(name: String) {
         val elementAtCaret = myFixture
                 .file
                 .findElementAt(myFixture.caretOffset)
@@ -61,16 +61,16 @@ class Issue480Test : PlatformTestCase() {
         val grandParentCall = grandParent as Call
 
         assertEquals(name, grandParentCall.functionName())
-        assertEquals(arity, grandParentCall.resolvedFinalArity())
+        assertEquals(1, grandParentCall.resolvedFinalArity())
 
-        val reference = grandParent.getReference()
+        val reference = grandParent.reference
         assertNotNull(reference)
 
         val resolved = reference!!.resolve()
         assertNull(resolved)
     }
 
-    private fun assertReferenceAndResolvedNameArityRange(name: String, arity: Int) {
+    private fun assertReferenceAndResolvedNameArityRange(arity: Int) {
         val elementAtCaret = myFixture
                 .file
                 .findElementAt(myFixture.caretOffset)
@@ -81,12 +81,12 @@ class Issue480Test : PlatformTestCase() {
         assertInstanceOf(grandParent, Call::class.java)
         val grandParentCall = grandParent as Call
 
-        assertEquals(name, grandParentCall.functionName())
+        assertEquals("changeset", grandParentCall.functionName())
         assertEquals(arity, grandParentCall.resolvedFinalArity())
-        assertResolvedNameArityRange(grandParentCall, name, arity)
+        assertResolvedNameArityRange(grandParentCall, arity)
     }
 
-    private fun assertResolvedNameArityRange(element: PsiElement, name: String, arity: Int) {
+    private fun assertResolvedNameArityRange(element: PsiElement, arity: Int) {
         val reference = element.reference
         assertNotNull(reference)
         assertInstanceOf(reference, PsiPolyVariantReference::class.java)
@@ -102,7 +102,7 @@ class Issue480Test : PlatformTestCase() {
             val maybeDefCall = resolved as Call?
             assertTrue(`is`(maybeDefCall!!))
             assertEquals(
-                    NameArityInterval(name, ArityInterval(arity, arity)),
+                    NameArityInterval("changeset", ArityInterval(arity, arity)),
                     nameArityInterval(maybeDefCall, ResolveState.initial())
             )
         }

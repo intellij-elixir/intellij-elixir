@@ -22,7 +22,7 @@ public class CallDefinitionClause extends PsiReferenceBase<Call> implements PsiP
      */
 
     @NotNull
-    public final AtUnqualifiedNoParenthesesCall moduleAttribute;
+    public final AtUnqualifiedNoParenthesesCall<?> moduleAttribute;
 
     /*
      *
@@ -35,7 +35,7 @@ public class CallDefinitionClause extends PsiReferenceBase<Call> implements PsiP
      * @param moduleAttribute {@code @spec foo(arg1, ...) ... return1}, so that the tree doesn't have to be walked up
      *   again if there is a {@code when}.
      */
-    public CallDefinitionClause(@NotNull Call call, @NotNull AtUnqualifiedNoParenthesesCall moduleAttribute) {
+    public CallDefinitionClause(@NotNull Call call, @NotNull AtUnqualifiedNoParenthesesCall<?> moduleAttribute) {
         super(call, TextRange.create(0, call.getTextLength()));
         this.moduleAttribute = moduleAttribute;
     }

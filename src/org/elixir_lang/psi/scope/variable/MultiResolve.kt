@@ -122,7 +122,7 @@ class MultiResolve(private val name: String, private val incompleteCode: Boolean
                               incompleteCode: Boolean,
                               entrance: PsiElement): List<VisitedElementSetResolveResult> =
             if (name == Callable.IGNORED) {
-                listOf<VisitedElementSetResolveResult>(VisitedElementSetResolveResult(entrance, true, emptySet()))
+                listOf(VisitedElementSetResolveResult(entrance, true, emptySet()))
             } else {
                 val resolveState = ResolveState.initial().put(ENTRANCE, entrance).putInitialVisitedElement(entrance)
 
