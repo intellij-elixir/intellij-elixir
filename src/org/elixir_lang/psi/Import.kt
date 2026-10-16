@@ -410,8 +410,7 @@ object Import {
 
                 for (modular in modulars) {
                     ProgressManager.checkCanceled()
-                    val prior = prior(blockImports, importCall, modular, languageLevel)
-                    val filter = Filter.of(importCall, languageLevel, prior)
+                    val filter = filter(importCall, listOf(modular), languageLevel)
                     val filtered = { state: ResolveState -> state.put(FILTER, filter) }
                     // One imported module stops at a `false` and answers `true` (`takeWhile { it }.lastOrNull() ?: true`).
                     val childResolveState = Recording
@@ -464,6 +463,19 @@ object Import {
         return blockImports.drop(index + 1).any { later ->
             later.call.textRange.endOffset <= anchorStart && later.modulars.any { it in modulars }
         }
+    }
+
+    /**
+     * The filter [importCall] applies at [languageLevel] to the module of its that [reached] enters first, built on what
+     * the `import`s of that module before it bring in, or with no prior when [reached] enters none.
+     */
+    @RequiresReadLock
+    fun filter(importCall: Call, reached: List<PsiElement>, languageLevel: ElixirLanguageLevel): Filter {
+        val blockImports = blockImports(importCall)
+        val modulars = blockImports.first { it.call == importCall }.modulars
+        val modular = reached.firstNotNullOfOrNull { element -> modulars.firstOrNull { it.isAncestor(element) } }
+
+        return Filter.of(importCall, languageLevel, modular?.let { prior(blockImports, importCall, it, languageLevel) })
     }
 
     /** An `import` in a block, with the modules it imports. */

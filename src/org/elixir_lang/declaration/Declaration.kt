@@ -3,6 +3,7 @@ package org.elixir_lang.declaration
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.VirtualFile
 import org.elixir_lang.call.Visibility
+import org.elixir_lang.psi.arityInterval
 
 /** A callable declaration, source or compiled. */
 data class Declaration(
@@ -12,7 +13,25 @@ data class Declaration(
     val declared: Declared
 ) {
     val visibility: Visibility get() = capabilities.visibility
+
+    /**
+     * Whether this declaration and [name]`/`[arity] can be one function: the same name at an arity both take.
+     * Another name is another function whatever the arities; with the same name, an [ArityKnowledge.Unknown] arity
+     * is [SameFunction.UNKNOWN], which each caller decides for itself.
+     */
+    fun sameFunction(name: String, arity: ArityKnowledge): SameFunction {
+        if (this.name != name) return SameFunction.NO
+
+        val interval = this.arity.arityInterval() ?: return SameFunction.UNKNOWN
+        val otherInterval = arity.arityInterval() ?: return SameFunction.UNKNOWN
+
+        return if (interval.overlaps(otherInterval)) SameFunction.YES else SameFunction.NO
+    }
+
+    fun sameFunction(other: Declaration): SameFunction = sameFunction(other.name, other.arity)
 }
+
+enum class SameFunction { YES, NO, UNKNOWN }
 
 /** The syntactic form a source declaration takes. */
 enum class Form { CLAUSE, CALLBACK, DELEGATION, EXCEPTION, EEX_FUNCTION_FROM, GENERATOR_EMBED }

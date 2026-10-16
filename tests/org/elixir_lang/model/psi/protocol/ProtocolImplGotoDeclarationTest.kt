@@ -6,7 +6,9 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.assertGotoDeclarationChosenAtCaret
 import org.elixir_lang.code_insight.assertGotoDeclarationLandsIn
+import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
 import org.elixir_lang.code_insight.enclosingCallAtCaret
+import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.Protocol
 
@@ -45,7 +47,7 @@ class ProtocolImplGotoDeclarationTest : PlatformTestCase() {
     /**
      * Ctrl-Click decision on an implementing `def` - an element with a symbol reference -
      * the "Go To Declaration or Usages" handler that Ctrl-Click uses
-     * (`GotoDeclarationAction implements CtrlMouseAction` → `GotoDeclarationOrUsageHandler2`) chooses
+     * (`GotoDeclarationAction implements CtrlMouseAction` -> `GotoDeclarationOrUsageHandler2`) chooses
      * **Go To Declaration** rather than Show Usages or doing nothing.
      */
     fun testCtrlClickOnImplementingDefChoosesGotoDeclaration() {
@@ -78,5 +80,23 @@ class ProtocolImplGotoDeclarationTest : PlatformTestCase() {
         val references = PsiSymbolReferenceService.getService().getReferences(element!!)
         // The ref provider should not attach a reference to a def that doesn't match the protocol function
         assertTrue("Non-matching def should have no symbol references", references.isEmpty())
+    }
+
+    /** A delegation that implements nothing declares itself: Ctrl+Click shows its usages and Find Usages lists its call. */
+    fun testNonImplementingDelegationActsOnItsOwnSymbol() {
+        myFixture.addFileToProject("t.ex", "defmodule T do\n  def helper(x), do: x\nend\n")
+        myFixture.configureByText(
+            "p.ex",
+            "defprotocol P do\n  def f(x)\nend\n\ndefimpl P, for: Integer do\n  def f(x), do: helper(x)\n" +
+                "  defdelegate hel<caret>per(x), to: T\nend\n"
+        )
+
+        myFixture.assertShowUsagesChosenAtCaret()
+        assertEquals(
+            listOf("p.ex:6"),
+            myFixture.psiUsagesAtCaret(project).filterNot { it.declaration }.map { usage ->
+                "${usage.file.name}:${usage.file.text.take(usage.range.startOffset).count { it == '\n' } + 1}"
+            }
+        )
     }
 }

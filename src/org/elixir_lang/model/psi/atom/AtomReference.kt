@@ -28,7 +28,7 @@ class AtomReference(
      */
     private val moduleElement: PsiElement,
     private val rangeInElement: TextRange = contentTextRange(atom),
-    private val arity: Int
+    private val arity: Int?
 ) : PsiReferenceBase<ElixirAtom>(atom, contentTextRange(atom)), PsiPolyVariantReference, PsiSymbolReference {
     private val functionName: String?
         get() = quotedAtomValue(myElement)
@@ -100,7 +100,8 @@ class AtomReference(
 
             return modulars
                 .flatMap { modular ->
-                    CallDefinitionClauseMultiResolve.resolveResults(name, reference.arity, incompleteCode, modular, atom = true)
+                    // -1 fits no arity, so at a non-literal one every definition is an invalid result.
+                    CallDefinitionClauseMultiResolve.resolveResults(name, reference.arity ?: -1, incompleteCode, modular, atom = true)
                 }
                 .flatMap { visitedResult ->
                     when (val element = visitedResult.element) {

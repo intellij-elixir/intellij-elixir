@@ -39,8 +39,8 @@ internal class PhoenixCorpus(private val project: Project, disposable: Disposabl
     }
 
     /** A file asked about, with its uses, and the uses the costlier measures ask: all of an app file's, every tenth of a dep file's. */
-    class Asked(val set: String, val name: String, val psi: ElixirFile, val uses: List<Use>) {
-        val sampled: List<Use> = if (set == APP) uses else uses.filterIndexed { i, _ -> i % 10 == 0 }
+    class Asked(val set: String, val name: String, val psi: ElixirFile, val uses: List<Use.OfCall>) {
+        val sampled: List<Use.OfCall> = if (set == APP) uses else uses.filterIndexed { i, _ -> i % 10 == 0 }
     }
 
     /**

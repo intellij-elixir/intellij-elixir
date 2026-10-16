@@ -4,7 +4,6 @@ import com.intellij.find.usages.api.SearchTarget
 import com.intellij.find.usages.api.UsageHandler
 import com.intellij.icons.AllIcons
 import com.intellij.model.Pointer
-import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.util.TextRange
 import com.intellij.platform.backend.navigation.NavigationRequest
 import com.intellij.platform.backend.navigation.NavigationTarget
@@ -18,7 +17,7 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.ElixirRenameTarget
 import org.elixir_lang.model.psi.ElixirSymbolWithUsages
 import org.elixir_lang.model.psi.function.FunctionSymbol
-import org.elixir_lang.navigation.ElixirClausePresentation
+import org.elixir_lang.navigation.DeclarationHead
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
 import java.util.*
@@ -32,7 +31,9 @@ class AtomSymbol(
     val name: String,
     val arity: Int,
     val macro: Boolean,
-    private val displayText: String? = null
+    private val displayText: String? = null,
+    /** As [FunctionSymbol.injected]; the range already tells it apart. */
+    val injected: Boolean = false
 ) : ElixirRenameTarget, NavigationTarget, SearchTarget {
     override val searchText: String get() = name
     override val targetName: String get() = name
@@ -43,6 +44,7 @@ class AtomSymbol(
         val arity = this.arity
         val macro = this.macro
         val displayText = this.displayText
+        val injected = this.injected
         // Anchor to the enclosing call-definition clause (a stable ancestor) rather than to the
         // name-identifier element or a bare file range: an in-place (Shift+F6) rename fully replaces
         // the identifier's text, which swaps out the identifier leaf (collapsing a pointer anchored to
@@ -60,11 +62,13 @@ class AtomSymbol(
                 val restoredClause = clausePointer.dereference() ?: return@Pointer null
                 val restoredRange = CallDefinitionClause.nameIdentifier(restoredClause)?.textRange
                     ?: return@Pointer null
-                AtomSymbol(restoredClause.containingFile, restoredRange, moduleName, name, arity, macro, displayText)
+                val restoredFile = restoredClause.containingFile
+
+                AtomSymbol(restoredFile, restoredRange, moduleName, name, arity, macro, displayText, injected)
             }
         }
         return Pointer.fileRangePointer(file, range) { restoredFile, restoredRange ->
-            AtomSymbol(restoredFile, restoredRange, moduleName, name, arity, macro, displayText)
+            AtomSymbol(restoredFile, restoredRange, moduleName, name, arity, macro, displayText, injected)
         }
     }
 
@@ -86,7 +90,9 @@ class AtomSymbol(
 
     @RequiresReadLock
     private fun clausePresentationText(): String? =
-        displayText ?: (declarationElement() as? Call)?.let(ElixirClausePresentation::elementText)
+        displayText ?: (declarationElement() as? Call)?.let { clause ->
+            CallDefinitionClause.declaration(clause, ResolveState.initial())?.let { DeclarationHead.text(it, clause) }
+        }
 
     override fun equals(other: Any?): Boolean =
         other is AtomSymbol &&
@@ -102,10 +108,14 @@ class AtomSymbol(
     override fun toString(): String = "AtomSymbol($moduleName.$name/$arity, macro=$macro)"
 
     /** The function this atom names, the same symbol for every use query and for rename. */
-    fun functionSymbol(): FunctionSymbol = FunctionSymbol(file, range, moduleName, name, arity, macro)
+    fun functionSymbol(): FunctionSymbol = FunctionSymbol(file, range, moduleName, name, arity, macro, injected)
 
     @RequiresReadLock
     override fun renamedWith(): List<ElixirSymbolWithUsages> = functionSymbol().renamedWith()
+
+    @get:RequiresReadLock
+    override val declaringMacro: String?
+        get() = functionSymbol().declaringMacro
 
     @RequiresReadLock
     fun declarationElement(): PsiElement? =
@@ -118,14 +128,20 @@ class AtomSymbol(
         fun fromClause(clause: Call): List<AtomSymbol> {
             if (!CallDefinitionClause.`is`(clause)) return emptyList()
             val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(clause) ?: return emptyList()
-            val moduleName = runCatching { org.elixir_lang.psi.Module.name(enclosingModular) }
-                .getOrElse { if (it is ProcessCanceledException) throw it else null }
-                ?: return emptyList()
+            val owner = FunctionSymbol.owner(enclosingModular) ?: return emptyList()
             val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return emptyList()
             val nameId = CallDefinitionClause.nameIdentifier(clause) ?: return emptyList()
-            val macro = CallDefinitionClause.capabilities(clause)?.quotesArguments == true
+            val macro = CallDefinitionClause.capabilities(clause)?.let(FunctionSymbol::isMacro) == true
             return nameArity.arityInterval.closed().map { arity ->
-                AtomSymbol(clause.containingFile, nameId.textRange, moduleName, nameArity.name, arity, macro)
+                AtomSymbol(
+                    clause.containingFile,
+                    nameId.textRange,
+                    owner.moduleName,
+                    nameArity.name,
+                    arity,
+                    macro,
+                    injected = owner.injected
+                )
             }
         }
 
@@ -138,7 +154,7 @@ class AtomSymbol(
 
             val presentationText =
                 if (navigationClause != null && CallDefinitionClause.`is`(navigationClause)) {
-                    ElixirClausePresentation.elementText(navigationClause)
+                    DeclarationHead.text(callDefinition.declaration(), navigationClause)
                 } else {
                     null
                 }

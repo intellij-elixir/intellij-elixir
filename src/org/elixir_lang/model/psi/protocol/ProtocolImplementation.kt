@@ -6,8 +6,10 @@ import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.psi.CallDefinition
 import org.elixir_lang.beam.psi.Module as BeamModule
+import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Declaration
-import org.elixir_lang.psi.ArityInterval
+import org.elixir_lang.declaration.SameFunction
+import org.elixir_lang.model.psi.function.FunctionSymbol
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.DefinitionDeclaration
 import org.elixir_lang.psi.Implementation
@@ -23,12 +25,10 @@ import org.elixir_lang.psi.call.Call
 object ProtocolImplementation {
     /** [member] is a definition of the protocol itself, source or compiled. */
     fun implementedBy(member: Declaration, implementer: Declaration): Boolean =
-        member.arity.arityInterval()?.let {
-            implementedBy(member.name, it, member.capabilities.quotesArguments, implementer)
-        } == true
+        implementedBy(FunctionSymbol.isMacro(member.capabilities), implementer, implementer.sameFunction(member))
 
     fun implementedBy(member: ProtocolFunction, implementer: Declaration): Boolean =
-        implementedBy(member.name, ArityInterval(member.arity, member.arity), member.macro, implementer)
+        implementedBy(member.macro, implementer, implementer.sameFunction(member.name, ArityKnowledge.Exact(member.arity)))
 
     /**
      * The source protocol functions [implementer], a definition in a `defimpl`, implements: those of the protocol the
@@ -58,7 +58,7 @@ object ProtocolImplementation {
                 is ImplementedMember.Compiled ->
                     it.member.name == name &&
                         it.member.arity.arityInterval()?.contains(arity) == true &&
-                        it.member.capabilities.quotesArguments == macro
+                        FunctionSymbol.isMacro(it.member.capabilities) == macro
             }
         }
 
@@ -107,9 +107,7 @@ object ProtocolImplementation {
         }
     }
 
-    private fun implementedBy(name: String, arities: ArityInterval, macro: Boolean, implementer: Declaration): Boolean =
-        !macro &&
-            implementer.capabilities.remoteCallable &&
-            implementer.name == name &&
-            implementer.arity.arityInterval()?.overlaps(arities) == true
+    /** An arity not yet knowable implements nothing. */
+    private fun implementedBy(macro: Boolean, implementer: Declaration, sameFunction: SameFunction): Boolean =
+        !macro && implementer.capabilities.remoteCallable && sameFunction == SameFunction.YES
 }

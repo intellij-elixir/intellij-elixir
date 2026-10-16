@@ -23,6 +23,7 @@ import org.elixir_lang.sdk.SdkFixtures
 import org.elixir_lang.sdk.erlang_dependent.SdkAdditionalData
 import java.io.File
 import java.lang.ref.Reference
+import kotlin.math.ceil
 import org.elixir_lang.sdk.Type as SdkRoots
 
 /**
@@ -173,7 +174,7 @@ class ExpanderSourceBudgetHeavyTest : HeavyTestCase() {
      * key of its own, so PSI read again would still hold each earlier holder's.
      */
     private fun dropPsi() {
-        WriteAction.runAndWait<Throwable> { PsiManagerEx.getInstanceEx(project).cleanupForNextTest() }
+        WriteAction.runAndWait<Throwable> { PsiManagerEx.getInstanceEx(project).fileManager.cleanupForNextTest() }
     }
 
     /** Lets go of what [holder] keeps on each of [files]' PSI, under the keys it holds privately. */
@@ -192,7 +193,7 @@ class ExpanderSourceBudgetHeavyTest : HeavyTestCase() {
         phase: String,
         files: List<PhoenixCorpus.Asked>,
         sampled: Boolean,
-        ask: (PhoenixCorpus.Asked, Use) -> Any?,
+        ask: (PhoenixCorpus.Asked, Use.OfCall) -> Any?,
     ) {
         var total = 0L
         corpus.quiet {
@@ -322,7 +323,7 @@ class ExpanderSourceBudgetHeavyTest : HeavyTestCase() {
         fun median(values: List<Long>): Long = values.sorted()[(values.size - 1) / 2]
 
         /** By nearest rank. */
-        fun p95(values: List<Long>): Long = values.sorted()[Math.ceil(0.95 * values.size).toInt() - 1]
+        fun p95(values: List<Long>): Long = values.sorted()[ceil(0.95 * values.size).toInt() - 1]
 
         fun time(nanos: Long): String =
             when {

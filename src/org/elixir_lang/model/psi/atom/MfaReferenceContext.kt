@@ -24,7 +24,8 @@ import org.elixir_lang.psi.impl.toBigInteger
 
 internal data class MfaReferenceContext(
     val moduleElement: PsiElement,
-    val arity: Int
+    /** `null` when the arity is not a literal, which Elixir does not check. */
+    val arity: Int?
 )
 
 /**
@@ -120,8 +121,8 @@ private fun moduleElement(element: PsiElement): PsiElement? =
         else -> null
     }
 
-private fun extractArity(element: PsiElement): Int = when (element) {
-    is WholeNumber -> element.toBigInteger()?.toInt() ?: -1
+private fun extractArity(element: PsiElement): Int? = when (element) {
+    is WholeNumber -> element.toBigInteger()?.toInt()
     is ElixirList -> element.children.size
-    else -> -1
+    else -> null
 }

@@ -113,7 +113,7 @@ class ShadowHeavyTest : HeavyTestCase() {
         val report = File(REPORTS, elixirVersion).apply { mkdirs() }
 
         if (seam) {
-            val uses = ReadAction.computeBlocking<List<Pair<PsiFile, Use?>>, Throwable> {
+            val uses = ReadAction.computeBlocking<List<Pair<PsiFile, Use.OfCall?>>, Throwable> {
                 uses(files).map { (file, call) -> file to Use.of(call) }
             }
             File(report, "$input.candidates.txt").writeText(candidates(root, uses))
@@ -126,7 +126,7 @@ class ShadowHeavyTest : HeavyTestCase() {
      * line both give but different numbers of times (`~ <walk's> to <expander's>`), after a count of each shape of
      * difference: its lines with the locations left out.
      */
-    private fun candidates(root: VirtualFile, uses: List<Pair<PsiFile, Use?>>): String =
+    private fun candidates(root: VirtualFile, uses: List<Pair<PsiFile, Use.OfCall?>>): String =
         ReadAction.computeBlocking<String, Throwable> {
             val moved = uses.flatMap { (file, use) ->
                 val label = use?.entrance?.textRange?.let { "${location(root, file, it)}  `${text(file, it)}`" } ?: "?"

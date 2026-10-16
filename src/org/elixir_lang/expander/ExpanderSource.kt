@@ -47,19 +47,22 @@ internal object ExpanderSource : CandidateSource {
     override fun candidates(use: Use, incompleteCode: Boolean): List<Found> {
         ThreadingAssertions.assertReadAccess()
 
-        return inputs(use.entrance)?.let { answer(use, it) }.orEmpty()
+        return when (use) {
+            is Use.OfCall -> inputs(use.entrance)?.let { answer(use, it) }.orEmpty()
+            is Use.Specified, is Use.Remote -> emptyList()
+        }
     }
 
     /** [use]'s candidates, its file expanded with [inputs] in place of its SDK's. */
     @TestOnly
     @RequiresReadLock
-    internal fun candidates(use: Use, inputs: ProjectModules.Inputs): List<Found> {
+    internal fun candidates(use: Use.OfCall, inputs: ProjectModules.Inputs): List<Found> {
         ThreadingAssertions.assertReadAccess()
 
         return answer(use, inputs)
     }
 
-    private fun answer(use: Use, inputs: ProjectModules.Inputs): List<Found> {
+    private fun answer(use: Use.OfCall, inputs: ProjectModules.Inputs): List<Found> {
         val call = use.entrance
         val at = at(call, inputs) ?: return emptyList()
         val name = (use as? Use.Named)?.name
@@ -67,9 +70,11 @@ internal object ExpanderSource : CandidateSource {
             val module = receiver(at, call) ?: return emptyList()
             inModule(at, module, name, use.arity, imports = false, emptySet())
         } else {
-            own(at, name, use.arity) +
-                imported(at, at.file, at.env, name, use.arity, emptySet()) +
-                specialForms(at, name, use.arity)
+            buildList {
+                addAll(own(at, name, use.arity))
+                addAll(imported(at, at.file, at.env, name, use.arity, emptySet()))
+                addAll(specialForms(at, name, use.arity))
+            }
         }
 
         return reached.mapNotNull { found(it, use) }
@@ -88,7 +93,11 @@ internal object ExpanderSource : CandidateSource {
             val module = receiver(at, position) ?: return emptyList()
             eachNameOnce(ofModule(at, module, null).filter { it.declaration.visibility != Visibility.PRIVATE })
         } else {
-            ownDefined(at, null) + importedDefined(at, at.file, at.env, null).map { it.defined } + specialFormsDefined(at, null)
+            buildList {
+                addAll(ownDefined(at, null))
+                importedDefined(at, at.file, at.env, null).mapTo(this) { it.defined }
+                addAll(specialFormsDefined(at, null))
+            }
         }
 
         return defined.map { Visible(it.declaration.name, it.declaration.name, it.declaration, it.element) }
@@ -453,7 +462,7 @@ internal object ExpanderSource : CandidateSource {
         }
     }
 
-    private fun found(reached: Reached, use: Use): Found? =
+    private fun found(reached: Reached, use: Use.OfCall): Found? =
         applicability(reached, use)?.let { applicability ->
             Found(
                 Candidate(reached.defined.declaration, reached.reach, applicability),
@@ -466,7 +475,7 @@ internal object ExpanderSource : CandidateSource {
      * As the walk decides it, where behind a delegation the name it calls is the name looked up, but a private
      * definition a remote call reaches is [Applicability.PRIVATE].
      */
-    private fun applicability(reached: Reached, use: Use): Applicability? {
+    private fun applicability(reached: Reached, use: Use.OfCall): Applicability? {
         val declaration = reached.defined.declaration
         val applicability = when (use) {
             is Use.Named -> Applicability.of(declaration, reached.searched ?: use.name, reached.named, use.arity, reached.heads)

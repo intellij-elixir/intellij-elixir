@@ -3,6 +3,7 @@ package org.elixir_lang.psi.impl
 import com.intellij.psi.*
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager.getCachedValue
+import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.atom.AtomReference
 import org.elixir_lang.model.psi.atom.GeneralAtomReference
@@ -38,6 +39,12 @@ fun PsiReference.maybeModularNameToModulars(incompleteCode: Boolean): Set<PsiNam
 
     return resolveResults.mapNotNull { it.element }.filterIsInstance<PsiNamedElement>().toSet()
 }
+
+/** Whether this element is code in an interpolation inside [quote], which runs, rather than [quote]'s literal text. */
+@RequiresReadLock
+fun PsiElement.isInterpolatedWithin(quote: PsiElement): Boolean =
+    PsiTreeUtil.getParentOfType(this, ElixirInterpolation::class.java, false)
+        ?.let { PsiTreeUtil.isAncestor(quote, it, true) } == true
 
 /**
  * The name the module this atom names is indexed and looked up by; `null` when the atom has no value, because it is

@@ -26,8 +26,8 @@ public class File extends IStubFileElementType<org.elixir_lang.psi.stub.File> {
      * earlier version are rebuilt. Parsing is version-aware, so that includes changes to how the language level is
      * resolved and not only changes to the grammar.
      */
-    public static final int VERSION = 21;
-    public static final IStubFileElementType INSTANCE = new File();
+    public static final int VERSION = 22;
+    public static final IStubFileElementType<org.elixir_lang.psi.stub.File> INSTANCE = new File();
 
     public File() {
         super("ELIXIR_FILE", ElixirLanguage.INSTANCE);
@@ -36,8 +36,9 @@ public class File extends IStubFileElementType<org.elixir_lang.psi.stub.File> {
     @Override
     public StubBuilder getBuilder() {
         return new DefaultStubBuilder() {
+            @NotNull
             @Override
-            protected StubElement createStubForFile(@NotNull PsiFile file) {
+            protected StubElement<?> createStubForFile(@NotNull PsiFile file) {
                 if (file instanceof ElixirFile) {
                     return new org.elixir_lang.psi.stub.File((ElixirFile) file);
                 }

@@ -17,6 +17,7 @@ import org.elixir_lang.psi.impl.headAtomValue
 import org.elixir_lang.psi.impl.moduleName
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.operation.Match
+import org.elixir_lang.psi.operation.When
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.CallDefinitionSpecification
 import org.elixir_lang.structure_view.element.Callback
@@ -51,6 +52,9 @@ interface SyntacticCall {
     fun argumentOf(): SyntacticCall?
 
     fun isMatchOperand(): Boolean
+
+    /** The `when` whose left operand is this call, as `name(a) when is_atom(a)` guards a head. */
+    fun guardOf(): SyntacticCall?
 
     /**
      * The call reached through parenthesised argument lists, a `do:` keyword and no-arguments calls, as `quote` reaches
@@ -128,9 +132,15 @@ private class PsiBacked(val call: Call) : SyntacticCall {
     override fun enclosingMacroCall(): SyntacticCall? = call.enclosingMacroCall()?.let(::PsiBacked)
 
     override fun argumentOf(): SyntacticCall? =
-        (call.parent as? Arguments)?.parent?.let { it as? Call }?.let(::PsiBacked)
+        (call.parent as? Arguments)?.parent
+            ?.let { if (it is ElixirMatchedParenthesesArguments) it.parent else it }
+            ?.let { it as? Call }
+            ?.let(::PsiBacked)
 
     override fun isMatchOperand(): Boolean = call.parent is Match
+
+    override fun guardOf(): SyntacticCall? =
+        (call.parent as? When)?.takeIf { it.leftOperand() === call }?.let(::PsiBacked)
 
     override fun bareArgumentOf(): SyntacticCall? {
         var element: PsiElement? = call.parent

@@ -10,11 +10,13 @@ import org.elixir_lang.NameArityInterval
 import org.elixir_lang.call.Visibility
 import org.elixir_lang.navigation.item_presentation.NameArity
 import org.elixir_lang.psi.*
+import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.name.Function.UNQUOTE
 import org.elixir_lang.psi.impl.PsiNamedElementImpl.unquoteName
 import org.elixir_lang.psi.impl.call.finalArguments
+import org.elixir_lang.psi.impl.headAtomQuotable
 import org.elixir_lang.psi.impl.headAtomValue
 import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
 import org.elixir_lang.psi.operation.Normalized.operatorIndex
@@ -49,12 +51,12 @@ class CallDefinitionHead(val callDefinition: CallDefinition, private val visibil
     override fun visibility(): Visibility = visibility
 
     companion object {
+        @RequiresReadLock
         fun enclosingDelegationCall(call: Call): Call? =
             enclosingDelegationCall(SyntacticCall.of(call))?.let(SyntacticCall::call)
 
-        // reverse of {@link org.elixir_lang.structure_view.element.Delegation.filterCallDefinitionHeadCallList()}
-        fun enclosingDelegationCall(call: SyntacticCall): SyntacticCall? =
-            call.headListOf()?.takeIf { Delegation.`is`(it) }
+        @RequiresReadLock
+        fun enclosingDelegationCall(call: SyntacticCall): SyntacticCall? = DeclaringForm.delegationOf(call)
 
         fun `is`(call: Call): Boolean = `is`(SyntacticCall.of(call))
 
@@ -72,6 +74,10 @@ class CallDefinitionHead(val callDefinition: CallDefinition, private val visibil
                     stripped
                 }
             }
+
+        /** The element a rename of [head]'s name rewrites: in `unquote(:name)(...)`, the atom. */
+        @RequiresReadLock
+        fun nameElement(head: PsiElement): PsiElement? = headAtomQuotable(head) ?: nameIdentifier(head)
 
         @RequiresReadLock
         fun nameArityInterval(head: PsiElement, state: ResolveState): NameArityInterval? =

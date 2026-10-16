@@ -97,7 +97,8 @@ object Declarations {
 
     private fun eexFunctionFrom(call: Call): List<Spelled> {
         val arguments = call.finalArguments() ?: return emptyList()
-        val atom = arguments.getOrNull(1)?.stripAccessExpression() as? ElixirAtom ?: return emptyList()
+        val atom = DeclaringForm.names(call, Form.EEX_FUNCTION_FROM).singleOrNull()?.stripAccessExpression() as? ElixirAtom
+            ?: return emptyList()
         val arity = if (arguments.size >= 4) {
             (arguments[3].stripAccessExpression() as? ElixirList)?.children?.size
                 ?.let { ArityKnowledge.Exact(it) }
@@ -120,7 +121,8 @@ object Declarations {
     }
 
     private fun generatorEmbed(call: Call): List<Spelled> {
-        val atom = call.finalArguments()?.firstOrNull()?.stripAccessExpression() as? ElixirAtom ?: return emptyList()
+        val atom = DeclaringForm.names(call, Form.GENERATOR_EMBED).singleOrNull()?.stripAccessExpression() as? ElixirAtom
+            ?: return emptyList()
         val suffix = call.functionName()?.removePrefix("embed_") ?: return emptyList()
         // `embed_template` defines `name_template/1` only, but the walk has always resolved `name_template()` too.
         val arity = when (suffix) {

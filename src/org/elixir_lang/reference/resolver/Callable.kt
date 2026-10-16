@@ -26,6 +26,8 @@ import org.elixir_lang.psi.scope.CallableTable
 import org.elixir_lang.psi.scope.VisitedElementSetResolveResult
 import org.elixir_lang.structure_view.element.Delegation
 import org.jetbrains.annotations.TestOnly
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentMap
 import java.util.concurrent.atomic.AtomicInteger
 
 object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Callable> {
@@ -37,9 +39,10 @@ object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Cal
             .toTypedArray()
     }
 
-    private val WALK = Key<CachedValue<List<VisitedElementSetResolveResult>>>("org.elixir_lang.reference.resolver.Callable.WALK")
+    private val WALK =
+        Key<CachedValue<ConcurrentMap<Arity, List<VisitedElementSetResolveResult>>>>("org.elixir_lang.reference.resolver.Callable.WALK")
     private val INCOMPLETE_CODE_WALK =
-        Key<CachedValue<List<VisitedElementSetResolveResult>>>("org.elixir_lang.reference.resolver.Callable.INCOMPLETE_CODE_WALK")
+        Key<CachedValue<ConcurrentMap<Arity, List<VisitedElementSetResolveResult>>>>("org.elixir_lang.reference.resolver.Callable.INCOMPLETE_CODE_WALK")
     private val walks = AtomicInteger()
 
     /** The calls whose walk is under way on this thread, for complete or incomplete code. */
@@ -47,7 +50,12 @@ object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Cal
 
     /** What the walk finds for [call] before `Resolver.preferred` narrows it, which `multiResolve` and the candidates share. */
     @RequiresReadLock
-    fun walk(call: Call, incompleteCode: Boolean): List<VisitedElementSetResolveResult> {
+    fun walk(call: Call, incompleteCode: Boolean): List<VisitedElementSetResolveResult> =
+        walk(call, Unquote.arity(call), incompleteCode)
+
+    /** What the walk finds for [call] used at [arity], as a capture's name is used at the capture's arity. */
+    @RequiresReadLock
+    fun walk(call: Call, arity: Arity, incompleteCode: Boolean): List<VisitedElementSetResolveResult> {
         ThreadingAssertions.assertReadAccess()
 
         val walking = walking.get()
@@ -59,21 +67,29 @@ object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Cal
         }
 
         try {
-            return CachedValuesManager.getManager(call.project).getCachedValue(
+            val byArity = CachedValuesManager.getManager(call.project).getCachedValue(
                 call,
                 if (incompleteCode) INCOMPLETE_CODE_WALK else WALK,
                 {
-                    walks.incrementAndGet()
-
                     // The file as well: a non-physical file's edits do not move MODIFICATION_COUNT.
                     CachedValueProvider.Result.create(
-                        resolveAll(call, Unquote.arity(call), incompleteCode),
+                        ConcurrentHashMap(),
                         PsiModificationTracker.MODIFICATION_COUNT,
                         call.containingFile
                     )
                 },
                 false
             )
+
+            return byArity[arity] ?: run {
+                walks.incrementAndGet()
+                // The walk runs outside the cached value's provider, so its recursion guard does not see a walk that
+                // recursion prevention cut short.
+                val stamp = RecursionManager.markStack()
+                val walked = resolveAll(call, arity, incompleteCode)
+
+                if (stamp.mayCacheNow()) byArity.putIfAbsent(arity, walked) ?: walked else walked
+            }
         } finally {
             if (started) {
                 walking.remove(call)

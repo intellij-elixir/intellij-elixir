@@ -23,7 +23,7 @@ class OrderTest : PlatformTestCase() {
         assertOrder("order", "order.ex:2:23", "multiResolve", listOf("imported.ex:2:3", "order.ex:3:3", "order.ex:4:3"))
 
     fun testDelegationStopStaysInsideTheDelegation() =
-        assertOrder("forms", "forms.ex:9:15", "walk", listOf("forms.ex:9:3", "forms.ex:4:3", "forms.ex:5:3 (invalid)"))
+        assertOrder("forms", "forms.ex:55:16", "walk", listOf("forms.ex:9:3", "forms.ex:4:3", "forms.ex:5:3 (invalid)"))
 
     /** [use]'s answers equal walking the module's, unsorted, and its [kind] answer is [expected] in that order. */
     private fun assertOrder(directory: String, use: String, kind: String, expected: List<String>) {

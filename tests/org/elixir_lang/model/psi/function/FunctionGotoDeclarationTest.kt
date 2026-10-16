@@ -7,8 +7,8 @@ import org.elixir_lang.code_insight.assertGotoDeclarationChosenAtCaret
 import org.elixir_lang.code_insight.assertGotoDeclarationLandsIn
 import org.elixir_lang.code_insight.assertNoNavigationAtCaret
 import org.elixir_lang.code_insight.enclosingCallAtCaret
+import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
 import org.elixir_lang.psi.CallDefinitionClause
-import org.elixir_lang.structure_view.element.Delegation
 
 /**
  * Behavior-level tests for reverse navigation: "Go To Declaration" on a call site navigates to
@@ -38,10 +38,23 @@ class FunctionGotoDeclarationTest : PlatformTestCase() {
         myFixture.assertGotoDeclarationLandsIn("perform", "a def clause") { CallDefinitionClause.`is`(it) }
     }
 
-    /** A `@spec` above a `defdelegate` names the function the delegation defines, so Go To Declaration lands on it. */
-    fun testGoToDeclarationFromSpecLandsOnDelegation() {
+    /** A `@spec` above a `defdelegate` names the delegation, whose Go To Declaration lands on what it delegates to. */
+    fun testGoToDeclarationFromSpecLandsOnTheDelegationsTarget() {
         myFixture.configureByFiles("goto_declaration_spec_delegation.ex")
-        myFixture.assertGotoDeclarationLandsIn("size", "a defdelegate") { Delegation.`is`(it) }
+        myFixture.assertGotoDeclarationLandsIn("count", "Counter's def") { CallDefinitionClause.`is`(it) }
+    }
+
+    /** A use of a delegation lands on every clause of what it delegates to, as a call of that function does. */
+    fun testGoToDeclarationFromAUseOfADelegationLandsOnEveryTargetClause() {
+        val target = "defmodule T do\n  def f(0), do: 0\n  def f(x), do: x\nend\n"
+        myFixture.addFileToProject("t.ex", target)
+        myFixture.addFileToProject("m.ex", "defmodule M do\n  defdelegate f(x), to: T\nend\n")
+        myFixture.configureByText("u.ex", "defmodule U do\n  def run, do: M.<caret>f(1)\nend\n")
+
+        assertEquals(
+            listOf("t.ex" to target.indexOf("f(0)"), "t.ex" to target.indexOf("f(x)")),
+            myFixture.gotoDeclarationTargetsAtCaret()?.map { it.destination?.containingFile?.name to it.destination?.textOffset }
+        )
     }
 
     /** The reference at the call site must resolve to at least one [FunctionSymbol]. */

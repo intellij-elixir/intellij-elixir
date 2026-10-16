@@ -6,6 +6,7 @@ import com.intellij.injected.editor.VirtualFileWindow
 import com.intellij.lang.html.HTMLLanguage
 import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.model.Pointer
+import com.intellij.model.Symbol
 import com.intellij.model.psi.PsiSymbolReferenceService
 import com.intellij.model.search.SearchContext
 import com.intellij.model.search.SearchService
@@ -31,6 +32,7 @@ import com.intellij.util.Query
 import com.intellij.util.UniqueResultsQuery
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.ElixirLanguage
+import org.elixir_lang.declaration.Use
 import org.elixir_lang.heex.HeexLanguage
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.lowering.identifierAtomName
@@ -46,6 +48,7 @@ import org.elixir_lang.model.psi.callback.CallbackImplementation
 import org.elixir_lang.model.psi.function.FunctionArityKeywordPairReference
 import org.elixir_lang.model.psi.function.FunctionSymbol
 import org.elixir_lang.model.psi.function.SpecFunctionReference
+import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.model.psi.module.ModuleReference
 import org.elixir_lang.model.psi.module.ModuleSymbol
 import org.elixir_lang.model.psi.module_attribute.ModuleAttributeReference
@@ -62,6 +65,7 @@ import org.elixir_lang.model.psi.words.WordOccurrenceMapper
 import org.elixir_lang.model.psi.words.buildQueryFromLeaves
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.call.name.Function.*
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.moduleAttributeName
@@ -90,12 +94,11 @@ import java.util.concurrent.Callable as JCallable
  *   definitions (so rename keeps every implementation in sync, and Find Usages lists what rename touches).
  * - A [FunctionSymbol] that implements a callback or a protocol function also contributes everything that member does.
  * - A [FunctionSymbol] additionally contributes each **call site** that dispatches to it.
- *   Qualified calls (`Module.function(args)`) are matched via [Call.isCalling]; unqualified calls
- *   require scope resolution and are resolved by delegating to the legacy [Callable] walker.
+ *   Qualified calls (`Module.function(args)`) are matched by the Symbols the preference step gives them; unqualified
+ *   calls require scope resolution and are resolved by delegating to the legacy [Callable] walker.
  *
  * Candidates are found by a name-anchored text search (efficient, only visits files containing the
- * name); behaviour membership is resolved via [BehaviourMembership]; call-site dispatch is resolved
- * via [Call.isCalling].
+ * name); behaviour membership is resolved via [BehaviourMembership].
  */
 @Suppress("UnstableApiUsage")
 internal object ElixirUsageQueries {
@@ -105,6 +108,25 @@ internal object ElixirUsageQueries {
         target: ElixirSymbolWithUsages,
         searchScope: SearchScope
     ): Collection<Query<out Usage>> {
+        val queries = ownSearchRequests(project, target, searchScope)
+        val implemented = (target as? ElixirRenameTarget)?.renamedWith().orEmpty()
+        if (implemented.isEmpty()) return queries
+
+        val all = queries + implemented.flatMap { ownSearchRequests(project, it, searchScope) }
+
+        return listOf(
+            UniqueResultsQuery(all.reduce { merged, next -> MergeQuery(merged, next) }) { usage ->
+                (usage as? PsiUsage)?.let { it.file to it.range } ?: usage
+            }
+        )
+    }
+
+    @RequiresReadLock
+    private fun ownSearchRequests(
+        project: Project,
+        target: ElixirSymbolWithUsages,
+        searchScope: SearchScope
+    ): List<Query<out Usage>> {
         val queries = mutableListOf<Query<out Usage>>()
         queries += ElixirDirectUsageQuery(
             ElixirPsiUsage.create(
@@ -147,19 +169,7 @@ internal object ElixirUsageQueries {
             }
         }
 
-        // A function that implements a callback or a protocol function is one symbol with it: a use of the function is a
-        // use of the member, so a rename from a call to the function, or from an atom naming it, also renames the member
-        // and every implementation.
-        val implemented = (target as? ElixirRenameTarget)?.renamedWith().orEmpty()
-        if (implemented.isEmpty()) return queries
-
-        val all = queries + implemented.flatMap { searchRequests(project, it, searchScope) }
-
-        return listOf(
-            UniqueResultsQuery(all.reduce { merged, next -> MergeQuery(merged, next) }) { usage ->
-                (usage as? PsiUsage)?.let { it.file to it.range } ?: usage
-            }
-        )
+        return queries
     }
 
     /**
@@ -392,8 +402,7 @@ internal object ElixirUsageQueries {
 
     /**
      * Maps each occurrence of a protocol function name to a **call site** that dispatches to it, if any.
-     * A call site is a qualified call `Protocol.function(args)` (of matching name/arity) whose resolved
-     * module is the protocol.
+     * A call site is a qualified call `Protocol.function(args)` the preference step resolves to the protocol function.
      */
     private class ProtocolCallSiteMapper(
         private val protocolFunctionPointer: Pointer<out ProtocolFunction>
@@ -410,10 +419,7 @@ internal object ElixirUsageQueries {
             val nameElement = call.functionNameElement() ?: return emptyList()
             if (!PsiTreeUtil.isAncestor(nameElement, leaf, false)) return emptyList()
 
-            // The call must dispatch to this protocol function: `<protocolName>.<name>/<arity>`.
-            if (!call.isCalling(protocolFunction.protocolName, protocolFunction.name, protocolFunction.arity)) {
-                return emptyList()
-            }
+            if (!call.names(protocolFunction)) return emptyList()
 
             return listOf(
                 ElixirPsiUsage.create(
@@ -870,7 +876,6 @@ internal object ElixirUsageQueries {
     /**
      * Maps each occurrence of a function name to a **call site** for the given [FunctionSymbol].
      *
-     * Qualified calls (`Module.function(args)`) are matched by name/arity without scope resolution.
      * Unqualified calls are resolved via the legacy [Callable] scope-walker. With [unreachedOnly] it maps component
      * tags and calls in documentation code blocks alone, which [DecodedWordQuery] does not walk.
      */
@@ -926,14 +931,17 @@ internal object ElixirUsageQueries {
         }
 
         /**
-         * Whether [call] is a call site for [symbol]: a qualified call (`Module.name/arity`) or an
-         * unqualified call resolved via the legacy [Callable] scope-walker.
+         * Whether [call] is a call site for [symbol]: a qualified call the preference step resolves to it, an
+         * unqualified call of its module, name and arity, or one resolved via the legacy [Callable] scope-walker.
          */
         @RequiresReadLock
         private fun matchesCallSite(call: Call, symbol: FunctionSymbol): Boolean =
-            if (call.resolvedModuleName() == symbol.moduleName &&
-                call.functionName() == symbol.name &&
-                call.resolvedFinalArity() == symbol.arity &&
+            if ((call.names(symbol) ||
+                    call !is Qualified &&
+                    call.resolvedModuleName()?.let { FunctionSymbol.Owner(it, injected = false) } ==
+                    FunctionSymbol.Owner(symbol.moduleName, symbol.injected) &&
+                    call.functionName() == symbol.name &&
+                    call.resolvedFinalArity() == symbol.arity) &&
                 !FunctionSymbol.isHelper(symbol)
             ) {
                 true
@@ -1316,6 +1324,16 @@ private val MODULE_ATTRIBUTE_WRITE = UsageType { "Module attribute accumulate or
 private val VALUE_READ = UsageType { "Value read" }
 
 private val VALUE_WRITE = UsageType { "Value write" }
+
+/**
+ * Whether this is a qualified call the preference step resolves to [symbol], so a nested module's short and full names
+ * are one. A call at an arity [symbol] does not admit names it only as a [org.elixir_lang.model.psi.function.NearMiss],
+ * which is no call site.
+ */
+@Suppress("UnstableApiUsage")
+@RequiresReadLock
+private fun Call.names(symbol: Symbol): Boolean =
+    this is Qualified && (Use.of(this) as? Use.Named)?.let { symbol in UseSymbols.admitted(it) } == true
 
 private fun PsiElement.enclosingCalls(): Sequence<Call> =
         generateSequence(parent) { it.parent }.takeWhile { it !is PsiFile }.filterIsInstance<Call>()

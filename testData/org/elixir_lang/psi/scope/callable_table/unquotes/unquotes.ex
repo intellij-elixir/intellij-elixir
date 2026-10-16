@@ -26,4 +26,5 @@ defmodule Unquotes do
   Mix.Generator.embed_text(:"embed quoted", "")
   def use_literal, do: literal(1)
   def use_quoted_literal, do: unquote(:"quoted literal")(1)
+  def use_del_literal, do: unquote(:del_literal)(1)
 end

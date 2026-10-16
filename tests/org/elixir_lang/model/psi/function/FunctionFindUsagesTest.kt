@@ -1,6 +1,8 @@
 package org.elixir_lang.model.psi.function
 
+import com.intellij.codeInsight.TargetElementUtil
 import com.intellij.find.usages.api.PsiUsage
+import com.intellij.psi.PsiElement
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
 import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaret
@@ -14,6 +16,15 @@ import org.elixir_lang.psi.call.Call
  */
 class FunctionFindUsagesTest : PlatformTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/model/psi/function"
+
+    /** Find Usages at a call of a one-clause function offers its Symbol alone, not the `def` call beside it. */
+    fun testCallOfAOneClauseFunctionOffersNoSecondTarget() {
+        myFixture.configureByText("m.ex", "defmodule M do\n  def f(x), do: x\n\n  def run, do: <caret>f(1)\nend\n")
+        val reference = TargetElementUtil.findReference(myFixture.editor, myFixture.caretOffset)
+            ?: error("no reference at the call")
+
+        assertEquals(emptyList<PsiElement>(), TargetElementUtil.getInstance().getTargetCandidates(reference).toList())
+    }
 
     fun testSameModuleUnqualifiedCallSiteIsFound() {
         assertTrue(
@@ -69,6 +80,14 @@ class FunctionFindUsagesTest : PlatformTestCase() {
         )
     }
 
+    /** A bare call reaches `Kernel` without an `import`. */
+    fun testBareCallToAKernelFunctionIsFound() {
+        myFixture.addFileToProject("use.ex", "defmodule Use do\n  def run(x), do: kernel_only(x)\nend\n")
+        myFixture.configureByText("kernel.ex", "defmodule Kernel do\n  def <caret>kernel_only(x), do: x\nend\n")
+
+        assertEquals(1, callSiteCount(myFixture.singleTargetPsiUsagesAtCaret(project)))
+    }
+
     fun testRecursiveFunctionIncludesFamilyDeclarationsAndCallSite() {
         val (totalCount, callSiteCount) = functionUsageCounts("recursive_family.ex")
         assertEquals(3, totalCount)
@@ -105,6 +124,76 @@ class FunctionFindUsagesTest : PlatformTestCase() {
     fun testUnresolvedDelegationLocalCallIsFoundFromTheLocalCall() =
         assertUnresolvedDelegationUsages("def go(x), do: run(x)")
 
+    /** A guard's clauses and the uses of it are one function family, whichever kind its Symbol is. */
+    @Suppress("UnstableApiUsage")
+    fun testDefguardFindsItsClausesAndItsUses() {
+        myFixture.addFileToProject(
+            "use.ex",
+            "defmodule U do\n  require G\n\n  def run(x) when G.small(x), do: x\nend\n"
+        )
+        myFixture.configureByText(
+            "g.ex",
+            "defmodule G do\n  defguard <caret>small(x) when is_integer(x) and x < 10\n  defguard small(x) when is_float(x) and x < 10.0\n\n  def local(x) when small(x), do: x\nend\n"
+        )
+
+        val lines = myFixture.singleTargetPsiUsagesAtCaret(project)
+            .map { usage ->
+                val text = usage.file.text
+                "${usage.file.name}: ${text.lines()[text.take(usage.range.startOffset).count { it == '\n' }].trim()}"
+            }
+            .sorted()
+
+        assertEquals(
+            listOf(
+                "g.ex: def local(x) when small(x), do: x",
+                "g.ex: defguard small(x) when is_float(x) and x < 10.0",
+                "g.ex: defguard small(x) when is_integer(x) and x < 10",
+                "use.ex: def run(x) when G.small(x), do: x"
+            ),
+            lines
+        )
+    }
+
+    /** A `@spec` of a function with defaults names what its head declares, so Find Usages lists what the head's does. */
+    fun testSpecOfAFunctionWithDefaultsFindsWhatItsHeadFinds() {
+        myFixture.addFileToProject(
+            "use.ex",
+            """
+            defmodule Use do
+              import M, only: [x: 1, x: 2]
+
+              def call(a, b), do: {x(a), M.x(a, b)}
+              def capture, do: {&M.x/1, &M.x/2}
+            end
+            """.trimIndent() + "\n"
+        )
+        myFixture.configureByText(
+            "m.ex",
+            """
+            defmodule M do
+              @spec <caret>x(term, term) :: term
+              def x(a, b \\ nil), do: {a, b}
+            end
+            """.trimIndent() + "\n"
+        )
+        val fromSpec = usageLinesAtCaret()
+        myFixture.editor.caretModel.moveToOffset(myFixture.file.text.indexOf("def x") + "def ".length)
+        val fromHead = usageLinesAtCaret()
+
+        assertTrue("the head's usages include its calls", fromHead.any { it.endsWith("def call(a, b), do: {x(a), M.x(a, b)}") })
+        assertEquals(fromHead, fromSpec)
+    }
+
+    @Suppress("UnstableApiUsage")
+    private fun usageLinesAtCaret(): List<String> =
+        myFixture.singleTargetPsiUsagesAtCaret(project)
+            .map { usage ->
+                val text = usage.file.text
+                "${usage.file.name}:${usage.range.startOffset}: ${text.lines()[text.take(usage.range.startOffset).count { it == '\n' }].trim()}"
+            }
+            .sorted()
+
+    @Suppress("UnstableApiUsage")
     private fun assertUnresolvedDelegationUsages(caretLine: String) {
         myFixture.configureByFiles("usages_unresolved_delegation.ex")
         myFixture.editor.caretModel.moveToOffset(myFixture.file.text.indexOf(caretLine) + caretLine.indexOf("run") + 1)

@@ -3,6 +3,7 @@ package org.elixir_lang.model.psi.protocol
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Definer
 import org.elixir_lang.psi.DefinitionDeclaration
@@ -48,6 +49,14 @@ class ProtocolImplementationTest : PlatformTestCase() {
         assertFalse("another name", implementedBy(member, "def count(data)"))
         assertFalse("a disjoint arity", implementedBy(member, "def size(data, opts)"))
         assertTrue("defaults cover the arity", implementedBy(member, "def size(data, opts \\\\ [])"))
+    }
+
+    /** Only an EEx `function_from_*` with a non-literal arguments list has an arity not yet knowable. */
+    fun testAnUnknownArityImplementsNothing() {
+        val member = declarations("def size(data)").single()
+        val implementer = declarations("def size(x)").single().copy(arity = ArityKnowledge.Unknown)
+
+        assertFalse(ProtocolImplementation.implementedBy(member, implementer))
     }
 
     fun testAProtocolFunctionSymbolIsImplementedAtItsArityOnly() {

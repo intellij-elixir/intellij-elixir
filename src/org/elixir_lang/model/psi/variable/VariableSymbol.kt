@@ -31,6 +31,7 @@ import org.elixir_lang.psi.impl.PsiNamedElementImpl
 import org.elixir_lang.psi.impl.declarations.UseScopeImpl
 import org.elixir_lang.psi.call.name.Function
 import org.elixir_lang.psi.call.name.Module
+import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.psi.scope.variable.BindingPattern
 import org.elixir_lang.psi.scope.variable.MultiResolve
 import java.util.*
@@ -262,7 +263,7 @@ class VariableSymbol(
          */
         @RequiresReadLock
         fun isDeclaration(element: PsiElement): Boolean {
-            if (classify(element) == null || CallDefinitionClause.isHead(element)) return false
+            if (classify(element) == null || DeclaringForm.named(element) != null) return false
             if (BindingPattern.of(element) != null) return true
             if (BindingPattern.isGuardRead(element) || BindingPattern.isMatchRead(element)) return false
 

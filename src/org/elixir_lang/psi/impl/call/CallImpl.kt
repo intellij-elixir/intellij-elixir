@@ -27,6 +27,7 @@ import org.elixir_lang.psi.qualification.Qualified
 import org.elixir_lang.psi.qualification.Unqualified
 import org.elixir_lang.psi.scope.WhileIn.whileIn
 import org.elixir_lang.psi.scope.ancestorTypeSpec
+import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.psi.stub.call.Stub
 import org.elixir_lang.reference.Callable
 import org.elixir_lang.reference.Callable.Companion.isBitStreamSegmentOption
@@ -41,9 +42,8 @@ import org.elixir_lang.psi.operation.not_in.Normalized as NotInNormalized
 fun Call.computeReference(): PsiReference? =
     /* if the call is just the identifier for a module attribute reference, then don't return a Callable reference,
            and instead let the dedicated module-attribute reference path handle it */
-    // Any element in the head of a call-definition clause is a declaration name, not a call site.
-    // Protocol heads were already guarded this way; now the full CDC family is covered.
-    if (CallDefinitionClause.isHead(this)) {
+    // A name a declaring form declares is a declaration, not a call site.
+    if (DeclaringForm.named(this) != null) {
         null
     } else if (!this.isModuleAttributeNameElement() &&
         // if a bitstring segment option then the option is a pseudo-function

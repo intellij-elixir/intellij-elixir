@@ -4,8 +4,8 @@ import com.intellij.find.usages.api.SearchTarget
 import com.intellij.find.usages.api.UsageHandler
 import com.intellij.icons.AllIcons
 import com.intellij.model.Pointer
-import com.intellij.model.Symbol
-import com.intellij.openapi.progress.ProcessCanceledException
+import com.intellij.navigation.NavigatableSymbol
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
 import com.intellij.platform.backend.navigation.NavigationRequest
 import com.intellij.platform.backend.navigation.NavigationTarget
@@ -17,18 +17,26 @@ import com.intellij.psi.SmartPointerManager
 import com.intellij.psi.search.SearchScope
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.declaration.Capabilities
+import org.elixir_lang.declaration.Form
+import org.elixir_lang.declaration.Presentation
 import org.elixir_lang.model.psi.ElixirRenameTarget
 import org.elixir_lang.model.psi.ElixirSymbolWithUsages
 import org.elixir_lang.model.psi.callback.CallbackImplementation
 import org.elixir_lang.model.psi.protocol.ProtocolFunction
 import org.elixir_lang.model.psi.protocol.ProtocolImplementation
-import org.elixir_lang.navigation.ElixirClausePresentation
+import org.elixir_lang.navigation.DeclarationHead
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.DefinitionDeclaration
 import org.elixir_lang.psi.Implementation
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.call.SyntacticCall
+import org.elixir_lang.psi.impl.call.CanonicallyNamedImpl
+import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
+import org.elixir_lang.psi.scope.call_definition_clause.Declarations
+import org.elixir_lang.psi.stub.type.call.Stub
 import org.elixir_lang.structure_view.element.Delegation
 import java.util.*
 
@@ -39,7 +47,7 @@ import java.util.*
  * "Usages" are the call sites that invoke it, computed by `ElixirSymbolUsageSearcher`.
  *
  * NOTE: intentionally a regular class, not a `data class` - [equals]/[hashCode] are by semantic
- * identity `(moduleName, name, arity, macro)` and must NOT include [file]/[range].
+ * identity `(moduleName, name, arity, macro, injected)` and must NOT include [file]/[range].
  */
 @Suppress("UnstableApiUsage")
 class FunctionSymbol(
@@ -48,8 +56,10 @@ class FunctionSymbol(
     val moduleName: String,
     val name: String,
     val arity: Int,
-    val macro: Boolean
-) : ElixirRenameTarget, NavigationTarget, SearchTarget {
+    val macro: Boolean,
+    /** Written in a `quote` that [moduleName] injects, so it is no definition of [moduleName]'s own. */
+    val injected: Boolean = false
+) : ElixirRenameTarget, NavigatableSymbol, SearchTarget {
 
     override val searchText: String get() = name
     override val targetName: String get() = name
@@ -59,33 +69,49 @@ class FunctionSymbol(
         val name = this.name
         val arity = this.arity
         val macro = this.macro
-        // Anchor to the enclosing call-definition clause (a stable ancestor) rather than to the
-        // name-identifier element or a bare file range: an in-place (Shift+F6) rename fully replaces
-        // the identifier's text, which swaps out the identifier leaf (collapsing a pointer anchored to
-        // it) and collapses a plain range marker to an empty range - either way the subsequent
-        // programmatic commit edits the wrong range and applies nothing. The clause survives the
-        // identifier replacement, so its name-identifier range is recomputed correctly on restore.
-        val clause = madeFromClause(file, range)
-        if (clause != null) {
-            val clausePointer = SmartPointerManager.getInstance(file.project)
-                .createSmartPsiElementPointer(clause, file)
+        val injected = this.injected
+        // Anchor to the declaring call (a stable ancestor) rather than to the name element or a bare file range: an
+        // in-place (Shift+F6) rename fully replaces the name's text, which swaps out the name leaf (collapsing a
+        // pointer anchored to it) and collapses a plain range marker to an empty range - either way the subsequent
+        // programmatic commit edits the wrong range and applies nothing. The declaring call survives the name's
+        // replacement, so its name's range is recomputed correctly on restore.
+        val anchor = anchor()
+        if (anchor != null) {
+            val (call, form) = anchor
+            val callPointer = SmartPointerManager.getInstance(file.project).createSmartPsiElementPointer(call, file)
             return Pointer {
-                val restoredClause = clausePointer.dereference() ?: return@Pointer null
-                val restoredRange = CallDefinitionClause.nameIdentifier(restoredClause)?.textRange
-                    ?: return@Pointer null
-                FunctionSymbol(restoredClause.containingFile, restoredRange, moduleName, name, arity, macro)
+                val restored = callPointer.dereference() ?: return@Pointer null
+                val restoredName = DeclaringForm.names(restored, form).singleOrNull() ?: return@Pointer null
+                val restoredRange = UseSymbols.nameRange(restoredName)
+
+                FunctionSymbol(restored.containingFile, restoredRange, moduleName, name, arity, macro, injected)
             }
         }
         return Pointer.fileRangePointer(file, range) { restoredFile, restoredRange ->
-            FunctionSymbol(restoredFile, restoredRange, moduleName, name, arity, macro)
+            FunctionSymbol(restoredFile, restoredRange, moduleName, name, arity, macro, injected)
         }
     }
 
-    // --- NavigationTarget ---
-    override fun computePresentation(): TargetPresentation = presentation()
+    // --- NavigatableSymbol ---
+    /** A delegation's Go To lands on every declaration of what it delegates to, or on the delegation when that is nothing. */
+    @RequiresReadLock
+    override fun getNavigationTargets(project: Project): Collection<NavigationTarget> =
+        anchor()
+            ?.takeIf { it.form == Form.DELEGATION }
+            ?.let { UseSymbols.delegatedTo(it.call) }
+            // A target that is a delegation too is landed on, not followed.
+            ?.mapNotNull { target -> (target as? FunctionSymbol)?.let(::Place) ?: target as? NavigationTarget }
+            ?.ifEmpty { null }
+            ?: listOf(Place(this))
 
-    override fun navigationRequest(): NavigationRequest? =
-        NavigationRequest.sourceNavigationRequest(file, range)
+    /** Where [symbol] is declared, as a row of Go To. */
+    private class Place(private val symbol: FunctionSymbol) : NavigationTarget {
+        override fun createPointer(): Pointer<out NavigationTarget> = Pointer.delegatingPointer(symbol.createPointer(), ::Place)
+
+        override fun computePresentation(): TargetPresentation = symbol.presentation()
+
+        override fun navigationRequest(): NavigationRequest? = NavigationRequest.sourceNavigationRequest(symbol.file, symbol.range)
+    }
 
     // --- SearchTarget ---
     override val maximalSearchScope: SearchScope? get() = null
@@ -94,47 +120,145 @@ class FunctionSymbol(
         get() = UsageHandler.createEmptyUsageHandler("$name/$arity")
 
     override fun presentation(): TargetPresentation =
-        TargetPresentation.builder(clausePresentationText() ?: "$moduleName.$name/$arity")
+        TargetPresentation.builder(headText() ?: "$moduleName.$name/$arity")
             .containerText(moduleName)
             .icon(if (macro) AllIcons.Nodes.AbstractMethod else AllIcons.Nodes.Method)
             .presentation()
 
+    /** The declaring call whose name this Symbol's range is. */
     @RequiresReadLock
-    private fun clausePresentationText(): String? {
-        val leaf = file.findElementAt(range.startOffset) ?: return null
-        val clause = generateSequence(leaf) { it.parent }
-            .filterIsInstance<Call>()
-            .firstOrNull { CallDefinitionClause.`is`(it) }
-            ?: return null
+    private fun anchor(): DeclaringForm.Declaring? =
+        file.findElementAt(range.startOffset)
+            ?.let(DeclaringForm::named)
+            ?.takeIf { (call, form) -> DeclaringForm.names(call, form).singleOrNull()?.let(UseSymbols::nameRange) == range }
 
-        return ElixirClausePresentation.elementText(clause)
+    @RequiresReadLock
+    private fun headText(): String? {
+        val (call, form) = anchor() ?: return null
+        val declaration = Declarations.named(form, call, name) ?: return null
+
+        return DeclarationHead.text(declaration, call)
     }
 
     /**
      * The callbacks and protocol functions the definition this symbol is made from, a clause or a `defdelegate`,
-     * implements.
+     * implements. Made from a protocol's own declaration, as an atom's symbol can be, it is that protocol function.
      */
     @RequiresReadLock
     fun implementedMembers(): List<ElixirSymbolWithUsages> =
         madeFromDefinition(file, range)
-            ?.let { CallbackImplementation.implementedCallbacks(it) + ProtocolImplementation.membersImplementedBy(it) }
+            ?.let {
+                buildList {
+                    addAll(CallbackImplementation.implementedCallbacks(it))
+                    addAll(ProtocolImplementation.membersImplementedBy(it))
+                    addAll(ProtocolFunction.fromClause(it).filter { member -> member.arity == arity })
+                }
+            }
             .orEmpty()
 
+    /**
+     * What a rename of this Symbol also renames: what it implements, and for a delegation without `as:`, whose head
+     * names its targets too, those targets, each with what it implements and delegates to in turn.
+     */
     @RequiresReadLock
-    override fun renamedWith(): List<ElixirSymbolWithUsages> = implementedMembers()
+    override fun renamedWith(): List<ElixirSymbolWithUsages> =
+        (reachable<ElixirSymbolWithUsages>(this) { (it as? FunctionSymbol)?.renamedDirectlyWith().orEmpty() } - this).toList()
+
+    @RequiresReadLock
+    private fun renamedDirectlyWith(): List<ElixirSymbolWithUsages> =
+        implementedMembers() +
+            anchor()
+                ?.call
+                ?.takeIf { Delegation.headKeepsTargetName(it) }
+                ?.let { UseSymbols.delegatedTo(it).filterIsInstance<ElixirSymbolWithUsages>() }
+                .orEmpty()
+
+    /**
+     * A delegation without `as:` calls its target by its head's name, so renaming the head without the target breaks it
+     * when the target is not found, and `as:` can only be added to options that are a keyword list.
+     */
+    @RequiresReadLock
+    override fun delegationRefusal(): String? =
+        anchor()
+            ?.call
+            ?.takeIf { Delegation.headKeepsTargetName(it) }
+            ?.let { call ->
+                if (!Delegation.optionsAreKeywordList(call)) {
+                    "its options are not a keyword list, so `as:` cannot be added"
+                } else {
+                    UseSymbols.unfoundTarget(call)?.let { "its target $it is not found" }
+                }
+            }
+
+    /**
+     * An embed's or `defexception`'s call does not write the function's name, an EEx function's local calls are not
+     * found as its uses, and a function a `quote` injects is called in modules not known until it is used, so a rename
+     * of what they declare would not rewrite it whole.
+     */
+    @get:RequiresReadLock
+    override val declaringMacro: String?
+        get() = if (injected) "quote" else file.findElementAt(range.startOffset)
+            ?.let(DeclaringForm::enclosing)
+            ?.takeIf { (_, form) ->
+                when (form) {
+                    Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED, Form.EXCEPTION -> true
+                    Form.CLAUSE, Form.DELEGATION, Form.CALLBACK -> false
+                }
+            }
+            ?.call
+            ?.functionName()
 
     override fun equals(other: Any?): Boolean =
         other is FunctionSymbol &&
             other.moduleName == moduleName &&
             other.name == name &&
             other.arity == arity &&
-            other.macro == macro
+            other.macro == macro &&
+            other.injected == injected
 
-    override fun hashCode(): Int = Objects.hash(moduleName, name, arity, macro)
+    override fun hashCode(): Int = Objects.hash(moduleName, name, arity, macro, injected)
 
-    override fun toString(): String = "FunctionSymbol($moduleName.$name/$arity, macro=$macro)"
+    override fun toString(): String =
+        "FunctionSymbol($moduleName.$name/$arity, macro=$macro${if (injected) ", injected" else ""})"
+
+    /** The module a definition keys to, [injected] when the definition is written in a `quote` inside it. */
+    data class Owner(val moduleName: String, val injected: Boolean)
 
     companion object {
+        /** Whether a declaration with [capabilities] is presented as a macro: a guard is, as it is expanded at compile time. */
+        fun isMacro(capabilities: Capabilities): Boolean =
+            when (capabilities.presentation) {
+                Presentation.FUNCTION -> false
+                Presentation.MACRO, Presentation.GUARD -> true
+            }
+
+        /**
+         * The module a function defined directly in [modular] keys to: a `defmodule`'s or `defprotocol`'s canonical
+         * name, nested in the modules around it, and a `defimpl`'s protocol, so every implementation of a function is
+         * one. A module whose name is computed, `defmodule unquote(name)`, is named by its first argument's text. In a
+         * `quote`, the module around it, marked injected: the modules the `quote` lands in are not known here.
+         */
+        @RequiresReadLock
+        fun owner(modular: Call): Owner? {
+            val keyed = generateSequence(modular) { CallDefinitionClause.enclosingModularMacroCall(it) }
+                .firstOrNull { Stub.isModular(it) }
+                ?: return null
+            val moduleName =
+                if (Implementation.`is`(keyed)) {
+                    Implementation.protocolName(keyed)
+                } else {
+                    val syntactic = SyntacticCall.of(keyed)
+
+                    CanonicallyNamedImpl.canonicalNameSet(syntactic)
+                        .firstOrNull()
+                        ?.takeIf { org.elixir_lang.Module.atom(it) != null }
+                        ?: org.elixir_lang.psi.Module.moduleName(syntactic)?.name
+                        ?: syntactic.firstPrimaryArgumentText()
+                }
+
+            return moduleName?.let { Owner(it, injected = keyed != modular) }
+        }
+
         /**
          * Build the [FunctionSymbol] symbol(s) for a `def`/`defp`/`defmacro`/`defmacrop` clause in a regular
          * module (not inside a `defprotocol` - those are `ProtocolFunction`).
@@ -150,18 +274,24 @@ class FunctionSymbol(
             val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(clause) ?: return emptyList()
             // Protocol function declarations are owned by ProtocolFunction, not FunctionSymbol.
             if (Protocol.`is`(enclosingModular)) return emptyList()
-            val moduleName = runCatching { org.elixir_lang.psi.Module.name(enclosingModular) }
-                .getOrElse { if (it is ProcessCanceledException) throw it else null }
-                ?: return emptyList()
+            val owner = owner(enclosingModular) ?: return emptyList()
             val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return emptyList()
             val nameId = CallDefinitionClause.nameIdentifier(clause) ?: return emptyList()
-            val macro = CallDefinitionClause.capabilities(clause)?.quotesArguments == true
+            val macro = CallDefinitionClause.capabilities(clause)?.let(::isMacro) == true
             // For a decompiled beam function, this clause lives in an in-memory mirror file built from the `.beam`'s
             // decompiled text; its `originalFile` is the navigable compiled file whose virtual file opens the
             // decompiled editor at these offsets. For a source function `originalFile` is the file itself (no-op).
             val declarationFile = clause.containingFile.originalFile
             return nameArity.arityInterval.closed().map { arity ->
-                FunctionSymbol(declarationFile, nameId.textRange, moduleName, nameArity.name, arity, macro)
+                FunctionSymbol(
+                    declarationFile,
+                    nameId.textRange,
+                    owner.moduleName,
+                    nameArity.name,
+                    arity,
+                    macro,
+                    owner.injected
+                )
             }
         }
 
@@ -174,23 +304,6 @@ class FunctionSymbol(
             definitionClause(definition)?.let { return fromClause(it) }
 
             return (definition as? Call)?.takeIf { Delegation.`is`(it) }?.let { fromDelegation(it) }.orEmpty()
-        }
-
-        /**
-         * What a function use of [arity] that resolved to [resolved] is a use of, in rank order: the clauses' functions,
-         * else a protocol function's (a clause directly in a `defprotocol`), else the functions of a `defdelegate`,
-         * which declares one whether or not its `to:` resolves, so it ranks last and a resolvable target wins.
-         */
-        @RequiresReadLock
-        fun fromResolved(resolved: Collection<PsiElement>, arity: Int): List<Symbol> {
-            val clauses = resolved.mapNotNull { definitionClause(it) }
-
-            clauses.flatMap { fromClause(it) }.filter { it.arity == arity }
-                .takeIf { it.isNotEmpty() }?.let { return it }
-            clauses.flatMap { ProtocolFunction.fromClause(it) }.filter { it.arity == arity }
-                .takeIf { it.isNotEmpty() }?.let { return it }
-
-            return resolved.filterIsInstance<Call>().flatMap { fromDelegation(it) }.filter { it.arity == arity }
         }
 
         /**
@@ -258,16 +371,13 @@ class FunctionSymbol(
             if (Implementation.`is`(enclosingModular)) return matchesClause(clause, symbol)
             if (helperImplementation(symbol) != null) return false
 
-            val moduleName = runCatching { org.elixir_lang.psi.Module.name(enclosingModular) }
-                .getOrElse { if (it is ProcessCanceledException) throw it else null }
-                ?: return false
-            if (moduleName != symbol.moduleName) return false
+            if (owner(enclosingModular) != Owner(symbol.moduleName, symbol.injected)) return false
 
             val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return false
 
             return nameArity.name == symbol.name &&
                 symbol.arity in nameArity.arityInterval &&
-                (CallDefinitionClause.capabilities(clause)?.quotesArguments == true) == symbol.macro
+                (CallDefinitionClause.capabilities(clause)?.let(::isMacro) == true) == symbol.macro
         }
 
         @RequiresReadLock
@@ -327,9 +437,7 @@ class FunctionSymbol(
             val declaration = Delegation.declaration(delegation, ResolveState.initial()) ?: return emptyList()
             val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(delegation) ?: return emptyList()
             if (Protocol.`is`(enclosingModular)) return emptyList()
-            val moduleName = runCatching { org.elixir_lang.psi.Module.name(enclosingModular) }
-                .getOrElse { if (it is ProcessCanceledException) throw it else null }
-                ?: return emptyList()
+            val owner = owner(enclosingModular) ?: return emptyList()
             val arityInterval = declaration.arity.arityInterval() ?: return emptyList()
             val nameId = Delegation.nameIdentifier(delegation) ?: return emptyList()
             val declarationFile = delegation.containingFile.originalFile
@@ -338,10 +446,11 @@ class FunctionSymbol(
                 FunctionSymbol(
                     declarationFile,
                     nameId.textRange,
-                    moduleName,
+                    owner.moduleName,
                     declaration.name,
                     arity,
-                    declaration.capabilities.quotesArguments
+                    isMacro(declaration.capabilities),
+                    owner.injected
                 )
             }
         }

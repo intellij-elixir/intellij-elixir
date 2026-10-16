@@ -4,7 +4,6 @@ import com.intellij.find.usages.api.SearchTarget
 import com.intellij.find.usages.api.UsageHandler
 import com.intellij.icons.AllIcons
 import com.intellij.model.Pointer
-import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.util.TextRange
 import com.intellij.platform.backend.navigation.NavigationRequest
 import com.intellij.platform.backend.navigation.NavigationTarget
@@ -15,6 +14,7 @@ import com.intellij.psi.SmartPointerManager
 import com.intellij.psi.search.SearchScope
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.ElixirRenameTarget
+import org.elixir_lang.model.psi.function.FunctionSymbol
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.call.Call
@@ -113,12 +113,10 @@ class ProtocolFunction(
             if (!CallDefinitionClause.`is`(clause)) return emptyList()
             val defprotocol = CallDefinitionClause.enclosingModularMacroCall(clause) ?: return emptyList()
             if (!Protocol.`is`(defprotocol)) return emptyList()
-            val protocolName = runCatching { org.elixir_lang.psi.Module.name(defprotocol) }
-                .getOrElse { if (it is ProcessCanceledException) throw it else null }
-                ?: return emptyList()
+            val protocolName = FunctionSymbol.owner(defprotocol)?.moduleName ?: return emptyList()
             val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return emptyList()
             val nameId = CallDefinitionClause.nameIdentifier(clause) ?: return emptyList()
-            val macro = CallDefinitionClause.capabilities(clause)?.quotesArguments == true
+            val macro = CallDefinitionClause.capabilities(clause)?.let(FunctionSymbol::isMacro) == true
             return nameArity.arityInterval.closed().map { arity ->
                 ProtocolFunction(clause.containingFile, nameId.textRange, protocolName, nameArity.name, arity, macro)
             }

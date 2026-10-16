@@ -23,6 +23,7 @@ import org.elixir_lang.psi.call.name.Function
 import org.elixir_lang.psi.call.name.Module
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.call.keywordArgument
+import org.elixir_lang.psi.impl.call.keywordArguments
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.structure_view.element.CallDefinitionClause.Companion.enclosingModular
 import org.elixir_lang.structure_view.element.modular.Modular
@@ -166,6 +167,10 @@ class Delegation(private val modular: Modular, call: Call) : Element<Call?>(call
         /** Whether [call] is a `defdelegate` with no `as:`, so its head names the target's function too. */
         @RequiresReadLock
         fun headKeepsTargetName(call: Call): Boolean = `is`(call) && fromCall(call)?.`as`() == null
+
+        /** Whether [call]'s options are a keyword list, the only options `as:` can be added to. */
+        @RequiresReadLock
+        fun optionsAreKeywordList(call: Call): Boolean = call.keywordArguments() != null
 
         @RequiresReadLock
         fun fromCall(call: Call): org.elixir_lang.structure_view.element.Delegation? =

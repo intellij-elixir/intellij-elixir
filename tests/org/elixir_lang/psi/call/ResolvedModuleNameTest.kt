@@ -55,21 +55,17 @@ class ResolvedModuleNameTest : PlatformTestCase() {
         assertEquals(Definition.PUBLIC_FUNCTION, ReadAction.computeBlocking<Definition?, Throwable> { definition(call) })
     }
 
-    /** A module nested in one with no value is named by its own alias, so `x.Inner.f()` (no value) is no call site of it. */
+    /** Neither `x.Inner.f()` nor `Inner.f()` is a call site of a function in a module nested in one with no value. */
     fun testNoValueQualifierIsNoCallSiteOfANoValueModule() {
         myFixture.configureByText(
             "no_value.ex",
             "defmodule unquote(n) do\n  defmodule Inner do\n    def f, do: 1\n  end\nend\n\n" +
-                "defmodule Caller do\n  def g(x), do: x.Inner.f()\n  def h(m), do: unquote(m).Inner.f()\nend\n"
+                "defmodule Caller do\n  def g(x), do: x.Inner.f()\n  def h(m), do: unquote(m).Inner.f()\n" +
+                "  def k, do: Inner.f()\nend\n"
         )
         val clause = PsiTreeUtil.findChildrenOfType(myFixture.file, Call::class.java)
             .single { CallDefinitionClause.`is`(it) && it.primaryArguments()?.firstOrNull()?.text == "f" }
 
-        assertEquals(
-            "f's module",
-            listOf("Inner"),
-            ReadAction.computeBlocking<List<String>, Throwable> { FunctionSymbol.fromClause(clause).map { it.moduleName } }
-        )
         assertEquals("usages of f", emptyList<String>(), callSites(clause))
     }
 

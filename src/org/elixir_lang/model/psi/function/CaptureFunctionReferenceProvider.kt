@@ -10,6 +10,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.declaration.Use
 import org.elixir_lang.model.psi.protocol.ProtocolFunction
 import org.elixir_lang.psi.operation.capture.NonNumeric
 import org.elixir_lang.reference.CaptureNameArity
@@ -39,11 +40,7 @@ internal class CaptureFunctionReferenceProvider : PsiSymbolReferenceProvider {
     override fun getSearchRequests(project: Project, target: Symbol): Collection<SearchRequest> = emptyList()
 }
 
-/**
- * Symbol reference from the captured name of `&name/arity` to the [FunctionSymbol] (or
- * [ProtocolFunction]) of that name and arity. Resolution delegates to the legacy capture-aware
- * [CaptureNameArity] reference and wraps each resolved clause, mirroring [FunctionCallReference].
- */
+/** Symbol reference from the captured name of `&name/arity` to the [FunctionSymbol] (or [ProtocolFunction]) it names. */
 @Suppress("UnstableApiUsage")
 class CaptureFunctionReference(
     private val capture: NonNumeric,
@@ -55,11 +52,6 @@ class CaptureFunctionReference(
     override fun getRangeInElement(): TextRange = legacyReference.rangeInElement
 
     @RequiresReadLock
-    override fun resolveReference(): Collection<Symbol> {
-        val resolved = legacyReference.multiResolve(false)
-            .filter { it.isValidResult }
-            .mapNotNull { it.element }
-
-        return FunctionSymbol.fromResolved(resolved, legacyReference.arity)
-    }
+    override fun resolveReference(): Collection<Symbol> =
+        UseSymbols.of(Use.capture(legacyReference.nameElement, legacyReference.arity))
 }

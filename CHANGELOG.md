@@ -125,6 +125,8 @@
 
 ### Bug Fixes
 
+- [#4463](https://github.com/intellij-elixir/intellij-elixir/pull/4463) [@sh41](https://github.com/sh41)
+  - **Go to Declaration, Find Usages, Rename and Parameter Info handle more `defdelegate`, `defoverridable`, `quote`-defined and nested-module cases correctly.** Refs [#4052](https://github.com/intellij-elixir/intellij-elixir/issues/4052).
 - [#4457](https://github.com/intellij-elixir/intellij-elixir/pull/4457) [@sh41](https://github.com/sh41)
   - **Go to Definition from `Module.unquote(name)(args)` inside a `quote` offers the definitions that take as many arguments as `args`, not those that take one.** Fixes [#4453](https://github.com/intellij-elixir/intellij-elixir/issues/4453).
 - [#4455](https://github.com/intellij-elixir/intellij-elixir/pull/4455) [@sh41](https://github.com/sh41)

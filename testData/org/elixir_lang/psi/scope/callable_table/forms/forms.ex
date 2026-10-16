@@ -50,3 +50,7 @@ defmodule Forms do
   def two(a), do: a
   def more, do: two(1)
 end
+
+defmodule ChainUse do
+  def run, do: Chain.size(1)
+end

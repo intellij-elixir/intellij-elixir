@@ -179,12 +179,10 @@ class StoredStubTest : PlatformTestCase() {
         "MODULE ? Kernel.defmodule/2 do [?] -",
     )
 
-    fun testModuleNamedWithAnAtomLongerThanAnAtomCanBe() = "a".repeat(256).let { name ->
-        assertStored(
-            "defmodule :\"$name\" do\nend\n",
-            "MODULE ? Kernel.defmodule/2 do [?] -",
-        )
-    }
+    fun testModuleNamedWithAnAtomLongerThanAnAtomCanBe() = assertStored(
+        "defmodule :\"${"a".repeat(256)}\" do\nend\n",
+        "MODULE ? Kernel.defmodule/2 do [?] -",
+    )
 
     fun testModuleNamedWithAnUnterminatedQuotedAtom() = assertStored("defmodule :\"a")
 
@@ -200,6 +198,19 @@ class StoredStubTest : PlatformTestCase() {
         "Kernel.defmodule Foo do\n  Kernel.def k, do: 1\nend\n",
         "MODULE Foo Kernel.defmodule/2 do [Foo] -",
         "PUBLIC_FUNCTION k Kernel.def/2 do [k] -",
+    )
+
+    /** A macro named `defmodule` writes a head, not a module, as a release tool's redefinition does. */
+    fun testDefmacroNamedDefmoduleIsNoModule() = assertStored(
+        "defmodule K do\n  defmacro defmodule(name, do: block) do\n    {name, block}\n  end\nend\n",
+        "MODULE K Kernel.defmodule/2 do [K] -",
+        "PUBLIC_MACRO defmodule Kernel.defmacro/2 do [defmodule] -",
+    )
+
+    fun testParenthesizedDefmacroNamedDefmoduleIsNoModule() = assertStored(
+        "defmodule K do\n  defmacro(defmodule(name, do: block), do: {name, block})\nend\n",
+        "MODULE K Kernel.defmodule/2 do [K] -",
+        "PUBLIC_MACRO defmodule Kernel.defmacro/2 do [defmodule] -",
     )
 
     fun testModuleCreate() = assertStored(
@@ -482,7 +493,7 @@ class StoredStubTest : PlatformTestCase() {
             }
         }
         @Suppress("UNCHECKED_CAST")
-        (stub.stubType as IStubElementType<StubElement<*>, *>).indexStub(stub, sink)
+        (stub.elementType as IStubElementType<StubElement<*>, *>).indexStub(stub, sink)
 
         return occurrences.sorted().joinToString(", ", "[", "]")
     }

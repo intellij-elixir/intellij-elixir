@@ -16,11 +16,11 @@ class AnswerChangeTest : PlatformTestCase() {
     }
 
     fun testCallbackHeadNamedByUnquote() = assertNoLongerReachesUnquoteName("unquotes.ex:16:13")
-    fun testDelegationHeadNamedByUnquote() = assertNoLongerReachesUnquoteName("unquotes.ex:18:15")
+    fun testDelegationCallNamedByUnquote() = assertNoLongerReachesUnquoteName("unquotes.ex:29:28")
     fun testUseNamedByUnquote() = assertNoLongerReachesUnquoteName("unquotes.ex:28:31")
 
     fun testLiteralAtomHeadIsFoundByItsAtom() {
-        val dump = dump(UNQUOTES)
+        val dump = dump()
 
         for (incompleteCode in listOf(false, true)) {
             assertEquals(
@@ -31,26 +31,26 @@ class AnswerChangeTest : PlatformTestCase() {
     }
 
     private fun assertNoLongerReachesUnquoteName(location: String) {
-        val dump = dump(UNQUOTES)
+        val dump = dump()
 
         for (incompleteCode in listOf(false, true)) {
-            assertNoLongerReaches(dump, location, UNQUOTE_NAME, incompleteCode)
+            assertNoLongerReaches(dump, location, incompleteCode)
         }
     }
 
-    private fun assertNoLongerReaches(dump: WalkDump, location: String, result: String, incompleteCode: Boolean) {
+    private fun assertNoLongerReaches(dump: WalkDump, location: String, incompleteCode: Boolean) {
         assertTrue(
-            "walking the module reaches $result from $location",
-            multiResolve(dump, location, incompleteCode, table = false).any { result in it }
+            "walking the module reaches $UNQUOTE_NAME from $location",
+            multiResolve(dump, location, incompleteCode, table = false).any { UNQUOTE_NAME in it }
         )
         assertFalse(
-            "the table reaches $result from $location",
-            multiResolve(dump, location, incompleteCode, table = true).any { result in it }
+            "the table reaches $UNQUOTE_NAME from $location",
+            multiResolve(dump, location, incompleteCode, table = true).any { UNQUOTE_NAME in it }
         )
     }
 
-    private fun dump(directory: String): WalkDump =
-        WalkDump(project, myFixture.copyDirectoryToProject("psi/scope/callable_table/$directory", ""))
+    private fun dump(): WalkDump =
+        WalkDump(project, myFixture.copyDirectoryToProject("psi/scope/callable_table/$UNQUOTES", ""))
 
     /** Every use starting at [location]: a call and the call applying it can share one. */
     private fun multiResolve(dump: WalkDump, location: String, incompleteCode: Boolean, table: Boolean): List<String> {
@@ -66,7 +66,7 @@ class AnswerChangeTest : PlatformTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang"
 
     companion object {
-        val CHANGED = setOf("unquotes.ex:16:13", "unquotes.ex:18:15", "unquotes.ex:28:31")
+        val CHANGED = setOf("unquotes.ex:16:13", "unquotes.ex:28:31", "unquotes.ex:29:28")
 
         private const val UNQUOTES = "unquotes"
         private const val UNQUOTE_NAME = "unquotes.ex:9:3 (invalid)"

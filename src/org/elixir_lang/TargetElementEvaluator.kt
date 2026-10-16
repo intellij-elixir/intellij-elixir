@@ -13,6 +13,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.operation.Multiplication
 import org.elixir_lang.psi.operation.capture.NonNumeric
 import org.elixir_lang.psi.scope.ancestorTypeSpec
+import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.psi.scope.hasMapFieldOptionalityName
 import org.elixir_lang.reference.Module
 import org.elixir_lang.structure_view.element.Callback
@@ -20,7 +21,7 @@ import org.elixir_lang.structure_view.element.Type as TypeElement
 
 internal class TargetElementEvaluator : TargetElementEvaluatorEx2() {
     override fun isAcceptableNamedParent(parent: PsiElement): Boolean = when {
-        Callback.isHead(parent) || TypeElement.isHead(parent) || ModuleAttributeSymbol.isHead(parent) || VariableSymbol.isHead(parent) || (CallDefinitionClause.isHead(parent) && !Protocol.isHead(parent)) -> {
+        Callback.isHead(parent) || TypeElement.isHead(parent) || ModuleAttributeSymbol.isHead(parent) || VariableSymbol.isHead(parent) || (DeclaringForm.isDeclaration(parent) && !Protocol.isHead(parent)) -> {
             // `@callback`/`@macrocallback` names and regular (non-protocol) call-definition clause heads are
             // owned by the Symbol model. Don't expose them as a legacy named element, which the platform
             // would otherwise offer as a redundant Find Usages / Go To target beside the symbol's
@@ -50,17 +51,12 @@ internal class TargetElementEvaluator : TargetElementEvaluatorEx2() {
             else -> super.isAcceptableNamedParent(parent)
         }
 
-        parent is Call -> {
-            if (org.elixir_lang.psi.Module.`is`(parent)) {
-                // `defmodule` declaration heads are owned by the Symbol model (ModuleSymbol declaration provider).
-                // Prevent legacy named-element targeting, which produces Ctrl-hover underline but no actionable target.
-                false
-            } else if (parent.hasMapFieldOptionalityName() && parent.ancestorTypeSpec() != null) {
-                false
-            } else {
+        parent is Call ->
+            // `defmodule` declaration heads are owned by the Symbol model (ModuleSymbol declaration provider).
+            // Prevent legacy named-element targeting, which produces Ctrl-hover underline but no actionable target.
+            !org.elixir_lang.psi.Module.`is`(parent) &&
+                !(parent.hasMapFieldOptionalityName() && parent.ancestorTypeSpec() != null) &&
                 super.isAcceptableNamedParent(parent)
-            }
-        }
 
         else -> super.isAcceptableNamedParent(parent)
     }
@@ -70,9 +66,7 @@ internal class TargetElementEvaluator : TargetElementEvaluatorEx2() {
         referenceOrReferencedElement: PsiElement?
     ): ThreeState =
             when {
-                referenceOrReferencedElement != null && (Callback.isHead(referenceOrReferencedElement) || TypeElement.isHead(referenceOrReferencedElement) || ModuleAttributeSymbol.isHead(referenceOrReferencedElement) || VariableSymbol.isHead(referenceOrReferencedElement) || CallDefinitionClause.isHead(
-                    referenceOrReferencedElement
-                )) -> {
+                referenceOrReferencedElement != null && (Callback.isHead(referenceOrReferencedElement) || TypeElement.isHead(referenceOrReferencedElement) || ModuleAttributeSymbol.isHead(referenceOrReferencedElement) || VariableSymbol.isHead(referenceOrReferencedElement) || DeclaringForm.isDeclaration(referenceOrReferencedElement)) -> {
                     // Names in call-definition clause heads (including `@callback`/`@macrocallback` and protocol
                     // function declarations) are owned by the Symbol model. Don't accept them as legacy
                     // *referenced* Find Usages / Go To targets - leave the Symbol as the sole target.
@@ -121,7 +115,7 @@ internal class TargetElementEvaluator : TargetElementEvaluatorEx2() {
                     } else {
                         val resolved = reference.resolve()
                         when {
-                            resolved != null && (Callback.isHead(resolved) || TypeElement.isHead(resolved) || ModuleAttributeSymbol.isHead(resolved) || VariableSymbol.isHead(resolved) || CallDefinitionClause.isHead(resolved)) -> {
+                            resolved != null && (Callback.isHead(resolved) || TypeElement.isHead(resolved) || ModuleAttributeSymbol.isHead(resolved) || VariableSymbol.isHead(resolved) || DeclaringForm.isDeclaration(resolved)) -> {
                                 // Call-definition clause heads (including `@callback`/`@macrocallback` and protocol
                                 // function declarations) are owned by the Symbol model; return empty list to prevent
                                 // redundant legacy target beside the symbol's target - avoids the ambiguity popup.
