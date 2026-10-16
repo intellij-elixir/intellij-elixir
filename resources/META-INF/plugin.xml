@@ -508,6 +508,10 @@
 
         <lang.documentationProvider implementationClass="org.elixir_lang.documentation.ElixirDocumentationProvider"
                                     language="Elixir"/>
+        <platform.backend.documentation.psiTargetProvider
+                implementation="org.elixir_lang.documentation.ElixirPsiDocumentationTargetProvider"/>
+        <platform.backend.documentation.linkHandler
+                implementation="org.elixir_lang.documentation.ElixirDocumentationLinkHandler"/>
 
         <!-- Dialyzer -->
         <globalInspection displayName="Dialyzer based inspections (Elixir)" shortName="Dialyzer"

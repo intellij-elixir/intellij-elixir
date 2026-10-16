@@ -2,6 +2,7 @@ package org.elixir_lang.documentation
 
 import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.lang.documentation.ide.IdeDocumentationTargetProvider
+import com.intellij.model.Pointer
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.Project
 import com.intellij.platform.backend.documentation.DocumentationTarget
@@ -59,7 +60,8 @@ fun CodeInsightTestFixture.followedLinkAtCaret(project: Project, url: String): S
         .documentationTargets(editor, file, editor.caretModel.offset)
         .firstOrNull()
         ?: return null
-    val linked = runBlockingMaybeCancellable { resolveLinkToTarget(target.createPointer(), url) } ?: return null
+    val pointer = pointerTo(target)
+    val linked = runBlockingMaybeCancellable { resolveLinkToTarget(pointer, url) } ?: return null
 
     return computeDocumentationBlocking(linked)?.html
 }
@@ -72,4 +74,30 @@ fun CodeInsightTestFixture.followedLinkAtCaret(project: Project, url: String): S
 // XmlDescriptorDocumentationProviderTest) use.
 @Suppress("OverrideOnly", "UnstableApiUsage")
 private fun renderedDocumentation(target: DocumentationTarget): String? =
-    computeDocumentationBlocking(target.createPointer())?.html
+    computeDocumentationBlocking(pointerTo(target))?.html
+
+@Suppress("OverrideOnly", "UnstableApiUsage")
+private fun pointerTo(target: DocumentationTarget): Pointer<out DocumentationTarget> =
+    ReadAction.compute<Pointer<out DocumentationTarget>, RuntimeException> { target.createPointer() }
+
+/** The target the platform offers first at the caret. */
+@Suppress("UnstableApiUsage")
+fun CodeInsightTestFixture.documentationTargetAtCaret(project: Project): DocumentationTarget? =
+    IdeDocumentationTargetProvider.getInstance(project)
+        .documentationTargets(editor, file, editor.caretModel.offset)
+        .firstOrNull()
+
+/** [target] dereferenced from its pointer in a later read action, once [between] has run. */
+@Suppress("OverrideOnly", "UnstableApiUsage")
+fun dereferencedAfterPointerRoundTrip(target: DocumentationTarget, between: () -> Unit = {}): DocumentationTarget? {
+    val pointer = pointerTo(target)
+
+    between()
+
+    return ReadAction.compute<DocumentationTarget?, RuntimeException> { pointer.dereference() }
+}
+
+/** [target]'s documentation after its pointer is dereferenced in a later read action, once [between] has run. */
+@Suppress("OverrideOnly", "UnstableApiUsage")
+fun renderedAfterPointerRoundTrip(target: DocumentationTarget, between: () -> Unit = {}): String? =
+    dereferencedAfterPointerRoundTrip(target, between)?.let { computeDocumentationBlocking(pointerTo(it))?.html }
