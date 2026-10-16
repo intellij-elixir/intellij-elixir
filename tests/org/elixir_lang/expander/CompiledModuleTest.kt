@@ -84,7 +84,7 @@ class CompiledModuleTest : PlatformTestCase() {
     }
 
     /**
-     * Each macro of the leg's Elixir apps has a body per debug info clause, in order: an `fn` clause that
+     * Each definition of the leg's Elixir apps has a body per debug info clause, in order: an `fn` clause that
      * `elixir_utils:extract_splat_guards/1` reads back as that clause's arguments and guards, whose origin is the same
      * clause in the mirror, or the module there for a definition the mirror has no clause of.
      */
@@ -98,7 +98,7 @@ class CompiledModuleTest : PlatformTestCase() {
         assertTrue("clauses compared: $compared", compared > 300)
     }
 
-    /** A module with debug info: every definition Elixir's table holds, its macros' bodies, and its deprecations. */
+    /** A module with debug info: every definition Elixir's table holds, each one's bodies, and its deprecations. */
     fun testDebugInfo() {
         val fixture = fixture()
         val compiled = fixture.debugInfo
@@ -114,7 +114,7 @@ class CompiledModuleTest : PlatformTestCase() {
             rows(compiled.table),
         )
         assertEquals(
-            mapOf(NameArity("m", 1) to 2, NameArity("p", 1) to 1, NameArity("z", 1) to 1),
+            compiled.table.entries.mapValues { it.value.clauses },
             (compiled.bodies as CompiledModule.Bodies.Read).clauses.mapValues { it.value.size },
         )
         assertEquals(emptyList<String>(), differingBodies("CompiledFixture", fixture.debugInfoBeam) {})
@@ -288,7 +288,7 @@ class CompiledModuleTest : PlatformTestCase() {
             ?.let { (it.elementAt(2) as? OtpErlangList)?.elements()?.toList() }
 
     /**
-     * Each [beam] macro clause whose body isn't an `fn` clause `elixir_utils:extract_splat_guards/1` reads back as that
+     * Each [beam] definition clause whose body isn't an `fn` clause `elixir_utils:extract_splat_guards/1` reads back as that
      * clause's arguments and guards, with its mirror clause's range, or the module's for one the mirror has no clause of;
      * [compared] is called for each clause.
      */
@@ -298,7 +298,7 @@ class CompiledModuleTest : PlatformTestCase() {
         val modular = ReadAction.computeBlocking<TextRange, Throwable> { mirror.modulars().single().textRange }
         val bodies = (read(beam, mirror).bodies as CompiledModule.Bodies.Read).clauses
 
-        return definitions(beam).filter { it.macro in MACROS }.flatMap { definition ->
+        return definitions(beam).flatMap { definition ->
             val nameArity = "${definition.name}/${definition.arity}"
             val clauses = (definition.clausesTerm as OtpErlangList).elements().map { it as OtpErlangTuple }
             val origins = mirrored[Triple(definition.macro, definition.name, definition.arity)]
@@ -363,7 +363,6 @@ class CompiledModuleTest : PlatformTestCase() {
         }
 
     private companion object {
-        val MACROS = setOf("defmacro", "defmacrop")
         val PRIVATE = setOf("defp", "defmacrop")
 
         /**

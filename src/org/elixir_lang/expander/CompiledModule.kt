@@ -30,7 +30,7 @@ import org.elixir_lang.psi.call.name.Function.DEFMACRO
 import org.elixir_lang.toOtpErlangList
 
 /**
- * A module read from its `.beam`, as [ExpansionResult] is one compiled from source: what it defines, its macros' clauses
+ * A module read from its `.beam`, as [ExpansionResult] is one compiled from source: what it defines, its definitions' clauses
  * and its deprecations.
  *
  * @property module the module's name as atom text
@@ -45,7 +45,7 @@ internal data class CompiledModule(
 ) {
     sealed interface Bodies {
         /**
-         * Each macro's debug info clauses, in order, each as Elixir quotes an `fn` clause: `{:->, meta, [args, body]}`,
+         * Each definition's debug info clauses, in order, each as Elixir quotes an `fn` clause: `{:->, meta, [args, body]}`,
          * with guards joined into the arguments by `when`. Every node's origin is that clause in the mirror.
          */
         data class Read(val clauses: Map<NameArity, List<ElixirAst>>) : Bodies
@@ -112,7 +112,7 @@ private class Builder(
         return CompiledModule(module, table, bodies, deprecations)
     }
 
-    /** [table] from [definitions], and their macros' clauses; null where one can't be read. */
+    /** [table] from [definitions], and their clauses; null where one can't be read. */
     private fun fromDebugInfo(definitions: List<Definition>, table: DefinitionTable): CompiledModule.Bodies? {
         val read = definitions.map { definition ->
             val key = definition.macroNameArity ?: return null
@@ -137,10 +137,8 @@ private class Builder(
                 entry(kind, at, clauses.size, definition.defaults, isDefault(clauses)),
             )
 
-            if (kind.macro) {
-                bodies[NameArity(key.name, key.arity)] = clauses.mapIndexed { index, clause ->
-                    fnClause(clause, origin(mirror, index)) ?: return null
-                }
+            bodies[NameArity(key.name, key.arity)] = clauses.mapIndexed { index, clause ->
+                fnClause(clause, origin(mirror, index)) ?: return null
             }
         }
 
