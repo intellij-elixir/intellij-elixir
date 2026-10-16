@@ -730,6 +730,8 @@
 
 ### Build / CI
 
+- [#4468](https://github.com/intellij-elixir/intellij-elixir/pull/4468) [@sh41](https://github.com/sh41)
+  - **A committed file records, at every point of a table of Elixir programs, whether basic completion's prefix, items, replaced range and enclosing forms agree with what Elixir's `Code.Fragment` says about the cursor there.** Refs [#4466](https://github.com/intellij-elixir/intellij-elixir/issues/4466).
 - [#4461](https://github.com/intellij-elixir/intellij-elixir/pull/4461) [@sh41](https://github.com/sh41)
   - **A test-side report expands every file of a Mix project and its dependencies and shows, for each module, how many units the expander reached, how the module ended and what stopped it first.** Refs [#4460](https://github.com/intellij-elixir/intellij-elixir/issues/4460).
 - [#4459](https://github.com/intellij-elixir/intellij-elixir/pull/4459) [@sh41](https://github.com/sh41)
