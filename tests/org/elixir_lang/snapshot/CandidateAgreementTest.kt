@@ -30,14 +30,15 @@ class CandidateAgreementTest : SnapshotTestCase() {
     }
 
     /**
-     * `two/2` beside `two/1`, so that the step drops a candidate; and `f/1` beside its `@callback`, a kept candidate
-     * that is never valid.
+     * `two/2` beside `two/1`, and `snoc/2` beside a variable `snoc`, so that the step drops a candidate; and `f/1` beside
+     * its `@callback`, a kept candidate that is never valid.
      */
     fun testPreferences() {
         val (dropped, keptContracts) = assertAgreement("declaration/candidate_source/agreement")
 
         assertTrue("the step dropped a candidate: $dropped", "two" in dropped)
         assertTrue("the step kept a contract: $keptContracts", "f" in keptContracts)
+        assertTrue("the step dropped a candidate a variable binds: $dropped", "snoc" in dropped)
     }
 
     /** The names of the candidates the step dropped, and of the contracts it kept. */
@@ -83,10 +84,13 @@ class CandidateAgreementTest : SnapshotTestCase() {
     ): List<String> {
         val call = reference.element
         val multi = reference.multiResolve(incompleteCode).toList()
-        val variables = Callable.walk(call, incompleteCode).filter { it.reached.isEmpty() }.map { it.element }.toSet()
+        val answer = Callable.answer(call, incompleteCode)
+        val variables = answer.variables.mapNotNull { it.element }.toSet()
         val use = Use.of(call)
         val found = use?.let { sourceFor(Feature.SYMBOL_REFERENCES).candidates(it, incompleteCode) }.orEmpty()
-        val kept = use?.let { preferred(it, found, incompleteCode) }.orEmpty().flatMap { listOf(it.found) + it.admittedDelegatedTo }
+        val kept = use
+            ?.let { preferred(it, found, incompleteCode, answer.bound).flatMap { p -> listOf(p.found) + p.admittedDelegatedTo } }
+            .orEmpty()
         val keptElements = kept.map { it.element }.toSet()
         val disagreements = mutableListOf<String>()
 

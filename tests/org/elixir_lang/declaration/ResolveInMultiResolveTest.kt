@@ -16,6 +16,7 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.reference.CallDefinitionClause
 import org.elixir_lang.reference.Callable
 import org.elixir_lang.reference.CaptureNameArity
+import org.elixir_lang.reference.resolver.Callable as CallableResolver
 import java.io.File
 
 /**
@@ -113,18 +114,18 @@ class ResolveInMultiResolveTest : PlatformTestCase() {
     }
 
     /** Each [Preferred.found] the step keeps at the use, and what it delegates to. */
-    private fun survivors(): List<PsiElement> =
-        preferred(use(), sourceFor(Feature.SYMBOL_REFERENCES).candidates(use(), false), false)
-            .flatMap { listOf(it.found) + it.admittedDelegatedTo }
-            .map { it.element }
-
-    private fun use(): Use =
-        when (val reference = reference()) {
-            is Callable -> Use.of(reference.element)!!
-            is CaptureNameArity -> Use.capture(reference.nameElement, reference.arity)!!
-            is CallDefinitionClause -> Use.specification(reference.element, reference.moduleAttribute)!!
+    private fun survivors(): List<PsiElement> {
+        val (use, bound) = when (val reference = reference()) {
+            is Callable -> Use.of(reference.element)!! to CallableResolver.answer(reference.element, false).bound
+            is CaptureNameArity -> Use.capture(reference.nameElement, reference.arity)!! to false
+            is CallDefinitionClause -> Use.specification(reference.element, reference.moduleAttribute)!! to false
             else -> error("no use for $reference")
         }
+
+        return preferred(use, sourceFor(Feature.SYMBOL_REFERENCES).candidates(use, false), false, bound)
+            .flatMap { listOf(it.found) + it.admittedDelegatedTo }
+            .map { it.element }
+    }
 
     private fun reference(): PsiPolyVariantReference =
         references().single { it is Callable || it is CaptureNameArity || it is CallDefinitionClause }

@@ -13,8 +13,8 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 object Resolved {
     /** The step's answer at [use] as one list: each [Preferred]'s found, then its admittedDelegatedTo. */
     @RequiresReadLock
-    fun projection(use: Use, incompleteCode: Boolean): List<Found> =
-        preferred(use, sourceFor(Feature.SYMBOL_REFERENCES).candidates(use, incompleteCode), incompleteCode)
+    fun projection(use: Use, incompleteCode: Boolean, bound: Boolean = false): List<Found> =
+        preferred(use, sourceFor(Feature.SYMBOL_REFERENCES).candidates(use, incompleteCode), incompleteCode, bound)
             .flatMap { listOf(it.found) + it.admittedDelegatedTo }
 
     /**

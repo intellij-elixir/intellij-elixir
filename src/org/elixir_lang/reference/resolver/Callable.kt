@@ -14,6 +14,7 @@ import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Arity
+import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.psi.*
@@ -32,16 +33,29 @@ import java.util.concurrent.atomic.AtomicInteger
 object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Callable> {
     override fun resolve(callable: org.elixir_lang.reference.Callable, incompleteCode: Boolean): Array<ResolveResult> {
         ApplicationManager.getApplication().assertReadAccessAllowed()
-        val element = callable.element
+        val answer = answer(callable.element, incompleteCode)
+
+        return (answer.variables + Resolved.results(answer.projection)).toTypedArray()
+    }
+
+    /**
+     * What a call resolves to before `multiResolve` gives one result per element; [bound] is whether a valid variable
+     * binds its name.
+     */
+    class Answer(val variables: List<ResolveResult>, val bound: Boolean, val projection: List<Found>)
+
+    @RequiresReadLock
+    fun answer(call: Call, incompleteCode: Boolean): Answer {
         // A variable declares nothing, so the step never sees it.
-        val undeclared = walk(element, incompleteCode)
+        val variables = walk(call, incompleteCode)
             .filter { it.reached.isEmpty() }
             .map { PsiElementResolveResult(it.element, it.isValidResult) }
-        val declared = org.elixir_lang.declaration.Use.of(element)
-            ?.let { Resolved.results(Resolved.projection(it, incompleteCode)) }
+        val bound = variables.any { it.isValidResult }
+        val projection = org.elixir_lang.declaration.Use.of(call)
+            ?.let { Resolved.projection(it, incompleteCode, bound) }
             .orEmpty()
 
-        return (undeclared + declared).toTypedArray()
+        return Answer(variables, bound, projection)
     }
 
     private val WALK =

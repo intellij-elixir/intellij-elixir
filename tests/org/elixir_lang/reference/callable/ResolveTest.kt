@@ -8,6 +8,7 @@ import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.PsiReference
 import com.intellij.psi.impl.source.resolve.reference.impl.PsiMultiReference
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.documentation.quickDocumentationAtCaret
 import org.elixir_lang.reference.CallDefinitionClause
 import org.elixir_lang.reference.Callable
 import org.elixir_lang.reference.CaptureNameArity
@@ -47,6 +48,20 @@ class ResolveTest : PlatformTestCase() {
         myFixture.configureByText("use.ex", "defmodule U do\n  import M\n\n  def run, do: <caret>x(1)\nend\n")
 
         assertResolves<Callable>(DELEGATION, listOf("$DELEGATION (true)", "$TARGET (true)"))
+    }
+
+    /** A name a variable binds is the variable, so Quick Documentation documents nothing. */
+    fun testABoundNameIsOnlyItsVariable() {
+        myFixture.configureByText(
+            "use.ex",
+            "defmodule U do\n  def snoc(q, x), do: {q, x}\n\n  def run(a, b), do: (fn snoc -> <caret>snoc end).({a, b})\nend\n"
+        )
+
+        assertResolves<Callable>(
+            "use.ex:4: def run(a, b), do: (fn snoc -> snoc end).({a, b})",
+            listOf("use.ex:4: def run(a, b), do: (fn snoc -> snoc end).({a, b}) (true)")
+        )
+        assertNull(myFixture.quickDocumentationAtCaret(project))
     }
 
     fun testACaptureOfSeveralValidClausesGivesTheFirst() {
