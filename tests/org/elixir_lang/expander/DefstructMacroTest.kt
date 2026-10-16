@@ -1,6 +1,9 @@
 package org.elixir_lang.expander
 
+import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.inspect
 
 /**
  * `defstruct`: the two functions it defines, the events of the output Elixir expands it to on each release, and each
@@ -49,6 +52,43 @@ class DefstructMacroTest : ExpanderTestCase() {
             "defmodule A do\n  defstruct a: Foo.default()\nend",
             "module Elixir.A stopped `defstruct a: Foo.default()`$TABLE",
         )
+
+    fun testAnImproperListIsALiteralDefault() =
+        assertEvery("defmodule A do\n  defstruct a: [1 | 2]\nend", "module Elixir.A compiled$TABLE")
+
+    fun testAnImproperListDefaultIsEscapedAsABar() =
+        assertStruct(
+            "defmodule A do\n  defstruct a: [1, 2 | 3]\nend",
+            "{:%{}, [], [__struct__: A, a: [1, {:|, [], [2, 3]}]]}",
+        )
+
+    /** `__struct__/0`'s body on each leg from 1.18, where it returns the escaped struct. */
+    private fun assertStruct(code: String, expected: String) {
+        val legs = listOf("1.18.4", "1.19.5", "1.20.4")
+
+        assertEquals(
+            legs.joinToString("\n") { "$it: $expected" },
+            legs.joinToString("\n") { "$it: ${struct(code, it)}" },
+        )
+    }
+
+    private fun struct(code: String, version: String): String {
+        val level = ElixirLanguageLevel.of(version)
+        val loaded = mutableListOf<ModuleClauses>()
+        val observer = object : ExpansionObserver {
+            override fun entering(node: ElixirAst, state: ExState, env: Env) {}
+
+            override fun clausesLoaded(module: String, clauses: ModuleClauses?) {
+                clauses?.let { loaded += it }
+            }
+        }
+
+        Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs, observer)
+
+        val clause = loaded.single().definitions.getValue(NameArity("__struct__", 0)).clauses?.single()
+
+        return clause?.let { inspect(it.body.toOtp()) } ?: "unknown"
+    }
 
     fun testEnforcedKeysThatAreNotKnownStopTheModule() =
         assertEvery(

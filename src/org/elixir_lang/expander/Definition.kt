@@ -159,9 +159,21 @@ internal fun literalOf(fragment: ElixirAst, term: Term, escaped: Boolean): Elixi
         is Term.Atom -> ElixirAst.Literal.Atom(fragment.meta, term.name)
         is Term.Integer -> ElixirAst.Literal.Integer(fragment.meta, term.value)
         is Term.Binary -> term.bytes?.let { ElixirAst.Literal.Binary(fragment.meta, it) }
-        is Term.List ->
-            if (term.tail != null) null
-            else ElixirAst.ListNode(fragment.meta, term.elements.map { literalOf(fragment, it, escaped) ?: return null })
+        is Term.List -> {
+            val elements = term.elements.map { literalOf(fragment, it, escaped) ?: return null }
+
+            when {
+                term.tail == null -> ElixirAst.ListNode(fragment.meta, elements)
+                // `do_quote_simple_list/3`: the last element and the tail as `{'|', [], [Last, Tail]}`.
+                escaped -> {
+                    val tail = literalOf(fragment, term.tail, escaped = true) ?: return null
+                    val bar = ElixirAst.Call(fragment.meta, ElixirAst.Literal.Atom(fragment.meta, "|"), listOf(elements.last(), tail))
+
+                    ElixirAst.ListNode(fragment.meta, elements.dropLast(1) + bar)
+                }
+                else -> null
+            }
+        }
         is Term.Tuple ->
             if (escaped) ElixirAst.Tuple(fragment.meta, term.elements.map { literalOf(fragment, it, escaped = true) ?: return null }) else null
         is Term.Pair -> ElixirAst.Tuple(
