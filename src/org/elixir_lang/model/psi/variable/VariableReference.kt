@@ -40,7 +40,6 @@ class VariableReference(
                     .filter { it.isValidResult }
                     .map { it.element }
                     .mapNotNull { resolved -> declarationSymbol(resolved) }
-                    .distinct()
                 if (symbols.isNotEmpty()) return symbols
             }
 
@@ -108,7 +107,6 @@ class VariableReference(
                 .filter { it.isValidResult }
                 .map { it.element }
                 .mapNotNull(VariableSymbol::fromDeclaration)
-                .distinct()
         }
     }
 }
