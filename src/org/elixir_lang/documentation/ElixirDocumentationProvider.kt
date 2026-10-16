@@ -23,7 +23,6 @@ import org.elixir_lang.declaration.atItsHead
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver.languageLevelFor
 import org.elixir_lang.lowering.identifierAtomName
 import org.elixir_lang.psi.*
-import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
 import org.elixir_lang.psi.ModuleAttribute.isDocumentationName
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.childExpressions
@@ -36,7 +35,6 @@ import org.elixir_lang.psi.stub.type.call.Stub.isModular
 import org.elixir_lang.reference.resolver.Callable
 import org.elixir_lang.reference.CaptureNameArity
 import org.elixir_lang.reference.Resolver
-import org.elixir_lang.structure_view.element.Callback
 import org.intellij.markdown.html.HtmlGenerator
 import org.intellij.markdown.parser.MarkdownParser
 import java.util.function.Consumer
@@ -113,28 +111,13 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             val module = relativeLinkMatcher.group("module")
 
             when (val kind = relativeLinkMatcher.group("kind")) {
-                null -> {
-                    val relative = identifierAtomName(relativeLinkMatcher.group("relative")) { languageLevelFor(context) }
-                    val arity = relativeLinkMatcher.group("arity").toInt()
-
-                    callDefinitionResolveResults(context, module, relative, arity)
-                        .let { Resolver.preferred(context, false, it) }.firstNotNullOfOrNull { it.element }
-                }
-
-                "c" -> {
-                    val relative = identifierAtomName(relativeLinkMatcher.group("relative")) { languageLevelFor(context) }
-                    val arity = relativeLinkMatcher.group("arity").toInt()
-
-                    callDefinitionResolveResults(context, module, relative, arity)
-                        .filter { resolveResult ->
-                            resolveResult
-                                .element
-                                .let { it as? Call }
-                                ?.let(Callback.Companion::`is`)
-                                ?: false
-                        }
-                        .let { Resolver.preferred(context, false, it) }.firstNotNullOfOrNull { it.element }
-                }
+                null, "c" -> FunctionLink.target(
+                    context,
+                    module,
+                    relativeLinkMatcher.group("relative"),
+                    relativeLinkMatcher.group("arity").toInt(),
+                    callback = kind == "c"
+                )
 
                 "t" -> {
                     val relative = identifierAtomName(relativeLinkMatcher.group("relative")) { languageLevelFor(context) }
@@ -275,44 +258,6 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             if (quotedAtom != null) getCustomDocumentationElement(quotedAtom) else null
         }
     }
-
-    /** The definitions named [relative] at [arity] in the modules named [module], or in [context]'s module. */
-    private fun callDefinitionResolveResults(
-        context: PsiElement,
-        module: String?,
-        relative: String,
-        arity: Int
-    ): List<ResolveResult> =
-        if (module != null) {
-            MarkdownFlavourDescriptor
-                .modulars(context, module)
-                .flatMap { modular ->
-                    org.elixir_lang.psi.scope.call_definition_clause.MultiResolve.resolveResults(
-                        relative,
-                        arity,
-                        false,
-                        modular,
-                        atom = true
-                    )
-                }
-        } else {
-            context
-                .let { it as? Call }
-                ?.let { call ->
-                    call.takeIf(::isModular) ?: enclosingModularMacroCall(call)
-                }
-                ?.let { modular ->
-                    org.elixir_lang.psi.scope.call_definition_clause.MultiResolve.resolveResults(
-                        relative,
-                        arity,
-                        false,
-                        modular,
-                        atom = true
-                    )
-                }
-                ?.toList()
-                .orEmpty()
-        }
 
     /** The atom whose quoted name holds [element], unless [element] is inside an interpolation in that name. */
     private fun enclosingQuotedAtom(element: PsiElement): ElixirAtom? =
