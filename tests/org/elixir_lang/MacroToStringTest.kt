@@ -4,6 +4,7 @@ import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangObject
+import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.junit.logs.UnexpectedLogsRule
 import org.junit.Assert.assertEquals
@@ -156,6 +157,46 @@ class MacroToStringTest {
     @Test
     fun moduleAttributeNameIsNotQuotedAsAnErlangAtom() =
         assertEquals("@_private 1", Macro.toString(call("@", call("_private", OtpErlangLong(1)))))
+
+    // Small integers
+
+    // The external term format writes a list of integers 0 to 255 as a string, which Jinterface decodes as an
+    // `OtpErlangString`, so these arguments reach the printer as strings.
+
+    @Test
+    fun bitStringOfSmallIntegers() =
+        assertEquals("<<1, 2, 3>>", Macro.toString(smallIntegerCall("<<>>", 1, 2, 3)))
+
+    @Test
+    fun blockOfSmallIntegers() =
+        assertEquals("(\n  1\n  2\n)", Macro.toString(smallIntegerCall("__block__", 1, 2)))
+
+    @Test
+    fun multiAliasOfSmallIntegers() {
+        val dot = call(".", variable("a"), OtpErlangAtom("{}"))
+
+        assertEquals(
+            "a.{1, 2}",
+            Macro.toString(OtpErlangTuple(arrayOf(dot, OtpErlangList(), smallIntegers(1, 2))))
+        )
+    }
+
+    @Test
+    fun whenSplatOfSmallIntegers() =
+        assertEquals("(1, 2) when 3", Macro.toString(smallIntegerCall("when", 1, 2, 3)))
+
+    @Test
+    fun fnClauseWithSmallIntegerArguments() {
+        val clause = call("->", smallIntegers(1), OtpErlangAtom("a"))
+
+        assertEquals("fn 1 -> :a end", Macro.toString(call("fn", clause)))
+    }
+
+    private fun smallIntegerCall(name: String, vararg integers: Int): OtpErlangTuple =
+        OtpErlangTuple(arrayOf(OtpErlangAtom(name), OtpErlangList(), smallIntegers(*integers)))
+
+    private fun smallIntegers(vararg integers: Int): OtpErlangString =
+        OtpErlangString(integers.joinToString("") { it.toChar().toString() })
 
     private fun capture(nameOrCall: OtpErlangObject, arity: Long): OtpErlangTuple =
         call("&", call("/", nameOrCall, OtpErlangLong(arity)))
