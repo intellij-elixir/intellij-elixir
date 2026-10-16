@@ -734,6 +734,8 @@
 
 ### Build / CI
 
+- [#4477](https://github.com/intellij-elixir/intellij-elixir/pull/4477) [@sh41](https://github.com/sh41)
+  - **The completion agreement file is recorded as the editor completes, on the whole program with Erlang's modules available, and records no rule where `Code.Fragment`'s answer is not one completion can give.** Refs [#4473](https://github.com/intellij-elixir/intellij-elixir/issues/4473).
 - [#4468](https://github.com/intellij-elixir/intellij-elixir/pull/4468) [@sh41](https://github.com/sh41)
   - **A committed file records, at every point of a table of Elixir programs, whether basic completion's prefix, items, replaced range and enclosing forms agree with what Elixir's `Code.Fragment` says about the cursor there.** Refs [#4466](https://github.com/intellij-elixir/intellij-elixir/issues/4466).
 - [#4461](https://github.com/intellij-elixir/intellij-elixir/pull/4461) [@sh41](https://github.com/sh41)
