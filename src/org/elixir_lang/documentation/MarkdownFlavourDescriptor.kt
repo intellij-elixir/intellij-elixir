@@ -4,8 +4,6 @@ import com.intellij.codeInsight.documentation.DocumentationManagerProtocol
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import org.elixir_lang.Module
-import org.elixir_lang.language_level.ElixirLanguageLevelResolver.languageLevelFor
-import org.elixir_lang.lowering.identifierAtomName
 import org.elixir_lang.psi.ElementFactory
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.call.name.Module.ELIXIR_PREFIX
@@ -77,26 +75,12 @@ class MarkdownFlavourDescriptor(private val element: PsiElement) : GFMFlavourDes
                                         val module = moduleRelativeArityMatcher.group("module")
 
                                         if (module != null) {
-                                            val relative = identifierAtomName(moduleRelativeArityMatcher.group("relative")) {
-                                                languageLevelFor(element)
-                                            }
-                                            val arity = moduleRelativeArityMatcher.group("arity").toInt()
-
-                                            val functionCount =
-                                                module
-                                                    .let { modulars(element, it) }
-                                                    .flatMap { modular ->
-                                                        org.elixir_lang.psi.scope.call_definition_clause.MultiResolve.resolveResults(
-                                                            relative,
-                                                            arity,
-                                                            false,
-                                                            modular,
-                                                            atom = true
-                                                        )
-                                                    }
-                                                    .count { it.isValidResult }
-
-                                            functionCount > 0
+                                            FunctionLink.exists(
+                                                element,
+                                                module,
+                                                moduleRelativeArityMatcher.group("relative"),
+                                                moduleRelativeArityMatcher.group("arity").toInt()
+                                            )
                                         } else {
                                             true
                                         }
