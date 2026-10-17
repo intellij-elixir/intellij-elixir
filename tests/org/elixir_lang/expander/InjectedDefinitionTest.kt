@@ -28,6 +28,31 @@ class InjectedDefinitionTest : PlatformTestCase() {
         )
     }
 
+    /** What a `@before_compile` callback's output defines before a call that stops is the stopped module's. */
+    fun testAStoppedBeforeCompileCallbackKeepsWhatItDefined() {
+        add(
+            "b.ex",
+            "defmodule U do\n  defmacro stop, do: (receive do: (_ -> nil), after: (0 -> nil))\n\n" +
+                "  defmacro __before_compile__(_) do\n    quote do\n      def f, do: 1\n      U.stop()\n    end\n" +
+                "  end\nend\n",
+        )
+        val code = "defmodule A do\n  require U\n  @before_compile U\nend\n"
+
+        assertEquals("module Elixir.A stopped `${code.trimEnd()}` | def f/0 line 1 clauses 1", render(code))
+    }
+
+    /** What a `@before_compile` callback's output defines before a call that raises is kept, as the body's is. */
+    fun testARaisingBeforeCompileCallbackKeepsWhatItDefined() {
+        add(
+            "b.ex",
+            "defmodule U do\n  defmacro __before_compile__(_) do\n    quote do\n      def f, do: 1\n      1.f()\n" +
+                "    end\n  end\nend\n",
+        )
+        val code = "defmodule A do\n  @before_compile U\nend\n"
+
+        assertEquals("module Elixir.A raised invalid_call `${code.trimEnd()}` | def f/0 line 1 clauses 1", render(code))
+    }
+
     /** Each `def*` of the `quote` is placed at itself in the macro's file; the module's own `def` is not injected. */
     fun testAnInjectedDefinitionIsPlacedAtItsDefInTheQuote() {
         add(

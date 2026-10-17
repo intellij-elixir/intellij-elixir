@@ -17,6 +17,7 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.Annotation
+import org.elixir_lang.expander.DefinitionTable
 import org.elixir_lang.expander.EscapeOp
 import org.elixir_lang.expander.EscapeView
 import org.elixir_lang.expander.EscapeResult
@@ -26,6 +27,7 @@ import org.elixir_lang.expander.Shape
 import org.elixir_lang.expander.TermEscapeBuilder
 import org.elixir_lang.expander.TermEscapeView
 import org.elixir_lang.expander.annotation
+import org.elixir_lang.expander.defines
 import org.elixir_lang.language_level.ElixirLanguageFeature.ERLANG_ERROR_3
 import org.elixir_lang.language_level.ElixirLanguageFeature.INTEGERS_UP_TO_4_MBIT
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_CHECK_THE_FUN_FIRST
@@ -1020,8 +1022,32 @@ internal class Natives(private val evaluation: Evaluation) {
 
                 concat(list(args))
             }
+            "defines?/2", "defines?/3" -> defines(args)
             else -> null
         }
+
+    /**
+     * `Module.defines?/2,3` (`Mod:949–987` at v1.11.4, `:1253–1290` at v1.20.4): its guards, then the table of the
+     * module being compiled, declining where Elixir's may differ from it.
+     */
+    private fun defines(args: List<OtpErlangObject>): OtpErlangObject {
+        val module = seen(args[0]) as? OtpErlangAtom
+        val definition = (seen(args[1]) as? OtpErlangTuple)?.takeIf { it.arity() == 2 }
+        val name = definition?.let { seen(it.elementAt(0)) as? OtpErlangAtom }
+        val arity = definition?.let { seen(it.elementAt(1)) as? OtpErlangLong }
+            ?.takeIf { it.isLong && it.longValue() in 0..255 }
+        val kind = args.getOrNull(2)?.let { (seen(it) as? OtpErlangAtom)?.atomValue() }
+            ?.let { kind -> DefinitionTable.Kind.entries.firstOrNull { it.name.lowercase() == kind } }
+
+        if (module == null || name == null || arity == null || args.size == 3 && kind == null) {
+            functionClause("Elixir.Module", "defines?", args)
+        }
+
+        val nameArity = NameArity(name.atomValue(), arity.longValue().toInt())
+
+        return evaluation.run.defines(module.atomValue(), nameArity, kind)?.let(::bool)
+            ?: decline("whether ${module.atomValue()} defines ${nameArity.name}/${nameArity.arity} isn't known")
+    }
 
     /** `elixir_aliases:concat/1` of the list [parts]. */
     private fun concat(parts: OtpErlangObject): OtpErlangObject {

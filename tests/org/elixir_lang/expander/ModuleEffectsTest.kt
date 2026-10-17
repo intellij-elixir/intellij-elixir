@@ -127,10 +127,8 @@ class ModuleEffectsTest {
         assertEquals(
             legs.joinToString("\n") { "$it: $expected" },
             legs.joinToString("\n") { leg ->
-                val dispatch = Dispatch(Dispatch.Kind.REMOTE_FUNCTION, receiver, name, args.size)
-
                 val nodes = args.map { NODE_AST }
-                val change = ModuleEffects.of(dispatch, args, nodes, MODULE, ElixirLanguageLevel.of(leg))
+                val change = ModuleEffects.of(Term.Atom(receiver), name, args, nodes, MODULE, ElixirLanguageLevel.of(leg))
 
                 "$leg: ${(change as ModuleEffects.Change.Attributes?)?.effect}"
             },

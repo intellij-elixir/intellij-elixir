@@ -174,8 +174,11 @@ internal class Evaluation(
 
     private val bits = Bits(this)
 
+    /** Each env's term, so the env a callback is given, when it equals its caller's, is `__CALLER__`. */
+    private val envs = HashMap<Env, OtpErlangObject>()
+
     /** `__CALLER__`, one term, so `Macro.expand/2` knows the env it is given. */
-    private val caller by lazy { caller() }
+    private val caller by lazy { envOf(env) }
 
     fun output(): Summary.Output {
         val module = run.clausesOf(dispatch.receiver, local = dispatch.kind == Dispatch.Kind.LOCAL_MACRO)
@@ -184,7 +187,9 @@ internal class Evaluation(
             ?.takeIf { it.kind.macro }
             ?: decline("${dispatch.receiver} has no macro ${dispatch.name}/${dispatch.arity}")
         val marks = stopGenerated && MACRO_ARGUMENTS_STOP_GENERATED.isSufficient(run.level)
-        val args = call.arguments.orEmpty().map { arg -> termOf(arg).let { if (marks) stopGenerated(it, arg) else it } }
+        val args = call.arguments.orEmpty().map { arg ->
+            run.givenEnvs[arg]?.let(::envOf) ?: termOf(arg).let { if (marks) stopGenerated(it, arg) else it }
+        }
         val function = ModuleExports.macroExport(NameArity(dispatch.name, args.size))
         val result = try {
             invoke(module, definition, function.name, args, function.arity).also(::linify)
@@ -479,8 +484,8 @@ internal class Evaluation(
         }
     }
 
-    /** `__CALLER__`: the env at the call, with the fields of the leg's `Macro.Env`, each one [Env] doesn't hold [Unknown]. */
-    private fun caller(): OtpErlangObject {
+    /** [env] at the call, as `__CALLER__` reads it: the fields of the leg's `Macro.Env`, each one [Env] doesn't hold [Unknown]. */
+    private fun envOf(env: Env): OtpErlangObject = envs.getOrPut(env) {
         val struct = remote(atom("Elixir.Macro.Env"), "__struct__", emptyList()) as? OtpErlangMap ?: decline("Macro.Env's fields")
         val fields = struct.keys().map { (it as OtpErlangAtom).atomValue() } - "__struct__"
         val held = mapOf(
@@ -496,7 +501,7 @@ internal class Evaluation(
             "file" to (run.file?.let(::binary) ?: UnknownBinary),
         )
 
-        return mapOf(
+        mapOf(
             listOf(atom("__struct__") to atom("Elixir.Macro.Env")) + fields.map { atom(it) to (held[it] ?: Unknown) },
             run.level,
         )

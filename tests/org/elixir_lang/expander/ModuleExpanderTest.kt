@@ -2226,6 +2226,204 @@ class ModuleExpanderTest : ExpanderTestCase() {
             """.trimIndent()
         }
 
+    /**
+     * A body that raises stores its definitions with no clause expanded, so no macro of theirs runs, as Elixir raises
+     * `CompileError` for the module before it evaluates any of the body.
+     */
+    fun testABodyThatRaisesExpandsNoClause() =
+        assertLevels(
+            """
+            defmodule D do
+              defmacro d(name, arity), do: Module.defines?(__CALLER__.module, {name, arity})
+            end
+
+            defmodule RD do
+              require D
+              def f, do: 1
+              def in_def, do: D.d(:f, 0)
+              undefined()
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.RD, Elixir.D")}
+            module Elixir.D compiled
+              defmacro d/2 line 2 clauses 1
+              body: expanded {} next 0 context [Elixir.D]
+              defmacro d/2: expanded {arity:1 name:0} next 2
+            module Elixir.RD raised undefined_function `undefined()`
+              def f/0 line 7 clauses 1
+              def in_def/0 line 8 clauses 1
+              body: error undefined_function `undefined()`
+            """.trimIndent()
+        }
+
+    /**
+     * After a stop, which may hide a removal, `Module.defines?/2` declines, `true` included. The module is named as an
+     * atom, as `__CALLER__` needs `Macro.Env`'s clauses, which aren't read here.
+     */
+    fun testDefinesDeclinesAfterTheModuleStops() =
+        assertLevels(
+            """
+            defmodule D do
+              defmacro d(module, name, arity), do: Module.defines?(module, {name, arity})
+            end
+
+            defmodule Y do
+              require D
+              def f, do: 1
+              def unquote(Application.get_env(:app, :name, :g))(), do: 1
+              def in_def, do: D.d(:"Elixir.Y", :f, 0)
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            val context = if (isBefore(version, "1.13.0-rc.0")) "[Elixir.Y, Elixir.D]" else "[Elixir.Y]"
+
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.Y, Elixir.D")}
+            module Elixir.D compiled
+              defmacro d/3 line 2 clauses 1
+              body: expanded {} next 0 context [Elixir.D]
+              defmacro d/3: expanded {arity:2 module:0 name:1} next 3
+            module Elixir.Y stopped `unquote(Application.get_env(:app, :name, :g))`
+              def f/0 line 7 clauses 1
+              def in_def/0 line 9 clauses 1
+              def unnamed
+              body: expanded {} next 0 context $context
+              def f/0: expanded {} next 0
+              def unnamed unordered: unported `unquote(Application.get_env(:app, :name, :g))`
+              def in_def/0 unordered: opaque remote_macro Elixir.D.d/3 `D.d(:"Elixir.Y", :f, 0)`
+            """.trimIndent()
+        }
+
+    /** A nested module's stop is the stop of the module it is in, which it may remove from. */
+    fun testDefinesDeclinesForTheEnclosingModuleAfterANestedStop() =
+        assertLevels(
+            """
+            defmodule DM do
+              defmacro dm(module, name, arity), do: Module.defines?(module, {name, arity})
+            end
+
+            defmodule NS do
+              def f, do: 1
+
+              defmodule Inner do
+                require DM
+                Module.make_overridable(NS, f: 0)
+                def g, do: DM.dm(:"Elixir.NS", :f, 0)
+              end
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            val context =
+                if (isBefore(version, "1.13.0-rc.0")) "[Elixir.NS.Inner, Elixir.NS, Elixir.DM]" else "[Elixir.NS.Inner, Elixir.NS]"
+
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.NS, Elixir.DM")}
+            module Elixir.DM compiled
+              defmacro dm/3 line 2 clauses 1
+              body: expanded {} next 0 context [Elixir.DM]
+              defmacro dm/3: expanded {arity:2 module:0 name:1} next 3
+            module Elixir.NS stopped `Module.make_overridable(NS, f: 0)`
+              def f/0 line 6 clauses 1
+              body: expanded {} next 0 context $context
+              def f/0: expanded {} next 0
+              module Elixir.NS.Inner stopped `Module.make_overridable(NS, f: 0)`
+                def g/0 line 11 clauses 1
+                body: expanded {} next 0 context $context
+                def g/0: opaque remote_macro Elixir.DM.dm/3 `DM.dm(:"Elixir.NS", :f, 0)`
+            """.trimIndent()
+        }
+
+    /** Each module-body call of a remover's name and arity reaches the table or stops, whatever its receiver and target. */
+    fun testEachRemoverCallStopsItsModule() =
+        assertLevels(
+            """
+            defmodule DD do
+              def f, do: 1
+              Module.delete_definition(__MODULE__, {:f, 0})
+            end
+
+            defmodule UD do
+              def f, do: 1
+              m = Application.get_env(:app, :mod, Module)
+              m.delete_definition(__MODULE__, {:f, 0})
+            end
+
+            defmodule UT do
+              def f, do: 1
+              Module.delete_definition(Application.get_env(:app, :t, __MODULE__), {:f, 0})
+            end
+
+            defmodule UO do
+              def f, do: 1
+              Module.make_overridable(Application.get_env(:app, :t, __MODULE__), f: 0)
+            end
+
+            defmodule UM do
+              def f, do: 1
+              m = Application.get_env(:app, :mod, Module)
+              m.make_overridable(__MODULE__, f: 0)
+            end
+
+            defmodule ED do
+              def f, do: 1
+              :elixir_def.take_definition(__MODULE__, {:f, 0})
+            end
+
+            defmodule TU do
+              def f, do: 1
+              m = Application.get_env(:app, :mod, :elixir_def)
+              m.take_definition(__MODULE__, {:f, 0})
+            end
+
+            defmodule NO do
+              def f, do: 1
+
+              defmodule Inner do
+                Module.make_overridable(NO, f: 0)
+              end
+            end
+            """.trimIndent(),
+            LEVELS,
+        ) { version ->
+            val before = isBefore(version, "1.13.0-rc.0")
+            val names = listOf("DD", "UD", "UT", "UO", "UM", "ED", "TU", "NO")
+            val listed = { modules: List<String> -> modules.joinToString(prefix = "[", postfix = "]") { "Elixir.$it" } }
+            // Before 1.13 a module's body has the context of every module the file defined before it.
+            val context = { index: Int, inner: List<String> ->
+                listed(inner + if (before) names.take(index + 1).reversed() else listOf(names[index]))
+            }
+            val lines = listOf(2, 7, 13, 18, 23, 29, 34, 40)
+
+            fun module(index: Int, stop: String, bound: String, inner: List<String> = emptyList()) =
+                """
+                module Elixir.${names[index]} ${if (stop.isEmpty()) "compiled" else "stopped `$stop`"}
+                  def f/0 line ${lines[index]} clauses 1
+                  body: expanded {$bound} next ${if (bound.isEmpty()) 0 else 1} context ${context(index, inner)}
+                  def f/0: expanded {} next 0
+                """.trimIndent()
+            val deletes = !isBefore(version, "1.12.0-rc.0")
+            val delete = { stop: String -> stop.takeIf { deletes }.orEmpty() }
+
+            listOf(
+                "top expanded {} next 0 context ${if (before) listed(names.reversed()) else "[]"}",
+                module(0, delete("Module.delete_definition(__MODULE__, {:f, 0})"), ""),
+                module(1, delete("m.delete_definition(__MODULE__, {:f, 0})"), "m:0"),
+                module(2, delete("Module.delete_definition(Application.get_env(:app, :t, __MODULE__), {:f, 0})"), ""),
+                module(3, "Module.make_overridable(Application.get_env(:app, :t, __MODULE__), f: 0)", ""),
+                module(4, "m.make_overridable(__MODULE__, f: 0)", "m:0"),
+                module(5, ":elixir_def.take_definition(__MODULE__, {:f, 0})", ""),
+                module(6, "m.take_definition(__MODULE__, {:f, 0})", "m:0"),
+                module(7, "Module.make_overridable(NO, f: 0)", "", listOf("NO.Inner")),
+                "  module Elixir.NO.Inner stopped `Module.make_overridable(NO, f: 0)`",
+                "    body: expanded {} next 0 context ${context(7, listOf("NO.Inner"))}",
+            ).joinToString("\n")
+        }
+
     // Rendering
 
     override fun expandAndRender(code: String, version: String): String {

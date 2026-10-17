@@ -64,7 +64,7 @@ private fun defstruct(
                 node,
                 compiling.isStatement(node),
                 queued = { effect?.queued() ?: definitions },
-                apply = { if (effect == null) unreadable(it) else effect.apply(it) },
+                apply = { compiling, _ -> if (effect == null) unreadable(compiling) else effect.apply(compiling) },
             ),
         ),
     )

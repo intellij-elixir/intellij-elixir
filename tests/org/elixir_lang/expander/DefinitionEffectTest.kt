@@ -81,7 +81,7 @@ class DefinitionEffectTest : ExpanderTestCase() {
     fun testTheSliceAMacroQueuedIsReplaced() {
         val run = Run(level, ExpansionObserver.NONE, exports, structs)
         val node = lower(":ok", level)
-        val queued = List(4) { Pending.Effect(node, ordered = true) { null } }
+        val queued = List(4) { Pending.Effect(node, ordered = true) { _, _ -> null } }
 
         run.pending += queued[0]
         val from = run.pending.size
@@ -132,7 +132,7 @@ class DefinitionEffectTest : ExpanderTestCase() {
                     ?: return
                 val ordered = run.compiling.getValue(env.module!!).isStatement(node)
 
-                run.pending += Pending.Effect(node, ordered) { compiling ->
+                run.pending += Pending.Effect(node, ordered) { compiling, _ ->
                     log += "$name sees ${compiling.table.entries.keys.map { "${it.name}/${it.arity}" }}"
 
                     if (name == "remove_a") makeOverridable(compiling, NameArity("a", 0))

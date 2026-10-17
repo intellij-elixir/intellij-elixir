@@ -221,7 +221,7 @@ private fun implemented(
     val check = Pending.Effect(
         node,
         ordered = compiling.isStatement(node),
-        apply = { (assertProtocol(protocolName, node, run, "impl_not_available", "impl_not_a_protocol") as? Asserted.Failed)?.expansion },
+        apply = { _, _ -> (assertProtocol(protocolName, node, run, "impl_not_available", "impl_not_a_protocol") as? Asserted.Failed)?.expansion },
     )
 
     return listOf(check, settled)

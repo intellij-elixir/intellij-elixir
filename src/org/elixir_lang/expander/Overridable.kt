@@ -14,6 +14,7 @@ import java.math.BigInteger
  * @property entry the definition taken out of the table, the latest one
  * @property calls the local calls of [entry]'s body, taken out with it and put back when it is stored
  * @property clauses [entry]'s clauses, taken out and put back with it
+ * @property ordered whether the call that took [entry] out is one Elixir surely runs
  * @property stored whether `super` or the end of the body stored it
  */
 internal class Overridable(
@@ -21,6 +22,7 @@ internal class Overridable(
     val entry: DefinitionTable.Entry,
     val calls: List<LocalCall<ElixirAst>>,
     val clauses: List<ModuleClauses.Clause>,
+    val ordered: Boolean,
 ) {
     var stored = false
 }
@@ -29,9 +31,9 @@ internal enum class Overriding { RECORDED, NOT_DEFINED, BAD_KIND }
 
 /**
  * `Module.make_overridable/2` of [nameArity]: its entry taken out of the table and recorded, if it is there, with its
- * body's local calls.
+ * body's local calls, and whether the call is [ordered], one Elixir surely runs.
  */
-internal fun makeOverridable(compiling: Compiling, nameArity: NameArity): Overriding {
+internal fun makeOverridable(compiling: Compiling, nameArity: NameArity, ordered: Boolean = true): Overriding {
     val entry = compiling.table.remove(nameArity) ?: return Overriding.NOT_DEFINED
     val previous = compiling.overridable[nameArity]
 
@@ -42,7 +44,7 @@ internal fun makeOverridable(compiling: Compiling, nameArity: NameArity): Overri
     if (hidden.isNotEmpty()) compiling.calls[nameArity] = hidden.toMutableList()
 
     compiling.overridable[nameArity] =
-        Overridable((previous?.count ?: 0) + 1, entry, calls, compiling.clauses.remove(nameArity).orEmpty())
+        Overridable((previous?.count ?: 0) + 1, entry, calls, compiling.clauses.remove(nameArity).orEmpty(), ordered)
 
     // The generated `__struct__` is no longer what builds the struct, and what replaces it isn't followed.
     if (buildsStruct(nameArity) && compiling.struct is ModuleStruct.Present) {
@@ -108,12 +110,18 @@ internal fun storeOverridable(
 
 /**
  * `Module.make_overridable/2` of the module whose body is running, given [definitions], the value of its second
- * argument, at [at]: the error the body raises there, if it does, or `null`. A definition list that isn't known, or an
- * element that isn't, stops the module there; the elements before it were taken. A module is a behaviour, whose
- * callbacks [exports] gives.
+ * argument, at [at], [ordered] where Elixir surely runs the call: the error the body raises there, if it does, or
+ * `null`. A definition list that isn't known, or an element that isn't, stops the module there; the elements before it
+ * were taken. A module is a behaviour, whose callbacks [exports] gives.
  */
-internal fun makeAllOverridable(compiling: Compiling, definitions: Term, at: ElixirAst, exports: Exports): Expansion? {
-    if (definitions is Term.Atom) return makeBehaviourOverridable(compiling, definitions.name, at, exports)
+internal fun makeAllOverridable(
+    compiling: Compiling,
+    definitions: Term,
+    at: ElixirAst,
+    exports: Exports,
+    ordered: Boolean,
+): Expansion? {
+    if (definitions is Term.Atom) return makeBehaviourOverridable(compiling, definitions.name, at, exports, ordered)
 
     val elements = (definitions as? Term.List)?.takeIf { it.tail == null }?.elements ?: return Expansion.Unported(at)
 
@@ -132,17 +140,17 @@ internal fun makeAllOverridable(compiling: Compiling, definitions: Term, at: Eli
 
         if (name == null || arity == null) return Expansion.Error("overridable_bad_element", at)
 
-        take(compiling, NameArity(name, arity), at)?.let { return it }
+        take(compiling, NameArity(name, arity), at, ordered)?.let { return it }
     }
 
     return null
 }
 
 /** [makeOverridable] of [nameArity] as the call at [at] raises: the error, if it does, or `null`. */
-private fun take(compiling: Compiling, nameArity: NameArity, at: ElixirAst): Expansion.Error? {
+private fun take(compiling: Compiling, nameArity: NameArity, at: ElixirAst, ordered: Boolean): Expansion.Error? {
     val definedAt = compiling.table[nameArity]?.at
 
-    return when (makeOverridable(compiling, nameArity)) {
+    return when (makeOverridable(compiling, nameArity, ordered)) {
         Overriding.RECORDED -> null
         Overriding.NOT_DEFINED -> Expansion.Error("overridable_not_defined", at)
         Overriding.BAD_KIND -> Expansion.Error("bad_kind", definedAt!!)
@@ -155,7 +163,13 @@ private val ARITIES = BigInteger.ZERO..BigInteger.valueOf(255)
  * `Module.make_overridable/2` of a [behaviour] (`check_module_for_overridable`): the module's definitions that are its
  * callbacks, once the behaviour is loaded, defines callbacks, and is one of the module's `@behaviour`s.
  */
-private fun makeBehaviourOverridable(compiling: Compiling, behaviour: String, at: ElixirAst, exports: Exports): Expansion? {
+private fun makeBehaviourOverridable(
+    compiling: Compiling,
+    behaviour: String,
+    at: ElixirAst,
+    exports: Exports,
+    ordered: Boolean,
+): Expansion? {
     val loaded = when (val found = exports.of(behaviour)) {
         ModuleExports.Absent -> return Expansion.Error("overridable_undefined_behaviour", at)
         ModuleExports.Unreadable -> return Expansion.Unported(at)
@@ -175,7 +189,7 @@ private fun makeBehaviourOverridable(compiling: Compiling, behaviour: String, at
     }
 
     for (nameArity in compiling.table.entries.keys.filter { it in callbacks }) {
-        take(compiling, nameArity, at)?.let { return it }
+        take(compiling, nameArity, at, ordered)?.let { return it }
     }
 
     return null

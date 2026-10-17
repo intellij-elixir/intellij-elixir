@@ -38,6 +38,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_CHECK_THE_FUN_
 import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ARGUMENTS_STOP_GENERATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ESCAPE_MARKS_GENERATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
+import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_DELETE_DEFINITION
 import org.elixir_lang.language_level.ElixirLanguageFeature.NEGATIVE_ZERO_IS_DISTINCT
 import org.elixir_lang.language_level.ElixirLanguageFeature.PID_IN_FUNCTION_RAISES_MATCH_ERROR
 import org.elixir_lang.language_level.ElixirLanguageFeature.PINNED_BINARY_SEGMENT_INFERS_SIZE
@@ -705,6 +706,31 @@ class InterpreterTest : PlatformTestCase() {
                 stopsAfter,
             )
         }
+
+        /** The legs where `Module.delete_definition/2` exists. */
+        val DELETES_DEFINITIONS: (ElixirLanguageLevel) -> Boolean = { MODULE_DELETE_DEFINITION.isSufficient(it) }
+
+        /** A helper module whose macro answers `Module.defines?/2` of its caller's module, where it expands. */
+        val DEFINES = """
+            defmodule {row}.D do
+              defmacro d(name, arity), do: Module.defines?(__CALLER__.module, {name, arity})
+            end
+        """.trimIndent()
+
+        /** A helper module whose `@before_compile` defines `r/0` as whether its module defines `f/0`. */
+        val DEFINES_AT_CALLBACK = """
+            defmodule {row}.CC do
+              defmacro __before_compile__(env) do
+                quote(do: def(r, do: unquote(Module.defines?(env.module, {:f, 0}))))
+              end
+            end
+        """.trimIndent()
+
+        /** [DEFINES], then a module for each of [bodies], each defining `f/0` before them and `g/0` after. */
+        fun definesAround(vararg bodies: Pair<String, String>): String =
+            DEFINES + bodies.joinToString("") { (module, body) ->
+                "\n\ndefmodule {row}.$module do\n  require {row}.D\n  def f, do: 1\n$body\n  def g, do: {row}.D.d(:f, 0)\nend"
+            }
 
         /** A helper module whose macro doubles its argument into a pair. */
         val TWICE = """
@@ -4365,6 +4391,244 @@ class InterpreterTest : PlatformTestCase() {
                 UNPINNED,
                 null,
                 ends = { "raised for_generator_start" },
+            ),
+            // What a `@before_compile` callback defines is the module's, and `Module.defines?/2,3` answers from the
+            // table wherever the module compiles, declining where Elixir's table may differ.
+            macro(
+                "before_compile:defines",
+                "defmacro m, do: Macro.escape({row}.U.f())",
+                helper = """
+                defmodule {row}.CB do
+                  defmacro __before_compile__(_env), do: quote(do: def(f, do: 1))
+                end
+
+                defmodule {row}.U do
+                  @before_compile {row}.CB
+                end
+                """,
+            ),
+            // The callback's output is a statement of the module body, so its attribute writes are the module's.
+            macro(
+                "before_compile:attribute",
+                "defmacro m, do: Macro.escape({row}.UA.r())",
+                helper = """
+                defmodule {row}.CA do
+                  defmacro __before_compile__(_env) do
+                    quote do
+                      @x 1
+                      def r, do: @x
+                    end
+                  end
+                end
+
+                defmodule {row}.UA do
+                  @before_compile {row}.CA
+                end
+                """,
+            ),
+            macro(
+                "before_compile:defines-kind",
+                "defmacro m, do: Macro.escape({row}.K.r())",
+                helper = """
+                defmodule {row}.CK do
+                  defmacro __before_compile__(env) do
+                    t = {
+                      Module.defines?(env.module, {:f, 0}, :def),
+                      Module.defines?(env.module, {:f, 0}, :defp),
+                      Module.defines?(env.module, {:g, 0}, :def)
+                    }
+
+                    quote(do: def(r, do: unquote(Macro.escape(t))))
+                  end
+                end
+
+                defmodule {row}.K do
+                  @before_compile {row}.CK
+                  def f, do: 1
+                end
+                """,
+            ),
+            // The first callback's env is its caller's, so `Macro.expand/2` expands in it.
+            macro(
+                "before_compile:expands-in-env",
+                "defmacro m, do: Macro.escape({row}.UE.r())",
+                helper = """
+                defmodule {row}.CE do
+                  defmacro __before_compile__(env) do
+                    expanded = Macro.expand(quote(do: __MODULE__), env)
+
+                    quote(do: def(r, do: unquote(expanded)))
+                  end
+                end
+
+                defmodule {row}.UE do
+                  @before_compile {row}.CE
+                end
+                """,
+            ),
+            // A body's macro sees what was stored before the body; one at the module body's top level, an empty table.
+            macro(
+                "before_compile:defines-at-expansion",
+                "defmacro m, do: Macro.escape({{row}.X.in_def(), {row}.XB.at_body()})",
+                helper = DEFINES + "\n\n" + """
+                defmodule {row}.X do
+                  require {row}.D
+                  def f, do: 1
+                  def in_def, do: {row}.D.d(:f, 0)
+                end
+
+                defmodule {row}.XB do
+                  require {row}.D
+                  def f, do: 1
+                  @at_body {row}.D.d(:f, 0)
+                  def at_body, do: @at_body
+                end
+                """.trimIndent(),
+            ),
+            // Both entries are unordered, so either may be absent in Elixir.
+            macro(
+                "before_compile:defines-branch",
+                "defmacro m, do: Macro.escape({{row}.N.r(), {row}.T.r()})",
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = DEFINES_AT_CALLBACK + "\n\n" + """
+                defmodule {row}.N do
+                  @before_compile {row}.CC
+                  if false do
+                    def f, do: 1
+                  end
+                end
+
+                defmodule {row}.T do
+                  @before_compile {row}.CC
+                  if true do
+                    def f, do: 1
+                  end
+                end
+                """.trimIndent(),
+            ),
+            // A stop can hide a removal, so after one nothing is answered.
+            macro(
+                "before_compile:defines-after-stop",
+                "defmacro m, do: Macro.escape({{row}.Y.g(), {row}.Y.in_def()})",
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = DEFINES + "\n\n" + """
+                defmodule {row}.Y do
+                  require {row}.D
+                  def unquote(Application.get_env(:app, :name, :g))(), do: 1
+                  def in_def, do: {row}.D.d(:f, 0)
+                end
+                """.trimIndent(),
+            ),
+            macro(
+                "before_compile:defines-overridable-branch",
+                "defmacro m, do: Macro.escape({{row}.O.g(), {row}.O2.g()})",
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = definesAround(
+                    "O" to "  if false do\n    defoverridable f: 0\n  end",
+                    "O2" to "  if true do\n    defoverridable f: 0\n  end",
+                ),
+            ),
+            macro(
+                "before_compile:defines-after-overridable",
+                "defmacro m, do: Macro.escape({row}.OV.g())",
+                helper = definesAround("OV" to "  defoverridable f: 0"),
+            ),
+            macro(
+                "before_compile:defines-after-overridable-stop",
+                "defmacro m, do: Macro.escape({row}.V.g())",
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = definesAround("V" to "  defoverridable Application.get_env(:app, :ov, f: 0)"),
+            ),
+            // Each call of a remover by name reaches the table or stops the module.
+            macro(
+                "before_compile:defines-after-delete",
+                "defmacro m, do: Macro.escape({row}.DD.g())",
+                legs = DELETES_DEFINITIONS,
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = definesAround("DD" to "  Module.delete_definition(__MODULE__, {:f, 0})"),
+            ),
+            macro(
+                "before_compile:defines-after-nested-delete",
+                "defmacro m, do: Macro.escape({{row}.ND.g(), {row}.NO.g()})",
+                legs = DELETES_DEFINITIONS,
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = definesAround(
+                    "ND" to "  defmodule Inner do\n    Module.delete_definition({row}.ND, {:f, 0})\n  end",
+                    "NO" to "  defmodule Inner do\n    Module.make_overridable({row}.NO, f: 0)\n  end",
+                ),
+            ),
+            // A nested module's stop is its enclosing module's, so its definitions asking after the enclosing module
+            // decline too.
+            macro(
+                "before_compile:defines-in-nested-after-stop",
+                "defmacro m, do: Macro.escape({row}.NS.Inner.g())",
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = """
+                defmodule {row}.DM do
+                  defmacro dm(module, name, arity), do: Module.defines?(Macro.expand(module, __CALLER__), {name, arity})
+                end
+
+                defmodule {row}.NS do
+                  def f, do: 1
+
+                  defmodule Inner do
+                    require {row}.DM
+                    Module.make_overridable({row}.NS, f: 0)
+                    def g, do: {row}.DM.dm({row}.NS, :f, 0)
+                  end
+                end
+                """.trimIndent(),
+            ),
+            macro(
+                "before_compile:defines-after-unknown-delete",
+                "defmacro m, do: Macro.escape({{row}.UD.g(), {row}.UT.g()})",
+                legs = DELETES_DEFINITIONS,
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = definesAround(
+                    "UD" to "  m = Application.get_env(:app, :mod, Module)\n  m.delete_definition(__MODULE__, {:f, 0})",
+                    "UT" to "  Module.delete_definition(Application.get_env(:app, :t, __MODULE__), {:f, 0})",
+                ),
+            ),
+            macro(
+                "before_compile:defines-after-unknown-overridable",
+                "defmacro m, do: Macro.escape({{row}.UO.g(), {row}.UM.g()})",
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = definesAround(
+                    "UO" to "  Module.make_overridable(Application.get_env(:app, :t, __MODULE__), f: 0)",
+                    "UM" to "  m = Application.get_env(:app, :mod, Module)\n  m.make_overridable(__MODULE__, f: 0)",
+                ),
+            ),
+            macro(
+                "before_compile:defines-after-take",
+                "defmacro m, do: Macro.escape({{row}.ED.g(), {row}.TU.g()})",
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = definesAround(
+                    "ED" to "  :elixir_def.take_definition(__MODULE__, {:f, 0})",
+                    "TU" to "  m = Application.get_env(:app, :mod, :elixir_def)\n  m.take_definition(__MODULE__, {:f, 0})",
+                ),
+            ),
+            // `GenServer.__before_compile__` asks `Module.defines?/2` whether the module defines `init/1`. It is named
+            // without `use GenServer`, whose fragments stop from source before the callback.
+            macro(
+                "before_compile:genserver",
+                "defmacro m, do: Macro.escape({row}.B.init(1))",
+                helper = """
+                defmodule {row}.B do
+                  @before_compile GenServer
+                  def init(x), do: {:ok, {:mine, x}}
+                end
+                """,
+            ),
+            // Without `init/1` the callback warns through functions the evaluator doesn't port.
+            macro(
+                "before_compile:genserver-without-init",
+                "defmacro m, do: Macro.escape(function_exported?({row}.A, :init, 1))",
+                pins = DECLINED_FROM_SOURCE,
+                helper = """
+                defmodule {row}.A do
+                  @before_compile GenServer
+                end
+                """,
             ),
         )
     }

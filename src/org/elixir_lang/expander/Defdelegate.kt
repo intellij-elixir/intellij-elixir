@@ -261,7 +261,7 @@ private class Delegates(
     }
 
     private fun raises(kind: String): Pending =
-        Pending.Effect(node, ordered = true, apply = { Expansion.Error(kind, node) })
+        Pending.Effect(node, ordered = true, apply = { _, _ -> Expansion.Error(kind, node) })
 }
 
 /** The values `Keyword.get(opts, :to) || raise` refuses. */

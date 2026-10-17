@@ -80,6 +80,17 @@ class DeepOutputTest : ExpanderTestCase() {
         )
     }
 
+    /** A `@before_compile` callback that writes a module with the same callback nests modules without end: `B` stops. */
+    fun testACallbackNestingModulesWithoutEndStopsItsModule() {
+        val code = "defmodule CB do\n  defmacro __before_compile__(_) do\n" +
+            "    quote(do: defmodule(Inner, do: @before_compile(CB)))\n  end\nend\n\n" +
+            "defmodule B do\n  @before_compile CB\nend\n"
+        val ended = expandedOnADefaultStack(code, ElixirLanguageLevel.of("1.20.4"), depth = 0)
+            .modules.single { it.module == "Elixir.B" }.ended
+
+        assertTrue("not stopped: $ended", ended is ExpansionResult.Ended.Stopped)
+    }
+
     /** [code], expanded on a thread with the default stack, with nothing thrown. */
     private fun expandedOnADefaultStack(code: String, level: ElixirLanguageLevel, depth: Int): FileExpansion {
         val forms = lower(code, level)

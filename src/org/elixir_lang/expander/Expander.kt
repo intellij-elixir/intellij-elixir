@@ -206,6 +206,12 @@ internal class Run(
      */
     val placedAt = IdentityHashMap<ElixirAst, Place>()
 
+    /**
+     * Each argument that stands for an env, which a macro is given as a term rather than as the argument's AST, by
+     * identity: the env `eval_callbacks/5` gives a `@before_compile` callback (`Mo:494–495`).
+     */
+    val givenEnvs = IdentityHashMap<ElixirAst, Env>()
+
     var injecting: ElixirAst.Call? = null
         private set
 

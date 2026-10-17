@@ -502,7 +502,7 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
     fun testAModuleBodysQueuedDefinitionsAreCancelledAsTheyAreWalked() =
         assertCancelledIn(
             "${EXPANDER}CompileKt",
-            "compile",
+            $$"compile$walk",
             "defmacro m, do: (t = quote(do: def(f, do: 1)); ${"t = {:__block__, [], [t, t]}; ".repeat(DOUBLINGS)} t)",
             LISTS / 2,
         )

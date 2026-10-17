@@ -192,7 +192,7 @@ internal class ProtocolTail(private val module: String, meta: Meta, private val 
     private fun waiting(definition: Pending.Definition, branch: Int): Pending {
         var queued: List<Pending> = listOf(definition)
 
-        return Pending.Effect(definition.node, ordered = true, queued = { queued }) { compiling ->
+        return Pending.Effect(definition.node, ordered = true, queued = { queued }) { compiling, _ ->
             queued = filling(definition, branch, compiling.attributes)
             null
         }
