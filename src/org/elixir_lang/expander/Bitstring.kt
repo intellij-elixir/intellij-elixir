@@ -13,7 +13,6 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_LIST_OR_AT
 import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_PATTERN_SEGMENT_VALIDATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_EXPANDED_AS_GUARD
 import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_HIDES_ITS_OWN_SEGMENT
-import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SPEC_NAME_EXPANDED_AS_CALL
 import org.elixir_lang.language_level.ElixirLanguageFeature.HALF_FLOAT_SEGMENT
 import org.elixir_lang.language_level.ElixirLanguageFeature.PINNED_BINARY_SEGMENT_INFERS_SIZE
 import org.elixir_lang.language_level.ElixirLanguageFeature.PINNED_SEGMENT_INFERS_SIZE_ONLY_WHEN_SIZED
@@ -315,16 +314,20 @@ private fun expandSpecs(spec: ElixirAst, state: ExState, original: ExState, env:
     var accEnv = env
     val args = mutableMapOf<String, SpecArg>()
     var size: ElixirAst? = null
+    val pending = ArrayDeque(unpackSpecs(spec))
 
-    for (unpacked in unpackSpecs(spec)) {
+    while (pending.isNotEmpty()) {
         ProgressManager.checkCanceled()
 
+        val unpacked = pending.removeFirst()
         val builtin = when (unpacked) {
             is Unpacked.Builtin -> unpacked
             is Unpacked.Named -> {
                 when (val named = expandNamedSpec(unpacked.node as ElixirAst.Call, accState, accEnv, run)) {
-                    is NamedSpec.Size ->
-                        Unpacked.Builtin(unpacked.node, "size", ElixirAst.Literal.Integer(unpacked.node.meta, named.value))
+                    is NamedSpec.Expanded -> {
+                        pending.addAll(0, unpackSpecs(named.node))
+                        continue
+                    }
                     NamedSpec.Unchanged -> {
                         reportOrEnd(ErrorSite.UNDEFINED_BITTYPE, segment, accEnv, run)?.let { return Specs.Stopped(it) }
                         continue
@@ -386,8 +389,8 @@ private fun expandSpecs(spec: ElixirAst, state: ExState, original: ExState, env:
 
 /** What `Macro.expand/2` makes of a spec `validate_spec/2` doesn't know. */
 private sealed interface NamedSpec {
-    /** The integer the spec expands to, which is a size. */
-    class Size(val value: BigInteger) : NamedSpec
+    /** What the spec expands to, whose specs are unpacked ahead of the rest. */
+    class Expanded(val node: ElixirAst) : NamedSpec
 
     /** The spec left as it is, which is `undefined_bittype`. */
     data object Unchanged : NamedSpec
@@ -396,28 +399,12 @@ private sealed interface NamedSpec {
     class Other(val expansion: Expansion) : NamedSpec
 }
 
-/** `Macro.expand/2` of a spec `validate_spec/2` doesn't know. From 1.15 a name is first made a call of no arguments. */
+/** `Macro.expand/2` of a spec `validate_spec/2` doesn't know, a name first made a call of no arguments. */
 private fun expandNamedSpec(spec: ElixirAst.Call, state: ExState, env: Env, run: Run): NamedSpec {
-    val call = when {
-        spec.arguments != null -> spec
-        BITSTRING_SPEC_NAME_EXPANDED_AS_CALL.isSufficient(run.level) ->
-            ElixirAst.Call(spec.meta, spec.callee, emptyList())
-        else -> return NamedSpec.Unchanged
-    }
+    val call = if (spec.arguments != null) spec else ElixirAst.Call(spec.meta, spec.callee, emptyList())
 
     return when (val expanded = macroExpand(call, state, env, run)) {
-        is MacroExpanded.Node -> {
-            val node = expanded.node
-
-            when {
-                !expanded.expanded -> NamedSpec.Unchanged
-                node is ElixirAst.Literal.Integer -> NamedSpec.Size(node.value)
-                node is ElixirAst.ListNode || node is ElixirAst.Tuple || node is ElixirAst.Literal ||
-                    node is ElixirAst.Call && node.callee !is ElixirAst.Literal.Atom -> NamedSpec.Unchanged
-                // Elixir unpacks the specs it expands to again.
-                else -> NamedSpec.Other(Expansion.Unported(node))
-            }
-        }
+        is MacroExpanded.Node -> if (expanded.expanded) NamedSpec.Expanded(expanded.node) else NamedSpec.Unchanged
         // A call is never `__DIR__`.
         MacroExpanded.Dir -> NamedSpec.Other(Expansion.Unported(call))
         is MacroExpanded.Stopped -> NamedSpec.Other(expanded.expansion)

@@ -1483,14 +1483,13 @@ enum class ElixirLanguageFeature(
     PUT_ELEM_IN_GUARD(sinceElixir = "1.20.0-rc.6"),
 
     /**
-     * A bitstring specifier written as a name without parentheses, such as `foo`, is macro-expanded as the call
-     * `foo()`. Before it, it isn't expanded, and raises `undefined_bittype`. From it, `Macro.escape/1` writes a
-     * bitstring's trailing `binary` specifier as the name `{binary, [], nil}`, where it wrote the call `binary()`.
+     * `Macro.escape/1` writes a bitstring's trailing `binary` specifier as the name `{binary, [], nil}`, where it wrote
+     * the call `binary()`.
      *
      * `elixir-lang/elixir@c64606b76` ("Warn on missing parentheses in bitstring modifiers", #11862), first released in
      * v1.15.0-rc.0.
      */
-    BITSTRING_SPEC_NAME_EXPANDED_AS_CALL(sinceElixir = "1.15.0-rc.0"),
+    ESCAPED_BINARY_SPEC_IS_A_NAME(sinceElixir = "1.15.0-rc.0"),
 
     /**
      * A `rescue` clause whose argument is a call, a block or a tuple other than a pair is macro-expanded once, and is

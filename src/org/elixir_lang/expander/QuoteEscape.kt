@@ -17,7 +17,7 @@ import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
-import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SPEC_NAME_EXPANDED_AS_CALL
+import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_BINARY_SPEC_IS_A_NAME
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_ENTRIES_QUOTED_APART
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_ENTRIES_SORTED
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPE_HEADS_NEED_LIST_META
@@ -618,7 +618,7 @@ internal class QuoteEscape<I, O> private constructor(
         val bytes = shape.bytes.map { it.toInt() and 0xFF }
         val bits = bytes[0] ushr (8 - size)
         val rest = ByteArray(bytes.size - 1) { i -> ((bytes[i] shl size) or (bytes[i + 1] ushr (8 - size))).toByte() }
-        val binaryArgs = if (BITSTRING_SPEC_NAME_EXPANDED_AS_CALL.isSufficient(level)) null else emptyList<O>()
+        val binaryArgs = if (ESCAPED_BINARY_SPEC_IS_A_NAME.isSufficient(level)) null else emptyList<O>()
 
         return build.call(
             build.atom("<<>>"),

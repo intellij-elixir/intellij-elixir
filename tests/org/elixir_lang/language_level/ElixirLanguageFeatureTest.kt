@@ -155,7 +155,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             MAP_FROM_KEYS_INLINED to ("1.17.3" to "1.18.0-rc.0"),
             STRING_TO_ATOM_INLINED to ("1.17.3" to "1.18.0-rc.0"),
             PUT_ELEM_IN_GUARD to ("1.20.0-rc.5" to "1.20.0-rc.6"),
-            BITSTRING_SPEC_NAME_EXPANDED_AS_CALL to ("1.14.5" to "1.15.0-rc.0"),
+            ESCAPED_BINARY_SPEC_IS_A_NAME to ("1.14.5" to "1.15.0-rc.0"),
             MACRO_ENV_VERSIONED_VARS to ("1.12.3" to "1.13.0-rc.0"),
             RESCUE_CALL_EXPANDED_AS_MACRO to ("1.14.5" to "1.15.0-rc.0"),
             POST_MODULE_LOCAL_CHECKS_TYPED to ("1.17.3" to "1.18.0-rc.0"),
