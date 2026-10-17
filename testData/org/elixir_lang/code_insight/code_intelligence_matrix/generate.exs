@@ -332,8 +332,8 @@ defmodule Matrix do
   # `Queue` declares `snoc/2`; its `List` impl has a same-named `defp snoc/3` and its `Tuple` impl an undeclared `def
   # snoc/1`, neither of which the protocol dispatches to. `Stack` has the callback `push/2`; `ListStack` implements it
   # with a head whose default also covers `push/1`.
-  @impl_world_ids ["impl", "impl_use", "impl_nested"]
-  @impl_names [:snoc, :push]
+  @impl_world_ids ["impl", "impl_use", "impl_nested", "impl_name_call"]
+  @impl_names [:snoc, :push, :make_name]
 
   # The impl world's callback reached the other way a module takes one: a `use`d module's quote holds the `@behaviour`
   # and the implementing `def`, which belong to the module that `use`s it. A call is of the callback's family, as is the
@@ -359,6 +359,29 @@ defmodule Matrix do
     "",
     "defmodule Src.Impl.ImplUse.Caller do",
     "  def run, do: Src.Impl.ImplUse.User.push([], 1) # @push_call",
+    "end"
+  ]
+  # A call written inside the name a declaring form computes: the interpolation of an EEx or embed name atom and a
+  # clause head's `unquote`, each evaluated by the macro that holds the quote. The call is a use of `make_name/0` for
+  # every gesture, though the declared name is not written.
+  @impl_name_call_lines [
+    "defmodule Src.Impl.ImplNameCall.Names do",
+    "  def make_name(), do: \"snoc\" # @head",
+    "",
+    "  defmacro __using__(_) do",
+    "    quote do",
+    "      require EEx",
+    "      require Mix.Generator",
+    "",
+    "      EEx.function_from_string(:def, :\"\#{unquote(make_name())}\", \"hi\", []) # @eex_call",
+    "      Mix.Generator.embed_template(:\"x_\#{unquote(make_name())}\", \"y\") # @embed_call",
+    "      def unquote(:\"clause_\#{make_name()}\")(q), do: q # @clause_call",
+    "    end",
+    "  end",
+    "end",
+    "",
+    "defmodule Src.Impl.ImplNameCall.User do",
+    "  use Src.Impl.ImplNameCall.Names",
     "end"
   ]
   # A module or protocol written inside another is named under it and reached by its short name there: a function
@@ -1482,6 +1505,7 @@ defmodule Matrix do
   defp impl_lines("impl"), do: @impl_lines
   defp impl_lines("impl_use"), do: @impl_use_lines
   defp impl_lines("impl_nested"), do: @impl_nested_lines
+  defp impl_lines("impl_name_call"), do: @impl_name_call_lines
 
   defp impl_scenario(backing, form, world) do
     [prefix] = module_names(backing, form, world, 1)
