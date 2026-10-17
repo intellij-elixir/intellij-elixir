@@ -336,7 +336,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         }
 
         documentationHtml.append(DocumentationMarkup.DEFINITION_END)
-        DelegationBlock.appendTo(documentationHtml, delegations) { own -> appendFunctionContent(documentationHtml, element, own) }
+        DelegationBlock.appendTo(documentationHtml, delegations) { own, writtenIn -> appendFunctionContent(documentationHtml, element, own, writtenIn) }
 
         when (fetchedDocs) {
             is FetchedDocs.CallbackDocumentation -> {
@@ -393,7 +393,8 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
     private fun appendFunctionContent(
         documentationHtml: StringBuilder,
         element: PsiElement,
-        function: FetchedDocs.FunctionOrMacroDocumentation
+        function: FetchedDocs.FunctionOrMacroDocumentation,
+        writtenIn: String? = null
     ) {
         function.doc?.let { doc ->
             when (doc) {
@@ -408,7 +409,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                     doc.formattedByLanguage.values.map { formatted ->
                         documentationHtml
                             .append(DocumentationMarkup.CONTENT_START)
-                            .append(html(element, formatted))
+                            .append(html(element, formatted, writtenIn))
                             .append(DocumentationMarkup.CONTENT_END)
                     }
             }
@@ -428,7 +429,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                     .append(DocumentationMarkup.SECTION_HEADER_START)
                     .append("Deprecated")
                     .append(DocumentationMarkup.SECTION_SEPARATOR)
-                    .append(html(element, deprecated))
+                    .append(html(element, deprecated, writtenIn))
                     .append(DocumentationMarkup.SECTION_END)
             }
 
@@ -469,13 +470,13 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
     
     }
 
-    private fun html(element: PsiElement, otpErlangObject: OtpErlangObject): String =
+    private fun html(element: PsiElement, otpErlangObject: OtpErlangObject, writtenIn: String?): String =
         when (otpErlangObject) {
             is OtpErlangBinary ->
                 otpErlangObject
                     .binaryValue()
                     .let { String(it, Charsets.UTF_8) }
-                    .let { html(element, it) }
+                    .let { html(element, it, writtenIn) }
 
             else -> {
                 LOG.warn("Don't know how to render deprecated metadata: $otpErlangObject")
@@ -484,8 +485,8 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             }
         }
 
-    private fun html(element: PsiElement, markdownText: String): String {
-        val flavour = MarkdownFlavourDescriptor(element)
+    private fun html(element: PsiElement, markdownText: String, writtenIn: String? = null): String {
+        val flavour = MarkdownFlavourDescriptor(element, writtenIn)
         val parsedTree = MarkdownParser(flavour).buildMarkdownTreeFromString(markdownText)
 
         return HtmlGenerator(markdownText, parsedTree, flavour, false)

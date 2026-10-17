@@ -21,7 +21,7 @@ internal class ElixirDocumentationLinkHandler : DocumentationLinkHandler {
 
         return DocumentationLink
             .element(link, target.targetElement)
-            ?.let { ElixirDocumentationTarget.of(it, null, anchor, DocumentationLink.arity(link)) }
+            ?.let { ElixirDocumentationTarget.of(it, null, anchor, DocumentationLink.parse(link)?.arity) }
             ?.let { LinkResolveResult.resolvedTarget(it) }
     }
 }

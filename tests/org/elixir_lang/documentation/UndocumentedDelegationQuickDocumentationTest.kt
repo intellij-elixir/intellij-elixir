@@ -43,6 +43,43 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
         assertTrue("Expected the link to reach the operator, got: $followed", followed?.contains("Operator docs.") == true)
     }
 
+    /** A target whose name holds a dot is not mistaken for a function of the module named by what precedes the dot. */
+    fun testTheLinkToATargetWithADottedNameReachesIt() {
+        assertTheLinkToATargetNamedReachesIt("Dotted", """:"part.name"""", """"part.name"""")
+    }
+
+    /** A name that is no identifier is written after the module as Elixir writes it, quoted. */
+    fun testTheLinkToATargetWithASpacedNameReachesIt() {
+        assertTheLinkToATargetNamedReachesIt("Spaced", """:"two words"""", """"two words"""")
+    }
+
+    /** A quote in a name is escaped in the link and read back as one. */
+    fun testTheLinkToATargetWithAQuoteInItsNameReachesIt() {
+        assertTheLinkToATargetNamedReachesIt("Quoted", """:"say \"hi\""""", """"say \"hi\""""")
+    }
+
+    private fun assertTheLinkToATargetNamedReachesIt(module: String, atom: String, written: String) {
+        myFixture.addFileToProject(
+            "${module.lowercase()}_target.ex",
+            "defmodule $module.Target do\n  @doc \"$module target docs.\"\n  def unquote($atom)(x), do: x\nend\n"
+        )
+        myFixture.configureByText(
+            "${module.lowercase()}.ex",
+            "defmodule $module do\n  defdelegate fu<caret>nction(x), to: $module.Target, as: $atom\nend\n"
+        )
+
+        val shown = quickDocumentationAtCaret().orEmpty()
+        val href = Regex("""Delegates to <a href="([^"]*)"""").find(shown)?.groupValues?.get(1)
+
+        assertNotNull("Expected a link to the target, got: $shown", href)
+
+        val link = com.intellij.openapi.util.text.StringUtil.unescapeXmlEntities(href!!)
+        val followed = myFixture.followedLinkAtCaret(project, link)
+
+        assertEquals("Expected the name written as Elixir writes it", "psi_element://$module.Target.$written/1", link)
+        assertTrue("Expected the link to reach the target, got: $followed from $href", followed?.contains("$module target docs.") == true)
+    }
+
     /** A name with a delegation at each of several arities documents every one, ascending. */
     fun testQuickDocOfANameWithSeveralDelegationsListsEveryArity() {
         myFixture.addFileToProject(
@@ -340,6 +377,46 @@ class UndocumentedDelegationQuickDocumentationTest : QuickDocumentationTestCase(
         assertEquals("Expected one block for each function of the name, got: $shown", 2, "<b>Clauses</b>".toRegex().findAll(shown).count())
         assertEquals("Expected the docs of the clauses once, got: $shown", 1, "Clauses docs.".toRegex().findAll(shown).count())
         assertEquals("Expected a head for each clause, got: $shown", 2, "snoc\\(q, x\\)".toRegex().findAll(shown).count())
+    }
+
+    /** A function a sibling's docs name without a module is the sibling's own module's, not the target's. */
+    fun testALinkInASiblingsDocOpensTheFunctionOfTheSiblingsModule() {
+        myFixture.addFileToProject(
+            "relative_target.ex",
+            "defmodule Relative.Target do\n  @doc \"Target helper docs.\"\n  def helper(x), do: x\n\n  def snoc(q), do: q\n  def snoc(q, x), do: {q, x}\nend\n"
+        )
+        myFixture.addFileToProject(
+            "relative.ex",
+            "defmodule Relative do\n  @doc \"Own helper docs.\"\n  def helper(x), do: x\n\n  @doc \"Use `helper/1`.\"\n  defdelegate snoc(q), to: Relative.Target\n\n  defdelegate snoc(q, x), to: Relative.Target\nend\n"
+        )
+        myFixture.configureByText("relative_caller.ex", "defmodule RelativeCaller do\n  def calls(a), do: Relative.sn<caret>oc(a, a)\nend\n")
+
+        val shown = quickDocumentationAtCaret().orEmpty()
+        val href = Regex("""href="(psi_element://[^"]*helper/1)"""").find(shown)?.groupValues?.get(1)
+
+        assertNotNull("Expected the sibling's docs to link helper/1, got: $shown", href)
+
+        val followed = myFixture.followedLinkAtCaret(project, href!!).orEmpty()
+
+        assertTrue("Expected the link to reach the sibling's module's function, got: $followed", "Own helper docs." in followed)
+        assertFalse("Expected the link not to reach the target's function, got: $followed", "Target helper docs." in followed)
+    }
+
+    /** A bare link is drawn as one in a sibling's docs whatever it names, as it is in the docs of the function reached. */
+    fun testABareLinkInASiblingsDocIsDrawnWhetherOrNotItsFunctionExists() {
+        myFixture.addFileToProject(
+            "drawn_target.ex",
+            "defmodule Drawn.Target do\n  def snoc(q), do: q\n  def snoc(q, x), do: {q, x}\nend\n"
+        )
+        myFixture.addFileToProject(
+            "drawn.ex",
+            "defmodule Drawn do\n  @doc \"Use `missing/1`.\"\n  defdelegate snoc(q), to: Drawn.Target\n\n  defdelegate snoc(q, x), to: Drawn.Target\nend\n"
+        )
+        myFixture.configureByText("drawn_caller.ex", "defmodule DrawnCaller do\n  def calls(a), do: Drawn.sn<caret>oc(a, a)\nend\n")
+
+        val shown = quickDocumentationAtCaret().orEmpty()
+
+        assertTrue("Expected the bare link drawn as a link, got: $shown", "psi_element://Drawn.missing/1" in shown)
     }
 
     private fun configureHiddenBesideShown() {

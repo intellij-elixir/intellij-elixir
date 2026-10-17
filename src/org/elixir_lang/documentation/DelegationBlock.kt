@@ -4,6 +4,7 @@ import com.intellij.codeInsight.documentation.DocumentationManagerProtocol.PSI_E
 import com.intellij.lang.documentation.DocumentationMarkup
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.model.psi.function.UseSymbols
@@ -75,18 +76,18 @@ internal object DelegationBlock {
         val passed = UseSymbols.passed(preferred, use)
 
         return preferred.directlyDelegatedTo.mapNotNull { target ->
-            target.declaringModuleName()?.let { "$it.${target.candidate.declaration.name}/$passed" }
+            target.declaringModuleName()?.let { "$it.${InspectAtom.remoteCall(target.candidate.declaration.name)}/$passed" }
         }
     }
 
-    /** Appends each of [entries], with [appendOwn] writing the docs of one that has its own. */
-    fun appendTo(documentationHtml: StringBuilder, entries: List<Entry>, appendOwn: (FetchedDocs.FunctionOrMacroDocumentation) -> Unit) {
+    /** Appends each of [entries], with [appendOwn] writing the docs of one that has its own, as written in its module. */
+    fun appendTo(documentationHtml: StringBuilder, entries: List<Entry>, appendOwn: (FetchedDocs.FunctionOrMacroDocumentation, String?) -> Unit) {
         for (entry in entries) {
             documentationHtml.append(DocumentationMarkup.DEFINITION_START)
             entry.module?.let { documentationHtml.append("<i>module</i> <b>").append(it).append("</b>\n") }
             for (head in entry.heads) documentationHtml.append(StringUtil.escapeXmlEntities(head)).append("\n")
             documentationHtml.append(DocumentationMarkup.DEFINITION_END)
-            entry.own?.let(appendOwn)
+            entry.own?.let { appendOwn(it, entry.module) }
 
             for (target in entry.targets.map(StringUtil::escapeXmlEntities)) {
                 documentationHtml
