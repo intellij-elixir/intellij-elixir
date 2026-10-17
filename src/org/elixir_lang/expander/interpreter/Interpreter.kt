@@ -197,7 +197,8 @@ internal class Evaluation(
         return Summary.Output.Built(
             ElixirAst.fromOtp(result, call.meta.origin, values = true, known = nodes::get) { term, node ->
                 placeOf(term)?.let { run.placedAt[node] = it }
-            } ?: decline("the result isn't quoted")
+            } ?: decline("the result isn't quoted"),
+            injects = true,
         )
     }
 

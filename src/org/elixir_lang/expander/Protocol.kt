@@ -39,6 +39,7 @@ internal val DEFPROTOCOL = Summary { _, node, state, env, run ->
                 module.node, module.name, module.isAtom, module.body, module.env, module.state,
                 settle = { pending -> ProtocolTail(module.name, module.node.meta, run.level).settled(pending) },
                 applied = setOf(PROTOCOL to "__before_compile__"),
+                injectedBy = module.injectedBy,
             )
         }
 

@@ -71,5 +71,6 @@ internal fun filled(
         certain && definition.unnamedAt == null || definition.ordered,
         certain || definition.statement,
         definition.checksClauses,
+        injectedBy = definition.injectedBy,
     )
 }

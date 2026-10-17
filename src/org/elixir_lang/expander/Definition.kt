@@ -145,6 +145,7 @@ internal fun define(
             statement,
             // `elixir_def:store_definition/5`: a head with unquotes or from a quote isn't checked for clauses.
             checksClauses = !unquotes && !hasMetaKey(extractGuards(head).first.meta, "context"),
+            injectedBy = run.injecting?.takeIf { builtBy(node, it) },
         )
 
         Expansion.Expanded(s, e, NODE)
@@ -522,7 +523,8 @@ internal fun storeDefinition(
 
 /**
  * [definition] stored as [name] and [arity] with [defaults] defaults: the kind of the error the store raises, if any.
- * A definition whose `def*` call a macro's output built is placed where the call was built.
+ * A definition whose `def*` call a macro's output built is recorded as injected by the call that injected it, and
+ * placed where its `def*` call was built.
  */
 private fun store(
     definition: Pending.Definition,
@@ -542,7 +544,7 @@ private fun store(
         definition.ordered,
         definition.checksClauses,
         definition.delegatesTo,
-        run.placedAt[definition.node]?.let(::Injected),
+        definition.injectedBy?.let { Injected(it, run.placedAt[definition.node]) },
     )
 
 /** `assert_valid_name/5`: the error a definition of [name] and [arity] raises, as one the compiler defines. */

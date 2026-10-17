@@ -206,6 +206,24 @@ internal class Run(
      */
     val placedAt = IdentityHashMap<ElixirAst, Place>()
 
+    var injecting: ElixirAst.Call? = null
+        private set
+
+    /**
+     * [expand] of [call]'s evaluated output, which injects what it defines: [call] is [injecting], unless the output
+     * being expanded built it, whose call stays outermost.
+     */
+    fun <T> expandInjected(call: ElixirAst.Call, expand: () -> T): T {
+        val outer = injecting
+        if (outer == null || !builtBy(call, outer)) injecting = call
+
+        return try {
+            expand()
+        } finally {
+            injecting = outer
+        }
+    }
+
     /** Whether the macro that made [node] knows its value, which it hasn't been expanded to yet. */
     fun isSupplied(node: ElixirAst): Boolean = node in supplying
 

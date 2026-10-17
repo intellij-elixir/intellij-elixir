@@ -173,6 +173,7 @@ internal sealed interface Pending {
         val statement: Boolean,
         val checksClauses: Boolean,
         val delegatesTo: DefinitionTable.Delegation? = null,
+        val injectedBy: ElixirAst.Call?,
     ) : Pending
 
     /**
@@ -202,6 +203,7 @@ internal sealed interface Pending {
      *   know before the body has run
      * @property applied the `@before_compile` callbacks, by module and function, that the macro that made the module
      *   applies itself, because it knows what they do
+     * @property injectedBy the call whose evaluated output wrote the `defmodule`, which injects what its body defines
      */
     class Module(
         val node: ElixirAst.Call,
@@ -212,6 +214,7 @@ internal sealed interface Pending {
         val state: ExState,
         val settle: ((List<Pending>) -> List<Pending>)? = null,
         val applied: Set<Pair<String, String>> = emptySet(),
+        val injectedBy: ElixirAst.Call? = null,
     ) : Pending
 
     /**
@@ -243,7 +246,10 @@ internal fun Pending.isStatement(): Boolean =
 internal fun Pending.asStatement(): Pending =
     when (this) {
         is Pending.Definition ->
-            Pending.Definition(kind, node, head, body, unnamedAt, stop, env, unnamedAt == null, true, checksClauses)
+            Pending.Definition(
+                kind, node, head, body, unnamedAt, stop, env, unnamedAt == null, true, checksClauses,
+                injectedBy = injectedBy,
+            )
         is Pending.Effect -> Pending.Effect(node, true, queued, apply)
         is Pending.Attribute -> Pending.Attribute(effect, at, true, resolve)
         is Pending.Module -> this
@@ -274,9 +280,13 @@ internal fun compilePending(run: Run): List<ExpansionResult> {
 
 /**
  * `elixir_module:compile`: [module]'s name checked, its body expanded, then each definition and nested module it
- * defines in the order Elixir evaluates the body, then the checks of its local calls.
+ * defines in the order Elixir evaluates the body, then the checks of its local calls. A module a call's output wrote
+ * compiles after that output, so the call is restored as the one injecting what it defines.
  */
-internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
+internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult =
+    module.injectedBy?.let { call -> run.expandInjected(call) { compile(module, run) } } ?: compile(module, run)
+
+private fun compile(module: Pending.Module, run: Run): ExpansionResult {
     val name = module.name
     val compiling = Compiling(module.body, run.level)
 

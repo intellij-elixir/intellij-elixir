@@ -59,9 +59,9 @@ internal class DefinitionTable {
     /**
      * A head a macro's output injected.
      *
-     * @property place where its `def*` call is written in the macro's file
+     * @property place where its `def*` call is written in the macro's file, `null` where no escaped quote placed it
      */
-    class Injected(val place: Place)
+    class Injected(val call: ElixirAst.Call, val place: Place?)
 
     /** A `defdelegate`'s `to:` module and the function it calls there, as its `delegate_to` doc has them. */
     data class Delegation(val module: String, val function: String)

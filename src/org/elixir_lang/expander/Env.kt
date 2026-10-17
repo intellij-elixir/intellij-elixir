@@ -4,6 +4,7 @@ import com.intellij.openapi.util.TextRange
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.KERNEL_TYPESPEC_REQUIRED_BY_DEFAULT
 import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.lowering.ElixirAst
 
 /**
  * Elixir's expansion environment `E`, less `file`, `line`, `lexical_tracker`, `tracers` and the variables. Every name is
@@ -32,7 +33,12 @@ data class Env(
      *
      * @property origin the origin of the `import` call that made this entry, or `null` for the empty env's
      */
-    data class Imports(val module: String, val nameArities: List<NameArity>, val origin: TextRange? = null)
+    data class Imports(
+        val module: String,
+        val nameArities: List<NameArity>,
+        val origin: TextRange? = null,
+        val injectedBy: ElixirAst.Call? = null,
+    )
 
     /** `{alias, {counter, module}}`: an alias defined inside the macro expansion that took [counter]. */
     data class MacroAlias(val alias: String, val counter: Counter, val module: String)

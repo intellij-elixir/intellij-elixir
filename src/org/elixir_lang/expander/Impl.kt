@@ -213,6 +213,7 @@ private fun implemented(
         module.node, module.name, module.isAtom, module.body, module.env, module.state,
         settle = { pending -> ImplTail(protocol, type).settled(pending) },
         applied = module.applied,
+        injectedBy = module.injectedBy,
     )
 
     if (compiling == null) return listOf(settled)

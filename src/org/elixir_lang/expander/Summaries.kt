@@ -24,7 +24,13 @@ internal fun interface Summary {
             when (val output = output(dispatch, node, state, env, run)) {
                 is Output.Built ->
                     unlessTooDeep({ Expansion.Opaque(node, dispatch) }) {
-                        expandQuoted(node, dispatch.receiver, output.ast, state, env, run)
+                        if (output.injects) {
+                            run.expandInjected(node) {
+                                expandQuoted(node, dispatch.receiver, output.ast, state, env, run)
+                            }
+                        } else {
+                            expandQuoted(node, dispatch.receiver, output.ast, state, env, run)
+                        }
                     }
                 is Output.Raised -> Expansion.Error(output.kind, node)
                 is Output.Unported -> Expansion.Unported(output.at)
@@ -34,8 +40,8 @@ internal fun interface Summary {
 
     /** What a [Rewrite]'s macro gives. */
     sealed class Output {
-        /** The macro's output, [ast]. */
-        class Built(val ast: ElixirAst) : Output()
+        /** The macro's output, [ast], which [injects] what it defines where it is a user macro's. */
+        class Built(val ast: ElixirAst, val injects: Boolean = false) : Output()
 
         /** The macro raised, an error of [kind]. */
         class Raised(val kind: String) : Output()

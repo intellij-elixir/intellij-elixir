@@ -256,6 +256,7 @@ private class Delegates(
             queued.kind, queued.node, call, body, unnamedAt = null, stop = null, queued.env,
             ordered = true, statement = true, checksClauses = false,
             delegatesTo = DefinitionTable.Delegation(head.target, head.function),
+            injectedBy = queued.injectedBy,
         )
     }
 
