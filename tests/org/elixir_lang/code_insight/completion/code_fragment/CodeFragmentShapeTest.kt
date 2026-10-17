@@ -1,6 +1,7 @@
 package org.elixir_lang.code_insight.completion.code_fragment
 
 import com.ericsson.otp.erlang.OtpErlangAtom
+import com.ericsson.otp.erlang.OtpErlangBinary
 import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangMap
@@ -20,11 +21,13 @@ import org.elixir_lang.code_insight.completion.code_fragment.Verdict.EMPTY
 import org.elixir_lang.code_insight.completion.code_fragment.Verdict.NO_RULE
 import org.elixir_lang.junit.logs.UnexpectedLogsRule
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.Meta
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Rule
 import org.junit.Test
+import java.math.BigInteger
 
 /** The rule each `cursor_context` shape states, checked against observations made by hand. */
 class CodeFragmentShapeTest {
@@ -49,10 +52,10 @@ class CodeFragmentShapeTest {
     fun testRuleInsideAlias() {
         val cursor = InsideAlias(LocalOrVar("x"), "Su")
 
-        assertEquals(none, failed(cursor, module("Anything", "Su"), path = listOf(Step("foo/1"), Step("x/1", true)), heads = listOf("foo/1")))
+        assertEquals(none, failed(cursor, module("Anything", "Su"), path = listOf(Step("foo/1"), Step("x/1", true)), heads = listOf(Step("foo/1"))))
         assertEquals(listOf("prefix"), failed(cursor, module("Anything", "x.Su")))
         assertEquals(listOf("kind"), failed(cursor, call("Anything", "Su")))
-        assertEquals(listOf("container"), failed(cursor, path = listOf(Step("foo/1"), Step("x/1", true)), heads = listOf("bar/1")))
+        assertEquals(listOf("container"), failed(cursor, path = listOf(Step("foo/1"), Step("x/1", true)), heads = listOf(Step("bar/1"))))
         assertEquals(
             none,
             failed(InsideAlias(ModuleAttribute("a"), "Su"), path = listOf(Step("@/1"), Step("a/1", true)), heads = emptyList()),
@@ -82,7 +85,7 @@ class CodeFragmentShapeTest {
 
         assertEquals(none, failed(members, module("Hello.World", ""), call("Hello", "")))
         assertEquals(listOf("owner"), failed(members, module("Other.World", "")))
-        assertEquals(listOf("kind"), failed(members, call("Hello", ""), path = listOf(Step("alias/1", true)), heads = listOf("alias/1")))
+        assertEquals(listOf("kind"), failed(members, call("Hello", ""), path = listOf(Step("alias/1", true)), heads = listOf(Step("alias/1"))))
 
         val atom = Dot(UnquotedAtom("lists"), "rev")
 
@@ -94,24 +97,22 @@ class CodeFragmentShapeTest {
         val variable = Dot(Var("x"), "")
 
         assertEquals(none, failed(variable, field("a", ""), call("Map", ""), module("Mod", "")))
-        assertEquals(listOf("kind"), failed(variable, variable("y", "")))
-        assertEquals(listOf("kind"), failed(Dot(Var("x"), "ke"), module("Mod", "ke")))
         assertEquals(listOf("prefix"), failed(Dot(ModuleAttribute("a"), "ke"), field("key", "")))
         assertEquals(none, failed(Dot(Expr, "ba"), variable("bar", "ba"), module("Mod", "ba")))
         assertEquals(listOf("prefix"), failed(Dot(Expr, "ba"), variable("bar", "")))
 
-        assertEquals(none, failed(variable, path = listOf(Step("foo/1"), Step("x/1", true)), heads = listOf("foo/1", "literal")))
+        assertEquals(none, failed(variable, path = listOf(Step("foo/1"), Step("x/1", true)), heads = listOf(Step("foo/1"), Step("literal"))))
         assertEquals(listOf("container"), failed(variable, path = listOf(Step("foo/1"), Step("x/1", true)), heads = emptyList()))
         assertEquals(none, failed(Dot(ModuleAttribute("a"), ""), path = listOf(Step("@/1"), Step("a/1", true)), heads = emptyList()))
         assertEquals(none, failed(Dot(Dot(Var("map"), "key"), "ne"), path = listOf(Step(".key/1", true)), heads = emptyList()))
         // `foo @a.Foo.b` gives `foo(@a(__cursor__))`.
         assertEquals(
             none,
-            failed(Dot(InsideAlias(ModuleAttribute("a"), "Foo"), "b"), path = listOf(Step("foo/1"), Step("@/1"), Step("a/1", true)), heads = listOf("foo/1")),
+            failed(Dot(InsideAlias(ModuleAttribute("a"), "Foo"), "b"), path = listOf(Step("foo/1"), Step("@/1"), Step("a/1", true)), heads = listOf(Step("foo/1"))),
         )
         assertEquals(
             none,
-            failed(Dot(InsideAlias(LocalOrVar("x"), "Foo"), "b"), path = listOf(Step("foo/1"), Step("x/1", true)), heads = listOf("foo/1")),
+            failed(Dot(InsideAlias(LocalOrVar("x"), "Foo"), "b"), path = listOf(Step("foo/1"), Step("x/1", true)), heads = listOf(Step("foo/1"))),
         )
         assertEquals(listOf("container"), failed(remote, path = listOf(Step("foo/1", true)), heads = emptyList()))
         assertEquals(listOf("container"), failed(Dot(Expr, ""), path = listOf(Step("x/1", true)), heads = emptyList()))
@@ -158,12 +159,12 @@ class CodeFragmentShapeTest {
         val structUpdate = listOf(Step("%/2"), Step("%{}/1"), Step("|/2"), Step("[]"))
         val notVariable = listOf(Step("%{}/1"), Step("|/2"), Step("[]"))
         val map = listOf(Step("%{}/2"))
-        assertEquals(none, failed(Expr, field("a", ""), path = struct, heads = struct.map(Step::head)))
-        assertEquals(none, failed(Expr, field("a", ""), path = update, heads = update.map(Step::head)))
-        assertEquals(none, failed(Expr, field("a", ""), path = structUpdate, heads = structUpdate.map(Step::head)))
+        assertEquals(none, failed(Expr, field("a", ""), path = struct, heads = struct))
+        assertEquals(none, failed(Expr, field("a", ""), path = update, heads = update))
+        assertEquals(none, failed(Expr, field("a", ""), path = structUpdate, heads = structUpdate))
         // A plain map's update needs a variable on the left of `|`.
-        assertEquals(listOf("kind"), failed(Expr, field("a", ""), path = notVariable, heads = notVariable.map(Step::head)))
-        assertEquals(listOf("kind"), failed(Expr, field("a", ""), path = map, heads = map.map(Step::head)))
+        assertEquals(listOf("kind"), failed(Expr, field("a", ""), path = notVariable, heads = notVariable))
+        assertEquals(listOf("kind"), failed(Expr, field("a", ""), path = map, heads = map))
     }
 
     @Test
@@ -174,8 +175,8 @@ class CodeFragmentShapeTest {
         assertEquals(listOf("prefix"), failed(cursor, call("Kernel", "f")))
         assertEquals(listOf("kind"), failed(cursor, module("Foo", "fo")))
         assertEquals(listOf("kind"), failed(cursor, field("foo", "fo")))
-        assertEquals(none, failed(cursor, field("foo", "fo"), path = listOf(Step("%/2"), Step("%{}/2")), heads = listOf("%/2", "%{}/2")))
-        assertEquals(listOf("kind"), failed(cursor, field("foo", "fo"), path = listOf(Step("%{}/2")), heads = listOf("%{}/2")))
+        assertEquals(none, failed(cursor, field("foo", "fo"), path = listOf(Step("%/2"), Step("%{}/2")), heads = listOf(Step("%/2"), Step("%{}/2"))))
+        assertEquals(listOf("kind"), failed(cursor, field("foo", "fo"), path = listOf(Step("%{}/2")), heads = listOf(Step("%{}/2"))))
     }
 
     @Test
@@ -230,19 +231,19 @@ class CodeFragmentShapeTest {
         // `<<x::` and `<<x::size(8)-`: IEx offers only bitstring modifiers, with an empty hint.
         val modifier = Operator("::")
         val binary = listOf(Step("<<>>/1"), Step("::/2"))
-        val inBinary = binary.map(Step::head)
+        val inBinary = binary
 
         assertEquals(none, failed(modifier, other("binary", ""), path = binary, heads = inBinary))
         assertEquals(listOf("prefix"), failed(modifier, other("binary", "::"), path = binary, heads = inBinary))
         assertEquals(listOf("kind"), failed(modifier, call("Kernel", "", name = "::"), path = binary, heads = inBinary))
-        assertEquals(none, failed(Operator("-"), other("size", ""), path = binary + Step("-/2"), heads = inBinary + "-/2"))
+        assertEquals(none, failed(Operator("-"), other("size", ""), path = binary + Step("-/2"), heads = inBinary + Step("-/2")))
         // Elsewhere `::` is an operator like any other.
         assertEquals(listOf("kind"), failed(modifier, other("binary", "::")))
         assertEquals(none, failed(modifier, call("Kernel", "::")))
         val nested = listOf(Step("<<>>/1"), Step("{}/2"), Step("::/2"))
-        assertEquals(none, failed(modifier, call("Kernel", "::"), path = nested, heads = nested.map(Step::head)))
-        assertEquals(listOf("kind"), failed(modifier, other("binary", "::"), path = nested, heads = nested.map(Step::head)))
-        assertEquals(listOf("kind"), failed(Operator("+"), other("binary", "+"), path = listOf(Step("<<>>/1")), heads = listOf("<<>>/1")))
+        assertEquals(none, failed(modifier, call("Kernel", "::"), path = nested, heads = nested))
+        assertEquals(listOf("kind"), failed(modifier, other("binary", "::"), path = nested, heads = nested))
+        assertEquals(listOf("kind"), failed(Operator("+"), other("binary", "+"), path = listOf(Step("<<>>/1")), heads = listOf(Step("<<>>/1"))))
     }
 
     @Test
@@ -272,9 +273,69 @@ class CodeFragmentShapeTest {
 
     @Test
     fun testRuleNone() {
-        assertEquals(none, failed(None, path = listOf(Step("foo/1", true)), heads = listOf("foo/1")))
-        assertEquals(listOf("kind"), failed(None, variable("x", "")))
+        // An explicit request completes from an empty prefix, and Elixir names no kind there.
+        assertEquals(checks(AGREE, NO_RULE, NO_RULE, AGREE), judged(None, variable("x", "")).checks)
+        assertEquals(listOf("prefix"), failed(None, variable("x", "x")))
+        assertEquals(checks(NO_RULE, NO_RULE, NO_RULE, AGREE), judged(None).checks)
+        assertEquals(none, failed(None, path = listOf(Step("foo/1", true)), heads = listOf(Step("foo/1"))))
         assertEquals(listOf("container"), failed(None, path = listOf(Step("x/1", true)), heads = emptyList()))
+    }
+
+    @Test
+    fun testRuleInsideALiteral() {
+        // `"ab|`: completion offers nothing Elixir's answers describe.
+        val literal = { literal: Boolean ->
+            judged(LocalOrVar("ab"), module("Mod", "x"), span = Span(5, 8), path = listOf(Step("foo/1")), heads = emptyList(), literal = literal)
+        }
+
+        assertEquals(checks(DIFFER, DIFFER, DIFFER, DIFFER), literal(false).checks)
+        assertEquals(checks(NO_RULE, NO_RULE, NO_RULE, NO_RULE), literal(true).checks)
+        assertEquals(none, literal(true).failed)
+        assertEquals(checks(NO_RULE, NO_RULE, NO_RULE, NO_RULE), judged(LocalOrVar("ab"), literal = true).checks)
+    }
+
+    @Test
+    fun testRuleKeywordColon() {
+        // `key:|` and `t :|:`: no atom starts at the colon.
+        assertEquals(checks(NO_RULE, NO_RULE, NO_RULE, AGREE), judged(UnquotedAtom(""), variable("key", "key")).checks)
+        assertEquals(checks(NO_RULE, NO_RULE, NO_RULE, AGREE), judged(UnquotedAtom("")).checks)
+        // `:|`, where an atom starts.
+        assertEquals(listOf("prefix", "kind"), failed(UnquotedAtom(""), variable("key", "key"), atomStart = true))
+        assertEquals(none, failed(UnquotedAtom(""), module(":lists", ""), atomStart = true))
+    }
+
+    @Test
+    fun testRuleVariableDot() {
+        // IEx offers what the variable's value holds at runtime.
+        assertEquals(checks(AGREE, NO_RULE, NO_RULE, AGREE), judged(Dot(Var("x"), ""), variable("y", "")).checks)
+        assertEquals(checks(AGREE, NO_RULE, NO_RULE, AGREE), judged(Dot(Var("x"), "ke"), module("Mod", "ke")).checks)
+        assertEquals(checks(AGREE, NO_RULE, NO_RULE, AGREE), judged(Dot(Dot(Var("map"), "key"), "ne"), module("Mod", "ne")).checks)
+        assertEquals(checks(AGREE, NO_RULE, NO_RULE, AGREE), judged(Dot(Var("__MODULE__"), ""), variable("y", "")).checks)
+        // Prefix, range and container keep their rules.
+        assertEquals(listOf("prefix"), failed(Dot(Var("x"), "ke"), field("key", "")))
+        assertEquals(listOf("range end"), failed(Dot(Var("x"), "ke"), field("key", "ke"), span = Span(8, 10), identifierEnd = 11))
+        assertEquals(listOf("container"), failed(Dot(Var("x"), ""), path = listOf(Step("foo/1"), Step("x/1", true)), heads = emptyList()))
+        // An attribute's dot keeps its kinds rule.
+        assertEquals(listOf("kind"), failed(Dot(ModuleAttribute("a"), ""), variable("y", "")))
+        assertEquals(listOf("kind"), failed(Dot(Dot(ModuleAttribute("a"), "b"), ""), variable("y", "")))
+    }
+
+    @Test
+    fun testRuleEndKeyword() {
+        val path = listOf(Step("foo/1"))
+        val heads = listOf(Step("def/2"))
+
+        // `end|`: the plugin still reads inside the block that `end` closes.
+        assertEquals(none, failed(BlockKeywordOrBinaryOperator("end"), path = path, heads = heads, surround = Keyword("end"), span = Span(7, 10)))
+        // `en|d`
+        assertEquals(
+            listOf("container"),
+            failed(BlockKeywordOrBinaryOperator("en"), path = path, heads = heads, surround = Keyword("end"), span = Span(8, 11), identifierEnd = 11),
+        )
+        assertEquals(
+            listOf("container"),
+            failed(BlockKeywordOrBinaryOperator("do"), path = path, heads = heads, surround = Keyword("do"), span = Span(8, 10)),
+        )
     }
 
     @Test
@@ -313,8 +374,8 @@ class CodeFragmentShapeTest {
         assertEquals(none, failed(Struct(ModuleAttribute("s")), attribute("s", "s")))
         assertEquals(listOf("prefix"), failed(Struct(ModuleAttribute("s")), attribute("s", "@s")))
         assertEquals(listOf("kind"), failed(Struct(ModuleAttribute("s")), variable("s", "s")))
-        assertEquals(none, failed(Struct(Dot(Var("x"), "y")), field("y", "y"), call("Kernel", "y")))
-        assertEquals(listOf("kind"), failed(Struct(Dot(Var("x"), "y")), module("Mod", "y")))
+        assertEquals(none, failed(Struct(Dot(LocalOrVar("x"), "y")), field("y", "y"), call("Kernel", "y")))
+        assertEquals(listOf("kind"), failed(Struct(Dot(LocalOrVar("x"), "y")), module("Mod", "y")))
         assertEquals(listOf("owner"), failed(Struct(Dot(Alias("Hello"), "y")), call("Other", "y")))
     }
 
@@ -393,18 +454,12 @@ class CodeFragmentShapeTest {
 
     @Test
     fun testChecks() {
-        fun checks(prefix: Verdict, kinds: Verdict, range: Verdict, container: Verdict) =
-            mapOf(Check.PREFIX to prefix, Check.KINDS to kinds, Check.RANGE to range, Check.CONTAINER to container)
-
         val span = Span(9, 10)
 
         assertEquals(checks(AGREE, AGREE, NO_RULE, AGREE), judged(LocalOrVar("x"), variable("x", "x")).checks)
         // With no item the prefix compares nothing, and the kinds check is empty.
         assertEquals(checks(NO_RULE, EMPTY, NO_RULE, AGREE), judged(LocalOrVar("x")).checks)
         assertEquals(checks(NO_RULE, NO_RULE, NO_RULE, NO_RULE), judged(CaptureArg("&1"), other("x", "x"), path = null).checks)
-        assertEquals(checks(NO_RULE, DIFFER, NO_RULE, AGREE), judged(None, variable("x", "")).checks)
-        // `:none` allows no item, so offering none agrees.
-        assertEquals(checks(NO_RULE, AGREE, NO_RULE, AGREE), judged(None).checks)
         // Each check decides alone.
         assertEquals(
             checks(DIFFER, AGREE, AGREE, DIFFER),
@@ -458,22 +513,44 @@ class CodeFragmentShapeTest {
         assertEquals(listOf("lists"), segments(UnquotedAtom("lists")))
     }
 
+    /** The plugin sees the arguments after the caret, which Elixir's prefix has not reached. */
+    @Test
+    fun testContainerSlot() {
+        // `def f|`, with the body after the caret.
+        val def = listOf(Step("def/1", slot = 0))
+
+        assertEquals(none, failed(LocalOrVar("f"), path = def, heads = listOf(Step("def/2", slot = 0))))
+        assertEquals(none, failed(LocalOrVar("f"), path = def, heads = listOf(Step("def/2", slot = 0), Step("f/1", slot = 0))))
+        assertEquals(listOf("container"), failed(LocalOrVar("f"), path = def, heads = listOf(Step("def/2", slot = 1))))
+        assertEquals(listOf("container"), failed(LocalOrVar("f"), path = def, heads = listOf(Step("defp/2", slot = 0))))
+        assertEquals(listOf("container"), failed(LocalOrVar("f"), path = def, heads = listOf(Step("def/1"))))
+        assertEquals(listOf("container"), failed(LocalOrVar("f"), path = def, heads = emptyList()))
+        // `[a, |`, with elements after the caret.
+        val list = listOf(Step("[]", slot = 1))
+
+        assertEquals(none, failed(LocalOrVar("x"), path = list, heads = listOf(Step("[]", slot = 1))))
+        assertEquals(listOf("container"), failed(LocalOrVar("x"), path = list, heads = listOf(Step("[]", slot = 0))))
+    }
+
     @Test
     fun testPath() {
         val cursor = node("__cursor__")
 
-        assertEquals(listOf(Step("foo/2")), path(quoted(node("foo", node("bar", OtpErlangLong(1)), cursor))))
-        assertEquals(listOf(Step("x/1", true)), path(quoted(node("x", cursor))))
-        assertEquals(listOf(Step("@/1"), Step("a/1", true)), path(quoted(node("@", node("a", cursor)))))
-        assertEquals(listOf(Step(".key/1", true)), path(quoted(tuple(node(".", name("map"), atom("key")), meta, list(cursor)))))
-        assertEquals(listOf(Step("%{}/2"), Step("{}/2")), path(quoted(node("%{}", tuple(atom("a"), OtpErlangLong(1)), tuple(atom("b"), cursor)))))
-        assertEquals(listOf(Step("[]"), Step("{}/3")), path(quoted(list(tuple(atom("{}"), meta, list(atom("a"), atom("b"), cursor))))))
+        assertEquals(listOf(Step("foo/2", slot = 1)), path(quoted(node("foo", node("bar", OtpErlangLong(1)), cursor))))
+        assertEquals(listOf(Step("x/1", true, slot = 0)), path(quoted(node("x", cursor))))
+        assertEquals(listOf(Step("@/1", slot = 0), Step("a/1", true, slot = 0)), path(quoted(node("@", node("a", cursor)))))
+        assertEquals(listOf(Step(".key/1", true, slot = 0)), path(quoted(tuple(node(".", name("map"), atom("key")), meta, list(cursor)))))
         assertEquals(
-            listOf(Step("%{}/1"), Step("|/2", onVariable = true), Step("[]")),
+            listOf(Step("%{}/2", slot = 1), Step("{}/2", slot = 1)),
+            path(quoted(node("%{}", tuple(atom("a"), OtpErlangLong(1)), tuple(atom("b"), cursor)))),
+        )
+        assertEquals(listOf(Step("[]", slot = 0), Step("{}/3", slot = 2)), path(quoted(list(tuple(atom("{}"), meta, list(atom("a"), atom("b"), cursor))))))
+        assertEquals(
+            listOf(Step("%{}/1", slot = 0), Step("|/2", onVariable = true, slot = 1), Step("[]", slot = 1)),
             path(quoted(node("%{}", node("|", name("m"), list(tuple(atom("a"), OtpErlangLong(1)), cursor))))),
         )
         assertEquals(
-            listOf(Step("%{}/1"), Step("|/2"), Step("[]")),
+            listOf(Step("%{}/1", slot = 0), Step("|/2", slot = 1), Step("[]", slot = 0)),
             path(quoted(node("%{}", node("|", node("m"), list(cursor))))),
         )
         assertEquals(emptyList<Step>(), path(quoted(tuple(atom("__block__"), meta, list(cursor)))))
@@ -482,13 +559,57 @@ class CodeFragmentShapeTest {
 
     @Test
     fun testHeads() {
-        val match = quoted(node("=", name("x"), OtpErlangLong(1)))
+        fun shown(root: ElixirAst, caret: Int) = heads(root, caret, DUMMY).map(Step::shown)
+        // A quoted tree's nodes are all at 0, before the caret.
+        fun heads(argument: OtpErlangObject) = shown(quoted(node("foo", node("x", OtpErlangLong(1), argument))), 1)
 
-        assertEquals(listOf("=/2", "literal"), heads(match, 0))
-        assertEquals(listOf("=/2"), heads(match, 2))
-        assertEquals(listOf("alias"), heads(quoted(tuple(atom("__aliases__"), meta, list(atom("Hello")))), 0))
-        assertEquals(listOf("x"), heads(quoted(name("x")), 0))
-        assertEquals(listOf("foo/1"), heads(quoted(node("foo", node("__cursor__"))), 0))
+        // The node holding the dummy is dropped, wherever its own text holds it.
+        assertEquals(listOf("foo/1@0", "x/2@1"), heads(name("xIntellijIdeaRulezzz")))
+        assertEquals(listOf("foo/1@0", "x/2@1"), heads(node("loIntellijIdeaRulezzz", node("cal", OtpErlangLong(1)))))
+        assertEquals(listOf("foo/1@0", "x/2@1"), heads(tuple(node(".", aliases("Hello"), atom("woIntellijIdeaRulezzz")), meta, list(OtpErlangLong(1)))))
+        assertEquals(listOf("foo/1@0", "x/2@1"), heads(aliases("Hello", "WoIntellijIdeaRulezzz")))
+        assertEquals(listOf("foo/1@0", "x/2@1"), heads(atom("foIntellijIdeaRulezzz")))
+        assertEquals(
+            listOf("foo/1@0", "x/2@1", ".to_integer/2@0"),
+            heads(node(".", aliases("String"), atom("to_integer")).let { tuple(it, meta, list(OtpErlangBinary("2IntellijIdeaRulezzz".toByteArray()), OtpErlangLong(10))) }),
+        )
+        assertEquals(listOf("foo/1@0", "x/2@1"), heads(node("sigil_s", node("<<>>", OtpErlangBinary("a".toByteArray())), charlist("IntellijIdeaRulezzz"))))
+        // In a remote call's receiver the dummy is in none of its arguments.
+        assertEquals(listOf("foo/1@0", "x/2@1", ".bar/1@-"), heads(tuple(node(".", name("yIntellijIdeaRulezzz"), atom("bar")), meta, list(OtpErlangLong(1)))))
+        // `foo(x(1, x <> "a"))` holds no dummy, as where it is in a comment.
+        assertEquals(emptyList<String>(), heads(node("<>", name("x"), OtpErlangBinary("a".toByteArray()))))
+
+        // A step whose head is written after the caret is dropped, as no prefix holds it: `a - | - b`, whose dummy is
+        // at 4 and whose outer `-` is at 24.
+        val dummy = { begin: Int -> variable(begin, begin + 19, DUMMY.trim()) }
+        val minus = { begin: Int, end: Int, operator: Int, left: ElixirAst, right: ElixirAst ->
+            ElixirAst.Call(at(begin, end), ElixirAst.Literal.Atom(at(operator, operator + 1), "-"), listOf(left, right))
+        }
+
+        assertEquals(listOf("-/2@1"), shown(minus(0, 27, 24, minus(0, 23, 2, variable(0, 1, "a"), dummy(4)), variable(26, 27, "b")), 4))
+        // `foo(a, |, b)`: a head before the caret is kept, whatever follows it.
+        assertEquals(
+            listOf("foo/3@1"),
+            shown(ElixirAst.Call(at(0, 30), ElixirAst.Literal.Atom(at(0, 3), "foo"), listOf(variable(4, 5, "a"), dummy(7), variable(28, 29, "b"))), 7),
+        )
+        // `foo(x|.bar(1))`: a remote call's head is its `.`, not its receiver.
+        val receiver = variable(4, 24, "x" + DUMMY.trim())
+        val bar = ElixirAst.Call(
+            at(4, 31),
+            ElixirAst.Call(at(4, 28), ElixirAst.Literal.Atom(at(24, 25), "."), listOf(receiver, ElixirAst.Literal.Atom(at(25, 28), "bar"))),
+            listOf(ElixirAst.Literal.Integer(at(29, 30), BigInteger.ONE)),
+        )
+
+        assertEquals(listOf("foo/1@0"), shown(ElixirAst.Call(at(0, 32), ElixirAst.Literal.Atom(at(0, 3), "foo"), listOf(bar)), 5))
+
+        // `[{x}|]`: recovery puts the dummy in an error element after the `}`.
+        val tuple = ElixirAst.Tuple(at(1, 4), listOf(variable(2, 3, "x")))
+
+        assertEquals(listOf("[]@1"), shown(ElixirAst.ListNode(at(0, 25), listOf(tuple, error(4, 24))), 4))
+        assertEquals(listOf("[]@0"), shown(ElixirAst.ListNode(at(0, 25), listOf(error(3, 24))), 4))
+        // Neither a node nor a placeholder that ends at the caret holds it.
+        assertEquals(emptyList<String>(), shown(ElixirAst.ListNode(at(0, 5), listOf(tuple)), 4))
+        assertEquals(emptyList<String>(), shown(ElixirAst.ListNode(at(0, 5), listOf(error(1, 4))), 4))
     }
 
     @Test
@@ -562,6 +683,11 @@ class CodeFragmentShapeTest {
             decodeSurround(surround(tagged("alias", "Hello.World"), position(2, 3), position(2, 14))),
         )
         assertEquals(SurroundAnswer(null), decodeSurround(atom("none")))
+
+        val flags = point(atom("true"), atom("false")).decode()
+
+        assertEquals(true to false, flags.literal to flags.atomStart)
+        assertEquals(false to true, point(atom("false"), atom("true")).decode().let { it.literal to it.atomStart })
     }
 
     @Test
@@ -591,7 +717,12 @@ class CodeFragmentShapeTest {
                 )
             )
         }
+        assertThrows(IllegalArgumentException::class.java) { point(atom("nil"), atom("false")).decode() }
+        assertThrows(IllegalArgumentException::class.java) { point(atom("false"), OtpErlangLong(1)).decode() }
     }
+
+    private fun point(literal: OtpErlangObject, atomStart: OtpErlangObject) =
+        Asked.Point(0, 0, atom("none"), tuple(atom("error"), atom("x")), null, literal, atomStart)
 
     private val none = emptyList<String>()
 
@@ -601,26 +732,50 @@ class CodeFragmentShapeTest {
         cursor: CursorContext,
         vararg items: Item,
         path: List<Step>? = emptyList(),
-        heads: List<String>? = emptyList(),
+        heads: List<Step>? = emptyList(),
         span: Span? = null,
         caret: Int = 10,
         identifierEnd: Int = caret,
         scope: Scope = Scope(),
-    ): Judgement = judge(Elixir(cursor, span, path), Plugin(caret, items.toList(), identifierEnd, heads), scope)
+        surround: SurroundContext? = null,
+        literal: Boolean = false,
+        atomStart: Boolean = false,
+    ): Judgement =
+        judge(
+            Elixir(cursor, span, path, surround, literal, atomStart),
+            Plugin(caret, items.toList(), identifierEnd, heads),
+            scope,
+        )
 
     private fun failed(
         cursor: CursorContext,
         vararg items: Item,
         path: List<Step>? = emptyList(),
-        heads: List<String>? = emptyList(),
+        heads: List<Step>? = emptyList(),
         span: Span? = null,
         caret: Int = 10,
         identifierEnd: Int = caret,
         scope: Scope = Scope(),
+        surround: SurroundContext? = null,
+        atomStart: Boolean = false,
     ): List<String> =
-        judged(cursor, *items, path = path, heads = heads, span = span, caret = caret, identifierEnd = identifierEnd, scope = scope)
+        judged(
+            cursor,
+            *items,
+            path = path,
+            heads = heads,
+            span = span,
+            caret = caret,
+            identifierEnd = identifierEnd,
+            scope = scope,
+            surround = surround,
+            atomStart = atomStart,
+        )
             .failed
             .map { it.substringBefore('(') }
+
+    private fun checks(prefix: Verdict, kinds: Verdict, range: Verdict, container: Verdict) =
+        mapOf(Check.PREFIX to prefix, Check.KINDS to kinds, Check.RANGE to range, Check.CONTAINER to container)
 
     private fun attribute(name: String, pattern: String) = Item(name, pattern, ATTRIBUTE)
 
@@ -635,6 +790,13 @@ class CodeFragmentShapeTest {
     private fun variable(name: String, pattern: String) = Item(name, pattern, VARIABLE)
 
     private fun quoted(term: OtpErlangObject): ElixirAst = ElixirAst.fromOtp(term, TextRange(0, 1))!!
+
+    private fun at(begin: Int, end: Int) = Meta(TextRange(begin, end), Meta.Position(1, begin + 1), Meta.Position(1, end + 1))
+
+    private fun variable(begin: Int, end: Int, name: String) =
+        ElixirAst.Call(at(begin, end), ElixirAst.Literal.Atom(at(begin, end), name), null)
+
+    private fun error(begin: Int, end: Int) = ElixirAst.Placeholder(at(begin, end), ElixirAst.Placeholder.Reason.Error)
 
     private val meta = OtpErlangList()
 
@@ -661,3 +823,5 @@ class CodeFragmentShapeTest {
 
     private fun tuple(vararg elements: OtpErlangObject) = OtpErlangTuple(arrayOf(*elements))
 }
+
+private const val DUMMY = "IntellijIdeaRulezzz "

@@ -4,27 +4,20 @@ import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.google.gson.JsonParser
 import com.intellij.codeInsight.CodeInsightSettings
-import com.intellij.codeInsight.completion.CompletionContributor
-import com.intellij.codeInsight.completion.CompletionContributorEP
 import com.intellij.codeInsight.completion.CompletionType
-import com.intellij.codeInsight.lookup.LookupManager
 import com.intellij.codeInsight.lookup.impl.LookupImpl
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
-import com.intellij.openapi.extensions.DefaultPluginDescriptor
-import com.intellij.openapi.extensions.LoadingOrder
+import com.intellij.openapi.util.registry.Registry
 import com.intellij.psi.PsiErrorElement
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.LightProjectDescriptor
 import com.intellij.testFramework.LoggedErrorProcessor
 import com.intellij.testFramework.common.runAll
-import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.elixir_surface.LegManifest.environment
 import org.elixir_lang.golden.CommittedGolden
 import org.elixir_lang.junit.logs.GuardedLoggedErrorProcessor
-import org.elixir_lang.lowering.ElementLowering
-import org.elixir_lang.snapshot.LegElixirProjectDescriptor
 import java.io.File
 import java.nio.file.Path
 import kotlin.io.path.readText
@@ -36,7 +29,7 @@ import kotlin.io.path.readText
 class CodeFragmentOracleTest : PlatformTestCase() {
     private var autocompleteOnCodeCompletion = true
 
-    override fun getProjectDescriptor(): LightProjectDescriptor = LegElixirProjectDescriptor
+    override fun getProjectDescriptor(): LightProjectDescriptor = CodeFragmentProjectDescriptor
 
     override fun setUp() {
         super.setUp()
@@ -84,15 +77,10 @@ class CodeFragmentOracleTest : PlatformTestCase() {
     fun testAgreement() {
         if (!baseline) return
 
-        CompletionContributor.EP.point.registerExtension(
-            CompletionContributorEP(
-                ElixirLanguage.id,
-                IdentifierEndRecorder::class.java.name,
-                DefaultPluginDescriptor(CodeFragmentOracleTest::class.java.name),
-            ),
-            LoadingOrder.LAST,
-            testRootDisposable,
-        )
+        CompletionRecorder.register(testRootDisposable)
+        // Past the limit the lookup keeps its most relevant half while contributors still add items, so which items
+        // remain depends on timing; every item is recorded instead.
+        Registry.get("ide.completion.variant.limit").setValue(100_000, testRootDisposable)
 
         val rows = CASES.flatMap(::rows)
 
@@ -120,7 +108,11 @@ class CodeFragmentOracleTest : PlatformTestCase() {
         val container = (answer.container as? Container.Quoted)?.ast
         val path = container?.let(::path)
         val plugin = observe(case, answer.offset, answer.cursor)
-        val judgement = judge(Elixir(answer.cursor, span, path), plugin, container?.let(::scope) ?: Scope())
+        val judgement = judge(
+            Elixir(answer.cursor, span, path, surround?.context, answer.literal, answer.atomStart),
+            plugin,
+            container?.let(::scope) ?: Scope(),
+        )
 
         return listOf(
             "${case.name}@${"%04d".format(answer.n)}",
@@ -129,19 +121,18 @@ class CodeFragmentOracleTest : PlatformTestCase() {
                 span?.let { span -> "${it.context} ${span.begin}-${span.end}" }
                     ?: "${it.context} ${offset(it.begin)}-${offset(it.end)} (no segment at the caret)"
             } ?: answer.surround?.toString() ?: "-",
-            path?.let { compared(answer.cursor, it).joinToString(" ", "[", "]") } ?: Container.Error.toString(),
+            if (answer.literal) "literal" else "-",
+            if (answer.atomStart) "atomStart" else "-",
+            path?.let { compared(answer.cursor, it).joinToString(" ", "[", "]", transform = Step::shown) } ?: Container.Error.toString(),
             items(plugin.items),
             "${plugin.items.map { plugin.caret - it.pattern.length }.distinct().sorted().joinToString(",").ifEmpty { "_" }}-${plugin.identifierEnd}",
-            plugin.heads?.joinToString(" ", "[", "]") ?: "(lowering logged)",
+            plugin.heads?.joinToString(" ", "[", "]", transform = Step::shown) ?: "(lowering logged)",
             *Check.entries.map { judgement.checks.getValue(it).toString() }.toTypedArray(),
             judgement.failed.joinToString(" ").ifEmpty { "-" },
         ).joinToString("\t")
     }
 
-    /**
-     * Completes once on [case]'s text cut at [caret], reading the items and the lowered file's heads, and once on the
-     * whole text, reading where the identifier ends.
-     */
+    /** Completes on [case]'s whole text with the caret at [caret], as the editor completes. */
     private fun observe(case: Case, caret: Int, cursor: CursorContext): Plugin {
         var loweringLogged = false
         val processor = object : GuardedLoggedErrorProcessor() {
@@ -155,22 +146,16 @@ class CodeFragmentOracleTest : PlatformTestCase() {
         }
 
         return LoggedErrorProcessor.executeWith(processor).use {
-            configure(case.text.substring(0, caret) + CARET)
-            myFixture.complete(CompletionType.BASIC)
-            val items = offered(cursor)
-            val heads = ReadAction.computeBlocking<List<String>, Throwable> {
-                heads(ElementLowering.lower(myFixture.file), caret)
-            }
-
-            IdentifierEndRecorder.identifierEnd = -1
             configure(case.text.substring(0, caret) + CARET + case.text.substring(caret))
-            myFixture.complete(CompletionType.BASIC)
-            LookupManager.getInstance(project).hideActiveLookup()
-            val identifierEnd = IdentifierEndRecorder.identifierEnd
+            val recorded = CompletionRecorder.record("${case.name} at $caret") { myFixture.complete(CompletionType.BASIC) }
+            val items = offered(cursor)
 
-            check(identifierEnd >= 0) { "${case.name} at $caret: no completion ran on the whole text" }
-
-            Plugin(caret, items, identifierEnd, heads.takeUnless { loweringLogged })
+            Plugin(
+                caret,
+                items,
+                recorded.identifierEnd,
+                heads(recorded.copy, caret, recorded.dummyIdentifier).takeUnless { loweringLogged },
+            )
         }
     }
 

@@ -16,21 +16,38 @@ import java.io.File
  */
 object LegElixirProjectDescriptor : LightProjectDescriptor() {
     override fun configureModule(module: Module, model: ModifiableRootModel, contentEntry: ContentEntry) {
-        val applications = File(environment("ELIXIR_LANG_ELIXIR_PATH"), "lib").listFiles(File::isDirectory).orEmpty()
-        val tableModel = LibraryTablesRegistrar.getInstance().getLibraryTable(module.project).modifiableModel
-        val library = tableModel.createLibrary("Elixir ${environment("ELIXIR_VERSION")}")
+        addLegElixir(module, model)
+    }
+}
 
-        library.modifiableModel.let { libraryModel ->
-            // By URL: the roots are outside the roots a test may read until the library lists them.
-            for (application in applications.sortedBy { it.name }) {
-                libraryModel.addRoot(VfsUtilCore.pathToUrl(File(application, "ebin").path), OrderRootType.CLASSES)
-                libraryModel.addRoot(VfsUtilCore.pathToUrl(File(application, "lib").path), OrderRootType.SOURCES)
-            }
+/** Adds [LegElixirProjectDescriptor]'s library. */
+fun addLegElixir(module: Module, model: ModifiableRootModel) {
+    val applications = File(environment("ELIXIR_LANG_ELIXIR_PATH"), "lib").listFiles(File::isDirectory).orEmpty()
 
-            libraryModel.commit()
+    addLibrary(
+        module,
+        model,
+        "Elixir ${environment("ELIXIR_VERSION")}",
+        applications.sortedBy { it.name }.flatMap { application ->
+            listOf(File(application, "ebin") to OrderRootType.CLASSES, File(application, "lib") to OrderRootType.SOURCES)
+        },
+    )
+}
+
+/** Adds a project library named [name] holding [roots] to [module]'s project, and [model]'s module depends on it. */
+fun addLibrary(module: Module, model: ModifiableRootModel, name: String, roots: List<Pair<File, OrderRootType>>) {
+    val tableModel = LibraryTablesRegistrar.getInstance().getLibraryTable(module.project).modifiableModel
+    val library = tableModel.createLibrary(name)
+
+    library.modifiableModel.let { libraryModel ->
+        // By URL: the roots are outside the roots a test may read until the library lists them.
+        for ((root, type) in roots) {
+            libraryModel.addRoot(VfsUtilCore.pathToUrl(root.path), type)
         }
 
-        tableModel.commit()
-        model.addLibraryEntry(library)
+        libraryModel.commit()
     }
+
+    tableModel.commit()
+    model.addLibraryEntry(library)
 }

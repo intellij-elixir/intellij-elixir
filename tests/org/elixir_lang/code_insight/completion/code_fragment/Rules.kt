@@ -20,10 +20,14 @@ enum class Kind { ATOM, ATTRIBUTE, CALL, FIELD, KEYWORD, MODULE, OTHER, VARIABLE
 data class Item(val name: String, val pattern: String, val kind: Kind, val owner: String? = null)
 
 /**
- * One node on Elixir's path to `__cursor__`: its head, whether `__cursor__` is its only argument, and whether its
- * first argument is a variable.
+ * One node on a path to `__cursor__` or to the dummy identifier: its head, whether `__cursor__` is its only argument,
+ * whether its first argument is a variable, and [slot], which of its arguments or elements holds the rest of the path,
+ * `null` where a call's receiver or callee does.
  */
-data class Step(val head: String, val cursorOnly: Boolean = false, val onVariable: Boolean = false)
+data class Step(val head: String, val cursorOnly: Boolean = false, val onVariable: Boolean = false, val slot: Int? = null) {
+    /** The head with its slot, as the golden shows it. */
+    val shown get() = "$head@${slot ?: "-"}"
+}
 
 /** Offsets `[begin, end)`. */
 data class Span(val begin: Int, val end: Int)
@@ -33,17 +37,27 @@ data class Span(val begin: Int, val end: Int)
  *
  * @property span the name segment of `surround_context`'s span that holds the caret
  * @property path the steps from the root to `__cursor__`, without it; `null` for `{:error, _}`
+ * @property surround `surround_context`'s context; `null` for `:none`, or where it was not asked
+ * @property literal whether the text before the caret ends inside a literal
+ * @property atomStart whether an atom starts at the `:` before the caret
  */
-class Elixir(val cursor: CursorContext, val span: Span?, val path: List<Step>?)
+class Elixir(
+    val cursor: CursorContext,
+    val span: Span?,
+    val path: List<Step>?,
+    val surround: SurroundContext?,
+    val literal: Boolean,
+    val atomStart: Boolean,
+)
 
 /**
  * What basic completion did at a point.
  *
- * @property identifierEnd where Tab's replacement ends, from completion on the whole text
- * @property heads the enclosing forms of the lowered truncated file at the caret, cursors dropped; `null` when
- *   lowering logged an error
+ * @property identifierEnd where Tab's replacement ends
+ * @property heads the enclosing forms at the dummy identifier in completion's file copy, lowered, cursors dropped;
+ *   `null` when lowering logged an error
  */
-class Plugin(val caret: Int, val items: List<Item>, val identifierEnd: Int, val heads: List<String>?)
+class Plugin(val caret: Int, val items: List<Item>, val identifierEnd: Int, val heads: List<Step>?)
 
 /** The case's `alias` forms: each alias as written, to the module it names. */
 class Scope(val aliases: Map<String, String> = emptyMap()) {
@@ -70,8 +84,11 @@ enum class Check { PREFIX, KINDS, RANGE, CONTAINER }
 /** Each check's verdict, and the failed checks with their offending values. */
 class Judgement(val checks: Map<Check, Verdict>, val failed: List<String>)
 
+/** Inside a literal Elixir's answers describe the literal's text, which completion does not complete. */
 fun judge(elixir: Elixir, plugin: Plugin, scope: Scope): Judgement {
-    val rule = rule(elixir.cursor, elixir.path, scope)
+    if (elixir.literal) return Judgement(Check.entries.associateWith { Verdict.NO_RULE }, emptyList())
+
+    val rule = rule(elixir.cursor, elixir.path, scope, elixir.atomStart)
     val items = plugin.items
     val failed = mutableListOf<String>()
 
@@ -81,7 +98,7 @@ fun judge(elixir: Elixir, plugin: Plugin, scope: Scope): Judgement {
     }
     val kinds = when {
         rule.kinds == null -> Verdict.NO_RULE
-        items.isEmpty() -> if (rule.kinds.isEmpty()) Verdict.AGREE else Verdict.EMPTY
+        items.isEmpty() -> Verdict.EMPTY
         else -> listOf(
             failed.check("kind", items.filter { it.kind !in rule.kinds }.map { it.kind.name.lowercase() }),
             failed.check("owner", items.filter { rule.owners[it.kind]?.invoke(it.owner) == false }.map { it.owner.toString() }),
@@ -96,7 +113,9 @@ fun judge(elixir: Elixir, plugin: Plugin, scope: Scope): Judgement {
         if (end) failed.add("range end")
         if (begin || end) Verdict.DIFFER else Verdict.AGREE
     } ?: Verdict.NO_RULE
-    val container = elixir.path?.let { path ->
+    // At `end|` Elixir's container is outside the block `end` closes.
+    val closing = elixir.surround == Keyword("end") && elixir.span?.end == plugin.caret
+    val container = elixir.path?.takeUnless { closing }?.let { path ->
         val heads = plugin.heads
         val compared = compared(elixir.cursor, path)
 
@@ -105,7 +124,10 @@ fun judge(elixir: Elixir, plugin: Plugin, scope: Scope): Judgement {
                 failed.add("container (lowering logged)")
                 Verdict.DIFFER
             }
-            heads.take(compared.size) != compared -> {
+            // A head agrees on its name and the argument holding the caret: the plugin also sees the arguments after it.
+            heads.size < compared.size || compared.zip(heads).any { (elixir, plugin) ->
+                name(elixir.head) != name(plugin.head) || elixir.slot != plugin.slot
+            } -> {
                 failed.add("container")
                 Verdict.DIFFER
             }
@@ -177,12 +199,13 @@ private class Rule(
     val callName: ((String) -> Boolean)? = null,
 )
 
-private fun rule(cursor: CursorContext, path: List<Step>?, scope: Scope): Rule =
+private fun rule(cursor: CursorContext, path: List<Step>?, scope: Scope, atomStart: Boolean): Rule =
     when (cursor) {
         is Alias -> Rule(lastSegment(cursor.name), setOf(MODULE), mapOf(MODULE to namedUnderParent(cursor.name, scope)))
         is InsideAlias -> Rule(lastSegment(cursor.name), setOf(MODULE))
         is BlockKeywordOrBinaryOperator -> Rule(cursor.hint, setOf(KEYWORD, CALL))
-        is Dot -> dot(cursor, path, scope)
+        // IEx offers what the variable holds at runtime.
+        is Dot -> if (rootedAtVariable(cursor)) Rule(cursor.hint, null) else dot(cursor, path, scope)
         is DotArity -> Rule(cursor.hint, setOf(CALL), callOwner(cursor.receiver, scope)) { it == cursor.hint }
         is DotCall, is AnonymousCall -> Rule("", setOf(VARIABLE, CALL))
         Expr -> expr(path)
@@ -199,10 +222,19 @@ private fun rule(cursor: CursorContext, path: List<Step>?, scope: Scope): Rule =
             }
         is OperatorArity -> Rule(cursor.operator, setOf(CALL)) { it == cursor.operator }
         is OperatorCall -> if (cursor.operator == "|") expr(path) else Rule("", setOf(VARIABLE, CALL))
-        None -> Rule(null, emptySet())
+        // An explicit request completes from an empty prefix, and Elixir names no kind to offer.
+        None -> Rule("", null)
         is Sigil -> Rule("", setOf(if (cursor.hint.isEmpty()) CALL else OTHER))
         is Struct -> struct(cursor.inside, path, scope)
-        is UnquotedAtom -> Rule(cursor.hint, setOf(MODULE, ATOM))
+        // `cursor_context` reads `key:|` and `t :|:` as an atom's start: it sees no text after the caret.
+        is UnquotedAtom -> if (cursor.hint.isEmpty() && !atomStart) Rule(null, null) else Rule(cursor.hint, setOf(MODULE, ATOM))
+    }
+
+private fun rootedAtVariable(dot: Dot): Boolean =
+    when (val receiver = dot.receiver) {
+        is Var -> true
+        is Dot -> rootedAtVariable(receiver)
+        is Alias, Expr, is InsideAlias, is LocalOrVar, is ModuleAttribute, is UnquotedAtom -> false
     }
 
 private fun dot(cursor: Dot, path: List<Step>?, scope: Scope): Rule =
@@ -294,7 +326,7 @@ private fun aliasOnly(path: List<Step>?) = path?.lastOrNull()?.let { it.cursorOn
  * or an alias with an inside, the cursor parses as the receiver's no-parens argument. After an attribute that call
  * is the attribute's name, inside `@`.
  */
-fun compared(cursor: CursorContext, path: List<Step>): List<String> {
+fun compared(cursor: CursorContext, path: List<Step>): List<Step> {
     val receiver = when (cursor) {
         is Dot -> cursor.receiver
         is InsideAlias -> when (val inside = cursor.inside) {
@@ -312,7 +344,7 @@ fun compared(cursor: CursorContext, path: List<Step>): List<String> {
             path
         }
 
-    return kept.map(Step::head)
+    return kept
 }
 
 private fun prunes(receiver: Receiver): Boolean =
@@ -364,28 +396,67 @@ private fun receiverSegments(receiver: Receiver): List<String> =
 
 /** The steps from [root] to its `__cursor__`. */
 fun path(root: ElixirAst): List<Step> =
-    toCursor(root).dropLast(1).mapNotNull { node ->
+    toCursor(root).zipWithNext { node, next ->
         head(node)?.let {
             val arguments = (node as? ElixirAst.Call)?.arguments
 
-            Step(it, arguments?.singleOrNull()?.let(::isCursor) == true, arguments?.firstOrNull()?.let(::isVariable) == true)
+            Step(
+                it,
+                arguments?.singleOrNull()?.let(::isCursor) == true,
+                arguments?.firstOrNull()?.let(::isVariable) == true,
+                slot(node, next),
+            )
         }
-    }
+    }.filterNotNull()
 
 /** The nodes from [root] to its `__cursor__`, both included. */
-private fun toCursor(root: ElixirAst): List<ElixirAst> {
-    fun nodes(node: ElixirAst): List<ElixirAst>? =
-        if (isCursor(node)) listOf(node) else children(node).firstNotNullOfOrNull { nodes(it) }?.let { listOf(node) + it }
+private fun toCursor(root: ElixirAst): List<ElixirAst> =
+    requireNotNull(pathTo(root, ::isCursor)) { "no __cursor__ in Elixir's container" }
 
-    return requireNotNull(nodes(root)) { "no __cursor__ in Elixir's container" }
+/** The nodes from [root] to the first node, depth first, that is [found], both included. */
+private fun pathTo(root: ElixirAst, found: (ElixirAst) -> Boolean): List<ElixirAst>? =
+    if (found(root)) listOf(root) else children(root).firstNotNullOfOrNull { pathTo(it, found) }?.let { listOf(root) + it }
+
+/**
+ * The heads from [root] to the node holding the [dummy] identifier that completion inserted at [caret], without that
+ * node or any cursor. A node holds it in its own text, or as a placeholder over the caret, as recovery from the
+ * dummy after a closing bracket or quote makes. Empty where no node holds it, as in a comment. A head written after
+ * the caret is dropped, as no prefix holds it: the outer `-` of `a - | - b`.
+ */
+fun heads(root: ElixirAst, caret: Int, dummy: String): List<Step> {
+    val name = dummy.trimEnd()
+    val holds = { node: ElixirAst ->
+        name in ownText(node) ||
+            node is ElixirAst.Placeholder && node.meta.origin.startOffset <= caret && caret < node.meta.origin.endOffset
+    }
+
+    return pathTo(root, holds).orEmpty().zipWithNext { node, next ->
+        head(node)?.takeUnless { it == CURSOR || headStart(node) >= caret }?.let { Step(it, slot = slot(node, next)) }
+    }.filterNotNull()
 }
 
-/** The heads from [root] into, at each step, the last child whose origin holds [caret], with every cursor dropped. */
-fun heads(root: ElixirAst, caret: Int): List<String> =
-    generateSequence(root) { node -> children(node).lastOrNull { it.meta.origin.containsOffset(caret) } }
-        .mapNotNull(::head)
-        .filter { it != CURSOR }
-        .toList()
+/**
+ * The text of [node] that [children] does not reach: a call's or a variable's name, a remote call's member, an alias's
+ * atom segments, an atom's name, a binary's bytes, and a sigil's modifiers.
+ */
+private fun ownText(node: ElixirAst): String =
+    when (node) {
+        is ElixirAst.Call -> when (val callee = node.callee) {
+            is ElixirAst.Literal.Atom -> callee.name + if (callee.name.startsWith("sigil_")) modifiers(node) else ""
+            is ElixirAst.Call -> dotted(callee)?.second.orEmpty()
+            else -> ""
+        }
+        is ElixirAst.Alias -> node.segments.filterIsInstance<ElixirAst.Literal.Atom>().joinToString(".") { it.name }
+        is ElixirAst.Literal.Atom -> node.name
+        is ElixirAst.Literal.Binary -> String(node.bytes, Charsets.UTF_8)
+        is ElixirAst.Literal, is ElixirAst.ListNode, is ElixirAst.Tuple, is ElixirAst.Block, is ElixirAst.Placeholder -> ""
+    }
+
+/** A sigil call's modifiers, the code points its last argument lists. */
+private fun modifiers(sigil: ElixirAst.Call): String =
+    (sigil.arguments?.lastOrNull() as? ElixirAst.ListNode)?.elements.orEmpty()
+        .mapNotNull { (it as? ElixirAst.Literal.Integer)?.value?.toInt() }
+        .joinToString("") { String(Character.toChars(it)) }
 
 /** The scope at [root]'s `__cursor__`: the `alias` forms before it in each block that holds it. */
 fun scope(root: ElixirAst): Scope {
@@ -447,6 +518,30 @@ private fun head(node: ElixirAst): String? =
         is ElixirAst.Placeholder -> CURSOR
     }
 
+/** Which of [node]'s arguments, elements or segments [next] is; `null` for a call's receiver or callee. */
+private fun slot(node: ElixirAst, next: ElixirAst): Int? =
+    when (node) {
+        is ElixirAst.Call -> node.arguments.orEmpty()
+        is ElixirAst.Alias -> node.segments
+        is ElixirAst.ListNode -> node.elements
+        is ElixirAst.Tuple -> node.elements
+        is ElixirAst.Block -> node.expressions
+        is ElixirAst.Literal, is ElixirAst.Placeholder -> emptyList()
+    }.indexOfFirst { it === next }.takeIf { it >= 0 }
+
+/** Where [node]'s head is written: a call's callee, or a remote call's `.`, or where the node starts. */
+private fun headStart(node: ElixirAst): Int {
+    val head = when (node) {
+        is ElixirAst.Call -> (node.callee as? ElixirAst.Call)?.takeIf { dotted(it) != null }?.callee ?: node.callee
+        else -> node
+    }
+
+    return head.meta.origin.startOffset
+}
+
+/** [head] without its arity. */
+private fun name(head: String) = head.replace(ARITY, "")
+
 /** A `.` call's receiver and member, the member `null` for an anonymous call. */
 private fun dotted(callee: ElixirAst.Call): Pair<ElixirAst, String?>? {
     if ((callee.callee as? ElixirAst.Literal.Atom)?.name != ".") return null
@@ -480,6 +575,7 @@ private fun children(node: ElixirAst): List<ElixirAst> =
     }
 
 private const val CURSOR = "cursor"
+private val ARITY = Regex("/\\d+$")
 private const val SHOWN = 3
 private val ALIAS_ONLY = setOf("alias", "import", "require")
 private val ALIAS_ONLY_HEADS = ALIAS_ONLY.map { "$it/1" }.toSet()
