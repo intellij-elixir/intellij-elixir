@@ -1,5 +1,9 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangAtom
+import com.ericsson.otp.erlang.OtpErlangList
+import com.ericsson.otp.erlang.OtpErlangString
+import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageFeature.ELLIPSIS_NULLARY_CALL
 import org.elixir_lang.language_level.ElixirLanguageFeature.FROM_BRACKETS_ON_BRACKETED_EXPRESSION
@@ -47,9 +51,27 @@ private fun pipe(expr: ElixirAst, call: ElixirAst, level: ElixirLanguageLevel): 
         is ElixirAst.Block -> Summary.Output.Built(ElixirAst.Block(call.meta, listOf(expr) + call.expressions))
         is ElixirAst.Placeholder ->
             if (call.stopsExpansion) Summary.Output.Unported(call) else Summary.Output.Raised("pipe_bad_target")
+        is ElixirAst.Value -> pipeValue(expr, call)
         is ElixirAst.Alias, is ElixirAst.Tuple, is ElixirAst.Literal, is ElixirAst.ListNode ->
             Summary.Output.Raised("pipe_bad_target")
     }
+
+/**
+ * `Macro.pipe/3` into [value]: a 3-tuple whose last element is an atom or a list is built into a call as any other is,
+ * and expanding it raises.
+ */
+private fun pipeValue(expr: ElixirAst, value: ElixirAst.Value): Summary.Output {
+    val tuple = (value.term as? OtpErlangTuple)?.takeIf { it.arity() == 3 } ?: return Summary.Output.Raised("pipe_bad_target")
+    val piped = when (val args = tuple.elementAt(2)) {
+        is OtpErlangAtom -> OtpErlangList(expr.toOtp())
+        is OtpErlangList -> OtpErlangList(arrayOf(expr.toOtp(), *args.elements()), args.lastTail)
+        // A list of bytes.
+        is OtpErlangString -> OtpErlangList(arrayOf(expr.toOtp(), *OtpErlangList(args.stringValue()).elements()))
+        else -> return Summary.Output.Raised("pipe_bad_target")
+    }
+
+    return Summary.Output.Built(ElixirAst.Value(value.meta, OtpErlangTuple(arrayOf(tuple.elementAt(0), tuple.elementAt(1), piped))))
+}
 
 private fun pipeCall(expr: ElixirAst, call: ElixirAst.Call, level: ElixirLanguageLevel): Summary.Output {
     val name = (call.callee as? ElixirAst.Literal.Atom)?.name

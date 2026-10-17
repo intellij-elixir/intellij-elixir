@@ -4,7 +4,6 @@ import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangBitstr
 import com.ericsson.otp.erlang.OtpErlangDouble
 import com.ericsson.otp.erlang.OtpErlangExternalFun
-import com.ericsson.otp.erlang.OtpErlangFun
 import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangMap
@@ -18,6 +17,7 @@ import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.NEGATIVE_ZERO_IS_DISTINCT
 import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.lowering.TermKind
 import java.math.BigDecimal
 
 /** Erlang's term order over atom text: code point by code point, where `String` compares UTF-16 units. */
@@ -81,6 +81,10 @@ internal fun termOrder(level: ElixirLanguageLevel): Comparator<OtpErlangObject> 
 internal fun mapKeyOrder(level: ElixirLanguageLevel): Comparator<OtpErlangObject> =
     if (NEGATIVE_ZERO_IS_DISTINCT.isSufficient(level)) SIGNED_MAP_KEY_ORDER else MAP_KEY_ORDER
 
+/** [mapKeyOrder] where [exact], as `=:=` compares, else [termOrder], as `==` does. */
+internal fun termOrder(level: ElixirLanguageLevel, exact: Boolean): Comparator<OtpErlangObject> =
+    if (exact) mapKeyOrder(level) else termOrder(level)
+
 /** Whether [left] and [right], exactly equal at some level, differ in a zero's sign, as `=:=` tells from OTP 27. */
 internal fun differInSign(left: OtpErlangObject, right: OtpErlangObject): Boolean = SIGNED_MAP_KEY_ORDER.compare(left, right) != 0
 
@@ -99,6 +103,35 @@ private fun order(numbers: Numbers): Comparator<OtpErlangObject> =
 private data class Numbers(val exact: Boolean, val signed: Boolean) {
     /** A map's keys compare exactly, whatever compares the map. */
     val keys: Numbers get() = if (exact) this else copy(exact = true)
+}
+
+/**
+ * Erlang's `==`, or `=:=` where [exact], on the OTP running Elixir at [level]. Two different references, ports or pids
+ * at one place are unequal, though only the VM orders them; any other pair without a known order throws
+ * [UnorderedTerms].
+ */
+internal fun termsEqual(left: OtpErlangObject, right: OtpErlangObject, exact: Boolean, level: ElixirLanguageLevel): Boolean =
+    !holdsDistinctIdentities(left, right) && termOrder(level, exact).compare(left, right) == 0
+
+/**
+ * Whether [left] and [right] hold, at one place outside a map, two different references, ports or pids: terms that are
+ * unequal, though only the VM orders them.
+ */
+private fun holdsDistinctIdentities(left: OtpErlangObject, right: OtpErlangObject): Boolean {
+    ProgressManager.checkCanceled()
+
+    return when {
+        left is OtpErlangTuple && right is OtpErlangTuple ->
+            left.elements().zip(right.elements()).any { (a, b) -> holdsDistinctIdentities(a, b) }
+        left is OtpErlangList && right is OtpErlangList ->
+            left.elements().zip(right.elements()).any { (a, b) -> holdsDistinctIdentities(a, b) } ||
+                (left.arity() == right.arity() && left.lastTail != null && right.lastTail != null &&
+                    holdsDistinctIdentities(left.lastTail, right.lastTail))
+        left is OtpErlangRef && right is OtpErlangRef ||
+            left is OtpErlangPort && right is OtpErlangPort ||
+            left is OtpErlangPid && right is OtpErlangPid -> left != right
+        else -> false
+    }
 }
 
 internal class UnorderedTerms : IllegalArgumentException("no known order between two terms")
@@ -131,20 +164,7 @@ private fun compareTerms(left: OtpErlangObject, right: OtpErlangObject, numbers:
 }
 
 /** `null` for a term the interpreter holds without knowing it, which has no known place. */
-private fun rank(term: OtpErlangObject): Int? =
-    when (term) {
-        is OtpErlangLong, is OtpErlangDouble -> 0
-        is OtpErlangAtom -> 1
-        is OtpErlangRef -> 2
-        is OtpErlangFun, is OtpErlangExternalFun -> 3
-        is OtpErlangPort -> 4
-        is OtpErlangPid -> 5
-        is OtpErlangTuple -> 6
-        is OtpErlangMap -> 7
-        is OtpErlangList, is OtpErlangString -> 8
-        is OtpErlangBitstr -> 9
-        else -> null
-    }
+private fun rank(term: OtpErlangObject): Int? = TermKind.of(term)?.ordinal
 
 private fun compareNumbers(left: OtpErlangObject, right: OtpErlangObject, numbers: Numbers): Int {
     if (numbers.exact) {

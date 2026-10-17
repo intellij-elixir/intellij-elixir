@@ -16,6 +16,9 @@ import org.elixir_lang.expander.DefinitionTable
 import org.elixir_lang.expander.Dispatch
 import org.elixir_lang.expander.Env
 import org.elixir_lang.expander.ExState
+import org.elixir_lang.expander.Linify
+import org.elixir_lang.expander.LinifyClause
+import org.elixir_lang.expander.LinifyRight
 import org.elixir_lang.expander.MacroExpanded
 import org.elixir_lang.expander.ModuleClauses
 import org.elixir_lang.expander.ModuleClauses.Dispatched
@@ -174,7 +177,7 @@ internal class Evaluation(
         val args = call.arguments.orEmpty().map { arg -> termOf(arg).let { if (marks) stopGenerated(it, arg) else it } }
         val function = ModuleExports.macroExport(NameArity(dispatch.name, args.size))
         val result = try {
-            invoke(module, definition, function.name, args, function.arity)
+            invoke(module, definition, function.name, args, function.arity).also(::linify)
         } catch (thrown: Thrown) {
             if (thrown.kind != "error") decline("the body ${thrown.kind}s")
 
@@ -182,8 +185,61 @@ internal class Evaluation(
         }
 
         return Summary.Output.Built(
-            ElixirAst.fromOtp(result, call.meta.origin, nodes::get) ?: decline("the result isn't quoted")
+            ElixirAst.fromOtp(result, call.meta.origin, values = true, known = nodes::get)
+                ?: decline("the result isn't quoted")
         )
+    }
+
+    private val linifier by lazy { Linify(dispatch.receiver, run.level) }
+
+    /**
+     * Raises where `elixir_quote:linify_with_context_counter/3` raises on [term], the macro's result, before
+     * `elixir_dispatch:expand_quoted/7` expands it: at the head [Linify] chooses, each `lists` call it makes on a node's
+     * metadata, and its comprehension over a list. What linify gives back is `linifyWithContextCounter`'s.
+     */
+    private fun linify(term: OtpErlangObject) {
+        ProgressManager.checkCanceled()
+
+        when (term) {
+            is OtpErlangTuple if term.arity() == 3 -> {
+                // The clause is chosen by all three.
+                val (left, meta, right) = term.elements().map(::seen)
+                val shape = when {
+                    isNonEmptyList(right) -> LinifyRight.NonEmptyList
+                    right is OtpErlangAtom -> LinifyRight.Atom(right.atomValue())
+                    else -> LinifyRight.Other
+                }
+
+                val clause = linifier.clause((left as? OtpErlangAtom)?.atomValue(), isList(meta), shape)
+
+                if (clause != LinifyClause.ELSE) {
+                    if (linifier.counted(clause) { keyfind("context", meta) == tuple(CONTEXT, atom(it)) }) {
+                        keymember("counter", meta)
+                    }
+                    linify(left, meta, right)
+                }
+            }
+            is OtpErlangTuple if term.arity() == 2 -> term.elements().forEach(::linify)
+            is OtpErlangList -> {
+                term.elements().forEach(::linify)
+                term.lastTail?.let { error(tuple(atom("bad_generator"), it)) }
+            }
+        }
+    }
+
+    /** `do_tuple_linify`: [left], then [meta] as the line is written into it, then [right]. */
+    private fun linify(left: OtpErlangObject, meta: OtpErlangObject, right: OtpErlangObject) {
+        if (linifier.readsStopGenerated) keyfind("stop_generated", meta)
+        linify(left)
+        if (lineOf(call.meta) != 0) keymember("line", meta)
+        linify(right)
+    }
+
+    private fun keyfind(key: String, meta: OtpErlangObject) =
+        natives.call("lists", "keyfind", listOf(atom(key), ONE, meta))
+
+    private fun keymember(key: String, meta: OtpErlangObject) {
+        natives.call("lists", "keymember", listOf(atom(key), ONE, meta))
     }
 
     /** The module of the exception Elixir raises for [thrown], an `error`. */
@@ -216,7 +272,8 @@ internal class Evaluation(
     fun macroExpand(ast: OtpErlangObject, env: OtpErlangObject, once: Boolean): OtpErlangObject {
         if (env !== caller) decline("Macro.expand/2 in an env other than __CALLER__")
 
-        val node = ElixirAst.fromOtp(ast, call.meta.origin, nodes::get) ?: decline("Macro.expand/2 of a term it can't read")
+        val node = ElixirAst.fromOtp(ast, call.meta.origin, values = true, known = nodes::get)
+            ?: decline("Macro.expand/2 of a term it can't read")
         val expanded = if (once) macroExpandOnce(node, state, this.env, run) else macroExpand(node, state, this.env, run)
 
         return when (expanded) {
@@ -327,6 +384,7 @@ internal class Evaluation(
             is ElixirAst.Alias -> if (frame.source) value(node, frame) else decline("an alias in debug info")
             is ElixirAst.Placeholder -> decline("a placeholder")
             is ElixirAst.Call -> evalCall(node, frame)
+            is ElixirAst.Value -> node.term
         }
     }
 
@@ -1222,7 +1280,7 @@ internal class Evaluation(
         seen(value)
 
         return when (pattern) {
-            is ElixirAst.Literal, is ElixirAst.Alias -> equal(eval(pattern, frame), value, true, run.level)
+            is ElixirAst.Literal, is ElixirAst.Alias, is ElixirAst.Value -> equal(eval(pattern, frame), value, true, run.level)
             is ElixirAst.Tuple -> matchTuple(pattern.elements, value, frame, pending)
             is ElixirAst.ListNode -> matchList(pattern.elements, value, frame, pending)
             is ElixirAst.Call -> matchCall(pattern, value, frame, pending)
@@ -1361,6 +1419,8 @@ internal class Evaluation(
         val STRUCT = atom("__struct__")
         val EXCEPTION = atom("__exception__")
         val ERLANG = atom("erlang")
+        val CONTEXT = atom("context")
+        val ONE = integer(1)
         const val ERLANG_ERROR = "Elixir.ErlangError"
         val REQUIRES_STACKTRACE = listOf("Elixir.FunctionClauseError", "Elixir.UndefinedFunctionError", "Elixir.KeyError")
         val REQUIRES_STACKTRACE_FROM_ERROR_INFO = listOf("Elixir.ArgumentError", "Elixir.SystemLimitError")
@@ -1369,3 +1429,7 @@ internal class Evaluation(
 
 /** `is_list/1`, true of an improper list too. */
 private fun isList(term: OtpErlangObject) = term is OtpErlangList || term is OtpErlangString
+
+/** `[_ | _]`. */
+private fun isNonEmptyList(term: OtpErlangObject) =
+    term is OtpErlangList && term.arity() > 0 || term is OtpErlangString && term.stringValue().isNotEmpty()

@@ -40,6 +40,7 @@ object ErrorKinds {
         "unhandled_cons_op" to """^misplaced operator \|/2\n\nThe \| operator is typically used between brackets""",
         "__cursor__" to """^reserved special form __cursor__ cannot be expanded""",
         "invalid_call" to """^invalid call """,
+        "invalid_quoted_expr" to """^invalid quoted expression: """,
         // `|` and `::` outside their constructs are local calls up to 1.14, with 1.15's misplaced-operator wording.
         // After the module body, an undefined local call names the module, or the function the compiler generates.
         "undefined_function" to
@@ -327,6 +328,9 @@ object ErrorKinds {
         "undefined_var_in_spec" to """^undefined variable ".+" in bitstring segment\. If the size of the binary is a variable""",
     ).mapValues { (_, pattern) -> Regex(pattern, RegexOption.DOT_MATCHES_ALL) }
 
+    /** The kinds Elixir raises as a `CompileError` at line 0, whose message names only the file. */
+    private val AT_LINE_ZERO = setOf("invalid_quoted_expr")
+
     /** The kinds Elixir raises at expansion as an exception other than `CompileError`, whose message has no line. */
     private val WITHOUT_LINE = setOf(
         "quote_unquote_splicing",
@@ -416,11 +420,15 @@ object ErrorKinds {
     /** Whether [kind] is the module of the exception an evaluated macro body raised, which has no message pattern. */
     fun isException(kind: String): Boolean = kind.startsWith("Elixir.")
 
-    /**
-     * Whether Elixir at [level] reports [kind] with a line: an invalid module name is a `CompileError` with one up to
-     * 1.14, and an `ArgumentError` from 1.15.
-     */
+    /** Whether Elixir at [level] reports [kind] with a line. */
     fun hasLine(kind: String, level: ElixirLanguageLevel): Boolean =
+        kind !in AT_LINE_ZERO && isCompileError(kind, level)
+
+    /**
+     * Whether Elixir at [level] raises [kind] as a `CompileError`: an invalid module name is one up to 1.14, and an
+     * `ArgumentError` from 1.15.
+     */
+    fun isCompileError(kind: String, level: ElixirLanguageLevel): Boolean =
         kind !in WITHOUT_LINE && !isException(kind) &&
             !(kind == "invalid_module_name" && FUNCTION_ERRORS_CONTINUE.isSufficient(level))
 }

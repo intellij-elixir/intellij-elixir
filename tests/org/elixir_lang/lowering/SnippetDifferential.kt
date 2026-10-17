@@ -66,7 +66,7 @@ internal fun ElixirAst.placeholders(): List<ElixirAst.Placeholder> =
         is ElixirAst.Placeholder -> listOf(this)
         is ElixirAst.Call -> callee.placeholders() + arguments.orEmpty().flatMap { it.placeholders() }
         is ElixirAst.Alias -> segments.flatMap { it.placeholders() }
-        is ElixirAst.Literal -> emptyList()
+        is ElixirAst.Literal, is ElixirAst.Value -> emptyList()
         is ElixirAst.ListNode -> elements.flatMap { it.placeholders() }
         is ElixirAst.Tuple -> elements.flatMap { it.placeholders() }
         is ElixirAst.Block -> expressions.flatMap { it.placeholders() }

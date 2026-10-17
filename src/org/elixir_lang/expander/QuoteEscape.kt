@@ -374,10 +374,12 @@ internal class QuoteEscape<I, O> private constructor(
 
         return when {
             q == null -> doEscape(input, shape, unquote)
-            tuple != null -> quoteTuple(q, tuple, annotated(q, tuple, q.metaOf(input)), unquote)
+            tuple != null && tuple.elements.size == 3 -> quoteTuple(q, tuple, annotated(q, tuple, q.metaOf(input)), unquote)
             shape is Shape.List -> lists.built(escapeList(shape.elements, shape.tail, unquote))
-            // `do_quote(Other, _) -> Other`.
-            else -> doEscape(input, shape, unquote)
+            // `do_quote(Other, _) -> Other`: a literal built as it is, and a term no source writes put in as it is.
+            shape is Shape.Atom || shape is Shape.Integer || shape is Shape.Float ||
+                shape is Shape.Bitstring && shape.padBits == 0 || shape is Shape.Unknown -> doEscape(input, shape, unquote)
+            else -> inserted(input)
         }
     }
 
@@ -798,8 +800,6 @@ internal class QuoteEscape<I, O> private constructor(
         private const val ARGUMENT_ERROR = "Elixir.ArgumentError"
 
         private const val ERLANG_ERROR = "Elixir.ErlangError"
-
-        private const val FUNCTION_CLAUSE_ERROR = "Elixir.FunctionClauseError"
     }
 }
 
@@ -936,7 +936,29 @@ internal class AstEscapeView(private val s: Synthetic, private val parsed: Parse
                 }
             }
             is ElixirAst.Placeholder -> if (node.stopsExpansion) Shape.Unknown(node) else Shape.Verbatim
+            is ElixirAst.Value -> valueShape(node)
         }
+
+    /** [value]'s term as [TermEscapeView] reads it, each of its parts a [ElixirAst.Value] of its own. */
+    private fun valueShape(value: ElixirAst.Value): Shape<AstTerm> {
+        val part = { term: OtpErlangObject -> AstTerm.Node(ElixirAst.Value(value.meta, term)) }
+
+        return when (val shape = TermEscapeView.shape(value.term)) {
+            is Shape.Tuple -> Shape.Tuple(shape.elements.map(part))
+            is Shape.List -> Shape.List(shape.elements.map(part), shape.tail?.let(part))
+            is Shape.Map ->
+                Shape.Map(shape.entries.map { MapEntry(part(it.key), part(it.value), it.keyTerm, it.valueTerm) })
+            is Shape.Atom -> shape
+            is Shape.Integer -> shape
+            is Shape.Float -> shape
+            is Shape.Bitstring -> shape
+            is Shape.Pid -> shape
+            is Shape.ExternalFun -> shape
+            is Shape.Unescapable -> shape
+            is Shape.Verbatim -> shape
+            is Shape.Unknown -> shape
+        }
+    }
 
     private fun named(node: ElixirAst, name: String, args: List<ElixirAst>): Shape<AstTerm> =
         Shape.Tuple(

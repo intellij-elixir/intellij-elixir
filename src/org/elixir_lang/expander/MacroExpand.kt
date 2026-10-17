@@ -275,7 +275,7 @@ private fun expandMacro(dispatch: Dispatch, call: ElixirAst.Call, state: ExState
                 is Summary.Output.Built -> {
                     val counter = run.counters.next(env.module)
 
-                    MacroExpanded.Node(linifyWithContextCounter(0, dispatch.receiver, counter, built.ast), true)
+                    MacroExpanded.Node(linifyWithContextCounter(0, dispatch.receiver, counter, run.level, built.ast), true)
                 }
                 is Summary.Output.Raised -> MacroExpanded.Stopped(Expansion.Error(built.kind, call))
                 is Summary.Output.Unported -> MacroExpanded.Stopped(Expansion.Unported(built.at))

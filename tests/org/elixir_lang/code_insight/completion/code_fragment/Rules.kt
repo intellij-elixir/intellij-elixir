@@ -509,7 +509,9 @@ private fun ownText(node: ElixirAst): String =
         is ElixirAst.Alias -> node.segments.filterIsInstance<ElixirAst.Literal.Atom>().joinToString(".") { it.name }
         is ElixirAst.Literal.Atom -> node.name
         is ElixirAst.Literal.Binary -> String(node.bytes, Charsets.UTF_8)
-        is ElixirAst.Literal, is ElixirAst.ListNode, is ElixirAst.Tuple, is ElixirAst.Block, is ElixirAst.Placeholder -> ""
+        is ElixirAst.Literal, is ElixirAst.Value, is ElixirAst.ListNode, is ElixirAst.Tuple, is ElixirAst.Block,
+        is ElixirAst.Placeholder,
+        -> ""
     }
 
 /** A sigil call's modifiers, the code points its last argument lists. */
@@ -573,7 +575,7 @@ private fun head(node: ElixirAst): String? =
         is ElixirAst.Alias -> "alias"
         is ElixirAst.ListNode -> "[]"
         is ElixirAst.Tuple -> "{}/${node.elements.size}"
-        is ElixirAst.Literal -> "literal"
+        is ElixirAst.Literal, is ElixirAst.Value -> "literal"
         is ElixirAst.Block -> null
         is ElixirAst.Placeholder -> CURSOR
     }
@@ -586,7 +588,7 @@ private fun slot(node: ElixirAst, next: ElixirAst): Int? =
         is ElixirAst.ListNode -> node.elements
         is ElixirAst.Tuple -> node.elements
         is ElixirAst.Block -> node.expressions
-        is ElixirAst.Literal, is ElixirAst.Placeholder -> emptyList()
+        is ElixirAst.Literal, is ElixirAst.Value, is ElixirAst.Placeholder -> emptyList()
     }.indexOfFirst { it === next }.takeIf { it >= 0 }
 
 /**
@@ -635,7 +637,7 @@ private fun children(node: ElixirAst): List<ElixirAst> =
         is ElixirAst.ListNode -> node.elements
         is ElixirAst.Tuple -> node.elements
         is ElixirAst.Block -> node.expressions
-        is ElixirAst.Literal, is ElixirAst.Placeholder -> emptyList()
+        is ElixirAst.Literal, is ElixirAst.Value, is ElixirAst.Placeholder -> emptyList()
     }
 
 private const val CURSOR = "cursor"

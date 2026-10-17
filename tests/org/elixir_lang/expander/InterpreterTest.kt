@@ -7,6 +7,8 @@ import com.ericsson.otp.erlang.OtpErlangFun
 import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangObject
+import com.ericsson.otp.erlang.OtpErlangPid
+import com.ericsson.otp.erlang.OtpErlangRef
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.util.io.FileUtil
@@ -20,18 +22,31 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.expander.ExpansionResult.Ended
 import org.elixir_lang.intellij_elixir.Quoter
 import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_EXPANDED_AS_GUARD
+import org.elixir_lang.language_level.ElixirLanguageFeature.DUPLICATE_MATCH_UNPACKED_ONCE
+import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_ENTRIES_QUOTED_APART
+import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_ENTRIES_SORTED
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_IN_VM_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.FIELD_OF_NON_MAP_RAISES_BADKEY
 import org.elixir_lang.language_level.ElixirLanguageFeature.FIELD_OF_NON_MAP_RAISES_BADMAP
 import org.elixir_lang.language_level.ElixirLanguageFeature.FN_CLAUSE_ERROR_IS_FUNCTION_CLAUSE
+import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_ERRORS_CONTINUE
 import org.elixir_lang.language_level.ElixirLanguageFeature.GENERATOR_RIGHT_SIDE_SCOPED
+import org.elixir_lang.language_level.ElixirLanguageFeature.INTEGERS_UP_TO_4_MBIT
+import org.elixir_lang.language_level.ElixirLanguageFeature.IN_REFUSES_UNESCAPED_RIGHT_SIDE
 import org.elixir_lang.language_level.ElixirLanguageFeature.KEY_ERROR_MESSAGE_INSPECTED_WITH_OPTIONS
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_CHECK_THE_FUN_FIRST
+import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ARGUMENTS_STOP_GENERATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ESCAPE_MARKS_GENERATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
+import org.elixir_lang.language_level.ElixirLanguageFeature.NEGATIVE_ZERO_IS_DISTINCT
+import org.elixir_lang.language_level.ElixirLanguageFeature.PID_IN_FUNCTION_RAISES_MATCH_ERROR
 import org.elixir_lang.language_level.ElixirLanguageFeature.PINNED_BINARY_SEGMENT_INFERS_SIZE
 import org.elixir_lang.language_level.ElixirLanguageFeature.POST_MODULE_LOCAL_CHECKS_TYPED
+import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_IMPORTS_EVERY_ARITY
+import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_KEEPS_IMPORTS_META
 import org.elixir_lang.language_level.ElixirLanguageFeature.REGEX_ESCAPED_IN_FIXED_FIELD_ORDER
+import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_CALL_EXPANDED_AS_MACRO
+import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_EXCEPTION_KEY_PRESENT
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUED_ERROR_MESSAGE_FROM_ERROR_INFO
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_SHALLOW_VALIDATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNREQUIRED_MACRO_CALLED_AS_FUNCTION
@@ -132,6 +147,7 @@ class InterpreterTest : PlatformTestCase() {
                 pinned == UNPORTED -> "stopped at `require ${module(index, TOKEN)}`"
                 pinned == OPAQUE || pinned == null && answer.isCaught() -> "stopped at `${row.stopText(index, TOKEN)}`"
                 pinned == null && answer.raised() != null -> "raised ${answer.raised()}"
+                row.ends(level) != null -> row.ends(level)?.replace(ROW, module(index, TOKEN))
                 row.stopsAfter != null -> "stopped at ${row.stopsAfter}"
                 else -> "compiled"
             }
@@ -139,6 +155,10 @@ class InterpreterTest : PlatformTestCase() {
             ownEnds[index]?.let {
                 expected += "${row.id} own module: ${row.ownEnd}"
                 actual += "${row.id} own module: $it"
+            }
+            row.table?.let {
+                expected += "${row.id} expander's table: $it"
+                actual += "${row.id} expander's table: ${table(expansions[index].result)}"
             }
         }
 
@@ -178,15 +198,17 @@ class InterpreterTest : PlatformTestCase() {
                 val theirs = attempt.batch.hooks[together.layout.caseModule(index)]
                     ?.map { "${it.name}/${it.arity} ${it.kind}" }
                     ?.sorted()
-                val ours = together.cases[index].result.table.entries
-                    .map { (nameArity, entry) -> "${nameArity.name}/${nameArity.arity} ${entry.kind.name.lowercase()}" }
-                    .sorted()
-
                 expected += "${rows[row].id} table: ${theirs ?: "the hook didn't run"}"
-                actual += "${rows[row].id} table: $ours"
+                actual += "${rows[row].id} table: ${table(together.cases[index].result)}"
             }
         }
     }
+
+    /** [result]'s definition table, each entry as its name, arity and kind. */
+    private fun table(result: ExpansionResult): List<String> =
+        result.table.entries
+            .map { (nameArity, entry) -> "${nameArity.name}/${nameArity.arity} ${entry.kind.name.lowercase()}" }
+            .sorted()
 
     /** How a row's own module ended: a stop by its kind and the dispatch it stopped at. */
     private fun ownEnd(result: ExpansionResult): String =
@@ -204,6 +226,7 @@ class InterpreterTest : PlatformTestCase() {
         when (val ended = expansion.ended) {
             Ended.Compiled -> "compiled"
             is Ended.Raised -> "raised ${ended.error.kind}"
+            is Ended.Crashed -> "crashed ${ended.exception}"
             is Ended.Stopped -> {
                 val range = expansion.range(ended.at)
                 val body = expansion.case.body
@@ -218,7 +241,7 @@ class InterpreterTest : PlatformTestCase() {
                     else -> "stopped at $at"
                 }
             }
-            else -> ended.toString()
+            Ended.Tainted -> "tainted"
         }
 
     /**
@@ -419,6 +442,8 @@ class InterpreterTest : PlatformTestCase() {
      * @property unordered whether the output holds an escaped map, whose pairs Elixir lists in an order the VM keeps
      * @property ownEnd how the row's own module ends from source, where it doesn't compile
      * @property helper a module defined before the row's, for the row's module to require or import
+     * @property ends how the case module ends on a leg, where it doesn't compile though `Macro.expand_once/2` returns
+     * @property table the definitions the expander stores for the case module, for a row whose module raises
      */
     private class Row(
         val id: String,
@@ -434,6 +459,8 @@ class InterpreterTest : PlatformTestCase() {
         val unordered: Boolean = false,
         val ownEnd: String? = null,
         val helper: String = "",
+        val ends: (ElixirLanguageLevel) -> String? = { null },
+        val table: String? = null,
     ) {
         fun runsFrom(source: Source) = source == Source.DBGI || this.source != SourceRun.NONE
 
@@ -511,6 +538,9 @@ class InterpreterTest : PlatformTestCase() {
                 OtpErlangTuple(arrayOf(OtpErlangAtom("&"), OtpErlangList(), OtpErlangList(arrayOf(slash))))
             }
             is OtpErlangFun -> OtpErlangAtom("#Function")
+            // A process or reference is one of the VM's own.
+            is OtpErlangPid -> OtpErlangAtom("#PID")
+            is OtpErlangRef -> OtpErlangAtom("#Reference")
             else -> term
         }
 
@@ -587,6 +617,14 @@ class InterpreterTest : PlatformTestCase() {
             OPAQUE.takeUnless { LISTS_CHECK_THE_FUN_FIRST.isSufficient(level) }
         }
 
+        /**
+         * Below OTP 27, which of two keys `=:=` can't tell apart a map keeps depends on how the VM holds the map and on
+         * what the compiler folded.
+         */
+        val KEY_KEPT_BELOW_OTP_27: (Source, ElixirLanguageLevel) -> String? = { _, level ->
+            OPAQUE.takeUnless { NEGATIVE_ZERO_IS_DISTINCT.isSufficient(level) }
+        }
+
         /** Below OTP 25, a fun with no clause matching raises as the compiler inlined it. */
         val FN_CLAUSE_BELOW_OTP_25: (Source, ElixirLanguageLevel) -> String? = { _, level ->
             OPAQUE.takeUnless { FN_CLAUSE_ERROR_IS_FUNCTION_CLAUSE.isSufficient(level) }
@@ -617,6 +655,7 @@ class InterpreterTest : PlatformTestCase() {
             unordered: Boolean = false,
             ownEnd: String? = null,
             helper: String = "",
+            ends: (ElixirLanguageLevel) -> String? = { null },
         ) = Row(
             id,
             defs.trimIndent(),
@@ -631,6 +670,7 @@ class InterpreterTest : PlatformTestCase() {
             unordered,
             ownEnd,
             helper.trimIndent(),
+            ends,
         )
 
         /** A row whose case body `use`s the row's module with [options]. */
@@ -1112,7 +1152,7 @@ class InterpreterTest : PlatformTestCase() {
                 end
                 """,
             ),
-            macro("form:capture-remote", "defmacro m, do: &Enum.map/2", pins = DECLINED),
+            macro("form:capture-remote", "defmacro m, do: &Enum.map/2"),
             macro(
                 "form:capture-local",
                 """
@@ -3340,7 +3380,7 @@ class InterpreterTest : PlatformTestCase() {
                 listOf(ROW),
                 SourceRun.ANSWERS,
                 EVERY_LEG,
-                DECLINED,
+                UNPINNED,
                 null,
             ),
             macro(
@@ -3368,7 +3408,18 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "form:macro-expand-holding-a-term",
                 "defmacro m, do: elem(Macro.expand(quote(do: unless(unquote(&List.first/1), do: 1)), __CALLER__), 0)",
-                pins = DECLINED,
+            ),
+            // Each call-back's evaluation makes references no other has made.
+            macro(
+                "form:macro-expand-fresh-reference",
+                """
+                defmacro r, do: make_ref()
+
+                defmacro m do
+                  r = quote(do: {row}.r())
+                  Macro.expand_once(r, __CALLER__) == Macro.expand_once(r, __CALLER__)
+                end
+                """,
             ),
             // `alias`, `import` and `require` are their module, and a later node is dispatched as their expansion saw it.
             macro(
@@ -3754,6 +3805,518 @@ class InterpreterTest : PlatformTestCase() {
             leg("DynamicSupervisor", stopsAfter = UNQUOTE_ESCAPED_OPTS),
             leg("Application"),
             leg("Bitwise", "only_operators: true"),
+            // A result's term that isn't AST reaches `elixir_expand`'s value clauses where expansion meets it.
+            macro("head:fun-anonymous", "defmacro m, do: fn -> 1 end", ends = { "raised invalid_quoted_expr" }),
+            macro("head:pid-module-body", "defmacro m, do: self()"),
+            Row(
+                "head:pid-def-body",
+                "defmacro m, do: self()",
+                "$ROW.m()",
+                "require $ROW\ndef f, do: $ROW.m()",
+                "$ROW.m()",
+                listOf(ROW),
+                SourceRun.ANSWERS,
+                EVERY_LEG,
+                UNPINNED,
+                null,
+                ends = { level ->
+                    "crashed $MATCH_ERROR".takeIf { PID_IN_FUNCTION_RAISES_MATCH_ERROR.isSufficient(level) }
+                },
+            ),
+            // An argument's pid takes `expand_arg`'s fast path, so it never reaches the pid head.
+            Row(
+                "head:pid-in-list-def-body",
+                "defmacro m, do: [self()]",
+                "$ROW.m()",
+                "require $ROW\ndef f, do: $ROW.m()",
+                "$ROW.m()",
+                listOf(ROW),
+                SourceRun.ANSWERS,
+                EVERY_LEG,
+                UNPINNED,
+                null,
+            ),
+            macro("head:reference", "defmacro m, do: make_ref()", ends = { "raised invalid_quoted_expr" }),
+            // A quote puts a term that isn't AST in its output as it is, which expanding then raises at.
+            macro("head:empty-tuple-in-quote", "defmacro m, do: {:quote, [], [[do: {}]]}", ends = { "raised invalid_quoted_expr" }),
+            macro("head:map-in-quote", "defmacro m, do: {:quote, [], [[do: %{a: 1}]]}", ends = { "raised invalid_quoted_expr" }),
+            macro(
+                "head:four-tuple-in-quote",
+                "defmacro m, do: {:quote, [], [[do: {1, 2, 3, 4}]]}",
+                ends = { "raised invalid_quoted_expr" },
+            ),
+            // `Macro.pipe/3` builds a call of any 3-tuple with list arguments, and expanding it raises.
+            macro("head:pipe-into-value", "defmacro m, do: {:|>, [], [1, {1, 2, [3]}]}", ends = { "raised invalid_quoted_expr" }),
+            // Jinterface reads a list of bytes as a string.
+            macro(
+                "head:pipe-into-value-of-bytes",
+                "defmacro m(x), do: {:|>, [], [1, {1, 2, x}]}",
+                "m([3])",
+                ends = { "raised invalid_quoted_expr" },
+            ),
+            macro("head:bad-tuple", "defmacro m, do: {1, 2, 3}", ends = { "raised invalid_quoted_expr" }),
+            macro("head:legacy", "defmacro m, do: {1, [], nil}", ends = { "raised invalid_quoted_expr" }),
+            macro("head:improper-list-in-map", "defmacro m, do: %{a: [1 | 2]}", ends = { "raised invalid_quoted_expr" }),
+            // Elixir takes each for a form or a call, whose metadata can't be read.
+            macro("head:unreadable-meta", "defmacro m, do: {:+, [x: 1.0], [1, 2]}", pins = DECLINED),
+            macro("head:non-list-meta-form", "defmacro m, do: {:__block__, :x, [1]}", pins = DECLINED),
+            macro("head:list-meta-call", "defmacro m, do: {1, [1], []}", pins = DECLINED),
+            // Linifying the result raises before anything expands.
+            macro("head:improper-list", "defmacro m, do: [1 | 2]"),
+            macro("head:linify-lexical-meta", "defmacro m, do: {:alias, :x, [1]}"),
+            // `Macro.expand_once/2`'s call has no line, so before 1.20 Elixir's linify doesn't read the meta there.
+            macro(
+                "head:improper-meta",
+                "defmacro m, do: {:foo, [1 | 2], []}",
+                pins = { _, level ->
+                    "{:raise, ArgumentError}".takeUnless { MACRO_ARGUMENTS_STOP_GENERATED.isSufficient(level) }
+                },
+                ends = { "raised Elixir.ArgumentError" },
+            ),
+            // The `def` before the reference is stored, though the module raises before `@before_compile` runs.
+            Row(
+                "head:reference-after-def",
+                "defmacro m, do: {:__block__, [], [quote(do: def(f, do: 1)), make_ref()]}",
+                "$ROW.m()",
+                "require $ROW\n$ROW.m()",
+                "$ROW.m()",
+                listOf(ROW),
+                SourceRun.ANSWERS,
+                EVERY_LEG,
+                UNPINNED,
+                null,
+                ends = { "raised invalid_quoted_expr" },
+                table = "[f/0 def]",
+            ),
+            // Two bitstrings matched in parallel raise, but not the one side of a match against itself.
+            Row(
+                "head:duplicate-match",
+                """
+                defmacro m do
+                  b = quote(do: <<a>>)
+                  quote(do: unquote(b) = unquote(b))
+                end
+                """.trimIndent(),
+                "$ROW.m()",
+                "require $ROW\ndef f($ROW.m()), do: :ok",
+                "$ROW.m()",
+                listOf(ROW),
+                SourceRun.ANSWERS,
+                EVERY_LEG,
+                UNPINNED,
+                null,
+                ends = { level ->
+                    "raised parallel_bitstring_match".takeUnless { DUPLICATE_MATCH_UNPACKED_ONCE.isSufficient(level) }
+                },
+            ),
+            // An unknown that decides whether a 3-tuple is a form declines, since Elixir decides on the real value.
+            macro("head:unknown-meta", "defmacro m, do: {1, __CALLER__.aliases, []}", pins = DECLINED),
+            macro("head:unknown-head-and-meta", "defmacro m, do: {__CALLER__.lexical_tracker, __CALLER__.tracers, []}", pins = DECLINED),
+            // `Macro.expand/2` reads each as the expander does, before any result is linified.
+            macro("head:unknown-meta-expanded", "defmacro m, do: (_ = Macro.expand({1, __CALLER__.aliases, []}, __CALLER__); :ok)", pins = DECLINED),
+            macro(
+                "head:unknown-head-and-meta-expanded",
+                "defmacro m, do: (_ = Macro.expand({__CALLER__.lexical_tracker, __CALLER__.tracers, []}, __CALLER__); :ok)",
+                pins = DECLINED,
+            ),
+            macro(
+                "head:pipe-into-unknown",
+                """
+                defmacro m do
+                  t = {__CALLER__.lexical_tracker, __CALLER__.lexical_tracker, __CALLER__.tracers}
+                  {:|>, [], [1, t]}
+                end
+                """,
+                pins = DECLINED,
+            ),
+            // A rescue pattern that is a 3-tuple with metadata that isn't a list.
+            macro(
+                "rescue:value-pattern",
+                "defmacro m, do: {:try, [], [[do: :ok, rescue: [{:->, [], [[{1, :x, 2}], :ok]}]]]}",
+                ends = { level ->
+                    if (RESCUE_CALL_EXPANDED_AS_MACRO.isSufficient(level)) "crashed Elixir.FunctionClauseError" else "raised invalid_quoted_expr"
+                },
+            ),
+            // Linifying reads an unknown metadata as Elixir reads the list it may be.
+            macro(
+                "head:linify-unknown-meta",
+                "defmacro m, do: [{:a, __CALLER__.aliases, [1 | 2]}, {:b, [{:line, 1} | 3], []}]",
+                pins = DECLINED,
+            ),
+            // `rescue x in Alias` before Elixir reads only the key's presence.
+            macro(
+                "rescue:unknown-exception-flag",
+                """
+                @flag Enum.member?([1], 1)
+                defmacro m do
+                  try do
+                    :erlang.error(%{__struct__: ArgumentError, __exception__: @flag, message: "x"})
+                  rescue
+                    ArgumentError -> :a
+                    _ -> :b
+                  end
+                end
+                """,
+                pins = { source, level -> DECLINED_FROM_SOURCE(source, level)?.takeUnless { RESCUE_EXCEPTION_KEY_PRESENT.isSufficient(level) } },
+            ),
+            // `-0.0` and `0.0` are two terms from OTP 27.
+            macro("pure:negative-zero-exact", "defmacro m, do: (if -0.0 === 0.0, do: :same, else: :different)"),
+            // A map's keys compare as `=:=` does, under `==` and `<` too.
+            macro("pure:negative-zero-map-key", "defmacro m, do: {%{-0.0 => 1} == %{0.0 => 1}, %{-0.0 => 1} < %{0.0 => 1}}"),
+            // A map holds one key for each term `=:=` tells apart, however it is built or read.
+            macro("pure:negative-zero-map-put", "defmacro m, do: map_size(Map.put(%{0.0 => 1}, -0.0, 2))", pins = KEY_KEPT_BELOW_OTP_27),
+            macro("pure:negative-zero-map-literal", "defmacro m, do: map_size(%{0.0 => 1, -0.0 => 2})", pins = KEY_KEPT_BELOW_OTP_27),
+            macro("pure:negative-zero-map-get", "defmacro m, do: Map.get(%{0.0 => :a}, -0.0)"),
+            macro("pure:negative-zero-map-pattern", "defmacro m, do: (case %{0.0 => :a} do %{-0.0 => v} -> v; _ -> :none end)"),
+            macro(
+                "pure:negative-zero-map-merge",
+                "defmacro m, do: map_size(Map.merge(%{0.0 => :a}, %{-0.0 => :b}))",
+                pins = KEY_KEPT_BELOW_OTP_27,
+            ),
+            macro(
+                "pure:negative-zero-map-from-list",
+                "defmacro m, do: map_size(:maps.from_list([{0.0, :a}, {-0.0, :b}]))",
+                pins = KEY_KEPT_BELOW_OTP_27,
+            ),
+            // A repeated key is one key, though only the VM orders the references it holds.
+            macro(
+                "pure:map-key-repeated-holding-references",
+                """
+                defmacro m do
+                  k = %{make_ref() => 1, make_ref() => 2}
+                  map_size(%{k => :first, k => :second})
+                end
+                """,
+            ),
+            macro(
+                "pure:map-key-rebuilt-holding-references",
+                """
+                defmacro m do
+                  a = make_ref()
+                  b = make_ref()
+                  map_size(%{%{a => 1, b => 2} => :first, %{a => 1, b => 2} => :second})
+                end
+                """,
+            ),
+            macro(
+                "pure:map-key-repeated-holding-references-and-a-float",
+                """
+                defmacro m do
+                  k = %{make_ref() => 1.0, make_ref() => 2}
+                  map_size(%{k => :first, k => :second})
+                end
+                """,
+            ),
+            macro(
+                "pure:access-fetch-unknown-ok",
+                """
+                defmacro m do
+                  try do
+                    Access.get(%{__struct__: {row}.S}, :a)
+                  catch
+                    :error, reason -> elem(reason, 0)
+                  end
+                end
+                """,
+                pins = DECLINED_FROM_SOURCE,
+                helper = """
+                defmodule {row}.S do
+                  @ok String.to_atom("ok")
+                  def fetch(_, _), do: {@ok, 1}
+                end
+                """,
+            ),
+            // `elixir_quote:annotate/2` replaces a definition head's `context`, wherever it is in the metadata.
+            macro(
+                "quote:def-head-unknown-context",
+                """
+                @c List.to_tuple([:context, Foo])
+                defmacro m do
+                  {_, _, [{:f, meta, _} | _]} =
+                    quote context: Bar, do: unquote(Kernel).unquote(:def)(unquote({:f, [@c], []}), do: 1)
+                  length(meta)
+                end
+                """,
+                pins = DECLINED_FROM_SOURCE,
+            ),
+            // `lists:filter/2` calls its fun on each element before it reaches an improper tail.
+            macro(
+                "pure:keyword-take-improper",
+                """
+                defmacro m do
+                  try do
+                    Keyword.take([1 | :x], [:a])
+                  rescue
+                    e -> e.__struct__
+                  end
+                end
+                """,
+            ),
+            macro(
+                "pure:keyword-merge-improper",
+                """
+                defmacro m do
+                  try do
+                    Keyword.merge([1 | :x], [b: 1])
+                  rescue
+                    e -> e.__struct__
+                  end
+                end
+                """,
+            ),
+            macro("pure:escape-unquote-not-true", "defmacro m, do: Macro.escape({:unquote, [], [{:x, [], nil}]}, unquote: :yes)"),
+            // The VM's largest integer is 65,535 words; before OTP 26.0.2 it depends on the patch release.
+            macro(
+                "pure:integer-past-system-limit",
+                """
+                defmacro m do
+                  _ = Enum.reduce(1..22, 2, fn _, a -> a * a end)
+                  :ok
+                end
+                """,
+                pins = { _, level -> OPAQUE.takeUnless { INTEGERS_UP_TO_4_MBIT.isSufficient(level) } },
+            ),
+            // Every segment's value is evaluated before any is written.
+            macro(
+                "bits:segment-values-first",
+                """
+                defmacro m do
+                  a = __CALLER__.module
+                  <<a, Keyword.fetch!([], :missing)>>
+                end
+                """,
+            ),
+            macro(
+                "pure:flatten-improper-args",
+                """
+                defmacro m do
+                  try do
+                    :lists.flatten([[1 | :a], 2])
+                  rescue
+                    _ ->
+                      [{m, f, args, _} | _] = __STACKTRACE__
+                      Macro.escape({m, f, args})
+                  end
+                end
+                """,
+            ),
+            macro(
+                "pure:keyword-delete-args",
+                """
+                defmacro m do
+                  try do
+                    Keyword.delete([{:a, 1}, 3], :a)
+                  rescue
+                    _ ->
+                      [{m, f, args, _} | _] = __STACKTRACE__
+                      Macro.escape({m, f, args})
+                  end
+                end
+                """,
+            ),
+            // A struct whose module isn't known may escape itself, so its module is needed before `A:`, which sorts
+            // first. From `Dbgi` its module is known. Before entries are quoted apart, the last is quoted first.
+            macro(
+                "escape:unknown-struct-escapes-itself",
+                """
+                @mod Application.compile_env(:app, :mod, {row}.W)
+                defmacro m, do: Macro.escape(%{A: fn -> :ok end, __struct__: @mod})
+                """,
+                pins = { source, level ->
+                    OPAQUE.takeIf {
+                        REGEX_ESCAPED_IN_FIXED_FIELD_ORDER.isSufficient(level) ||
+                            source == Source.SOURCE && !ESCAPED_MAP_ENTRIES_QUOTED_APART.isSufficient(level)
+                    }
+                },
+                helper = """
+                defmodule {row}.W do
+                  defstruct [:f]
+                  def __escape__(_), do: :escaped
+                end
+                """,
+            ),
+            // Before Elixir sorts them, a large map's entries are escaped in the order of their hashes.
+            macro(
+                "escape:large-map-raises-in-hash-order",
+                """
+                @v [{:unquote_splicing, [], [[1]]} | :t]
+                defmacro m do
+                  Macro.escape(
+                    %{
+                      a1: 1, a2: 2, a3: 3, a4: 4, a5: 5, a6: 6, a7: 7, a8: 8, a9: 9, a10: 10, a11: 11, a12: 12, a13: 13,
+                      a14: 14, a15: 15, a16: 16, a17: 17, a18: 18, a19: 19, a20: 20, a21: 21, a22: 22, a23: 23, a24: 24,
+                      a25: 25, a26: 26, a27: 27, a28: 28, a29: 29, a30: 30, a31: 31, f: fn -> :ok end, v: @v
+                    },
+                    unquote: true
+                  )
+                end
+                """,
+                legs = { !ESCAPED_MAP_ENTRIES_SORTED.isSufficient(it) },
+                pins = DECLINED,
+            ),
+            // An entry that isn't known may raise before the one that does, in an order no term decides. From `Dbgi`
+            // it is known.
+            macro(
+                "escape:large-map-unknown-entry",
+                """
+                @u Application.compile_env(:app, :u, 1)
+                defmacro m do
+                  Macro.escape(%{
+                    a1: 1, a2: 2, a3: 3, a4: 4, a5: 5, a6: 6, a7: 7, a8: 8, a9: 9, a10: 10, a11: 11, a12: 12, a13: 13,
+                    a14: 14, a15: 15, a16: 16, a17: 17, a18: 18, a19: 19, a20: 20, a21: 21, a22: 22, a23: 23, a24: 24,
+                    a25: 25, a26: 26, a27: 27, a28: 28, a29: 29, a30: 30, a31: 31, f: fn -> :ok end, u: @u
+                  })
+                end
+                """,
+                legs = { !ESCAPED_MAP_ENTRIES_SORTED.isSufficient(it) },
+                pins = DECLINED_FROM_SOURCE,
+            ),
+            // A quote keeps the imports a node of a macro's result already holds.
+            macro(
+                "quote:kept-imports",
+                """
+                import {row}.U, only: [upcase: 2]
+                require {row}.H
+                defmacro n, do: {row}.H.h()
+                """,
+                "n()",
+                helper = """
+                defmodule {row}.U do
+                  def upcase(a, b), do: {a, b}
+                end
+
+                defmodule {row}.H do
+                  defmacro h, do: {:quote, [], [[do: {:upcase, [imports: [{1, String}], context: String], ["a"]}]]}
+                end
+                """,
+                // Before 1.17 a quote reads `import:`, so `upcase/1` is a function the module doesn't define.
+                ends = { level -> "raised undefined_function".takeUnless { QUOTE_KEEPS_IMPORTS_META.isSufficient(level) } },
+            ),
+            // From 1.14 to 1.16 a quote writes `imports: false` beside a node's `import:`, and its dispatch raises.
+            macro(
+                "quote:kept-import",
+                """
+                require {row}.H
+                defmacro n, do: {row}.H.h()
+                """,
+                "n()",
+                helper = """
+                defmodule {row}.H do
+                  defmacro h, do: {:quote, [], [[do: {:upcase, [import: String], ["a"]}]]}
+                end
+                """,
+                legs = { QUOTE_IMPORTS_EVERY_ARITY.isSufficient(it) && !QUOTE_KEEPS_IMPORTS_META.isSufficient(it) },
+                ends = { "stopped at `$ROW.n()`" },
+            ),
+            // A node's line is its first `line` entry, an integer of any size, or 0.
+            Row(
+                "meta:repeated-line-kept",
+                """
+                require {row}.G
+                defmacro n do
+                  ast = Macro.expand(quote(do: {row}.G.m()), __CALLER__)
+                  Macro.escape(Keyword.get_values(elem(ast, 1), :line))
+                end
+                """.trimIndent(),
+                "$ROW.n()",
+                "require $ROW\nrequire $ROW.G\n_ = $ROW.n()",
+                "$ROW.n()",
+                listOf(ROW, "$ROW.G"),
+                SourceRun.ANSWERS,
+                EVERY_LEG,
+                UNPINNED,
+                null,
+                helper = """
+                defmodule {row}.G do
+                  defmacro m, do: {:foo, [line: 1, line: :x], []}
+                end
+                """.trimIndent(),
+            ),
+            macro(
+                "meta:line-past-int",
+                """
+                require {row}.G
+                defmacro n, do: {row}.G.m()
+                """,
+                "n()",
+                helper = """
+                defmodule {row}.G do
+                  defmacro m, do: {{:., [], [{:__ENV__, [line: 3_000_000_000], nil}, :line]}, [], []}
+                end
+                """,
+                // A node's line is an `Int`, so from source the module stops at `n`'s body; `Dbgi` holds the line it expanded to.
+                pins = { source, _ -> UNPORTED.takeIf { source == Source.SOURCE } },
+            ),
+            macro(
+                "meta:line-not-an-integer",
+                """
+                require {row}.G
+                defmacro n, do: {row}.G.m()
+                """,
+                "n()",
+                helper = """
+                defmodule {row}.G do
+                  defmacro m, do: {{:., [], [{:__ENV__, [line: :x, line: 5], nil}, :line]}, [], []}
+                end
+                """,
+            ),
+            // An alias of no segments has no clause in `elixir_aliases:expand`.
+            macro("head:empty-alias", "defmacro m, do: {:__aliases__, [], []}", pins = DECLINED),
+            macro("form:macro-expand-empty-alias", "defmacro m, do: Macro.expand({:__aliases__, [], []}, __CALLER__)", pins = DECLINED),
+            // `elixir_aliases:expand/4` raises `system_limit` on an alias past an atom's length.
+            macro(
+                "form:macro-expand-alias-past-an-atom",
+                "defmacro m, do: (try do Macro.expand({:__aliases__, [], [:${"A".repeat(250)}]}, __CALLER__) rescue e -> e.__struct__ end)",
+                pins = DECLINED,
+            ),
+            macro(
+                "head:defimpl-empty-alias",
+                "defmacro m, do: {:defimpl, [], [{:__aliases__, [], []}, [for: Integer], [do: nil]]}",
+                pins = DECLINED,
+            ),
+            macro(
+                "in:unescaped-map",
+                "defmacro m(x), do: {:in, [], [x, %{a: 1}]}",
+                "m(1)",
+                ends = { level ->
+                    if (IN_REFUSES_UNESCAPED_RIGHT_SIDE.isSufficient(level)) "raised Elixir.ArgumentError" else "raised invalid_quoted_expr"
+                },
+            ),
+            // `for` checks its first case after expanding it. From 1.18 the type checker reads the `<-/2` it expands to
+            // as a generator; before, it is a call of a local function the module doesn't define.
+            Row(
+                "for:generator-from-macro",
+                "defmacro gen, do: quote(do: 1 <- [1])",
+                "$ROW.gen()",
+                "require $ROW\ndef f, do: for($ROW.gen(), do: 1)",
+                "$ROW.gen()",
+                listOf(ROW),
+                SourceRun.ANSWERS,
+                EVERY_LEG,
+                UNPINNED,
+                null,
+                ends = { level ->
+                    when {
+                        POST_MODULE_LOCAL_CHECKS_TYPED.isSufficient(level) -> null
+                        FUNCTION_ERRORS_CONTINUE.isSufficient(level) -> "tainted"
+                        else -> "raised undefined_function"
+                    }
+                },
+            ),
+            // An expanded bitstring's segments are each typed, so it isn't a generator.
+            Row(
+                "for:bitstring-generator-from-macro",
+                "defmacro gen, do: quote(do: <<1 <- \"a\">>)",
+                "$ROW.gen()",
+                "require $ROW\ndef f, do: for($ROW.gen(), do: 1)",
+                "$ROW.gen()",
+                listOf(ROW),
+                SourceRun.ANSWERS,
+                EVERY_LEG,
+                UNPINNED,
+                null,
+                ends = { "raised for_generator_start" },
+            ),
         )
     }
 }

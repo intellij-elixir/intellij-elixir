@@ -1,5 +1,8 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangAtom
+import com.ericsson.otp.erlang.OtpErlangList
+import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.PROTOCOL_BEFORE_COMPILE
@@ -88,6 +91,15 @@ private sealed interface ProtocolFunction {
                 is ElixirAst.Literal, is ElixirAst.ListNode -> Raises("protocol_def_bad")
                 is ElixirAst.Tuple -> if (signature.elements.size == 2) Raises("protocol_def_bad") else Unread
                 is ElixirAst.Alias, is ElixirAst.Block, is ElixirAst.Placeholder -> Unread
+                is ElixirAst.Value -> {
+                    val arguments = (signature.term as? OtpErlangTuple)?.takeIf { it.arity() == 3 }?.elementAt(2)
+
+                    if (arguments is OtpErlangAtom || (arguments as? OtpErlangList)?.arity() == 0) {
+                        Raises("protocol_def_no_args")
+                    } else {
+                        Raises("protocol_def_bad")
+                    }
+                }
             }
     }
 }

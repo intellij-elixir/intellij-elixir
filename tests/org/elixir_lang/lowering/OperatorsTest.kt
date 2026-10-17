@@ -493,7 +493,7 @@ class OperatorsTest : LoweringTestCase() {
             }
             is ElixirAst.Call -> unloweredShapes(node.callee) + node.arguments.orEmpty().flatMap { unloweredShapes(it) }
             is ElixirAst.Alias -> node.segments.flatMap { unloweredShapes(it) }
-            is ElixirAst.Literal -> emptyList()
+            is ElixirAst.Literal, is ElixirAst.Value -> emptyList()
             is ElixirAst.ListNode -> node.elements.flatMap { unloweredShapes(it) }
             is ElixirAst.Tuple -> node.elements.flatMap { unloweredShapes(it) }
             is ElixirAst.Block -> node.expressions.flatMap { unloweredShapes(it) }

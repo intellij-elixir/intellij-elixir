@@ -2,10 +2,17 @@ package org.elixir_lang.lowering
 
 import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangBinary
+import com.ericsson.otp.erlang.OtpErlangBitstr
 import com.ericsson.otp.erlang.OtpErlangDouble
+import com.ericsson.otp.erlang.OtpErlangExternalFun
+import com.ericsson.otp.erlang.OtpErlangFun
 import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangLong
+import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
+import com.ericsson.otp.erlang.OtpErlangPid
+import com.ericsson.otp.erlang.OtpErlangPort
+import com.ericsson.otp.erlang.OtpErlangRef
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
@@ -65,6 +72,13 @@ sealed class ElixirAst {
     /** `{:__block__, meta, expressions}`. */
     class Block(override val meta: Meta, val expressions: List<ElixirAst>) : ElixirAst()
 
+    /**
+     * A term in a macro's result that Elixir's expansion takes for no AST: a pid, a function, a reference, a port, a
+     * map, a bitstring that isn't a binary, a tuple of neither two nor three elements, or a 3-tuple that is neither a
+     * form nor a call, as `{1, 2, 3}` is. Only [fromOtp] builds it, for the evaluator's result, so it is never lowered.
+     */
+    class Value(override val meta: Meta, val term: OtpErlangObject) : ElixirAst()
+
     /** Stands for source that has no AST of its own yet. */
     class Placeholder(override val meta: Meta, val reason: Reason) : ElixirAst() {
         sealed class Reason {
@@ -87,7 +101,7 @@ sealed class ElixirAst {
         when (this) {
             is Call, is Alias, is Block, is Placeholder -> true
             is Tuple -> elements.size != 2
-            is Literal, is ListNode -> false
+            is Literal, is ListNode, is Value -> false
         }
 
     /**
@@ -126,6 +140,7 @@ sealed class ElixirAst {
                 }
             is Block -> tuple(OtpErlangAtom("__block__"), meta.toOtp(options), list(expressions, options, onNode))
             is Placeholder -> tuple(OtpErlangAtom("__cursor__"), meta.toOtp(options), OtpErlangList())
+            is Value -> term
         }
 
         onNode?.invoke(this, term)
@@ -136,16 +151,20 @@ sealed class ElixirAst {
     companion object {
         /**
          * The node quoted [term] is, with [origin] as every node's origin: [toOtp]'s inverse under
-         * [ParserOptions.DEFAULT]. Null for a term no quoted expression is, such as a map or a bitstring. A term
-         * [known] gives a node for is that node, origin and all.
+         * [ParserOptions.DEFAULT]. Null for a term no quoted expression is, such as a map or a bitstring, unless
+         * [values]. A term [known] gives a node for is that node, origin and all.
+         *
+         * @param values whether a term Elixir's expansion takes for no AST is a [Value], as in a macro's result
          */
         fun fromOtp(
             term: OtpErlangObject,
             origin: TextRange,
+            values: Boolean = false,
             known: (OtpErlangObject) -> ElixirAst? = { null },
         ): ElixirAst? {
             ProgressManager.checkCanceled()
             known(term)?.let { return it }
+            if (TermKind.of(term) == null) return null
 
             val bare = { Meta(origin, NO_POSITION, NO_POSITION) }
 
@@ -154,9 +173,10 @@ sealed class ElixirAst {
                 is OtpErlangLong -> Literal.Integer(bare(), term.bigIntegerValue())
                 is OtpErlangDouble -> Literal.Float(bare(), term.doubleValue())
                 is OtpErlangBinary -> Literal.Binary(bare(), term.binaryValue())
-                is OtpErlangString, is OtpErlangList -> elements(term, origin, known)?.let { ListNode(bare(), it) }
-                is OtpErlangTuple -> fromTuple(term, origin, known)
-                else -> null
+                is OtpErlangString, is OtpErlangList ->
+                    elements(term, origin, values, known)?.let { ListNode(bare(), it) }
+                is OtpErlangTuple -> fromTuple(term, origin, values, known)
+                else -> if (values) Value(bare(), term) else null
             }
         }
 
@@ -164,6 +184,7 @@ sealed class ElixirAst {
         private fun elements(
             term: OtpErlangObject,
             origin: TextRange,
+            values: Boolean,
             known: (OtpErlangObject) -> ElixirAst?,
         ): List<ElixirAst>? =
             when (term) {
@@ -172,38 +193,47 @@ sealed class ElixirAst {
                         Literal.Integer(Meta(origin, NO_POSITION, NO_POSITION), it.toBigInteger())
                     }
                 is OtpErlangList ->
-                    term.takeIf { it.lastTail == null }?.elements()?.map { fromOtp(it, origin, known) ?: return null }
+                    term.takeIf { it.lastTail == null }?.elements()?.map {
+                        fromOtp(it, origin, values, known) ?: return null
+                    }
                 else -> null
             }
 
         private fun fromTuple(
             tuple: OtpErlangTuple,
             origin: TextRange,
+            values: Boolean,
             known: (OtpErlangObject) -> ElixirAst?,
         ): ElixirAst? {
+            val bare = Meta(origin, NO_POSITION, NO_POSITION)
+
             if (tuple.arity() == 2) {
-                return Tuple(
-                    Meta(origin, NO_POSITION, NO_POSITION),
-                    tuple.elements().map { fromOtp(it, origin, known) ?: return null },
-                )
+                return Tuple(bare, tuple.elements().map { fromOtp(it, origin, values, known) ?: return null })
             }
-            if (tuple.arity() != 3) return null
+            if (tuple.arity() != 3) return if (values) Value(bare, tuple) else null
 
             val (head, metaTerm, last) = tuple.elements()
-            val meta = meta(metaTerm, origin) ?: return null
+            // The head and metadata decide the shape, so a term none of the kinds below is, as no Elixir term is, isn't
+            // read as any.
+            if (TermKind.of(head) == null || TermKind.of(metaTerm) == null) return null
+            // Elixir may expand a 3-tuple as a form or a call where its metadata is a list or its head an atom or a
+            // 3-tuple, whatever the metadata holds.
+            val isForm = metaTerm is OtpErlangList || metaTerm is OtpErlangString || head is OtpErlangAtom ||
+                (head as? OtpErlangTuple)?.arity() == 3
+            val meta = meta(metaTerm, origin) ?: return if (values && !isForm) Value(bare, tuple) else null
 
             if (last is OtpErlangAtom) {
                 val context = last.atomValue()
 
                 return Call(
                     meta,
-                    fromOtp(head, origin, known) ?: return null,
+                    fromOtp(head, origin, values, known) ?: return null,
                     null,
                     if (context == "nil") VariableContext.Nil else VariableContext.Atom(context),
                 )
             }
 
-            val arguments = elements(last, origin, known) ?: return null
+            val arguments = elements(last, origin, values, known) ?: return null
 
             return when (head) {
                 // `toOtp` writes a pair as `{a, b}`, so `{:{}, meta, [a, b]}` stays a call.
@@ -211,7 +241,7 @@ sealed class ElixirAst {
                 // An alias of no segments has no clause in `elixir_aliases:expand`.
                 ALIASES -> if (arguments.isEmpty()) null else Alias(meta, arguments)
                 BLOCK -> Block(meta, arguments)
-                else -> Call(meta, fromOtp(head, origin, known) ?: return null, arguments)
+                else -> Call(meta, fromOtp(head, origin, values, known) ?: return null, arguments)
             }
         }
 
@@ -311,5 +341,37 @@ sealed class ElixirAst {
                 OtpErlangList(terms.toTypedArray())
             }
         }
+    }
+}
+
+/** The kinds an Elixir term is of, in Erlang's term order. */
+internal enum class TermKind {
+    NUMBER,
+    ATOM,
+    REFERENCE,
+    FUN,
+    PORT,
+    PID,
+    TUPLE,
+    MAP,
+    LIST,
+    BITSTRING;
+
+    companion object {
+        /** [term]'s kind, or `null` where no Elixir term is an object like it. */
+        fun of(term: OtpErlangObject): TermKind? =
+            when (term) {
+                is OtpErlangLong, is OtpErlangDouble -> NUMBER
+                is OtpErlangAtom -> ATOM
+                is OtpErlangRef -> REFERENCE
+                is OtpErlangFun, is OtpErlangExternalFun -> FUN
+                is OtpErlangPort -> PORT
+                is OtpErlangPid -> PID
+                is OtpErlangTuple -> TUPLE
+                is OtpErlangMap -> MAP
+                is OtpErlangList, is OtpErlangString -> LIST
+                is OtpErlangBitstr -> BITSTRING
+                else -> null
+            }
     }
 }

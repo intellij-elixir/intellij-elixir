@@ -676,6 +676,15 @@ enum class ElixirLanguageFeature(
     PARALLEL_MATCH(sinceElixir = "1.18.0-rc.0"),
 
     /**
+     * A `=` inside a pattern whose two sides are the same 3-tuple, metadata and all, as only a macro's result can give,
+     * warns and is unpacked as the one side.
+     *
+     * `elixir-lang/elixir@c7f78e801` ("Emit warnings for duplicate patterns instead of errors"), first released in
+     * v1.18.0.
+     */
+    DUPLICATE_MATCH_UNPACKED_ONCE(sinceElixir = "1.18.0"),
+
+    /**
      * A variable that the pattern being expanded has already bound is written to the write half at the version the
      * next new variable will take, not at its own. So inside a tuple or list element, `{x, x} = {1, 1}` leaves `x`,
      * once the element's scope closes, at the version the next variable bound is given.
@@ -2352,6 +2361,14 @@ enum class ElixirLanguageFeature(
     STRUCT_UPDATE_IS_MAP_UPDATE(sinceElixir = "1.20.0-rc.0"),
 
     /**
+     * `in/2` raises an `ArgumentError` ("found unescaped value on the right side of in/2") where its right side is a
+     * term that isn't AST, such as a map a macro unquoted.
+     *
+     * `elixir-lang/elixir@4d35b7ce3` ("Do not assert order on struct fields"), first released in v1.14.0-rc.0.
+     */
+    IN_REFUSES_UNESCAPED_RIGHT_SIDE(sinceElixir = "1.14.0-rc.0"),
+
+    /**
      * A `rescue` takes a map as an exception where its `__exception__` key is present, and rescues it as an
      * `ErlangError` only where it has no `__struct__` or no `__exception__`. Before it, `__exception__` had to be
      * `true`, and an `ErlangError` was any map without `__exception__`.
@@ -2381,12 +2398,31 @@ enum class ElixirLanguageFeature(
     /**
      * A macro's arguments that are calls or variables are marked `stop_generated: true` where an import dispatches the
      * macro, or `Macro.expand/2` or `expand_once/2` expands it, and `generated: true` stops there in its expansion. A
-     * remote call to the macro doesn't mark them.
+     * remote call to the macro doesn't mark them. Linifying a macro's result looks the mark up in each node's metadata
+     * before anything else.
      *
      * `elixir-lang/elixir@67042e877` ("Stop propagating generated on macro arguments", #14696), first released in
      * v1.20.0-rc.0.
      */
     MACRO_ARGUMENTS_STOP_GENERATED(sinceElixir = "1.20.0-rc.0"),
+
+    /**
+     * A pid that a macro's result holds inside a function's body warns and expands to a pair, not the triple its
+     * caller matches, so the caller raises `MatchError`.
+     *
+     * `elixir-lang/elixir@739ad53fe` ("Break Macro.Env apart", #11164), first released in v1.13.0-rc.0. Fixed by
+     * `elixir-lang/elixir@2a7948a47` ("Fix warn case return value in pid expansion", #13526), first released in
+     * v1.17.0-rc.0.
+     */
+    PID_IN_FUNCTION_RAISES_MATCH_ERROR(sinceElixir = "1.13.0-rc.0", removedInElixir = "1.17.0-rc.0"),
+
+    /**
+     * A 3-tuple that no call clause of `elixir_expand:expand/2` takes is `invalid_quoted_expr` at a clause of its own,
+     * ahead of the pair, list and literal clauses.
+     *
+     * Removed by `elixir-lang/elixir@739ad53fe` ("Break Macro.Env apart", #11164), first released in v1.13.0-rc.0.
+     */
+    INVALID_TUPLE_CLAUSE(removedInElixir = "1.13.0-rc.0"),
 
     /**
      * An `fn` whose clauses match no argument raises `FunctionClauseError`. Before it, OTP 24's compiler raises

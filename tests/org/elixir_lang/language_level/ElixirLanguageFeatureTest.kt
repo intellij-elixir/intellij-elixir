@@ -260,6 +260,9 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             SPLICE_EMPTY_BEFORE_TAIL_RAISES to ("1.20.0-rc.4" to "1.20.0-rc.5"),
             STRING_TO_ATOM_REQUIRES_BINARY to ("1.11.4" to "1.12.0-rc.0"),
             MACRO_ARGUMENTS_STOP_GENERATED to ("1.19.5" to "1.20.0-rc.0"),
+            PID_IN_FUNCTION_RAISES_MATCH_ERROR to ("1.12.3" to "1.13.0-rc.0"),
+            DUPLICATE_MATCH_UNPACKED_ONCE to ("1.18.0-rc.0" to "1.18.0"),
+            IN_REFUSES_UNESCAPED_RIGHT_SIDE to ("1.13.4" to "1.14.0-rc.0"),
         )
 
         assertEquals(entries.filter { it.sinceElixir != null }.toSet(), boundaries.keys)
@@ -299,6 +302,8 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             DEFIMPL_TARGET_FIRST to ("1.15.8" to "1.16.0-rc.0"),
             PROTOCOL_FUNCTIONS_SPEC_COMPUTED to ("1.17.3" to "1.18.0-rc.0"),
             PROTOCOL_TYPE_UNLESS to ("1.17.3" to "1.18.0-rc.0"),
+            PID_IN_FUNCTION_RAISES_MATCH_ERROR to ("1.16.3" to "1.17.0-rc.0"),
+            INVALID_TUPLE_CLAUSE to ("1.12.3" to "1.13.0-rc.0"),
         )
 
         assertEquals(entries.filter { it.removedInElixir != null }.toSet(), removals.keys)

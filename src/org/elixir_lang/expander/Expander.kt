@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangPid
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAST_PATH_ADDS_CONTEXT_MODULE
@@ -161,6 +162,12 @@ internal class Run(
 ) {
     /** The modules whose exports the run read, in the order it read them. */
     val consulted = mutableListOf<String>()
+
+    /** The references `make_ref/0` has made in the run's evaluations, so each is new. */
+    private var refs = 0
+
+    /** The number of a reference no evaluation in the run has made before. */
+    fun nextRef(): Int = ++refs
 
     /** The nodes being expanded whose value a summary reads, by identity, until they are read. */
     val watching = IdentityHashMap<ElixirAst, Watched>()
@@ -416,7 +423,7 @@ internal fun expandArg(arg: ElixirAst, acc: ExState, start: ExState, env: Env, r
     expandArg(arg, acc, start, env) { a, s, e -> Expander.expand(a, s, e, run) }
         .also { if (arg is ElixirAst.Literal) run.watched(arg, it) }
 
-/** `elixir_expand:expand_arg/3`, with [expand] for its `expand/3`. */
+/** `elixir_expand:expand_arg/3`, with [expand] for its `expand/3`; a pid in a macro's result isn't expanded either. */
 internal inline fun expandArg(
     arg: ElixirAst,
     acc: ExState,
@@ -424,10 +431,10 @@ internal inline fun expandArg(
     env: Env,
     expand: (ElixirAst, ExState, Env) -> Expansion,
 ): Expansion =
-    if (arg is ElixirAst.Literal) {
-        Expansion.Expanded(acc, env, literalValue(arg))
-    } else {
-        expand(arg, acc.resetRead(start), env)
+    when (arg) {
+        is ElixirAst.Literal -> Expansion.Expanded(acc, env, literalValue(arg))
+        is ElixirAst.Value if arg.term is OtpErlangPid -> Expansion.Expanded(acc, env, NODE)
+        else -> expand(arg, acc.resetRead(start), env)
     }
 
 internal fun literalValue(literal: ElixirAst.Literal): Term =

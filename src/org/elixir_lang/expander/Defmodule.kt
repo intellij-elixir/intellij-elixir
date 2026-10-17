@@ -93,6 +93,7 @@ internal val DEFMODULE = Summary { _, node, state, env, run ->
                             lineOf(node.meta),
                             KERNEL,
                             counter,
+                            level,
                             definingDirective(nameNode, defined, env, level),
                         )
 

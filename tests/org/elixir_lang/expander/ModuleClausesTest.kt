@@ -474,7 +474,7 @@ class ModuleClausesTest : ExpanderTestCase() {
             is ElixirAst.ListNode -> node.elements.flatMap(::quotes)
             is ElixirAst.Tuple -> node.elements.flatMap(::quotes)
             is ElixirAst.Block -> node.expressions.flatMap(::quotes)
-            is ElixirAst.Literal, is ElixirAst.Placeholder -> emptyList()
+            is ElixirAst.Literal, is ElixirAst.Placeholder, is ElixirAst.Value -> emptyList()
         }
 
     private companion object {

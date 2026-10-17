@@ -91,8 +91,8 @@ internal fun define(
 
     val values = pieces.map {
         when (it) {
-            is Piece.Fragment -> linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, it.call.arguments!!.single())
-            is Piece.Evaluated -> linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, it.expression)
+            is Piece.Fragment -> linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, run.level, it.call.arguments!!.single())
+            is Piece.Evaluated -> linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, run.level, it.expression)
             is Piece.Quoted -> node
         }
     }
@@ -305,7 +305,7 @@ internal fun children(node: ElixirAst): List<ElixirAst> =
         is ElixirAst.ListNode -> node.elements
         is ElixirAst.Tuple -> node.elements
         is ElixirAst.Block -> node.expressions
-        is ElixirAst.Literal, is ElixirAst.Placeholder -> emptyList()
+        is ElixirAst.Literal, is ElixirAst.Placeholder, is ElixirAst.Value -> emptyList()
     }
 
 /** [node] with each node in [replacements] replaced, rebuilding only what holds a replaced node. */
@@ -340,7 +340,7 @@ internal fun substitute(node: ElixirAst, replacements: Map<ElixirAst, ElixirAst>
             substituteAll(node.expressions, replacements).let {
                 if (it === node.expressions) node else ElixirAst.Block(node.meta, it)
             }
-        is ElixirAst.Literal, is ElixirAst.Placeholder -> node
+        is ElixirAst.Literal, is ElixirAst.Placeholder, is ElixirAst.Value -> node
     }
 }
 

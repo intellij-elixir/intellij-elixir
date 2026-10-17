@@ -1,13 +1,19 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangExternalFun
+import com.ericsson.otp.erlang.OtpErlangFun
+import com.ericsson.otp.erlang.OtpErlangPid
+import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.expander.ExState.Prematch.Bitsize
 import org.elixir_lang.expander.ExState.Prematch.InMatch
 import org.elixir_lang.expander.ExState.Prematch.OutsideMatch
 import org.elixir_lang.expander.ExState.Write
 import org.elixir_lang.language_level.ElixirLanguageFeature.CURSOR_RAISES
+import org.elixir_lang.language_level.ElixirLanguageFeature.INVALID_TUPLE_CLAUSE
 import org.elixir_lang.language_level.ElixirLanguageFeature.MISPLACED_TYPE_AND_CONS_OPERATORS
 import org.elixir_lang.language_level.ElixirLanguageFeature.PARALLEL_MATCH
 import org.elixir_lang.language_level.ElixirLanguageFeature.PATTERN_SEES_RIGHT_SIDE_ENV
+import org.elixir_lang.language_level.ElixirLanguageFeature.PID_IN_FUNCTION_RAISES_MATCH_ERROR
 import org.elixir_lang.language_level.ElixirLanguageFeature.PIN_IN_BITSTRING_SIZE
 import org.elixir_lang.language_level.ElixirLanguageFeature.REPEATED_PATTERN_VARIABLE_WRITTEN_AT_NEXT_VERSION
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILER_VARIABLES_REFUSED_IN_PATTERN
@@ -28,6 +34,7 @@ internal enum class Clause(vararg val heads: Head) {
     /** `=` inside a pattern from 1.18: `elixir_clauses:parallel_match/4`. */
     MATCH_IN_PATTERN(
         expandHead("{'=',_,[_,_]}"),
+        Head("elixir_clauses", "unpack_match", 1, "{'=',_,[{_,_,_}=V1,V1]}"),
         Head("elixir_clauses", "unpack_match", 1, "{'=',_,[_,_]}"),
         Head("elixir_clauses", "unpack_match", 1, "_"),
     ) {
@@ -593,6 +600,16 @@ internal enum class Clause(vararg val heads: Head) {
             Expansion.Error("invalid_call", node)
     },
 
+    /** Until 1.13, a 3-tuple no call clause takes, ahead of the pair and the list. */
+    LEGACY_TUPLE(expandHead("{_,_,_}")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            INVALID_TUPLE_CLAUSE.isSufficient(level) &&
+                (isUncalled(node) || ((node as? ElixirAst.Value)?.term as? OtpErlangTuple)?.arity() == 3)
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            Expansion.Error(INVALID_QUOTED_EXPR, node)
+    },
+
     PAIR(expandHead("{_,_}")) {
         override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
             node is ElixirAst.Tuple && node.elements.size == 2
@@ -645,6 +662,41 @@ internal enum class Clause(vararg val heads: Head) {
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
             Expansion.Expanded(state, env, if (node is ElixirAst.Literal) literalValue(node) else NODE)
+    },
+
+    /** A function in a macro's result: a remote capture with no environment is `elixir_quote:fun_to_quoted/1`'s. */
+    FUNCTION(expandHead("V1 when is_function(V1)")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            node is ElixirAst.Value && (node.term is OtpErlangFun || node.term is OtpErlangExternalFun)
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            if ((node as ElixirAst.Value).term is OtpErlangExternalFun) {
+                Expansion.Expanded(state, env, NODE)
+            } else {
+                Expansion.Error(INVALID_QUOTED_EXPR, node)
+            }
+    },
+
+    /** A pid in a macro's result, which Elixir warns of inside a function and keeps. */
+    PID(expandHead("V1 when is_pid(V1)")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            node is ElixirAst.Value && node.term is OtpErlangPid
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            if (env.function != null && PID_IN_FUNCTION_RAISES_MATCH_ERROR.isSufficient(run.level)) {
+                Expansion.Error("invalid_pid_in_function", node).also { run.crash = Crash(it, MATCH_ERROR) }
+            } else {
+                Expansion.Expanded(state, env, NODE)
+            }
+    },
+
+    /** Any other term: a value in a macro's result, or a 3-tuple no call clause takes. */
+    OTHER(expandHead("_")) {
+        override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
+            node is ElixirAst.Value || isUncalled(node)
+
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            Expansion.Error(INVALID_QUOTED_EXPR, node)
     };
 
     abstract fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel): Boolean
@@ -665,6 +717,11 @@ internal fun noGuardScope(node: ElixirAst, state: ExState): Expansion.Error =
     Expansion.Error(if (state.prematch is Bitsize) "invalid_expr_in_bitsize" else "invalid_expr_in_guard", node)
 
 private fun expandHead(pattern: String) = Clause.Head("elixir_expand", "expand", 1, pattern)
+
+private const val INVALID_QUOTED_EXPR = "invalid_quoted_expr"
+
+/** `{callee, meta, context}` whose callee isn't a name, so it is neither a variable nor a call: `{1, [], nil}`. */
+private fun isUncalled(node: ElixirAst) = node is ElixirAst.Call && node.arguments == null
 
 private fun isDirective(node: ElixirAst, directive: Directive) =
     isCall(node, directive.atom, 1) || isCall(node, directive.atom, 2)
@@ -768,6 +825,7 @@ private fun isTupleOrAtom(node: ElixirAst): Boolean =
         is ElixirAst.Literal.Atom, is ElixirAst.Call, is ElixirAst.Alias, is ElixirAst.Block, is ElixirAst.Tuple,
         is ElixirAst.Placeholder -> true
         is ElixirAst.Literal, is ElixirAst.ListNode -> false
+        is ElixirAst.Value -> node.term is OtpErlangTuple
     }
 
 /** `{for, _, [_ | _]}`. */

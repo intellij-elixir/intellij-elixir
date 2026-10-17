@@ -356,7 +356,7 @@ private class Escape(private val run: Run, private val module: String?) {
                 is ElixirAst.ListNode -> ElixirAst.ListNode(node.meta, node.elements.map(::escape))
                 is ElixirAst.Block -> ElixirAst.Block(node.meta, node.expressions.map(::escape))
                 is ElixirAst.Alias -> ElixirAst.Alias(node.meta, node.segments.map(::escape))
-                is ElixirAst.Literal, is ElixirAst.Placeholder -> node
+                is ElixirAst.Literal, is ElixirAst.Placeholder, is ElixirAst.Value -> node
             }
         }
     }

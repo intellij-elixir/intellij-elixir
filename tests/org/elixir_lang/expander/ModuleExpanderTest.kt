@@ -821,6 +821,27 @@ class ModuleExpanderTest : ExpanderTestCase() {
         assertCancelledAt("($TREE :erlang.length(:lists.flatten(t)))", unwalked + (1 shl DOUBLINGS) / 2)
     }
 
+    /**
+     * A macro asking whether two lists that each hold one part twice at every depth are equal is cancelled as it walks
+     * them. Two lists built apart, since the VM, and the evaluator, answer a term equal to itself without walking it.
+     */
+    fun testAnEqualityIsCancelledAsItWalks() {
+        // Building the lists makes most of the checks, so the walk's are counted from the same body's not comparing them.
+        val trees = "$TREE ${TREE.replace("t", "u")}"
+        val unwalked = checks("($trees :erlang.is_list(t))")
+
+        assertCancelledAt("($trees t == u)", unwalked + (1 shl DOUBLINGS) / 2)
+    }
+
+    /** Asking whether two such lists are equal looks through both for references, ports and pids, cancelled as it looks. */
+    fun testAnEqualityIsCancelledAsItLooksForIdentities() {
+        val trees = "$TREE ${TREE.replace("t", "u")}"
+
+        assertCancelledIn("org.elixir_lang.expander.TermOrderKt", "holdsDistinctIdentities", (1 shl DOUBLINGS) / 2) {
+            expandMacro("($trees t == u)")
+        }
+    }
+
     /** A macro ordering two such lists is cancelled while it compares them, once it has walked each. */
     fun testAComparisonIsCancelledAsItWalks() {
         val trees = "$TREE ${TREE.replace("t", "u")}"
@@ -917,6 +938,13 @@ class ModuleExpanderTest : ExpanderTestCase() {
     private fun checks(body: String): Int = CancelAt(Int.MAX_VALUE).also { expandMacro(body, it) }.checks
 
     private fun expandMacro(body: String, indicator: CancelAt) {
+        whileCheckingIndicators {
+            ProgressManager.getInstance().runProcess({ expandMacro(body) }, indicator)
+        }
+    }
+
+    /** Expands `B`, which calls `A.m`, a macro whose body is [body]. */
+    private fun expandMacro(body: String) {
         val code = """
             defmodule A do
               defmacro m, do: $body
@@ -928,9 +956,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
             end
         """.trimIndent()
 
-        whileCheckingIndicators {
-            ProgressManager.getInstance().runProcess({ expandAndRender(code, "1.20.4") }, indicator)
-        }
+        expandAndRender(code, "1.20.4")
     }
 
     fun testALocalMacroThatConflictsWithAnImport() =

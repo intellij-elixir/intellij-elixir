@@ -11,6 +11,7 @@ import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangMap
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangPid
+import com.ericsson.otp.erlang.OtpErlangRef
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
@@ -105,6 +106,8 @@ internal class Natives(private val evaluation: Evaluation) {
             "/=/2" -> bool(!equal(args[0], args[1], false, level))
             "=:=/2" -> bool(equal(args[0], args[1], true, level))
             "=/=/2" -> bool(!equal(args[0], args[1], true, level))
+            "self/0" -> SELF
+            "make_ref/0" -> OtpErlangRef(LOCAL_NODE, intArrayOf(evaluation.run.nextRef(), 0, 0), 0)
             "</2" -> bool(compare(args[0], args[1], level) < 0)
             ">/2" -> bool(compare(args[0], args[1], level) > 0)
             "=</2" -> bool(compare(args[0], args[1], level) <= 0)
@@ -1249,6 +1252,12 @@ internal class Natives(private val evaluation: Evaluation) {
     private val view = EscapeView<OtpErlangObject> { TermEscapeView.shape(seen(it)) }
 
 }
+
+/** The node of a process or reference the evaluator makes. */
+private const val LOCAL_NODE = "nonode@nohost"
+
+/** `self()`: the one process a macro body runs in. */
+private val SELF = OtpErlangPid(LOCAL_NODE, 0, 0, 0)
 
 /** The small integers of a 64-bit VM. */
 private val SMALL_INTEGERS = -(1L shl 59) until (1L shl 59)

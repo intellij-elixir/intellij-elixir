@@ -212,7 +212,7 @@ private class Delegates(
                     else -> return Head.Unread
                 }
             is ElixirAst.Alias -> return Head.Raises("delegate_arg")
-            is ElixirAst.Literal, is ElixirAst.ListNode -> return Head.Raises("delegate_call")
+            is ElixirAst.Literal, is ElixirAst.ListNode, is ElixirAst.Value -> return Head.Raises("delegate_call")
             is ElixirAst.Tuple -> return if (head.elements.size == 2) Head.Raises("delegate_call") else Head.Unread
             is ElixirAst.Block, is ElixirAst.Placeholder -> return Head.Unread
         }

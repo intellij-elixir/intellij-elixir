@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangMap
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageFeature.GENERATED_ARGUMENTS_ONE_BASED
 import org.elixir_lang.language_level.ElixirLanguageFeature.GUARDS_INFER_TYPES
@@ -9,6 +10,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.IN_LIST_LISTS_MEMBER
 import org.elixir_lang.language_level.ElixirLanguageFeature.IN_LITERAL_UNWRAPPED
 import org.elixir_lang.language_level.ElixirLanguageFeature.IN_RANGE_FIELDS_ANY_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.IN_RANGE_LITERAL_GENERATED
+import org.elixir_lang.language_level.ElixirLanguageFeature.IN_REFUSES_UNESCAPED_RIGHT_SIDE
 import org.elixir_lang.language_level.ElixirLanguageFeature.IN_SMALL_LITERAL_LIST
 import org.elixir_lang.language_level.ElixirLanguageFeature.RANGE_GUARD_STEP_COMPUTED
 import org.elixir_lang.language_level.ElixirLanguageFeature.RANGE_STRUCT_SYNTAX
@@ -49,6 +51,8 @@ private class In(private val node: ElixirAst.Call, private val state: ExState, p
                     else -> block(s.call("=", listOf(s.variable("_", KERNEL), left)), s.atom("false"))
                 }
             is ElixirAst.ListNode -> list(left, written, right)
+            is ElixirAst.Value if right.term is OtpErlangMap && IN_REFUSES_UNESCAPED_RIGHT_SIDE.isSufficient(level) ->
+                throw Stop(Summary.Output.Raised("Elixir.ArgumentError"))
             else -> {
                 val fields = rangeFields(right)
 

@@ -1,7 +1,9 @@
 package org.elixir_lang.expander
 
 import com.intellij.openapi.progress.ProgressManager
+import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ARGUMENTS_STOP_GENERATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.VAR_BANG_IF_UNDEFINED
+import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
@@ -78,7 +80,7 @@ internal fun expandQuoted(
     supplied: Map<ElixirAst, Term> = emptyMap(),
 ): Expansion {
     var watching: ElixirAst? = null
-    val linified = linifyWithContextCounter(lineOf(call.meta), receiver, counter, output) { original, linified ->
+    val linified = linifyWithContextCounter(lineOf(call.meta), receiver, counter, run.level, output) { original, linified ->
         if (original === watched?.node) watching = linified
 
         // A node in a module body is expanded when the module is compiled, after this call returns.
@@ -105,45 +107,64 @@ internal fun expandQuoted(
 /**
  * `linify_with_context_counter/3`, without `generated`: [line] added to every node with metadata that has none, unless
  * it is 0, and [counter] to a `quote` or a variable of [receiver]'s context, an alias, and an `alias`, `import` or
- * `require` call.
+ * `require` call, at the heads [Linify] chooses.
  */
 internal fun linifyWithContextCounter(
     line: Int,
     receiver: String,
     counter: Env.Counter,
+    level: ElixirLanguageLevel,
     node: ElixirAst,
     onNode: (original: ElixirAst, linified: ElixirAst) -> Unit = { _, _ -> },
 ): ElixirAst {
+    val linifier = Linify(receiver, level)
     val counterValue = counterMetaValue(counter)
-    val receiverContext = ElixirAst.VariableContext.Atom(receiver)
 
-    fun lined(meta: Meta): Meta = if (line == 0) meta else keynew(meta, "line", Meta.Value.Integer(line.toLong()))
+    /** `do_tuple_linify/6`'s metadata: a `stop_generated: true` it reads deleted, and [line] added. */
+    fun tupled(meta: Meta): Meta {
+        val stops = linifier.readsStopGenerated && (metaValue(meta, "stop_generated") as? Meta.Value.Atom)?.name == "true"
+        val read = if (stops) Meta(meta.origin, meta.start, meta.end, keydelete(meta.keys, "stop_generated"), meta.built) else meta
 
-    fun counted(meta: Meta, isCounted: Boolean): Meta = lined(if (isCounted) keynew(meta, "counter", counterValue) else meta)
+        return if (line == 0) read else keynew(read, "line", Meta.Value.Integer(line.toLong()))
+    }
+
+    fun counted(meta: Meta, clause: LinifyClause): Meta {
+        val isCounted = linifier.counted(clause) { (metaValue(meta, "context") as? Meta.Value.Atom)?.name == it }
+
+        return tupled(if (isCounted) keynew(meta, "counter", counterValue) else meta)
+    }
 
     fun linify(node: ElixirAst): ElixirAst {
         ProgressManager.checkCanceled()
 
         return when (node) {
             is ElixirAst.Call -> {
-                val name = (node.callee as? ElixirAst.Literal.Atom)?.name
                 val arguments = node.arguments
-                val isCounted = when {
-                    arguments == null -> name != null && name != "_" && node.context == receiverContext
-                    arguments.isEmpty() -> false
-                    name == "quote" -> (metaValue(node.meta, "context") as? Meta.Value.Atom)?.name == receiver
-                    else -> name in LEXICAL
+                val right = when {
+                    arguments == null -> LinifyRight.Atom(
+                        when (val context = node.context) {
+                            ElixirAst.VariableContext.Nil -> "nil"
+                            is ElixirAst.VariableContext.Atom -> context.name
+                        },
+                    )
+                    arguments.isEmpty() -> LinifyRight.Other
+                    else -> LinifyRight.NonEmptyList
                 }
+                val clause = linifier.clause((node.callee as? ElixirAst.Literal.Atom)?.name, true, right)
 
-                ElixirAst.Call(counted(node.meta, isCounted), linify(node.callee), arguments?.map(::linify), node.context)
+                ElixirAst.Call(counted(node.meta, clause), linify(node.callee), arguments?.map(::linify), node.context)
             }
-            is ElixirAst.Alias -> ElixirAst.Alias(counted(node.meta, node.segments.isNotEmpty()), node.segments.map(::linify))
-            is ElixirAst.Block -> ElixirAst.Block(lined(node.meta), node.expressions.map(::linify))
+            is ElixirAst.Alias -> {
+                val right = if (node.segments.isEmpty()) LinifyRight.Other else LinifyRight.NonEmptyList
+
+                ElixirAst.Alias(counted(node.meta, linifier.clause("__aliases__", true, right)), node.segments.map(::linify))
+            }
+            is ElixirAst.Block -> ElixirAst.Block(tupled(node.meta), node.expressions.map(::linify))
             is ElixirAst.Tuple ->
-                ElixirAst.Tuple(if (node.hasMetadata()) lined(node.meta) else node.meta, node.elements.map(::linify))
+                ElixirAst.Tuple(if (node.hasMetadata()) tupled(node.meta) else node.meta, node.elements.map(::linify))
             is ElixirAst.ListNode -> ElixirAst.ListNode(node.meta, node.elements.map(::linify))
-            is ElixirAst.Placeholder -> ElixirAst.Placeholder(lined(node.meta), node.reason)
-            is ElixirAst.Literal -> node
+            is ElixirAst.Placeholder -> ElixirAst.Placeholder(tupled(node.meta), node.reason)
+            is ElixirAst.Literal, is ElixirAst.Value -> node
         }.also { onNode(node, it) }
     }
 
@@ -223,3 +244,58 @@ private fun keydelete(keys: List<Meta.Key>, name: String): List<Meta.Key> {
 
 /** `elixir_quote`'s `?lexical/1`. */
 internal val LEXICAL = setOf("import", "alias", "require")
+
+/** A `{Left, Meta, Right}` node's `Right`, as `do_linify/4`'s heads read it. */
+internal sealed interface LinifyRight {
+    data object NonEmptyList : LinifyRight
+
+    data class Atom(val name: String) : LinifyRight
+
+    data object Other : LinifyRight
+}
+
+/** The `do_linify/4` head a `{Left, Meta, Right}` node takes. */
+internal enum class LinifyClause {
+    /** `{quote, Meta, [_ | _]}`, given the counter where its `context` is the receiver. */
+    QUOTE,
+
+    /** A variable of the receiver's context, or `alias`, `import`, `require` or `__aliases__` with arguments. */
+    COUNTED,
+
+    /** Any other node with list metadata. */
+    TUPLE,
+
+    /** Not a node: `do_linify(_, Else, _, _) -> Else`. */
+    ELSE,
+}
+
+/**
+ * `do_linify/4`'s and `do_tuple_linify/6`'s choices for a macro's result from [receiver], read by
+ * [linifyWithContextCounter] over [ElixirAst] and by the evaluator's walk over the result's term, which raises where
+ * Elixir's walk raises.
+ */
+internal class Linify(private val receiver: String, level: ElixirLanguageLevel) {
+    /** Whether `do_tuple_linify/6` reads `stop_generated` from a node's metadata, deleting it where it is `true`. */
+    val readsStopGenerated: Boolean = MACRO_ARGUMENTS_STOP_GENERATED.isSufficient(level)
+
+    /** The head `{left, meta, right}` takes: [left] is its atom's name, if it is one, and [metaIsList] is `is_list(Meta)`. */
+    fun clause(left: String?, metaIsList: Boolean, right: LinifyRight): LinifyClause =
+        when {
+            left == "quote" && metaIsList && right == LinifyRight.NonEmptyList -> LinifyClause.QUOTE
+            left != null && left != "_" && metaIsList && right == LinifyRight.Atom(receiver) -> LinifyClause.COUNTED
+            (left in LEXICAL || left == "__aliases__") && right == LinifyRight.NonEmptyList -> LinifyClause.COUNTED
+            metaIsList -> LinifyClause.TUPLE
+            else -> LinifyClause.ELSE
+        }
+
+    /**
+     * Whether `do_linify/4` gives a node of [clause] the counter: a [LinifyClause.QUOTE] only where [hasContext] holds for
+     * the receiver, as its metadata's `context` is.
+     */
+    fun counted(clause: LinifyClause, hasContext: (receiver: String) -> Boolean): Boolean =
+        when (clause) {
+            LinifyClause.QUOTE -> hasContext(receiver)
+            LinifyClause.COUNTED -> true
+            LinifyClause.TUPLE, LinifyClause.ELSE -> false
+        }
+}

@@ -336,7 +336,7 @@ internal object Quote {
             is ElixirAst.Block -> node.expressions.any(::holds)
             is ElixirAst.Tuple -> node.elements.any(::holds)
             is ElixirAst.ListNode -> node.elements.any(::holds)
-            is ElixirAst.Literal, is ElixirAst.Placeholder -> false
+            is ElixirAst.Literal, is ElixirAst.Placeholder, is ElixirAst.Value -> false
         }
     }
 
@@ -363,6 +363,7 @@ internal object Quote {
             is ElixirAst.Literal.Integer -> ElixirAst.Literal.Integer(meta, node.value)
             is ElixirAst.Literal.Float -> ElixirAst.Literal.Float(meta, node.value)
             is ElixirAst.Literal.Binary -> ElixirAst.Literal.Binary(meta, node.bytes)
+            is ElixirAst.Value -> ElixirAst.Value(meta, node.term)
         }
     }
 

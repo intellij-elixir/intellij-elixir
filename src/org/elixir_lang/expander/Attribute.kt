@@ -25,7 +25,7 @@ internal val ATTRIBUTE = Summary { _, node, state, env, run ->
         }
         is Returned.Code -> {
             val counter = run.counters.next(env.module)
-            val linified = linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, returned.node, run::carrySupplied)
+            val linified = linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, run.level, returned.node, run::carrySupplied)
 
             run.compiling[env.module!!]?.built(linified, node)
             recordDispatch(node, ModuleClauses.Dispatched.Macro(linified), env, run)

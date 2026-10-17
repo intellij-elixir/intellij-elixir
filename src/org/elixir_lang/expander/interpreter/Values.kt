@@ -15,8 +15,9 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import com.ericsson.otp.erlang.OtpOutputStream
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.expander.differInSign
-import org.elixir_lang.expander.mapKeyOrder
+import org.elixir_lang.expander.UnorderedTerms
 import org.elixir_lang.expander.termOrder
+import org.elixir_lang.expander.termsEqual
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.fitsAnAtom
 import java.math.BigInteger
@@ -322,24 +323,27 @@ internal fun properElements(term: OtpErlangObject): List<OtpErlangObject>? =
 
 internal fun isNumber(term: OtpErlangObject) = term is OtpErlangLong || term is OtpErlangDouble
 
-/** Erlang's `==` where [exact] is false, else `=:=`; declines on terms whose order only the VM knows. */
+/** Erlang's `==` where [exact] is false, else `=:=` ([termsEqual]); declines on terms whose order only the VM knows. */
 internal fun equal(left: OtpErlangObject, right: OtpErlangObject, exact: Boolean, level: ElixirLanguageLevel): Boolean =
-    compare(left, right, level, exact) == 0
+    ordered(left, right, true) { termsEqual(left, right, exact, level) }
 
 internal fun compare(
     left: OtpErlangObject,
     right: OtpErlangObject,
     level: ElixirLanguageLevel,
     exact: Boolean = false,
-): Int {
-    if (left === right && !isUnknown(left)) return 0
+): Int = ordered(left, right, 0) { termOrder(level, exact).compare(left, right) }
+
+/** [answer] for [left] and [right], [same] where they are one known term; declines where only the VM orders them. */
+private inline fun <T> ordered(left: OtpErlangObject, right: OtpErlangObject, same: T, answer: () -> T): T {
+    if (left === right && !isUnknown(left)) return same
 
     known(left)
     known(right)
 
     return try {
-        (if (exact) mapKeyOrder(level) else termOrder(level)).compare(left, right)
-    } catch (_: IllegalArgumentException) {
+        answer()
+    } catch (_: UnorderedTerms) {
         decline("compares %s and %s", left, right)
     }
 }

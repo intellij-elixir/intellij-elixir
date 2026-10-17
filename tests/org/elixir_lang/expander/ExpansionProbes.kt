@@ -559,7 +559,11 @@ internal class ExpansionProbes(
         val result = expansion.result
 
         if (!FUNCTION_ERRORS_CONTINUE.isSufficient(level)) {
-            val error = timeline(result).firstOrNull() ?: return listOf(ExpectedError("none", null, "no error"))
+            val error = timeline(result).firstOrNull()
+                ?: return listOf(
+                    (result.ended as? Ended.Crashed)?.let { ExpectedError(it.exception, null) }
+                        ?: ExpectedError("none", null, "no error"),
+                )
             val raised = (result.ended as? Ended.Raised)?.error ?: (result.ended as? Ended.Crashed)?.error
             val units = units(result)
             val unit = units.indexOfFirst { it.expansion === raised }
@@ -575,8 +579,8 @@ internal class ExpansionProbes(
         val logged = collapsed(timeline(result, expansion.takeIf { it.unordered }), level) { error ->
             error.kind.takeIf { it in LOCAL_CHECK_KINDS }?.let { Triple(it, line(error.at), column(error.at)) }
         }
-            .filter { ErrorKinds.hasLine(it.kind, level) }
-            .map { ExpectedError(it.kind, line(it.at)) }
+            .filter { ErrorKinds.isCompileError(it.kind, level) }
+            .map { error -> ExpectedError(error.kind, line(error.at).takeIf { ErrorKinds.hasLine(error.kind, level) }) }
 
         if (expansion.unordered) return logged
 
@@ -584,7 +588,7 @@ internal class ExpansionProbes(
             is Ended.Raised ->
                 if (ended.error.kind in FILE_ERROR_KINDS) {
                     FILE_NOT_COMPILED
-                } else if (ended.error.kind == NESTED_RAISED || ErrorKinds.hasLine(ended.error.kind, level)) {
+                } else if (ended.error.kind == NESTED_RAISED || ErrorKinds.isCompileError(ended.error.kind, level)) {
                     "raise CompileError"
                 } else {
                     "raise ${ended.error.kind}"
@@ -658,7 +662,7 @@ internal class ExpansionProbes(
             val kind = expected.getOrNull(index)?.takeIf { it.status == null }?.kind
 
             if (kind != null && ErrorKinds.pattern(kind).containsMatchIn(diagnostic.message)) {
-                "error $kind at line ${diagnostic.line}"
+                ExpectedError(kind, diagnostic.line).render()
             } else {
                 "error at line ${diagnostic.line}: ${diagnostic.message}"
             }
@@ -719,6 +723,13 @@ internal class ExpansionProbes(
             } else {
                 "error ${inspect(status.elementAt(1))}: $message"
             }
+        }
+
+        // An error at line 0 names only the file.
+        val unlined = UNLINED_MESSAGE.find(message)?.groupValues?.get(1)
+
+        if (expected.line == null && unlined != null && ErrorKinds.pattern(expected.kind).containsMatchIn(unlined)) {
+            return "error ${expected.kind}"
         }
 
         val match = PREFIXED_MESSAGE.find(message) ?: return "no <file>:<line>: prefix: ${inspect(status.elementAt(2))}"
@@ -890,7 +901,7 @@ internal class ExpansionProbes(
                 is ElixirAst.Block -> ElixirAst.Block(node.meta, node.expressions.map(::replaced))
                 is ElixirAst.Tuple -> ElixirAst.Tuple(node.meta, node.elements.map(::replaced))
                 is ElixirAst.ListNode -> ElixirAst.ListNode(node.meta, node.elements.map(::replaced))
-                is ElixirAst.Literal, is ElixirAst.Placeholder -> node
+                is ElixirAst.Literal, is ElixirAst.Placeholder, is ElixirAst.Value -> node
             }
 
         return replaced(node)
@@ -1400,6 +1411,7 @@ internal class ExpansionProbes(
             }?.let { amp -> if (REMOTE_CAPTURE_REPORTED_AT_CALL.isSufficient(level)) node else amp }
 
         val PREFIXED_MESSAGE = Regex("""^[^:\n]*:(\d+): (.*)""", RegexOption.DOT_MATCHES_ALL)
+        val UNLINED_MESSAGE = Regex("""^[^:\n]*: (.*)""", RegexOption.DOT_MATCHES_ALL)
 
         @Volatile
         var optionsAsserted = false
@@ -1458,7 +1470,7 @@ internal class ExpansionProbes(
                     is ElixirAst.ListNode -> node.elements
                     is ElixirAst.Tuple -> node.elements
                     is ElixirAst.Block -> node.expressions
-                    is ElixirAst.Literal, is ElixirAst.Placeholder -> emptyList()
+                    is ElixirAst.Literal, is ElixirAst.Placeholder, is ElixirAst.Value -> emptyList()
                 }.flatMap(::prewalkReads)
             }
 
@@ -1470,7 +1482,7 @@ internal class ExpansionProbes(
                 is ElixirAst.Tuple -> node.elements.any(::hasPlaceholder)
                 is ElixirAst.ListNode -> node.elements.any(::hasPlaceholder)
                 is ElixirAst.Block -> node.expressions.any(::hasPlaceholder)
-                is ElixirAst.Literal -> false
+                is ElixirAst.Literal, is ElixirAst.Value -> false
             }
 
         /**
@@ -1557,7 +1569,7 @@ internal class ExpansionProbes(
                 is ElixirAst.Tuple -> node.elements
                 is ElixirAst.ListNode -> node.elements
                 is ElixirAst.Block -> node.expressions
-                is ElixirAst.Alias, is ElixirAst.Literal, is ElixirAst.Placeholder -> emptyList()
+                is ElixirAst.Alias, is ElixirAst.Literal, is ElixirAst.Placeholder, is ElixirAst.Value -> emptyList()
             }
 
         /** How a part of a `case`, `cond`, `receive`, `try`, `fn`, `with`, `for`, `def*`, `defmodule`, `defprotocol` or `defimpl` is expanded. */

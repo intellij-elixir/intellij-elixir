@@ -1,12 +1,15 @@
 package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangObject
+import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.expander.ExState.Prematch.Dependency
 import org.elixir_lang.expander.ExState.Prematch.InMatch
 import org.elixir_lang.expander.ExState.Write
+import org.elixir_lang.language_level.ElixirLanguageFeature.DUPLICATE_MATCH_UNPACKED_ONCE
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.ParserOptions
 
 /**
  * `elixir_clauses:match/6`: [pattern] expanded as a pattern, after the right side took [before] to [after].
@@ -48,7 +51,7 @@ internal fun match(
 internal fun parallelMatch(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
     val writes = mutableListOf<Map<Variable, Int>>()
 
-    return mapfold(unpackMatch(node, emptyList()), state, env) { side, sideState, sideEnv ->
+    return mapfold(unpackMatch(node, emptyList(), run.level), state, env) { side, sideState, sideEnv ->
         Expander.expand(side, sideState.copy(write = Write.Writing(emptyMap())), sideEnv, run).then { s, e ->
             writes.add((s.write as Write.Writing).vars)
             Expansion.Expanded(s, e, NODE)
@@ -184,16 +187,37 @@ private fun literalKeyed(
         literalShape(key, env, level).toOtp() to value
     }
 
-/** `elixir_clauses:unpack_match/4`: a chain of matches as its sides, left to right. */
-private fun unpackMatch(node: ElixirAst, acc: List<ElixirAst>): List<ElixirAst> {
+/**
+ * `elixir_clauses:unpack_match/4`: a chain of matches as its sides, left to right. From 1.18.0 a match of a 3-tuple
+ * against the same term, metadata and all, is the one side, which Elixir warns of.
+ */
+private fun unpackMatch(node: ElixirAst, acc: List<ElixirAst>, level: ElixirLanguageLevel): List<ElixirAst> {
     ProgressManager.checkCanceled()
 
     if (!isCall(node, "=", 2)) return listOf(node) + acc
 
     val (left, right) = (node as ElixirAst.Call).arguments!!
 
-    return unpackMatch(left, unpackMatch(right, acc))
+    if (DUPLICATE_MATCH_UNPACKED_ONCE.isSufficient(level)) {
+        // The compiler reads the file with columns.
+        val options = ParserOptions(columns = true)
+        val term = left.toOtp(options)
+
+        if ((term as? OtpErlangTuple)?.arity() == 3 && exactlyEqual(term, right.toOtp(options), level)) {
+            return unpackMatch(left, acc, level)
+        }
+    }
+
+    return unpackMatch(left, unpackMatch(right, acc, level), level)
 }
+
+/** `=:=`, where two terms only the VM orders are two different ones. */
+private fun exactlyEqual(left: OtpErlangObject, right: OtpErlangObject, level: ElixirLanguageLevel): Boolean =
+    try {
+        termsEqual(left, right, exact = true, level)
+    } catch (_: UnorderedTerms) {
+        false
+    }
 
 private class StoredCycles(
     val cycles: Map<Variable, Map<Variable, Dependency>>,

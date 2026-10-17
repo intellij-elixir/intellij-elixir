@@ -622,7 +622,11 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
     }
 }
 
-/** The elements of a `{severity, line, column, message}` diagnostic, as the quoter reports one. */
+/**
+ * The elements of a `{severity, line, column, message}` diagnostic, as the quoter reports one.
+ *
+ * @property line `null` where Elixir gives none, or line 0, as for `invalid_quoted_expr`
+ */
 internal class Diagnostic(val severity: String, val line: Int?, val column: Int?, val message: String) {
     companion object {
         fun of(term: OtpErlangObject): Diagnostic {
@@ -630,7 +634,7 @@ internal class Diagnostic(val severity: String, val line: Int?, val column: Int?
 
             return Diagnostic(
                 (severity as OtpErlangAtom).atomValue(),
-                (line as? OtpErlangLong)?.intValue(),
+                (line as? OtpErlangLong)?.intValue()?.takeIf { it != 0 },
                 (column as? OtpErlangLong)?.intValue(),
                 utf8(message)
             )
