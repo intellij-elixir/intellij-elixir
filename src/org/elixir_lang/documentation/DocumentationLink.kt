@@ -14,28 +14,48 @@ internal object DocumentationLink {
     private val relativePattern: Pattern =
         Pattern.compile("((?<kind>[ct]):)?((?<module>.+)\\.)?(?<relative>.+)/(?<arity>\\d+)")
 
-    /** The arity [link] names, or `null` where it is a module's, or its arity is too big for an integer. */
-    fun arity(link: String): Int? = relativePattern.matcher(link).takeIf { it.matches() }?.group("arity")?.toIntOrNull()
+    /**
+     * A link to a function, callback or type, read once for whoever draws it and whoever follows it: its [kind], `c` or
+     * `t` for a callback or type and `null` for a function, the [module] it names if it names one, its [name] and its
+     * [arity], which is `null` when it is too big for an integer and so names no function.
+     */
+    class Parsed(val kind: String?, val module: String?, val name: String, val arity: Int?)
 
-    /** The element [link] opens when followed from [context]: a function, callback or type, else a module. */
-    fun element(link: String, context: PsiElement): PsiElement? {
+    /** [link] read as a link to a function, callback or type; `null` where it is a module's, with no `name/arity`. */
+    fun parse(link: String): Parsed? {
         val matcher = relativePattern.matcher(link)
 
         return if (matcher.matches()) {
-            val module = matcher.group("module")
-            val arity = matcher.group("arity").toIntOrNull() ?: return null
+            Parsed(
+                matcher.group("kind"),
+                matcher.group("module"),
+                matcher.group("relative"),
+                matcher.group("arity").toIntOrNull()
+            )
+        } else {
+            null
+        }
+    }
 
-            when (val kind = matcher.group("kind")) {
+    /** The element [link] opens when followed from [context]: a function, callback or type, else a module. */
+    fun element(link: String, context: PsiElement): PsiElement? {
+        val parsed = parse(link)
+
+        return if (parsed != null) {
+            val module = parsed.module
+            val arity = parsed.arity ?: return null
+
+            when (val kind = parsed.kind) {
                 null, "c" -> FunctionLink.target(
                     context,
                     module,
-                    matcher.group("relative"),
+                    parsed.name,
                     arity,
                     callback = kind == "c"
                 )
 
                 "t" -> {
-                    val relative = identifierAtomName(matcher.group("relative")) { languageLevelFor(context) }
+                    val relative = identifierAtomName(parsed.name) { languageLevelFor(context) }
 
                     val resolveResults = if (module != null) {
                         MarkdownFlavourDescriptor

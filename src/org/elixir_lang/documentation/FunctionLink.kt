@@ -34,16 +34,18 @@ internal object FunctionLink {
         }
     }
 
-    /** Whether the link names a definition. */
-    fun exists(context: PsiElement, module: String?, name: String, arity: Int): Boolean =
-        results(context, module, name, arity).any(ResolveResult::isValidResult)
+    /** Whether the link names a definition; a [callback] link names only a callback. */
+    fun exists(context: PsiElement, module: String?, name: String, arity: Int, callback: Boolean): Boolean =
+        named(results(context, module, name, arity), callback).any(ResolveResult::isValidResult)
 
     /** The definition the link opens; a [callback] link opens only a callback. */
     fun target(context: PsiElement, module: String?, name: String, arity: Int, callback: Boolean): PsiElement? =
-        results(context, module, name, arity)
-            .filter { resolveResult ->
-                !callback || resolveResult.element?.let { it as? Call }?.let(Callback.Companion::`is`) ?: false
-            }
+        named(results(context, module, name, arity), callback)
             .let { Resolver.preferred(context, false, it) }
             .firstNotNullOfOrNull { it.element }
+
+    private fun named(results: List<ResolveResult>, callback: Boolean): List<ResolveResult> =
+        results.filter { resolveResult ->
+            !callback || resolveResult.element?.let { it as? Call }?.let(Callback.Companion::`is`) ?: false
+        }
 }
