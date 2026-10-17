@@ -35,7 +35,7 @@ private fun defdelegate(
     run: Run,
 ): Expansion {
     val (funs, written) = arguments
-    val escaped = when (val escape = Quote.escape(funs, node.meta, env, run)) {
+    val escaped = when (val escape = Quote.escape(funs, node.meta, run)) {
         is Quote.Escaped.Built -> escape.node
         is Quote.Escaped.Stopped -> return escape.expansion
     }

@@ -250,7 +250,11 @@ private fun compileRegex(
         put("source", source)
     }
 
-    if (!REGEX_ESCAPED_IN_FIXED_FIELD_ORDER.isSufficient(level)) return Summary.Output.Built(s.escapedMap(fields.map { it.key to it.value }))
+    if (!REGEX_ESCAPED_IN_FIXED_FIELD_ORDER.isSufficient(level)) {
+        return QuoteEscape.map(AstEscapeBuilder(s), level, fields.map { it.key to it.value })
+            ?.let { Summary.Output.Built(it) }
+            ?: Summary.Output.Unported(node)
+    }
 
     val keys = listOf("__struct__", "re_pattern", "source", "opts")
 

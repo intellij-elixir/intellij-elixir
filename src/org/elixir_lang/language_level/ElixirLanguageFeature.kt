@@ -1224,9 +1224,10 @@ enum class ElixirLanguageFeature(
 
     /**
      * `Macro.escape/2` quotes the metadata of a `quote` it escapes, and the metadata argument of an unquoted call, as
-     * it quotes any other term, and a `quote`'s `bind_quoted` bindings leave out the `column` of the `quote`'s metadata.
-     * Before it, from [QUOTE_META_DROPS_COLUMN], the escaped metadata's `column` is dropped and the rest kept as it is;
-     * before both, all of it is kept as it is.
+     * it quotes any other term, and a `quote`'s `bind_quoted` bindings leave out the `column` of the `quote`'s
+     * metadata. Before it, from [QUOTE_META_DROPS_COLUMN], the escaped metadata's `column` is dropped and the rest kept
+     * as it is; before both, all of it is kept as it is. From it, the first element of a list it escapes is escaped as
+     * a term, so a `quote` there is escaped as any other tuple.
      *
      * `elixir-lang/elixir@dea845602` ("Escape meta within existing quote extensions", #14832), first released in
      * v1.19.0.
@@ -1241,6 +1242,13 @@ enum class ElixirLanguageFeature(
      * v1.17.0-rc.0.
      */
     ESCAPE_HEADS_NEED_LIST_META(sinceElixir = "1.17.0-rc.0"),
+
+    /**
+     * `Macro.escape(_, prune_metadata: true)` keeps a node's `delimiter` with its `line` and `no_parens`.
+     *
+     * `elixir-lang/elixir@e7ec9a0d0` ("prune_metadata keeps delimiters", #13911), first released in v1.18.0-rc.0.
+     */
+    ESCAPE_PRUNE_KEEPS_DELIMITER(sinceElixir = "1.18.0-rc.0"),
 
     /**
      * An `unquote` inside a `quote` is passed to `:elixir_quote.unquote/1` in place of `shallow_validate_ast/1`, and a
@@ -1438,7 +1446,8 @@ enum class ElixirLanguageFeature(
 
     /**
      * A bitstring specifier written as a name without parentheses, such as `foo`, is macro-expanded as the call
-     * `foo()`. Before it, it isn't expanded, and raises `undefined_bittype`.
+     * `foo()`. Before it, it isn't expanded, and raises `undefined_bittype`. From it, `Macro.escape/1` writes a
+     * bitstring's trailing `binary` specifier as the name `{binary, [], nil}`, where it wrote the call `binary()`.
      *
      * `elixir-lang/elixir@c64606b76` ("Warn on missing parentheses in bitstring modifiers", #11862), first released in
      * v1.15.0-rc.0.
@@ -1892,22 +1901,41 @@ enum class ElixirLanguageFeature(
     /**
      * `Regex.__escape__/1` writes a `Regex` struct into the AST with its fields in one fixed order, `__struct__`,
      * `re_pattern`, `source`, `opts`. Before it, `Macro.escape/1` lists the map's entries in term order, bar the window of
-     * [ESCAPED_MAP_IN_VM_ORDER].
+     * [ESCAPED_MAP_IN_VM_ORDER]. From it, `Macro.escape/1` escapes any struct whose module exports `__escape__/1` by
+     * calling it, and from v1.19.0-rc.2 raises on one in a struct's defaults.
      *
      * `elixir-lang/elixir@ff21a9d60` ("Add __escape__/1 and use it to fix Regex escaping in OTP28.1+"), first released
-     * in v1.19.0-rc.1.
+     * in v1.19.0-rc.1, and the raise `elixir-lang/elixir@64f69cfee` ("Improve error message when escaping default values
+     * with custom rules in structs"), first released in v1.19.0-rc.2.
      */
     REGEX_ESCAPED_IN_FIXED_FIELD_ORDER(sinceElixir = "1.19.0-rc.1"),
 
     /**
      * `Macro.escape/1` of a map lists its entries in the order the Erlang VM keeps them, which from OTP 26 is the
-     * atoms' index in the VM, not term order. Elixir sorts the entries from 1.15.0-rc.1, so only before it does the
-     * order show. The port writes the keys in term order, which no release or probe can pin in this window.
+     * atoms' index in the VM, not term order. Elixir sorts the entries from [ESCAPED_MAP_ENTRIES_SORTED], so only before
+     * it does the order show. The port writes the keys in term order, which no release or probe can pin in this window.
      *
      * `elixir-lang/elixir@ad3f7d20b` ("Sort maps and environment when escaping"), first released in v1.15.0-rc.1, and
      * `erlang/otp@c013d3ad41` ("erts: Optimize flatmap internal ordering of atoms"), first released in OTP 26.0-rc1.
      */
     ESCAPED_MAP_IN_VM_ORDER(removedInElixir = "1.15.0-rc.1", sinceOtp = "26.0-rc1"),
+
+    /**
+     * `Macro.escape/1` sorts a map's entries as `{Key, Value}` pairs. Before it, they are in the order the VM keeps
+     * them ([ESCAPED_MAP_IN_VM_ORDER]), which for a map of more than 32 keys is their hashes'.
+     *
+     * `elixir-lang/elixir@ad3f7d20b` ("Sort maps and environment when escaping"), first released in v1.15.0-rc.1.
+     */
+    ESCAPED_MAP_ENTRIES_SORTED(sinceElixir = "1.15.0-rc.1"),
+
+    /**
+     * `Macro.escape/1` quotes each of a map's keys and values on its own. Before it, the entries are quoted as one list
+     * of pairs, so a pair with an `unquote_splicing` side splices as a tuple does.
+     *
+     * `elixir-lang/elixir@8de98a8a8` ("Raise nice error message when escaping maps/structs with references", #14497),
+     * first released in v1.19.0-rc.0, and its backport `14d406fcd`, first released in v1.18.4.
+     */
+    ESCAPED_MAP_ENTRIES_QUOTED_APART(sinceElixir = "1.18.4"),
 
     /**
      * `~r` is refused in a pattern and a guard, whatever its pattern. Before it, it is only a `Regex.compile!/2` call

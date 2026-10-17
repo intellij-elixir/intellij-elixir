@@ -63,7 +63,7 @@ private sealed interface Returned {
 private fun typespec(name: String, args: List<ElixirAst>, node: ElixirAst.Call, env: Env, run: Run): Returned {
     // `hd([])` raises.
     val spec = args.firstOrNull() ?: return Returned.Ended(Expansion.Unported(node))
-    val escaped = when (val escape = Quote.escape(spec, node.meta, env, run)) {
+    val escaped = when (val escape = Quote.escape(spec, node.meta, run)) {
         is Quote.Escaped.Built -> escape.node
         is Quote.Escaped.Stopped -> return Returned.Ended(escape.expansion)
     }

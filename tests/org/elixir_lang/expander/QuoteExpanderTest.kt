@@ -3,6 +3,7 @@ package org.elixir_lang.expander
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.ParserOptions
 
 /**
  * `unquote` and `quote` over lowered snippets at every supported minor, and the value each `quote` builds, read with
@@ -152,6 +153,33 @@ class QuoteExpanderTest : ExpanderTestCase() {
 
     fun testUnquoteSplicingBeforeATailIsARemoteCall() =
         assertEvery("l = [1]\nquote(do: [unquote_splicing(l) | 2])", "expanded {l:0} next 1")
+
+    /** Each tree is what 1.20.4's `:elixir_quote.quote/2` writes with `~w` for the snippet in module `T`. */
+    fun testUnquoteSplicingBuildsTheListAtRunTime() {
+        val level = ElixirLanguageLevel.of("1.20.4")
+
+        assertEquals(
+            listOf(
+                "{{'.',[],[erlang,'++']},[],[[1],{{'.',[{line,1}],[elixir_quote,list]},[{line,1}],[{l,[{line,1}],nil},[2]]}]}",
+                "{{'.',[{line,1}],[elixir_quote,tail_list]},[{line,1}],[{l,[{line,1}],nil},{'{}',[],[t,[],'Elixir.T']},[]]}",
+                "{'{}',[],[foo,[],{{'.',[{line,1}],[elixir_quote,list]},[{line,1}],[{l,[{line,1}],nil},[]]}]}",
+                "{{'.',[{line,1}],[elixir_quote,list]},[{line,1}],[{a,[{line,1}],nil},{{'.',[],[erlang,'++']},[],[[1],{{'.',[{line,1}],[elixir_quote,list]},[{line,1}],[{b,[{line,1}],nil},[]]}]}]}",
+            ).joinToString("\n"),
+            listOf(
+                "[1, unquote_splicing(l), 2]",
+                "[unquote_splicing(l) | t]",
+                "foo(unquote_splicing(l))",
+                "[unquote_splicing(a), 1, unquote_splicing(b)]",
+            ).joinToString("\n") { tree("quote(do: $it)", level) },
+        )
+    }
+
+    /** 1.20.4's `:elixir_quote.quote/2` tree: a pair that splices is quoted as `{'{}', [], [Left, Right]}`. */
+    fun testASplicingPairTakesTheQuotesMetadata() =
+        assertEquals(
+            "{'{}',[],['{}',[{generated,true}],{{'.',[{line,1}],[elixir_quote,list]},[{line,1}],[{l,[{line,1}],nil},[2]]}]}",
+            tree("quote(generated: true, do: {unquote_splicing(l), 2})", ElixirLanguageLevel.of("1.20.4")),
+        )
 
     fun testAnUnquotedCallNameIsARemoteCall() =
         assertEvery("f = :foo\nquote(do: Kernel.unquote(f)(1))", "expanded {f:0} next 1")
@@ -423,6 +451,15 @@ class QuoteExpanderTest : ExpanderTestCase() {
 
     private fun inFile(level: ElixirLanguageLevel, directories: CompileDirectories) =
         Run(level, ExpansionObserver.NONE, exports, structs, file = FILE, directories = directories)
+
+    /** The escaped expression [code], a `quote`, builds in module `T`, written with `~w` and without columns. */
+    private fun tree(code: String, level: ElixirLanguageLevel): String {
+        val run = Run(level, ExpansionObserver.NONE, exports, structs)
+        val env = Env.empty(level, kernel).copy(module = "Elixir.T")
+        val escaped = Quote.escaped(lower(code, level) as ElixirAst.Call, ExState.empty(level), env, run) ?: return "no escaped expression"
+
+        return written(escaped.toOtp(ParserOptions(columns = false)))
+    }
 
     /**
      * The value of [code]'s last statement, a `quote`, expanded in module `T` from the empty env after the statements

@@ -44,10 +44,36 @@ class EscapeTest : ExpanderTestCase() {
         val level = ElixirLanguageLevel.of("1.20.4")
         val node = lower("[quote(do: 1)]", level)
         val run = Run(level, ExpansionObserver.NONE, exports, structs)
-        val escape = Quote.escape(node, node.meta, Env.empty(level, kernel), run) as Quote.Escaped.Built
+        val escape = Quote.escape(node, node.meta, run) as Quote.Escaped.Built
         val tuple = (escape.node as ElixirAst.ListNode).elements.single()
 
         assertEquals((node as ElixirAst.ListNode).elements.single().meta.origin, tuple.meta.origin)
+    }
+
+    /** Escaping a snippet's AST builds the code that escaping the term it is builds. */
+    fun testAnAstEscapesAsItsTermDoes() {
+        val snippets = listOf(
+            "quote(do: unquote(x))", "quote(unquote: false, do: unquote(x))", "[1, unquote_splicing(xs), 2]",
+            "[1, unquote_splicing(xs) | t]", "{unquote_splicing(xs), 1}", "{1, unquote_splicing(xs), 2}", "{1, 2, 3}",
+            "foo(a, b)", "Mod.unquote(f)(1)", "Mod.unquote(f)", "%{a: 1}", "<<1, 2>>", "[1 | 2]", "Foo.bar", "x", "1.5",
+            "\"s\"", "'cl'", "fn x -> x end", "f.(unquote(y))",
+        )
+
+        for (leg in listOf("1.13.4", "1.16.3", "1.20.4")) {
+            val level = ElixirLanguageLevel.of(leg)
+            val options = ParserOptions(columns = COMPILER_PARSES_COLUMNS.isSufficient(level))
+            val terms = QuoteEscape(TermEscapeView, TermEscapeBuilder, { it }, level, exports, unquote = true)
+
+            assertEquals(
+                snippets.joinToString("\n") { code ->
+                    when (val escape = terms.escape(lower(code, level).toOtp(options))) {
+                        is EscapeResult.Built -> "$leg $code: ${written(escape.value)}"
+                        else -> "$leg $code: $escape"
+                    }
+                },
+                snippets.joinToString("\n") { "$leg $it: ${escaped(it, level)}" },
+            )
+        }
     }
 
     /** [code]'s escape on each leg: [before116], then [from116] from 1.16 and [from119] from 1.19, each defaulting to the one before. */
@@ -70,7 +96,7 @@ class EscapeTest : ExpanderTestCase() {
         val node = lower(code, level)
         val run = Run(level, ExpansionObserver.NONE, exports, structs)
 
-        return when (val escape = Quote.escape(node, node.meta, Env.empty(level, kernel), run)) {
+        return when (val escape = Quote.escape(node, node.meta, run)) {
             is Quote.Escaped.Built -> written(escape.node.toOtp(ParserOptions(columns = COMPILER_PARSES_COLUMNS.isSufficient(level))))
             is Quote.Escaped.Stopped -> "stopped ${escape.expansion}"
         }

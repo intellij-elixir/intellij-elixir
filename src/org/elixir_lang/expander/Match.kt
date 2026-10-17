@@ -1,19 +1,11 @@
 package org.elixir_lang.expander
 
-import com.ericsson.otp.erlang.OtpErlangAtom
-import com.ericsson.otp.erlang.OtpErlangBinary
-import com.ericsson.otp.erlang.OtpErlangDouble
-import com.ericsson.otp.erlang.OtpErlangList
-import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangObject
-import com.ericsson.otp.erlang.OtpErlangString
-import com.ericsson.otp.erlang.OtpErlangTuple
 import org.elixir_lang.expander.ExState.Prematch.Dependency
 import org.elixir_lang.expander.ExState.Prematch.InMatch
 import org.elixir_lang.expander.ExState.Write
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
-import java.math.BigDecimal
 
 /**
  * `elixir_clauses:match/6`: [pattern] expanded as a pattern, after the right side took [before] to [after].
@@ -133,7 +125,7 @@ private fun parallelBitstring(
 
                 // `lists:sort/1` puts the fields in key order.
                 literalKeyed(leftFields, env, level)
-                    .sortedWith { (key, _), (otherKey, _) -> compareTerms(key, otherKey) }
+                    .sortedWith { (key, _), (otherKey, _) -> TERM_ORDER.compare(key, otherKey) }
                     .firstNotNullOfOrNull { (key, value) ->
                         rightValues[key]?.let {
                             parallelBitstring(expandedShape(value), expandedShape(it), parallel, env, level)
@@ -157,58 +149,6 @@ private fun literalKeyed(
     level: ElixirLanguageLevel,
 ): List<Pair<OtpErlangObject, ElixirAst>> =
     fields.filter { (key, _) -> isLiteral(key) }.map { (key, value) -> literalShape(key, env, level).toOtp() to value }
-
-/**
- * Erlang's term order over the terms a literal key can be: numbers, then atoms, tuples, lists and binaries.
- */
-private fun compareTerms(left: OtpErlangObject, right: OtpErlangObject): Int {
-    val ranks = compareValues(rank(left), rank(right))
-    if (ranks != 0) return ranks
-
-    return when (left) {
-        is OtpErlangLong, is OtpErlangDouble -> number(left).compareTo(number(right))
-        is OtpErlangAtom -> ATOM_ORDER.compare(left.atomValue(), (right as OtpErlangAtom).atomValue())
-        is OtpErlangTuple -> {
-            val other = right as OtpErlangTuple
-
-            compareValues(left.arity(), other.arity()).takeIf { it != 0 } ?: compareElements(left.elements(), other.elements())
-        }
-        is OtpErlangBinary -> {
-            val bytes = left.binaryValue().map { it.toInt() and 0xFF }
-            val otherBytes = (right as OtpErlangBinary).binaryValue().map { it.toInt() and 0xFF }
-
-            bytes.zip(otherBytes).firstNotNullOfOrNull { (a, b) -> compareValues(a, b).takeIf { it != 0 } }
-                ?: compareValues(bytes.size, otherBytes.size)
-        }
-        else -> compareElements(elements(left), elements(right))
-    }
-}
-
-private fun rank(term: OtpErlangObject) =
-    when (term) {
-        is OtpErlangLong, is OtpErlangDouble -> 0
-        is OtpErlangAtom -> 1
-        is OtpErlangTuple -> 2
-        is OtpErlangList, is OtpErlangString -> 3
-        is OtpErlangBinary -> 4
-        else -> throw IllegalArgumentException("not a literal key's term: $term")
-    }
-
-private fun number(term: OtpErlangObject): BigDecimal =
-    when (term) {
-        is OtpErlangLong -> BigDecimal(term.bigIntegerValue())
-        else -> BigDecimal((term as OtpErlangDouble).doubleValue())
-    }
-
-private fun elements(list: OtpErlangObject): Array<OtpErlangObject> =
-    when (list) {
-        is OtpErlangString -> list.stringValue().codePoints().toArray().map { OtpErlangLong(it.toLong()) }.toTypedArray()
-        else -> (list as OtpErlangList).elements()
-    }
-
-private fun compareElements(left: Array<OtpErlangObject>, right: Array<OtpErlangObject>): Int =
-    left.zip(right).firstNotNullOfOrNull { (a, b) -> compareTerms(a, b).takeIf { it != 0 } }
-        ?: compareValues(left.size, right.size)
 
 /** `elixir_clauses:unpack_match/4`: a chain of matches as its sides, left to right. */
 private fun unpackMatch(node: ElixirAst, acc: List<ElixirAst>): List<ElixirAst> {

@@ -83,9 +83,11 @@ class DefstructMacroTest : ExpanderTestCase() {
         assertEquals(
             "1.16.3: null\n1.18.4: {:{}, [], [:quote, :x, [1]]}",
             listOf("1.16.3", "1.18.4").joinToString("\n") { version ->
-                val fragment = Synthetic(Meta(TextRange(0, 0), Meta.Position(1, 1), Meta.Position(1, 1))).atom("nil")
+                val s = Synthetic(Meta(TextRange(0, 0), Meta.Position(1, 1), Meta.Position(1, 1)))
+                val fragment = s.atom("nil")
+                val escape = QuoteEscape(ImportTermEscapeView, AstEscapeBuilder(s), { literalOf(fragment, it) }, ElixirLanguageLevel.of(version), exports)
 
-                "$version: " + literalOf(fragment, term, escaped = true, ElixirLanguageLevel.of(version))?.let { inspect(it.toOtp()) }
+                "$version: " + (escape.escape(term) as? EscapeResult.Built)?.value?.let { inspect(it.toOtp()) }
             },
         )
     }
