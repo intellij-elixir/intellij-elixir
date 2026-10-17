@@ -734,6 +734,8 @@
 
 ### Build / CI
 
+- [#4480](https://github.com/intellij-elixir/intellij-elixir/pull/4480) [@sh41](https://github.com/sh41)
+  - **The completion agreement file compares the enclosing forms with `Code.Fragment` only where its prefix can see them: not after a non-blank character where Elixir reads no context, and not for a `->`, `=>` or an alias's `.` written after the cursor.** Refs [#4478](https://github.com/intellij-elixir/intellij-elixir/issues/4478).
 - [#4477](https://github.com/intellij-elixir/intellij-elixir/pull/4477) [@sh41](https://github.com/sh41)
   - **The completion agreement file is recorded as the editor completes, on the whole program with Erlang's modules available, and records no rule where `Code.Fragment`'s answer is not one completion can give.** Refs [#4473](https://github.com/intellij-elixir/intellij-elixir/issues/4473).
 - [#4468](https://github.com/intellij-elixir/intellij-elixir/pull/4468) [@sh41](https://github.com/sh41)

@@ -36,11 +36,14 @@ class CompletionRecorder : CompletionContributor() {
     }
 
     override fun fillCompletionVariants(parameters: CompletionParameters, result: CompletionResultSet) {
-        copy = ElementLowering.lower(parameters.position.containingFile)
+        val file = parameters.position.containingFile
+
+        copy = ElementLowering.lower(file)
+        copyText = file.text
     }
 
-    /** What one completion recorded. */
-    class Recorded(val identifierEnd: Int, val dummyIdentifier: String, val copy: ElixirAst)
+    /** What one completion recorded: the completion copy, lowered, and its text. */
+    class Recorded(val identifierEnd: Int, val dummyIdentifier: String, val copy: ElixirAst, val copyText: String)
 
     companion object {
         @Volatile
@@ -51,6 +54,9 @@ class CompletionRecorder : CompletionContributor() {
 
         @Volatile
         private var copy: ElixirAst? = null
+
+        @Volatile
+        private var copyText: String? = null
 
         fun register(disposable: Disposable) {
             CompletionContributor.EP.point.registerExtension(
@@ -69,16 +75,18 @@ class CompletionRecorder : CompletionContributor() {
             identifierEnd = -1
             dummyIdentifier = null
             copy = null
+            copyText = null
 
             complete()
 
             val identifierEnd = identifierEnd
             val dummyIdentifier = checkNotNull(dummyIdentifier) { "$description: no completion ran" }
             val copy = checkNotNull(copy) { "$description: completion filled no variants" }
+            val copyText = checkNotNull(copyText) { "$description: completion filled no variants" }
 
             check(identifierEnd >= 0) { "$description: no completion ran" }
 
-            return Recorded(identifierEnd, dummyIdentifier, copy)
+            return Recorded(identifierEnd, dummyIdentifier, copy, copyText)
         }
     }
 }

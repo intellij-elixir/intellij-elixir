@@ -112,6 +112,7 @@ class CodeFragmentOracleTest : PlatformTestCase() {
             Elixir(answer.cursor, span, path, surround?.context, answer.literal, answer.atomStart),
             plugin,
             container?.let(::scope) ?: Scope(),
+            case.text.getOrNull(answer.offset - 1)?.isWhitespace() ?: true,
         )
 
         return listOf(
@@ -154,7 +155,7 @@ class CodeFragmentOracleTest : PlatformTestCase() {
                 caret,
                 items,
                 recorded.identifierEnd,
-                heads(recorded.copy, caret, recorded.dummyIdentifier).takeUnless { loweringLogged },
+                heads(recorded.copy, caret, recorded.dummyIdentifier, recorded.copyText).takeUnless { loweringLogged },
             )
         }
     }

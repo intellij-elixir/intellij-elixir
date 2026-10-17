@@ -74,12 +74,36 @@ class ObservationTest : PlatformTestCase() {
         assertEquals(expected, actual)
     }
 
+    /** A form the text after the caret makes has no head in Elixir's prefix: `->`, `=>` and the `.` of an alias. */
+    fun testHeadsOmitWhatTheTextAfterTheCaretMakes() {
+        CompletionRecorder.register(testRootDisposable)
+        val body = listOf("def/2@1", "[]@0", "{}/2@1")
+        val clause = body + listOf("case/2@1", "[]@0", "{}/2@1")
+
+        val expected = mapOf(
+            "case :ok do _<caret> -> 1 end" to clause,
+            "case :ok do _ <caret>-> 1 end" to clause + "_/1@0",
+            "case :ok do\n    a -> 1\n    b <caret>-> 2\n  end" to clause + listOf("[]@1", "b/1@0"),
+            "case :ok do _ -> <caret>1 end" to clause + listOf("[]@0", "->/2@1"),
+            "fn x<caret> -> 1 end" to body + "fn/1@0",
+            "fn x <caret>-> 1 end" to body + listOf("fn/1@0", "x/1@0"),
+            "%{b<caret> => 6}" to body + "%{}/1@0",
+            "%{b <caret>=> 6}" to body + listOf("%{}/1@0", "b/1@0"),
+            "%{b => x<caret>}" to body + listOf("%{}/1@0", "{}/2@1"),
+            "@mod<caret>.Sub" to body + "@/1@0",
+            "(foo(x<caret>)).Sub" to body + "foo/1@0",
+        )
+        val actual = expected.keys.withIndex().associate { (index, form) -> form to headsAt(index, form) }
+
+        assertEquals(expected, actual)
+    }
+
     private fun headsAt(index: Int, form: String): List<String> {
         myFixture.configureByText("form$index.ex", "def f do\n  $form\nend\n")
         val caret = myFixture.caretOffset
         val recorded = CompletionRecorder.record(form) { myFixture.complete(CompletionType.BASIC) }
         LookupManager.getInstance(project).hideActiveLookup()
 
-        return heads(recorded.copy, caret, recorded.dummyIdentifier).map(Step::shown)
+        return heads(recorded.copy, caret, recorded.dummyIdentifier, recorded.copyText).map(Step::shown)
     }
 }
