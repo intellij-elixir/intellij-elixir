@@ -19,10 +19,12 @@ import org.elixir_lang.beam.psi.BeamFileImpl
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Form
+import org.elixir_lang.declaration.Reach
 import org.elixir_lang.declaration.Use
-import org.elixir_lang.declaration.atItsHead
+import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.*
+import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
 import org.elixir_lang.psi.ModuleAttribute.isDocumentationName
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.childExpressions
@@ -35,6 +37,7 @@ import org.elixir_lang.psi.stub.type.call.Stub.isModular
 import org.elixir_lang.reference.resolver.Callable
 import org.elixir_lang.reference.CaptureNameArity
 import org.elixir_lang.reference.Resolver
+import org.elixir_lang.structure_view.element.Delegation
 import org.intellij.markdown.html.HtmlGenerator
 import org.intellij.markdown.parser.MarkdownParser
 import java.util.function.Consumer
@@ -49,12 +52,57 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
     fun render(element: PsiElement, originalElement: PsiElement?, linkedArity: Int? = null): Rendered? =
         // Where no use is known, as for a link followed, the function is seen from outside its module.
         fetchDocs(element, remote = !isInside(element, originalElement))?.let { fetched ->
-            Rendered(formatDocs(element, fetched), anchor(fetched, linkedArity ?: calledArity(originalElement)))
+            val reaching = delegationReaching(element, originalElement)
+            val delegations = reaching?.let { DelegationBlock.of(it.delegation, it.module, remote = !it.inside) }.orEmpty()
+            // Through a delegation the target is called at the arity the delegation passes on, not the one written at the use.
+            val opened = linkedArity ?: reaching?.let { DelegationBlock.passed(it.delegation) } ?: calledArity(originalElement)
+
+            Rendered(formatDocs(element, fetched, delegations), anchor(fetched, opened))
         }
 
     /** Whether [original] is inside the module that holds [element]: the name of the call that declares [element] is, whatever it spells. */
     private fun isInside(element: PsiElement, original: PsiElement?): Boolean =
         headAt(original)?.call == element || choiceAt(original)?.takeIf { it.element == element }?.inside == true
+
+    /** A delegation, the name of the module that holds it when it is known, and whether the use is inside that module. */
+    private class Reaching(val delegation: Call, val module: String?, val inside: Boolean)
+
+    /** The delegation [original] reached [element] through, which has no `@doc` of its own to show instead. */
+    private fun delegationReaching(element: PsiElement, original: PsiElement?): Reaching? =
+        reachedThrough(element, original)?.takeIf { it.delegation != element }
+
+    private fun reachedThrough(element: PsiElement, original: PsiElement?): Reaching? {
+        val head = headAt(original)
+
+        return if (head != null) {
+            head.call.takeIf { head.form == Form.DELEGATION }?.let { delegation -> Reaching(delegation, moduleOf(delegation), inside = true) }
+        } else {
+            val reached = callAt(original)?.let(::documentedChoice)?.reached.orEmpty()
+
+            reached
+                .firstOrNull { it.element == element && it.candidate.reach.delegationTarget }
+                ?.via
+                ?.firstOrNull { Delegation.`is`(it) }
+                ?.let { delegation ->
+                    // What a `use` injects is in the module that holds the `use`, which `quote` does not name.
+                    val injectedInto = reached
+                        .firstOrNull { it.element == delegation && it.candidate.reach == Reach.USE }
+                        ?.declaringModuleName()
+
+                    val use = useAt(original)
+
+                    Reaching(
+                        delegation,
+                        injectedInto ?: moduleOf(delegation),
+                        inside = use != null && Documented.held(use, reached.firstOrNull { it.element == delegation })
+                    )
+                }
+        }
+    }
+
+    /** The name of the module [delegation] is written in, `null` where it is in a `quote`. */
+    private fun moduleOf(delegation: Call): String? =
+        enclosingModularMacroCall(delegation)?.let(SourceFileDocsHelper::moduleName)
 
     override fun generateDoc(element: PsiElement, originalElement: PsiElement?): String? =
         render(element, originalElement)?.html
@@ -262,7 +310,11 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             ?.takeUnless { element.isInterpolatedWithin(it) }
             ?.parent as? ElixirAtom
 
-    private fun formatDocs(element: PsiElement, fetchedDocs: FetchedDocs): String {
+    private fun formatDocs(
+        element: PsiElement,
+        fetchedDocs: FetchedDocs,
+        delegations: List<DelegationBlock.Entry>
+    ): String {
         val documentationHtml = StringBuilder()
 
         documentationHtml.append(DocumentationMarkup.DEFINITION_START)
@@ -306,7 +358,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         }
 
         documentationHtml.append(DocumentationMarkup.DEFINITION_END)
-
+        DelegationBlock.appendTo(documentationHtml, delegations) { own -> appendFunctionContent(documentationHtml, element, own) }
 
         when (fetchedDocs) {
             is FetchedDocs.CallbackDocumentation -> {

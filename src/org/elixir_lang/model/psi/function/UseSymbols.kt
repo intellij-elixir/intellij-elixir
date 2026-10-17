@@ -121,10 +121,12 @@ internal object UseSymbols {
         return Delegation.fromCall(delegation)?.to()?.let { "$it.${use.name}/$passed" }
     }
 
-    private fun headUse(delegation: Call): Use.Named? = (Delegation.head(delegation) as? Call)?.let(Use::of) as? Use.Named
+    /** The use [delegation]'s head is, `null` where it names nothing. */
+    @RequiresReadLock
+    internal fun headUse(delegation: Call): Use.Named? = (Delegation.head(delegation) as? Call)?.let(Use::of) as? Use.Named
 
     /** The arity [use], a delegation's head, calls its target at. */
-    private fun passed(paired: Preferred, use: Use.Named): Int = paired.found.candidate.declaration.arity.passed() ?: use.arity
+    internal fun passed(paired: Preferred, use: Use.Named): Int = paired.found.candidate.declaration.arity.passed() ?: use.arity
 
     @RequiresReadLock
     private fun symbols(found: Found, arity: Int): List<Symbol> {

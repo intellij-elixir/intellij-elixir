@@ -12,6 +12,28 @@ class DelegationWithDefaultsQuickDocumentationTest : QuickDocumentationTestCase(
         }
     }
 
+    /** A call at a lower arity fills in the defaults and calls the target at the full one, so the card opens at the target's entry for that arity. */
+    fun testACallAtALowerArityOpensTheTargetsEntryForTheArityItPasses() {
+        myFixture.addFileToProject(
+            "target_opens.ex",
+            "defmodule Opens.Target do\n  @doc \"One.\"\n  def snoc(q), do: q\n\n  @doc \"Two.\"\n  def snoc(q, x), do: {q, x}\nend\n"
+        )
+        myFixture.addFileToProject(
+            "delegator_opens.ex",
+            "defmodule Opens do\n  defdelegate snoc(q, x \\\\ nil), to: Opens.Target\nend\n"
+        )
+        myFixture.configureByText("caller_opens.ex", "defmodule CallerOpens do\n  def run(a), do: Opens.sn<caret>oc(a)\nend\n")
+
+        val documentation = quickDocumentationAtCaret().orEmpty()
+        val anchor = myFixture.documentationAnchorAtCaret(project)
+
+        assertNotNull("Expected an anchor, got: $documentation", anchor)
+        assertTrue(
+            "Expected the anchor ($anchor) on the target's entry for snoc/2, got: $documentation",
+            documentation.substringAfter("""id="$anchor"""").substringBefore("id=\"").contains("Two.")
+        )
+    }
+
     /** Each case its own module: the project keeps the files of the one before. */
     private fun docsAtEachUse(module: String, doc: String): Map<String, String?> {
         myFixture.addFileToProject(

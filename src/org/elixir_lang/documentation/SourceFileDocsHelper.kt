@@ -21,7 +21,7 @@ import org.elixir_lang.psi.impl.identifierName
 import org.elixir_lang.psi.impl.siblingExpressions
 import org.elixir_lang.psi.stub.type.call.Stub
 import org.elixir_lang.structure_view.element.CallDefinitionHead
-import org.elixir_lang.psi.impl.call.finalArguments
+import org.elixir_lang.structure_view.element.Delegation
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 
 object SourceFileDocsHelper {
@@ -119,18 +119,20 @@ object SourceFileDocsHelper {
                 null
             }
         }
-        CallDefinitionClause.`is`(call) -> clauseDocs(call, remote)
-        // An EEx function or an embed shows the functions beside it once its arities are known, else its own `@doc`.
-        else -> declaredHead(call)?.let { head -> ownDocs(call, head)?.let { own -> clauseDocs(call, remote) ?: own } }
+        else -> when (val form = functionForm(call)) {
+            Form.CLAUSE, Form.DELEGATION -> declaredDocs(call, remote)
+            Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED -> templateDocs(call, form, remote)
+            Form.CALLBACK, Form.EXCEPTION, null -> null
+        }
     }
 
-    /** The form [call] declares a function with, beside the clauses of its name: a clause, an EEx function or an embed. */
+    /** The form [call] declares a function with: a `def*` clause, a `defdelegate`, an EEx function or an embed. */
     @RequiresReadLock
     private fun functionForm(call: Call): Form? =
         DeclaringForm.declaredBy(call)?.takeIf { form ->
             when (form) {
-                Form.CLAUSE, Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED -> true
-                Form.DELEGATION, Form.CALLBACK, Form.EXCEPTION -> false
+                Form.CLAUSE, Form.DELEGATION, Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED -> true
+                Form.CALLBACK, Form.EXCEPTION -> false
             }
         }
 
@@ -144,28 +146,59 @@ object SourceFileDocsHelper {
     private fun declarationOf(declaring: Call, form: Form, state: ResolveState): Declaration? =
         declaredFunction(declaring, form, state)?.declaration
 
-    /** The head [declaring] shows its docs under: the one it writes with [name], or `name/arity` for an EEx function or an embed. */
+    /** The head [declaring] shows its docs under, with [name] where it writes a head: `name/arity` for an EEx function or an embed. */
     @RequiresReadLock
     private fun headOf(declaring: Call, form: Form, name: String): String? =
         when (form) {
             Form.CLAUSE -> CallDefinitionClause.head(declaring)?.let { spelled(it, name) }
-            Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED -> declaredHead(declaring)
-            Form.DELEGATION, Form.CALLBACK, Form.EXCEPTION -> null
+            Form.DELEGATION -> Delegation.head(declaring)?.let { spelled(it, name) }
+            Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED -> templateHead(declaring, form)
+            Form.CALLBACK, Form.EXCEPTION -> null
         }
 
     /**
-     * The docs of every function [clause] shares a name with in its module that the use can reach, ascending by
+     * The docs of every function [declaring] shares a name with in its module that the use can reach, ascending by
      * arity: every one inside the module, and from outside ([remote]) not a private one, nor one marked `@doc false`
-     * or `@doc nil`, unless it is the function [clause] is. The declarations that can be one function, as a bodiless
-     * head's defaults and the clauses after it can, are one.
+     * or `@doc nil`, unless it is the function [declaring] is. The declarations that can be one function, as a
+     * bodiless head's defaults and the clauses after it can, are one.
      */
     @RequiresReadLock
-    private fun clauseDocs(clause: Call, remote: Boolean): FetchedDocs? {
+    private fun declaredDocs(declaring: Call, remote: Boolean): FetchedDocs? {
+        val module = enclosingModularMacroCall(declaring)?.let(::moduleName)
+        val functions = listedFunctions(declaring, remote) ?: return null
+
+        val entries = functions.map { function ->
+            val maxima = function.map { it.arities.maximum }
+
+            FetchedDocs.Arities.Entry(
+                ArityInterval(
+                    function.minOf { it.arities.minimum },
+                    if (null in maxima) null else maxima.filterNotNull().max()
+                ),
+                merged(function.map { it.documentation })
+            )
+        }
+
+        return entries.sortedBy { it.arities.minimum }.takeIf(List<*>::isNotEmpty)?.let { FetchedDocs.Arities(module, it) }
+    }
+
+    /** The functions [declaredDocs] lists for [declaring], ascending by arity, each the declarations that are one function, which a delegation's block shows. */
+    @RequiresReadLock
+    internal fun listedGroups(declaring: Call, remote: Boolean): List<List<Written>> =
+        listedFunctions(declaring, remote).orEmpty().sortedBy { function -> function.minOf { it.arities.minimum } }
+
+    /** The docs of declarations that are one function, merged. */
+    internal fun merged(documentation: List<FetchedDocs.FunctionOrMacroDocumentation>): FetchedDocs.FunctionOrMacroDocumentation =
+        documentation.reduce { acc, next -> acc.merge(next) }
+
+    /** The functions of [declaring]'s name that its use can reach, each the declarations that are one function, as [declaredDocs] describes. */
+    @RequiresReadLock
+    private fun listedFunctions(declaring: Call, remote: Boolean): List<List<Written>>? {
         val state = ResolveState.initial()
-        val declaringForm = functionForm(clause) ?: return null
-        val used = declarationOf(clause, declaringForm, state) ?: return null
+        val declaringForm = functionForm(declaring) ?: return null
+        val used = declarationOf(declaring, declaringForm, state) ?: return null
         val usedArities = used.arity.arityInterval() ?: return null
-        val modular = enclosingModularMacroCall(clause) ?: return null
+        val modular = enclosingModularMacroCall(declaring) ?: return null
         val module = moduleName(modular)
 
         val written = CallDefinitionClause.modularChildCalls(modular)
@@ -177,10 +210,12 @@ object SourceFileDocsHelper {
                 val arities = declaration?.arity?.arityInterval()
                 val head = form?.let { headOf(sibling, it, used.name) }
 
-                if (declaration == null || arities == null || head == null) {
+                if (form == null || declaration == null || arities == null || head == null) {
                     null
                 } else {
                     Written(
+                        sibling,
+                        form,
                         declaration,
                         arities,
                         FetchedDocs.FunctionOrMacroDocumentation.fromCallDefinitionClauseCall(module, sibling, head),
@@ -200,64 +235,50 @@ object SourceFileDocsHelper {
             if (function == null) functions += mutableListOf(one) else function += one
         }
 
-        val entries = functions
-            .filter { function ->
-                FetchedDocs.Arities.listed(
-                    inside = !remote,
-                    exported = function.any { Reach.OWN.exports(it.declaration.capabilities) },
-                    hidden = function.any { it.hidden },
-                    used = function.any { it.arities.overlaps(usedArities) }
-                )
-            }
-            .map { function ->
-                val maxima = function.map { it.arities.maximum }
-
-                FetchedDocs.Arities.Entry(
-                    ArityInterval(
-                        function.minOf { it.arities.minimum },
-                        if (null in maxima) null else maxima.filterNotNull().max()
-                    ),
-                    function.map { it.documentation }.reduce { acc, documentation -> acc.merge(documentation) }
-                )
-            }
-
-        return entries.sortedBy { it.arities.minimum }.takeIf(List<*>::isNotEmpty)?.let { FetchedDocs.Arities(module, it) }
+        return functions.filter { function ->
+            FetchedDocs.Arities.listed(
+                inside = !remote,
+                exported = function.any { Reach.OWN.exports(it.declaration.capabilities) },
+                hidden = function.any { it.hidden },
+                used = function.any { it.arities.overlaps(usedArities) }
+            )
+        }
     }
 
-    /** One `def`, `defmacro` or other clause of a name, with the arities it covers. */
-    private class Written(
+    /** One `def`, `defmacro`, other clause or `defdelegate` of a name, with the arities it covers. */
+    internal class Written(
+        val call: Call,
+        val form: Form,
         val declaration: Declaration,
         val arities: ArityInterval,
         val documentation: FetchedDocs.FunctionOrMacroDocumentation,
         val hidden: Boolean
     )
 
-    /** The head a delegation, an EEx function or an embed shows its docs under, or `null` when [call] is none of them. */
+    /** The head an EEx function or an embed [call] declares with [form] shows its docs under, `name/arity`. */
     @RequiresReadLock
-    private fun declaredHead(call: Call): String? =
-        when (val form = DeclaringForm.declaredBy(call)) {
-            Form.DELEGATION -> call.finalArguments()?.takeIf { it.size == 2 }?.get(0)?.text
-            Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED ->
-                declaredFunction(call, form)?.let { named ->
-                    val arities = named.declaration?.arity?.arityInterval()
-                    val arity = when {
-                        arities == null -> ""
-                        arities.maximum == arities.minimum -> "/${arities.minimum}"
-                        arities.maximum == null -> "/${arities.minimum}.."
-                        else -> "/${arities.minimum}..${arities.maximum}"
-                    }
+    private fun templateHead(call: Call, form: Form): String? =
+        declaredFunction(call, form)?.let { named ->
+            val arities = named.declaration?.arity?.arityInterval()
+            val arity = when {
+                arities == null -> ""
+                arities.maximum == arities.minimum -> "/${arities.minimum}"
+                arities.maximum == null -> "/${arities.minimum}.."
+                else -> "/${arities.minimum}..${arities.maximum}"
+            }
 
-                    named.text + arity
-                }
-            Form.CLAUSE, Form.CALLBACK, Form.EXCEPTION, null -> null
+            named.text + arity
         }
 
     /**
-     * The `@doc` written on a declaration that is not a clause, shown with [head], or `null` when it has none.
-     *
-     * A delegation's own `@doc` is the more specific answer, so it replaces the target's. Null rather
-     * than an empty document is what lets the caller fall through to the target.
+     * The docs of an EEx function or an embed: those of every function of its name, once its arities are known, else its
+     * own `@doc`. One with no `@doc` of its own has none.
      */
+    @RequiresReadLock
+    private fun templateDocs(call: Call, form: Form, remote: Boolean): FetchedDocs? =
+        templateHead(call, form)?.let { head -> ownDocs(call, head)?.let { own -> declaredDocs(call, remote) ?: own } }
+
+    /** The `@doc` written on an EEx function or an embed, shown with [head], or `null` when it has none. */
     @RequiresReadLock
     private fun ownDocs(call: Call, head: String): FetchedDocs? =
         enclosingModularMacroCall(call)?.let { modular ->
@@ -271,7 +292,7 @@ object SourceFileDocsHelper {
      * combining mark, reads as that atom. A head already written with it, or an operator's, is its own text.
      */
     @RequiresReadLock
-    private fun spelled(head: PsiElement, name: String): String {
+    internal fun spelled(head: PsiElement, name: String): String {
         val stripped = CallDefinitionHead.strip(head) as? Call ?: return head.text
         val parameters = CallDefinitionHead.parameters(stripped)
 
@@ -284,7 +305,7 @@ object SourceFileDocsHelper {
 
     /** The module [modular] is, or `null` where it is none, as a `quote` is not: the module that calls `use` is not known here. */
     @RequiresReadLock
-    private fun moduleName(modular: PsiElement): String? =
+    internal fun moduleName(modular: PsiElement): String? =
         (modular as? Call)
             ?.takeIf { Stub.isModular(it) }
             ?.let { (it as? CanonicallyNamed)?.canonicalName() }
