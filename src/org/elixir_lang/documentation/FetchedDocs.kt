@@ -123,6 +123,10 @@ private const val IMPL = "impl"
 private const val SPEC = "spec"
 private val CALL_DEFINITION_ATTRIBUTE_NAME_SET: Set<String> = setOf(DEPRECATED, DOC, IMPL, SPEC)
 
+/** Whether an `@doc` that is not metadata is written above [call]: `false` and `nil` hide the function, which says something. */
+@RequiresReadLock
+internal fun writesDoc(call: Call): Boolean = docAbove(call) != null
+
 /** Whether the `@doc` written above [call] is `false` or `nil`, which hides the function from documentation. */
 @RequiresReadLock
 internal fun hidesDoc(call: Call): Boolean =
