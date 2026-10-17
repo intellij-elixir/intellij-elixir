@@ -4,6 +4,7 @@ import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.beam.BeamReader
 import org.elixir_lang.beam.ReadResult
@@ -48,7 +49,7 @@ internal object LoadedModules {
         if (ModuleExports.BEHAVIOUR_INFO in definitions) return ModuleExports.Behaviour.Unreadable
 
         val functions = result.attributes.callbacks ?: return ModuleExports.Behaviour.Unreadable
-        val macros = result.attributes.macrocallbacks ?: return ModuleExports.Behaviour.Unreadable
+        val macros = result.attributes.macrocallbacks?.toSet() ?: return ModuleExports.Behaviour.Unreadable
         val callbacks = functions + macros
 
         if (callbacks.any { definitions[it]?.kind?.public == false }) return ModuleExports.Behaviour.Unreadable
@@ -57,7 +58,11 @@ internal object LoadedModules {
             ModuleExports.Behaviour.None
         } else {
             ModuleExports.Behaviour.Callbacks(
-                callbacks.distinct().map { if (it in macros) NameArity("MACRO-${it.name}", it.arity + 1) else it },
+                callbacks.distinct().map {
+                    ProgressManager.checkCanceled()
+
+                    if (it in macros) ModuleExports.macroExport(it) else it
+                },
             )
         }
     }

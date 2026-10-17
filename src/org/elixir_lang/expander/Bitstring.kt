@@ -368,7 +368,7 @@ private fun expandNamedSpec(spec: ElixirAst.Call, state: ExState, env: Env, run:
                 node is ElixirAst.ListNode || node is ElixirAst.Tuple || node is ElixirAst.Literal ||
                     node is ElixirAst.Call && node.callee !is ElixirAst.Literal.Atom -> NamedSpec.Unchanged
                 // Elixir unpacks the specs it expands to again.
-                else -> NamedSpec.Other(Expansion.Unported(call))
+                else -> NamedSpec.Other(Expansion.Unported(node))
             }
         }
         // A call is never `__DIR__`.

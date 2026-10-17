@@ -138,7 +138,7 @@ private fun defimpl(
         for (implementation in outputs) {
             val type = namedBy(implementation.type, state, env, run) ?: continue
 
-            supplied[implementation.name] = Term.Atom(implementationName(level, protocolName, type))
+            supplied[implementation.name] = Term.Atom(implementationName(level, protocolName, type) ?: continue)
         }
 
         // Before v1.19 `@behaviour` is given the variable that holds the protocol.

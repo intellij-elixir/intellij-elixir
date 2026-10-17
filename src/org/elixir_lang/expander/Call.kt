@@ -204,7 +204,7 @@ private fun expandLocal(node: ElixirAst.Call, state: ExState, env: Env, run: Run
     }
     recordLocal(node, called, inArguments, env, run)
 
-    return expansion.withValue(NODE)
+    return expansion.withValue(if (called == GENERATOR_CALL) GENERATOR_NODE else NODE)
 }
 
 /**
@@ -219,8 +219,12 @@ internal fun recordLocal(
     run: Run,
 ) {
     val position = location(call.meta)
-    val local = LocalCall(call, called, position?.line ?: 0, position?.column ?: 0, inArguments)
 
+    keepLocal(LocalCall(call, called, position?.line ?: 0, position?.column ?: 0, inArguments), env, run)
+}
+
+/** Keeps [local] in the arguments of the local call it is in, or else in its definition's calls. */
+internal fun keepLocal(local: LocalCall<ElixirAst>, env: Env, run: Run) {
     (run.callArguments.lastOrNull() ?: run.compiling[env.module]?.calls?.getOrPut(env.function!!) { mutableListOf() })
         ?.add(local)
 }
@@ -420,10 +424,8 @@ private fun expandRemote(
     val isSign = (receiver as? Term.Atom)?.name == ERLANG && (name == "+" || name == "-") && args.size == 1
 
     if (env.context != Env.Context.NONE && REMOTE_CALL_IN_PATTERN_EXPANDS_ARGUMENTS_IN_TURN.isSufficient(level)) {
-        val literal = args.singleOrNull()
-
-        if (isSign && (literal is ElixirAst.Literal.Integer || literal is ElixirAst.Literal.Float)) {
-            return Expansion.Expanded(after, env, signed(name, literalValue(literal)))
+        if (isSign && isSignedNumber(name, args)) {
+            return Expansion.Expanded(after, env, signed(name, literalValue(args.single() as ElixirAst.Literal)))
         }
 
         return mapfold(args, after, env) { arg, s, e -> Expander.expand(arg, s, e, run) }.thenValue { s, e, values ->
@@ -507,6 +509,10 @@ private fun rewrite(
             }
     }
 }
+
+/** Whether [name] over [args] is `+` or `-` over one number literal. */
+internal fun isSignedNumber(name: String?, args: List<ElixirAst>): Boolean =
+    (name == "+" || name == "-") && args.singleOrNull().let { it is ElixirAst.Literal.Integer || it is ElixirAst.Literal.Float }
 
 /** `+N` or `-N`, as [name] signs [number], an integer or a float. */
 private fun signed(name: String, number: Term): Term =

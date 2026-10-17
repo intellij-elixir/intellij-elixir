@@ -152,7 +152,11 @@ private fun expandAlias(alias: ElixirAst.Alias, state: ExState, env: Env, run: R
     return when (val expanded = macroExpandOnce(head, state, env, run)) {
         is MacroExpanded.Node ->
             (expanded.node as? ElixirAst.Literal.Atom)
-                ?.let { MacroExpanded.Node(ElixirAst.Literal.Atom(alias.meta, concat(listOf(it.name) + tail)), true) }
+                ?.let { head ->
+                    concat(listOf(head.name) + tail)
+                        ?.let { MacroExpanded.Node(ElixirAst.Literal.Atom(alias.meta, it), true) }
+                        ?: MacroExpanded.Stopped(Expansion.Unported(alias))
+                }
                 ?: MacroExpanded.Node(alias, expanded = false)
         MacroExpanded.Dir -> MacroExpanded.Node(alias, expanded = false)
         is MacroExpanded.Stopped -> expanded
@@ -246,7 +250,7 @@ private fun expandRemote(
 private fun expandMacro(dispatch: Dispatch, call: ElixirAst.Call, state: ExState, env: Env, run: Run): MacroExpanded {
     checkDeprecated(dispatch, call, env, run)
 
-    return summarised(dispatch, call, opaque = { MacroExpanded.Stopped(it) }) { summary ->
+    return summarised(dispatch, call, env, run, opaque = { MacroExpanded.Stopped(it) }) { summary ->
         when (summary) {
             is Summary.Rewrite -> {
                 run.observer.dispatched(call, dispatch)

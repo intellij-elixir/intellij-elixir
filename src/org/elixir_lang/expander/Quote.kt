@@ -4,6 +4,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILER_PARSES_COLU
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_EXTENSION_META_ESCAPED
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_IMPORTS_EVERY_ARITY
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_IN_PATTERN_WITH_UNQUOTE_RAISES
+import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_KEEPS_IMPORTS_META
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_KEEP_READS_LINE_OPTION
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_KEEP_STORES_FULL_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_OPTIONS_EXPANDED_FIRST
@@ -34,8 +35,14 @@ internal object Quote {
         when (val built = build(call, state, env, run, 0)) {
             is Built.Stopped -> built.expansion
             is Built.Escaped -> {
-                if (env.function != null && built.known && !built.prelude) {
-                    run.compiling[env.module]?.quotes?.put(written, built.block)
+                if (env.function != null && built.known) {
+                    val evaluated = if (built.bindings.isEmpty()) {
+                        built.block
+                    } else {
+                        ElixirAst.Block(call.meta, built.bindings + built.block)
+                    }
+
+                    run.compiling[env.module]?.quotes?.put(written, evaluated)
                 }
 
                 Expander.expand(built.quoted, built.state, built.env, run).let {
@@ -43,7 +50,7 @@ internal object Quote {
                     // a pattern or guard, either in `:elixir_quote.validate_quote/1`.
                     val validated = UNQUOTE_VALIDATED_BY_UNQUOTE.isSufficient(run.level) && env.context == Env.Context.NONE
 
-                    if (built.prelude || built.block !== built.quoted || validated) it.withValue(NODE) else it
+                    if (built.bindings.isNotEmpty() || built.block !== built.quoted || validated) it.withValue(NODE) else it
                 }
             }
         }
@@ -61,7 +68,7 @@ internal object Quote {
             else -> return null
         }
 
-        return (build(body, state, env, run, lineOffset) as? Built.Escaped)?.takeIf { it.known && !it.prelude }?.block
+        return (build(body, state, env, run, lineOffset) as? Built.Escaped)?.takeIf { it.known && it.bindings.isEmpty() }?.block
     }
 
     /** What [escape] gives: the expression that builds the escaped node, or where building it stops. */
@@ -112,7 +119,7 @@ internal object Quote {
          * @property block [quoted] after the `bind_quoted` bindings, without the prelude
          * @property known whether [block] is the tree Elixir builds: not where a `file:` path's bytes aren't known,
          *   though [quoted] still expands as Elixir's does, since a binary expands alike whatever it holds
-         * @property prelude whether a run-time option binds a variable ahead of [quoted]
+         * @property bindings the prelude: each run-time option's variable bound ahead of [quoted]
          */
         class Escaped(
             val quoted: ElixirAst,
@@ -120,7 +127,7 @@ internal object Quote {
             val state: ExState,
             val env: Env,
             val known: Boolean,
-            val prelude: Boolean,
+            val bindings: List<ElixirAst>,
         ) : Built
     }
 
@@ -234,13 +241,18 @@ internal object Quote {
         // Before 1.17 the prelude and the bindings are expanded with the quoted body, after it is built.
         val quotedFirst = if (expandedFirst) null else doQuote()
 
-        // The prelude is given each value as expanded, so it is expanded a second time.
-        for ((key, value) in prelude) {
-            val validated =
-                s.remoteCall(call.meta, "elixir_quote", "validate_runtime", listOf(s.atom(key), builtCopy(value)))
-            val binding = s.match(s.variable(key), validated)
+        val bindings = prelude.map { (key, value) ->
+            s.match(
+                s.variable(key),
+                s.remoteCall(call.meta, "elixir_quote", "validate_runtime", listOf(s.atom(key), builtCopy(value))),
+            )
+        }
 
-            expanded = expandAgain(value, state, env, expanded, run) { Expander.expand(binding, it.state, it.env, run) }
+        // The prelude is given each value as expanded, so it is expanded a second time.
+        prelude.zip(bindings).forEach { (option, binding) ->
+            expanded = expandAgain(option.second, state, env, expanded, run) {
+                Expander.expand(binding, it.state, it.env, run)
+            }
         }
 
         if (!expandedFirst) {
@@ -270,7 +282,7 @@ internal object Quote {
 
         val known = path == null || path.bytes != null
 
-        return Built.Escaped(quoted, block, expanded.state, expanded.env, known, prelude.isNotEmpty())
+        return Built.Escaped(quoted, block, expanded.state, expanded.env, known, bindings)
     }
 
     /**
@@ -591,13 +603,24 @@ internal object Quote {
         /** `import_meta/5`. */
         override fun importMeta(input: AstTerm, meta: Keywords<ElixirAst>, name: String, arity: Int): Keywords<ElixirAst> {
             val node = node(input)
-            val imports = if (QUOTE_IMPORTS_EVERY_ARITY.isSufficient(level)) {
-                when (val found = findImports(name, env)) {
-                    is NameImports.Ambiguous -> throw Stop(Expansion.Error("ambiguous_call", node))
-                    is NameImports.Found -> found.imports.also { if (it.isNotEmpty()) traceImportQuoted(node, name, it) }
-                }
-            } else {
-                listOfNotNull(findImport(node, name, arity)?.let { arity to it })
+            val everyArity = QUOTE_IMPORTS_EVERY_ARITY.isSufficient(level)
+            val keepsImports = QUOTE_KEEPS_IMPORTS_META.isSufficient(level)
+            val named = meta.any { it.first == if (keepsImports) "imports" else "import" }
+
+            // Until `imports:` is the key checked, a node with `import:` has the check's `false` written as its imports.
+            if (named && everyArity && !keepsImports) {
+                return keystore(keystore(meta, "context", contextNode()), "imports", s.atom("false"))
+            }
+
+            val imports = when {
+                // Metadata that already names its imports keeps them.
+                named -> emptyList()
+                everyArity ->
+                    when (val found = findImports(name, env)) {
+                        is NameImports.Ambiguous -> throw Stop(Expansion.Error("ambiguous_call", node))
+                        is NameImports.Found -> found.imports.also { if (it.isNotEmpty()) traceImportQuoted(node, name, it) }
+                    }
+                else -> listOfNotNull(findImport(node, name, arity)?.let { arity to it })
             }
 
             if (imports.isNotEmpty()) {

@@ -104,6 +104,9 @@ private fun parallelBitstring(
             parallelBitstring(left, expandedShape(matchLeft), true, env, level)
                 ?: parallelBitstring(left, expandedShape(matchRight), parallel, env, level)
         }
+        // Elixir reads a macro's expansion, which may be a bitstring.
+        parallel && isPatternMacro(left, level) && mayHoldBitstring(right, level) -> Expansion.Unported(left)
+        parallel && isPatternMacro(right, level) && mayHoldBitstring(left, level) -> Expansion.Unported(right)
         left is ElixirAst.ListNode && right is ElixirAst.ListNode -> each(left.elements, right.elements)
         left is ElixirAst.Tuple && right is ElixirAst.Tuple && (left.elements.size == 2) == (right.elements.size == 2) ->
             each(left.elements, right.elements)
@@ -125,7 +128,7 @@ private fun parallelBitstring(
 
                 // `lists:sort/1` puts the fields in key order.
                 literalKeyed(leftFields, env, level)
-                    .sortedWith { (key, _), (otherKey, _) -> TERM_ORDER.compare(key, otherKey) }
+                    .sortedWith { (key, _), (otherKey, _) -> termOrder(level).compare(key, otherKey) }
                     .firstNotNullOfOrNull { (key, value) ->
                         rightValues[key]?.let {
                             parallelBitstring(expandedShape(value), expandedShape(it), parallel, env, level)
@@ -136,6 +139,26 @@ private fun parallelBitstring(
         else -> null
     }
 }
+
+/**
+ * A call other than a special form or a signed number: a macro in a pattern, whose expansion the check reads. A sign
+ * on a number is that number in a pattern.
+ */
+private fun isPatternMacro(node: ElixirAst, level: ElixirLanguageLevel): Boolean {
+    val arguments = (node as? ElixirAst.Call)?.arguments ?: return false
+    val name = (node.callee as? ElixirAst.Literal.Atom)?.name
+
+    return name == null || !specialForm(name, arguments.size, level) && !isSignedNumber(name, arguments)
+}
+
+/** Whether [node] is, or once expanded may be or hold, a bitstring. */
+private fun mayHoldBitstring(node: ElixirAst, level: ElixirLanguageLevel): Boolean =
+    isBitstring(node) ||
+        node is ElixirAst.ListNode ||
+        node is ElixirAst.Tuple ||
+        isMap(node) ||
+        isCall(node, "=", 2) ||
+        isPatternMacro(node, level)
 
 private fun fields(map: ElixirAst): List<Pair<ElixirAst, ElixirAst>> =
     (map as ElixirAst.Call).arguments!!

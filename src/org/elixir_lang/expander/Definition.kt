@@ -478,11 +478,11 @@ internal fun storeDefinition(
 
     if (expansion is Expansion.Error) return owner to expansion
 
-    body?.let { compiling.clauses.getOrPut(nameArity) { mutableListOf() } += ModuleClauses.Clause(args, guards, it) }
+    body?.let { compiling.clauses.getOrPut(nameArity) { mutableListOf() } += ModuleClauses.Clause(args, guards, it, env) }
     if (defaulted is Expansion.Expanded) {
         val counter = if (DEFAULT_ARGUMENTS_THREAD_STATE.isSufficient(run.level)) defaulted.state.version else 0
 
-        for (clause in defaultClauses(kind, name, defaultsArgs, defaults, counter)) {
+        for (clause in defaultClauses(kind, name, defaultsArgs, defaults, counter, env)) {
             compiling.clauses.getOrPut(NameArity(name, clause.args.size)) { mutableListOf() } += clause
         }
     }
@@ -592,6 +592,7 @@ private fun defaultClauses(
     defaultsArgs: List<ElixirAst>,
     defaults: List<ElixirAst.Call>,
     counter: Int,
+    env: Env,
 ): List<ModuleClauses.Clause> =
     defaultsArgs.indices.filter { defaultsArgs[it] in defaults }.map { index ->
         val default = defaultsArgs[index] as ElixirAst.Call
@@ -618,6 +619,7 @@ private fun defaultClauses(
             base + rest.mapNotNull { it.first },
             emptyList(),
             synthetic.call("super", base + rest.map { it.second }, superKeys),
+            env,
         )
     }
 

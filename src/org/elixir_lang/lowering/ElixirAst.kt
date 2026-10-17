@@ -204,7 +204,8 @@ sealed class ElixirAst {
             return when (head) {
                 // `toOtp` writes a pair as `{a, b}`, so `{:{}, meta, [a, b]}` stays a call.
                 TUPLE if arguments.size != 2 -> Tuple(meta, arguments)
-                ALIASES -> Alias(meta, arguments)
+                // An alias of no segments has no clause in `elixir_aliases:expand`.
+                ALIASES -> if (arguments.isEmpty()) null else Alias(meta, arguments)
                 BLOCK -> Block(meta, arguments)
                 else -> Call(meta, fromOtp(head, origin, known) ?: return null, arguments)
             }
@@ -215,20 +216,43 @@ sealed class ElixirAst {
          * location reads the same. `column` stays an entry: [ParserOptions.DEFAULT] writes a location's line only.
          */
         private fun meta(term: OtpErlangObject, origin: TextRange): Meta? {
-            val keys = keywords(term) ?: return null
+            val keys = keywords(term)
+                ?.takeIf { keys -> keys.none { it.name == "counter" && counter(it.value) == null } }
+                ?: return null
             val integer = { name: String ->
-                keys.firstOrNull { it.name == name }?.let { (it.value as? Meta.Value.Integer)?.value?.toInt() }
+                keys.firstOrNull { it.name == name }?.let { (it.value as? Meta.Value.Integer)?.value }
             }
             val line = integer("line")
-            val position = Meta.Position(line ?: 0, integer("column") ?: 0)
+            val column = integer("column")
+
+            // A lowered node's position is an `Int`.
+            if (listOfNotNull(line, column).any { it !in Int.MIN_VALUE..Int.MAX_VALUE }) return null
+
+            val position = Meta.Position(line?.toInt() ?: 0, column?.toInt() ?: 0)
+            val first = keys.indexOfFirst { it.name == "line" }
 
             return Meta(
                 origin,
                 position,
                 position,
-                keys.map { key -> if (line != null && key.name == "line") Meta.Key.Location(position) else key },
+                keys.mapIndexed { index, key -> if (line != null && index == first) Meta.Key.Location(position) else key },
             )
         }
+
+        /**
+         * The module and count of the `counter` [value], in a shape `quote` writes: `{Module, n}`, or an integer with
+         * no module. `null` for any other shape: Elixir makes any term a variable's context, but metadata with a
+         * counter of another shape has no [Meta].
+         */
+        fun counter(value: Meta.Value): Pair<String?, Long>? =
+            when (value) {
+                is Meta.Value.Integer -> null to value.value
+                is Meta.Value.Tuple ->
+                    value.elements.takeIf { it.size == 2 }?.let { (module, n) ->
+                        if (module is Meta.Value.Atom && n is Meta.Value.Integer) module.name to n.value else null
+                    }
+                is Meta.Value.Atom, is Meta.Value.Binary, is Meta.Value.Keywords, is Meta.Value.List -> null
+            }
 
         /** Each entry of the keyword list [term], or null for any other term. */
         private fun keywords(term: OtpErlangObject): List<Meta.Key.Entry>? =

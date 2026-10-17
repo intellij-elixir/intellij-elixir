@@ -936,6 +936,25 @@ enum class ElixirLanguageFeature(
     GENERATOR_RIGHT_SIDE_SCOPED(sinceElixir = "1.13.0-rc.0"),
 
     /**
+     * A `for` that `elixir_erl_for` builds as a reduce gives a bitstring generator the clause that skips a run its
+     * pattern doesn't match only where every segment has the default size, as `no_var_size/1` throws for any other.
+     * Before it, only a variable size throws.
+     *
+     * `elixir-lang/elixir@8fdef5c48` ("Properly track variables inside comprehensions size", #15247), first released in
+     * v1.20.0-rc.5; `elixir-lang/elixir@b098c0406` ("Fix bin comprehensions when option is used", #15473), first
+     * released in v1.20.2, replaces it with [BIT_GENERATOR_SKIP_KEEPS_OUTER_SIZES].
+     */
+    BIT_GENERATOR_SKIP_KEEPS_DEFAULT_SIZE_ONLY(sinceElixir = "1.20.0-rc.5", removedInElixir = "1.20.2"),
+
+    /**
+     * The reduce's skip clause is built where `no_unbound_var_size/2` keeps every size: the default, an integer, a
+     * variable bound before the `for`, or an operator of them.
+     *
+     * `elixir-lang/elixir@b098c0406` ("Fix bin comprehensions when option is used", #15473), first released in v1.20.2.
+     */
+    BIT_GENERATOR_SKIP_KEEPS_OUTER_SIZES(sinceElixir = "1.20.2"),
+
+    /**
      * `with` takes a list before its last argument as options, as `for` always has, so `with x <- y, [else: e] do`
      * has an `else`. Before it, that list is a clause.
      *
@@ -1141,6 +1160,15 @@ enum class ElixirLanguageFeature(
      * ("Track all arities in imports inside quotes", #11651), first released in v1.14.0-rc.0.
      */
     QUOTE_IMPORTS_EVERY_ARITY(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * A node whose meta already has `imports:` keeps it when quoted. Before it, `import_meta/5` looks for `import:`,
+     * which from [QUOTE_IMPORTS_EVERY_ARITY] no quote writes, so the name's imports are found again.
+     *
+     * `elixir-lang/elixir@64d6d3d34` ("Fix typo in meta key name in elixir_quote", #13570), first released in
+     * v1.17.0-rc.0.
+     */
+    QUOTE_KEEPS_IMPORTS_META(sinceElixir = "1.17.0-rc.0"),
 
     /**
      * An `imports:` in a call's meta that isn't a non-empty list is no recorded import, so the call is looked up in the
@@ -1911,6 +1939,15 @@ enum class ElixirLanguageFeature(
     REGEX_ESCAPED_IN_FIXED_FIELD_ORDER(sinceElixir = "1.19.0-rc.1"),
 
     /**
+     * `Macro.escape/2` takes a `generated: true` option, which puts `generated: true` first in the metadata of a
+     * result that is a three-element tuple with list metadata. Before it, the option is ignored.
+     *
+     * `elixir-lang/elixir@c8f8d02cc` ("Fix dialyzer opaqueness warnings on module attrs in OTP28", #14755), first
+     * released in v1.19.0-rc.1.
+     */
+    MACRO_ESCAPE_MARKS_GENERATED(sinceElixir = "1.19.0-rc.1"),
+
+    /**
      * `Macro.escape/1` of a map lists its entries in the order the Erlang VM keeps them, which from OTP 26 is the
      * atoms' index in the VM, not term order. Elixir sorts the entries from [ESCAPED_MAP_ENTRIES_SORTED], so only before
      * it does the order show. The port writes the keys in term order, which no release or probe can pin in this window.
@@ -2247,7 +2284,156 @@ enum class ElixirLanguageFeature(
      * `elixir-lang/elixir@cb2e03688` ("Perform return type inference and application across local calls", #13984),
      * first released in v1.18.0-rc.0.
      */
-    CACHE_ENV_IN_ELIXIR_MODULE(sinceElixir = "1.18.0-rc.0");
+    CACHE_ENV_IN_ELIXIR_MODULE(sinceElixir = "1.18.0-rc.0"),
+
+    /**
+     * A rescued Erlang error's message is the one its stacktrace's `error_info` formats; `:badarg` with none is
+     * "argument error", and a rescue of an `ArgumentError` or a `SystemLimitError` passes `Exception.normalize/3` the
+     * stacktrace. Before it, a rescued `:badarg` is always "argument error".
+     *
+     * `elixir-lang/elixir@251413a7b` ("Adopt EEP 54"), first released in v1.12.0-rc.0.
+     */
+    RESCUED_ERROR_MESSAGE_FROM_ERROR_INFO(sinceElixir = "1.12.0-rc.0"),
+
+    /**
+     * `x.key`, with no parentheses, on an `x` that isn't a map raises `{badkey, key, x}`, unless `x` is an atom other
+     * than `nil`, `true` or `false`, which is called as a module. Before it, every `x` that isn't a map is called as
+     * `x:key()`.
+     *
+     * `elixir-lang/elixir@c84c65710` ("Improve error messages for dot syntax", #12003), first released in
+     * v1.15.0-rc.0, and its backport `1184fcaad`, first released in v1.14.0-rc.0.
+     */
+    FIELD_OF_NON_MAP_RAISES_BADKEY(sinceElixir = "1.14.0-rc.0"),
+
+    /**
+     * `x.key`, with no parentheses, on an `x` that isn't a map or an atom other than `nil`, `true` or `false` raises
+     * `{badmap, x}`, where from [FIELD_OF_NON_MAP_RAISES_BADKEY] it raised `{badkey, key, x}`.
+     *
+     * `elixir-lang/elixir@1f9433fea` ("not_a_map.key should raise BadMapError for consistency"), first released in
+     * v1.19.0-rc.0.
+     */
+    FIELD_OF_NON_MAP_RAISES_BADMAP(sinceElixir = "1.19.0-rc.0"),
+
+    /**
+     * `Exception.normalize/2` writes the message of a `{badkey, key, x}` whose `x` isn't a map with
+     * `inspect(x, pretty: true, limit: :infinity)`, where before it wrote `inspect(x)`. The evaluator declines those
+     * options, so only before it does a macro's `KeyError` from [FIELD_OF_NON_MAP_RAISES_BADKEY] get its answer.
+     *
+     * `elixir-lang/elixir@8c69850ad` ("Always show maps as multiline if they cannot fit a single line"), first released
+     * in v1.15.0-rc.0.
+     */
+    KEY_ERROR_MESSAGE_INSPECTED_WITH_OPTIONS(sinceElixir = "1.15.0-rc.0"),
+
+    /**
+     * A `rescue` of a list of exceptions passes the stacktrace to `Exception.normalize/3` whenever one of them needs
+     * it. Before it, it passed one only where the list's first exception needed it.
+     *
+     * `elixir-lang/elixir@03ef7a105` ("Always pass stracktrace when necessary"), first released in v1.16.0-rc.0, and
+     * its backport `84c8d2371`, first released in v1.15.5.
+     */
+    RESCUE_LIST_STACKTRACE_FOR_ANY(sinceElixir = "1.15.5"),
+
+    /**
+     * A `with` whose `else` matches none of its clauses raises `{else_clause, value}`, where it raised
+     * `{with_clause, value}`.
+     *
+     * `elixir-lang/elixir@2c03d5fd9` ("Follow-up for Erlang `maybe`", #12430), first released in v1.15.0-rc.0.
+     */
+    WITH_ELSE_CLAUSE_ERROR(sinceElixir = "1.15.0-rc.0"),
+
+    /**
+     * `%Struct{x | key: value}` updates `x` as `%{x | key: value}` does, whatever struct `x` is. Before it, an `x`
+     * that isn't a `Struct` raises `{badstruct, Struct, x}`.
+     *
+     * `elixir-lang/elixir@08d3865fa` ("Transform the struct update syntax into a type assertion"), first released in
+     * v1.20.0-rc.0.
+     */
+    STRUCT_UPDATE_IS_MAP_UPDATE(sinceElixir = "1.20.0-rc.0"),
+
+    /**
+     * A `rescue` takes a map as an exception where its `__exception__` key is present, and rescues it as an
+     * `ErlangError` only where it has no `__struct__` or no `__exception__`. Before it, `__exception__` had to be
+     * `true`, and an `ErlangError` was any map without `__exception__`.
+     *
+     * `elixir-lang/elixir@245066b40` ("Relax handling of __exception__"), first released in v1.20.0-rc.5.
+     */
+    RESCUE_EXCEPTION_KEY_PRESENT(sinceElixir = "1.20.0-rc.5"),
+
+    /**
+     * `:elixir_quote.tail_list/3` raises an `ArgumentError` where the list spliced before a tail is empty. Before it, it
+     * raised `{badmatch, []}`.
+     *
+     * `elixir-lang/elixir@2e9981d98` ("Raise when splicing cons without head", #15282), first released in
+     * v1.20.0-rc.5.
+     */
+    SPLICE_EMPTY_BEFORE_TAIL_RAISES(sinceElixir = "1.20.0-rc.5"),
+
+    /**
+     * `String.to_atom/1` and `String.to_existing_atom/1` take only a binary, raising `FunctionClauseError` for any
+     * other term. Before it, the term went to `:erlang.binary_to_atom/2`, which raises `badarg`.
+     *
+     * `elixir-lang/elixir@b3e9c2a37` ("Add guard clause on functions in string module", #10506), first released in
+     * v1.12.0-rc.0.
+     */
+    STRING_TO_ATOM_REQUIRES_BINARY(sinceElixir = "1.12.0-rc.0"),
+
+    /**
+     * An `fn` whose clauses match no argument raises `FunctionClauseError`. Before it, OTP 24's compiler raises
+     * `CaseClauseError` instead for a fun it inlines where it is applied, which only the compiled code shows.
+     *
+     * `erlang/otp@fe244ad80c` ("Eliminate confusing `case_clause` exception", OTP-17860), first released in
+     * OTP 25.0-rc1.
+     */
+    FN_CLAUSE_ERROR_IS_FUNCTION_CLAUSE(sinceOtp = "25.0-rc1"),
+
+    /**
+     * `lists:map/2`, `foldl/3`, `mapfoldl/3` and `all/2` check their fun before the list, and walk the list in a helper,
+     * `map_1/2`, `foldl_1/3`, `mapfoldl_1/3` or `all_1/2`, so a bad list raises `function_clause` in the helper. Before
+     * it, the fun was checked only at the list's end, and a bad fun or list raised wherever the walk met it.
+     *
+     * `erlang/otp@3346acf491` ("stdlib: Optimize fun usage"), first released in OTP 25.0-rc1.
+     */
+    LISTS_CHECK_THE_FUN_FIRST(sinceOtp = "25.0-rc1"),
+
+    /**
+     * `=:=` and matching tell `-0.0` from `0.0`, so a map holds both as keys, `-0.0` first.
+     *
+     * `erlang/otp@e3e6efef05` ("erts: Fix term equivalence comparisons on floating-point zero"), first released in OTP
+     * 27.0-rc1.
+     */
+    NEGATIVE_ZERO_IS_DISTINCT(sinceOtp = "27.0-rc1"),
+
+    /**
+     * An integer holds at most 65,535 words, about 4 Mbit, where it held 524,287, and arithmetic past it raises
+     * `system_limit`.
+     *
+     * `erlang/otp@08334117c9` ("Lower size limit for integers to 4 Mbit"), first released in OTP 26.0.2. It was also
+     * released in OTP 24.3.4.13 and 25.3.2.3, which no single release bound admits.
+     */
+    INTEGERS_UP_TO_4_MBIT(sinceOtp = "26.0.2"),
+
+    /**
+     * `erlang:error/3` exists: it raises as `error/2` does, and puts the `error_info` map its options give in the
+     * raising function's frame.
+     *
+     * `erlang/otp@c8b494a80f` ("Implement EEP-54 (extended error information)"), first released in OTP 24.0-rc1.
+     */
+    ERLANG_ERROR_3(sinceOtp = "24.0-rc1"),
+
+    /**
+     * `erlang:raise/3` takes a remote capture (`&List.first/1`) as a stacktrace frame's fun.
+     *
+     * `erlang/otp@0685f97a78` ("erts: Optimize fun calls"), first released in OTP 25.0-rc1.
+     */
+    RAISE_FRAME_TAKES_A_CAPTURE(sinceOtp = "25.0-rc1"),
+
+    /**
+     * A map orders its atom keys by their index in the VM's atom table, not in term order, so the order
+     * `:maps.to_list/1` lists two atom keys in depends on when each atom was made.
+     *
+     * `erlang/otp@c013d3ad41` ("erts: Optimize flatmap internal ordering of atoms"), first released in OTP 26.0-rc1.
+     */
+    MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER(sinceOtp = "26.0-rc1");
 
 
     /** The first Elixir release with this behaviour, or `null` when every supported release has it. */

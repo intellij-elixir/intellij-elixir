@@ -365,7 +365,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         val file = file(
             """
             defmodule M do
-              defmacro m, do: :ok
+              defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))
             end
 
             defmodule Stopped do

@@ -7,6 +7,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.PROTOCOL_DISPATCHES_
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
+import org.elixir_lang.lowering.fitsAnAtom
 import org.elixir_lang.psi.Import.Term
 import java.math.BigInteger
 
@@ -140,10 +141,10 @@ internal fun assertProtocol(protocol: String, node: ElixirAst, run: Run, notAvai
 
 /**
  * The module [right] names under the protocol [left] on [level]: `Protocol.__concat__/2` from [PROTOCOL_CONCAT], and
- * `Module.concat/2` before it, which drops a `nil`.
+ * `Module.concat/2` before it, which drops a `nil`. `null` past an atom's length, which raises `system_limit`.
  */
-internal fun implementationName(level: ElixirLanguageLevel, left: String, right: String): String =
-    if (PROTOCOL_CONCAT.isSufficient(level)) protocolConcat(left, right) else concat(listOf(left, right))
+internal fun implementationName(level: ElixirLanguageLevel, left: String, right: String): String? =
+    if (PROTOCOL_CONCAT.isSufficient(level)) protocolConcat(left, right).takeIf(::fitsAnAtom) else concat(listOf(left, right))
 
 /** `Protocol.__concat__/2`: the module [right] names under the protocol [left], an atom's `Elixir.` prefix dropped. */
 private fun protocolConcat(left: String, right: String): String =
@@ -190,7 +191,7 @@ internal class ProtocolTail(private val module: String, meta: Meta, private val 
     private fun filling(definition: Pending.Definition, branch: Int, attributes: AttributeTable): List<Pending> {
         val fallback = fallbackToAny(attributes) ?: return listOf(definition)
         val functions = declared(attributes) ?: return listOf(definition)
-        val fragments = Fragments(anyImplFor(fallback), functions, description(attributes))
+        val fragments = Fragments(anyImplFor(fallback) ?: return listOf(definition), functions, description(attributes))
         val filled = if (definition.stop != null) fill(definition, fragments) else listOf(definition)
 
         if (branch < 0) return filled
@@ -206,12 +207,12 @@ internal class ProtocolTail(private val module: String, meta: Meta, private val 
 
     /**
      * `any_impl_for`: `nil`, the `Any` module, or before [PROTOCOL_DISPATCHES_BY_IMPL_TARGET] the quoted call of that
-     * module's `__impl__(:target)`.
+     * module's `__impl__(:target)`. `null` where the `Any` module has no name.
      */
-    private fun anyImplFor(fallback: Boolean): ElixirAst {
+    private fun anyImplFor(fallback: Boolean): ElixirAst? {
         if (!fallback) return s.atom("nil")
 
-        val any = s.atom(implementationName(level, module, "Any"))
+        val any = s.atom(implementationName(level, module, "Any") ?: return null)
 
         return if (PROTOCOL_DISPATCHES_BY_IMPL_TARGET.isSufficient(level)) {
             s.remoteCall(any, "__impl__", listOf(s.atom("target")))
@@ -256,7 +257,7 @@ internal class ProtocolTail(private val module: String, meta: Meta, private val 
 
         // The loop's `fn` body is expanded once, and runs for each of the built-in types.
         return BUILT_IN.map { (type, guard) ->
-            val target = s.atom(implementationName(level, module, "Elixir.$type"))
+            val target = s.atom(implementationName(level, module, "Elixir.$type") ?: return listOf(stuck))
 
             filled(
                 stuck,

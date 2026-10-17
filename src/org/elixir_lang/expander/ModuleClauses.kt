@@ -22,6 +22,15 @@ internal class ModuleClauses(
 ) {
     enum class Source { SOURCE, DBGI }
 
+    /** The clauses of a module the run doesn't compile; `null` where they can't be read. */
+    fun interface Lookup {
+        fun of(module: String): ModuleClauses?
+
+        companion object {
+            val NONE = Lookup { null }
+        }
+    }
+
     /**
      * The bytes these clauses retain: each clause, each node its arguments, guards, body and quotes hold, and the bytes
      * of each binary those hold, once for each array.
@@ -54,8 +63,10 @@ internal class ModuleClauses(
      *
      * @property args without their defaults
      * @property guards each of the head's `when`s
+     * @property env the env a source clause's body, which isn't expanded, is expanded in; `null` for a
+     *   [Source.DBGI] clause, whose body is
      */
-    class Clause(val args: List<ElixirAst>, val guards: List<ElixirAst>, val body: ElixirAst)
+    class Clause(val args: List<ElixirAst>, val guards: List<ElixirAst>, val body: ElixirAst, val env: Env?)
 
     companion object {
         /** As measured over the clauses of the Elixir 1.20.4 apps' `.beam`s, with their mirrors released. */
@@ -117,9 +128,9 @@ internal class ModuleClauses(
             val splat = args.singleOrNull()?.let(::whenArguments)
 
             return if (splat != null) {
-                Clause(splat.dropLast(1), orGuards(splat.last()), body)
+                Clause(splat.dropLast(1), orGuards(splat.last()), body, null)
             } else {
-                Clause(args, emptyList(), body)
+                Clause(args, emptyList(), body, null)
             }
         }
     }

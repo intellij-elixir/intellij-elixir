@@ -25,8 +25,22 @@ class AliasDefmoduleTest : ExpanderTestCase() {
     fun testAnAliasWhoseHeadIsNotAnAtom() =
         assertAlias("__MODULE__.Foo", "Elixir.X.Foo", "Elixir.X", "Elixir.X.Foo Elixir.X.Foo none")
 
+    /** A name that fits an atom alone but not inside the module, where `elixir_aliases:concat/1` raises `system_limit`. */
+    fun testANameNestedPastAnAtomsLength() {
+        val name = "A".repeat(248)
+
+        assertNull(aliasDefmodule(lower(name, ElixirLanguageLevel.of("1.20.4")), "Elixir.$name", "Elixir.X"))
+    }
+
+    /** A dotted name whose first segment fits inside the module, though the whole name doesn't. */
+    fun testADottedNameNestedPastAnAtomsLength() {
+        val name = "A." + "B".repeat(246)
+
+        assertNull(aliasDefmodule(lower(name, ElixirLanguageLevel.of("1.20.4")), "Elixir.$name", "Elixir.X"))
+    }
+
     private fun assertAlias(name: String, expanded: String, enclosing: String?, expected: String) {
-        val alias = aliasDefmodule(lower(name, ElixirLanguageLevel.of("1.20.4")), expanded, enclosing)
+        val alias = checkNotNull(aliasDefmodule(lower(name, ElixirLanguageLevel.of("1.20.4")), expanded, enclosing))
 
         assertEquals(expected, "${alias.full} ${alias.old} ${alias.alias ?: "none"}")
     }

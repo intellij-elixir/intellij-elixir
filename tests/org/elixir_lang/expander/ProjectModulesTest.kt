@@ -3,10 +3,8 @@ package org.elixir_lang.expander
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.command.WriteCommandAction
-import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.progress.util.AbstractProgressIndicatorBase
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -25,12 +23,10 @@ import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.language_level.ElixirLanguageLevel
-import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.ElixirFile
 import java.io.File
 import java.util.concurrent.Callable
-import java.util.concurrent.CountDownLatch
-import kotlin.concurrent.thread
 
 /**
  * A file's expansion reads the modules other files define through [ProjectModules], and each answer, cached or not,
@@ -81,9 +77,9 @@ class ProjectModulesTest : PlatformTestCase() {
         add("umbrella/apps/a/mix.exs", MIX_EXS)
         add("umbrella/apps/b/mix.exs", MIX_EXS)
         val files = listOf(
-            "a" to add("umbrella/apps/a/lib/a.ex", kept("A")),
-            "b" to add("umbrella/apps/b/lib/nested/b.ex", kept("B")),
-            "outside" to add("outside.ex", kept("Outside")),
+            "a" to add("umbrella/apps/a/lib/a.ex", kept("A") + caller("A")),
+            "b" to add("umbrella/apps/b/lib/nested/b.ex", kept("B") + caller("B")),
+            "outside" to add("outside.ex", kept("Outside") + caller("Outside")),
         )
         val inputs = ProjectModules.Inputs(ElixirLanguageLevel.of("1.13.4"), legKernel)
 
@@ -99,11 +95,10 @@ class ProjectModulesTest : PlatformTestCase() {
         add("umbrella/apps/a/mix.exs", MIX_EXS)
         add("umbrella/apps/b/mix.exs", MIX_EXS)
         add("umbrella/apps/a/lib/a.ex", kept("A"))
-        val b = add("umbrella/apps/b/lib/b.ex", "defmodule B do\n  require A\n  def f, do: A.m()\nend\n")
+        val b = add("umbrella/apps/b/lib/b.ex", caller("A"))
         val inputs = ProjectModules.Inputs(ElixirLanguageLevel.of("1.13.4"), legKernel)
-        val clauses = ReadAction.nonBlocking(Callable { holder.clauses(b, "Elixir.A", inputs) }).executeSynchronously()
 
-        assertEquals("lib/a.ex", keptFiles(listOfNotNull(clauses)))
+        assertEquals("lib/a.ex", keptFiles(b, inputs))
     }
 
     /** A `mix.exs` written above a file that keeps a quote's location moves the file's directory. */
@@ -117,6 +112,51 @@ class ProjectModulesTest : PlatformTestCase() {
 
         assertFresh("a mix.exs added above", a, after, inputs)
         assertFalse("A's answer moves", render(a, before) == render(a, after))
+    }
+
+    /** A module read only for the clauses a macro body calls moves the answer of the file that called the macro. */
+    fun testAModuleReadForItsClausesMovesTheAsker() {
+        addLegElixir()
+        val a = add("a.ex", "defmodule A do\n  require B\n  B.m()\nend\n")
+        add("b.ex", "defmodule B do\n  defmacro m do\n    mod = C\n    mod.code()\n  end\nend\n")
+        val c = add("c.ex", "defmodule C do\n  def code, do: quote(do: def(f(), do: 1))\nend\n")
+        val before = expansion(holder, a)
+
+        edit(project, c, "defmodule C do\n  def code, do: quote(do: def(g(), do: 1))\nend\n")
+        val after = expansion(holder, a)
+
+        assertFresh("C's clause edited", a, after)
+        assertFalse("A's answer moves", render(a, before) == render(a, after))
+    }
+
+    /**
+     * A definition a macro writes under `location: :keep` is in another file only where its head's `keep:` names one: a
+     * head the caller wrote keeps the caller's file, and a kept quote in a moved definition's body stops. The files are in
+     * a Mix project, so a kept quote's file is known before 1.14.4 too.
+     */
+    fun testAMacroWrittenDefinitionIsMovedByItsHeadsKeep() {
+        addLegElixir()
+        add("mix.exs", MIX_EXS)
+        add(
+            "w.ex",
+            "defmodule W do\n" +
+                "  defmacro defw(head, do: body) do\n    quote location: :keep do\n      defmacro unquote(head), do: unquote(body)\n    end\n  end\n\n" +
+                "  defmacro defk(body) do\n    quote location: :keep do\n      defmacro k, do: unquote(body)\n    end\n  end\n" +
+                "end\n",
+        )
+        val a = add("a.ex", "defmodule A do\n  require W\n  W.defw m(), do: quote(location: :keep, do: :v)\nend\n")
+        val b = add("b.ex", "defmodule B do\n  require W\n  W.defk quote(location: :keep, do: :v)\nend\n")
+
+        assertEquals(
+            "a:\n" +
+                "top expanded\n" +
+                "Elixir.A compiled errors[] loads Present(functions=[], macros=[NameArity(name=m, arity=0)], hasInfo=true, " +
+                "behaviour=None, deprecated=Known(reasons={}))\n" +
+                "b:\n" +
+                "top expanded\n" +
+                "Elixir.B stopped `quote(location: :keep, do: :v)` unported quote errors[] loads Unreadable",
+            "a:\n${render(a, expansion(holder, a))}\nb:\n${render(b, expansion(holder, b))}",
+        )
     }
 
     fun testStructRead() {
@@ -136,7 +176,7 @@ class ProjectModulesTest : PlatformTestCase() {
         val a = add("a.ex", A_CALLS_B)
         add("b.ex", "defmodule B do\n  require C\n  defmacro m, do: :ok\nend\n")
         val c = add("c.ex", "defmodule C do\nend\n")
-        add("d.ex", "defmodule D do\n  defmacro m, do: :ok\nend\n")
+        add("d.ex", "defmodule D do\n  defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))\nend\n")
 
         val before = render(a, expansion(holder, a))
         edit(project, c, "defmodule C do\n  require D\n  D.m()\nend\n")
@@ -361,7 +401,12 @@ class ProjectModulesTest : PlatformTestCase() {
         val a = add("a.ex", "defmodule A do\n  require EEx\n  EEx.function_from_string(:def, :f, \"x\")\nend\n")
         val rendered = render(a, expansion(holder, a))
 
-        assertTrue(rendered, rendered.contains("Elixir.A stopped `EEx.function_from_string(:def, :f, \"x\")`"))
+        assertEquals(
+            "top expanded\n" +
+                "Elixir.A stopped `EEx.function_from_string(:def, :f, \"x\")` opaque Elixir.EEx.function_from_string " +
+                "errors[] loads Unreadable",
+            rendered,
+        )
         assertFresh("the compiled EEx read", a, expansion(holder, a))
     }
 
@@ -570,11 +615,11 @@ class ProjectModulesTest : PlatformTestCase() {
         val older = ProjectModules.Inputs(ElixirLanguageLevel.of("1.12.3"), legKernel)
         val a = add(
             "a.ex",
-            "defmodule A0 do\n  def g, do: C.f()\nend\n\ndefmodule A1 do\n  defmacro m, do: :ok\nend\n\n" +
+            "defmodule A0 do\n  def g, do: C.f()\nend\n\ndefmodule A1 do\n  defmacro m, do: receive(do: (x -> x), after: (0 -> :ok))\nend\n\n" +
                 "defmodule A2 do\n  require C\nend\n",
         )
         add("c.ex", "defmodule C do\n  A1.m()\n  require X\n  X.k()\n  def f, do: :ok\nend\n")
-        val x = add("x.ex", "defmodule X do\n  defmacro k, do: :ok\nend\n")
+        val x = add("x.ex", "defmodule X do\n  defmacro k, do: receive(do: (x -> x), after: (0 -> :ok))\nend\n")
         val holder = ProjectModules(project)
         val before = expansion(holder, a, older)
         assertFresh("X's macro", a, before, older)
@@ -712,54 +757,6 @@ class ProjectModulesTest : PlatformTestCase() {
         return indicator.checks
     }
 
-    /**
-     * Runs [block] while another thread runs under a cancelled indicator: only then does `ProgressManager.checkCanceled`
-     * call each thread's indicator.
-     */
-    private fun whileCheckingIndicators(block: () -> Unit) {
-        val running = CountDownLatch(1)
-        val done = CountDownLatch(1)
-        val other = thread {
-            val cancelled = EmptyProgressIndicator()
-
-            try {
-                ProgressManager.getInstance().runProcess(
-                    {
-                        cancelled.cancel()
-                        running.countDown()
-                        done.await()
-                    },
-                    cancelled,
-                )
-            } catch (_: ProcessCanceledException) {
-            }
-        }
-        running.await()
-
-        try {
-            block()
-        } finally {
-            done.countDown()
-            other.join()
-        }
-    }
-
-    /** Cancelled from its [n]th check on the thread that made it. */
-    private class CancelAt(private val n: Int) : AbstractProgressIndicatorBase() {
-        private val owner = Thread.currentThread()
-
-        var checks = 0
-            private set
-
-        override fun isCanceled(): Boolean = checks >= n
-
-        override fun checkCanceled() {
-            if (Thread.currentThread() === owner) checks++
-
-            super.checkCanceled()
-        }
-    }
-
     /** The leg's Elixir `.beam`s as a library, which a `defstruct` dispatches to. */
     private fun addLegElixir() = addLibrary("leg_elixir", LegManifest.ebin())
 
@@ -789,50 +786,23 @@ class ProjectModulesTest : PlatformTestCase() {
     /** A module [name] with a macro whose `quote` keeps its location. */
     private fun kept(name: String) = "defmodule $name do\n  defmacro m do\n    quote location: :keep, do: f()\n  end\nend\n"
 
-    /** The files the `keep:` entries of [file]'s escaped quotes name, or `none`. */
-    private fun keptFiles(file: PsiFile, inputs: ProjectModules.Inputs): String {
-        val loaded = mutableListOf<ModuleClauses>()
-        val observer = object : ExpansionObserver {
-            override fun entering(node: ElixirAst, state: ExState, env: Env) {}
+    /** A module calling [name]'s `m`. */
+    private fun caller(name: String) = "defmodule ${name}Caller do\n  require $name\n  def f, do: $name.m()\nend\n"
 
-            override fun clausesLoaded(module: String, clauses: ModuleClauses?) {
-                clauses?.let { loaded += it }
+    /** The files the `keep:` entries name on the nodes [file]'s expansion enters, or `none`. */
+    private fun keptFiles(file: PsiFile, inputs: ProjectModules.Inputs): String {
+        val files = mutableListOf<String>()
+        val observer = ExpansionObserver { node, _, _ ->
+            for (key in node.meta.keys) {
+                val keep = (key as? Meta.Key.Entry)?.takeIf { it.name == "keep" }?.value as? Meta.Value.Tuple ?: continue
+
+                files += (keep.elements.first() as Meta.Value.Binary).text
             }
         }
         ReadAction.nonBlocking(Callable { holder.observe(file as ElixirFile, inputs, observer) }).executeSynchronously()
 
-        return keptFiles(loaded)
-    }
-
-    /** The files the `keep:` entries of [modules]' escaped quotes name, or `none`. */
-    private fun keptFiles(modules: List<ModuleClauses>): String {
-        val blocks = modules.flatMap { clauses ->
-            val bodies = clauses.definitions.values.flatMap { it.clauses.orEmpty() }.map { it.body }
-
-            bodies.flatMap(::nodes).mapNotNull(clauses.quotes::of)
-        }
-        val files = blocks.flatMap(::nodes).mapNotNull { node ->
-            val (key, value) = (node as? ElixirAst.Tuple)?.elements?.takeIf { it.size == 2 } ?: return@mapNotNull null
-
-            ((value as? ElixirAst.Tuple)?.elements?.firstOrNull() as? ElixirAst.Literal.Binary)
-                ?.takeIf { (key as? ElixirAst.Literal.Atom)?.name == "keep" }
-                ?.bytes
-                ?.decodeToString()
-        }
-
         return files.distinct().joinToString().ifEmpty { "none" }
     }
-
-    /** [node] and every node below it. */
-    private fun nodes(node: ElixirAst): List<ElixirAst> =
-        listOf(node) + when (node) {
-            is ElixirAst.Tuple -> node.elements.flatMap(::nodes)
-            is ElixirAst.Call -> nodes(node.callee) + node.arguments.orEmpty().flatMap(::nodes)
-            is ElixirAst.ListNode -> node.elements.flatMap(::nodes)
-            is ElixirAst.Block -> node.expressions.flatMap(::nodes)
-            is ElixirAst.Alias -> node.segments.flatMap(::nodes)
-            is ElixirAst.Literal, is ElixirAst.Placeholder -> emptyList()
-        }
 
     /** [file]'s content replaced on disk, as a checkout or another editor writes it, with no document. */
     private fun rewrite(file: VirtualFile, text: String) {

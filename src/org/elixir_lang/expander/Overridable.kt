@@ -177,8 +177,7 @@ private fun makeBehaviourOverridable(compiling: Compiling, behaviour: String, at
 }
 
 /** `Module.Behaviour.callbacks/1`'s `normalize_macro_or_function_callback/1`: a `MACRO-` callback by its macro. */
-private fun macroCallbackNormalised(callback: NameArity): NameArity =
-    if (callback.name.startsWith("MACRO-")) NameArity(callback.name.removePrefix("MACRO-"), callback.arity - 1) else callback
+private fun macroCallbackNormalised(callback: NameArity): NameArity = ModuleExports.macroOf(callback) ?: callback
 
 /** `Kernel.defoverridable/1`: `Module.make_overridable(__MODULE__, definitions)`. */
 internal val DEFOVERRIDABLE = object : Summary.Rewrite() {

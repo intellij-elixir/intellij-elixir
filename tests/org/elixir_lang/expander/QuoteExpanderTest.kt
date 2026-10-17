@@ -303,6 +303,16 @@ class QuoteExpanderTest : ExpanderTestCase() {
                 "[{:inspect, [context: T, imports: [{1, Kernel}, {2, Kernel}]], T}, 1]}]}",
         )
 
+    /** An arity past an `Int`'s range, which as an `Int` would be 1, names no import: only the `/` and name are. */
+    fun testACaptureOfAnArityPastAnInt() =
+        assertSplitValue(
+            "quote(do: &inspect/4294967297)",
+            "1.14.0-rc.0",
+            "{:&, [], [{:/, [context: T, import: Kernel], [{:inspect, [], T}, 4294967297]}]}",
+            "{:&, [], [{:/, [context: T, imports: [{2, Kernel}]], " +
+                "[{:inspect, [context: T, imports: [{1, Kernel}, {2, Kernel}]], T}, 4294967297]}]}",
+        )
+
     fun testAVariable() = assertValue("quote(do: v)", "{:v, [], T}")
 
     fun testAContext() = assertValue("quote(context: Foo, do: v)", "{:v, [], Foo}")

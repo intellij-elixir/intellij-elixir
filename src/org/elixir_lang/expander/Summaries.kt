@@ -1,6 +1,7 @@
 package org.elixir_lang.expander
 
 import org.elixir_lang.declaration.MacroKey
+import org.elixir_lang.expander.interpreter.Interpreter
 import org.elixir_lang.lowering.ElixirAst
 
 /** A macro whose expansion is modelled. */
@@ -133,21 +134,26 @@ internal object Summaries {
 internal fun macro(dispatch: Dispatch, node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion {
     checkDeprecated(dispatch, node, env, run)
 
-    return summarised(dispatch, node, opaque = { it }) { summary ->
+    return summarised(dispatch, node, env, run, opaque = { it }) { summary ->
         run.observer.dispatched(node, dispatch)
 
         summary.expand(dispatch, node, state, env, run)
     }
 }
 
-/** [summarised] of [dispatch]'s summary, or [opaque] of the [Expansion.Opaque] a call [node] gives where it has none. */
+/**
+ * [summarised] of [dispatch]'s summary, else of the one its macro's clauses give, or [opaque] of the
+ * [Expansion.Opaque] a call [node] gives where neither does.
+ */
 internal inline fun <T> summarised(
     dispatch: Dispatch,
     node: ElixirAst.Call,
+    env: Env,
+    run: Run,
     opaque: (Expansion.Opaque) -> T,
     summarised: (Summary) -> T,
 ): T =
-    when (val summary = Summaries.of(dispatch)) {
+    when (val summary = Summaries.of(dispatch) ?: Interpreter.summary(dispatch, node, env, run)) {
         null -> opaque(Expansion.Opaque(node, dispatch))
         else -> summarised(summary)
     }

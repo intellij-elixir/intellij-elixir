@@ -6,7 +6,7 @@ import java.util.UUID
 /**
  * A call of a macro whose expansion isn't modelled stops the expansion of a case module body at that call, with the
  * dispatch Elixir resolves it to on the leg's Elixir, before any of the macro's arguments are expanded; up to there
- * the expander agrees with Elixir.
+ * the expander agrees with Elixir. A macro the file itself defines is evaluated, and expands as in Elixir.
  */
 class OpaqueProbeTest : ProbeTestCase() {
     private val probes = ExpansionProbes(harness) { createPsiFile(getTestName(false), it) as ElixirFile }
@@ -18,17 +18,25 @@ class OpaqueProbeTest : ProbeTestCase() {
         )
     }
 
-    /**
-     * Each case's probes and dispatches up to its macro equal Elixir's, including macros that import, alias or bind a
-     * variable, which a preamble module defines, so that what they change follows the macro.
-     */
+    /** Each case's probes and dispatches up to its macro equal Elixir's. */
     fun testEachCaseMatchesElixirUpToItsMacro() {
+        probes.assertMatchesElixirUpToMacro((CASES.map { it.first } + CAPTURE_CASES).associateWith { probes.expand(it) })
+    }
+
+    /**
+     * A preamble module's macros that import, alias or bind a variable are expanded, and what they change follows
+     * them as in Elixir.
+     */
+    fun testEachPreambleMacroMatchesElixir() {
         val module = "Opaque" + UUID.randomUUID().toString().replace("-", "")
-        val bodies = CASES.map { it.first } + CAPTURE_CASES + PREAMBLE_CASES.map { it.replace(M, module) }
-
         val preamble = "\ndefmodule $module do\n$PREAMBLE\nend\n"
+        val expansions = PREAMBLE_CASES.map { it.replace(M, module) }.associateWith { probes.expand(it, preamble) }
 
-        probes.assertMatchesElixirUpToMacro(bodies.associateWith { probes.expand(it, preamble) })
+        assertEquals(
+            expansions.keys.joinToString("\n") { "$it: Compiled" },
+            expansions.entries.joinToString("\n") { (body, expansion) -> "$body: ${expansion.ended}" },
+        )
+        probes.assertMatchesElixir(expansions)
     }
 
     /** The statement [body]'s expansion stopped at, its dispatch, and the source of the call. */

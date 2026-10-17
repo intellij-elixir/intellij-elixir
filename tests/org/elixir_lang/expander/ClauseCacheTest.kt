@@ -7,12 +7,17 @@ import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiFileFactory
 import com.intellij.testFramework.DumbModeTestUtils
 import com.intellij.testFramework.IndexingTestUtil
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
+import org.elixir_lang.ElixirLanguage
+import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.lowering.LoweringCounters
 import org.elixir_lang.lowering.inspect
+import org.elixir_lang.psi.ElixirFile
 import java.io.File
 import java.util.concurrent.Callable
 
@@ -196,6 +201,50 @@ class ClauseCacheTest : PlatformTestCase() {
         assertEquals(999L, clauses(a, "Elixir.B")!!.weight() - clauses(a, "Elixir.C")!!.weight())
         // The escaped block holds the quoted binary's own array.
         assertEquals(999L, clauses(a, "Elixir.D")!!.weight() - clauses(a, "Elixir.E")!!.weight())
+    }
+
+    /** A function of `erlang`, `lists` or `maps` that isn't one of the natives declines without their clauses read. */
+    fun testTheNativesErlangModulesAreNeverRead() {
+        val level = legLevel()
+        val text = """
+            defmodule B do
+              defmacro erlang, do: :erlang.phash2(1)
+              defmacro lists, do: :lists.sublist([1], 1)
+              defmacro maps, do: :maps.iterator(%{})
+            end
+
+            defmodule A1 do
+              require B
+              B.erlang()
+            end
+
+            defmodule A2 do
+              require B
+              B.lists()
+            end
+
+            defmodule A3 do
+              require B
+              B.maps()
+            end
+        """.trimIndent()
+        val asked = mutableListOf<String>()
+        val forms = ReadAction.computeBlocking<ElixirAst, Throwable> {
+            val file = PsiFileFactory.getInstance(project).createFileFromText("probe.ex", ElixirLanguage, text) as ElixirFile
+
+            Lowering.lower(file, level)
+        }
+
+        Expander.expandFile(
+            forms,
+            Env.empty(level, legKernel),
+            level,
+            legExports,
+            legStructs,
+            clauses = ModuleClauses.Lookup { module -> null.also { asked += module } },
+        )
+
+        assertEquals(emptyList<String>(), asked.filter { it in setOf("erlang", "lists", "maps") })
     }
 
     private fun clauses(asker: PsiFile, atom: String): ModuleClauses? =

@@ -1,0 +1,2669 @@
+package org.elixir_lang.expander
+
+import com.ericsson.otp.erlang.OtpErlangAtom
+import com.ericsson.otp.erlang.OtpErlangBinary
+import com.ericsson.otp.erlang.OtpErlangExternalFun
+import com.ericsson.otp.erlang.OtpErlangFun
+import com.ericsson.otp.erlang.OtpErlangList
+import com.ericsson.otp.erlang.OtpErlangLong
+import com.ericsson.otp.erlang.OtpErlangObject
+import com.ericsson.otp.erlang.OtpErlangTuple
+import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.util.io.FileUtil
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
+import com.intellij.psi.PsiCompiledFile
+import com.intellij.psi.PsiFileFactory
+import com.intellij.psi.PsiManager
+import org.elixir_lang.ElixirLanguage
+import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.expander.ExpansionResult.Ended
+import org.elixir_lang.intellij_elixir.Quoter
+import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_EXPANDED_AS_GUARD
+import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_IN_VM_ORDER
+import org.elixir_lang.language_level.ElixirLanguageFeature.FIELD_OF_NON_MAP_RAISES_BADKEY
+import org.elixir_lang.language_level.ElixirLanguageFeature.FIELD_OF_NON_MAP_RAISES_BADMAP
+import org.elixir_lang.language_level.ElixirLanguageFeature.FN_CLAUSE_ERROR_IS_FUNCTION_CLAUSE
+import org.elixir_lang.language_level.ElixirLanguageFeature.GENERATOR_RIGHT_SIDE_SCOPED
+import org.elixir_lang.language_level.ElixirLanguageFeature.KEY_ERROR_MESSAGE_INSPECTED_WITH_OPTIONS
+import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_CHECK_THE_FUN_FIRST
+import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
+import org.elixir_lang.language_level.ElixirLanguageFeature.REGEX_ESCAPED_IN_FIXED_FIELD_ORDER
+import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUED_ERROR_MESSAGE_FROM_ERROR_INFO
+import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_SHALLOW_VALIDATED
+import org.elixir_lang.language_level.ElixirLanguageFeature.WITH_OPTIONS_BEFORE_LAST_ARGUMENT
+import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.Lowering
+import org.elixir_lang.lowering.inspect
+import org.elixir_lang.psi.ElixirFile
+import java.io.File
+import java.math.BigInteger
+import kotlin.time.Duration.Companion.seconds
+
+/**
+ * A call to a macro with no summary, evaluated from its clauses, from source and from its `.beam`'s `Dbgi`, a row for
+ * each clause the evaluator ports. Each row is judged three ways: its output against
+ * Elixir's `Macro.expand_once/2` of the call, up to metadata and counters; the probes after the call against Elixir's;
+ * and the definition table against what Elixir's `@before_compile` sees.
+ */
+class InterpreterTest : PlatformTestCase() {
+    private val parse: (String) -> ElixirFile = { text ->
+        ReadAction.computeBlocking<ElixirFile, Throwable> {
+            PsiFileFactory.getInstance(project).createFileFromText("probe.ex", ElixirLanguage, text) as ElixirFile
+        }
+    }
+    private val harness = ProbeHarness(parse)
+    private val probes = ExpansionProbes(harness, parse = parse)
+    private val sdkClauses = HashMap<String, ModuleClauses?>()
+
+    /** The leg's modules' clauses, read from their `.beam`s as `ProjectModules` reads an SDK's. */
+    private val sdk = ModuleClauses.Lookup { module ->
+        sdkClauses.getOrPut(module) { appBeams[module]?.let(::clausesOf) }
+    }
+
+    override fun setUp() {
+        super.setUp()
+
+        appBeams.values.map { it.parentFile.parentFile.parentFile.path }.distinct().forEach {
+            VfsRootAccess.allowRootAccess(testRootDisposable, it)
+        }
+    }
+
+    fun testFromSource() = assertRows(Source.SOURCE)
+
+    fun testFromDebugInfo() = assertRows(Source.DBGI)
+
+    /**
+     * Each row that runs from [source] on the leg: its output, how its case module ended and its definition table,
+     * against Elixir's, then its probes.
+     */
+    private fun assertRows(source: Source) {
+        val level = legLevel()
+        val rows = ROWS.filter { it.runsFrom(source) && it.legs(level) }
+        val token = harness.token()
+        val oracle = oracle(rows, token)
+        val copies = if (source == Source.DBGI) copies(oracle.binaries) else emptyMap()
+        val outputs = outputs(rows, token, source, copies)
+        val exports = Exports { module -> copies[module]?.exports ?: legExports.of(module) }
+        val hook = ProbeHarness.Hook()
+        val clauses = ModuleClauses.Lookup { module -> copies[module]?.clauses ?: sdk.of(module) }
+        val tokens = mutableListOf(token)
+        val ownEnds = mutableMapOf<Int, String>()
+        // A raise ends its file, so each row has a file of its own, with only its own modules: Elixir takes longer
+        // over each compile the more modules it has compiled and unloaded, and every row's would pass the timeout.
+        val expansions = rows.mapIndexed { index, row ->
+            val expansion = probes.expandAll(
+                listOf(row.body(index, if (source == Source.DBGI) token else TOKEN)),
+                if (source == Source.SOURCE) preamble(rows, TOKEN, only = listOf(index)) else "",
+                exports,
+                hook = hook,
+                clauses = clauses,
+                file = FILE,
+                directories = DIRECTORIES,
+            )
+
+            tokens += expansion.layout.token
+            if (source == Source.SOURCE && row.ownEnd != null) {
+                val module = "Elixir.${module(index, expansion.layout.token)}"
+
+                ownEnds[index] = expansion.modules.single { it.module == module }.let(::ownEnd)
+            }
+            expansion.cases.single()
+        }
+        val expected = mutableListOf<String>()
+        val actual = mutableListOf<String>()
+
+        rows.forEachIndexed { index, row ->
+            val pinned = row.pinned(source, level)
+            val answer = oracle.answers.getValue(index)
+
+            expected += "${row.id} output: " + when (pinned) {
+                null -> rendered(answer, tokens, level, row.unordered)
+                UNPORTED -> "unported at `${row.call(index, TOKEN)}`"
+                else -> pinned
+            }
+            actual += "${row.id} output: ${outputs[index]}"
+            expected += "${row.id} ended: " + when {
+                pinned == UNPORTED -> "stopped at `require ${module(index, TOKEN)}`"
+                pinned == OPAQUE || pinned == null && answer.isCaught() -> "stopped at `${row.stopText(index, TOKEN)}`"
+                pinned == null && answer.raised() != null -> "raised ${answer.raised()}"
+                row.stopsAfter != null -> "stopped at ${row.stopsAfter}"
+                else -> "compiled"
+            }
+            actual += "${row.id} ended: ${ended(expansions[index], row, tokens)}"
+            ownEnds[index]?.let {
+                expected += "${row.id} own module: ${row.ownEnd}"
+                actual += "${row.id} own module: $it"
+            }
+        }
+
+        tables(rows, source, expansions, expected, actual)
+
+        assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
+
+        probes.assertMatchesElixir(
+            rows.indices
+                .filter { expansions[it].ended.let { ended -> ended == Ended.Compiled || ended.raises } }
+                .associate { rows[it].id to expansions[it] }
+        )
+    }
+
+    /** Each compiled row's definition table against what the hook saw of its module, compiled [TABLES_BATCH] together. */
+    private fun tables(
+        rows: List<Row>,
+        source: Source,
+        expansions: List<ExpansionProbes.CaseExpansion>,
+        expected: MutableList<String>,
+        actual: MutableList<String>,
+    ) {
+        for (batch in rows.indices.filter { expansions[it].ended == Ended.Compiled }.chunked(TABLES_BATCH)) {
+            val origin = expansions[batch.first()].origin
+            val together = probes.expandAll(
+                batch.map { expansions[it].origin.body },
+                if (source == Source.SOURCE) preamble(rows, TOKEN, only = batch) else "",
+                origin.exports,
+                hook = origin.hook,
+                clauses = origin.clauses,
+                file = origin.file,
+                directories = origin.directories,
+            )
+            val attempt = harness.attempt(together.layout)
+
+            batch.forEachIndexed { index, row ->
+                val theirs = attempt.batch.hooks[together.layout.caseModule(index)]
+                    ?.map { "${it.name}/${it.arity} ${it.kind}" }
+                    ?.sorted()
+                val ours = together.cases[index].result.table.entries
+                    .map { (nameArity, entry) -> "${nameArity.name}/${nameArity.arity} ${entry.kind.name.lowercase()}" }
+                    .sorted()
+
+                expected += "${rows[row].id} table: ${theirs ?: "the hook didn't run"}"
+                actual += "${rows[row].id} table: $ours"
+            }
+        }
+    }
+
+    /** How a row's own module ended: a stop by its kind and the dispatch it stopped at. */
+    private fun ownEnd(result: ExpansionResult): String =
+        when (val ended = result.ended) {
+            is Ended.Stopped -> {
+                val opaque = result.opaque.singleOrNull { it.at === ended.at }
+
+                if (opaque != null) "opaque at ${opaque.dispatch.receiver}.${opaque.dispatch.name}" else "stopped"
+            }
+            else -> ended.toString()
+        }
+
+    /** How [expansion]'s case module ended, a stop in the case body by its text. */
+    private fun ended(expansion: ExpansionProbes.CaseExpansion, row: Row, tokens: List<String>): String =
+        when (val ended = expansion.ended) {
+            Ended.Compiled -> "compiled"
+            is Ended.Raised -> "raised ${ended.error.kind}"
+            is Ended.Stopped -> {
+                val range = expansion.range(ended.at)
+                val body = expansion.case.body
+                val at = rendered(ended.at.toOtp(), tokens, legLevel(), row.unordered)
+                val after = row.stopsAfter?.takeIf { at.startsWith(it) }
+
+                when {
+                    // A node of the macro's output has the call's origin.
+                    after != null -> "stopped at $after"
+                    range.startOffset >= 0 && range.endOffset <= body.length ->
+                        "stopped at `${detokened(range.substring(body), tokens)}`"
+                    else -> "stopped at $at"
+                }
+            }
+            else -> ended.toString()
+        }
+
+    /**
+     * Each of [rows]' calls expanded once as `Macro.expand_once/2` expands it, in a `{token}.Case` that requires the
+     * row's modules, with those modules as [source] holds them: compiled from the preamble, or [copies].
+     */
+    private fun outputs(rows: List<Row>, token: String, source: Source, copies: Map<String, Copy>): List<String> {
+        val level = legLevel()
+        val loaded = HashMap<String, ModuleExports>()
+        val sourceClauses = HashMap<String, ModuleClauses>()
+
+        if (source == Source.SOURCE) {
+            val observer = object : ExpansionObserver {
+                override fun entering(node: ElixirAst, state: ExState, env: Env) {}
+
+                override fun loaded(result: ExpansionResult, exports: ModuleExports, struct: ModuleStruct) {
+                    loaded[result.module] = exports
+                }
+
+                override fun clausesLoaded(module: String, clauses: ModuleClauses?) {
+                    if (clauses == null) sourceClauses.remove(module) else sourceClauses[module] = clauses
+                }
+            }
+
+            Expander.expandFile(
+                lowered(preamble(rows, token), level),
+                Env.empty(level, legKernel),
+                level,
+                legExports,
+                legStructs,
+                observer,
+                file = FILE,
+                directories = DIRECTORIES,
+                clauses = sdk,
+            )
+        }
+
+        val exports = Exports { module -> loaded[module] ?: copies[module]?.exports ?: legExports.of(module) }
+        val clauses = ModuleClauses.Lookup { module ->
+            sourceClauses[module] ?: copies[module]?.clauses ?: sdk.of(module)
+        }
+        val module = "Elixir.$token.Case"
+        val empty = Env.empty(level, legKernel)
+
+        return rows.mapIndexed { index, row ->
+            val env = empty.copy(
+                requires = (empty.requires + row.requires(index, token).map { "Elixir.$it" }).distinct().sorted(),
+                contextModules = listOf(module),
+                module = module,
+            )
+            val run = Run(
+                level,
+                ExpansionObserver.NONE,
+                exports,
+                legStructs,
+                file = FILE,
+                directories = DIRECTORIES,
+                clauses = clauses,
+            )
+            val call = lowered(row.call(index, token), level)
+
+            when (val expanded = macroExpandOnce(call, ExState.empty(level), env, run)) {
+                is MacroExpanded.Node ->
+                    if (expanded.expanded) rendered(expanded.node.toOtp(), listOf(token), level, row.unordered) else "unexpanded"
+                MacroExpanded.Dir -> "dir"
+                is MacroExpanded.Stopped -> when (val stop = expanded.expansion) {
+                    is Expansion.Opaque -> OPAQUE
+                    is Expansion.Error ->
+                        inspect(OtpErlangTuple(arrayOf(OtpErlangAtom("raise"), OtpErlangAtom(stop.kind))))
+                    is Expansion.Unported ->
+                        if (stop.at === call) {
+                            "unported at `${detokened(row.call(index, token), listOf(token))}`"
+                        } else {
+                            "unported " + rendered(stop.at.toOtp(), listOf(token), level, row.unordered)
+                        }
+                    is Expansion.Expanded -> "expanded"
+                }
+            }
+        }
+    }
+
+    private fun lowered(text: String, level: ElixirLanguageLevel): ElixirAst {
+        val file = parse(text)
+
+        return ReadAction.computeBlocking<ElixirAst, Throwable> { Lowering.lower(file, level) }
+    }
+
+    /**
+     * Elixir's `Macro.expand_once/2` of each of [rows]' calls, in `{token}.Case`, once the rows' modules are compiled
+     * with debug info and loaded, and each of those modules' binary, compiled [ORACLE_BATCH] rows together.
+     */
+    private fun oracle(rows: List<Row>, token: String): Oracle {
+        val answers = HashMap<Int, OtpErlangObject>()
+        val binaries = HashMap<String, ByteArray>()
+
+        for (batch in rows.indices.chunked(ORACLE_BATCH)) {
+            val requires = batch.flatMap { rows[it].requires(it, token) }.distinct()
+            val expansions = batch.map { index ->
+                """
+                IntellijElixir.Quoter.Probe.send(__ENV__, {:row, $index, try do
+                  Macro.expand_once(quote(do: ${rows[index].call(index, token)}), __ENV__)
+                rescue
+                  e -> {:raise, e.__struct__}
+                catch
+                  kind, _ -> {:caught, kind}
+                end})
+                """.trimIndent()
+            }
+            // The quoter unloads `{token}.Case` after each compile, so the next batch defines it again.
+            val preamble = elixirString(preamble(rows, token, only = batch))
+            val compiled = Quoter.compile(
+                "for {module, binary} <- Code.compile_string($preamble) do\n" +
+                    "  IntellijElixir.Quoter.Probe.send(__ENV__, {:module, module, binary})\n" +
+                    "end\n" +
+                    "defmodule $token.Case do\n" +
+                    requires.joinToString("") { "require $it\n" } +
+                    expansions.joinToString("\n") +
+                    "\nend\n",
+                COMPILE_TIMEOUT,
+            )
+
+            val raised = (compiled.status as? OtpErlangTuple)?.elements()?.lastOrNull() as? OtpErlangBinary
+
+            assertEquals(
+                "oracle: ${raised?.binaryValue()?.decodeToString()} ${compiled.diagnostics.map(::inspect)}",
+                OtpErlangAtom("ok"),
+                compiled.status,
+            )
+
+            for (message in compiled.messages) {
+                val elements = (message as OtpErlangTuple).elements()
+
+                if (elements[0] == OtpErlangAtom("row")) {
+                    answers[(elements[1] as OtpErlangLong).intValue()] = elements[2]
+                } else {
+                    binaries[(elements[1] as OtpErlangAtom).atomValue()] =
+                        (elements[2] as OtpErlangBinary).binaryValue()
+                }
+            }
+        }
+
+        return Oracle(answers, binaries)
+    }
+
+    /** Each of [binaries] written as a `.beam`, and read as its clauses and its exports. */
+    private fun copies(binaries: Map<String, ByteArray>): Map<String, Copy> {
+        val directory = FileUtil.createTempDirectory("interpreter", null)
+
+        VfsRootAccess.allowRootAccess(testRootDisposable, directory.path)
+
+        return binaries.mapValues { (module, binary) ->
+            val beam = File(directory, "$module.beam").apply { writeBytes(binary) }
+
+            Copy(
+                clausesOf(beam) ?: throw AssertionError("$module's clauses aren't read"),
+                LoadedModules.exports(binary, beam.path),
+            )
+        }
+    }
+
+    private fun clausesOf(beam: File): ModuleClauses? =
+        ReadAction.computeBlocking<ModuleClauses?, Throwable> {
+            val file = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(beam)!!
+            val compiled = PsiManager.getInstance(project).findFile(file) as PsiCompiledFile
+            val mirror = compiled.decompiledPsiFile as ElixirFile
+            val bytes = beam.readBytes()
+            val deprecations = (LoadedModules.exports(bytes, beam.path) as? ModuleExports.Present)?.deprecated
+
+            deprecations
+                ?.let { CompiledModule.of(bytes, beam.path, mirror, legLevel(), it) }
+                ?.let { ModuleClauses.of(it, beam.path) }
+        }
+
+    private enum class Source { SOURCE, DBGI }
+
+    /** How a row runs from source. */
+    private enum class SourceRun {
+        ANSWERS,
+
+        /** Its body calls a macro or an import, or holds a form only an expanded body holds, so the evaluator declines. */
+        NEEDS_DISPATCH,
+
+        /** Its macro is the leg's, which only a `.beam` holds. */
+        NONE,
+    }
+
+    private class Oracle(val answers: Map<Int, OtpErlangObject>, val binaries: Map<String, ByteArray>)
+
+    private class Copy(val clauses: ModuleClauses, val exports: ModuleExports)
+
+    /**
+     * @property defs the body of the row's module, `{row}`; empty where its macro is the leg's
+     * @property call the call `Macro.expand_once/2` expands
+     * @property body the case body
+     * @property stop where [body] stops when the call is declined: the call's text, by default
+     * @property requires the modules the call's env requires
+     * @property pins the output the evaluator gives where it isn't Elixir's, from a source on a leg: [OPAQUE] where it
+     *   declines by one of its rules, [UNPORTED] where the call's module isn't loaded
+     * @property stopsAfter where the case module stops after the call, at a gap outside the evaluator, as the start of
+     *   the node rendered
+     * @property unordered whether the output holds an escaped map, whose pairs Elixir lists in an order the VM keeps
+     * @property ownEnd how the row's own module ends from source, where it doesn't compile
+     */
+    private class Row(
+        val id: String,
+        val defs: String,
+        private val call: String,
+        private val body: String,
+        private val stop: String,
+        private val requires: List<String>,
+        private val source: SourceRun,
+        val legs: (ElixirLanguageLevel) -> Boolean,
+        private val pins: (Source, ElixirLanguageLevel) -> String?,
+        val stopsAfter: String?,
+        val unordered: Boolean = false,
+        val ownEnd: String? = null,
+    ) {
+        fun runsFrom(source: Source) = source == Source.DBGI || this.source != SourceRun.NONE
+
+        fun pinned(source: Source, level: ElixirLanguageLevel): String? =
+            pins(source, level) ?: OPAQUE.takeIf { source == Source.SOURCE && this.source == SourceRun.NEEDS_DISPATCH }
+
+        fun call(index: Int, token: String) = named(call, index, token)
+
+        fun body(index: Int, token: String) = named(body, index, token)
+
+        fun stopText(index: Int, token: String) = named(stop, index, token)
+
+        fun requires(index: Int, token: String) = requires.map { named(it, index, token) }
+
+        private fun named(text: String, index: Int, token: String) = text.replace(ROW, module(index, token))
+    }
+
+    /**
+     * [term] with every node's metadata emptied, as Elixir's `inspect` prints it, each of [tokens] as `{token}`. Where
+     * [ESCAPED_MAP_IN_VM_ORDER] holds and [unordered], as for a row that escapes a map, a map's pairs are sorted, as
+     * Elixir's order is the atoms' index in the VM.
+     */
+    private fun rendered(term: OtpErlangObject, tokens: List<String>, level: ElixirLanguageLevel, unordered: Boolean): String =
+        detokened(
+            inspect(withoutMeta(term).let { if (unordered && ESCAPED_MAP_IN_VM_ORDER.isSufficient(level)) pairsSorted(it) else it }),
+            tokens,
+        )
+
+    private fun pairsSorted(term: OtpErlangObject): OtpErlangObject =
+        when (term) {
+            is OtpErlangTuple -> {
+                val elements = term.elements().map(::pairsSorted)
+                val pairs = elements.getOrNull(2) as? OtpErlangList
+
+                if (term.arity() == 3 && elements[0] == OtpErlangAtom("%{}") && pairs != null && pairs.lastTail == null) {
+                    val sorted = pairs.elements().sortedBy { pair -> inspect((pair as? OtpErlangTuple)?.elementAt(0) ?: pair) }
+
+                    OtpErlangTuple(arrayOf(elements[0], elements[1], OtpErlangList(sorted.toTypedArray())))
+                } else {
+                    OtpErlangTuple(elements.toTypedArray())
+                }
+            }
+            is OtpErlangList -> {
+                val elements = term.elements().map(::pairsSorted).toTypedArray()
+
+                term.lastTail?.let { OtpErlangList(elements, pairsSorted(it)) } ?: OtpErlangList(elements)
+            }
+            else -> term
+        }
+
+    private fun detokened(text: String, tokens: List<String>): String =
+        tokens.fold(text) { acc, token -> acc.replace(token, TOKEN) }
+
+    private fun withoutMeta(term: OtpErlangObject): OtpErlangObject =
+        when (term) {
+            is OtpErlangTuple ->
+                if (term.arity() == 3 && term.elementAt(1) is OtpErlangList) {
+                    OtpErlangTuple(arrayOf(withoutMeta(term.elementAt(0)), OtpErlangList(), withoutMeta(term.elementAt(2))))
+                } else {
+                    OtpErlangTuple(term.elements().map(::withoutMeta).toTypedArray())
+                }
+            is OtpErlangList -> {
+                val elements = term.elements().map(::withoutMeta).toTypedArray()
+
+                term.lastTail?.let { OtpErlangList(elements, withoutMeta(it)) } ?: OtpErlangList(elements)
+            }
+            // As `elixir_quote:fun_to_quoted/1` gives it, which expanding a macro's result does.
+            is OtpErlangExternalFun -> {
+                val receiver = OtpErlangList(arrayOf(OtpErlangAtom(term.module), OtpErlangAtom(term.function)))
+                val dot = OtpErlangTuple(arrayOf(OtpErlangAtom("."), OtpErlangList(), receiver))
+                val callee = OtpErlangTuple(arrayOf(dot, OtpErlangList(), OtpErlangList()))
+                val arguments = OtpErlangList(arrayOf(callee, OtpErlangLong(term.arity.toLong())))
+                val slash = OtpErlangTuple(arrayOf(OtpErlangAtom("/"), OtpErlangList(), arguments))
+
+                OtpErlangTuple(arrayOf(OtpErlangAtom("&"), OtpErlangList(), OtpErlangList(arrayOf(slash))))
+            }
+            is OtpErlangFun -> OtpErlangAtom("#Function")
+            else -> term
+        }
+
+    private fun OtpErlangObject.isCaught(): Boolean =
+        (this as? OtpErlangTuple)?.elementAt(0) == OtpErlangAtom("caught")
+
+    /** The module of the exception Elixir's expansion raised, as atom text. */
+    private fun OtpErlangObject.raised(): String? =
+        (this as? OtpErlangTuple)
+            ?.takeIf { it.arity() == 2 && it.elementAt(0) == OtpErlangAtom("raise") }
+            ?.let { (it.elementAt(1) as OtpErlangAtom).atomValue() }
+
+    private companion object {
+        const val TOKEN = "{token}"
+        const val ROW = "{row}"
+        const val OPAQUE = "opaque"
+        const val UNPORTED = "unported"
+        const val FILE = "probe.ex"
+        val DIRECTORIES = CompileDirectories { "/" }
+        val COMPILE_TIMEOUT = 60.seconds
+
+        /**
+         * The rows compiled together for their tables: on 1.13.4, 230 rows from source compiled in 15 s on a
+         * workstation and in over 40 s on CI, past the quoter's bound.
+         */
+        const val TABLES_BATCH = 40
+
+        /**
+         * The rows the oracle compiles together: on 1.13.4, 437 rows took 29 s in one compile on a workstation and over
+         * 60 s on CI, past the quoter's bound, and under 3 s for each 100 on a workstation.
+         */
+        const val ORACLE_BATCH = 100
+        val EVERY_LEG: (ElixirLanguageLevel) -> Boolean = { true }
+        val UNPINNED: (Source, ElixirLanguageLevel) -> String? = { _, _ -> null }
+        val DECLINED: (Source, ElixirLanguageLevel) -> String? = { _, _ -> OPAQUE }
+
+        /**
+         * A `%module{}` that doesn't name every field stops its module where the leg's debug info doesn't record which
+         * fields are enforced, as on 1.18.
+         */
+        fun buildsPartOf(module: String): (Source, ElixirLanguageLevel) -> String? = { source, _ ->
+            UNPORTED.takeIf { source == Source.SOURCE && (legStructs.of(module) as? ModuleStruct.Present)?.enforced == Enforced.Unknown }
+        }
+
+        /** A macro body reading `key` of `1`, `nil` and `true`, each exception rescued. */
+        val FIELD_ON_NON_MAPS = """
+            defmacro m do
+              for x <- [1, nil, true] do
+                try do
+                  x.key
+                rescue
+                  e -> e.__struct__
+                end
+              end
+            end
+        """.trimIndent()
+
+        /** The OTP 25 `lists` functions check their fun first, so below it an error is the VM's to say. */
+        val LISTS_ERROR_BELOW_OTP_25: (Source, ElixirLanguageLevel) -> String? = { _, level ->
+            OPAQUE.takeUnless { LISTS_CHECK_THE_FUN_FIRST.isSufficient(level) }
+        }
+
+        /** Below OTP 25, a fun with no clause matching raises as the compiler inlined it. */
+        val FN_CLAUSE_BELOW_OTP_25: (Source, ElixirLanguageLevel) -> String? = { _, level ->
+            OPAQUE.takeUnless { FN_CLAUSE_ERROR_IS_FUNCTION_CLAUSE.isSufficient(level) }
+        }
+
+        /** The test's `.beam`s are compiled in the quoter VM by the leg's Elixir, which holds no `Elixir.` prefix. */
+        fun module(index: Int, token: String) = "$token.R$index"
+
+        /** Each row's module, in one file, or only those of the rows at [only]. */
+        fun preamble(rows: List<Row>, token: String, only: List<Int>? = null): String =
+            rows.withIndex().filter { (index, row) -> row.defs.isNotEmpty() && (only == null || index in only) }
+                .joinToString("\n") { (index, row) ->
+                    "defmodule ${module(index, token)} do\n${row.defs.replace(ROW, module(index, token))}\nend"
+                }
+
+        /** A row whose case body binds the output of [call], a call of the row's module's. */
+        fun macro(
+            id: String,
+            defs: String,
+            call: String = "m()",
+            source: SourceRun = SourceRun.ANSWERS,
+            legs: (ElixirLanguageLevel) -> Boolean = EVERY_LEG,
+            pins: (Source, ElixirLanguageLevel) -> String? = UNPINNED,
+            stop: String = "$ROW.$call",
+            unordered: Boolean = false,
+            ownEnd: String? = null,
+        ) = Row(
+            id,
+            defs.trimIndent(),
+            "$ROW.$call",
+            "require $ROW\n_ = $ROW.$call",
+            stop,
+            listOf(ROW),
+            source,
+            legs,
+            pins,
+            null,
+            unordered,
+            ownEnd,
+        )
+
+        /** A row whose case body `use`s the row's module with [options]. */
+        fun use(
+            id: String,
+            defs: String,
+            options: String = "",
+            source: SourceRun = SourceRun.ANSWERS,
+            stopsAfter: String? = null,
+        ): Row {
+            val use = "use $ROW" + if (options.isEmpty()) "" else ", $options"
+            val call = "$ROW.__using__(${options.ifEmpty { "[]" }})"
+
+            return Row(id, defs.trimIndent(), call, use, use, listOf(ROW), source, EVERY_LEG, UNPINNED, stopsAfter)
+        }
+
+        /** A row whose case body `use`s the leg's [module]. */
+        fun leg(module: String, options: String = "", stopsAfter: String? = null): Row {
+            val use = "use $module" + if (options.isEmpty()) "" else ", $options"
+            val call = "$module.__using__(${options.ifEmpty { "[]" }})"
+
+            return Row(
+                "use:leg-" + module.lowercase(),
+                "",
+                call,
+                use,
+                use,
+                listOf(module),
+                SourceRun.NONE,
+                EVERY_LEG,
+                UNPINNED,
+                stopsAfter,
+            )
+        }
+
+        /** A `def` whose body unquotes `Macro.escape(opts)`, a fragment the walk doesn't evaluate. */
+        const val UNQUOTE_ESCAPED_OPTS = "{:unquote, [], [{{:., [], [{:__aliases__, [], [:Macro]}, :escape]}"
+
+        val ROWS: List<Row> = listOf(
+            // `elixir_erl_pass:translate/3`
+            macro(
+                "form:wildcard",
+                """
+                defmacro m do
+                  _ = :a
+                  :b
+                end
+                """,
+            ),
+            macro(
+                "form:match",
+                """
+                defmacro m(x) do
+                  {a, b} = x
+                  [b, a]
+                end
+                """,
+                "m({1, 2})",
+            ),
+            macro(
+                "form:match-badmatch",
+                """
+                defmacro m(x) do
+                  {a, _} = x
+                  a
+                end
+                """,
+                "m(3)",
+            ),
+            macro("form:tuple", "defmacro m(x), do: Macro.escape({x, 2, 3})", "m(1)"),
+            macro("form:map", "defmacro m(x), do: Macro.escape(%{a: x, b: 2})", "m(1)", unordered = true),
+            macro(
+                "form:map-update",
+                """
+                defmacro m do
+                  x = %{a: 1, b: 2}
+                  Macro.escape(%{x | a: 3})
+                end
+                """,
+                unordered = true,
+            ),
+            macro(
+                "form:map-update-badkey",
+                """
+                defmacro m do
+                  x = %{a: 1}
+                  Macro.escape(%{x | b: 2})
+                end
+                """,
+            ),
+            macro(
+                "form:struct",
+                """defmacro m, do: Macro.escape(%URI{host: "h"})""",
+                source = SourceRun.NEEDS_DISPATCH,
+                pins = buildsPartOf("Elixir.URI"),
+                unordered = true,
+            ),
+            macro(
+                "form:struct-update",
+                """
+                defmacro m do
+                  u = %URI{host: "h"}
+                  Macro.escape(%URI{u | port: 1})
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+                pins = buildsPartOf("Elixir.URI"),
+                unordered = true,
+            ),
+            macro(
+                "form:struct-update-other",
+                """
+                defmacro m do
+                  x = %{host: 1}
+                  Macro.escape(%URI{x | host: "x"})
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro(
+                "form:struct-pattern",
+                """
+                defmacro m do
+                  %URI{host: h} = %URI{host: "h"}
+                  h
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+                pins = buildsPartOf("Elixir.URI"),
+            ),
+            macro("form:bitstring", """defmacro m(a), do: <<a::8, "b">>""", "m(97)", source = SourceRun.NEEDS_DISPATCH),
+            macro("form:bitstring-utf8", "defmacro m(a), do: <<a::utf8>>", "m(233)", source = SourceRun.NEEDS_DISPATCH),
+            macro(
+                "form:bitstring-size",
+                """
+                defmacro m(a) do
+                  n = 16
+                  Macro.escape(<<a::size(n)>>)
+                end
+                """,
+                "m(97)",
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro(
+                "form:bitstring-match-size-past-an-int",
+                """
+                defmacro m do
+                  n = 4_294_967_296
+
+                  case <<1>> do
+                    <<x::size(n), _::bits>> -> {:matched, x}
+                    _ -> :no_match
+                  end
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro(
+                "form:bitstring-binary-size-past-an-int",
+                """
+                defmacro m do
+                  b = <<1>>
+                  n = 4_294_967_296
+                  <<b::binary-size(n)>>
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro(
+                "form:bitstring-integer-size-past-a-long",
+                """
+                defmacro m do
+                  n = 18_446_744_073_709_551_616
+                  <<0::size(n)>>
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+                pins = DECLINED,
+            ),
+            macro(
+                "form:bitstring-binary-unit",
+                """
+                defmacro m do
+                  b = <<1, 2>>
+                  Macro.escape(<<b::binary-unit(16)>>)
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro(
+                "form:bitstring-binary-unit-unaligned",
+                """
+                defmacro m do
+                  b = <<1>>
+                  <<b::binary-unit(16)>>
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro(
+                "form:bitstring-match-binary-unit",
+                """
+                defmacro m do
+                  case <<1>> do
+                    <<x::binary-unit(16)>> -> {:matched, Macro.escape(x)}
+                    _ -> :no_match
+                  end
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            // A binary segment's unit, not a byte, is what its bits come in.
+            macro(
+                "form:bitstring-match-binary-sub-byte-unit",
+                """
+                defmacro m do
+                  case <<15::4>> do
+                    <<x::binary-size(4)-unit(1)>> -> bit_size(x)
+                    _ -> :no_match
+                  end
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro(
+                "form:bitstring-match-binary-sub-byte-unit-tail",
+                """
+                defmacro m do
+                  case <<15::4>> do
+                    <<x::binary-unit(1)>> -> bit_size(x)
+                    _ -> :no_match
+                  end
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro(
+                "form:block",
+                """
+                defmacro m do
+                  :a
+                  :b
+                end
+                """,
+            ),
+            macro("form:caller", "defmacro m, do: __CALLER__.module"),
+            // A map whose `__exception__` isn't `true` is an exception from 1.20.0-rc.5 only.
+            macro(
+                "form:rescue-exception-key",
+                """
+                defmacro m do
+                  try do
+                    :erlang.error(%{__struct__: ArgumentError, __exception__: :yes, message: "m"})
+                  rescue
+                    ArgumentError -> :argument_error
+                    e -> {:other, e.__struct__}
+                  end
+                end
+                """,
+            ),
+            // Which variables the caller has bound is the expansion's to say.
+            macro("form:caller-vars", "defmacro m, do: Macro.Env.has_var?(__CALLER__, {:x, nil})", pins = DECLINED),
+            macro(
+                "form:stacktrace",
+                """
+                defmacro m do
+                  try do
+                    :erlang.error(:x)
+                  rescue
+                    _ -> :erlang.is_list(__STACKTRACE__)
+                  end
+                end
+                """,
+            ),
+            macro("form:capture-remote", "defmacro m, do: &Enum.map/2", pins = DECLINED),
+            macro(
+                "form:capture-local",
+                """
+                defmacro m do
+                  f = &h/1
+                  f.(2)
+                end
+
+                def h(x), do: :erlang.*(x, 3)
+                """,
+            ),
+            // Two captures of one local function are one map key.
+            macro(
+                "form:capture-local-map-key",
+                """
+                defmacro m do
+                  a = &h/1
+                  b = &h/1
+                  :erlang.map_size(%{a => 1, b => 2})
+                end
+
+                def h(x), do: x
+                """,
+                pins = DECLINED,
+            ),
+            macro(
+                "form:fn",
+                """
+                defmacro m do
+                  f = fn x -> :erlang.+(x, 1) end
+                  f.(1)
+                end
+                """,
+            ),
+            macro(
+                "form:fn-clauses",
+                """
+                defmacro m do
+                  f = fn
+                    :a -> 1
+                    _ -> 2
+                  end
+
+                  [f.(:a), f.(:b)]
+                end
+                """,
+            ),
+            macro(
+                "form:fn-call",
+                """
+                defmacro m do
+                  f = fn x, y -> [y, x] end
+                  f.(1, 2)
+                end
+                """,
+            ),
+            macro(
+                "form:fn-badarity",
+                """
+                defmacro m do
+                  f = fn x -> x end
+                  f.(1, 2)
+                end
+                """,
+            ),
+            macro(
+                "form:fn-clause",
+                "defmacro m(x), do: Enum.map([x], fn :a -> 1 end)",
+                "m(:b)",
+                pins = FN_CLAUSE_BELOW_OTP_25,
+            ),
+            macro(
+                "form:fn-clause-bound",
+                """
+                defmacro m do
+                  f = fn :a -> 1 end
+                  f.(:b)
+                end
+                """,
+                pins = FN_CLAUSE_BELOW_OTP_25,
+            ),
+            // A fun's name is the compiler's, from its fun counter and what it inlines.
+            macro(
+                "form:fn-clause-name",
+                """
+                defmacro m do
+                  f = fn :a -> 1 end
+                  g = fn :b -> f.(:a) end
+
+                  try do
+                    g.(:c)
+                  rescue
+                    e in FunctionClauseError -> e.function
+                  end
+                end
+                """,
+                pins = DECLINED,
+            ),
+            macro(
+                "form:cond",
+                """
+                defmacro m(x) do
+                  cond do
+                    :erlang.==(x, 1) -> :one
+                    true -> :other
+                  end
+                end
+                """,
+                "m(2)",
+            ),
+            macro(
+                "form:cond-truthy",
+                """
+                defmacro m do
+                  cond do
+                    nil -> 1
+                    false -> 2
+                    :yes -> 3
+                  end
+                end
+                """,
+            ),
+            macro(
+                "form:cond-no-clause",
+                """
+                defmacro m(x) do
+                  cond do
+                    :erlang.==(x, 1) -> :one
+                  end
+                end
+                """,
+                "m(2)",
+            ),
+            macro(
+                "form:case",
+                """
+                defmacro m(x) do
+                  case x do
+                    {:a, v} -> v
+                    _ -> :none
+                  end
+                end
+                """,
+                "m({:a, 1})",
+            ),
+            macro(
+                "form:case-guard",
+                """
+                defmacro m(x) do
+                  case x do
+                    v when :erlang.is_integer(v) -> :int
+                    _ -> :other
+                  end
+                end
+                """,
+                "m(1)",
+            ),
+            macro(
+                "form:case-clause",
+                """
+                defmacro m(x) do
+                  case x do
+                    :a -> 1
+                  end
+                end
+                """,
+                "m(:b)",
+            ),
+            macro(
+                "form:try-rescue",
+                """
+                defmacro m do
+                  try do
+                    :erlang.error(:badarg)
+                  rescue
+                    e in ArgumentError -> Macro.escape(e)
+                  end
+                end
+                """,
+                unordered = true,
+            ),
+            macro(
+                "form:try-rescue-erlang",
+                """
+                defmacro m do
+                  try do
+                    :erlang.binary_to_atom(1, :utf8)
+                  rescue
+                    ArgumentError -> :badarg
+                  end
+                end
+                """,
+            ),
+            macro(
+                "form:try-rescue-keyerror",
+                """
+                defmacro m do
+                  try do
+                    Keyword.fetch!([], :a)
+                  rescue
+                    e in KeyError -> e.key
+                  end
+                end
+                """,
+            ),
+            macro(
+                "form:try-rescue-erlang-error",
+                """
+                defmacro m do
+                  try do
+                    :erlang.error(:oops)
+                  rescue
+                    e in ErlangError -> e.original
+                  end
+                end
+                """,
+            ),
+            macro(
+                "form:try-rescue-variable",
+                """
+                defmacro m do
+                  try do
+                    :erlang.error(:oops)
+                  rescue
+                    e -> e.__struct__
+                  end
+                end
+                """,
+            ),
+            macro(
+                "form:try-rescue-unmatched",
+                """
+                defmacro m do
+                  try do
+                    :erlang.error(:oops)
+                  rescue
+                    KeyError -> :key
+                  end
+                end
+                """,
+            ),
+            macro(
+                "form:try-catch",
+                """
+                defmacro m do
+                  try do
+                    :erlang.throw(:t)
+                  catch
+                    :throw, v -> v
+                  end
+                end
+                """,
+            ),
+            macro(
+                "form:try-catch-value",
+                """
+                defmacro m do
+                  try do
+                    :erlang.throw(:t)
+                  catch
+                    v -> [v]
+                  end
+                end
+                """,
+            ),
+            macro(
+                "form:try-catch-error",
+                """
+                defmacro m do
+                  try do
+                    :erlang.error(:e)
+                  catch
+                    :error, v -> v
+                  end
+                end
+                """,
+            ),
+            macro(
+                "form:try-after",
+                """
+                defmacro m do
+                  try do
+                    :a
+                  after
+                    :b
+                  end
+                end
+                """,
+            ),
+            macro(
+                "form:try-after-raise",
+                """
+                defmacro m do
+                  try do
+                    :erlang.error(:x)
+                  after
+                    :b
+                  end
+                end
+                """,
+            ),
+            macro(
+                "form:try-else",
+                """
+                defmacro m do
+                  try do
+                    :a
+                  rescue
+                    _ -> :r
+                  else
+                    :a -> :else_a
+                  end
+                end
+                """,
+            ),
+            macro(
+                "form:try-else-clause",
+                """
+                defmacro m do
+                  try do
+                    :b
+                  rescue
+                    _ -> :r
+                  else
+                    :a -> 1
+                  end
+                end
+                """,
+            ),
+            macro("form:throw", "defmacro m, do: :erlang.throw(:t)", pins = DECLINED),
+            macro(
+                "form:receive",
+                """
+                defmacro m do
+                  receive do
+                    x -> x
+                  after
+                    0 -> :none
+                  end
+                end
+                """,
+                pins = DECLINED,
+            ),
+            macro("form:for", "defmacro m, do: for(x <- [1, 2], do: :erlang.*(x, 2))"),
+            macro("form:for-pattern", "defmacro m, do: for({:a, v} <- [{:a, 1}, :b, {:a, 2}], do: v)"),
+            macro("form:for-filter", "defmacro m, do: for(x <- [1, 2, 3], :erlang.>(x, 1), do: x)"),
+            macro("form:for-generators", "defmacro m, do: for(x <- [1, 2], y <- [:a], do: {x, y})"),
+            macro("form:for-into", "defmacro m, do: Macro.escape(for(x <- [1, 2], into: %{}, do: {x, x}))"),
+            macro("form:for-into-binary", """defmacro m, do: for(x <- ["a", "b"], into: "", do: x)"""),
+            macro(
+                "form:for-reduce",
+                """
+                defmacro m do
+                  for x <- [1, 2], reduce: 0 do
+                    acc -> :erlang.+(acc, x)
+                  end
+                end
+                """,
+            ),
+            macro("form:for-uniq", "defmacro m, do: for(x <- [1, 1, 2], uniq: true, do: x)"),
+            macro(
+                "form:for-bitstring-generator",
+                """defmacro m, do: for(<<c <- "ab">>, do: c)""",
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro(
+                "form:for-bitstring-skip",
+                "defmacro m, do: for(<<x::8, 0::8 <- <<1, 0, 2, 1, 3, 0>> >>, do: x)",
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            // A reduce's skip clause, by the sizes each leg's `elixir_erl_for` keeps.
+            macro(
+                "form:for-bitstring-reduce-skip-integer",
+                "defmacro m, do: for(<<x::8, 0::8 <- <<1, 0, 2, 1, 3, 0>> >>, uniq: true, do: x)",
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro(
+                "form:for-bitstring-reduce-skip-variable",
+                """
+                defmacro m do
+                  n = 8
+                  for <<x::size(n), 0::8 <- <<1, 0, 2, 1, 3, 0>> >>, uniq: true, do: x
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro(
+                "form:for-bitstring-reduce-skip-rebound",
+                """
+                defmacro m do
+                  n = 8
+                  {n, for(<<n::8, x::size(n), 0::8 <- <<8, 1, 0, 8, 2, 1, 8, 3, 0>> >>, uniq: true, do: x)}
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro(
+                "form:for-bitstring-reduce-skip-generator-rebound",
+                """
+                defmacro m do
+                  n = 8
+                  for n <- [8], <<x::size(n), 0::8 <- <<1, 0, 2, 1, 3, 0>> >>, do: x
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro(
+                "form:for-bitstring-reduce-skip-bitstring-generator-rebound",
+                """
+                defmacro m do
+                  n = 8
+                  for <<n::8 <- <<8>> >>, _ <- [1], <<x::size(n), 0::8 <- <<1, 0, 2, 1, 3, 0>> >>, do: x
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro(
+                "form:for-bitstring-reduce-skip-filter-rebound",
+                """
+                defmacro m do
+                  n = 8
+                  for _ <- [1], n = 8, <<x::size(n), 0::8 <- <<1, 0, 2, 1, 3, 0>> >>, do: x
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro(
+                "form:for-bitstring-reduce-skip-operator",
+                """
+                defmacro m do
+                  s = 1
+                  for <<0::size(s * 8), x::8 <- <<0, 1, 255, 2, 0, 3, 0, 1>> >>, uniq: true, do: x
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+                legs = BITSTRING_SIZE_EXPANDED_AS_GUARD::isSufficient,
+            ),
+            macro("form:for-bitstring-not-bitstring", "defmacro m(v), do: for(<<x <- v>>, do: x)", "m(1)", source = SourceRun.NEEDS_DISPATCH),
+            macro(
+                "form:for-bitstring-not-bitstring-into",
+                """defmacro m(v), do: for(<<x <- v>>, into: "", do: <<x>>)""",
+                "m(1)",
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro(
+                "form:for-bitstring-not-bitstring-into-bitstring",
+                "defmacro m(v), do: for(<<x <- v>>, into: <<>>, do: <<x>>)",
+                "m(1)",
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro(
+                "form:for-into-first",
+                """
+                defmacro m do
+                  try do
+                    for x <- [1], into: :erlang.error(:into), do: :erlang.error(x)
+                  rescue
+                    e in ErlangError -> e.original
+                  end
+                end
+                """,
+            ),
+            // `Collectable.into/1` raises for `1` before the body runs.
+            macro(
+                "form:for-into-unsupported-first",
+                """
+                defmacro m do
+                  try do
+                    for _ <- [1], into: 1, do: :erlang.div(1, 0)
+                  rescue
+                    e -> e.__struct__
+                  end
+                end
+                """,
+                pins = DECLINED,
+            ),
+            // `expand_for/4` expands the options first, in the scope the generators then start from, and from
+            // `GENERATOR_RIGHT_SIDE_SCOPED` drops what a generator's right side binds.
+            macro(
+                "form:for-generator-right-side-scope",
+                """
+                defmacro m do
+                  n = 8
+                  for _ <- (n = 16; [1]), do: n
+                end
+                """,
+            ),
+            macro(
+                "form:for-bitstring-generator-right-side-scope",
+                """
+                defmacro m do
+                  n = 8
+                  for _ <- [1], <<x::8 <- (n = 16; <<1>>)>>, do: {x, n}
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+                // Before, Elixir doesn't compile it: `unbound variable '_n@2'`.
+                legs = GENERATOR_RIGHT_SIDE_SCOPED::isSufficient,
+            ),
+            macro(
+                "form:for-into-scope",
+                """
+                defmacro m do
+                  n = 8
+                  {for(_ <- [1], into: (n = 16; []), do: n), n}
+                end
+                """,
+            ),
+            macro(
+                "form:for-reduce-scope",
+                """
+                defmacro m do
+                  n = 8
+                  {for(_ <- [1], reduce: (n = 16; 0), do: (acc -> acc + n)), n}
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro("form:with", "defmacro m(x), do: with({:ok, v} <- x, do: v)", "m({:ok, 1})"),
+            macro("form:with-unmatched", "defmacro m(x), do: with({:ok, v} <- x, do: v)", "m(:error)"),
+            macro("form:with-variable", "defmacro m(x), do: with(y <- x, do: [y])", "m(:a)"),
+            macro(
+                "form:with-else",
+                """
+                defmacro m(x) do
+                  with {:ok, v} <- x do
+                    v
+                  else
+                    :error -> :failed
+                  end
+                end
+                """,
+                "m(:error)",
+            ),
+            macro(
+                "form:with-else-before-last",
+                """
+                defmacro m(x) do
+                  with {:ok, v} <- x, else: (:error -> :failed) do
+                    v
+                  end
+                end
+                """,
+                "m(:error)",
+                legs = WITH_OPTIONS_BEFORE_LAST_ARGUMENT::isSufficient,
+            ),
+            macro(
+                "form:with-clause-error",
+                """
+                defmacro m(x) do
+                  with {:ok, v} <- x do
+                    v
+                  else
+                    :error -> :failed
+                  end
+                end
+                """,
+                "m(:other)",
+            ),
+            macro(
+                "form:pin",
+                """
+                defmacro m(x) do
+                  y = 1
+
+                  case x do
+                    ^y -> :same
+                    _ -> :different
+                  end
+                end
+                """,
+                "m(1)",
+            ),
+            macro("form:variable", "defmacro m(x), do: x", "m(:a)"),
+            macro(
+                "form:local",
+                """
+                defmacro m, do: h(2)
+
+                defp h(x), do: [x]
+                """,
+            ),
+            macro(
+                "form:local-clauses",
+                """
+                defmacro m, do: [h(1), h(:a)]
+
+                defp h(x) when :erlang.is_integer(x), do: :int
+                defp h(_), do: :other
+                """,
+            ),
+            macro(
+                "form:guard-field",
+                """
+                defmacro m do
+                  x = %{a: true}
+
+                  case x do
+                    v when v.a -> :yes
+                    _ -> :no
+                  end
+                end
+                """,
+            ),
+            macro(
+                "form:guard-field-raises",
+                """
+                defmacro m do
+                  x = 1
+
+                  case x do
+                    v when v.a -> :yes
+                    _ -> :no
+                  end
+                end
+                """,
+            ),
+            macro(
+                "form:field",
+                """
+                defmacro m do
+                  x = %{a: 1}
+                  x.a
+                end
+                """,
+            ),
+            macro(
+                "form:field-missing-key",
+                """
+                defmacro m do
+                  x = %{a: 1}
+                  x.b
+                end
+                """,
+            ),
+            // Before a non-map raises for its key, `1.key` calls `1:key()`.
+            macro(
+                "form:field-remote",
+                """
+                defmacro m do
+                  x = 1
+                  x.key
+                end
+                """,
+                legs = { !FIELD_OF_NON_MAP_RAISES_BADKEY.isSufficient(it) },
+            ),
+            // Before a non-map raises for its key, `nil.key` and `true.key` call a module no file defines.
+            macro(
+                "form:field-opaque",
+                """
+                defmacro m do
+                  x = nil
+                  x.key
+                end
+                """,
+                legs = { !FIELD_OF_NON_MAP_RAISES_BADKEY.isSufficient(it) },
+                pins = DECLINED,
+            ),
+            macro(
+                "form:field-opaque-true",
+                """
+                defmacro m do
+                  x = true
+                  x.key
+                end
+                """,
+                legs = { !FIELD_OF_NON_MAP_RAISES_BADKEY.isSufficient(it) },
+                pins = DECLINED,
+            ),
+            macro(
+                "form:field-keyerror",
+                FIELD_ON_NON_MAPS,
+                pins = { _, level -> OPAQUE.takeIf { KEY_ERROR_MESSAGE_INSPECTED_WITH_OPTIONS.isSufficient(level) } },
+                legs = { FIELD_OF_NON_MAP_RAISES_BADKEY.isSufficient(it) && !FIELD_OF_NON_MAP_RAISES_BADMAP.isSufficient(it) },
+            ),
+            macro("form:field-badmap", FIELD_ON_NON_MAPS, legs = FIELD_OF_NON_MAP_RAISES_BADMAP::isSufficient),
+            macro("form:remote", "defmacro m, do: Keyword.keys([a: 1, b: 2])"),
+            macro(
+                "form:remote-own",
+                """
+                defmacro m, do: $ROW.h(1)
+
+                def h(x), do: [x]
+                """,
+            ),
+            macro("form:remote-unreadable", "defmacro m, do: :code.which(:absent_beam)", pins = DECLINED),
+            macro("form:pair", "defmacro m, do: {:a, :b}"),
+            macro("form:list", "defmacro m, do: [1, :a]"),
+            macro("form:improper-list", "defmacro m, do: Macro.escape([1 | 2])"),
+            macro("form:literal", """defmacro m, do: [1.5, "b", :c]"""),
+            // A module defining a guard stops at its `Kernel.Utils.defguard/2`, so it isn't loaded.
+            macro(
+                "form:defguard-source",
+                "defguard is_even(x) when rem(x, 2) == 0",
+                "is_even(4)",
+                pins = { source, _ -> UNPORTED.takeIf { source == Source.SOURCE } },
+                ownEnd = "opaque at Elixir.Kernel.Utils.defguard",
+            ),
+            Row(
+                "form:defguard-in-guard",
+                "defguard is_even(x) when rem(x, 2) == 0",
+                "$ROW.is_even(4)",
+                "require $ROW\n_ = $ROW.is_even(4)\ndef f(y) when $ROW.is_even(y), do: y",
+                "$ROW.is_even(4)",
+                listOf(ROW),
+                SourceRun.NONE,
+                EVERY_LEG,
+                UNPINNED,
+                null,
+            ),
+            // A spec that a macro expands to another spec is unpacked again.
+            Row(
+                "form:bitstring-spec-macro",
+                "defmacro my_size, do: quote(do: size(16))",
+                "$ROW.my_size()",
+                "import $ROW\ndef f(x), do: <<x::my_size()>>",
+                "my_size()",
+                listOf(ROW),
+                SourceRun.ANSWERS,
+                EVERY_LEG,
+                UNPINNED,
+                "{:size, [], [16]}",
+            ),
+
+            // `elixir_quote`'s run-time helpers
+            macro(
+                "quote:runtime-option",
+                """
+                defmacro m do
+                  l = 7
+                  quote line: l, do: node()
+                end
+                """,
+            ),
+            macro(
+                "quote:runtime-option-invalid",
+                """
+                defmacro m do
+                  l = :bad
+                  quote line: l, do: node()
+                end
+                """,
+            ),
+            macro(
+                "quote:validate",
+                """
+                defmacro m do
+                  x = 1
+                  quote do: unquote(x)
+                end
+                """,
+            ),
+            macro(
+                "quote:dot",
+                """
+                defmacro m do
+                  name = :max
+                  quote do: Kernel.unquote(name)(1, 2)
+                end
+                """,
+            ),
+            macro(
+                "quote:dot-alias",
+                """
+                defmacro m do
+                  name = String
+                  quote do: Kernel.unquote(name)
+                end
+                """,
+            ),
+            macro(
+                "quote:dot-atom",
+                """
+                defmacro m do
+                  name = :node
+                  quote do: Kernel.unquote(name)
+                end
+                """,
+            ),
+            macro(
+                "quote:dot-aliases",
+                """
+                defmacro m do
+                  name = quote(do: Foo.Bar)
+                  quote do: Kernel.unquote(name)
+                end
+                """,
+            ),
+            macro(
+                "quote:dot-no-parens",
+                """
+                defmacro m do
+                  name = quote(do: foo)
+                  quote do: %{foo: 1}.unquote(name)
+                end
+                """,
+            ),
+            macro(
+                "quote:dot-call",
+                """
+                defmacro m do
+                  name = quote(do: reverse([1]))
+                  quote do: :lists.unquote(name)
+                end
+                """,
+            ),
+            macro(
+                "quote:dot-invalid",
+                """
+                defmacro m do
+                  name = 1
+                  quote do: Kernel.unquote(name)
+                end
+                """,
+            ),
+            macro(
+                "quote:dot-args",
+                """
+                defmacro m do
+                  name = quote(do: max)
+                  quote do: :erlang.unquote(name)(1, 2)
+                end
+                """,
+            ),
+            macro(
+                "quote:dot-args-invalid",
+                """
+                defmacro m do
+                  name = 1
+                  quote do: Kernel.unquote(name)(1)
+                end
+                """,
+            ),
+            macro(
+                "quote:splice",
+                """
+                defmacro m do
+                  xs = [1, 2]
+                  quote do: [0, unquote_splicing(xs), 3]
+                end
+                """,
+            ),
+            macro(
+                "quote:splice-call",
+                """
+                defmacro m do
+                  xs = [1, 2]
+                  quote do: max(unquote_splicing(xs))
+                end
+                """,
+            ),
+            macro(
+                "quote:splice-tail",
+                """
+                defmacro m do
+                  xs = [1, 2]
+                  quote do: [0, unquote_splicing(xs) | [3]]
+                end
+                """,
+            ),
+            macro(
+                "quote:splice-empty-before-tail",
+                """
+                defmacro m do
+                  xs = []
+                  quote do: [unquote_splicing(xs) | [3]]
+                end
+                """,
+            ),
+            macro(
+                "quote:splice-invalid",
+                """
+                defmacro m do
+                  xs = 1
+                  quote do: [unquote_splicing(xs)]
+                end
+                """,
+            ),
+            macro(
+                "quote:splice-invalid-element",
+                """
+                defmacro m do
+                  xs = [{1, 2, 3}]
+                  quote do: [unquote_splicing(xs)]
+                end
+                """,
+                legs = UNQUOTE_SHALLOW_VALIDATED::isSufficient,
+            ),
+            macro(
+                "quote:unquote-invalid",
+                """
+                defmacro m do
+                  x = {1, 2, 3}
+                  quote do: f(unquote(x))
+                end
+                """,
+                legs = UNQUOTE_SHALLOW_VALIDATED::isSufficient,
+            ),
+            macro(
+                "quote:annotate-def",
+                """
+                defmacro m do
+                  name = :def
+                  quote do: Kernel.unquote(name)(f(x), do: x)
+                end
+                """,
+            ),
+            macro(
+                "quote:annotate-def-when",
+                """
+                defmacro m do
+                  name = :def
+                  quote do: Kernel.unquote(name)(f(x) when x, do: x)
+                end
+                """,
+            ),
+            macro(
+                "quote:annotate-lexical",
+                """
+                defmacro m do
+                  name = :import
+                  Macro.escape(quote do: Kernel.unquote(name)(List))
+                end
+                """,
+            ),
+
+            // `Macro.escape/2`
+            macro("escape:prune", "defmacro m, do: Macro.escape({:a, [line: 1], nil}, prune_metadata: true)"),
+            macro("escape:pair", "defmacro m, do: Macro.escape({:a, 1})"),
+            macro("escape:tuple", "defmacro m, do: Macro.escape({:a, 1, 2})"),
+            macro("escape:bitstring", "defmacro m, do: Macro.escape(<<1::3>>)", source = SourceRun.NEEDS_DISPATCH),
+            macro("escape:map-order", "defmacro m, do: Macro.escape(%{b: 1, a: 2, c: 3})", unordered = true),
+            macro("escape:map-nested", "defmacro m, do: Macro.escape(%{a: %{b: [1]}})"),
+            // `1` and `1.0` tie as keys, so the sort compares their values, one of them a binary whose bytes aren't known.
+            macro(
+                "escape:map-unknown-value",
+                "defmacro m, do: Macro.escape(%{1 => inspect(1), 1.0 => :ok})",
+                pins = DECLINED,
+                unordered = true,
+            ),
+            // In the window, Elixir lists atom keys in the order the VM made them, and the port keeps term order.
+            macro(
+                "escape:map-vm-order",
+                "defmacro m, do: Macro.escape(%{zz_vm_first: 1, aa_vm_second: 2})",
+                legs = ESCAPED_MAP_IN_VM_ORDER::isSufficient,
+                pins = { _, _ -> "{:%{}, [], [aa_vm_second: 2, zz_vm_first: 1]}" },
+            ),
+            // `__escape__/1` returns code the escape doesn't run.
+            macro(
+                "escape:struct-escape",
+                """
+                defstruct [:ast]
+
+                def __escape__(%{ast: ast}), do: ast
+
+                defmacro m, do: Macro.escape(%{__struct__: __MODULE__, ast: :escaped})
+                """,
+                pins = { _, level -> OPAQUE.takeIf { REGEX_ESCAPED_IN_FIXED_FIELD_ORDER.isSufficient(level) } },
+                unordered = true,
+            ),
+            macro("escape:struct", "defmacro m, do: Macro.escape(%URI{})", source = SourceRun.NEEDS_DISPATCH, pins = buildsPartOf("Elixir.URI"), unordered = true),
+            macro("escape:empty-list", "defmacro m, do: Macro.escape([])"),
+            macro("escape:list-no-unquote", "defmacro m, do: Macro.escape([1, {:unquote, [], [:x]}])"),
+            macro("escape:list", "defmacro m, do: Macro.escape([1, {:unquote, [], [:x]}], unquote: true)"),
+            macro("escape:improper-list", "defmacro m, do: Macro.escape([1, 2 | 3])"),
+            macro("escape:literal", """defmacro m, do: Macro.escape([1, 2.5, :a, "b"])"""),
+            macro("escape:external", "defmacro m, do: Macro.escape(&Enum.map/2)"),
+            macro("escape:closure", "defmacro m, do: Macro.escape(fn -> 1 end)"),
+
+            // The natives: `erlang`
+            macro("pure:append", "defmacro m, do: :erlang.++([1], [2])"),
+            macro("pure:append-improper", "defmacro m, do: :erlang.++([1 | 2], [3])"),
+            macro("pure:subtract-exact", "defmacro m, do: :erlang.--([1, 1.0], [1])"),
+            macro(
+                "pure:eq-int-float",
+                """defmacro m, do: [:erlang.==(1, 1.0), :erlang."=:="(1, 1.0), :erlang."/="(1, 2), :erlang."=/="(1, 1.0)]""",
+            ),
+            macro(
+                "pure:eq-nested",
+                """defmacro m, do: [:erlang.==({1, [2]}, {1, [2.0]}), :erlang."=:="({1, [2]}, {1, [2.0]})]""",
+            ),
+            macro(
+                "pure:compare-term-order",
+                """
+                defmacro m do
+                  [
+                    :erlang.<(1, :a),
+                    :erlang.<(:a, {1}),
+                    :erlang.<({1}, %{}),
+                    :erlang.<(%{}, []),
+                    :erlang.<([], [1]),
+                    :erlang.<([1], "a"),
+                    :erlang.<(1, 1.0),
+                    :erlang.>=(1.0, 1),
+                    :erlang.>({2}, {1, 1}),
+                    :erlang."=<"(:b, :a)
+                  ]
+                end
+                """,
+            ),
+            macro("pure:bool", "defmacro m, do: [:erlang.not(true), :erlang.and(true, false), :erlang.or(false, true)]"),
+            macro("pure:bool-badarg", "defmacro m, do: :erlang.and(1, true)"),
+            macro(
+                "pure:is",
+                """
+                defmacro m do
+                  [
+                    :erlang.is_atom(nil),
+                    :erlang.is_binary("a"),
+                    :erlang.is_integer(1.0),
+                    :erlang.is_number(1.0),
+                    :erlang.is_tuple({}),
+                    :erlang.is_map(%{}),
+                    :erlang.is_boolean(nil)
+                  ]
+                end
+                """,
+            ),
+            macro("pure:is-list-charlist", "defmacro m, do: [:erlang.is_list([97, 98]), :erlang.is_list([1 | 2])]"),
+            macro(
+                "pure:is-function-2",
+                "defmacro m, do: [:erlang.is_function(&Enum.map/2, 2), :erlang.is_function(&Enum.map/2, 1)]",
+            ),
+            macro(
+                "pure:is-function-arity-past-a-long",
+                "defmacro m, do: :erlang.is_function(&Enum.map/2, 18_446_744_073_709_551_618)",
+            ),
+            macro(
+                "pure:element",
+                "defmacro m, do: [:erlang.element(1, {:a}), :erlang.tuple_size({1, 2}), Macro.escape(:erlang.setelement(1, {:a, :b}, :c))]",
+            ),
+            macro("pure:element-badarg", "defmacro m, do: :erlang.element(3, {1, 2})"),
+            macro("pure:hd-tl", "defmacro m, do: [:erlang.hd([1, 2]), :erlang.tl([1, 2]), :erlang.length([1, 2])]"),
+            macro("pure:tl-improper", "defmacro m, do: :erlang.tl([1 | 2])"),
+            macro("pure:length-improper", "defmacro m, do: :erlang.length([1 | 2])"),
+            macro(
+                "pure:map",
+                "defmacro m, do: [:erlang.map_size(%{a: 1}), :erlang.map_get(:a, %{a: 1}), :erlang.is_map_key(:b, %{a: 1})]",
+            ),
+            macro("pure:badmap", "defmacro m, do: :erlang.map_get(:a, 1)"),
+            macro("pure:badkey", "defmacro m, do: :erlang.map_get(:b, %{a: 1})"),
+            macro(
+                "pure:arith",
+                "defmacro m, do: [:erlang.rem(7, 2), :erlang.div(7, 2), :erlang.-(1, 3), :erlang.-(2), :erlang.+(2), :erlang.abs(:erlang.-(3))]",
+            ),
+            macro("pure:arith-float", "defmacro m, do: [:erlang./(4, 2), :erlang.+(1, 2.0), :erlang.*(2, 1.5)]"),
+            macro("pure:badarith", "defmacro m, do: :erlang.+(1, :a)"),
+            macro("pure:badarith-division", "defmacro m, do: :erlang.div(1, 0)"),
+            macro(
+                "pure:atom-binary",
+                """
+                defmacro m do
+                  [
+                    :erlang.atom_to_binary(:a, :utf8),
+                    :erlang.binary_to_atom("a", :utf8),
+                    :erlang.binary_to_existing_atom("a", :utf8)
+                  ]
+                end
+                """,
+            ),
+            macro("pure:binary-to-atom-invalid", "defmacro m, do: :erlang.binary_to_atom(1, :utf8)"),
+            macro(
+                "pure:atom-binary-encoding",
+                """
+                defmacro m do
+                  [
+                    :erlang.atom_to_binary(:"é", :latin1),
+                    :erlang.binary_to_atom("\\xE9", :latin1),
+                    :erlang.atom_to_binary(:"é", :unicode),
+                    try do
+                      :erlang.atom_to_binary(:a, :foo)
+                    rescue
+                      ArgumentError -> :badarg
+                    end
+                  ]
+                end
+                """,
+            ),
+            macro(
+                "pure:type-tests",
+                """
+                defmacro m do
+                  [
+                    :erlang.xor(true, false),
+                    :erlang.is_bitstring(<<1::1>>),
+                    :erlang.is_float(1.0),
+                    :erlang.is_pid(1),
+                    :erlang.binary_to_existing_atom("true"),
+                    :erlang.byte_size(<<1, 2::4>>),
+                    :erlang.bit_size(<<1, 2::4>>)
+                  ]
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro("form:exit", "defmacro m, do: :erlang.exit(:x)", pins = DECLINED),
+            macro("pure:raise-badarg", "defmacro m, do: [:erlang.raise(:foo, :a, []), :erlang.raise(:error, :a, :bad)]"),
+            // `raise_3` takes `{Fun, Args}` and `{M, F, A}` frames, and never reads a frame's arity or arguments.
+            macro(
+                "pure:raise-frames",
+                """
+                defmacro m do
+                  try do
+                    :erlang.raise(:error, :x, [{:m, :f, 1}, {:m, :f, :any, []}, {&List.first/1, [[1]]}])
+                  rescue
+                    e in ErlangError -> e.original
+                  end
+                end
+                """,
+            ),
+            macro("pure:raise-bad-location", "defmacro m, do: :erlang.raise(:error, :x, [{:m, :f, 1, :nowhere}])"),
+            // `raise_3` stores a `{Fun, Args}` or `{M, F, A}` frame with an empty location, and the first 8 frames.
+            macro(
+                "pure:raise-short-frames",
+                """
+                defmacro m do
+                  frames = [{:m, :f, 1} | for(arity <- [1, 2, 3, 4, 5, 6, 7, 8], do: {:m, :g, arity, []})]
+
+                  short =
+                    try do
+                      :erlang.raise(:error, :x, frames)
+                    rescue
+                      _ -> Macro.escape(__STACKTRACE__)
+                    end
+
+                  fun =
+                    try do
+                      :erlang.raise(:error, :x, [{&List.first/1, [[1]]}])
+                    rescue
+                      _ -> :erlang.tuple_size(:erlang.hd(__STACKTRACE__))
+                    end
+
+                  [short, fun]
+                end
+                """,
+            ),
+            // A `fn`'s `function_clause` frame names a function the evaluator doesn't know.
+            macro(
+                "pure:raise-unknown-frame",
+                """
+                defmacro m do
+                  f = fn :a -> 1 end
+
+                  try do
+                    f.(:b)
+                  rescue
+                    e -> :erlang.raise(:error, e, __STACKTRACE__)
+                  end
+                end
+                """,
+                pins = DECLINED,
+            ),
+            macro(
+                "pure:tuple-list",
+                "defmacro m, do: [:erlang.tuple_to_list({1, 2}), Macro.escape(:erlang.list_to_tuple([1, 2, 3]))]",
+            ),
+            macro("pure:list-to-tuple-improper", "defmacro m, do: :erlang.list_to_tuple([1 | 2])"),
+            macro(
+                "pure:function-exported",
+                "defmacro m, do: [:erlang.function_exported(Enum, :map, 2), :erlang.function_exported(Enum, :nope, 0)]",
+            ),
+            // The VM reads an arity by its low 32 bits, and one past a small integer is no arity.
+            macro("pure:function-exported-arity-past-an-int", "defmacro m, do: :erlang.function_exported(Enum, :map, 4_294_967_298)"),
+            macro(
+                "pure:function-exported-arity-past-a-small-integer",
+                "defmacro m, do: :erlang.function_exported(Enum, :map, 576_460_752_303_423_490)",
+            ),
+            macro(
+                "pure:apply",
+                "defmacro m, do: [:erlang.apply(Keyword, :get, [[a: 1], :a]), :erlang.apply(fn x -> [x] end, [1])]",
+            ),
+            macro("pure:apply-badarity", "defmacro m, do: :erlang.apply(fn -> 1 end, [1])"),
+
+            // The natives: `lists`
+            macro("pure:reverse", "defmacro m, do: [:lists.reverse([1, 2]), :lists.reverse([1], [2])]"),
+            macro("pure:reverse-improper", "defmacro m, do: :lists.reverse([1 | 2])"),
+            macro(
+                "pure:member",
+                "defmacro m, do: [:lists.member(1, [1.0]), :lists.member(1, [1]), :lists.keymember(:a, 1, [{:a, 1}])]",
+            ),
+            macro("pure:keyfind-int-float", "defmacro m, do: :lists.keyfind(1, 1, [{1.0, :a}])"),
+            macro("pure:keydelete", "defmacro m, do: :lists.keydelete(:a, 1, [{:a, 1}, {:b, 2}])"),
+            macro("pure:keydelete-badarg", "defmacro m, do: :lists.keydelete(:a, 0, [])"),
+            macro("pure:keyfind-position-past-an-int", "defmacro m, do: :lists.keyfind(:a, 4_294_967_297, [{:a, 1}])"),
+            macro(
+                "pure:keyfind-position-past-a-small-integer",
+                "defmacro m, do: :lists.keyfind(:a, 576_460_752_303_423_488, [{:a, 1}])",
+            ),
+            macro("pure:keydelete-position-past-an-int", "defmacro m, do: :lists.keydelete(:a, 4_294_967_297, [{:a, 1}])"),
+            macro(
+                "pure:keydelete-position-past-a-long",
+                "defmacro m, do: :lists.keydelete(:a, 18_446_744_073_709_551_617, [{:a, 1}])",
+            ),
+            macro("pure:append-lists", "defmacro m, do: [:lists.append([[1], [2]]), :lists.append([1], [2])]"),
+            macro("pure:append-last-improper", "defmacro m, do: Macro.escape(:lists.append([[1], 2]))"),
+            macro("pure:flatten-charlist", "defmacro m, do: :lists.flatten([[97], [98, [99]]])"),
+            macro(
+                "pure:lists-higher-order",
+                """
+                defmacro m do
+                  [
+                    :lists.map(fn x -> [x] end, [1, 2]),
+                    :lists.filter(fn x -> :erlang.>(x, 1) end, [1, 2]),
+                    :lists.foldl(fn x, acc -> [x | acc] end, [], [1, 2]),
+                    Macro.escape(:lists.mapfoldl(fn x, acc -> {[x], :erlang.+(acc, x)} end, 0, [1, 2]))
+                  ]
+                end
+                """,
+            ),
+            macro("pure:filter-bad-filter", "defmacro m, do: :lists.filter(fn _ -> 1 end, [1])"),
+            macro(
+                "pure:filter-improper",
+                """
+                defmacro m do
+                  for keep <- [:x, true] do
+                    try do
+                      :lists.filter(fn _ -> keep end, [1 | 2])
+                    rescue
+                      e in ErlangError -> e.original
+                    end
+                  end
+                end
+                """,
+            ),
+            macro(
+                "pure:maps-update",
+                """
+                defmacro m do
+                  [
+                    Macro.escape(:maps.update(:a, 2, %{a: 1})),
+                    try do
+                      :maps.update(:b, 2, %{a: 1})
+                    rescue
+                      e in KeyError -> e.key
+                    end
+                  ]
+                end
+                """,
+            ),
+            macro("pure:mapfoldl-badmatch", "defmacro m, do: :lists.mapfoldl(fn x, _ -> x end, 0, [1])", pins = LISTS_ERROR_BELOW_OTP_25),
+            macro("pure:mapfoldl-not-list", "defmacro m, do: :lists.mapfoldl(fn x, a -> {x, a} end, 0, :x)", pins = LISTS_ERROR_BELOW_OTP_25),
+            macro("pure:lists-not-fun", "defmacro m, do: :lists.map(:x, [1])", pins = LISTS_ERROR_BELOW_OTP_25),
+            macro(
+                "pure:lists-function-clause",
+                """
+                defmacro m do
+                  try do
+                    :lists.map(fn x -> x end, [1 | 2])
+                  rescue
+                    e in FunctionClauseError -> Macro.escape({e.module, e.function, e.arity})
+                  end
+                end
+                """,
+                pins = LISTS_ERROR_BELOW_OTP_25,
+            ),
+            macro(
+                "pure:all",
+                "defmacro m, do: [:lists.all(fn x -> :erlang.is_atom(x) end, [:a, :b]), :lists.all(fn x -> :erlang.is_atom(x) end, [:a, 1])]",
+            ),
+            macro("pure:all-case-clause", "defmacro m, do: :lists.all(fn _ -> 1 end, [1])", pins = LISTS_ERROR_BELOW_OTP_25),
+
+            // The natives: `maps`
+            macro(
+                "pure:maps",
+                """
+                defmacro m do
+                  [
+                    :maps.get(:a, %{a: 1}),
+                    :maps.get(:b, %{a: 1}, :d),
+                    Macro.escape(:maps.find(:a, %{a: 1})),
+                    :maps.find(:b, %{a: 1}),
+                    :maps.is_key(:a, %{a: 1}),
+                    Macro.escape(:maps.put(:b, 2, %{a: 1})),
+                    Macro.escape(:maps.merge(%{a: 1}, %{a: 2, b: 3})),
+                    Macro.escape(:maps.from_list([b: 1, a: 2])),
+                    Macro.escape(:maps.to_list(%{2 => :b, 1 => :a}))
+                  ]
+                end
+                """,
+                unordered = true,
+            ),
+            macro(
+                "pure:maps-to-list-atom-keys",
+                "defmacro m, do: :maps.to_list(%{b: 1, a: 2})",
+                pins = { _, level -> OPAQUE.takeIf { MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER.isSufficient(level) } },
+            ),
+            macro("pure:maps-badmap", "defmacro m, do: :maps.get(:a, 1)"),
+            macro("pure:maps-badkey", "defmacro m, do: :maps.get(:b, %{a: 1})"),
+            macro("pure:maps-from-list-badarg", "defmacro m, do: :maps.from_list([1])"),
+
+            // The natives: Elixir's functions
+            macro(
+                "pure:keyword",
+                """
+                defmacro m do
+                  k = [a: 1, b: 2, a: 3]
+
+                  [
+                    Keyword.get(k, :a),
+                    Keyword.get(k, :c, :d),
+                    Macro.escape(Keyword.fetch(k, :b)),
+                    Keyword.fetch(k, :c),
+                    Keyword.fetch!(k, :b),
+                    Keyword.has_key?(k, :a),
+                    Keyword.keyword?(k),
+                    Keyword.keyword?([1]),
+                    Keyword.delete(k, :a),
+                    Keyword.put(k, :a, 4),
+                    Keyword.put_new(k, :a, 4),
+                    Keyword.put_new(k, :c, 4),
+                    Keyword.merge(k, a: 5, d: 6),
+                    Keyword.take(k, [:a]),
+                    Keyword.drop(k, [:a]),
+                    Macro.escape(Keyword.pop(k, :a)),
+                    Macro.escape(Keyword.pop(k, :c, :d))
+                  ]
+                end
+                """,
+            ),
+            macro("pure:keyword-has-key-1-tuple", "defmacro m, do: Keyword.has_key?([{:a}], :a)"),
+            macro("pure:keyword-fetch-bang-keyerror", "defmacro m, do: Keyword.fetch!([], :a)"),
+            macro(
+                "pure:enum",
+                """
+                defmacro m do
+                  [
+                    Enum.map([1, 2], fn x -> [x] end),
+                    Enum.flat_map([1, 2], fn x -> [x, x] end),
+                    Enum.filter([1, 2], fn x -> :erlang.>(x, 1) end),
+                    Enum.reject([1, 2], fn x -> :erlang.>(x, 1) end),
+                    Enum.reduce([1, 2], 0, fn x, acc -> :erlang.+(x, acc) end),
+                    Enum.any?([false, nil]),
+                    Enum.any?([1, 2], fn x -> :erlang.>(x, 1) end),
+                    Enum.all?([1, nil]),
+                    Enum.all?([1, 2], fn x -> :erlang.>(x, 0) end),
+                    Enum.member?([1, 2], 2),
+                    Enum.concat([1], [2]),
+                    Enum.reverse([1, 2])
+                  ]
+                end
+                """,
+            ),
+            macro(
+                "pure:enum-range",
+                "defmacro m, do: [Enum.map(1..3, fn x -> x end), Enum.reverse(1..3), Enum.member?(1..3, 2)]",
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro(
+                "pure:enum-range-lazy",
+                "defmacro m, do: [Enum.member?(1..1_000_000_000, 1), Enum.any?(1..1_000_000_000), Enum.all?(1..3)]",
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro("pure:enum-map", "defmacro m, do: Enum.map(%{a: 1}, fn {k, _} -> k end)", pins = DECLINED),
+            macro(
+                "pure:function-clause-arity",
+                """
+                defmacro m do
+                  for f <- [fn -> Module.concat([1]) end, fn -> Keyword.get(1, :a) end] do
+                    try do
+                      f.()
+                    rescue
+                      e in FunctionClauseError -> Macro.escape({e.module, e.function, e.arity})
+                    end
+                  end
+                end
+                """,
+            ),
+            macro(
+                "pure:access",
+                """
+                defmacro m do
+                  [
+                    Access.get([a: 1], :a),
+                    Access.get(%{a: 1}, :a),
+                    Access.get(%{a: 1}, :b, :d),
+                    Access.get(nil, :a)
+                  ]
+                end
+                """,
+            ),
+            macro("pure:access-integer-key", "defmacro m, do: Access.get([a: 1], 0)"),
+            macro(
+                "pure:env-context",
+                "defmacro m, do: [Macro.Env.in_guard?(__CALLER__), Macro.Env.in_match?(__CALLER__)]",
+            ),
+            macro(
+                "pure:concat",
+                """defmacro m, do: [Module.concat(Foo, Bar), Module.concat([Foo, "Bar"]), Module.concat("Foo", :bar)]""",
+            ),
+            macro("pure:concat-empty", "defmacro m, do: Module.concat([])"),
+            macro(
+                "pure:concat-elixir",
+                """defmacro m, do: [Module.concat(Elixir, Foo), Module.concat(["Elixir.Foo", Bar])]""",
+            ),
+            macro("pure:concat-leading-dot", """defmacro m, do: Module.concat(["Foo", ".Bar"])"""),
+            macro("pure:concat-invalid-utf8", """defmacro m, do: Module.concat(["\\xFF"])"""),
+            macro("pure:to-string", "defmacro m, do: [String.Chars.to_string(:a), String.Chars.to_string(1)]"),
+            // `inspect`'s output is `Inspect`'s implementations', which aren't read.
+            macro(
+                "pure:inspect",
+                """defmacro m, do: [Kernel.inspect(:a), Kernel.inspect([1, "b"]), Kernel.inspect(:c, [])]""",
+                pins = DECLINED,
+            ),
+            // `inspect/2`'s options must be a list, and a list of them declines, as `Inspect.Opts` isn't read.
+            macro("pure:inspect-options-not-a-list", "defmacro m, do: :erlang.element(2, {Kernel.inspect(:a, 1), :ok})"),
+            macro(
+                "pure:inspect-options",
+                "defmacro m, do: :erlang.element(2, {Kernel.inspect(:a, pretty: 1), :ok})",
+                pins = DECLINED,
+            ),
+            macro("pure:inspect-compared", "defmacro m, do: :erlang.==(Kernel.inspect(:a), Kernel.inspect(:b))", pins = DECLINED),
+            // A segment with no size takes any binary whole, whatever its bytes; with a unit past a byte, its bytes decide.
+            macro(
+                "form:bitstring-unknown-binary",
+                """
+                defmacro m do
+                  _ = <<Kernel.inspect(:a)::binary, "!">>
+                  _ = <<Kernel.inspect(:a)::bitstring, 1::1>>
+                  :ok
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro(
+                "form:bitstring-unknown-binary-unit",
+                """
+                defmacro m do
+                  _ = <<Kernel.inspect(:a)::binary-unit(16)>>
+                  :ok
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+                pins = DECLINED,
+            ),
+            macro("pure:to-string-interpolated", """defmacro m(name), do: :"#{name}?"""", "m(:a)", source = SourceRun.NEEDS_DISPATCH),
+            macro(
+                "pure:escape-generated",
+                "defmacro m, do: [Macro.escape(1, generated: true), Kernel.elem(Macro.escape({:a, :b, :c}, generated: true), 1)]",
+            ),
+            macro("pure:atom-to-string", "defmacro m, do: [Atom.to_string(:a), Atom.to_string(Foo)]"),
+            macro("pure:to-atom", """defmacro m, do: [String.to_atom("a"), String.to_existing_atom("a")]"""),
+            // Whether an atom the evaluation hasn't seen exists is the VM's to say.
+            macro(
+                "pure:to-existing-atom",
+                """defmacro m, do: String.to_existing_atom("interpreter_never_an_atom")""",
+                pins = DECLINED,
+            ),
+            macro("pure:to-existing-atom-unseen", "defmacro m(s), do: String.to_existing_atom(s)", "m(\"ok\")", pins = DECLINED),
+            macro(
+                "pure:elem",
+                "defmacro m, do: [Kernel.elem({:a, :b}, 1), Macro.escape(Kernel.put_elem({:a, :b}, 0, :c))]",
+            ),
+            macro("pure:elem-badarg", "defmacro m, do: Kernel.elem({1}, 1)"),
+            macro("pure:info", "defmacro m, do: [String.__info__(:module), String.module_info(:module)]", pins = DECLINED),
+            macro("pure:enum-info", "defmacro m, do: :erlang.length(Enum.module_info())", pins = DECLINED),
+            macro(
+                "pure:deep-recursion",
+                """
+                defmacro m, do: count(100_000)
+
+                defp count(0), do: 0
+                defp count(n), do: count(n - 1)
+                """,
+                pins = DECLINED,
+            ),
+            macro(
+                "pure:binary-prefix",
+                """
+                defmacro m do
+                  [
+                    case Atom.to_string(Foo) do
+                      "Elixir." <> rest -> rest
+                      _ -> :no
+                    end,
+                    (<<"ab", r::binary>> = "abc"; r),
+                    for(<<"a", c::8 <- "abac">>, do: c),
+                    (<<"é"::utf8, x::8>> = <<195, 169, 1>>; x)
+                  ]
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro("pure:utf-literal", """defmacro m, do: <<"é"::utf8, "a"::utf16>>""", source = SourceRun.NEEDS_DISPATCH),
+            macro("pure:float-overflow", "defmacro m(x), do: <<x::32-float>>", "m(1.0e300)", source = SourceRun.NEEDS_DISPATCH),
+            macro(
+                "pure:float-overflow-bignum",
+                "defmacro m(n), do: <<n::64-float>>",
+                "m(${BigInteger.ONE.shiftLeft(1100)})",
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro("pure:utf-overflow", "defmacro m(c), do: <<c::utf8>>", "m(4294967361)", source = SourceRun.NEEDS_DISPATCH),
+            macro(
+                "pure:bitstring-little-odd",
+                "defmacro m, do: Macro.escape([<<0x123::12-little>>, (<<x::12-little, _::4>> = <<35, 16>>; x)])",
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            // A fun in a macro's result is converted where expansion reaches it, so a macro it is passed to gets the fun.
+            Row(
+                "escape:fun-in-result",
+                """
+                defmacro inner(f) do
+                  if is_function(f), do: quote(do: def(a, do: 1)), else: quote(do: def(b, do: 1))
+                end
+
+                defmacro outer, do: {{:., [], [__MODULE__, :inner]}, [], [&String.upcase/1]}
+                """.trimIndent(),
+                "$ROW.outer()",
+                "require $ROW\n$ROW.outer()",
+                "$ROW.outer()",
+                listOf(ROW),
+                SourceRun.NEEDS_DISPATCH,
+                EVERY_LEG,
+                DECLINED,
+                null,
+            ),
+            macro(
+                "try:rescue-badarg-message",
+                """
+                defmacro m do
+                  try do
+                    :erlang.binary_to_atom(1, :utf8)
+                  rescue
+                    e -> Exception.message(e)
+                  end
+                end
+                """,
+                pins = { _, level ->
+                    "\"argument error\"".takeIf { RESCUED_ERROR_MESSAGE_FROM_ERROR_INFO.isSufficient(level) }
+                },
+            ),
+            macro(
+                "try:rescue-list-stacktrace",
+                """
+                defmacro m do
+                  try do
+                    Access.get("foo", 0)
+                  rescue
+                    x in [FunctionClauseError, CaseClauseError] -> [x.module, x.function, x.arity]
+                  end
+                end
+                """,
+            ),
+
+            // `use` of library macros
+            use(
+                "use:bind-quoted",
+                """
+                @callback validate_config(keyword) :: :ok
+                def validate_config(_required, _config), do: :ok
+                def validate_dependency(_deps), do: :ok
+
+                defmacro __using__(opts) do
+                  quote bind_quoted: [opts: opts] do
+                    @required_config opts[:required_config] || []
+                    @required_deps opts[:required_deps] || []
+
+                    @behaviour {row}
+
+                    def validate_config(config) do
+                      {row}.validate_config(@required_config, config)
+                    end
+
+                    def validate_dependency do
+                      {row}.validate_dependency(@required_deps)
+                    end
+                  end
+                end
+                """,
+                "required_config: [:api_key]",
+            ),
+            use(
+                "use:keep",
+                """
+                defmacro __using__(_) do
+                  quote location: :keep do
+                    @behaviour Application
+
+                    @doc false
+                    def stop(_state) do
+                      :ok
+                    end
+
+                    defoverridable Application
+                  end
+                end
+                """,
+            ),
+            use(
+                "use:cond",
+                """
+                defmacro __using__(options) do
+                  except =
+                    cond do
+                      Keyword.get(options, :only_operators) ->
+                        [bnot: 1, band: 2, bor: 2, bxor: 2, bsl: 2, bsr: 2]
+
+                      Keyword.get(options, :skip_operators) ->
+                        ["~~~": 1, &&&: 2, |||: 2, "^^^": 2, <<<: 2, >>>: 2]
+
+                      true ->
+                        []
+                    end
+
+                  quote do
+                    import Bitwise, except: unquote(except)
+                  end
+                end
+                """,
+                "only_operators: true",
+            ),
+            use(
+                "use:apply",
+                """
+                def static_paths, do: ~w(assets fonts)
+
+                def controller do
+                  quote do
+                    import Kernel, except: [to_string: 1]
+                    unquote(verified_routes())
+                  end
+                end
+
+                def html do
+                  quote do
+                    import String, only: [upcase: 1]
+                    unquote(html_helpers())
+                  end
+                end
+
+                defp html_helpers do
+                  quote do
+                    alias String.Chars
+                    unquote(verified_routes())
+                  end
+                end
+
+                def verified_routes do
+                  quote do
+                    @statics {row}.static_paths()
+                  end
+                end
+
+                defmacro __using__(which) when is_atom(which) do
+                  apply(__MODULE__, which, [])
+                end
+                """,
+                ":html",
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            use(
+                "use:caller",
+                """
+                def __setup__(_module, opts), do: [{"phx-", Keyword.get(opts, :global, true)}]
+
+                defmacro __using__(opts \\ []) do
+                  conditional =
+                    if __CALLER__.module != {row}.Helpers do
+                      quote do: import({row}, only: [__setup__: 2])
+                    end
+
+                  imports =
+                    quote bind_quoted: [opts: opts] do
+                      import Kernel, except: [to_string: 1]
+
+                      for {prefix_match, value} <- {row}.__setup__(__MODULE__, opts) do
+                        @doc false
+                        def __global__?(unquote(prefix_match)), do: unquote(value)
+                      end
+                    end
+
+                  [conditional, imports]
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+                stopsAfter = "{:unquote, [], [{:prefix_match",
+            ),
+            use(
+                "use:helpers",
+                """
+                @callback config(atom) :: term
+
+                defmacro __using__(opts) do
+                  quote do
+                    @behaviour {row}
+
+                    unquote(config(opts))
+                    unquote(pubsub())
+                    unquote(server())
+                  end
+                end
+
+                defp config(opts) do
+                  quote do
+                    @otp_app unquote(opts)[:otp_app] || raise("endpoint expects :otp_app to be given")
+                    var!(code_reloading?) = false
+                    _ = var!(code_reloading?)
+                  end
+                end
+
+                defp pubsub() do
+                  quote generated: true do
+                    def subscribe(topic, opts \\ []) when is_binary(topic) do
+                      {topic, opts}
+                    end
+                  end
+                end
+
+                defp server() do
+                  quote location: :keep, unquote: false do
+                    def child_spec(opts) do
+                      %{id: __MODULE__, start: {__MODULE__, :start_link, [opts]}, type: :supervisor}
+                    end
+
+                    def config(key), do: key
+                  end
+                end
+                """,
+                "otp_app: :demo",
+            ),
+            use(
+                "use:genserver",
+                """
+                defmacro __using__(opts) do
+                  quote location: :keep, bind_quoted: [opts: opts] do
+                    @behaviour GenServer
+
+                    if not Module.has_attribute?(__MODULE__, :doc) do
+                      @doc ${"\"\"\""}
+                      Returns a specification to start this module under a supervisor.
+                      ${"\"\"\""}
+                    end
+
+                    def child_spec(init_arg) do
+                      default = %{
+                        id: __MODULE__,
+                        start: {__MODULE__, :start_link, [init_arg]}
+                      }
+
+                      Supervisor.child_spec(default, unquote(Macro.escape(opts)))
+                    end
+
+                    defoverridable child_spec: 1
+
+                    @before_compile GenServer
+
+                    @doc false
+                    def terminate(_reason, _state) do
+                      :ok
+                    end
+
+                    defoverridable terminate: 2
+                  end
+                end
+                """,
+                "restart: :transient",
+                stopsAfter = UNQUOTE_ESCAPED_OPTS,
+            ),
+            use(
+                "use:backend",
+                """
+                defmacro __using__(opts) do
+                  env_fun = if function_exported?(Module, :attributes_in, 1), do: :compile_env, else: :get_env
+
+                  quote do
+                    opts = unquote(opts)
+                    otp_app = Keyword.fetch!(opts, :otp_app)
+                    @gettext_opts Keyword.merge(opts, Application.unquote(env_fun)(otp_app, __MODULE__, []))
+                  end
+                end
+                """,
+                "otp_app: :demo",
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            leg("GenServer", stopsAfter = UNQUOTE_ESCAPED_OPTS),
+            leg("Supervisor", stopsAfter = UNQUOTE_ESCAPED_OPTS),
+            leg("Agent", stopsAfter = UNQUOTE_ESCAPED_OPTS),
+            leg("Task", stopsAfter = UNQUOTE_ESCAPED_OPTS),
+            leg("DynamicSupervisor", stopsAfter = UNQUOTE_ESCAPED_OPTS),
+            leg("Application"),
+            leg("Bitwise", "only_operators: true"),
+        )
+    }
+}

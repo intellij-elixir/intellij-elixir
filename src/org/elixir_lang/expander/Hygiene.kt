@@ -8,17 +8,8 @@ import org.elixir_lang.psi.Import.Term
 /** The `counter` entry of [meta]: `{Module, n}`, or the integer Elixir draws when there is no module. */
 internal fun counterOf(meta: Meta): Env.Counter? =
     metaValue(meta, "counter")
-        ?.let { value ->
-            when (value) {
-                is Meta.Value.Integer -> Env.Counter.Unique(value.value)
-                is Meta.Value.Tuple -> {
-                    val (module, n) = value.elements
-
-                    Env.Counter.InModule((module as Meta.Value.Atom).name, (n as Meta.Value.Integer).value)
-                }
-                is Meta.Value.Atom, is Meta.Value.Binary, is Meta.Value.Keywords, is Meta.Value.List -> null
-            }
-        }
+        ?.let(ElixirAst::counter)
+        ?.let { (module, n) -> Env.Counter.of(module, n) }
 
 /** [counter] as the `counter` entry of metadata holds it, which [counterOf] reads back. */
 internal fun counterMetaValue(counter: Env.Counter): Meta.Value =
@@ -40,9 +31,7 @@ class Counters {
      * from a count of its own, which keeps identity and is deterministic.
      */
     fun next(module: String?): Env.Counter {
-        val n = counts.merge(module, 1, Long::plus)!!
-
-        return if (module == null) Env.Counter.Unique(n) else Env.Counter.InModule(module, n)
+        return Env.Counter.of(module, counts.merge(module, 1, Long::plus)!!)
     }
 
     /** How many counters [module] has given. */
@@ -158,12 +147,11 @@ internal fun linifyWithContextCounter(
 
 /** `?line(Meta)`: the `line` in [meta], from the source or added by [linifyWithContextCounter], or 0. */
 internal fun lineOf(meta: Meta): Int =
-    meta.keys.firstNotNullOfOrNull { key ->
-        when (key) {
-            is Meta.Key.Location -> key.position.line
-            is Meta.Key.Entry -> (key.value as? Meta.Value.Integer)?.takeIf { key.name == "line" }?.value?.toInt()
-        }
-    } ?: 0
+    when (val key = meta.keys.firstOrNull { it is Meta.Key.Location || it is Meta.Key.Entry && it.name == "line" }) {
+        is Meta.Key.Location -> key.position.line
+        is Meta.Key.Entry -> (key.value as? Meta.Value.Integer)?.value?.toInt() ?: 0
+        null -> 0
+    }
 
 /** `Kernel.var!/1,2`. */
 internal val VAR_BANG = object : Summary.Rewrite() {

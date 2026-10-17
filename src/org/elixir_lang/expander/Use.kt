@@ -2,7 +2,6 @@ package org.elixir_lang.expander
 
 import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.lowering.ElixirAst
-import org.elixir_lang.lowering.fitsAnAtom
 
 /**
  * `Kernel.use/1,2`: each module, expanded as `Macro.expand/2` expands it, is required and has its `__using__/1`
@@ -65,5 +64,4 @@ private fun concatenated(base: ElixirAst, segments: List<String>): String? {
 
     return first
         ?.let { concat(listOf(it) + segments, firstIsBinary = base is ElixirAst.Literal.Binary) }
-        ?.takeIf(::fitsAnAtom)
 }

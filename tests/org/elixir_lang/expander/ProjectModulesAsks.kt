@@ -44,7 +44,7 @@ internal fun render(file: PsiFile, expansion: FileExpansion): String {
                 ExpansionResult.Ended.Tainted -> "tainted"
                 is ExpansionResult.Ended.Raised -> "raised ${ended.error.kind} `${source(ended.error.at)}`"
                 is ExpansionResult.Ended.Crashed -> "crashed ${ended.error.kind} ${ended.exception}"
-                is ExpansionResult.Ended.Stopped -> "stopped `${source(ended.at)}`"
+                is ExpansionResult.Ended.Stopped -> "stopped `${source(ended.at)}` ${stop(result, ended.at)}"
             }
             val errors = result.errors.joinToString(",") { it.kind }
 
@@ -52,6 +52,23 @@ internal fun render(file: PsiFile, expansion: FileExpansion): String {
         }
 
     return (sequenceOf("top $top") + modules).joinToString("\n")
+}
+
+/**
+ * What [result] stopped at: the macro an opaque call dispatches to, or the form of a node that isn't ported, since a node
+ * a macro's output holds has the call's text.
+ */
+private fun stop(result: ExpansionResult, at: ElixirAst): String {
+    val opaque = result.opaque.firstOrNull { it.at === at }
+    if (opaque != null) return "opaque ${opaque.dispatch.receiver}.${opaque.dispatch.name}"
+
+    val form = when (val callee = (at as? ElixirAst.Call)?.callee) {
+        is ElixirAst.Literal.Atom -> callee.name
+        null -> at::class.simpleName
+        else -> callee::class.simpleName
+    }
+
+    return "unported $form"
 }
 
 /** Replaces [file]'s text, as typing would, and commits it. */

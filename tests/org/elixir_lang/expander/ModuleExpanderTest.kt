@@ -1,5 +1,7 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProcessCanceledException
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
@@ -610,8 +612,8 @@ class ModuleExpanderTest : ExpanderTestCase() {
               defmacro m/0 line 2 clauses 1
               body: expanded {} next 0 context [Elixir.A]
               defmacro m/0: expanded {} next 0 value ok
-            module Elixir.B stopped `A.m()`
-              body: opaque remote_macro Elixir.A.m/0 `A.m()`
+            module Elixir.B compiled
+              body: expanded {} next 0 context ${if (isBefore(version, "1.13.0-rc.0")) "[Elixir.B, Elixir.A]" else "[Elixir.B]"}
             """.trimIndent()
         }
 
@@ -681,6 +683,134 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
             if (isBefore(version, "1.15.0-rc.0")) start else "$start\n  reported incorrect_dispatch `m()`"
         }
+
+    /** A macro subtracting one long list from another is cancelled while it scans them. */
+    fun testAListSubtractionIsCancelledAsItScans() {
+        val lists = "l = [1]; " + "l = :erlang.++(l, l); ".repeat(DOUBLINGS) +
+            "r = [2]; " + "r = :erlang.++(r, r); ".repeat(DOUBLINGS)
+        // Parsing the body makes most of the checks, so the scan's are counted from the same body's with one element
+        // to scan.
+        val unscanned = checks("($lists :erlang.length(:erlang.--(l, [r])))")
+
+        assertCancelledAt("($lists :erlang.length(:erlang.--(l, r)))", unscanned + (1 shl DOUBLINGS) / 2)
+    }
+
+    /** A macro collecting a long comprehension's unique results is cancelled while it scans them. */
+    fun testAUniqueComprehensionIsCancelledAsItScans() {
+        val digits = (1..8).joinToString(", ", "[", "]")
+        val comprehension = { uniq: Boolean ->
+            "for a <- $digits, b <- $digits, c <- $digits, d <- $digits, uniq: $uniq, do: {a, b, c, d}"
+        }
+        // Running the generators makes most of the checks, so the scan's are counted from the same comprehension's
+        // without `uniq`.
+        val unscanned = checks(":erlang.length(${comprehension(false)})")
+
+        assertCancelledAt(":erlang.length(${comprehension(true)})", unscanned + 8 * 8 * 8 * 8 / 2)
+    }
+
+    /** A macro merging two long keyword lists is cancelled while it scans them. */
+    fun testAKeywordMergeIsCancelledAsItScans() {
+        val lists = "l = [a: 1]; " + "l = :erlang.++(l, l); ".repeat(DOUBLINGS) +
+            "r = [b: 2]; " + "r = :erlang.++(r, r); ".repeat(DOUBLINGS)
+        // Parsing the body makes most of the checks, so the scan's are counted from the same body's with one pair on
+        // the left.
+        val unscanned = checks("($lists :erlang.length(Keyword.merge([a: 1], r)))")
+
+        assertCancelledAt("($lists :erlang.length(Keyword.merge(l, r)))", unscanned + (1 shl DOUBLINGS) / 2)
+    }
+
+    /** A macro flattening a list that holds itself twice at every depth is cancelled while it walks it. */
+    fun testAFlattenIsCancelledAsItWalks() {
+        // Building the list makes most of the checks, so the walk's are counted from the same body's flattening `[]`.
+        val unwalked = checks("($TREE :erlang.length(:lists.flatten([])))")
+
+        assertCancelledAt("($TREE :erlang.length(:lists.flatten(t)))", unwalked + (1 shl DOUBLINGS) / 2)
+    }
+
+    /** A macro ordering such a list is cancelled while it walks it for an unknown value. */
+    fun testAComparedTermIsCancelledAsItIsWalked() {
+        // Building the list makes most of the checks, so the walk's are counted from the same body's not ordering it.
+        val unwalked = checks("($TREE :erlang.is_list(t))")
+
+        assertCancelledAt("($TREE :erlang.<(t, {:a}))", unwalked + (1 shl DOUBLINGS) / 2)
+    }
+
+    /** A macro keying a map by such a list is cancelled while it looks in the key for a function. */
+    fun testAMapKeyIsCancelledAsItIsWalked() {
+        // Ordering the list walks it for an unknown value, as a key is, so the look for a function is counted from it.
+        val unwalked = checks("($TREE :erlang.<(t, {:a}))")
+
+        assertCancelledAt("($TREE :erlang.map_size(%{t => 1}))", unwalked + (1 shl DOUBLINGS) / 2)
+    }
+
+    /** A macro unquoting a pair that holds itself twice at every depth is cancelled while it validates it. */
+    fun testAnUnquoteIsCancelledAsItValidates() {
+        val pairs = "p = :a; " + "p = {p, p}; ".repeat(DOUBLINGS)
+        // Building the pair makes most of the checks, so the validation's are counted from the same body's of `{:a, :a}`.
+        val unwalked = checks("($pairs :erlang.tuple_size(quote(do: unquote({:a, :a}))))")
+
+        assertCancelledAt("($pairs :erlang.tuple_size(quote(do: unquote(p))))", unwalked + (1 shl DOUBLINGS) / 2)
+    }
+
+    /** A macro whose comprehension rejects every element of a long list is cancelled while it scans them. */
+    fun testARejectingComprehensionIsCancelledAsItScans() {
+        val list = "l = [:a]; " + "l = :erlang.++(l, l); ".repeat(DOUBLINGS)
+        // Building the list makes most of the checks, so the scan's are counted from the same body's over one element.
+        val unscanned = checks("($list :erlang.length(for :b <- [:a], do: 1))")
+
+        assertCancelledAt("($list :erlang.length(for :b <- l, do: 1))", unscanned + (1 shl DOUBLINGS) / 2)
+    }
+
+    /** A macro folding a long list with a function that calls nothing is cancelled while it calls the function. */
+    fun testAFoldIsCancelledAsItCallsItsFunction() =
+        assertCancelledAsItCalls { ":lists.foldl(fn _, acc -> acc end, 0, $it)" }
+
+    /** A macro filtering a long list with a predicate that calls nothing is cancelled while it calls the predicate. */
+    fun testAFilterIsCancelledAsItCallsItsPredicate() =
+        assertCancelledAsItCalls { ":erlang.length(:lists.filter(fn _ -> true end, $it))" }
+
+    /** A macro asking whether a predicate that calls nothing holds for all of a long list is cancelled while it asks. */
+    fun testAnAllIsCancelledAsItCallsItsPredicate() = assertCancelledAsItCalls { ":lists.all(fn _ -> true end, $it)" }
+
+    /** A macro whose body is [call] of a long list, built from one element by doubling, is cancelled within [call]. */
+    private fun assertCancelledAsItCalls(call: (String) -> String) {
+        val list = "l = [1]; " + "l = :erlang.++(l, l); ".repeat(DOUBLINGS)
+        // Building the list makes most of the checks, so the calls' are counted from the same body's over one element.
+        val uncalled = checks("($list ${call("[1]")})")
+
+        assertCancelledAt("($list ${call("l")})", uncalled + (1 shl DOUBLINGS) / 2)
+    }
+
+    /** The expansion of a macro whose body is [body] is cancelled by a cancel at its [check]th check. */
+    private fun assertCancelledAt(body: String, check: Int) {
+        val indicator = CancelAt(check)
+
+        try {
+            expandMacro(body, indicator)
+            fail("no cancel at check $check, of ${indicator.checks}")
+        } catch (_: ProcessCanceledException) {
+        }
+    }
+
+    /** The checks the expansion of a macro whose body is [body] makes. */
+    private fun checks(body: String): Int = CancelAt(Int.MAX_VALUE).also { expandMacro(body, it) }.checks
+
+    private fun expandMacro(body: String, indicator: CancelAt) {
+        val code = """
+            defmodule A do
+              defmacro m, do: $body
+            end
+
+            defmodule B do
+              require A
+              A.m()
+            end
+        """.trimIndent()
+
+        whileCheckingIndicators {
+            ProgressManager.getInstance().runProcess({ expandAndRender(code, "1.20.4") }, indicator)
+        }
+    }
 
     fun testALocalMacroThatConflictsWithAnImport() =
         assertLevels(
@@ -1992,5 +2122,11 @@ class ModuleExpanderTest : ExpanderTestCase() {
                 Meta.Value.List(listOf(Meta.Value.Tuple(listOf(Meta.Value.Integer(1), Meta.Value.Atom("Elixir.List"))))),
             ),
         )
+
+        /** The doublings of a one-element list that make a long one: far more elements than the checks of the rest. */
+        const val DOUBLINGS = 12
+
+        /** A list `t` that holds itself twice at every depth: built in [DOUBLINGS] steps, walked in 2^[DOUBLINGS]. */
+        val TREE = "t = []; " + "t = [t, t]; ".repeat(DOUBLINGS)
     }
 }

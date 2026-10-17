@@ -86,9 +86,12 @@ object Import {
         /** A tuple of any other size, whose elements are known: `{}`, `{a}`, `{a, b, c}`. */
         data class Tuple(val elements: kotlin.collections.List<Term>) : Term()
 
-        /** An expression as AST: a variable, a pinned variable, one `returns_boolean/1` holds of, or any other node. */
+        /**
+         * An expression as AST: a variable, a pinned variable, one `returns_boolean/1` holds of, a generator, or any
+         * other node.
+         */
         data class Node(val kind: Kind) : Term() {
-            enum class Kind { VARIABLE, PIN, BOOLEAN, OTHER }
+            enum class Kind { VARIABLE, PIN, BOOLEAN, GENERATOR, OTHER }
         }
 
         /** A float. Readers type it as a float, so no value of another kind is one. */

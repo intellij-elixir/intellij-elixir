@@ -97,6 +97,8 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             COMPILER_VARIABLES_REFUSED_IN_PATTERN to ("1.12.3" to "1.13.0-rc.0"),
             CATCH_WHEN_ARITY_CHECKED to ("1.17.3" to "1.18.0-rc.0"),
             GENERATOR_RIGHT_SIDE_SCOPED to ("1.12.3" to "1.13.0-rc.0"),
+            BIT_GENERATOR_SKIP_KEEPS_DEFAULT_SIZE_ONLY to ("1.20.0-rc.4" to "1.20.0-rc.5"),
+            BIT_GENERATOR_SKIP_KEEPS_OUTER_SIZES to ("1.20.1" to "1.20.2"),
             WITH_OPTIONS_BEFORE_LAST_ARGUMENT to ("1.14.5" to "1.15.0-rc.0"),
             REMOTE_CAPTURE_REPORTED_AT_CALL to ("1.14.0-rc.0" to "1.14.0-rc.1"),
             CAPTURE_REPORTED_AT_CALL to ("1.15.8" to "1.16.0-rc.0"),
@@ -121,6 +123,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             COMPILER_PARSES_COLUMNS to ("1.15.8" to "1.16.0-rc.0"),
             UNQUOTE_CALL_META_KEPT to ("1.12.3" to "1.13.0-rc.0"),
             QUOTE_IMPORTS_EVERY_ARITY to ("1.13.4" to "1.14.0-rc.0"),
+            QUOTE_KEEPS_IMPORTS_META to ("1.16.3" to "1.17.0-rc.0"),
             QUOTE_IMPORTS_NON_LIST_FALLS_THROUGH to ("1.16.3" to "1.17.0-rc.0"),
             IMPORTED_FUNCTION_NOT_REEXPANDED to ("1.17.3" to "1.18.0-rc.0"),
             QUOTED_IMPORT_FUNCTION_TRACED to ("1.18.3" to "1.18.4"),
@@ -219,6 +222,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             REGEX_ESCAPED_IN_FIXED_FIELD_ORDER to ("1.19.0-rc.0" to "1.19.0-rc.1"),
             ESCAPED_MAP_ENTRIES_SORTED to ("1.15.0-rc.0" to "1.15.0-rc.1"),
             ESCAPED_MAP_ENTRIES_QUOTED_APART to ("1.18.3" to "1.18.4"),
+            MACRO_ESCAPE_MARKS_GENERATED to ("1.19.0-rc.0" to "1.19.0-rc.1"),
             REGEX_REFUSED_IN_MATCH_AND_GUARD to ("1.19.5" to "1.20.0-rc.0"),
             UNESCAPE_DROPS_ESCAPED_NEWLINE to ("1.11.4" to "1.12.0-rc.0"),
             ISO_DATE_UNBOUNDED to ("1.16.3" to "1.17.0-rc.0"),
@@ -245,6 +249,16 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             DEFIMPL_EXPANDS_PROTOCOL to ("1.18.4" to "1.19.0-rc.0"),
             DEFIMPL_CHECKED_BY_IMPL_BANG to ("1.18.4" to "1.19.0-rc.0"),
             CACHE_ENV_IN_ELIXIR_MODULE to ("1.17.3" to "1.18.0-rc.0"),
+            RESCUED_ERROR_MESSAGE_FROM_ERROR_INFO to ("1.11.4" to "1.12.0-rc.0"),
+            FIELD_OF_NON_MAP_RAISES_BADKEY to ("1.13.4" to "1.14.0-rc.0"),
+            FIELD_OF_NON_MAP_RAISES_BADMAP to ("1.18.4" to "1.19.0-rc.0"),
+            KEY_ERROR_MESSAGE_INSPECTED_WITH_OPTIONS to ("1.14.5" to "1.15.0-rc.0"),
+            RESCUE_LIST_STACKTRACE_FOR_ANY to ("1.15.4" to "1.15.5"),
+            WITH_ELSE_CLAUSE_ERROR to ("1.14.5" to "1.15.0-rc.0"),
+            STRUCT_UPDATE_IS_MAP_UPDATE to ("1.19.5" to "1.20.0-rc.0"),
+            RESCUE_EXCEPTION_KEY_PRESENT to ("1.20.0-rc.4" to "1.20.0-rc.5"),
+            SPLICE_EMPTY_BEFORE_TAIL_RAISES to ("1.20.0-rc.4" to "1.20.0-rc.5"),
+            STRING_TO_ATOM_REQUIRES_BINARY to ("1.11.4" to "1.12.0-rc.0"),
         )
 
         assertEquals(entries.filter { it.sinceElixir != null }.toSet(), boundaries.keys)
@@ -267,6 +281,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             OPERATOR_ON_NOT_IN to ("1.11.4" to "1.12.0-rc.0"),
             KERNEL_TYPESPEC_REQUIRED_BY_DEFAULT to ("1.16.3" to "1.17.0-rc.0"),
             REPEATED_PATTERN_VARIABLE_WRITTEN_AT_NEXT_VERSION to ("1.20.0-rc.4" to "1.20.0-rc.5"),
+            BIT_GENERATOR_SKIP_KEEPS_DEFAULT_SIZE_ONLY to ("1.20.1" to "1.20.2"),
             BITSTRING_LIST_OR_ATOM_SEGMENT_REJECTED to ("1.17.3" to "1.18.0-rc.0"),
             SYSTEM_STACKTRACE_REWRITTEN to ("1.13.4" to "1.14.0-rc.0"),
             ANONYMOUS_CALL_OF_ATOM_REFUSED to ("1.17.3" to "1.18.0-rc.0"),
@@ -310,6 +325,13 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             ESCAPED_REGEX_RECOMPILES_ON_OTP_28 to ("27.3.4.9" to "28.0-rc1"),
             ESCAPED_REGEX_IMPORTS_ON_OTP_28_1 to ("28.0.4" to "28.1"),
             ESCAPED_MAP_IN_VM_ORDER to ("25.3.2.21" to "26.0-rc1"),
+            FN_CLAUSE_ERROR_IS_FUNCTION_CLAUSE to ("24.3.4.17" to "25.0-rc1"),
+            LISTS_CHECK_THE_FUN_FIRST to ("24.3.4.17" to "25.0-rc1"),
+            ERLANG_ERROR_3 to ("23.3.4.20" to "24.0-rc1"),
+            RAISE_FRAME_TAKES_A_CAPTURE to ("24.3.4.17" to "25.0-rc1"),
+            MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER to ("25.3.2.21" to "26.0-rc1"),
+            NEGATIVE_ZERO_IS_DISTINCT to ("26.2.5.21" to "27.0-rc1"),
+            INTEGERS_UP_TO_4_MBIT to ("26.0.1" to "26.0.2"),
         )
 
         assertEquals(entries.filter { it.sinceOtp != null }.toSet(), boundaries.keys)
