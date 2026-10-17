@@ -23,6 +23,7 @@ import org.elixir_lang.expander.MacroExpanded
 import org.elixir_lang.expander.ModuleClauses
 import org.elixir_lang.expander.ModuleClauses.Dispatched
 import org.elixir_lang.expander.ModuleExports
+import org.elixir_lang.expander.Place
 import org.elixir_lang.expander.Run
 import org.elixir_lang.expander.Summary
 import org.elixir_lang.expander.forOptions
@@ -154,6 +155,15 @@ internal class Evaluation(
     /** Each term made from an argument's node, so the output keeps the nodes the macro passed through. */
     private val nodes = IdentityHashMap<OtpErlangObject, ElixirAst>()
 
+    /** Each `{form, meta, args}` node the clauses built, by identity, to the place of the node that built it. */
+    private val places = IdentityHashMap<OtpErlangObject, Place>()
+
+    /**
+     * Each metadata entry, by identity, to the place of the first node built around it, and that node's build order: an
+     * argument's, first, to its node's.
+     */
+    private val metaPlaces = IdentityHashMap<OtpErlangObject, IndexedValue<Place>>()
+
     /** The `{M, F, Arity, []}` of each call being evaluated, innermost first. */
     private val stack = ArrayDeque<OtpErlangTuple>()
 
@@ -185,8 +195,9 @@ internal class Evaluation(
         }
 
         return Summary.Output.Built(
-            ElixirAst.fromOtp(result, call.meta.origin, values = true, known = nodes::get)
-                ?: decline("the result isn't quoted")
+            ElixirAst.fromOtp(result, call.meta.origin, values = true, known = nodes::get) { term, node ->
+                placeOf(term)?.let { run.placedAt[node] = it }
+            } ?: decline("the result isn't quoted")
         )
     }
 
@@ -294,6 +305,8 @@ internal class Evaluation(
             }
 
             nodes[term] = each
+            val place = run.placedAt[each] ?: Place(null, each.meta.origin)
+            metaOf(term).forEach { metaPlaces.putIfAbsent(it, IndexedValue(0, place)) }
         }
 
     /** [definition] of [module]'s, called as [function] with [args]; [arity] is its stacktrace entry's. */
@@ -379,7 +392,7 @@ internal class Evaluation(
                 OtpErlangDouble(node.value.takeIf(Double::isFinite) ?: decline("a float past a double's range"))
             is ElixirAst.Literal.Binary -> OtpErlangBinary(node.bytes)
             is ElixirAst.ListNode -> evalList(node.elements, frame)
-            is ElixirAst.Tuple -> OtpErlangTuple(node.elements.map { eval(it, frame) }.toTypedArray())
+            is ElixirAst.Tuple -> placed(OtpErlangTuple(node.elements.map { eval(it, frame) }.toTypedArray()), node, frame)
             is ElixirAst.Block -> block(node.expressions, frame)
             is ElixirAst.Alias -> if (frame.source) value(node, frame) else decline("an alias in debug info")
             is ElixirAst.Placeholder -> decline("a placeholder")
@@ -387,6 +400,29 @@ internal class Evaluation(
             is ElixirAst.Value -> node.term
         }
     }
+
+    /** [tuple], which [node] of [frame]'s clauses built, placed at [node]. */
+    private fun placed(tuple: OtpErlangTuple, node: ElixirAst, frame: Frame): OtpErlangTuple {
+        frame.module.file?.takeIf { tuple.arity() == 3 }?.let { file ->
+            val place = Place(file, node.meta.origin)
+            places[tuple] = place
+            metaOf(tuple).forEach { metaPlaces.putIfAbsent(it, IndexedValue(places.size, place)) }
+        }
+
+        return tuple
+    }
+
+    /**
+     * Where [term] was written: where its metadata was first built into a node, else where it was built, so a node the
+     * macro rebuilds, or whose metadata it edits, keeps the place its metadata was written at.
+     */
+    private fun placeOf(term: OtpErlangObject): Place? =
+        metaOf(term).mapNotNull(metaPlaces::get).minByOrNull { it.index }?.value ?: places[term]
+
+    /** The metadata entries of [term], when it is a `{form, meta, args}` node. */
+    private fun metaOf(term: OtpErlangObject): List<OtpErlangObject> =
+        ((term as? OtpErlangTuple)?.takeIf { it.arity() == 3 }?.elementAt(1) as? OtpErlangList)?.elements()?.asList()
+            .orEmpty()
 
     private fun block(expressions: List<ElixirAst>, frame: Frame): OtpErlangObject {
         var value: OtpErlangObject = NIL
@@ -544,7 +580,7 @@ internal class Evaluation(
 
                 value
             }
-            "{}" -> OtpErlangTuple(args.map { eval(it, frame) }.toTypedArray())
+            "{}" -> placed(OtpErlangTuple(args.map { eval(it, frame) }.toTypedArray()), node, frame)
             "%{}" -> map(args, frame)
             "%" if args.size == 2 -> struct(args, frame)
             "<<>>" -> bits.build(args, frame)

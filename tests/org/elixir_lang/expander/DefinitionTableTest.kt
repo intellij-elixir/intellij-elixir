@@ -150,7 +150,7 @@ class DefinitionTableTest {
     fun `a definition without its default arities keeps its defaults`() {
         val table = DefinitionTable()
 
-        table.restore("f", 2, Kind.DEF, listOf(DefinitionTable.Head(node(1), null)), 1, 1, ordered = true)
+        table.restore("f", 2, Kind.DEF, listOf(DefinitionTable.Head(node(1), null, null)), 1, 1, ordered = true)
 
         assertEntries(table, "f/2 def line 1 clauses 1 defaults 1 unchecked")
         assertEquals("duplicate_defaults", define(table, "f", 2, line = 2, defaults = 1))

@@ -2,6 +2,8 @@ package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangPid
 import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.util.TextRange
+import com.intellij.openapi.vfs.VirtualFile
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAST_PATH_ADDS_CONTEXT_MODULE
 import org.elixir_lang.language_level.ElixirLanguageLevel
@@ -43,8 +45,8 @@ object Expander {
     /**
      * A file's top-level [forms] expanded from [env] as Elixir at [level] compiles them: the forms, then each module
      * they define, in turn, with [counters] giving each macro expansion its hygiene counter. [file] is the file's path,
-     * and [directories] gives the directory a file was compiled in. A file of only modules compiles each directly from
-     * [DEFMODULE_FAST_PATH].
+     * and [directories] gives the directory a file was compiled in. [virtualFile] is the file, where [ProjectModules]
+     * holds it. A file of only modules compiles each directly from [DEFMODULE_FAST_PATH].
      */
     internal fun expandFile(
         forms: ElixirAst,
@@ -57,8 +59,9 @@ object Expander {
         file: String? = null,
         directories: CompileDirectories = CompileDirectories.UNKNOWN,
         clauses: ModuleClauses.Lookup = ModuleClauses.Lookup.NONE,
+        virtualFile: VirtualFile? = null,
     ): FileExpansion {
-        val run = Run(level, observer, exports, structs, counters, file, directories, clauses)
+        val run = Run(level, observer, exports, structs, counters, file, directories, clauses, virtualFile)
         val state = ExState.empty(level)
 
         if (DEFMODULE_FAST_PATH.isSufficient(level) && env.module == null && onlyDefmodule(forms)) {
@@ -148,6 +151,18 @@ internal class Watched(val node: ElixirAst) {
     var value: Term? = null
 }
 
+/**
+ * Where a node of a macro's output is written: [origin] in the macro's [file], its source file or the `.beam` whose
+ * decompiled mirror holds it, as [ProjectModules] chose it, or in the file the run expands where [file] is `null`.
+ */
+internal class Place(val file: VirtualFile?, val origin: TextRange)
+
+/**
+ * Whether [node], in the expansion of [call]'s macro, is one the expansion built rather than one of [call]'s arguments
+ * it passed through: every node a macro's output builds has its call's origin.
+ */
+internal fun builtBy(node: ElixirAst, call: ElixirAst): Boolean = node.meta.origin == call.meta.origin
+
 /** What every recursive expansion of one [Expander.expand] call shares. */
 internal class Run(
     val level: ElixirLanguageLevel,
@@ -159,6 +174,8 @@ internal class Run(
     val file: String? = null,
     val directories: CompileDirectories = CompileDirectories.UNKNOWN,
     private val clauses: ModuleClauses.Lookup = ModuleClauses.Lookup.NONE,
+    /** The file the run expands, where [ProjectModules] holds it. */
+    val virtualFile: VirtualFile? = null,
 ) {
     /** The modules whose exports the run read, in the order it read them. */
     val consulted = mutableListOf<String>()
@@ -182,6 +199,12 @@ internal class Run(
      * variable it bound to a value only Elixir's evaluation of the output computes.
      */
     val supplying = IdentityHashMap<ElixirAst, Term>()
+
+    /**
+     * Each node of an evaluated macro's output whose tuple the macro's clauses built, by identity, to the place of the
+     * clauses' node that built it.
+     */
+    val placedAt = IdentityHashMap<ElixirAst, Place>()
 
     /** Whether the macro that made [node] knows its value, which it hasn't been expanded to yet. */
     fun isSupplied(node: ElixirAst): Boolean = node in supplying
@@ -237,7 +260,7 @@ internal class Run(
      * Elixir hasn't loaded it; any other, what [clauses] gives.
      */
     fun clausesOf(module: String, local: Boolean = false): ModuleClauses? {
-        if (local) compiling[module]?.let { return ModuleClauses.of(module, it, file) }
+        if (local) compiling[module]?.let { return ModuleClauses.of(module, it, virtualFile) }
         loadedClauses[module]?.let { return it }
         if (module in compiling) return null
 

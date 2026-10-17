@@ -412,7 +412,7 @@ class InterpreterTest : PlatformTestCase() {
 
             deprecations
                 ?.let { CompiledModule.of(bytes, beam.path, mirror, legLevel(), it) }
-                ?.let { ModuleClauses.of(it, beam.path) }
+                ?.let { ModuleClauses.of(it, file) }
         }
 
     private enum class Source { SOURCE, DBGI }

@@ -66,7 +66,8 @@ internal fun expandQuoted(
 /**
  * [expandQuoted] with the [counter] the macro's output was given, for a macro that also uses it outside the output.
  * [watched], a node of [output], is told the value it expands to, and each node of [output] that [supplied], a map by
- * identity, has takes that value.
+ * identity, has takes that value. Each node of [output] keeps its [Run.placedAt] place; where [call] has one, a node
+ * the macro built takes [call]'s.
  */
 internal fun expandQuoted(
     call: ElixirAst.Call,
@@ -80,11 +81,13 @@ internal fun expandQuoted(
     supplied: Map<ElixirAst, Term> = emptyMap(),
 ): Expansion {
     var watching: ElixirAst? = null
+    val placing = placing(call, run)
     val linified = linifyWithContextCounter(lineOf(call.meta), receiver, counter, run.level, output) { original, linified ->
         if (original === watched?.node) watching = linified
 
         // A node in a module body is expanded when the module is compiled, after this call returns.
         supplied[original]?.let { run.supplying[linified] = it }
+        placing(original, linified)
     }
 
     env.module?.let { run.compiling[it] }?.rewrote(call, linified)
@@ -102,6 +105,18 @@ internal fun expandQuoted(
     run.bitstrings[expandedShape(linified)]?.let { run.bitstrings[call] = it }
 
     return expansion
+}
+
+/**
+ * Gives each node that linify copies from the output of the macro [call] dispatched the [Run.placedAt] place of the node
+ * it copies, or, where the macro built it and [call] has one, [call]'s.
+ */
+internal fun placing(call: ElixirAst.Call, run: Run): (original: ElixirAst, linified: ElixirAst) -> Unit {
+    val place = run.placedAt[call]
+
+    return { original, linified ->
+        (run.placedAt[original] ?: place?.takeIf { builtBy(original, call) })?.let { run.placedAt[linified] = it }
+    }
 }
 
 /**

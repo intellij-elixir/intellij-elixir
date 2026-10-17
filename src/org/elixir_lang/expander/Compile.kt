@@ -415,7 +415,7 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
         compiling.struct,
     )
 
-    run.load(result) { ModuleClauses.of(result.module, compiling, run.file) }
+    run.load(result) { ModuleClauses.of(result.module, compiling, run.virtualFile) }
 
     return result
 }

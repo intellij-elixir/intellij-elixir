@@ -319,7 +319,7 @@ class ClauseCacheTest : PlatformTestCase() {
     private fun render(clauses: ModuleClauses?): String {
         clauses ?: return "none"
 
-        return "${clauses.source} ${clauses.file}\n" + clauses.definitions.entries.joinToString("\n") { (nameArity, definition) ->
+        return "${clauses.source} ${clauses.file?.path}\n" + clauses.definitions.entries.joinToString("\n") { (nameArity, definition) ->
             val described = "  ${definition.kind.name.lowercase()} ${nameArity.name}/${nameArity.arity}"
 
             definition.clauses?.joinToString("; ", "$described: ") { clause ->

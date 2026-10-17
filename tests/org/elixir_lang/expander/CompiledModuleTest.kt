@@ -119,10 +119,11 @@ class CompiledModuleTest : PlatformTestCase() {
         )
         assertEquals(emptyList<String>(), differingBodies("CompiledFixture", fixture.debugInfoBeam) {})
 
-        val clauses = ModuleClauses.of(compiled, fixture.debugInfoBeam.path)!!
+        val beam = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(fixture.debugInfoBeam)!!
+        val clauses = ModuleClauses.of(compiled, beam)!!
 
         assertEquals(
-            listOf("Elixir.CompiledFixture", ModuleClauses.Source.DBGI, fixture.debugInfoBeam.path),
+            listOf("Elixir.CompiledFixture", ModuleClauses.Source.DBGI, beam),
             listOf(clauses.module, clauses.source, clauses.file),
         )
         assertEquals(compiled.table.kinds, clauses.definitions.mapValues { it.value.kind })
@@ -306,7 +307,7 @@ class CompiledModuleTest : PlatformTestCase() {
         val modular = ReadAction.computeBlocking<TextRange, Throwable> { mirror.modulars().single().textRange }
         val compiled = read(beam, mirror)
         val bodies = (compiled.bodies as CompiledModule.Bodies.Read).clauses
-        val definitionClauses = ModuleClauses.of(compiled, beam.path)!!.definitions
+        val definitionClauses = ModuleClauses.of(compiled, null)!!.definitions
 
         return definitions(beam).flatMap { definition ->
             val nameArity = "${definition.name}/${definition.arity}"

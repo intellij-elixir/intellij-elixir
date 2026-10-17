@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.testFramework.LightVirtualFile
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.inspect
@@ -22,7 +23,7 @@ class ModuleClausesTest : ExpanderTestCase() {
             end
             """,
             """
-            module Elixir.A from /project/a.ex
+            module Elixir.A from a.ex
               def f/2: (x, y) when [is_integer(x), x > 0] -> x + y
               def f/1: (x0) -> super(x0, 1)
               defp g/1: (1) -> :one; (_) -> :other
@@ -42,7 +43,7 @@ class ModuleClausesTest : ExpanderTestCase() {
             end
             """,
             """
-            module Elixir.A from /project/a.ex
+            module Elixir.A from a.ex
               def g/4: (a, b = 2, c, d) -> {a, b, c, d}
               def g/2: (x0, x1) -> super(x0, x1, 3, 4)
               def g/3: (x0, x1, x2) -> super(x0, x1, x2, 4)
@@ -60,7 +61,7 @@ class ModuleClausesTest : ExpanderTestCase() {
             end
             """,
             """
-            module Elixir.A from /project/a.ex
+            module Elixir.A from a.ex
               def h/2: (a, b) -> {a, b}
               def h/1: (x0) -> super(x0, z = 1; z)
             """,
@@ -86,7 +87,7 @@ class ModuleClausesTest : ExpanderTestCase() {
             end
             """,
             """
-            module Elixir.A from /project/a.ex
+            module Elixir.A from a.ex
               def f/0: () -> 1
               defmacro n/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"/project/a.ex", 4}], A]}
             """,
@@ -102,7 +103,7 @@ class ModuleClausesTest : ExpanderTestCase() {
             end
             """,
             """
-            module Elixir.A from /project/a.ex
+            module Elixir.A from a.ex
               defmacro m/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"/project/a.ex", 3}], A]}
             """,
         )
@@ -117,7 +118,7 @@ class ModuleClausesTest : ExpanderTestCase() {
             end
             """,
             """
-            module Elixir.A from /project/a.ex
+            module Elixir.A from a.ex
               defmacro m/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"/project/a.ex", 3}], A]}
             """,
             directories = { "/project" },
@@ -133,7 +134,7 @@ class ModuleClausesTest : ExpanderTestCase() {
             end
             """,
             """
-            module Elixir.A from /project/a.ex
+            module Elixir.A from a.ex
               defmacro m/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"/project/a.ex", 3}], A]}
             """,
         )
@@ -160,7 +161,7 @@ class ModuleClausesTest : ExpanderTestCase() {
             end
             """,
             """
-            module Elixir.A from C:/project/a.ex
+            module Elixir.A from a.ex
               defmacro m/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"C:/project/a.ex", 3}], A]}
             """,
             file = "C:/project/a.ex",
@@ -176,7 +177,7 @@ class ModuleClausesTest : ExpanderTestCase() {
             end
             """,
             """
-            module Elixir.A from //server/share/a.ex
+            module Elixir.A from a.ex
               defmacro m/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"//server/share/a.ex", 3}], A]}
             """,
             file = "//server/share/a.ex",
@@ -192,7 +193,7 @@ class ModuleClausesTest : ExpanderTestCase() {
             end
             """,
             """
-            module Elixir.A from C:/project/a.ex
+            module Elixir.A from a.ex
               defmacro m/0: () -> quote(location: :keep, do: v) quoted {:{}, [], [:v, [keep: {"C:/project/a.ex", 3}], A]}
             """,
             file = "C:/project/a.ex",
@@ -219,7 +220,7 @@ class ModuleClausesTest : ExpanderTestCase() {
             end
             """,
             """
-            module Elixir.A from /project/a.ex
+            module Elixir.A from a.ex
               def k/2: (a, 1) -> a
             """,
         )
@@ -236,7 +237,7 @@ class ModuleClausesTest : ExpanderTestCase() {
             end
             """,
             """
-            module Elixir.A from /project/a.ex
+            module Elixir.A from a.ex
               def r/1: (x) -> try(do
                 x
               rescue
@@ -254,7 +255,7 @@ class ModuleClausesTest : ExpanderTestCase() {
             end
             """,
             """
-            module Elixir.A from /project/a.ex
+            module Elixir.A from a.ex
               defmacro m/1: (a) -> quote(do: unquote(a)) quoted {{:., [line: 2], [:elixir_quote, :unquote]}, [line: 2], [{:a, [line: 2], nil}]}
               defmacro v/0: () -> quote(do: x) quoted {:{}, [], [:x, [], A]}
             """,
@@ -286,7 +287,7 @@ class ModuleClausesTest : ExpanderTestCase() {
             end
             """,
             """
-            module Elixir.A from /project/a.ex
+            module Elixir.A from a.ex
               def f/1: (x) -> x + 1
             """,
         )
@@ -301,7 +302,7 @@ class ModuleClausesTest : ExpanderTestCase() {
             end
             """,
             """
-            module Elixir.A from /project/a.ex
+            module Elixir.A from a.ex
               def g/0: () -> 1
               def f/1: (x) -> x
             """,
@@ -317,7 +318,7 @@ class ModuleClausesTest : ExpanderTestCase() {
             end
             """,
             """
-            module Elixir.A from /project/a.ex
+            module Elixir.A from a.ex
               defp f (overridable 1)/1: (x) -> x
               def f/1: (x) -> super(x)
             """,
@@ -335,7 +336,7 @@ class ModuleClausesTest : ExpanderTestCase() {
             end
             """,
             """
-            module Elixir.A from /project/a.ex
+            module Elixir.A from a.ex
               def f/0 unknown
               def g/0: () -> 2
             """,
@@ -360,7 +361,7 @@ class ModuleClausesTest : ExpanderTestCase() {
             end
             """,
             """
-            module Elixir.C from /project/a.ex
+            module Elixir.C from a.ex
               def h/0: () -> 5
             """,
         )
@@ -377,9 +378,9 @@ class ModuleClausesTest : ExpanderTestCase() {
             end
             """,
             """
-            module Elixir.A.B from /project/a.ex
+            module Elixir.A.B from a.ex
               defmacro m/0: () -> quote(do: :b) quoted :b
-            module Elixir.A from /project/a.ex
+            module Elixir.A from a.ex
               defmacro m/0: () -> quote(do: :a) quoted :a
             """,
         )
@@ -417,7 +418,7 @@ class ModuleClausesTest : ExpanderTestCase() {
 
         Expander.expandFile(
             lower(source, level), Env.empty(level, kernel), level, exports, structs, observer, file = file,
-            directories = directories,
+            directories = directories, virtualFile = LightVirtualFile("a.ex"),
         )
 
         return loaded
@@ -448,7 +449,7 @@ class ModuleClausesTest : ExpanderTestCase() {
                 .orEmpty()
         }
 
-        return "module ${clauses.module} from ${clauses.file}\n" +
+        return "module ${clauses.module} from ${clauses.file?.name}\n" +
             clauses.definitions.entries.joinToString("\n") { (nameArity, definition) ->
                 val described = "  ${definition.kind.name.lowercase()} ${nameArity.name}/${nameArity.arity}"
 

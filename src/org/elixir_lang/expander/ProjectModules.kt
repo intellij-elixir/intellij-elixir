@@ -335,7 +335,7 @@ internal class ProjectModules(private val project: Project) {
         }
         val mirror = (PsiManager.getInstance(project).findFile(beam) as? PsiCompiledFile)?.decompiledPsiFile as? ElixirFile
             ?: return null
-        val clauses = CompiledModule.of(bytes, beam.path, mirror, level, deprecations)?.let { ModuleClauses.of(it, beam.path) }
+        val clauses = CompiledModule.of(bytes, beam.path, mirror, level, deprecations)?.let { ModuleClauses.of(it, beam) }
         clauseCache[beam] = Clauses.Compiled(stamp, level, clauses)
 
         return clauses
@@ -475,6 +475,7 @@ internal class ProjectModules(private val project: Project) {
                 }
             },
             file = virtualFile?.path,
+            virtualFile = virtualFile,
             directories = { path ->
                 // A `mix.exs` created or deleted above the file moves its answer.
                 stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)

@@ -890,7 +890,7 @@ internal class ParsedMeta(private val columns: Boolean, private val lineOffset: 
 
 /**
  * An [ElixirAst] node as the term it quotes, its metadata as [parsed]. A node's tuple is placed at the node, but for a
- * variable or a call whose name isn't an atom.
+ * variable.
  */
 internal class AstEscapeView(private val s: Synthetic, private val parsed: ParsedMeta) : EscapeView<AstTerm> {
     override fun shape(input: AstTerm): Shape<AstTerm> =
@@ -929,10 +929,7 @@ internal class AstEscapeView(private val s: Synthetic, private val parsed: Parse
 
                         Shape.Tuple(listOf(AstTerm.Node(node.callee), meta, AstTerm.Node(s.atom(context))))
                     }
-                    else -> Shape.Tuple(
-                        listOf(AstTerm.Node(node.callee), meta, AstTerm.Node(s.list(node.arguments))),
-                        node.meta.takeIf { node.callee is ElixirAst.Literal.Atom },
-                    )
+                    else -> Shape.Tuple(listOf(AstTerm.Node(node.callee), meta, AstTerm.Node(s.list(node.arguments))), node.meta)
                 }
             }
             is ElixirAst.Placeholder -> if (node.stopsExpansion) Shape.Unknown(node) else Shape.Verbatim

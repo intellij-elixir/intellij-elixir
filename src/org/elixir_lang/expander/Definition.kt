@@ -3,6 +3,7 @@ package org.elixir_lang.expander
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.io.OSAgnosticPathUtil
 import org.elixir_lang.NameArity
+import org.elixir_lang.expander.DefinitionTable.Injected
 import org.elixir_lang.expander.DefinitionTable.Kind
 import org.elixir_lang.expander.ExpansionResult.Owner
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFAULT_ARGUMENTS_THREAD_STATE
@@ -485,7 +486,7 @@ internal fun storeDefinition(
         if (definition.body != null) {
             compiling.clauses.getOrPut(nameArity) { mutableListOf() } += ModuleClauses.Clause(args, guards, null)
         }
-        store(definition, name, arity, defaults.size, compiling)
+        store(definition, name, arity, defaults.size, compiling, run)
 
         return owner to Expansion.Unported(at)
     }
@@ -514,18 +515,22 @@ internal fun storeDefinition(
 
     // The store follows the expansion, so from 1.15 the body's errors are reported before the store raises. A body
     // that isn't expanded may raise before the store does.
-    val raised = store(definition, name, arity, defaults.size, compiling)?.takeIf { expansion is Expansion.Expanded }
+    val raised = store(definition, name, arity, defaults.size, compiling, run)?.takeIf { expansion is Expansion.Expanded }
 
     return owner to (raised?.let { Expansion.Error(it, node) } ?: expansion)
 }
 
-/** [definition] stored as [name] and [arity] with [defaults] defaults: the kind of the error the store raises, if any. */
+/**
+ * [definition] stored as [name] and [arity] with [defaults] defaults: the kind of the error the store raises, if any.
+ * A definition whose `def*` call a macro's output built is placed where the call was built.
+ */
 private fun store(
     definition: Pending.Definition,
     name: String,
     arity: Int,
     defaults: Int,
     compiling: Compiling,
+    run: Run,
 ): String? =
     compiling.table.define(
         name,
@@ -537,6 +542,7 @@ private fun store(
         definition.ordered,
         definition.checksClauses,
         definition.delegatesTo,
+        run.placedAt[definition.node]?.let(::Injected),
     )
 
 /** `assert_valid_name/5`: the error a definition of [name] and [arity] raises, as one the compiler defines. */

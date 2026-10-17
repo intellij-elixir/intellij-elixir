@@ -52,8 +52,16 @@ internal class DefinitionTable {
      *
      * @property at the `def*` call
      * @property delegation what the head calls, when a `defdelegate` defined it
+     * @property injected how a macro's output injected it, when one did
      */
-    data class Head(val at: ElixirAst, val delegation: Delegation?)
+    data class Head(val at: ElixirAst, val delegation: Delegation?, val injected: Injected?)
+
+    /**
+     * A head a macro's output injected.
+     *
+     * @property place where its `def*` call is written in the macro's file
+     */
+    class Injected(val place: Place)
 
     /** A `defdelegate`'s `to:` module and the function it calls there, as its `delegate_to` doc has them. */
     data class Delegation(val module: String, val function: String)
@@ -88,7 +96,8 @@ internal class DefinitionTable {
      * `elixir_def:store_definition/10`: a head of [name] and [arity], or of no known name when [name] is `null`, with
      * [clauses] clauses and [defaults] defaults, then a clause for each default arity: the kind of the error the store
      * raises, if it raises, in which case nothing more is stored. For an unnamed head, [ordered] is whether it is a
-     * statement of the module body. [delegation] is the head's, not its default arities'.
+     * statement of the module body. [delegation] is the head's, not its default arities'. [injected] is how a macro's
+     * output injected the head and its default arities.
      */
     fun define(
         name: String?,
@@ -100,6 +109,7 @@ internal class DefinitionTable {
         ordered: Boolean,
         checksClauses: Boolean,
         delegation: Delegation? = null,
+        injected: Injected? = null,
     ): String? {
         if (name == null) {
             unnamed += Unnamed(kind, lineOf(at.meta), ordered)
@@ -109,11 +119,11 @@ internal class DefinitionTable {
 
         if (conflictsWithPreviousDefaults(name, arity, defaults)) return "defs_with_defaults"
 
-        store(NameArity(name, arity), kind, listOf(Head(at, delegation)), clauses, defaults, default = false, ordered, checksClauses)
+        store(NameArity(name, arity), kind, listOf(Head(at, delegation, injected)), clauses, defaults, default = false, ordered, checksClauses)
             ?.let { return it }
 
         for (defaultArity in defaultArities(arity, defaults)) {
-            store(NameArity(name, defaultArity), kind, listOf(Head(at, null)), 1, 0, default = true, ordered, checksClauses = false)
+            store(NameArity(name, defaultArity), kind, listOf(Head(at, null, injected)), 1, 0, default = true, ordered, checksClauses = false)
                 ?.let { return it }
         }
 
