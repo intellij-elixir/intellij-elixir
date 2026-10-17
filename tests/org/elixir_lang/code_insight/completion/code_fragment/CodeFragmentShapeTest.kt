@@ -279,6 +279,17 @@ class CodeFragmentShapeTest {
         assertEquals(checks(NO_RULE, NO_RULE, NO_RULE, AGREE), judged(None).checks)
         assertEquals(none, failed(None, path = listOf(Step("foo/1", true)), heads = listOf(Step("foo/1"))))
         assertEquals(listOf("container"), failed(None, path = listOf(Step("x/1", true)), heads = emptyList()))
+        // `import Enum, only: [map: 2]|`: a character typed there would join the `]`, so nothing is completed. Heads
+        // that agree or differ read the same.
+        val glued = listOf(Step("import/2", slot = 1))
+
+        assertEquals(checks(NO_RULE, NO_RULE, NO_RULE, NO_RULE), judged(None, path = glued, heads = emptyList(), afterWhitespace = false).checks)
+        assertEquals(checks(NO_RULE, NO_RULE, NO_RULE, NO_RULE), judged(None, path = glued, heads = glued, afterWhitespace = false).checks)
+        assertEquals(none, failed(None, path = glued, heads = emptyList(), afterWhitespace = false))
+        assertEquals(listOf("container"), failed(None, path = glued, heads = emptyList(), afterWhitespace = true))
+        // Where Elixir reads a context, the character before the caret does not matter.
+        assertEquals(listOf("container"), failed(LocalOrVar("x"), path = glued, heads = emptyList(), afterWhitespace = false))
+        assertEquals(listOf("container"), failed(Expr, path = glued, heads = emptyList(), afterWhitespace = false))
     }
 
     @Test
@@ -559,7 +570,7 @@ class CodeFragmentShapeTest {
 
     @Test
     fun testHeads() {
-        fun shown(root: ElixirAst, caret: Int) = heads(root, caret, DUMMY).map(Step::shown)
+        fun shown(root: ElixirAst, caret: Int, text: String = "") = heads(root, caret, DUMMY, text).map(Step::shown)
         // A quoted tree's nodes are all at 0, before the caret.
         fun heads(argument: OtpErlangObject) = shown(quoted(node("foo", node("x", OtpErlangLong(1), argument))), 1)
 
@@ -610,6 +621,83 @@ class CodeFragmentShapeTest {
         // Neither a node nor a placeholder that ends at the caret holds it.
         assertEquals(emptyList<String>(), shown(ElixirAst.ListNode(at(0, 5), listOf(tuple)), 4))
         assertEquals(emptyList<String>(), shown(ElixirAst.ListNode(at(0, 5), listOf(error(1, 4))), 4))
+
+        // A step that a token written after the caret defines is dropped as well. Each rule is pinned on both sides.
+        val call = { begin: Int, end: Int, name: String, nameBegin: Int, arguments: List<ElixirAst>? ->
+            ElixirAst.Call(at(begin, end), ElixirAst.Literal.Atom(at(nameBegin, nameBegin + name.length), name), arguments)
+        }
+        val atom = { begin: Int, name: String -> ElixirAst.Literal.Atom(at(begin, begin + name.length), name) }
+        val integer = { begin: Int -> ElixirAst.Literal.Integer(at(begin, begin + 1), BigInteger.ONE) }
+
+        // `case :ok do _| -> 1 end`: a stab clause's `->` defines its argument list, and the first one its clause list.
+        fun case(vararg clauses: ElixirAst): ElixirAst {
+            val `do` = ElixirAst.Tuple(at(8, 45), listOf(atom(8, "do"), ElixirAst.ListNode(at(11, 40), clauses.toList())))
+
+            return call(0, 48, "case", 0, listOf(atom(5, "ok"), ElixirAst.ListNode(at(8, 45), listOf(`do`))))
+        }
+        fun arrow(operator: Int, signature: ElixirAst, body: ElixirAst) =
+            call(11, 40, "->", operator, listOf(ElixirAst.ListNode(at(11, 32), listOf(signature)), body))
+
+        val underscore = call(11, 32, "_", 11, listOf(dummy(13)))
+
+        assertEquals(listOf("case/2@1", "[]@0", "{}/2@1", "_/1@0"), shown(case(arrow(33, underscore, integer(36))), 13))
+        // Where an earlier clause is written, its `->` is in the prefix, and so is the clause list.
+        val earlier = arrow(20, call(11, 12, "a", 11, null), integer(24))
+
+        assertEquals(listOf("case/2@1", "[]@0", "{}/2@1", "[]@1", "_/1@0"), shown(case(earlier, arrow(33, underscore, integer(36))), 13))
+        // Once the `->` is written before the caret, the clause is in the prefix.
+        assertEquals(listOf("case/2@1", "[]@0", "{}/2@1", "[]@0", "->/2@1"), shown(case(arrow(33, call(11, 12, "_", 11, null), dummy(36))), 36))
+        // A caret in the argument list, with the `->` before it, keeps both lists.
+        assertEquals(
+            listOf("case/2@1", "[]@0", "{}/2@1", "[]@0", "->/2@0", "[]@0", "_/1@0"),
+            shown(case(arrow(3, underscore, integer(36))), 13),
+        )
+        // `fn _| -> 1 end`: the clauses are `fn`'s arguments.
+        assertEquals(
+            listOf("fn/1@0", "_/1@0"),
+            shown(call(0, 15, "fn", 0, listOf(arrow(5, call(3, 20, "_", 3, listOf(dummy(5))), integer(8)))), 5),
+        )
+
+        // `%{b| => 6}`: a `=>` defines its pair. The key can be a literal or parenthesised.
+        val pair = { key: ElixirAst, value: Int -> ElixirAst.Tuple(at(2, 28), listOf(key, integer(value))) }
+        val map = { pair: ElixirAst -> call(0, 29, "%{}", 0, listOf(pair)) }
+
+        assertEquals(listOf("%{}/1@0"), shown(map(pair(variable(2, 22, "b" + DUMMY.trim()), 26)), 3, "%{bIntellijIdeaRulezzz => 6}"))
+        assertEquals(listOf("%{}/1@0"), shown(map(pair(atom(3, "a" + DUMMY.trim()), 27)), 4, "%{:aIntellijIdeaRulezzz => 6}"))
+        assertEquals(listOf("%{}/1@0"), shown(map(pair(variable(3, 23, "b" + DUMMY.trim()), 28)), 4, "%{(bIntellijIdeaRulezzz) => 6}"))
+        // A keyword pair and a 2-tuple have no `=>` after their key.
+        assertEquals(listOf("%{}/1@0", "{}/2@0"), shown(map(pair(atom(2, "b" + DUMMY.trim()), 24)), 3, "%{bIntellijIdeaRulezzz: 6}"))
+        assertEquals(
+            listOf("{}/2@0"),
+            shown(ElixirAst.Tuple(at(0, 26), listOf(variable(1, 21, "b" + DUMMY.trim()), integer(23))), 2, "{bIntellijIdeaRulezzz, 6}"),
+        )
+        // A `=>` in a comment is not a `=>`.
+        assertEquals(
+            listOf("%{}/1@0", "{}/2@0"),
+            shown(map(ElixirAst.Tuple(at(2, 31), listOf(atom(2, "b" + DUMMY.trim()), integer(29)))), 3, "%{bIntellijIdeaRulezzz: # =>\n6}"),
+        )
+        assertEquals(
+            listOf("{}/2@0"),
+            shown(
+                ElixirAst.Tuple(at(0, 30), listOf(variable(1, 21, "b" + DUMMY.trim()), integer(28))),
+                2,
+                "{bIntellijIdeaRulezzz, # =>\n6}",
+            ),
+        )
+        // `%{b => x|}`: the `=>` is before the caret.
+        assertEquals(
+            listOf("%{}/1@0", "{}/2@1"),
+            shown(map(ElixirAst.Tuple(at(2, 28), listOf(variable(2, 3, "b"), dummy(8)))), 8, "%{b => IntellijIdeaRulezzz }"),
+        )
+
+        // `@mod|.Sub`: Elixir places the alias at its `.`, which the prefix has not reached.
+        val attribute = call(0, 23, "@", 0, listOf(variable(1, 23, "mod" + DUMMY.trim())))
+        val alias = ElixirAst.Alias(at(0, 27), listOf(attribute, atom(24, "Sub")))
+
+        assertEquals(listOf("@/1@0"), shown(alias, 4, "@modIntellijIdeaRulezzz.Sub"))
+        assertEquals(listOf("@/1@0"), shown(alias, 4, "@modIntellijIdeaRulezzz  .Sub"))
+        // Past the `.`, the alias is in the prefix.
+        assertEquals(listOf("alias@0", "@/1@0"), shown(alias, 24, "@modIntellijIdeaRulezzz.Sub"))
     }
 
     @Test
@@ -740,11 +828,13 @@ class CodeFragmentShapeTest {
         surround: SurroundContext? = null,
         literal: Boolean = false,
         atomStart: Boolean = false,
+        afterWhitespace: Boolean = true,
     ): Judgement =
         judge(
             Elixir(cursor, span, path, surround, literal, atomStart),
             Plugin(caret, items.toList(), identifierEnd, heads),
             scope,
+            afterWhitespace,
         )
 
     private fun failed(
@@ -758,6 +848,7 @@ class CodeFragmentShapeTest {
         scope: Scope = Scope(),
         surround: SurroundContext? = null,
         atomStart: Boolean = false,
+        afterWhitespace: Boolean = true,
     ): List<String> =
         judged(
             cursor,
@@ -770,6 +861,7 @@ class CodeFragmentShapeTest {
             scope = scope,
             surround = surround,
             atomStart = atomStart,
+            afterWhitespace = afterWhitespace,
         )
             .failed
             .map { it.substringBefore('(') }

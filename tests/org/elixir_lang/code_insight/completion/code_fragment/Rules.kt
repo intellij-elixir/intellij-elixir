@@ -84,8 +84,12 @@ enum class Check { PREFIX, KINDS, RANGE, CONTAINER }
 /** Each check's verdict, and the failed checks with their offending values. */
 class Judgement(val checks: Map<Check, Verdict>, val failed: List<String>)
 
-/** Inside a literal Elixir's answers describe the literal's text, which completion does not complete. */
-fun judge(elixir: Elixir, plugin: Plugin, scope: Scope): Judgement {
+/**
+ * Inside a literal Elixir's answers describe the literal's text, which completion does not complete.
+ *
+ * @param afterWhitespace whether the character before the caret is whitespace, or there is none
+ */
+fun judge(elixir: Elixir, plugin: Plugin, scope: Scope, afterWhitespace: Boolean): Judgement {
     if (elixir.literal) return Judgement(Check.entries.associateWith { Verdict.NO_RULE }, emptyList())
 
     val rule = rule(elixir.cursor, elixir.path, scope, elixir.atomStart)
@@ -115,7 +119,9 @@ fun judge(elixir: Elixir, plugin: Plugin, scope: Scope): Judgement {
     } ?: Verdict.NO_RULE
     // At `end|` Elixir's container is outside the block `end` closes.
     val closing = elixir.surround == Keyword("end") && elixir.span?.end == plugin.caret
-    val container = elixir.path?.takeUnless { closing }?.let { path ->
+    // Where Elixir reads no context after a character that is not whitespace, a character typed there would join it.
+    val joined = elixir.cursor == None && !afterWhitespace
+    val container = elixir.path?.takeUnless { closing || joined }?.let { path ->
         val heads = plugin.heads
         val compared = compared(elixir.cursor, path)
 
@@ -421,18 +427,72 @@ private fun pathTo(root: ElixirAst, found: (ElixirAst) -> Boolean): List<ElixirA
  * The heads from [root] to the node holding the [dummy] identifier that completion inserted at [caret], without that
  * node or any cursor. A node holds it in its own text, or as a placeholder over the caret, as recovery from the
  * dummy after a closing bracket or quote makes. Empty where no node holds it, as in a comment. A head written after
- * the caret is dropped, as no prefix holds it: the outer `-` of `a - | - b`.
+ * the caret is dropped, as no prefix holds it: the outer `-` of `a - | - b`. So is a form that a token after the caret
+ * makes, in [text], the completion copy's text: the clause list and argument list of a `->`, and the pair of a `=>`.
  */
-fun heads(root: ElixirAst, caret: Int, dummy: String): List<Step> {
+fun heads(root: ElixirAst, caret: Int, dummy: String, text: String): List<Step> {
     val name = dummy.trimEnd()
     val holds = { node: ElixirAst ->
         name in ownText(node) ||
             node is ElixirAst.Placeholder && node.meta.origin.startOffset <= caret && caret < node.meta.origin.endOffset
     }
+    val nodes = pathTo(root, holds).orEmpty()
 
-    return pathTo(root, holds).orEmpty().zipWithNext { node, next ->
-        head(node)?.takeUnless { it == CURSOR || headStart(node) >= caret }?.let { Step(it, slot = slot(node, next)) }
-    }.filterNotNull()
+    return nodes.zipWithNext().mapIndexedNotNull { index, (node, next) ->
+        head(node)
+            ?.takeUnless { it == CURSOR || definingToken(nodes.getOrNull(index - 1), node, next, text) >= caret }
+            ?.let { Step(it, slot = slot(node, next)) }
+    }
+}
+
+/**
+ * Where the token that makes [node] is written in [text], on a path where [parent] is above it and [next] below. A
+ * stab clause's argument list and a clause list that starts with a `->` are made by that `->`, and a `=>` pair, whose
+ * key can be a literal or parenthesised, by its `=>`.
+ */
+private fun definingToken(parent: ElixirAst?, node: ElixirAst, next: ElixirAst, text: String): Int =
+    when {
+        parent != null && isStab(parent) && slot(parent, node) == 0 -> headStart(parent, text)
+        node is ElixirAst.ListNode && isStab(next) && slot(node, next) == 0 -> headStart(next, text)
+        node is ElixirAst.Tuple && slot(node, next) == 0 ->
+            node.elements.getOrNull(1)?.let { arrowBetween(text, next.meta.origin.endOffset, it.meta.origin.startOffset) }
+                ?: headStart(node, text)
+        else -> headStart(node, text)
+    }
+
+/**
+ * Where a `=>` is written in [text] from [from] to [to], the end of a pair's key and the start of its value, outside a
+ * comment.
+ */
+private fun arrowBetween(text: String, from: Int, to: Int): Int? {
+    if (from !in 0..to || to > text.length) return null
+
+    var at = from
+
+    while (at < to) {
+        when {
+            text.startsWith("=>", at) -> return at
+            text[at] == '#' -> at = text.indexOf('\n', at).takeIf { it >= 0 } ?: to
+            else -> at++
+        }
+    }
+
+    return null
+}
+
+private fun isStab(node: ElixirAst): Boolean =
+    node is ElixirAst.Call && (node.callee as? ElixirAst.Literal.Atom)?.name == "->"
+
+/**
+ * Where [token] is written in [text] after [from], whitespace and the `)` that close a parenthesised form aside, or
+ * `null` where something else follows.
+ */
+private fun tokenAfter(text: String, from: Int, token: String): Int? {
+    var at = from
+
+    while (at < text.length && (text[at].isWhitespace() || text[at] == ')')) at++
+
+    return at.takeIf { text.startsWith(token, it) }
 }
 
 /**
@@ -529,15 +589,19 @@ private fun slot(node: ElixirAst, next: ElixirAst): Int? =
         is ElixirAst.Literal, is ElixirAst.Placeholder -> emptyList()
     }.indexOfFirst { it === next }.takeIf { it >= 0 }
 
-/** Where [node]'s head is written: a call's callee, or a remote call's `.`, or where the node starts. */
-private fun headStart(node: ElixirAst): Int {
-    val head = when (node) {
-        is ElixirAst.Call -> (node.callee as? ElixirAst.Call)?.takeIf { dotted(it) != null }?.callee ?: node.callee
-        else -> node
+/**
+ * Where [node]'s head is written: a call's callee, or a remote call's `.`, or an alias's first `.` where its first part
+ * is not a name, as Elixir places `@mod.Sub` at its `.`, or where the node starts.
+ */
+private fun headStart(node: ElixirAst, text: String): Int =
+    when (node) {
+        is ElixirAst.Call -> ((node.callee as? ElixirAst.Call)?.takeIf { dotted(it) != null }?.callee ?: node.callee).meta.origin.startOffset
+        is ElixirAst.Alias ->
+            node.segments.first().takeUnless { it is ElixirAst.Literal.Atom }
+                ?.let { tokenAfter(text, it.meta.origin.endOffset, ".") }
+                ?: node.meta.origin.startOffset
+        else -> node.meta.origin.startOffset
     }
-
-    return head.meta.origin.startOffset
-}
 
 /** [head] without its arity. */
 private fun name(head: String) = head.replace(ARITY, "")
