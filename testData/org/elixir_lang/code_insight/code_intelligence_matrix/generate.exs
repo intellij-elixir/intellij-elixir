@@ -324,6 +324,23 @@ defmodule Matrix do
       variable: :x,
       lines: ["for x <- [1] do # @binding", ~S'  IO.puts("#{x}") # @interpolation', "end"],
       rename: true
+    },
+    # `x_paren_definer_*`: a definer written with parentheses around a head that reads as a delegation or a module, which
+    # it declares a macro of. The parameter is the head's argument, whatever the head's name.
+    "x_paren_definer_delegation" => %{
+      variable: :f,
+      lines: ["defmacro(defdelegate(f, opts), do: {f, opts}) # @binding @body"],
+      rename: true
+    },
+    "x_paren_definer_delegation_guard" => %{
+      variable: :f,
+      lines: ["defmacro(defdelegate(f, opts) when is_list(opts), do: {f, opts}) # @binding @body"],
+      rename: true
+    },
+    "x_paren_definer_module" => %{
+      variable: :n,
+      lines: ["defmacro(defmodule(n, do: block), do: {n, block}) # @binding @body"],
+      rename: true
     }
   }
   @variable_world_ids Map.keys(@variable_worlds)
