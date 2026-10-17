@@ -8,6 +8,7 @@ import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
+import com.intellij.openapi.util.text.StringUtil
 import com.intellij.psi.*
 import com.intellij.psi.impl.source.tree.LeafPsiElement
 import com.intellij.psi.util.PsiTreeUtil
@@ -15,14 +16,10 @@ import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.Hidden
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.MarkdownByLanguage
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.None
 import org.elixir_lang.beam.psi.BeamFileImpl
-import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
-import org.elixir_lang.declaration.DelegationPrecedence
-import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Form
+import org.elixir_lang.declaration.Reach
 import org.elixir_lang.declaration.Use
-import org.elixir_lang.declaration.atItsHead
-import org.elixir_lang.language_level.ElixirLanguageLevelResolver.languageLevelFor
-import org.elixir_lang.lowering.identifierAtomName
+import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
 import org.elixir_lang.psi.ModuleAttribute.isDocumentationName
@@ -34,21 +31,98 @@ import org.elixir_lang.psi.impl.isInterpolatedWithin
 import org.elixir_lang.psi.operation.capture.NonNumeric
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.psi.stub.type.call.Stub.isModular
+import org.elixir_lang.reference.resolver.Callable
 import org.elixir_lang.reference.CaptureNameArity
 import org.elixir_lang.reference.Resolver
-import org.elixir_lang.structure_view.element.Callback
 import org.elixir_lang.structure_view.element.Delegation
 import org.intellij.markdown.html.HtmlGenerator
 import org.intellij.markdown.parser.MarkdownParser
 import java.util.function.Consumer
-import java.util.regex.Pattern
 
 
 private val LOG = logger<ElixirDocumentationProvider>()
 
 internal class ElixirDocumentationProvider : DocumentationProvider {
+    /** Rendered documentation, and the anchor it opens at: the entry of the arity the original element uses, or the arity a followed link gave. */
+    class Rendered(val html: String, val anchor: String?)
+
+    fun render(element: PsiElement, originalElement: PsiElement?, linkedArity: Int? = null): Rendered? =
+        // Where no use is known, as for a link followed, the function is seen from outside its module.
+        fetchDocs(element, remote = choiceAt(originalElement)?.takeIf { it.element == element }?.inside != true)?.let { fetched ->
+            val delegations = delegationReaching(element, originalElement)
+                ?.let { DelegationBlock.of(it.delegation, it.module, remote = !it.inside) }
+                .orEmpty()
+
+            Rendered(formatDocs(element, fetched, delegations), anchor(fetched, linkedArity ?: calledArity(originalElement)))
+        }
+
+    /** A delegation, the name of the module that holds it when it is known, and whether the use is inside that module. */
+    private class Reaching(val delegation: Call, val module: String?, val inside: Boolean)
+
+    /** The delegation [original] reached [element] through, which has no `@doc` of its own to show instead. */
+    private fun delegationReaching(element: PsiElement, original: PsiElement?): Reaching? {
+        if (element is Call && Delegation.`is`(element)) return null
+
+        val named = original?.let(DeclaringForm::named)
+
+        return if (named != null) {
+            named.call.takeIf { named.form == Form.DELEGATION }?.let { delegation -> Reaching(delegation, moduleOf(delegation), inside = true) }
+        } else {
+            val choice = choiceAt(original)?.takeIf { it.element == element }
+            val found = choice?.delegation
+
+            (found?.element as? Call)?.let { delegation ->
+                // What a `use` injects is in the module that holds the `use`, which `quote` does not name.
+                val injectedInto = found.takeIf { it.candidate.reach == Reach.USE }?.declaringModuleName()
+
+                Reaching(delegation, injectedInto ?: moduleOf(delegation), inside = choice.insideDelegation)
+            }
+        }
+    }
+
+    /** The name of the module [delegation] is written in, `null` where it is in a `quote`. */
+    private fun moduleOf(delegation: Call): String? =
+        enclosingModularMacroCall(delegation)?.let(SourceFileDocsHelper::moduleName)
+
     override fun generateDoc(element: PsiElement, originalElement: PsiElement?): String? =
-        fetchDocs(element)?.let { formatDocs(element, it) }
+        render(element, originalElement)?.html
+
+    private fun anchor(fetched: FetchedDocs, arity: Int?): String? =
+        (fetched as? FetchedDocs.Arities)
+            ?.takeIf { it.entries.size > 1 }
+            ?.let { arities -> arity?.let(arities::entryAt)?.id }
+
+    /** The arity used where [original] is written: at a call, a capture, an MFA atom or a declaration's head. */
+    private fun calledArity(original: PsiElement?): Int? =
+        when (val use = useAt(original)?.use) {
+            is Use.OfCall -> use.arity
+            is Use.Specified -> use.arity
+            is Use.Remote -> use.arity
+            else -> null
+        }
+
+    // As the climb does: a caret in an interpolation belongs to the code there, not to the atom around it.
+    private fun atomAt(element: PsiElement?): ElixirAtom? =
+        PsiTreeUtil.getParentOfType(element, ElixirAtom::class.java, false)?.takeUnless { element?.isInterpolatedWithin(it) == true }
+
+    /** The use written at the caret, and whether a valid variable binds its name: the one read of it. */
+    private class UseAt(val use: Use, val bound: Boolean)
+
+    private fun useAt(original: PsiElement?): UseAt? =
+        atomAt(original)?.let(Use::mfa)?.let { UseAt(it, bound = false) }
+            ?: callAt(original)?.let { call ->
+                (useOf(call) ?: Use.of(call)?.takeIf { DeclaringForm.named(call) != null })
+                    ?.let { UseAt(it, bound = isBound(call, it)) }
+            }
+
+    private fun choiceAt(original: PsiElement?): Documented.Choice? =
+        useAt(original)?.let { Documented.of(it.use, it.bound) }
+
+    private tailrec fun callAt(element: PsiElement?): Call? = when (element) {
+        is LeafPsiElement, is ElixirIdentifier, is ElixirRelativeIdentifier -> callAt(element.parent)
+        is Call -> element
+        else -> null
+    }
 
     override fun generateHoverDoc(element: PsiElement, originalElement: PsiElement?): String? =
         generateDoc(element, originalElement)
@@ -100,77 +174,11 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         return super.getDocumentationElementForLookupItem(psiManager, `object`, element)
     }
 
-    private val linkRelativePattern: Pattern =
-        Pattern.compile("((?<kind>[ct]):)?((?<module>.+)\\.)?(?<relative>.+)/(?<arity>\\d+)")
-
     override fun getDocumentationElementForLink(
         psiManager: PsiManager,
         link: String,
         context: PsiElement
-    ): PsiElement? {
-        val relativeLinkMatcher = linkRelativePattern.matcher(link)
-
-        return if (relativeLinkMatcher.matches()) {
-            val module = relativeLinkMatcher.group("module")
-
-            when (val kind = relativeLinkMatcher.group("kind")) {
-                null -> {
-                    val relative = identifierAtomName(relativeLinkMatcher.group("relative")) { languageLevelFor(context) }
-                    val arity = relativeLinkMatcher.group("arity").toInt()
-
-                    callDefinitionResolveResults(context, module, relative, arity)
-                        .let { Resolver.preferred(context, false, it) }.firstNotNullOfOrNull { it.element }
-                }
-
-                "c" -> {
-                    val relative = identifierAtomName(relativeLinkMatcher.group("relative")) { languageLevelFor(context) }
-                    val arity = relativeLinkMatcher.group("arity").toInt()
-
-                    callDefinitionResolveResults(context, module, relative, arity)
-                        .filter { resolveResult ->
-                            resolveResult
-                                .element
-                                .let { it as? Call }
-                                ?.let(Callback.Companion::`is`)
-                                ?: false
-                        }
-                        .let { Resolver.preferred(context, false, it) }.firstNotNullOfOrNull { it.element }
-                }
-
-                "t" -> {
-                    val relative = identifierAtomName(relativeLinkMatcher.group("relative")) { languageLevelFor(context) }
-                    val arity = relativeLinkMatcher.group("arity").toInt()
-
-                    val resolveResults = if (module != null) {
-                        MarkdownFlavourDescriptor
-                            .modulars(context, module)
-                            .flatMap { modular ->
-                                org.elixir_lang.psi.scope.type.MultiResolve.resolveResults(
-                                    relative,
-                                    arity,
-                                    false,
-                                    modular
-                                )
-                            }
-                    } else {
-                        org.elixir_lang.psi.scope.type.MultiResolve.resolveResults(relative, arity, false, context)
-                    }
-
-                    resolveResults
-                        .let { Resolver.preferred(context, false, it) }
-                        .firstNotNullOfOrNull { it.element }
-                }
-
-                else -> {
-                    LOG.warn("Don't know how to find element for link ($link) of kind ($kind) for ${context.javaClass.name}")
-
-                    null
-                }
-            }
-        } else {
-            MarkdownFlavourDescriptor.modulars(context, link).firstOrNull()
-        }
-    }
+    ): PsiElement? = DocumentationLink.element(link, context)
 
     override fun getCustomDocumentationElement(
         editor: Editor,
@@ -182,88 +190,60 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
     }
 
     /**
-     * The reference to resolve for documentation on [call]. Inside `&Mod.name/arity` the name carries no
-     * reference of its own - it lives on the enclosing capture operator, which is the only element that
-     * also spans the `/arity` - so a captured name is looked up through that instead.
+     * What [call] documents. Inside `&Mod.name/arity` the name carries no reference of its own - it lives on the
+     * enclosing capture operator, which is the only element that also spans the `/arity` - so a captured name is
+     * looked up through that instead.
      */
-    private fun documentedReference(call: Call): PsiPolyVariantReference? =
+    private fun documentedChoice(call: Call): Documented.Choice? =
+        useOf(call)?.let { use -> Documented.of(use, isBound(call, use)) }
+
+    /** Whether a valid variable binds [call]'s name, which a use of it then names; a captured name is no such use. */
+    private fun isBound(call: Call, use: Use): Boolean = use is Use.OfCall && captureOf(call) == null && Callable.bound(call, false)
+
+    private fun captureOf(call: Call): CaptureNameArity? =
         PsiTreeUtil.getParentOfType(call, NonNumeric::class.java)
             ?.reference
             ?.let { it as? CaptureNameArity }
             ?.takeIf { it.nameElement == call }
-            ?: call.reference as? PsiPolyVariantReference
 
-    /**
-     * Past a delegation's own @doc, prefer source Call elements (CallDefinitionClause), falling back to BEAM stubs
-     * (CallDefinitionImpl).
-     */
-    private fun bestMatch(elements: List<PsiElement>): PsiElement? =
-        DelegationPrecedence.documented(
-            elements,
-            { it is Call && Delegation.`is`(it) },
-            { SourceFileDocsHelper.fetchDocs(it) != null }
-        ) {
-            elements.filterIsInstance<Call>().firstOrNull { CallDefinitionClause.`is`(it) }
-                ?: elements.filterIsInstance<BeamCallDefinition>().firstOrNull()
+    /** The use [call] is, read from its reference's kind; `null` where it has no reference to document through. */
+    private fun useOf(call: Call): Use? {
+        val capture = captureOf(call)
+
+        return if (capture != null) {
+            Use.capture(call, capture.arity)
+        } else {
+            when (val reference = call.reference) {
+                is org.elixir_lang.reference.Callable,
+                is org.elixir_lang.psi.__module__.Reference -> Use.of(call)
+
+                is org.elixir_lang.reference.CallDefinitionClause ->
+                    Use.specification(call, reference.moduleAttribute)
+
+                else -> null
+            }
         }
-
-    /** A `defdelegate` [head] documents its delegation, then what it delegates to. */
-    private fun delegationHeadDocumented(head: Call): PsiElement? {
-        val delegation = DeclaringForm.named(head)?.call ?: return null
-        val use = Use.of(head) as? Use.Named ?: return null
-        val delegatedTo = atItsHead(delegation, use, Feature.DOCUMENTATION)?.admittedDelegatedTo.orEmpty()
-
-        return bestMatch(listOf(delegation) + delegatedTo.map { it.element })
     }
 
     private tailrec fun getCustomDocumentationElement(contextElement: PsiElement): PsiElement? = when (contextElement) {
         is LeafPsiElement, is ElixirIdentifier, is ElixirRelativeIdentifier ->
             getCustomDocumentationElement(contextElement.parent)
 
-        is ElixirAtom -> {
-            contextElement.reference
-                ?.let { it as? PsiPolyVariantReference }
-                ?.multiResolve(false)
-                ?.filter(ResolveResult::isValidResult)
-                ?.mapNotNull(ResolveResult::getElement)
-                ?.filterIsInstance<PsiNamedElement>()
-                ?.let { Resolver.preferSource(it) }
-                ?.firstOrNull()
+        is ElixirAtom -> when (val use = Use.mfa(contextElement)) {
+            null ->
+                contextElement.reference
+                    ?.let { it as? PsiPolyVariantReference }
+                    ?.multiResolve(false)
+                    ?.filter(ResolveResult::isValidResult)
+                    ?.mapNotNull(ResolveResult::getElement)
+                    ?.filterIsInstance<PsiNamedElement>()
+                    ?.let { Resolver.preferSource(it) }
+                    ?.firstOrNull()
+
+            else -> Documented.of(use).element
         }
 
-        is Call if DeclaringForm.named(contextElement)?.form == Form.DELEGATION ->
-            delegationHeadDocumented(contextElement)
-
-        is Call -> {
-            documentedReference(contextElement)
-                ?.let { reference ->
-                    val allResults = reference.multiResolve(false)
-
-                    val validElements = allResults
-                        .filter(ResolveResult::isValidResult)
-                        .mapNotNull(ResolveResult::getElement)
-
-                    // If no exact arity match (validResult), fall back to results with an exact name match
-                    // from the same module (e.g., Enum.map/2 when call site has wrong arity).
-                    // multiResolve uses startsWith for name matching (for completion), so we must
-                    // filter to exact name matches to avoid showing docs for map_size when hovering map.
-                    bestMatch(validElements) ?: run {
-                        val callName = contextElement.functionName()
-                        val exactNameElements = allResults
-                            .mapNotNull(ResolveResult::getElement)
-                            .filter { element ->
-                                when (element) {
-                                    is BeamCallDefinition -> element.exportedName() == callName
-                                    is Call -> CallDefinitionClause.nameArityInterval(element, ResolveState.initial())
-                                        ?.name == callName
-
-                                    else -> false
-                                }
-                            }
-                        bestMatch(exactNameElements)
-                    }
-                }
-        }
+        is Call -> documentedChoice(contextElement)?.element
 
         is QualifiableAlias if declaringModuleCall(contextElement) != null ->
             declaringModuleCall(contextElement)
@@ -286,56 +266,22 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         }
     }
 
-    /** The definitions named [relative] at [arity] in the modules named [module], or in [context]'s module. */
-    private fun callDefinitionResolveResults(
-        context: PsiElement,
-        module: String?,
-        relative: String,
-        arity: Int
-    ): List<ResolveResult> =
-        if (module != null) {
-            MarkdownFlavourDescriptor
-                .modulars(context, module)
-                .flatMap { modular ->
-                    org.elixir_lang.psi.scope.call_definition_clause.MultiResolve.resolveResults(
-                        relative,
-                        arity,
-                        false,
-                        modular,
-                        atom = true
-                    )
-                }
-        } else {
-            context
-                .let { it as? Call }
-                ?.let { call ->
-                    call.takeIf(::isModular) ?: enclosingModularMacroCall(call)
-                }
-                ?.let { modular ->
-                    org.elixir_lang.psi.scope.call_definition_clause.MultiResolve.resolveResults(
-                        relative,
-                        arity,
-                        false,
-                        modular,
-                        atom = true
-                    )
-                }
-                ?.toList()
-                .orEmpty()
-        }
-
     /** The atom whose quoted name holds [element], unless [element] is inside an interpolation in that name. */
     private fun enclosingQuotedAtom(element: PsiElement): ElixirAtom? =
         PsiTreeUtil.getParentOfType(element, ElixirLine::class.java, false)
             ?.takeUnless { element.isInterpolatedWithin(it) }
             ?.parent as? ElixirAtom
 
-    private fun formatDocs(element: PsiElement, fetchedDocs: FetchedDocs): String {
+    private fun formatDocs(
+        element: PsiElement,
+        fetchedDocs: FetchedDocs,
+        delegations: List<DelegationBlock.Entry>
+    ): String {
         val documentationHtml = StringBuilder()
 
         documentationHtml.append(DocumentationMarkup.DEFINITION_START)
 
-        documentationHtml.append("<i>module</i> <b>").append(fetchedDocs.module).append("</b>\n")
+        fetchedDocs.module?.let { documentationHtml.append("<i>module</i> <b>").append(it).append("</b>\n") }
 
         when (fetchedDocs) {
             is FetchedDocs.CallbackDocumentation -> {
@@ -348,6 +294,25 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 }
             }
 
+            is FetchedDocs.Arities -> {
+                val linked = fetchedDocs.entries.size > 1
+
+                for (entry in fetchedDocs.entries) {
+                    for (head in entry.documentation.heads) {
+                        if (linked) {
+                            documentationHtml
+                                .append("<a href=\"#").append(entry.id).append("\">")
+                                .append(StringUtil.escapeXmlEntities(head))
+                                .append("</a>")
+                        } else {
+                            documentationHtml.append(head)
+                        }
+
+                        documentationHtml.append("\n")
+                    }
+                }
+            }
+
             is FetchedDocs.ModuleDocumentation -> Unit
             is FetchedDocs.TypeDocumentation -> {
                 documentationHtml.append(fetchedDocs.head).append("\n")
@@ -355,7 +320,7 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
         }
 
         documentationHtml.append(DocumentationMarkup.DEFINITION_END)
-
+        DelegationBlock.appendTo(documentationHtml, delegations)
 
         when (fetchedDocs) {
             is FetchedDocs.CallbackDocumentation -> {
@@ -376,77 +341,22 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
                 }
             }
 
-            is FetchedDocs.FunctionOrMacroDocumentation -> {
-                fetchedDocs.doc?.let { doc ->
-                    when (doc) {
-                        is None -> Unit
-                        is Hidden ->
-                            documentationHtml
-                                .append(DocumentationMarkup.CONTENT_START)
-                                .append(false)
-                                .append(DocumentationMarkup.CONTENT_END)
+            is FetchedDocs.FunctionOrMacroDocumentation -> appendFunctionContent(documentationHtml, element, fetchedDocs)
 
-                        is MarkdownByLanguage ->
-                            doc.formattedByLanguage.values.map { formatted ->
-                                documentationHtml
-                                    .append(DocumentationMarkup.CONTENT_START)
-                                    .append(html(element, formatted))
-                                    .append(DocumentationMarkup.CONTENT_END)
-                            }
-                    }
-                }
+            is FetchedDocs.Arities -> {
+                val linked = fetchedDocs.entries.size > 1
 
-                val deprecated = fetchedDocs.deprecated
-                val impls = fetchedDocs.impls
-                val implsIsNotEmpty = impls.isNotEmpty()
-                val specs = fetchedDocs.specs
-                val specsIsNotEmpty = specs.isNotEmpty()
-
-                if (deprecated != null || implsIsNotEmpty || specsIsNotEmpty) {
-                    documentationHtml.append(DocumentationMarkup.SECTIONS_START)
-
-                    if (deprecated != null) {
+                for (entry in fetchedDocs.entries) {
+                    if (linked) {
                         documentationHtml
-                            .append(DocumentationMarkup.SECTION_HEADER_START)
-                            .append("Deprecated")
-                            .append(DocumentationMarkup.SECTION_SEPARATOR)
-                            .append(html(element, deprecated))
-                            .append(DocumentationMarkup.SECTION_END)
+                            .append(DocumentationMarkup.CONTENT_START)
+                            .append("<a id=\"").append(entry.id).append("\"></a><b>")
+                            .append(entry.documentation.heads.joinToString("<br>") { StringUtil.escapeXmlEntities(it) })
+                            .append("</b>")
+                            .append(DocumentationMarkup.CONTENT_END)
                     }
 
-                    if (implsIsNotEmpty) {
-                        documentationHtml
-                            .append(DocumentationMarkup.SECTION_HEADER_START)
-                            .append("Behaviors Implemented")
-                            .append(DocumentationMarkup.SECTION_SEPARATOR)
-                            .append("<ul>")
-
-                        for (impl in impls) {
-                            documentationHtml
-                                .append("<pre>")
-                                .append(impl)
-                                .append("</pre>")
-                        }
-
-                        documentationHtml
-                            .append("</ul>")
-                            .append(DocumentationMarkup.SECTION_END)
-                    }
-
-                    if (specsIsNotEmpty) {
-                        documentationHtml
-                            .append(DocumentationMarkup.SECTION_HEADER_START)
-                            .append("Specifications")
-                            .append(DocumentationMarkup.SECTION_SEPARATOR)
-
-                        for (spec in specs) {
-                            documentationHtml.append(spec).append("<br />\n")
-                        }
-
-                        documentationHtml.append(DocumentationMarkup.SECTION_END)
-                    }
-
-                    documentationHtml.append(DocumentationMarkup.SECTIONS_END)
+                    appendFunctionContent(documentationHtml, element, entry.documentation)
                 }
             }
 
@@ -462,6 +372,85 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
 
 
         return documentationHtml.toString()
+    }
+
+    private fun appendFunctionContent(
+        documentationHtml: StringBuilder,
+        element: PsiElement,
+        function: FetchedDocs.FunctionOrMacroDocumentation
+    ) {
+        function.doc?.let { doc ->
+            when (doc) {
+                is None -> Unit
+                is Hidden ->
+                    documentationHtml
+                        .append(DocumentationMarkup.CONTENT_START)
+                        .append(false)
+                        .append(DocumentationMarkup.CONTENT_END)
+
+                is MarkdownByLanguage ->
+                    doc.formattedByLanguage.values.map { formatted ->
+                        documentationHtml
+                            .append(DocumentationMarkup.CONTENT_START)
+                            .append(html(element, formatted))
+                            .append(DocumentationMarkup.CONTENT_END)
+                    }
+            }
+        }
+
+        val deprecated = function.deprecated
+        val impls = function.impls
+        val implsIsNotEmpty = impls.isNotEmpty()
+        val specs = function.specs
+        val specsIsNotEmpty = specs.isNotEmpty()
+
+        if (deprecated != null || implsIsNotEmpty || specsIsNotEmpty) {
+            documentationHtml.append(DocumentationMarkup.SECTIONS_START)
+
+            if (deprecated != null) {
+                documentationHtml
+                    .append(DocumentationMarkup.SECTION_HEADER_START)
+                    .append("Deprecated")
+                    .append(DocumentationMarkup.SECTION_SEPARATOR)
+                    .append(html(element, deprecated))
+                    .append(DocumentationMarkup.SECTION_END)
+            }
+
+            if (implsIsNotEmpty) {
+                documentationHtml
+                    .append(DocumentationMarkup.SECTION_HEADER_START)
+                    .append("Behaviors Implemented")
+                    .append(DocumentationMarkup.SECTION_SEPARATOR)
+                    .append("<ul>")
+
+                for (impl in impls) {
+                    documentationHtml
+                        .append("<pre>")
+                        .append(impl)
+                        .append("</pre>")
+                }
+
+                documentationHtml
+                    .append("</ul>")
+                    .append(DocumentationMarkup.SECTION_END)
+            }
+
+            if (specsIsNotEmpty) {
+                documentationHtml
+                    .append(DocumentationMarkup.SECTION_HEADER_START)
+                    .append("Specifications")
+                    .append(DocumentationMarkup.SECTION_SEPARATOR)
+
+                for (spec in specs) {
+                    documentationHtml.append(spec).append("<br />\n")
+                }
+
+                documentationHtml.append(DocumentationMarkup.SECTION_END)
+            }
+
+            documentationHtml.append(DocumentationMarkup.SECTIONS_END)
+        }
+    
     }
 
     private fun html(element: PsiElement, otpErlangObject: OtpErlangObject): String =
@@ -487,15 +476,15 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
             .generateHtml()
     }
 
-    private fun fetchDocs(element: PsiElement): FetchedDocs? =
+    private fun fetchDocs(element: PsiElement, remote: Boolean): FetchedDocs? =
     // For compiled Beam elements, prefer docs from the decompiled source mirror so hover uses
         // the cached inline docs from decompilation.
         if (element.containingFile?.originalFile is BeamFileImpl) {
             val sourceElement = (element as? PsiCompiledElement)?.mirror ?: element.navigationElement
 
-            SourceFileDocsHelper.fetchDocs(sourceElement)
+            SourceFileDocsHelper.fetchDocs(sourceElement, remote)
                 ?: BeamDocsHelper.fetchDocs(element)
         } else {
-            SourceFileDocsHelper.fetchDocs(element)
+            SourceFileDocsHelper.fetchDocs(element, remote)
         }
 }

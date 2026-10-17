@@ -98,7 +98,7 @@ class SourceFileDocsHelperTest : PlatformTestCase() {
 
             val module = PsiTreeUtil.findChildrenOfType(myFixture.file, Call::class.java).single { Module.`is`(it) }
 
-            assertNull("`@moduledoc $hidden` hides the module", SourceFileDocsHelper.fetchDocs(module))
+            assertNull("`@moduledoc $hidden` hides the module", SourceFileDocsHelper.fetchDocs(module, remote = true))
         }
     }
 
@@ -113,7 +113,7 @@ class SourceFileDocsHelperTest : PlatformTestCase() {
 
             assertNotNull(
                 "`@moduledoc $shown` does not hide the module",
-                SourceFileDocsHelper.fetchDocs(module)
+                SourceFileDocsHelper.fetchDocs(module, remote = true)
             )
         }
     }
@@ -125,6 +125,6 @@ class SourceFileDocsHelperTest : PlatformTestCase() {
             .findChildrenOfType(myFixture.file, AtUnqualifiedNoParenthesesCall::class.java)
             .single { it.atIdentifier.identifierName() == attributeName }
 
-        return SourceFileDocsHelper.fetchDocs(moduleAttribute)
+        return SourceFileDocsHelper.fetchDocs(moduleAttribute, remote = true)
     }
 }

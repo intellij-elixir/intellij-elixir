@@ -2,10 +2,9 @@ package org.elixir_lang.documentation
 
 import com.intellij.codeInsight.documentation.DocumentationManagerProtocol
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.text.StringUtil
 import com.intellij.psi.PsiElement
 import org.elixir_lang.Module
-import org.elixir_lang.language_level.ElixirLanguageLevelResolver.languageLevelFor
-import org.elixir_lang.lowering.identifierAtomName
 import org.elixir_lang.psi.ElementFactory
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.call.name.Module.ELIXIR_PREFIX
@@ -15,7 +14,6 @@ import org.elixir_lang.reference.resolver.Module as ModuleResolver
 import org.intellij.markdown.IElementType
 import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.ast.ASTNode
-import org.intellij.markdown.ast.getTextInNode
 import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
 import org.intellij.markdown.html.GeneratingProvider
 import org.intellij.markdown.html.HtmlGenerator
@@ -67,102 +65,72 @@ class MarkdownFlavourDescriptor(private val element: PsiElement) : GFMFlavourDes
                             text: String,
                             node: ASTNode
                         ) {
-                            when (node.children.size) {
-                                3 -> {
-                                    val nameChild = node.children[1]
-                                    val name = nameChild.getTextInNode(text).toString()
-                                    val moduleRelativeArityMatcher = MODULE_RELATIVE_ARITY_PATTERN.matcher(name)
+                            val span = SpanLink.of(node, text)
 
-                                    val link = if (moduleRelativeArityMatcher.matches()) {
-                                        val module = moduleRelativeArityMatcher.group("module")
-
-                                        if (module != null) {
-                                            val relative = identifierAtomName(moduleRelativeArityMatcher.group("relative")) {
-                                                languageLevelFor(element)
-                                            }
-                                            val arity = moduleRelativeArityMatcher.group("arity").toInt()
-
-                                            val functionCount =
-                                                module
-                                                    .let { modulars(element, it) }
-                                                    .flatMap { modular ->
-                                                        org.elixir_lang.psi.scope.call_definition_clause.MultiResolve.resolveResults(
-                                                            relative,
-                                                            arity,
-                                                            false,
-                                                            modular,
-                                                            atom = true
-                                                        )
-                                                    }
-                                                    .count { it.isValidResult }
-
-                                            functionCount > 0
-                                        } else {
-                                            true
-                                        }
-                                    } else {
-                                        modulars(element, name).isNotEmpty()
-                                    }
-
-                                    if (link) {
-                                        visitor.consumeTagOpen(
-                                            node,
-                                            "a",
-                                            "href=\"${DocumentationManagerProtocol.PSI_ELEMENT_PROTOCOL}${name}\""
-                                        )
-                                        gfmHtmlGeneratingProvider!!.processNode(visitor, text, node)
-                                        visitor.consumeTagClose("a")
-                                    } else {
-                                        renderGenericCode(gfmHtmlGeneratingProvider, visitor, text, node)
-                                    }
-                                }
-                                5 -> {
-                                    when (val kind = node.children[1].getTextInNode(text).toString()) {
-                                        "c", "t" -> {
-                                            val nameChild = node.children[3]
-                                            val name = nameChild.getTextInNode(text).toString()
-                                            val moduleRelativeArityMatcher = MODULE_RELATIVE_ARITY_PATTERN.matcher(name)
-
-                                            if (moduleRelativeArityMatcher.matches()) {
-                                                val module = moduleRelativeArityMatcher.group("module")
-
-                                                val link = if (module != null) {
-                                                    modulars(element, module).isNotEmpty()
-                                                } else {
-                                                    true
-
-                                                }
-
-                                                if (link) {
-                                                    visitor.consumeTagOpen(
-                                                        node,
-                                                        "a",
-                                                        "href=\"${
-                                                            DocumentationManagerProtocol
-                                                                .PSI_ELEMENT_PROTOCOL
-                                                        }${kind}:${name}\""
-                                                    )
-                                                    gfmHtmlGeneratingProvider!!.processNode(visitor, text, node)
-                                                    visitor.consumeTagClose("a")
-                                                } else {
-                                                    renderGenericCode(gfmHtmlGeneratingProvider, visitor, text, node)
-                                                }
-                                            }
-                                        }
-                                        else -> renderGenericCode(gfmHtmlGeneratingProvider, visitor, text, node)
-                                    }
-                                }
-                                else -> renderGenericCode(gfmHtmlGeneratingProvider, visitor, text, node)
+                            if (span != null && linkable(span)) {
+                                visitor.consumeTagOpen(
+                                    node,
+                                    "a",
+                                    "href=\"${DocumentationManagerProtocol.PSI_ELEMENT_PROTOCOL}${StringUtil.escapeXmlEntities(span.link)}\""
+                                )
+                                gfmHtmlGeneratingProvider!!.processNode(visitor, text, node)
+                                visitor.consumeTagClose("a")
+                            } else {
+                                renderGenericCode(gfmHtmlGeneratingProvider, visitor, text, node)
                             }
                         }
                     }
                 }
             }
 
-    companion object {
-        val MODULE_RELATIVE_ARITY_PATTERN: Pattern =
-            Pattern.compile("((?<module>.+)\\.)?(?<relative>.+)/(?<arity>\\d+)")
+    /** Whether [span] names something the project has; a function of no module is the document's own, and not looked up. */
+    private fun linkable(span: SpanLink): Boolean {
+        val parsed = DocumentationLink.parse(span.link)
 
+        return if (parsed != null) {
+            val module = parsed.module
+            val arity = parsed.arity
+
+            when {
+                arity == null -> false
+                module == null -> true
+                parsed.kind == null || parsed.kind == "c" -> FunctionLink.exists(
+                    element,
+                    module,
+                    parsed.name,
+                    arity,
+                    callback = parsed.kind == "c"
+                )
+                else -> modulars(element, module).isNotEmpty()
+            }
+        } else {
+            span.kind == null && !span.name.startsWith(":") && modulars(element, span.name).isNotEmpty()
+        }
+    }
+
+    /**
+     * A code span read as a link from its text, however the Markdown parser split it: a `c` or `t` [kind] for a callback
+     * or type, then the [name], a module or function, whose module may be written as an atom.
+     */
+    private class SpanLink(val kind: String?, val name: String) {
+        val link: String get() = if (kind == null) name else "$kind:$name"
+
+        companion object {
+            private val SHAPE: Pattern =
+                Pattern.compile("((?<kind>[ct]):)?(?<name>(:\"[^\"]*\"|:)?[^\\s\"]+|:\"[^\"]*\")")
+
+            fun of(node: ASTNode, text: String): SpanLink? {
+                if (node.children.size < 2) return null
+
+                val content = text.substring(node.children.first().endOffset, node.children.last().startOffset)
+                val matcher = SHAPE.matcher(content)
+
+                return if (matcher.matches()) SpanLink(matcher.group("kind"), matcher.group("name")) else null
+            }
+        }
+    }
+
+    companion object {
         /** The modulars a link's [name] names, as they are named from [element]. */
         fun modulars(element: PsiElement, name: String): List<PsiElement> =
             indexName(element.project, name)

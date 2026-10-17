@@ -20,4 +20,15 @@ import org.elixir_lang.PlatformTestCase
 abstract class QuickDocumentationTestCase : PlatformTestCase() {
     /** @see quickDocumentationAtCaret */
     protected fun quickDocumentationAtCaret(): String? = myFixture.quickDocumentationAtCaret(project)
+
+    /** An EEx function and a `def` of the same name, documented as "Renders with one." and "Renders with two.", are both listed, each linked from the header. */
+    protected fun assertBothArities(documentation: String) {
+        assertTrue("Expected the EEx function's @doc, got: $documentation", "Renders with one." in documentation)
+        assertTrue("Expected the def's @doc, got: $documentation", "Renders with two." in documentation)
+        assertEquals(
+            "Expected a link per arity, got: $documentation",
+            2,
+            Regex("""href="#([^"]+)"""").findAll(documentation).map { it.groupValues[1] }.distinct().count()
+        )
+    }
 }

@@ -34,17 +34,9 @@ class Docs(private val documentedByArityByNameByKind: MutableMap<String, TreeMap
     fun covering(macroNameArity: MacroNameArity): Documented? =
             kind(macroNameArity)?.let { kind -> covering(kind, macroNameArity.name, macroNameArity.arity) }
 
-    /**
-     * Falls back to finding documentation for [name] at any arity when exact arity lookup fails.
-     *
-     * Returns the [Documented] with the smallest arity >= [arity], or the closest lower arity if none
-     * is >= [arity].
-     */
-    fun documentedByNameFallback(kind: String, name: String, arity: Int): Documented? {
-        val byArity = documentedByArityByNameByKind[kind]?.get(name) ?: return null
-        // Prefer the entry with the smallest arity >= requested (the full-arity definition)
-        return byArity.ceilingEntry(arity)?.value ?: byArity.floorEntry(arity)?.value
-    }
+    /** The entries named [name] of [kinds], ascending by arity. */
+    fun documentedNamed(kinds: List<String>, name: String): List<Documented> =
+            kinds.flatMap { kind -> documentedByArityByNameByKind[kind]?.get(name)?.values.orEmpty() }.sortedBy { it.arity }
 
     fun signatures(macroNameArity: MacroNameArity): List<String>? = documented(macroNameArity)?.signatures
     fun typeDocumentedByArityByName(): Map<String, Map<Int, Documented>> =

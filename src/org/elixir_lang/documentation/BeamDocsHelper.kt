@@ -4,12 +4,14 @@ import com.ericsson.otp.erlang.OtpErlangList
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.psi.PsiElement
-import com.intellij.psi.ResolveState
 import org.elixir_lang.beam.BeamReader
 import org.elixir_lang.beam.psi.Module
 import org.elixir_lang.declaration.Presentation
+import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.psi.call.MaybeExported
+import org.elixir_lang.beam.chunk.beam_documentation.docs.Documented
+import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.Hidden
 import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_compiler_options.abstract_code.Attribute
 import org.elixir_lang.beam.chunk.debug_info.v1.erl_abstract_code.abstract_code_compiler_options.abstract_code.attribute.Spec
 import org.elixir_lang.beam.decompiler.Options
@@ -29,49 +31,55 @@ object BeamDocsHelper {
                     }
                     is MaybeExported -> {
                         element.exportedName()?.let { name ->
-                            val arity = element.exportedArity(ResolveState.initial())
-                            val kind = kindForElement(element)
+                            val own = (element as? BeamCallDefinition)?.nameArityInterval?.arityInterval
+                            val entries = documentation?.docs
+                                ?.documentedNamed(kindForElement(element), name)
+                                ?.mapNotNull { entry(module, it)?.takeIf { entry -> visible(entry, own) } }
+                                .orEmpty()
 
-                            documentation?.docs?.let { docs ->
-                                // Try exact arity first, then fall back to other arities for the same name.
-                                // In Elixir, default-argument stubs (e.g. info/1) delegate to the full-arity
-                                // definition (e.g. info/2) which is where the @doc lives.
-                                val documented = kind.firstNotNullOfOrNull { k -> docs.documented(k, name, arity) }
-                                    ?: kind.firstNotNullOfOrNull { k -> docs.covering(k, name, arity) }
-                                    ?: kind.firstNotNullOfOrNull { k -> docs.documentedByNameFallback(k, name, arity) }
-
-                                documented?.let {
-                                    val signatures = it.signatures
-                                    val deprecated = it.deprecated()
-                                    val doc = it.doc
-                                    val specs = specsFromMetadata(it.metadatumByName)
-
-                                    // Use specs as heads when available -- they contain the full
-                                    // typed signature (e.g. "@spec any(pred, list) :: boolean() when ...")
-                                    // which is more informative than the EEP-48 signatures field
-                                    // (which is often just "any/2" for Erlang modules).
-                                    val heads = specs.ifEmpty { signatures }
-
-                                    if (deprecated != null || doc != null || heads.isNotEmpty()) {
-                                        FetchedDocs.FunctionOrMacroDocumentation(
-                                            module,
-                                            deprecated,
-                                            doc,
-                                            impls = emptyList(),
-                                            specs = emptyList(),
-                                            heads = heads
-                                        )
-                                    } else {
-                                        null
-                                    }
-                                }
-                            }
+                            entries.takeIf(List<*>::isNotEmpty)?.let { FetchedDocs.Arities(module, it) }
                         }
                     }
                     // Only modules and exported definitions carry docs; a type or anything else has none
                     else -> null
                 }
             }
+
+    /** A function marked `@doc false` is not listed with the others, but is when it is the one asked about. */
+    private fun visible(entry: FetchedDocs.Arities.Entry, own: ArityInterval?): Boolean =
+        FetchedDocs.Arities.listed(
+            inside = false,
+            exported = true,
+            hidden = entry.documentation.doc is Hidden,
+            used = own?.overlaps(entry.arities) == true
+        )
+
+    private fun entry(module: String, documented: Documented): FetchedDocs.Arities.Entry? {
+        val signatures = documented.signatures
+        val deprecated = documented.deprecated()
+        val doc = documented.doc
+        // Use specs as heads when available -- they contain the full typed signature (e.g. "@spec any(pred, list) ::
+        // boolean() when ...") which is more informative than the EEP-48 signatures field (which is often just
+        // "any/2" for Erlang modules).
+        val heads = specsFromMetadata(documented.metadatumByName).ifEmpty { signatures }
+
+        return if (deprecated != null || doc != null || heads.isNotEmpty()) {
+            // Elixir exports each arity a default covers but documents only the full one.
+            FetchedDocs.Arities.Entry(
+                ArityInterval(documented.arity - documented.defaults(), documented.arity),
+                FetchedDocs.FunctionOrMacroDocumentation(
+                    module,
+                    deprecated,
+                    doc,
+                    impls = emptyList(),
+                    specs = emptyList(),
+                    heads = heads
+                )
+            )
+        } else {
+            null
+        }
+    }
 
     /**
      * Extracts `@spec` strings from the EEP-48 metadata `signature` key.

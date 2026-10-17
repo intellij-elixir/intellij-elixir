@@ -8,19 +8,22 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.Doc
 import org.elixir_lang.beam.chunk.beam_documentation.docs.documented.MarkdownByLanguage
 import org.elixir_lang.beam.term.inspect
+import org.elixir_lang.lowering.AtomName
+import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
-import org.elixir_lang.psi.CallDefinitionClause
-import org.elixir_lang.structure_view.element.Delegation
+import org.elixir_lang.psi.QuotableKeywordList
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.identifierName
 import org.elixir_lang.psi.impl.prevSiblingSequence
+import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 
-sealed class FetchedDocs(open val module: String) {
-    data class CallbackDocumentation(override val module: String, val head: String, val doc: String) :
+/** What the documentation of one declaration holds; [module] is `null` where the module is not known, as in a `quote`. */
+sealed class FetchedDocs(open val module: String?) {
+    data class CallbackDocumentation(override val module: String?, val head: String, val doc: String) :
         FetchedDocs(module)
 
     data class FunctionOrMacroDocumentation(
-        override val module: String,
+        override val module: String?,
         val deprecated: OtpErlangObject?,
         val doc: Doc?,
         val impls: List<String>,
@@ -49,19 +52,20 @@ sealed class FetchedDocs(open val module: String) {
         companion object {
             private val logger = Logger.getInstance(FunctionOrMacroDocumentation::class.java)
 
+            @RequiresReadLock
             fun fromCallDefinitionClauseCall(
-                module: String,
+                module: String?,
                 call: Call,
-                head: PsiElement
+                head: String
             ): FunctionOrMacroDocumentation {
                 val callDefinitionAttributeListByName = callDefinitionAttributeListByName(call)
                 val deprecated = callDefinitionAttributeListByName[DEPRECATED]?.joinModuleAttributeQuoteText()
                     ?.let { OtpErlangBinary(it.toByteArray()) }
-                val doc = callDefinitionAttributeListByName[DOC]?.joinModuleAttributeQuoteText()
+                val doc = docAbove(call)?.moduleAttributeValue()?.documentationMarkdownText()
                     ?.let { MarkdownByLanguage.english(it) }
                 val impls = callDefinitionAttributeListByName[IMPL].moduleAttributeValueTextList()
                 val specs = callDefinitionAttributeListByName[SPEC].moduleAttributeValueTextList()
-                val heads = listOf(head.text)
+                val heads = listOf(head)
 
                 return FunctionOrMacroDocumentation(module, deprecated, doc, impls, specs, heads)
             }
@@ -87,26 +91,59 @@ sealed class FetchedDocs(open val module: String) {
         }
     }
 
-    data class ModuleDocumentation(override val module: String, val moduledoc: String) : FetchedDocs(module)
+    /** Every function of one name in a module, ascending by arity: an [Entry] each, as default arguments cover several arities of one. */
+    data class Arities(override val module: String?, val entries: List<Entry>) : FetchedDocs(module) {
+        data class Entry(val arities: ArityInterval, val documentation: FunctionOrMacroDocumentation) {
+            /** Names this entry in a link to it. */
+            val id: String get() = "arity-${arities.maximum ?: arities.minimum}"
+        }
 
-    data class TypeDocumentation(override val module: String, val head: String, val typedoc: String) :
+        /** The entry for the function used at [arity], if there is one. */
+        fun entryAt(arity: Int): Entry? = entries.firstOrNull { arity in it.arities }
+
+        companion object {
+            /**
+             * Whether a function is listed: every one from [inside] its module, else those [exported] and not [hidden], and
+             * always the one [used].
+             */
+            fun listed(inside: Boolean, exported: Boolean, hidden: Boolean, used: Boolean): Boolean =
+                inside || (exported && !hidden) || used
+        }
+    }
+
+    data class ModuleDocumentation(override val module: String?, val moduledoc: String) : FetchedDocs(module)
+
+    data class TypeDocumentation(override val module: String?, val head: String, val typedoc: String) :
         FetchedDocs(module)
 }
 
-private val DEPRECATED = "deprecated"
-private val DOC = "doc"
-private val IMPL = "impl"
-private val SPEC = "spec"
+private const val DEPRECATED = "deprecated"
+private const val DOC = "doc"
+private const val IMPL = "impl"
+private const val SPEC = "spec"
 private val CALL_DEFINITION_ATTRIBUTE_NAME_SET: Set<String> = setOf(DEPRECATED, DOC, IMPL, SPEC)
+
+/** Whether an `@doc` that is not metadata is written above [call]: `false` and `nil` hide the function, which says something. */
+@RequiresReadLock
+internal fun writesDoc(call: Call): Boolean = docAbove(call) != null
+
+/** Whether the `@doc` written above [call] is `false` or `nil`, which hides the function from documentation. */
+@RequiresReadLock
+internal fun hidesDoc(call: Call): Boolean =
+    docAbove(call)
+        ?.moduleAttributeValue()
+        ?.let { AtomName.of(it) in SourceFileDocsHelper.HIDDEN_DOCUMENTATION } == true
+
+/** The `@doc` above [call] that stands, the nearest one: a keyword list only sets metadata beside the doc and replaces nothing. */
+private fun docAbove(call: Call): AtUnqualifiedNoParenthesesCall<*>? =
+    callDefinitionAttributeListByName(call)[DOC]?.firstOrNull { it.moduleAttributeValue() !is QuotableKeywordList }
 
 private fun callDefinitionAttributeListByName(callDefinitionCall: Call): Map<String, List<AtUnqualifiedNoParenthesesCall<*>>> =
     callDefinitionCall
         .prevSiblingSequence()
         .drop(1)
-        // A defdelegate ends the run of attributes belonging to whatever follows it, exactly as a def
-        // does. Without it the walk runs past any number of delegations and attaches an @doc written
-        // for one of them to a later, undocumented definition.
-        .takeWhile { it !is Call || !(CallDefinitionClause.`is`(it) || Delegation.`is`(it)) }
+        // Every declaration takes the attributes written above it, so the run ends at the previous one.
+        .takeWhile { it !is Call || DeclaringForm.declaredBy(it) == null }
         .filterIsInstance<AtUnqualifiedNoParenthesesCall<*>>()
         .filter { CALL_DEFINITION_ATTRIBUTE_NAME_SET.contains(it.atIdentifier.identifierName()) }
         .groupBy { it.atIdentifier.identifierName() }
