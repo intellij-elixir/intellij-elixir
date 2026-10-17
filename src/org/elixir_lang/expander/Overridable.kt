@@ -52,14 +52,19 @@ internal fun makeOverridable(compiling: Compiling, nameArity: NameArity): Overri
     return Overriding.RECORDED
 }
 
-/** `elixir_overridable:store_not_overridden/1`: each overridable definition with no new one is stored back. */
-internal fun storeNotOverridden(compiling: Compiling): Expansion.Error? {
+/**
+ * `elixir_overridable:store_not_overridden/1`: each overridable definition with no new one is stored back. Not
+ * [checked], for a module that stopped or raised, they are stored back all the same, as they are defined up to the
+ * stop, and none raises.
+ */
+internal fun storeNotOverridden(compiling: Compiling, checked: Boolean): Expansion.Error? {
     for ((nameArity, overridable) in compiling.overridable) {
         val defined = compiling.table[nameArity]
 
         when {
             defined == null -> storeOverridable(compiling, nameArity, overridable, hidden = false)
-            defined.kind.macro != overridable.entry.kind.macro -> return Expansion.Error("bad_kind", defined.at)
+            checked && defined.kind.macro != overridable.entry.kind.macro ->
+                return Expansion.Error("bad_kind", defined.at)
         }
     }
 

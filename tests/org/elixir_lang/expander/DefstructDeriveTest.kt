@@ -102,9 +102,10 @@ class DefstructDeriveTest : ExpanderTestCase() {
             "module Elixir.A raised derive_not_an_implementation `defstruct [:a]`",
         )
 
-    fun testAnExceptionStopsAtItsStructAndLeavesItsOverridableOutOfTheTable() {
+    fun testAnExceptionStopsAtItsStructAndKeepsItsOverridableDefinition() {
         val code = "defmodule A do\n  @derive Plain\n  defexception [:reason]\nend"
-        val table = " | def __struct__/0 line 3 clauses 1 | def __struct__/1 line 3 clauses 1"
+        val table =
+            " | def __struct__/0 line 3 clauses 1 | def __struct__/1 line 3 clauses 1 | def exception/1 line 3 clauses 1"
 
         assertEvery(code, "module Elixir.A stopped `defexception [:reason]`$table | $PLAIN")
     }

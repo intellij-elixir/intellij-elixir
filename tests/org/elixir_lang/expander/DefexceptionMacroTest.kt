@@ -54,7 +54,7 @@ class DefexceptionMacroTest : ExpanderTestCase() {
         assertEvery(
             "defmodule A do\n  @enforce_keys [:reason]\n  defexception [:reason]\n  def f, do: %A{}\nend",
             "module Elixir.A raised struct_missing_enforced_keys `%A{}` | def __struct__/0 line 3 clauses 1 | " +
-                "def __struct__/1 line 3 clauses 1",
+                "def __struct__/1 line 3 clauses 1 | def exception/1 line 3 clauses 1",
         )
 
     fun testFieldsThatAreNotAtomsRaiseAtTheDefexception() =
@@ -63,11 +63,27 @@ class DefexceptionMacroTest : ExpanderTestCase() {
             "module Elixir.A raised struct_field_not_atom `defexception [\"a\"]`",
         )
 
-    fun testFieldsTheExpanderCannotFollowLeaveTheOverridableDefinitionsOut() =
-        assertEvery(
-            "defmodule A do\n  defexception Foo.fields()\nend",
-            "module Elixir.A stopped `defexception Foo.fields()`$STRUCT",
+    /**
+     * Fields the expander can't follow stop the module, which keeps the definitions made overridable before the stop.
+     * Whether there is a `:message` field isn't known, so those its `if` branch adds are unordered.
+     */
+    fun testFieldsTheExpanderCannotFollowStopTheModuleAfterTheOverridableDefinitions() {
+        val code = "defmodule A do\n  defexception Foo.fields()\nend"
+        val ordered = { version: String ->
+            val level = ElixirLanguageLevel.of(version)
+            val module = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs).modules.single()
+
+            module.table.entries.map { (nameArity, entry) -> "${nameArity.name}/${nameArity.arity} ${entry.ordered}" }
+        }
+
+        val expected = "[__struct__/0 true, __struct__/1 true, message/1 false, exception/1 false]"
+
+        assertEvery(code, "module Elixir.A stopped `defexception Foo.fields()`$STRUCT$MESSAGE$EXCEPTION_2")
+        assertEquals(
+            LEVELS.joinToString("\n") { "$it: $expected" },
+            LEVELS.joinToString("\n") { "$it: ${ordered(it)}" },
         )
+    }
 
     fun testTheStructHoldsTheExceptionKey() =
         assertEvery(
@@ -78,7 +94,7 @@ class DefexceptionMacroTest : ExpanderTestCase() {
     fun testAKeyThatIsNoFieldIsUnknown() =
         assertEvery(
             "defmodule A do\n  defexception [:reason]\n  defmodule B do\n    def f, do: %A{message: 1}\n  end\nend",
-            "module Elixir.A raised struct_unknown_key `%A{message: 1}`$STRUCT",
+            "module Elixir.A raised struct_unknown_key `%A{message: 1}`$STRUCT$EXCEPTION_1",
         )
 
     /** The output's statements run in order, `struct = defstruct(...)` and the `if` branch Elixir takes among them. */

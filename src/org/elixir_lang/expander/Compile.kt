@@ -383,12 +383,12 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
         if (unitEnded?.raises == true) break
     }
 
-    if (ended == null) storeNotOverridden(compiling)?.let { ended = Ended.Raised(it) }
+    storeNotOverridden(compiling, checked = ended == null)?.let { ended = Ended.Raised(it) }
 
     if (ended == null) ended = beforeCompile(module, compiling, (body as Expansion.Expanded).env, run)
 
     // `eval_form/7` stores them again after the callbacks, which may have defined the other kind.
-    if (ended == null) ended = storeNotOverridden(compiling)?.let { Ended.Raised(it) }
+    storeNotOverridden(compiling, checked = ended == null)?.let { ended = Ended.Raised(it) }
 
     if (ended == null) {
         ended = postModule(module, compiling, tainted = run.errors.size > errorsFrom || errors.isNotEmpty(), run)
