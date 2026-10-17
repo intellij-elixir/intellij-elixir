@@ -25,6 +25,7 @@ import org.elixir_lang.declaration.Reach
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
 import org.elixir_lang.declaration.admits
+import org.elixir_lang.Module
 import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.CallDefinitionClause
@@ -151,13 +152,15 @@ internal object ExpanderSource : CandidateSource {
     }
 
     /**
-     * A declaration, the PSI that declares it, and the delegation its head makes.
+     * A declaration, the PSI that declares it, the module whose definitions it is, and the delegation its head makes.
      *
+     * @property module the module's index name (`Module.indexName`), as [Found.declaringModule] has it
      * @property headArity the arity the head declares, which an `import` narrowing [declaration]'s leaves as it is
      */
     private class Defined(
         val declaration: Declaration,
         val element: PsiElement,
+        val module: String,
         val delegation: DefinitionTable.Delegation? = null,
         val headArity: ArityKnowledge = declaration.arity,
     ) {
@@ -205,7 +208,7 @@ internal object ExpanderSource : CandidateSource {
                 result.units.any { it.owner == ExpansionResult.Owner.ModuleBody && it.node.meta.origin.contains(at.range) }
         } ?: return emptyList()
 
-        return defined(at.file, result.table, name)
+        return defined(at.file, result, name)
     }
 
     /** What [env]'s imports of [name] reach, each through its `import` call in [file]. */
@@ -267,7 +270,7 @@ internal object ExpanderSource : CandidateSource {
         ofModule(at, SPECIAL_FORMS, name).map { defined ->
             val arity = specialFormArity(defined.declaration.name, at.inputs.level) ?: return@map defined
 
-            Defined(defined.declaration.copy(arity = arity), defined.element, defined.delegation, arity)
+            Defined(defined.declaration.copy(arity = arity), defined.element, defined.module, defined.delegation, arity)
         }
 
     /**
@@ -288,7 +291,7 @@ internal object ExpanderSource : CandidateSource {
             ProjectModules.Located.Unknown, ProjectModules.Located.None, is ProjectModules.Located.Several -> emptyList()
             is ProjectModules.Located.Source -> {
                 val result = located.result ?: return emptyList()
-                val own = defined(located.file, result.table, name)
+                val own = defined(located.file, result, name)
                     .flatMap { reachedFrom(at, it, Reach.OWN, emptyList(), name, arity, remote = true, crossed) }
                 val body = if (imports) bodyEnv(result) else null
 
@@ -373,13 +376,16 @@ internal object ExpanderSource : CandidateSource {
     private fun ofModule(at: At, module: String, name: String?): List<Defined> =
         when (val located = at.holder.locate(at.file, module, at.inputs)) {
             ProjectModules.Located.Unknown, ProjectModules.Located.None, is ProjectModules.Located.Several -> emptyList()
-            is ProjectModules.Located.Source -> located.result?.let { defined(located.file, it.table, name) }.orEmpty()
+            is ProjectModules.Located.Source -> located.result?.let { defined(located.file, it, name) }.orEmpty()
             is ProjectModules.Located.Compiled -> compiled(at.file, located, name)
         }
 
-    /** [table]'s definitions of [name], or of every name when it is `null`: one for each head, each with its arities. */
-    private fun defined(file: ElixirFile, table: DefinitionTable, name: String?): List<Defined> =
-        NameIndex.of(table).named(name).flatMap { (nameArity, entry) ->
+    /**
+     * [result]'s module's definitions of [name], or of every name when it is `null`: one for each head, each with its
+     * arities.
+     */
+    private fun defined(file: ElixirFile, result: ExpansionResult, name: String?): List<Defined> =
+        NameIndex.of(result.table).named(name).flatMap { (nameArity, entry) ->
             val arity = if (entry.defaults == 0) {
                 ArityKnowledge.Exact(nameArity.arity)
             } else {
@@ -395,7 +401,7 @@ internal object ExpanderSource : CandidateSource {
                 val form = DeclaringForm.shapedForm(call) ?: Form.CLAUSE
                 val declared = Declared.Source(form, CallDefinitionClause.sourceOrigin(call))
 
-                Defined(Declaration(nameArity.name, arity, capabilities, declared), call, head.delegation)
+                Defined(Declaration(nameArity.name, arity, capabilities, declared), call, Module.indexName(result.module), head.delegation)
             }
         }
 
@@ -418,6 +424,7 @@ internal object ExpanderSource : CandidateSource {
             Defined(
                 Declaration(nameArity.name, ArityKnowledge.Exact(nameArity.arity), definition.capabilities, Declared.Compiled(origin)),
                 definition,
+                origin.module,
             )
         }
     }
@@ -433,7 +440,7 @@ internal object ExpanderSource : CandidateSource {
         return runs(kept).map { run ->
             val arity = if (run.first == run.last) ArityKnowledge.Exact(run.first) else ArityKnowledge.Range(run.first, run.last)
 
-            Defined(declaration.copy(arity = arity), defined.element, defined.delegation, defined.headArity)
+            Defined(declaration.copy(arity = arity), defined.element, defined.module, defined.delegation, defined.headArity)
         }
     }
 
@@ -474,6 +481,7 @@ internal object ExpanderSource : CandidateSource {
                 Candidate(reached.defined.declaration, reached.reach, applicability),
                 reached.defined.element,
                 reached.paths + reached.delegations,
+                reached.defined.module,
             )
         }
 

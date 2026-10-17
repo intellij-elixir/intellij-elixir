@@ -9,11 +9,14 @@ import org.elixir_lang.declaration.Applicability
 import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Candidate
 import org.elixir_lang.declaration.CandidateSource
+import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Reach
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
+import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.psi.impl.qualifierModulars
@@ -66,8 +69,28 @@ object LegacyWalkSource : CandidateSource {
             applicability(reached, use)?.let { applicability ->
                 val paths = reached.visitedElementSet.filterIsInstance<Call>().filter(Callable::isPath)
 
-                Found(Candidate(reached.declaration, reach, applicability), result.element, paths + reached.via)
+                val via = paths + reached.via
+
+                Found(
+                    Candidate(reached.declaration, reach, applicability),
+                    result.element,
+                    via,
+                    declaringModule(reached, reach, result.element, via),
+                )
             }
+        }
+
+    /**
+     * The name of the module that declares [reached]: a compiled one's own, and for a source one the module enclosing
+     * its [element], or, for what a `use` injects, the module that holds the `use`, the first call [via] crossed.
+     */
+    private fun declaringModule(reached: ReachedDeclaration, reach: Reach, element: PsiElement, via: List<Call>): String? =
+        when (val declared = reached.declaration.declared) {
+            is Declared.Compiled -> declared.origin.module
+            is Declared.Source ->
+                (via.firstOrNull().takeIf { reach == Reach.USE } ?: element as? Call)
+                    ?.let { CallDefinitionClause.enclosingModularMacroCall(it) }
+                    ?.let { SyntacticCall.of(it).canonicalName() }
         }
 
     private fun applicability(reached: ReachedDeclaration, use: Use): Applicability? =

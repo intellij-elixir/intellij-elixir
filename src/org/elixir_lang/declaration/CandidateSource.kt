@@ -9,7 +9,6 @@ import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.Unquote
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.functionNameAtomValue
 import org.elixir_lang.psi.impl.quotedAtomValue
@@ -31,24 +30,14 @@ interface CandidateSource {
 }
 
 /**
- * A [candidate] at a use, the PSI [element] that declares it, and [via], the `import` and `use` calls and then the
- * `defdelegate` calls it was reached through.
+ * A [candidate] at a use, the PSI [element] that declares it, [via], the `import` and `use` calls and then the
+ * `defdelegate` calls it was reached through, and [declaringModule], the name of the module that declares it, as the
+ * source that found it knows it.
  */
-data class Found(val candidate: Candidate, val element: PsiElement, val via: List<Call>)
+data class Found(val candidate: Candidate, val element: PsiElement, val via: List<Call>, val declaringModule: String?)
 
-/**
- * The name of the module that declares [this], so two copies of one module are one. What a `use` injects is declared
- * by the module that holds the `use`, the first call [via] crossed.
- */
-@RequiresReadLock
-fun Found.declaringModuleName(): String? =
-    when (val declared = candidate.declaration.declared) {
-        is Declared.Compiled -> declared.origin.module
-        is Declared.Source ->
-            (via.firstOrNull().takeIf { candidate.reach == Reach.USE } ?: element as? Call)
-                ?.let { CallDefinitionClause.enclosingModularMacroCall(it) }
-                ?.let { SyntacticCall.of(it).canonicalName() }
-    }
+/** The name of the module that declares [this], so two copies of one module are one. */
+fun Found.declaringModuleName(): String? = declaringModule
 
 /**
  * What completion offers as [lookupName] at a position. [name] and [declaration] are `null` exactly when the name has
