@@ -202,6 +202,24 @@
     },
     {
       "backing": "src",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "src",
       "form": "defp",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
@@ -502,6 +520,24 @@
     },
     {
       "backing": "src",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "src",
       "form": "defmacro",
       "reason": "the impl world's subject is its protocol and behaviour, which no other form declares",
       "world": "impl"
@@ -763,6 +799,24 @@
       "form": "defmacro",
       "reason": "a moduledoc world asks about the module, so the form its functions are declared with changes nothing",
       "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "src",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "src",
@@ -1075,6 +1129,24 @@
       "form": "defmacrop",
       "reason": "a private definition cannot be called from outside, so the world adds no site",
       "world": "x_other_module"
+    },
+    {
+      "backing": "src",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "src",
@@ -1415,6 +1487,24 @@
     {
       "backing": "src",
       "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "src",
+      "form": "defguard",
       "reason": "only the forms that declare functions are given a `@spec`",
       "world": "x_spec_parens"
     },
@@ -1781,6 +1871,24 @@
     {
       "backing": "src",
       "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "src",
+      "form": "defguardp",
       "reason": "only the forms that declare functions are given a `@spec`",
       "world": "x_spec_parens"
     },
@@ -2309,6 +2417,24 @@
     {
       "backing": "src",
       "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate",
       "reason": "the question is a guarded head written as a call, which only the definers of the `def` family have",
       "world": "x_parens_guarded"
     },
@@ -2831,6 +2957,24 @@
     {
       "backing": "src",
       "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_compiled",
       "reason": "the question is a guarded head written as a call, which only the definers of the `def` family have",
       "world": "x_parens_guarded"
     },
@@ -3365,6 +3509,24 @@
     {
       "backing": "src",
       "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_unresolvable",
       "reason": "the question is a guarded head written as a call, which only the definers of the `def` family have",
       "world": "x_parens_guarded"
     },
@@ -3995,6 +4157,24 @@
     {
       "backing": "src",
       "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_parens_guarded"
     },
@@ -4681,6 +4861,24 @@
       "form": "defdelegate_imports",
       "reason": "a target that only imports the function asks nothing w1 does not",
       "world": "x_other_module"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "src",
@@ -5387,6 +5585,24 @@
     {
       "backing": "src",
       "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_parens_guarded"
     },
@@ -6089,6 +6305,24 @@
     {
       "backing": "src",
       "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_trailing",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_parens_guarded"
     },
@@ -6791,6 +7025,24 @@
     {
       "backing": "src",
       "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_list_lines",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_parens_guarded"
     },
@@ -7493,6 +7745,24 @@
     {
       "backing": "src",
       "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_list",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_parens_guarded"
     },
@@ -8195,6 +8465,24 @@
     {
       "backing": "src",
       "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_as_attribute",
       "reason": "how the options are spelled asks nothing w1 does not",
       "world": "x_parens_guarded"
     },
@@ -8893,6 +9181,24 @@
       "form": "defdelegate_doc",
       "reason": "a delegate's own `@doc` asks nothing w1 does not",
       "world": "x_other_module"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "src",
@@ -9521,6 +9827,24 @@
     {
       "backing": "src",
       "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_parens_guarded"
     },
@@ -10135,6 +10459,24 @@
       "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_nfc"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "src",
@@ -10801,6 +11143,24 @@
       "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_nfc"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "src",
@@ -11429,6 +11789,24 @@
     {
       "backing": "src",
       "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "src",
+      "form": "eex_function_from_computed_name",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_parens_guarded"
     },
@@ -12085,6 +12463,24 @@
       "form": "defexception",
       "reason": "defexception declares `exception/1` and `message/1`, which is x_exception",
       "world": "x_other_module"
+    },
+    {
+      "backing": "src",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "src",
@@ -12791,6 +13187,24 @@
     {
       "backing": "src",
       "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "src",
+      "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_parens_guarded"
     },
@@ -13421,6 +13835,24 @@
     {
       "backing": "src",
       "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "src",
+      "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_parens_guarded"
     },
@@ -14761,6 +15193,24 @@
       "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "x_other_module"
+    },
+    {
+      "backing": "src",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "src",
@@ -15391,6 +15841,24 @@
       "form": "def",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_dbgi",
@@ -16013,6 +16481,24 @@
     {
       "backing": "ex_dbgi",
       "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_parens_guarded"
     },
@@ -16615,6 +17101,24 @@
       "form": "defmacro",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_dbgi",
@@ -17305,6 +17809,24 @@
       "form": "defmacrop",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_dbgi",
@@ -17963,6 +18485,24 @@
     {
       "backing": "ex_dbgi",
       "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguard",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_parens_guarded"
     },
@@ -18659,6 +19199,24 @@
     {
       "backing": "ex_dbgi",
       "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_parens_guarded"
     },
@@ -19277,6 +19835,24 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_parens_guarded"
     },
@@ -19987,6 +20563,24 @@
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_dbgi",
@@ -20621,6 +21215,24 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_unresolvable",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_parens_guarded"
     },
@@ -21305,6 +21917,24 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_parens_guarded"
     },
@@ -22019,6 +22649,24 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_parens_guarded"
     },
@@ -22733,6 +23381,24 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_parens_guarded"
     },
@@ -23447,6 +24113,24 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_parens_guarded"
     },
@@ -24161,6 +24845,24 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_parens_guarded"
     },
@@ -24875,6 +25577,24 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_parens_guarded"
     },
@@ -25589,6 +26309,24 @@
     {
       "backing": "ex_dbgi",
       "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_parens_guarded"
     },
@@ -26299,6 +27037,24 @@
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_dbgi",
@@ -26975,6 +27731,24 @@
     {
       "backing": "ex_dbgi",
       "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_parens_guarded"
     },
@@ -27647,6 +28421,24 @@
     {
       "backing": "ex_dbgi",
       "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_parens_guarded"
     },
@@ -28319,6 +29111,24 @@
     {
       "backing": "ex_dbgi",
       "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_parens_guarded"
     },
@@ -28987,6 +29797,24 @@
       "form": "eex_function_from_computed_name",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_nfc"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_dbgi",
@@ -29695,6 +30523,24 @@
       "form": "defexception",
       "reason": "defexception declares `exception/1` and `message/1`, which is x_exception",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_dbgi",
@@ -30407,6 +31253,24 @@
     {
       "backing": "ex_dbgi",
       "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_parens_guarded"
     },
@@ -31121,6 +31985,24 @@
     {
       "backing": "ex_dbgi",
       "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_parens_guarded"
     },
@@ -31835,6 +32717,24 @@
     {
       "backing": "ex_dbgi",
       "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_parens_guarded"
     },
@@ -32545,6 +33445,24 @@
       "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_dbgi",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_dbgi",
@@ -33175,6 +34093,24 @@
       "form": "def",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_docs",
@@ -33821,6 +34757,24 @@
     {
       "backing": "ex_docs",
       "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_parens_guarded"
     },
@@ -34447,6 +35401,24 @@
       "form": "defmacro",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_docs",
@@ -35161,6 +36133,24 @@
       "form": "defmacrop",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_docs",
@@ -35819,6 +36809,24 @@
     {
       "backing": "ex_docs",
       "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguard",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_parens_guarded"
     },
@@ -36529,6 +37537,24 @@
       "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_docs",
@@ -37151,6 +38177,24 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_parens_guarded"
     },
@@ -37861,6 +38905,24 @@
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_docs",
@@ -38495,6 +39557,24 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_unresolvable",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_parens_guarded"
     },
@@ -39179,6 +40259,24 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_parens_guarded"
     },
@@ -39893,6 +40991,24 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_parens_guarded"
     },
@@ -40607,6 +41723,24 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_parens_guarded"
     },
@@ -41321,6 +42455,24 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_parens_guarded"
     },
@@ -42035,6 +43187,24 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_parens_guarded"
     },
@@ -42749,6 +43919,24 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_parens_guarded"
     },
@@ -43463,6 +44651,24 @@
     {
       "backing": "ex_docs",
       "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_parens_guarded"
     },
@@ -44173,6 +45379,24 @@
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_docs",
@@ -44849,6 +46073,24 @@
     {
       "backing": "ex_docs",
       "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_parens_guarded"
     },
@@ -45521,6 +46763,24 @@
     {
       "backing": "ex_docs",
       "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_parens_guarded"
     },
@@ -46193,6 +47453,24 @@
     {
       "backing": "ex_docs",
       "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_parens_guarded"
     },
@@ -46861,6 +48139,24 @@
       "form": "eex_function_from_computed_name",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_nfc"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_docs",
@@ -47569,6 +48865,24 @@
       "form": "defexception",
       "reason": "defexception declares `exception/1` and `message/1`, which is x_exception",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_docs",
@@ -48281,6 +49595,24 @@
     {
       "backing": "ex_docs",
       "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_parens_guarded"
     },
@@ -48995,6 +50327,24 @@
     {
       "backing": "ex_docs",
       "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_parens_guarded"
     },
@@ -49709,6 +51059,24 @@
     {
       "backing": "ex_docs",
       "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_parens_guarded"
     },
@@ -50419,6 +51787,24 @@
       "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_docs",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_docs",
@@ -51049,6 +52435,24 @@
       "form": "def",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_gen",
@@ -51695,6 +53099,24 @@
     {
       "backing": "ex_gen",
       "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_parens_guarded"
     },
@@ -52321,6 +53743,24 @@
       "form": "defmacro",
       "reason": "a compiled module's documentation is read from its Docs chunk, not from how its attributes were written, which is all a moduledoc world varies",
       "world": "x_moduledoc_twice"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_gen",
@@ -53035,6 +54475,24 @@
       "form": "defmacrop",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_gen",
@@ -53693,6 +55151,24 @@
     {
       "backing": "ex_gen",
       "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguard",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_parens_guarded"
     },
@@ -54403,6 +55879,24 @@
       "form": "defguardp",
       "reason": "a private macro is expanded away at compile time, so the .beam has no definition of it",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_gen",
@@ -55025,6 +56519,24 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_parens_guarded"
     },
@@ -55735,6 +57247,24 @@
       "form": "defdelegate_compiled",
       "reason": "a compiled delegator's target is compiled either way",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_gen",
@@ -56369,6 +57899,24 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_unresolvable",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_parens_guarded"
     },
@@ -57053,6 +58601,24 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as",
       "reason": "`as:` renames only the target's function; this world's question is defdelegate's",
       "world": "x_parens_guarded"
     },
@@ -57767,6 +59333,24 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_imports",
       "reason": "a compiled delegator is an ordinary compiled function; what its target imports is the source's question",
       "world": "x_parens_guarded"
     },
@@ -58481,6 +60065,24 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_parens_guarded"
     },
@@ -59195,6 +60797,24 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_trailing",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_parens_guarded"
     },
@@ -59909,6 +61529,24 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_list_lines",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_parens_guarded"
     },
@@ -60623,6 +62261,24 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_list",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_parens_guarded"
     },
@@ -61337,6 +62993,24 @@
     {
       "backing": "ex_gen",
       "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_as_attribute",
       "reason": "how the options were spelled is gone once compiled; that is defdelegate_as's question again",
       "world": "x_parens_guarded"
     },
@@ -62047,6 +63721,24 @@
       "form": "defdelegate_doc",
       "reason": "compiled, a delegate's own doc is an ordinary one in its Docs chunk; whether it outranks the target is the source's question",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_gen",
@@ -62723,6 +64415,24 @@
     {
       "backing": "ex_gen",
       "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_parens_guarded"
     },
@@ -63395,6 +65105,24 @@
     {
       "backing": "ex_gen",
       "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_kind",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_parens_guarded"
     },
@@ -64067,6 +65795,24 @@
     {
       "backing": "ex_gen",
       "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_args",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_parens_guarded"
     },
@@ -64735,6 +66481,24 @@
       "form": "eex_function_from_computed_name",
       "reason": "EEx declares one clause per name and arity, with no guard, no defaults and a name that is an atom",
       "world": "x_nfc"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_gen",
@@ -65443,6 +67207,24 @@
       "form": "defexception",
       "reason": "defexception declares `exception/1` and `message/1`, which is x_exception",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_gen",
@@ -66155,6 +67937,24 @@
     {
       "backing": "ex_gen",
       "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "generator_embed",
       "reason": "Mix.Generator embeds declare only `<atom>_template/1` and `<atom>_text/0`, which is x_embed",
       "world": "x_parens_guarded"
     },
@@ -66869,6 +68669,24 @@
     {
       "backing": "ex_gen",
       "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_parens_guarded"
     },
@@ -67583,6 +69401,24 @@
     {
       "backing": "ex_gen",
       "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_parens_guarded"
     },
@@ -68293,6 +70129,24 @@
       "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "x_other_module"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "ex_gen",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "ex_gen",
@@ -68945,6 +70799,24 @@
     {
       "backing": "erl_abst",
       "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "def",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_parens_guarded"
     },
@@ -69605,6 +71477,24 @@
     {
       "backing": "erl_abst",
       "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defp",
       "reason": "compiled, the definition is an ordinary one; only its source is written differently",
       "world": "x_parens_guarded"
     },
@@ -70319,6 +72209,24 @@
     {
       "backing": "erl_abst",
       "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacro",
       "reason": "Erlang has only functions",
       "world": "x_parens_guarded"
     },
@@ -71033,6 +72941,24 @@
     {
       "backing": "erl_abst",
       "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defmacrop",
       "reason": "Erlang has only functions",
       "world": "x_parens_guarded"
     },
@@ -71747,6 +73673,24 @@
     {
       "backing": "erl_abst",
       "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguard",
       "reason": "Erlang has only functions",
       "world": "x_parens_guarded"
     },
@@ -72461,6 +74405,24 @@
     {
       "backing": "erl_abst",
       "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defguardp",
       "reason": "Erlang has only functions",
       "world": "x_parens_guarded"
     },
@@ -73175,6 +75137,24 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate",
       "reason": "Erlang has only functions",
       "world": "x_parens_guarded"
     },
@@ -73889,6 +75869,24 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_compiled",
       "reason": "Erlang has only functions",
       "world": "x_parens_guarded"
     },
@@ -74603,6 +76601,24 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_unresolvable",
       "reason": "Erlang has only functions",
       "world": "x_parens_guarded"
     },
@@ -75317,6 +77333,24 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as",
       "reason": "Erlang has only functions",
       "world": "x_parens_guarded"
     },
@@ -76031,6 +78065,24 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_imports",
       "reason": "Erlang has only functions",
       "world": "x_parens_guarded"
     },
@@ -76745,6 +78797,24 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list",
       "reason": "Erlang has only functions",
       "world": "x_parens_guarded"
     },
@@ -77459,6 +79529,24 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_trailing",
       "reason": "Erlang has only functions",
       "world": "x_parens_guarded"
     },
@@ -78173,6 +80261,24 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_list_lines",
       "reason": "Erlang has only functions",
       "world": "x_parens_guarded"
     },
@@ -78887,6 +80993,24 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_list",
       "reason": "Erlang has only functions",
       "world": "x_parens_guarded"
     },
@@ -79601,6 +81725,24 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_as_attribute",
       "reason": "Erlang has only functions",
       "world": "x_parens_guarded"
     },
@@ -80315,6 +82457,24 @@
     {
       "backing": "erl_abst",
       "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defdelegate_doc",
       "reason": "Erlang has only functions",
       "world": "x_parens_guarded"
     },
@@ -81029,6 +83189,24 @@
     {
       "backing": "erl_abst",
       "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from",
       "reason": "Erlang has only functions",
       "world": "x_parens_guarded"
     },
@@ -81743,6 +83921,24 @@
     {
       "backing": "erl_abst",
       "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_kind",
       "reason": "Erlang has only functions",
       "world": "x_parens_guarded"
     },
@@ -82457,6 +84653,24 @@
     {
       "backing": "erl_abst",
       "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_args",
       "reason": "Erlang has only functions",
       "world": "x_parens_guarded"
     },
@@ -83171,6 +85385,24 @@
     {
       "backing": "erl_abst",
       "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "eex_function_from_computed_name",
       "reason": "Erlang has only functions",
       "world": "x_parens_guarded"
     },
@@ -83885,6 +86117,24 @@
     {
       "backing": "erl_abst",
       "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "defexception",
       "reason": "Erlang has only functions",
       "world": "x_parens_guarded"
     },
@@ -84595,6 +86845,24 @@
       "form": "generator_embed",
       "reason": "Erlang has only functions",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "erl_abst",
@@ -85309,6 +87577,24 @@
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "erl_abst",
@@ -86023,6 +88309,24 @@
       "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "erl_abst",
@@ -86742,6 +89046,24 @@
       "backing": "erl_abst",
       "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_abst",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "x_parens_guarded"
     },
     {
@@ -87445,6 +89767,24 @@
       "form": "def",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "def",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "erl_gen",
@@ -88163,6 +90503,24 @@
     {
       "backing": "erl_gen",
       "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defp",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_parens_guarded"
     },
@@ -88877,6 +91235,24 @@
     {
       "backing": "erl_gen",
       "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacro",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacro",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_parens_guarded"
     },
@@ -89591,6 +91967,24 @@
     {
       "backing": "erl_gen",
       "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacrop",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defmacrop",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_parens_guarded"
     },
@@ -90305,6 +92699,24 @@
     {
       "backing": "erl_gen",
       "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguard",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguard",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_parens_guarded"
     },
@@ -91019,6 +93431,24 @@
     {
       "backing": "erl_gen",
       "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguardp",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defguardp",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_parens_guarded"
     },
@@ -91733,6 +94163,24 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_parens_guarded"
     },
@@ -92447,6 +94895,24 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_compiled",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_compiled",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_parens_guarded"
     },
@@ -93161,6 +95627,24 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_unresolvable",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_unresolvable",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_parens_guarded"
     },
@@ -93875,6 +96359,24 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_parens_guarded"
     },
@@ -94589,6 +97091,24 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_imports",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_imports",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_parens_guarded"
     },
@@ -95303,6 +97823,24 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_parens_guarded"
     },
@@ -96017,6 +98555,24 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_trailing",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_trailing",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_parens_guarded"
     },
@@ -96731,6 +99287,24 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_lines",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_list_lines",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_parens_guarded"
     },
@@ -97445,6 +100019,24 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_list",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_parens_guarded"
     },
@@ -98159,6 +100751,24 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_as_attribute",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_parens_guarded"
     },
@@ -98873,6 +101483,24 @@
     {
       "backing": "erl_gen",
       "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defdelegate_doc",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_parens_guarded"
     },
@@ -99587,6 +102215,24 @@
     {
       "backing": "erl_gen",
       "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_parens_guarded"
     },
@@ -100301,6 +102947,24 @@
     {
       "backing": "erl_gen",
       "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_kind",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_kind",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_parens_guarded"
     },
@@ -101015,6 +103679,24 @@
     {
       "backing": "erl_gen",
       "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_args",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_args",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_parens_guarded"
     },
@@ -101729,6 +104411,24 @@
     {
       "backing": "erl_gen",
       "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_computed_name",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "eex_function_from_computed_name",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_parens_guarded"
     },
@@ -102443,6 +105143,24 @@
     {
       "backing": "erl_gen",
       "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defexception",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "defexception",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_parens_guarded"
     },
@@ -103153,6 +105871,24 @@
       "form": "generator_embed",
       "reason": "erl_gen runs the same decompiler as ex_gen; one scenario is kept only to pin that fallback",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "generator_embed",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "erl_gen",
@@ -103867,6 +106603,24 @@
       "form": "attribute",
       "reason": "the attribute form's subject is a module attribute, which only the attribute worlds write and read",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "attribute",
+      "reason": "a variable world's subject is its variable, which no other form declares",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "erl_gen",
@@ -104581,6 +107335,24 @@
       "form": "variable",
       "reason": "the variable form's subject is a variable, which only the variable worlds bind and read",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "variable",
+      "reason": "a variable is a source concept: no compiled module keeps its name at its reads",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "erl_gen",
@@ -105295,6 +108067,24 @@
       "form": "impl",
       "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
       "world": "x_other_module"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "erl_gen",
+      "form": "impl",
+      "reason": "the impl form's subject is a protocol or behaviour function, which only the impl world declares and calls",
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "erl_gen",
@@ -308224,6 +311014,177 @@
         }
       ],
       "world": "x_interp_var_for_test"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/src/src.variable.x_paren_definer_delegation.ex",
+      "form": "variable",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [],
+          "module": "Src.Variable.XParenDefinerDelegation",
+          "source": "lib/src/src.variable.x_paren_definer_delegation.ex",
+          "spec": "lib/src/src.variable.x_paren_definer_delegation.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 24,
+          "file": "lib/src/src.variable.x_paren_definer_delegation.ex",
+          "id": "binding",
+          "line": 3,
+          "name": "f",
+          "variable": {
+            "binding": true,
+            "declarations": [
+              "binding"
+            ],
+            "rename": true
+          }
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 39,
+          "file": "lib/src/src.variable.x_paren_definer_delegation.ex",
+          "id": "body",
+          "line": 3,
+          "name": "f",
+          "variable": {
+            "binding": false,
+            "declarations": [
+              "binding"
+            ],
+            "rename": true
+          }
+        }
+      ],
+      "world": "x_paren_definer_delegation"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/src/src.variable.x_paren_definer_delegation_guard.ex",
+      "form": "variable",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [],
+          "module": "Src.Variable.XParenDefinerDelegationGuard",
+          "source": "lib/src/src.variable.x_paren_definer_delegation_guard.ex",
+          "spec": "lib/src/src.variable.x_paren_definer_delegation_guard.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 24,
+          "file": "lib/src/src.variable.x_paren_definer_delegation_guard.ex",
+          "id": "binding",
+          "line": 3,
+          "name": "f",
+          "variable": {
+            "binding": true,
+            "declarations": [
+              "binding"
+            ],
+            "rename": true
+          }
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 58,
+          "file": "lib/src/src.variable.x_paren_definer_delegation_guard.ex",
+          "id": "body",
+          "line": 3,
+          "name": "f",
+          "variable": {
+            "binding": false,
+            "declarations": [
+              "binding"
+            ],
+            "rename": true
+          }
+        }
+      ],
+      "world": "x_paren_definer_delegation_guard"
+    },
+    {
+      "backing": "src",
+      "brokenCallers": [],
+      "caller": "lib/src/src.variable.x_paren_definer_module.ex",
+      "form": "variable",
+      "importCallers": [],
+      "modules": [
+        {
+          "beam": null,
+          "clauseSource": null,
+          "complete": true,
+          "declarations": [],
+          "definitions": [],
+          "delegateAs": null,
+          "delegateTo": null,
+          "heads": [],
+          "module": "Src.Variable.XParenDefinerModule",
+          "source": "lib/src/src.variable.x_paren_definer_module.ex",
+          "spec": "lib/src/src.variable.x_paren_definer_module.ex"
+        }
+      ],
+      "sites": [
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 22,
+          "file": "lib/src/src.variable.x_paren_definer_module.ex",
+          "id": "binding",
+          "line": 3,
+          "name": "n",
+          "variable": {
+            "binding": true,
+            "declarations": [
+              "binding"
+            ],
+            "rename": true
+          }
+        },
+        {
+          "arity": 0,
+          "binding": null,
+          "column": 42,
+          "file": "lib/src/src.variable.x_paren_definer_module.ex",
+          "id": "body",
+          "line": 3,
+          "name": "n",
+          "variable": {
+            "binding": false,
+            "declarations": [
+              "binding"
+            ],
+            "rename": true
+          }
+        }
+      ],
+      "world": "x_paren_definer_module"
     },
     {
       "backing": "src",
