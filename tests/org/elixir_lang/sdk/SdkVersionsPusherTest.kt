@@ -365,6 +365,7 @@ class SdkVersionsPusherTest : HeavyTestCase() {
     fun testAnEarlierPushLeavesTheFlagOfALaterOne() {
         val properties = PropertiesComponent.getInstance(project)
         val pushes = project.service<ElixirLanguageLevelPushes>()
+        pushesSettle()
         properties.setValue(ElixirLanguageLevelPushes.PUSH_PENDING, true)
 
         pushes.clearPendingOnceSmart(pushes.lastPush - 1)
