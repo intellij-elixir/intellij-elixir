@@ -9,14 +9,12 @@ import com.intellij.psi.impl.source.resolve.ResolveCache
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.code_insight.completion.callDefinitionClauseLookupElements
 import org.elixir_lang.code_insight.completion.insert_handler.QualifiedName
-import org.elixir_lang.psi.CallDefinitionClause
+import org.elixir_lang.declaration.Resolved
+import org.elixir_lang.declaration.Use
+import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.ElixirAtom
-import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.psi.impl.quotedAtomValue
-import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
-import org.elixir_lang.psi.scope.call_definition_clause.MultiResolve as CallDefinitionClauseMultiResolve
-import org.elixir_lang.reference.Resolver as ReferenceResolver
 
 @Suppress("UnstableApiUsage")
 class AtomReference(
@@ -27,8 +25,7 @@ class AtomReference(
      * - an [ElixirAtom] (`:lists`, `:"Elixir.Enum"`)
      */
     private val moduleElement: PsiElement,
-    private val rangeInElement: TextRange = contentTextRange(atom),
-    private val arity: Int?
+    private val rangeInElement: TextRange = contentTextRange(atom)
 ) : PsiReferenceBase<ElixirAtom>(atom, contentTextRange(atom)), PsiPolyVariantReference, PsiSymbolReference {
     private val functionName: String?
         get() = quotedAtomValue(myElement)
@@ -60,71 +57,19 @@ class AtomReference(
             .resolveWithCaching(this, Resolver, false, incompleteCode)
     }
 
-    /**
-     * The definitions this atom names: those of its arity, or every same-named one when none has it or the arity is
-     * unknown. A wrong-arity definition is in [multiResolve], marked invalid.
-     */
-    @RequiresReadLock
-    fun preferredResults(): List<ResolveResult> = ReferenceResolver.preferIsValidResult(multiResolve(false).toList())
-
-    override fun resolve(): PsiElement? =
-        ReferenceResolver.preferred(myElement, false, preferredResults())
-            .firstOrNull()
-            ?.element
+    override fun resolve(): PsiElement? = Resolved.target(this)
 
     override fun isSoft(): Boolean = true
 
     @RequiresReadLock
-    override fun resolveReference(): Collection<Symbol> =
-        preferredResults()
-            .mapNotNull { it.element }
-            .flatMap { element ->
-                when (element) {
-                    is Call -> AtomSymbol.fromClause(element)
-                    is BeamCallDefinition -> AtomSymbol.fromBeamCallDefinition(element)
-                    else -> emptyList()
-                }
-            }
-            .distinct()
+    override fun resolveReference(): Collection<Symbol> = UseSymbols.of(Use.mfa(myElement))
 
     private object Resolver : ResolveCache.PolyVariantResolver<AtomReference> {
-        override fun resolve(reference: AtomReference, incompleteCode: Boolean): Array<ResolveResult> {
-            val name = reference.functionName ?: return ResolveResult.EMPTY_ARRAY
-            val modulars = reference.moduleElement.maybeModularNameToModulars(
-                maxScope = reference.myElement.containingFile,
-                useCall = null,
-                incompleteCode = false
-            )
-
-            if (modulars.isEmpty()) return ResolveResult.EMPTY_ARRAY
-
-            return modulars
-                .flatMap { modular ->
-                    // -1 fits no arity, so at a non-literal one every definition is an invalid result.
-                    CallDefinitionClauseMultiResolve.resolveResults(name, reference.arity ?: -1, incompleteCode, modular, atom = true)
-                }
-                .flatMap { visitedResult ->
-                    when (val element = visitedResult.element) {
-                        is Call -> sourceCallResolveResults(element, name, visitedResult.isValidResult)
-                        is BeamCallDefinition -> AtomSymbol.fromBeamCallDefinition(element).map {
-                            PsiElementResolveResult(element, visitedResult.isValidResult)
-                        }
-                        else -> emptyList()
-                    }
-                }
-                .distinctBy { it.element?.containingFile?.virtualFile to it.element?.textRange }
-                .toTypedArray()
-        }
+        override fun resolve(reference: AtomReference, incompleteCode: Boolean): Array<ResolveResult> =
+            Use.mfa(reference.myElement)
+                ?.let { Resolved.results(Resolved.projection(it, incompleteCode)).toTypedArray() }
+                ?: ResolveResult.EMPTY_ARRAY
     }
-}
-
-@RequiresReadLock
-private fun sourceCallResolveResults(call: Call, name: String, validResult: Boolean): List<ResolveResult> {
-    if (!CallDefinitionClause.`is`(call)) return emptyList()
-    val nameArity = CallDefinitionClause.nameArityInterval(call, ResolveState.initial()) ?: return emptyList()
-    if (nameArity.name != name) return emptyList()
-    if (CallDefinitionClause.capabilities(call)?.quotesArguments == true) return emptyList()
-    return listOf(PsiElementResolveResult(call, validResult))
 }
 
 internal fun contentTextRange(atom: ElixirAtom): TextRange {

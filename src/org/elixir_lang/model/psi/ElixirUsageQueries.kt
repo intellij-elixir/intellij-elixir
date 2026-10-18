@@ -44,7 +44,6 @@ import org.elixir_lang.heex.xml.ComponentTagName
 import org.elixir_lang.heex.xml.HeexComponentResolver
 import org.elixir_lang.injection.PsiLanguageInjectionHost
 import org.elixir_lang.model.psi.atom.AtomReference
-import org.elixir_lang.model.psi.atom.AtomSymbol
 import org.elixir_lang.model.psi.callback.BehaviourMembership
 import org.elixir_lang.model.psi.callback.Callback
 import org.elixir_lang.model.psi.callback.CallbackImplementation
@@ -194,24 +193,13 @@ internal object ElixirUsageQueries {
                 val implemented = protocolImplementedQuery(project, target, searchScope)
                 val atoms = protocolAtomQuery(project, target, searchScope)
                 queries += protocolImplementationQuery(project, target, searchScope)
-                // `Size.size(x)` is a dispatching call and, by its module, a call of an implementation, and an
-                // implementation's search finds the atoms naming the protocol function too.
+                // `Size.size(x)` is a dispatching call and, by its module, a call of an implementation.
                 queries += eachRangeOnce(MergeQuery(MergeQuery(callSites, implemented), atoms))
             }
 
             is FunctionSymbol -> {
                 queries += functionDeclarationFamilyQuery(project, target, searchScope)
                 queries += functionCallSiteQuery(project, target, searchScope)
-            }
-
-            is AtomSymbol -> {
-                // An AtomSymbol IS a function reference (module/name/arity/macro, anchored at the
-                // def clause's name identifier - see AtomSymbol.fromClause), so renaming from the
-                // atom must rename everything renaming from the def would: the declaration
-                // family, call sites, specs, captures, keyword pairs - and the atoms themselves.
-                val functionSymbol = target.functionSymbol()
-                queries += functionDeclarationFamilyQuery(project, functionSymbol, searchScope)
-                queries += functionCallSiteQuery(project, functionSymbol, searchScope)
             }
 
             is ModuleSymbol -> {
@@ -341,10 +329,14 @@ internal object ElixirUsageQueries {
         pf: ProtocolFunction,
         searchScope: SearchScope
     ): Query<out PsiUsage> {
-        val pointer = FunctionSymbol(pf.file, pf.range, pf.protocolName, pf.name, pf.arity, pf.macro).createPointer()
+        val pointer = pf.createPointer()
 
         return wordQuery(project, pf.name, searchScope, { leaf, _ ->
-            listOfNotNull(pointer.dereference()?.let { atomUsage(leaf, it) })
+            listOfNotNull(
+                pointer.dereference()?.let { protocolFunction ->
+                    atomUsage(leaf) { definition, _ -> protocolFunction.matches(definition) }
+                }
+            )
         })
     }
 
@@ -414,14 +406,11 @@ internal object ElixirUsageQueries {
         @RequiresReadLock
         override fun map(leaf: PsiElement, offsetInLeaf: Int): Collection<PsiUsage> {
             val protocolFunction = protocolFunctionPointer.dereference() ?: return emptyList()
-            val isProtocolFunctions = { definition: PsiElement ->
-                protocolFunction in UseSymbols.symbols(definition, protocolFunction.name, protocolFunction.arity)
-            }
 
-            keywordKeyUsage(leaf) { definition, _ -> isProtocolFunctions(definition) }
+            keywordKeyUsage(leaf) { definition, _ -> protocolFunction.matches(definition) }
                 ?.let { return listOf(it) }
 
-            captureUsage(leaf) { definition, _ -> isProtocolFunctions(definition) }?.let { return listOf(it) }
+            captureUsage(leaf) { definition, _ -> protocolFunction.matches(definition) }?.let { return listOf(it) }
 
             val call = leaf.enclosingCalls().firstOrNull() ?: return emptyList()
             if (DeclaringForm.named(call) != null) return emptyList()
@@ -430,7 +419,7 @@ internal object ElixirUsageQueries {
             val nameElement = call.functionNameElement() ?: return emptyList()
             if (!PsiTreeUtil.isAncestor(nameElement, leaf, false)) return emptyList()
 
-            if (definitions(Use.of(call), CallableResolver.bound(call, false)).none(isProtocolFunctions)) return emptyList()
+            if (definitions(Use.of(call), CallableResolver.bound(call, false)).none(protocolFunction::matches)) return emptyList()
 
             return listOf(
                 ElixirPsiUsage.create(
@@ -481,23 +470,21 @@ internal object ElixirUsageQueries {
         }
     }
 
-    /** The atom [leaf] is in, when it names [symbol]. */
+    /**
+     * The atom [leaf] is in, when [matches] accepts one of the definitions the step gives it, at that atom.
+     */
     @RequiresReadLock
-    private fun atomUsage(leaf: PsiElement, symbol: FunctionSymbol): PsiUsage? {
+    private fun atomUsage(leaf: PsiElement, matches: (definition: PsiElement, atom: PsiElement) -> Boolean): PsiUsage? {
         val atom = PsiTreeUtil.getParentOfType(leaf, ElixirAtom::class.java, false) ?: return null
-        val references = PsiSymbolReferenceService.getService()
-            .getReferences(atom)
-            .filterIsInstance<AtomReference>()
-        if (references.isEmpty()) return null
-
         // The reference's range is the name between the colon and any quotes, however many tokens an escape splits
         // it into, so a rename replaces the name and not the leaf that happened to be handed on.
-        val reference = references.firstOrNull { reference ->
-            reference.preferredResults()
-                .asSequence()
-                .mapNotNull { it.element }
-                .any { FunctionSymbol.matchesAtom(it, symbol, atom) }
-        } ?: return null
+        val reference = PsiSymbolReferenceService.getService()
+            .getReferences(atom)
+            .filterIsInstance<AtomReference>()
+            .firstOrNull() ?: return null
+        val use = Use.mfa(atom) ?: return null
+        val named = Resolved.results(Resolved.projection(use, false, feature = Feature.FIND_USAGES_AND_RENAME))
+        if (named.mapNotNull { it.element }.none { matches(it, atom) }) return null
 
         return ElixirPsiUsage.create(
             atom,
@@ -927,7 +914,7 @@ internal object ElixirUsageQueries {
                 return heexComponentTagUsage(leaf, offsetInLeaf, symbol)?.let { listOf(it) }.orEmpty()
             }
 
-            atomUsage(leaf, symbol)?.let { return listOf(it) }
+            atomUsage(leaf) { definition, atom -> FunctionSymbol.matches(definition, symbol, atom) }?.let { return listOf(it) }
 
             keywordKeyUsage(leaf) { definition, key -> FunctionSymbol.matches(definition, symbol, key) }
                 ?.let { return listOf(it) }

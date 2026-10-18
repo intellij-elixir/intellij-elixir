@@ -29,9 +29,7 @@ internal object Documented {
     fun of(use: Use, bound: Boolean = false): Choice {
         if (use is Use.AnyName) return Choice(element = null, delegation = null, inside = false, insideDelegation = false)
 
-        // `apply/3` and an MFA tuple call a function another module exports, so an atom naming only a macro or a
-        // private function documents nothing.
-        val step = Resolved.step(use, incompleteCode = false, bound, Feature.DOCUMENTATION) { keeps(use, it) }
+        val step = Resolved.step(use, incompleteCode = false, bound, Feature.DOCUMENTATION)
             // The name at a `@spec` is the name a delegation's head writes, so a delegation comes with its targets.
             .map { preferred -> if (use is Use.Specified) withTargets(preferred) else preferred }
         val projection = Resolved.projection(step, Feature.DOCUMENTATION)
@@ -53,9 +51,6 @@ internal object Documented {
 
     /** As `RejectedCall` decides whether a private function is callable: an unqualified use of what the module holds. */
     private fun held(use: Use, found: Found?): Boolean = !UseSymbols.remote(use) && found?.candidate?.reach?.held == true
-
-    private fun keeps(use: Use, found: Found): Boolean =
-        use !is Use.Remote || found.candidate.reach.remotelyReaches(found.candidate.declaration.capabilities, runtime = true)
 
     /** Whether [preferred] is a delegation that [element] is one of the targets of. */
     @RequiresReadLock

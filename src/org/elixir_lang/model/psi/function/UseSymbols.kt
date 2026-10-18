@@ -45,7 +45,7 @@ internal object UseSymbols {
     @RequiresReadLock
     fun of(use: Use.OfCall?): List<Symbol> =
         when (use) {
-            is Use.Named -> of(use, remote(use)) { use.arity }
+            is Use.Named -> of(use, remote(use)) { namedArity(it, use.arity) }
             is Use.AnyName, null -> emptyList()
         }
 
@@ -56,8 +56,30 @@ internal object UseSymbols {
             of(specified, remote(specified)) { found -> headArity(found.candidate.declaration) ?: specified.arity }
         }.orEmpty()
 
+    /** An MFA atom names one Symbol of each definition the step gives it, at the arity [namedArity] picks. */
     @RequiresReadLock
-    private fun of(use: Use, remote: Boolean, arity: (Found) -> Int): List<Symbol> {
+    fun of(use: Use.Remote?): List<Symbol> =
+        use?.let(::step)
+            ?.flatMap { preferred ->
+                val found = preferred.found
+
+                namedArity(found, use.arity)?.let { symbols(found, it) }.orEmpty()
+            }
+            .orEmpty()
+
+    /**
+     * The arity a use at [arity] names [found]'s definition at: [arity] where the definition takes it, or where its arity
+     * isn't known, as at a call; otherwise its head's, as at an MFA atom whose arity isn't literal.
+     */
+    private fun namedArity(found: Found, arity: Int?): Int? {
+        val declaration = found.candidate.declaration
+        val interval = declaration.arity.arityInterval() ?: return arity
+
+        return arity?.takeIf { it in interval } ?: headArity(declaration)
+    }
+
+    @RequiresReadLock
+    private fun of(use: Use, remote: Boolean, arity: (Found) -> Int?): List<Symbol> {
         val found = step(use).map { it.found }
 
         return RejectedCall.named(found, Found::candidate, remote, ::admits)
@@ -73,8 +95,8 @@ internal object UseSymbols {
     internal fun remote(use: Use): Boolean = use is Use.Remote || (use as? Use.OfCall)?.entrance is Qualified
 
     @RequiresReadLock
-    private fun admitted(found: List<Found>, arity: (Found) -> Int): List<Symbol> =
-        found.filter(::admitted).flatMap { symbols(it, arity(it)) }
+    private fun admitted(found: List<Found>, arity: (Found) -> Int?): List<Symbol> =
+        found.filter(::admitted).flatMap { admitted -> arity(admitted)?.let { symbols(admitted, it) }.orEmpty() }
 
     /** The arity of the one Symbol a head declares: its lowest, as a head with defaults declares one Symbol for its name. */
     fun headArity(declaration: Declaration): Int? = declaration.arity.arityInterval()?.minimum
@@ -136,7 +158,7 @@ internal object UseSymbols {
     private fun names(definition: PsiElement, symbol: Symbol, at: PsiElement): Boolean =
         when (symbol) {
             is FunctionSymbol -> FunctionSymbol.matches(definition, symbol, at)
-            is ProtocolFunction -> symbol in symbols(definition, symbol.name, symbol.arity)
+            is ProtocolFunction -> symbol.matches(definition)
             else -> false
         }
 

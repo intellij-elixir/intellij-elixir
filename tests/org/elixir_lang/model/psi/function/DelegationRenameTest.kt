@@ -112,6 +112,12 @@ class DelegationRenameTest : PlatformTestCase() {
         assertTargetRenameLeavesFacade(SAME_NAME_AS_PROTOCOL)
     }
 
+    /** An MFA atom naming a delegation with `as:` names the delegation alone, as a call does. */
+    fun testRenameFromATargetLeavesAnMfaAtomThroughAs() =
+        assertTargetRenameLeavesFacade(
+            SAME_NAME_AS.replace("  def facade_use", "  def mfa(x), do: apply(Facade, :snoc, [x])\n  def facade_use")
+        )
+
     fun testRenameFromTheHeadWithAs() {
         myFixture.configureByText("m.ex", WITH_AS)
         myFixture.editor.caretModel.moveToOffset(WITH_AS.indexOf("renamee") + 1)

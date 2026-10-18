@@ -13,7 +13,7 @@ import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
 import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.junit.onPooledThread
-import org.elixir_lang.model.psi.atom.AtomSymbol
+import org.elixir_lang.model.psi.function.FunctionSymbol
 import java.util.concurrent.Callable
 
 /**
@@ -63,7 +63,7 @@ class StaleBeamSameModuleTest : HeavyTestCase() {
 
         return onPooledThread {
             ReadAction.nonBlocking(Callable {
-                targetSymbols(file, offset).filterIsInstance<AtomSymbol>().map { it.file.virtualFile }.distinct()
+                targetSymbols(file, offset).filterIsInstance<FunctionSymbol>().map { it.file.virtualFile }.distinct()
             }).executeSynchronously()
         }
     }

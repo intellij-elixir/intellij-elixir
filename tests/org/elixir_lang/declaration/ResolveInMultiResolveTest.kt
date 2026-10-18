@@ -7,12 +7,16 @@ import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.libraries.Library
 import com.intellij.openapi.roots.libraries.LibraryTablesRegistrar
 import com.intellij.openapi.util.io.FileUtil
+import com.intellij.model.psi.PsiSymbolReferenceService
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.PsiReference
 import com.intellij.psi.impl.source.resolve.reference.impl.PsiMultiReference
+import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.model.psi.atom.AtomReference
+import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.reference.CallDefinitionClause
 import org.elixir_lang.reference.Callable
 import org.elixir_lang.reference.CaptureNameArity
@@ -57,6 +61,13 @@ class ResolveInMultiResolveTest : PlatformTestCase() {
     fun testASpecOfADelegation() {
         myFixture.addFileToProject("t.ex", "defmodule T do\n  def x(a), do: a\nend\n")
         myFixture.configureByText("m.ex", "defmodule M do\n  @spec <caret>x(term) :: term\n  defdelegate x(a), to: T\nend\n")
+
+        assertResolveInMultiResolve()
+    }
+
+    fun testAnMfaAtomOfADelegation() {
+        delegation()
+        myFixture.configureByText("use.ex", "defmodule U do\n  def run, do: apply(M, :<caret>x, [1])\nend\n")
 
         assertResolveInMultiResolve()
     }
@@ -119,6 +130,7 @@ class ResolveInMultiResolveTest : PlatformTestCase() {
             is Callable -> Use.of(reference.element)!! to CallableResolver.answer(reference.element, false).bound
             is CaptureNameArity -> Use.capture(reference.nameElement, reference.arity)!! to false
             is CallDefinitionClause -> Use.specification(reference.element, reference.moduleAttribute)!! to false
+            is AtomReference -> Use.mfa(reference.element)!! to false
             else -> error("no use for $reference")
         }
 
@@ -127,9 +139,14 @@ class ResolveInMultiResolveTest : PlatformTestCase() {
             .map { it.element }
     }
 
+    @Suppress("UnstableApiUsage")
     private fun reference(): PsiPolyVariantReference =
-        references().single { it is Callable || it is CaptureNameArity || it is CallDefinitionClause }
-            as PsiPolyVariantReference
+        references().singleOrNull { it is Callable || it is CaptureNameArity || it is CallDefinitionClause }
+            as PsiPolyVariantReference?
+            ?: PsiSymbolReferenceService.getService()
+                .getReferences(PsiTreeUtil.getParentOfType(myFixture.file.findElementAt(myFixture.caretOffset), ElixirAtom::class.java)!!)
+                .filterIsInstance<AtomReference>()
+                .single()
 
     private fun references(): List<PsiReference> =
         when (val reference = myFixture.file.findReferenceAt(myFixture.caretOffset)) {

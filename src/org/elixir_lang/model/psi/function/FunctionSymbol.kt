@@ -23,7 +23,6 @@ import org.elixir_lang.declaration.Presentation
 import org.elixir_lang.model.psi.ElixirRenameTarget
 import org.elixir_lang.model.psi.ElixirSymbolWithUsages
 import org.elixir_lang.model.psi.callback.CallbackImplementation
-import org.elixir_lang.model.psi.protocol.ProtocolFunction
 import org.elixir_lang.model.psi.protocol.ProtocolImplementation
 import org.elixir_lang.navigation.DeclarationHead
 import org.elixir_lang.psi.CallDefinitionClause
@@ -145,19 +144,12 @@ class FunctionSymbol(
 
     /**
      * The callbacks the definition this symbol is made from, a clause or a `defdelegate`, implements, and the protocol
-     * functions each protocol `def` it implements declares. Made from a protocol's own declaration, as an atom's symbol
-     * can be, it is that protocol function.
+     * functions each protocol `def` it implements declares.
      */
     @RequiresReadLock
     fun implementedMembers(): List<ElixirSymbolWithUsages> =
         madeFromDefinition(file, range)
-            ?.let {
-                buildList {
-                    addAll(CallbackImplementation.implementedCallbacks(it))
-                    addAll(ProtocolImplementation.membersOfImplementedDefs(it))
-                    addAll(ProtocolFunction.fromClause(it).filter { member -> member.arity == arity })
-                }
-            }
+            ?.let { CallbackImplementation.implementedCallbacks(it) + ProtocolImplementation.membersOfImplementedDefs(it) }
             .orEmpty()
 
     /**
@@ -332,19 +324,6 @@ class FunctionSymbol(
             val atOwnHead = PsiTreeUtil.isAncestor(head, at, false) || PsiTreeUtil.isAncestor(at, head, false)
 
             return !atOwnHead && isMadeFrom(symbol, call, head)
-        }
-
-        /**
-         * Whether an atom at [atom] that reaches [definition] names [symbol]: as [matches] says, and a protocol's own
-         * declaration too, which a call reaches as a `ProtocolFunction` and an atom names by the protocol's module.
-         */
-        @RequiresReadLock
-        fun matchesAtom(definition: PsiElement, symbol: FunctionSymbol, atom: PsiElement): Boolean {
-            if (matches(definition, symbol, atom)) return true
-
-            val clause = definitionClause(definition) ?: return false
-
-            return ProtocolFunction.fromClause(clause).isNotEmpty() && isFamilyMember(clause, symbol)
         }
 
         /**

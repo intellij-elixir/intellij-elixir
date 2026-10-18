@@ -205,17 +205,17 @@ mfa_atom.ex:3:3  definition  MfaAtom  mfas/0  clause  public function runtime
 mfa_atom.ex:3:19  psi  Module  `MfaAtom`  ->  mfa_atom.ex:1:1 `defmodule MfaAtom do`
 mfa_atom.ex:3:19  symbol  ModuleReference  `MfaAtom`  ->  mfa_atom.ex:1:11 ModuleSymbol(MfaAtom)
 mfa_atom.ex:3:29  psi  AtomReference  `run`  ->  mfa_atom.ex:2:3 `def run(x), do: x`
-mfa_atom.ex:3:29  symbol  AtomReference  `run`  ->  mfa_atom.ex:2:7 AtomSymbol(MfaAtom.run/1, macro=false)
+mfa_atom.ex:3:29  symbol  AtomReference  `run`  ->  mfa_atom.ex:2:7 FunctionSymbol(MfaAtom.run/1, macro=false)
 mfa_atom.ex:3:38  psi  Callable  `apply`  ->  nothing
 mfa_atom.ex:3:38  symbol  FunctionCallReference  `apply`  ->  nothing
 mfa_atom.ex:3:44  psi  Module  `MfaAtom`  ->  mfa_atom.ex:1:1 `defmodule MfaAtom do`
 mfa_atom.ex:3:44  symbol  ModuleReference  `MfaAtom`  ->  mfa_atom.ex:1:11 ModuleSymbol(MfaAtom)
 mfa_atom.ex:3:54  psi  AtomReference  `run`  ->  mfa_atom.ex:2:3 `def run(x), do: x`
-mfa_atom.ex:3:54  symbol  AtomReference  `run`  ->  mfa_atom.ex:2:7 AtomSymbol(MfaAtom.run/1, macro=false)
+mfa_atom.ex:3:54  symbol  AtomReference  `run`  ->  mfa_atom.ex:2:7 FunctionSymbol(MfaAtom.run/1, macro=false)
 mfa_atom.ex:3:66  psi  Module  `MfaAtom`  ->  mfa_atom.ex:1:1 `defmodule MfaAtom do`
 mfa_atom.ex:3:66  symbol  ModuleReference  `MfaAtom`  ->  mfa_atom.ex:1:11 ModuleSymbol(MfaAtom)
 mfa_atom.ex:3:76  psi  AtomReference  `run`  ->  mfa_atom.ex:2:3 `def run(x), do: x` (invalid)
-mfa_atom.ex:3:76  symbol  AtomReference  `run`  ->  mfa_atom.ex:2:7 AtomSymbol(MfaAtom.run/1, macro=false)
+mfa_atom.ex:3:76  symbol  AtomReference  `run`  ->  mfa_atom.ex:2:7 FunctionSymbol(MfaAtom.run/1, macro=false)
 mfa_atom.ex:3:85  psi  GeneralAtomReference  `:run`  ->  nothing
 module_macro.ex:1:1  module  ModuleMacro
 module_macro.ex:1:1  psi  Callable  `defmodule`  ->  nothing

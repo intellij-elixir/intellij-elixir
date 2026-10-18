@@ -152,6 +152,7 @@ class UseFactoryTest : PlatformTestCase() {
         assertEquals(listOf("spec.ex:3: defdelegate x(a), to: T (VALID)"), candidates(specification()))
     }
 
+    /** The atom resolves to the step's survivors, which drop `f/2` once `f/1` is admitted. */
     fun testAnMfaAtomAtALiteralArityNamesThatArity() {
         myFixture.addFileToProject("m.ex", "defmodule M do\n  def f(a), do: a\n  def f(a, b), do: a + b\nend\n")
         myFixture.configureByText("mfa.ex", "defmodule U do\n  def run, do: apply(M, :<caret>f, [1])\nend\n")
@@ -160,7 +161,7 @@ class UseFactoryTest : PlatformTestCase() {
             listOf("m.ex:2: def f(a), do: a (VALID)", "m.ex:3: def f(a, b), do: a + b (WRONG_ARITY)"),
             candidates(mfa())
         )
-        assertEquals(mfaToday(), candidates(mfa()))
+        assertEquals(listOf("m.ex:2: def f(a), do: a (VALID)"), mfaToday())
     }
 
     fun testAnMfaTupleAtALiteralArityNamesThatArity() {
@@ -183,6 +184,7 @@ class UseFactoryTest : PlatformTestCase() {
             listOf("m.ex:2: def f(a), do: a (OPAQUE)", "m.ex:3: def f(a, b), do: a + b (OPAQUE)"),
             candidates(use)
         )
+        assertEquals(listOf("m.ex:2: def f(a), do: a (VALID)", "m.ex:3: def f(a, b), do: a + b (VALID)"), mfaToday())
     }
 
     fun testAnMfaAtomAtANonLiteralArityNamesADelegationAndItsTarget() {
@@ -194,6 +196,7 @@ class UseFactoryTest : PlatformTestCase() {
             listOf("m.ex:2: defdelegate x(a), to: T (OPAQUE)", "t.ex:2: def x(a), do: a (OPAQUE)"),
             candidates(mfa())
         )
+        assertEquals(listOf("m.ex:2: defdelegate x(a), to: T (VALID)", "t.ex:2: def x(a), do: a (VALID)"), mfaToday())
     }
 
     fun testAnMfaAtomAtANonLiteralArityReachesOnlyTheArityADelegationPasses() {

@@ -14,17 +14,26 @@ import org.elixir_lang.structure_view.element.Delegation
 object Resolved {
     /**
      * The step's answer at [use] from [feature]'s source: each candidate with what it delegates to. Only the candidates
-     * [reachable] by the use are preferred, so one it cannot reach does not displace the arity it can.
+     * the use [reaches] are preferred, so one it cannot reach does not displace the arity it can.
      */
     @RequiresReadLock
     fun step(
         use: Use,
         incompleteCode: Boolean,
         bound: Boolean = false,
-        feature: Feature = Feature.SYMBOL_REFERENCES,
-        reachable: (Found) -> Boolean = { true }
+        feature: Feature = Feature.SYMBOL_REFERENCES
     ): List<Preferred> =
-        preferred(use, sourceFor(feature).candidates(use, incompleteCode).filter(reachable), incompleteCode, bound)
+        preferred(
+            use,
+            sourceFor(feature).candidates(use, incompleteCode).filter { reaches(use, it) },
+            incompleteCode,
+            bound
+        )
+
+    /** An MFA is called at runtime from another module, so it reaches only a function that module exports. */
+    private fun reaches(use: Use, found: Found): Boolean =
+        use !is Use.Remote ||
+            found.candidate.reach.remotelyReaches(found.candidate.declaration.capabilities, runtime = true)
 
     /** [step] as one list: each [Preferred]'s found, then those of its admittedDelegatedTo [feature] follows. */
     @RequiresReadLock

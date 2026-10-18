@@ -8,12 +8,16 @@ import com.intellij.find.usages.impl.buildQuery
 import com.intellij.find.usages.impl.searchTargets
 import com.intellij.model.psi.PsiSymbolReferenceService
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiNamedElement
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.gotoDeclarationDestinationAtCaret
+import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
+import org.elixir_lang.code_insight.renameTargetAtCaret
+import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaret
 import org.elixir_lang.junit.onPooledThread
 import org.elixir_lang.model.psi.atom.AtomReference
 import org.elixir_lang.model.psi.atom.GeneralAtomReference
@@ -277,39 +281,26 @@ class MfaTupleReferenceTest : PlatformTestCase() {
         assertNull(atomReferenceAtCaretOrNull())
     }
 
-    fun testVariableArityResolvesWithInvalidResult() {
-        val reference = atomReferenceAtCaret("variable_arity.ex")
-
-        val resolveResults = reference.multiResolve(false)
-        assertTrue("Expected variable arity to produce resolve results", resolveResults.isNotEmpty())
-        assertFalse(
-            "Variable arity (arity=-1 sentinel) should resolve with isValidResult=false for navigation",
-            resolveResults.first().isValidResult
-        )
+    /** Elixir does not check an arity that is not a literal, so the one function of the name is the atom's target. */
+    fun testVariableArityResolvesTheLoneFunction() {
+        assertEquals("map", loneTarget("variable_arity.ex"))
     }
 
-    fun testDynamicThirdElementResolvesWithInvalidResult() {
-        val reference = atomReferenceAtCaret("dynamic_third_element.ex")
-
-        val resolveResults = reference.multiResolve(false)
-        assertTrue("Expected dynamic third element to produce resolve results via name-only fallback", resolveResults.isNotEmpty())
-        assertFalse(
-            "Dynamic third element (arity=-1 sentinel) should resolve with isValidResult=false for navigation",
-            resolveResults.first().isValidResult
-        )
-        assertEquals("by_id", (resolveResults.first().element as? PsiNamedElement)?.name)
+    fun testDynamicThirdElementResolvesTheLoneFunction() {
+        assertEquals("by_id", loneTarget("dynamic_third_element.ex"))
     }
 
-    fun testWildcardThirdElementResolvesWithInvalidResult() {
-        val reference = atomReferenceAtCaret("wildcard_third_element.ex")
+    fun testWildcardThirdElementResolvesTheLoneFunction() {
+        assertEquals("start_link", loneTarget("wildcard_third_element.ex"))
+    }
 
-        val resolveResults = reference.multiResolve(false)
-        assertTrue("Expected wildcard third element to produce resolve results via name-only fallback", resolveResults.isNotEmpty())
-        assertFalse(
-            "Wildcard third element (arity=-1 sentinel) should resolve with isValidResult=false for navigation",
-            resolveResults.first().isValidResult
-        )
-        assertEquals("start_link", (resolveResults.first().element as? PsiNamedElement)?.name)
+    /** The name of the atom's target in [fileName], once its one result is checked to be valid. */
+    private fun loneTarget(fileName: String): String? {
+        val reference = atomReferenceAtCaret(fileName)
+
+        assertTrue("one valid result", reference.multiResolve(false).single().isValidResult)
+
+        return (reference.resolve() as? PsiNamedElement)?.name
     }
 
     fun testTupleWithAnUnresolvedModuleReadsItsMiddleAtomAsAnOrdinaryAtom() {
@@ -382,6 +373,61 @@ class MfaTupleReferenceTest : PlatformTestCase() {
         )
     }
 
+    /** `apply/3` can't call a private function, so the atom names only the public one, at an arity it doesn't take. */
+    fun testPrivateFunctionIsNotAnMfaFunctionTarget() {
+        val resolveResults = atomReferenceAtCaret("private_function.ex").multiResolve(false)
+
+        assertEquals(listOf("def f(a, b), do: {a, b}"), resolveResults.map { it.element?.text })
+        assertFalse("at an arity it doesn't take", resolveResults.single().isValidResult)
+    }
+
+    /** A guard is a macro, which `apply/3` can't call, so its atom is no use of the guard at any gesture. */
+    fun testGuardIsNoTargetOfAnMfaAtom() = assertNoTargetOfAnMfaAtom(
+        "defmodule M do\n  defguard is_g(x) when is_integer(x)\nend\n\ndefmodule U do\n  def run(x), do: apply(M, :is_g, [x])\nend\n",
+        "is_g"
+    )
+
+    /** `apply/3` can't call a private function, so its atom is no use of the function at any gesture. */
+    fun testPrivateFunctionIsNoTargetOfAnMfaAtom() = assertNoTargetOfAnMfaAtom(
+        "defmodule M do\n  defp f(a), do: a\n  def g(a), do: f(a)\nend\n\ndefmodule U do\n  def run, do: apply(M, :f, [1])\nend\n",
+        "f"
+    )
+
+    /** Go To at an MFA atom naming a function of two clauses lands on each, as at a call. */
+    fun testGoToAtAnMfaAtomLandsOnEachClause() = assertMfaAtomLandsOn(
+        "defmodule M do\n  def f(q, x) when is_list(q), do: {q, x}\n  def f(queue, item), do: {queue, item}\nend\n",
+        "apply(M, :f, [[], 1])",
+        "def f(q, x) when is_list(q), do: {q, x}",
+        "def f(queue, item), do: {queue, item}"
+    )
+
+    /** Go To at an MFA atom naming a head with defaults lands on it once, though the head covers two arities. */
+    fun testGoToAtAnMfaAtomLandsOnAHeadWithDefaultsOnce() = assertMfaAtomLandsOn(
+        "defmodule M do\n  def f(q, x \\\\ nil), do: {q, x}\nend\n",
+        "apply(M, :f, [1, 2])",
+        "def f(q, x \\\\ nil), do: {q, x}"
+    )
+
+    /** Go To at an MFA atom naming a delegation with defaults lands on its target once, at either arity. */
+    fun testGoToAtAnMfaAtomLandsOnADelegationsTargetOnce() {
+        myFixture.addFileToProject("t.ex", "defmodule T do\n  def f(q, x), do: {q, x}\nend\n")
+        val module = "defmodule M do\n  defdelegate f(q, x \\\\ nil), to: T\nend\n"
+
+        assertMfaAtomLandsOn(module, "apply(M, :f, [1, 2])", "def f(q, x), do: {q, x}")
+        assertMfaAtomLandsOn(module, "{M, :f, 1}", "def f(q, x), do: {q, x}")
+    }
+
+    /** Find Usages from an MFA atom naming a head with defaults finds the calls at each arity the head takes. */
+    fun testFindUsagesFromAnMfaAtomAtAHeadWithDefaultsFindsEveryArity() =
+        assertMfaAtomFindsEveryArity("defmodule M do\n  def f(q, x \\\\ nil), do: {q, x}\nend\n")
+
+    /** Find Usages from an MFA atom naming a delegation with defaults finds the calls at each arity it takes. */
+    fun testFindUsagesFromAnMfaAtomAtADelegationFindsEveryArity() {
+        myFixture.addFileToProject("t.ex", "defmodule T do\n  def f(q, x), do: {q, x}\nend\n")
+
+        assertMfaAtomFindsEveryArity("defmodule M do\n  defdelegate f(q, x \\\\ nil), to: T\nend\n")
+    }
+
     fun testFindUsagesIncludesMfaTupleReference() {
         val reference = atomReferenceAtCaret("find_usages.ex")
 
@@ -409,6 +455,88 @@ class MfaTupleReferenceTest : PlatformTestCase() {
     }
 
     override fun getTestDataPath(): String = "testData/org/elixir_lang/reference/mfa_tuple"
+
+    /** At an arity Elixir does not check, the one function of the name is the atom's target. */
+    fun testNonLiteralArityResolvesALoneClause() {
+        assertEquals("def f(a), do: a", nonLiteralArityTarget("defmodule M do\n  def f(a), do: a\nend\n"))
+    }
+
+    fun testNonLiteralArityResolvesNothingAmongTwoFunctions() {
+        assertNull(nonLiteralArityTarget("defmodule M do\n  def f(a), do: a\n  def f(a, b), do: {a, b}\nend\n"))
+    }
+
+    fun testNonLiteralArityResolvesNothingAmongTwoClauses() {
+        assertNull(nonLiteralArityTarget("defmodule M do\n  def f(0), do: 0\n  def f(n), do: n\nend\n"))
+    }
+
+    fun testNonLiteralArityResolvesNothingAtADelegationAndItsTarget() {
+        myFixture.addFileToProject("t.ex", "defmodule T do\n  def f(a), do: a\nend\n")
+
+        assertNull(nonLiteralArityTarget("defmodule M do\n  defdelegate f(a), to: T\nend\n"))
+    }
+
+    /**
+     * In [text], Go To at `apply`'s `:`[name] atom goes nowhere, and from the definition [name] Find Usages doesn't
+     * list the atom and rename leaves it.
+     */
+    @Suppress("UnstableApiUsage")
+    private fun assertNoTargetOfAnMfaAtom(text: String, name: String) {
+        myFixture.configureByText("m.ex", text)
+        myFixture.editor.caretModel.moveToOffset(text.indexOf(":$name,") + 1)
+
+        assertNull("Go To at the atom", myFixture.gotoDeclarationTargetsAtCaret())
+
+        myFixture.editor.caretModel.moveToOffset(text.indexOf(" $name(") + 1)
+        val lines = myFixture.singleTargetPsiUsagesAtCaret(project).map { usage ->
+            usage.file.text.lines()[usage.file.text.take(usage.range.startOffset).count { it == '\n' }].trim()
+        }
+
+        assertFalse("Find Usages lists the atom: $lines", lines.any { "apply(" in it })
+
+        myFixture.renameTargetAtCaret("${name}2")
+
+        assertEquals(text.replace("$name(", "${name}2("), myFixture.editor.document.text)
+    }
+
+    /** With [module] as `m.ex`, Go To at `:f` in [mfa] lands on the lines [expected], each once. */
+    private fun assertMfaAtomLandsOn(module: String, mfa: String, vararg expected: String) {
+        myFixture.configureByText("m.ex", "${module}\ndefmodule U do\n  def run, do: $mfa\nend\n")
+        myFixture.editor.caretModel.moveToOffset(myFixture.editor.document.text.indexOf(":f") + 1)
+
+        val landed = myFixture.gotoDeclarationTargetsAtCaret().orEmpty().map { target ->
+            val destination = target.destination!!
+            val document = myFixture.getDocument(destination.containingFile)
+            val line = document.getLineNumber(destination.textOffset)
+
+            document.getText(TextRange(document.getLineStartOffset(line), document.getLineEndOffset(line))).trim()
+        }
+
+        assertEquals(mfa, expected.sorted(), landed.sorted())
+    }
+
+    /** With [module] as `m.ex`, Find Usages from `apply`'s `:f` lists `M.f` called with one argument and with two. */
+    private fun assertMfaAtomFindsEveryArity(module: String) {
+        val text = "${module}\ndefmodule U do\n  def run, do: apply(M, :f, [1, 2])\n  def one, do: M.f(1)\n  def two, do: M.f(1, 2)\nend\n"
+        myFixture.configureByText("m.ex", text)
+        myFixture.editor.caretModel.moveToOffset(text.indexOf(":f") + 1)
+
+        val lines = myFixture.singleTargetPsiUsagesAtCaret(project).filterNot { it.declaration }.map { usage ->
+            usage.file.text.lines()[usage.file.text.take(usage.range.startOffset).count { it == '\n' }].trim()
+        }
+
+        assertEquals(
+            listOf("def one, do: M.f(1)", "def run, do: apply(M, :f, [1, 2])", "def two, do: M.f(1, 2)"),
+            lines.sorted()
+        )
+    }
+
+    /** The text of what `apply(M, :f, args)`'s atom resolves to, with [module] as `m.ex`. */
+    private fun nonLiteralArityTarget(module: String): String? {
+        myFixture.addFileToProject("m.ex", module)
+        myFixture.configureByText("u.ex", "defmodule U do\n  def run(args), do: apply(M, :<caret>f, args)\nend\n")
+
+        return atomReferenceAtCaretOrNull()!!.resolve()?.text
+    }
 
     private fun atomReferenceAtCaret(fileName: String): AtomReference {
         myFixture.configureByFile(fileName)

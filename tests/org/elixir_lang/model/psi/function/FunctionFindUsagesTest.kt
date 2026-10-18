@@ -237,6 +237,16 @@ class FunctionFindUsagesTest : PlatformTestCase() {
         assertTrue("the def keyword: $lines", lines.any { it.startsWith("use.ex:") && it.endsWith("def run(x), do: x") })
     }
 
+    /** An MFA atom at a literal arity the function does not take is listed, as a near miss to fix. */
+    fun testMfaAtomAtAnotherLiteralArityIsListed() {
+        myFixture.addFileToProject("caller.ex", "defmodule Caller do\n  def run, do: apply(M, :f, [1])\nend\n")
+        myFixture.configureByText("m.ex", "defmodule M do\n  def <caret>f(a, b), do: {a, b}\nend\n")
+
+        val lines = usageLinesAtCaret()
+
+        assertTrue("the atom: $lines", lines.any { it.startsWith("caller.ex:") })
+    }
+
     /** Under `import Kernel, except: [inspect: 2]`, a bare `inspect(x, [])` calls the module's own `inspect/2`. */
     fun testBareCallExcludedFromKernelImportIsNotFound() {
         myFixture.addFileToProject(

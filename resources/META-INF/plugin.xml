@@ -396,7 +396,7 @@
         <psi.symbolReferenceProvider hostElementClass="org.elixir_lang.psi.ElixirAtom"
                                      hostLanguage="Elixir"
                                      implementationClass="org.elixir_lang.model.psi.atom.AtomReferenceProvider"
-                                     targetClass="org.elixir_lang.model.psi.atom.AtomSymbol"/>
+                                     targetClass="org.elixir_lang.model.psi.function.FunctionSymbol"/>
         <psi.symbolReferenceProvider hostElementClass="org.elixir_lang.psi.ElixirAtom"
                                      hostLanguage="Elixir"
                                      implementationClass="org.elixir_lang.model.psi.generic_server.GenServerRequestReferenceProvider"
