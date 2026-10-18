@@ -9,6 +9,7 @@ import org.elixir_lang.code_insight.assertGotoDeclarationLandsIn
 import org.elixir_lang.code_insight.enclosingCallAtCaret
 import org.elixir_lang.model.psi.callback.Callback
 import org.elixir_lang.model.psi.function.FunctionSymbol
+import org.elixir_lang.model.psi.protocol.ProtocolFunction
 import org.elixir_lang.psi.CallDefinitionClause
 
 /**
@@ -87,6 +88,19 @@ class GotoDeclarationTest : PlatformTestCase() {
     fun testGoToDeclarationFromImportOnlyKeyNavigatesToDef() {
         myFixture.configureByFiles("goto_import_only.ex")
         myFixture.assertGotoDeclarationLandsIn("perform", "a def clause") { CallDefinitionClause.`is`(it) }
+    }
+
+    /** An `only:` key naming a `defprotocol` function resolves to it. */
+    fun testImportOnlyKeyResolvesToProtocolFunction() {
+        myFixture.addFileToProject("p.ex", "defprotocol P do\n  def f(t)\nend\n")
+        myFixture.configureByText("caller.ex", "defmodule Caller do\n  import P, only: [<caret>f: 1]\nend\n")
+        val host = myFixture.enclosingCallAtCaret()!!
+        val symbols = PsiSymbolReferenceService.getService()
+            .getReferences(host)
+            .filter { it.absoluteRange.containsOffset(myFixture.caretOffset) }
+            .flatMap { it.resolveReference() }
+
+        assertEquals(listOf("P.f/1"), symbols.filterIsInstance<ProtocolFunction>().map { "${it.protocolName}.${it.name}/${it.arity}" })
     }
 
     /**

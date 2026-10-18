@@ -34,12 +34,12 @@ internal object Documented {
         val step = Resolved.step(use, incompleteCode = false, bound, Feature.DOCUMENTATION) { keeps(use, it) }
             // The name at a `@spec` is the name a delegation's head writes, so a delegation comes with its targets.
             .map { preferred -> if (use is Use.Specified) withTargets(preferred) else preferred }
-        val projection = Resolved.projection(step)
+        val projection = Resolved.projection(step, Feature.DOCUMENTATION)
         val valid = Resolved.results(projection).filter { it.isValidResult }.mapNotNull { it.element }.toSet()
 
         val documented = documented(projection.filter { it.element in valid })
         val chosen = if (documented != null) step else nearMiss(use, projection)
-        val shown = if (documented != null) projection else Resolved.projection(chosen)
+        val shown = if (documented != null) projection else Resolved.projection(chosen, Feature.DOCUMENTATION)
         val element = documented ?: documented(shown)
         val delegation = chosen.firstOrNull { reaches(it, element) }?.found
 

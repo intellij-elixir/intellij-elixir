@@ -158,6 +158,19 @@ class RenameMatrixTest : PlatformTestCase() {
     fun testProtocolEverySite() =
         doTestFromEveryOccurrence("protocol_every_site", "renamee", "fresh", expectedCarets = 3)
 
+    /** An `only:` key naming a protocol function renames with it; one at another arity names another function. */
+    fun testProtocolImportOnlyKey() =
+        doTestFromEveryOccurrence("protocol_import_only_key", "renamee", "fresh", expectedCarets = 5, carets = setOf(0, 2, 4))
+
+    /**
+     * A protocol `def` with a default argument declares both arities, so renaming either, from the implementation, the
+     * key or a call, renames an implementation of the other. The `def` itself offers both.
+     */
+    fun testProtocolDefaultsImplementation() =
+        doTestFromEveryOccurrence(
+            "protocol_defaults_implementation", "size", "fresh", expectedCarets = 5, carets = setOf(1, 2, 3, 4)
+        )
+
     /**
      * Renaming a protocol function from any of its occurrences, the protocol's `def`, an implementing head, a `@spec`,
      * a dispatching call or a call to an implementation, renames every use of each implementing definition: its local

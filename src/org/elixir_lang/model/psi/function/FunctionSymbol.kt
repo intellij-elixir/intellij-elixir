@@ -47,7 +47,7 @@ import java.util.*
  * "Usages" are the call sites that invoke it, computed by `ElixirSymbolUsageSearcher`.
  *
  * NOTE: intentionally a regular class, not a `data class` - [equals]/[hashCode] are by semantic
- * identity `(moduleName, name, arity, macro, injected)` and must NOT include [file]/[range].
+ * identity and must NOT include [file]/[range].
  */
 @Suppress("UnstableApiUsage")
 class FunctionSymbol(
@@ -58,7 +58,9 @@ class FunctionSymbol(
     val arity: Int,
     val macro: Boolean,
     /** Written in a `quote` that [moduleName] injects, so it is no definition of [moduleName]'s own. */
-    val injected: Boolean = false
+    val injected: Boolean = false,
+    /** Made from a definition whose arity can't be known yet, so at [arity] as at any other. */
+    val ofUnknownArity: Boolean = false
 ) : ElixirRenameTarget, NavigatableSymbol, SearchTarget {
 
     override val searchText: String get() = name
@@ -70,6 +72,7 @@ class FunctionSymbol(
         val arity = this.arity
         val macro = this.macro
         val injected = this.injected
+        val ofUnknownArity = this.ofUnknownArity
         // Anchor to the declaring call (a stable ancestor) rather than to the name element or a bare file range: an
         // in-place (Shift+F6) rename fully replaces the name's text, which swaps out the name leaf (collapsing a
         // pointer anchored to it) and collapses a plain range marker to an empty range - either way the subsequent
@@ -84,11 +87,11 @@ class FunctionSymbol(
                 val restoredName = DeclaringForm.names(restored, form).singleOrNull() ?: return@Pointer null
                 val restoredRange = UseSymbols.nameRange(restoredName)
 
-                FunctionSymbol(restored.containingFile, restoredRange, moduleName, name, arity, macro, injected)
+                FunctionSymbol(restored.containingFile, restoredRange, moduleName, name, arity, macro, injected, ofUnknownArity)
             }
         }
         return Pointer.fileRangePointer(file, range) { restoredFile, restoredRange ->
-            FunctionSymbol(restoredFile, restoredRange, moduleName, name, arity, macro, injected)
+            FunctionSymbol(restoredFile, restoredRange, moduleName, name, arity, macro, injected, ofUnknownArity)
         }
     }
 
@@ -141,8 +144,9 @@ class FunctionSymbol(
     }
 
     /**
-     * The callbacks and protocol functions the definition this symbol is made from, a clause or a `defdelegate`,
-     * implements. Made from a protocol's own declaration, as an atom's symbol can be, it is that protocol function.
+     * The callbacks the definition this symbol is made from, a clause or a `defdelegate`, implements, and the protocol
+     * functions each protocol `def` it implements declares. Made from a protocol's own declaration, as an atom's symbol
+     * can be, it is that protocol function.
      */
     @RequiresReadLock
     fun implementedMembers(): List<ElixirSymbolWithUsages> =
@@ -150,7 +154,7 @@ class FunctionSymbol(
             ?.let {
                 buildList {
                     addAll(CallbackImplementation.implementedCallbacks(it))
-                    addAll(ProtocolImplementation.membersImplementedBy(it))
+                    addAll(ProtocolImplementation.membersOfImplementedDefs(it))
                     addAll(ProtocolFunction.fromClause(it).filter { member -> member.arity == arity })
                 }
             }
@@ -190,9 +194,9 @@ class FunctionSymbol(
             }
 
     /**
-     * An embed's or `defexception`'s call does not write the function's name, an EEx function's local calls are not
-     * found as its uses, and a function a `quote` injects is called in modules not known until it is used, so a rename
-     * of what they declare would not rewrite it whole.
+     * An embed's or `defexception`'s call does not write the function's name, an EEx function's calls through an
+     * `import` and its `only:` keys are not found as its uses, and a function a `quote` injects is called in modules
+     * not known until it is used, so a rename of what they declare would not rewrite it whole.
      */
     @get:RequiresReadLock
     override val declaringMacro: String?
@@ -213,12 +217,14 @@ class FunctionSymbol(
             other.name == name &&
             other.arity == arity &&
             other.macro == macro &&
-            other.injected == injected
+            other.injected == injected &&
+            other.ofUnknownArity == ofUnknownArity
 
-    override fun hashCode(): Int = Objects.hash(moduleName, name, arity, macro, injected)
+    override fun hashCode(): Int = Objects.hash(moduleName, name, arity, macro, injected, ofUnknownArity)
 
     override fun toString(): String =
-        "FunctionSymbol($moduleName.$name/$arity, macro=$macro${if (injected) ", injected" else ""})"
+        "FunctionSymbol($moduleName.$name/$arity, macro=$macro${if (injected) ", injected" else ""}" +
+            "${if (ofUnknownArity) ", of unknown arity" else ""})"
 
     /** The module a definition keys to, [injected] when the definition is written in a `quote` inside it. */
     data class Owner(val moduleName: String, val injected: Boolean)
@@ -308,22 +314,24 @@ class FunctionSymbol(
         /**
          * Whether a use at [at] that reaches [definition] is a use of [symbol]: the one place that says so.
          *
-         * A clause is a use of every symbol equal to the one it defines, except in a `defimpl`. There every
-         * implementation of a function has one symbol, the protocol's, so a definition that implements no protocol
-         * function, such as a helper, is a use of [symbol] only when [symbol] is made from a clause of the same
-         * function in the same `defimpl`. A `defdelegate` is a use of
-         * the symbol made from it alone, found by its file and head range, since a sibling `defimpl`'s `defdelegate`
-         * has an equal symbol; and never at its own head, which its declaration already gives.
+         * A definition of any form is a use of a symbol it has at that symbol's arity ([UseSymbols.symbols]), except in
+         * a `defimpl`. There every implementation of a function has one symbol, the protocol's, so a definition that
+         * implements no protocol function, such as a helper, is a use of [symbol] only when [symbol] is made from a
+         * clause of the same function in the same `defimpl`. A `defdelegate` is a use of the symbol made from it alone,
+         * found by its file and head range, since a sibling `defimpl`'s `defdelegate` has an equal symbol; and never at
+         * its own head, which its declaration already gives.
          */
         @RequiresReadLock
         fun matches(definition: PsiElement, symbol: FunctionSymbol, at: PsiElement): Boolean {
-            definitionClause(definition)?.let { return matchesClause(it, symbol) }
+            if (symbol !in UseSymbols.symbols(definition, symbol.name, symbol.arity)) return false
 
-            val delegation = (definition as? Call)?.takeIf { Delegation.`is`(it) } ?: return false
-            val head = Delegation.nameIdentifier(delegation) ?: return false
+            val call = definitionClause(definition) ?: definition as? Call ?: return true
+            if (!Delegation.`is`(call)) return isInItsImplementation(call, symbol)
+
+            val head = Delegation.nameIdentifier(call) ?: return false
             val atOwnHead = PsiTreeUtil.isAncestor(head, at, false) || PsiTreeUtil.isAncestor(at, head, false)
 
-            return !atOwnHead && symbol in fromDelegation(delegation) && isMadeFrom(symbol, delegation, head)
+            return !atOwnHead && isMadeFrom(symbol, call, head)
         }
 
         /**
@@ -380,34 +388,37 @@ class FunctionSymbol(
         }
 
         @RequiresReadLock
-        private fun matchesClause(clause: Call, symbol: FunctionSymbol): Boolean {
-            if (symbol !in fromClause(clause)) return false
+        private fun matchesClause(clause: Call, symbol: FunctionSymbol): Boolean =
+            symbol in fromClause(clause) && isInItsImplementation(clause, symbol)
 
-            val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(clause) ?: return false
+        /** Whether [definition], one of [symbol]'s, is not in a `defimpl`, or is in one where [matches] counts it as [symbol]'s. */
+        @RequiresReadLock
+        private fun isInItsImplementation(definition: Call, symbol: FunctionSymbol): Boolean {
+            val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(definition) ?: return false
             if (!Implementation.`is`(enclosingModular)) return true
 
             helperImplementation(symbol)?.let { return it == enclosingModular }
 
-            return implements(clause, symbol)
+            return implements(definition, symbol)
         }
 
         /**
-         * The `defimpl` of the clause [symbol] is made from when that clause implements no protocol function, whether a
-         * `defp` or a public `def` the protocol does not declare, else `null`.
+         * The `defimpl` of the definition [symbol] is made from when that definition implements no protocol function,
+         * whether a `defp` or a public `def` the protocol does not declare, of any form but a `defdelegate`, else `null`.
          */
         @RequiresReadLock
         private fun helperImplementation(symbol: FunctionSymbol): Call? {
-            val clause = madeFromClause(symbol.file, symbol.range) ?: return null
-            val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(clause)?.takeIf { Implementation.`is`(it) }
+            val definition = symbol.anchor()?.takeUnless { it.form == Form.DELEGATION }?.call ?: return null
+            val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(definition)?.takeIf { Implementation.`is`(it) }
                 ?: return null
 
-            return enclosingModular.takeUnless { implements(clause, symbol) }
+            return enclosingModular.takeUnless { implements(definition, symbol) }
         }
 
-        /** Whether [clause], in a `defimpl`, implements the protocol function [symbol] is named by. */
+        /** Whether [definition], in a `defimpl`, implements the protocol function [symbol] is named by. */
         @RequiresReadLock
-        private fun implements(clause: Call, symbol: FunctionSymbol): Boolean =
-            ProtocolImplementation.implementsMember(clause, symbol.name, symbol.arity, symbol.macro)
+        private fun implements(definition: Call, symbol: FunctionSymbol): Boolean =
+            ProtocolImplementation.implementsMember(definition, symbol.name, symbol.arity, symbol.macro)
 
         /** The clause or `defdelegate` whose name identifier is [range] in [file]. */
         @RequiresReadLock
@@ -415,11 +426,6 @@ class FunctionSymbol(
             generateSequence(file.findElementAt(range.startOffset)) { it.parent }
                 .filterIsInstance<Call>()
                 .firstOrNull { DefinitionDeclaration.`is`(it) && DefinitionDeclaration.nameIdentifier(it)?.textRange == range }
-
-        /** The clause whose name identifier is [range] in [file]. */
-        @RequiresReadLock
-        private fun madeFromClause(file: PsiFile, range: TextRange): Call? =
-            madeFromDefinition(file, range)?.takeIf { CallDefinitionClause.`is`(it) }
 
         private fun isMadeFrom(symbol: FunctionSymbol, definition: Call, head: PsiElement): Boolean =
             definition.containingFile.originalFile.virtualFile == symbol.file.virtualFile &&

@@ -5,6 +5,7 @@ import com.intellij.psi.PsiElementResolveResult
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.ResolveResult
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.structure_view.element.Delegation
 
 /**
  * What a reference resolves to: the step's survivors at its use, of which the valid ones may be its target. The others
@@ -25,8 +26,32 @@ object Resolved {
     ): List<Preferred> =
         preferred(use, sourceFor(feature).candidates(use, incompleteCode).filter(reachable), incompleteCode, bound)
 
-    /** [step] as one list: each [Preferred]'s found, then its admittedDelegatedTo. */
-    fun projection(step: List<Preferred>): List<Found> = step.flatMap { listOf(it.found) + it.admittedDelegatedTo }
+    /** [step] as one list: each [Preferred]'s found, then those of its admittedDelegatedTo [feature] follows. */
+    @RequiresReadLock
+    fun projection(step: List<Preferred>, feature: Feature): List<Found> =
+        step.flatMap { preferred ->
+            listOf(preferred.found) + preferred.admittedDelegatedTo.filter { follows(feature, it) }
+        }
+
+    /**
+     * Whether [feature] follows a use to [target], reached through the delegations in its `via`. Find Usages and rename
+     * follow only delegations whose head calls the target by its own name: through `as:`, a use names the delegation
+     * alone.
+     */
+    @RequiresReadLock
+    private fun follows(feature: Feature, target: Found): Boolean =
+        when (feature) {
+            Feature.FIND_USAGES_AND_RENAME ->
+                target.via.filter { Delegation.`is`(it) }.all(Delegation::headKeepsTargetName)
+            Feature.SYMBOL_REFERENCES,
+            Feature.DOCUMENTATION,
+            Feature.PARAMETER_INFO,
+            Feature.HIGHLIGHTING,
+            Feature.REFERENCES_INSPECTION,
+            Feature.COMPLETION,
+            Feature.STRUCTURE_VIEW,
+            Feature.HEEX_COMPONENTS -> true
+        }
 
     /** [step] at [use] from [feature]'s source as one list. */
     @RequiresReadLock
@@ -35,7 +60,7 @@ object Resolved {
         incompleteCode: Boolean,
         bound: Boolean = false,
         feature: Feature = Feature.SYMBOL_REFERENCES
-    ): List<Found> = projection(step(use, incompleteCode, bound, feature))
+    ): List<Found> = projection(step(use, incompleteCode, bound, feature), feature)
 
     /**
      * [projection] as `multiResolve` gives it: a result per element, valid when one of its candidates is admitted and

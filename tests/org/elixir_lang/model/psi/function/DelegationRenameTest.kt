@@ -49,6 +49,34 @@ class DelegationRenameTest : PlatformTestCase() {
     fun testRenameFromADelegationToATargetWithDefaults() =
         assertRenamesFrom(DEFAULTS, DEFAULTS.replace("renamee", "cons"), "defdelegate ren|amee", "M.ren|amee")
 
+    /** A delegation to a protocol function without `as:` renames with it, from the protocol, the head or a use of either. */
+    fun testRenameWithoutAsToAProtocolFunction() =
+        assertRenamesFrom(
+            PROTOCOL,
+            PROTOCOL.replace("snoc", "cons"),
+            "def sn|oc(t)\nend",
+            "defdelegate sn|oc",
+            "P.sn|oc",
+            "Facade.sn|oc"
+        )
+
+    /** From the protocol function, the head of a delegation to it without `as:` is a use, as it is of a function. */
+    fun testFindUsagesFromAProtocolFunctionListsTheDelegationsHead() {
+        myFixture.configureByText("p.ex", PROTOCOL)
+        myFixture.editor.caretModel.moveToOffset(PROTOCOL.indexOf("def snoc") + 5)
+
+        assertEquals(listOf(2, 6, 10, 11, 12), usageLines())
+    }
+
+    /**
+     * A call of a delegation with `as:` names the delegation alone, even where `as:` gives the target's own name, so a
+     * rename from the target leaves the delegation and its calls, for a function and a protocol function alike.
+     */
+    fun testRenameFromATargetLeavesACallThroughAs() {
+        assertTargetRenameLeavesFacade(SAME_NAME_AS)
+        assertTargetRenameLeavesFacade(SAME_NAME_AS_PROTOCOL)
+    }
+
     fun testRenameFromTheHeadWithAs() {
         myFixture.configureByText("m.ex", WITH_AS)
         myFixture.editor.caretModel.moveToOffset(WITH_AS.indexOf("renamee") + 1)
@@ -163,6 +191,24 @@ class DelegationRenameTest : PlatformTestCase() {
         }
     }
 
+    /**
+     * Renames `snoc` to `cons` from the target's head in [text] and checks only that head changed. The `as:` atom is
+     * masked: nothing references it yet, so it keeps the old name.
+     */
+    private fun assertTargetRenameLeavesFacade(text: String) {
+        myFixture.configureByText("through_as.ex", text)
+        val virtualFile = myFixture.file.virtualFile
+        myFixture.editor.caretModel.moveToOffset(text.indexOf("def snoc") + "def sn".length)
+
+        try {
+            myFixture.renameTargetAtCaret("cons")
+            val masked = { written: String -> written.replace(Regex("as: :\\w+"), "as: :_") }
+            assertEquals(masked(text.replace("def snoc", "def cons")), masked(myFixture.file.text))
+        } finally {
+            WriteCommandAction.runWriteCommandAction(project) { virtualFile.delete(this) }
+        }
+    }
+
     /** Runs [check] with the caret on each occurrence of `renamee` in a fresh copy of [WITHOUT_AS]. */
     private fun assertEveryOccurrence(check: (caret: String) -> Unit) {
         val text = WITHOUT_AS
@@ -217,5 +263,19 @@ class DelegationRenameTest : PlatformTestCase() {
         const val WITH_AS =
             "defmodule T do\n  def other(x), do: x\nend\n\n" +
                 "defmodule M do\n  defdelegate renamee(x), to: T, as: :other\n  def m_use, do: M.renamee(1)\nend\n"
+
+        const val SAME_NAME_AS =
+            "defmodule T do\n  def snoc(t), do: t\nend\n\n" +
+                "defmodule Facade do\n  defdelegate snoc(t), to: T, as: :snoc\n  def facade_use(x), do: Facade.snoc(x)\nend\n"
+
+        const val SAME_NAME_AS_PROTOCOL =
+            "defprotocol P do\n  def snoc(t)\nend\n\n" +
+                "defmodule Facade do\n  defdelegate snoc(t), to: P, as: :snoc\n  def facade_use(x), do: Facade.snoc(x)\nend\n"
+
+        const val PROTOCOL =
+            "defprotocol P do\n  def snoc(t)\nend\n\n" +
+                "defimpl P, for: Integer do\n  def snoc(t), do: t\nend\n\n" +
+                "defmodule Facade do\n  defdelegate snoc(t), to: P\n  def p_use(x), do: P.snoc(x)\n" +
+                "  def facade_use(x), do: Facade.snoc(x)\nend\n"
     }
 }

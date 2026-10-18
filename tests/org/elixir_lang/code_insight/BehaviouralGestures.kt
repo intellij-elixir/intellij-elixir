@@ -417,6 +417,20 @@ fun CodeInsightTestFixture.singleTargetPsiUsagesAtCaret(project: Project): List<
 fun CodeInsightTestFixture.singleTargetPsiUsagesAtCaretInScope(project: Project, scope: GlobalSearchScope): List<PsiUsage> =
     psiUsagesAtCaret(project, scope) { it.single() }
 
+/** The search targets at the caret, among which the platform's chooser offers one to Find Usages. */
+@Suppress("UnstableApiUsage")
+fun CodeInsightTestFixture.searchTargetsAtCaret(project: Project): List<SearchTarget> {
+    PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+    val targetFile = symbolResolutionFile(project)
+    val offset = caretOffset
+
+    return ReadAction.nonBlocking(Callable { searchTargets(targetFile, offset) }).executeSynchronously()
+}
+
+/** [psiUsagesAtCaret] for the search target [choose] picks, as a choice in the platform's chooser does. */
+fun CodeInsightTestFixture.chosenTargetPsiUsagesAtCaret(project: Project, choose: (List<SearchTarget>) -> SearchTarget?): List<PsiUsage> =
+    psiUsagesAtCaret(project, GlobalSearchScope.allScope(project), choose)
+
 @Suppress("UnstableApiUsage")
 private fun CodeInsightTestFixture.psiUsagesAtCaret(
     project: Project,

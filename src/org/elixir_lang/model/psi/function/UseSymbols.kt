@@ -6,6 +6,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
+import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Feature
@@ -14,6 +15,7 @@ import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Preferred
 import org.elixir_lang.declaration.RejectedCall
 import org.elixir_lang.declaration.Resolved
+import org.elixir_lang.declaration.admits
 import org.elixir_lang.declaration.atItsHead
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.passed
@@ -127,7 +129,7 @@ internal object UseSymbols {
      * `as:`: [namedByHead] read the other way, at one occurrence of [symbol]'s name.
      */
     @RequiresReadLock
-    fun namingByHead(leaf: PsiElement, symbol: FunctionSymbol): Call? {
+    fun namingByHead(leaf: PsiElement, symbol: Symbol): Call? {
         val delegation = DeclaringForm.named(leaf)?.takeIf { it.form == Form.DELEGATION }?.call ?: return null
         val named = definitionsNamedByHead(delegation).flatMap { definition ->
             reachable(definition) { next ->
@@ -135,8 +137,17 @@ internal object UseSymbols {
             }
         }
 
-        return delegation.takeIf { named.any { definition -> FunctionSymbol.matches(definition, symbol, leaf) } }
+        return delegation.takeIf { named.any { definition -> names(definition, symbol, leaf) } }
     }
+
+    /** Whether [definition] is one of [symbol]'s, for a use at [at]. */
+    @RequiresReadLock
+    private fun names(definition: PsiElement, symbol: Symbol, at: PsiElement): Boolean =
+        when (symbol) {
+            is FunctionSymbol -> FunctionSymbol.matches(definition, symbol, at)
+            is ProtocolFunction -> symbol in symbols(definition, symbol.name, symbol.arity)
+            else -> false
+        }
 
     /** The definitions [namedByHead]'s Symbols are made from. */
     @RequiresReadLock
@@ -160,28 +171,17 @@ internal object UseSymbols {
     internal fun passed(paired: Preferred, use: Use.Named): Int = paired.found.candidate.declaration.arity.passed() ?: use.arity
 
     @RequiresReadLock
-    private fun symbols(found: Found, arity: Int): List<Symbol> {
-        val declaration = found.candidate.declaration
+    private fun symbols(found: Found, arity: Int): List<Symbol> = symbols(found.element, found.candidate.declaration, arity)
 
-        return when (val declared = declaration.declared) {
-            is Declared.Source -> {
-                val call = found.element as? Call ?: return emptyList()
+    /**
+     * The Symbols [definition] has for [name] at [arity], built as a use's are: a definition is a use of a target that
+     * is one of them.
+     */
+    @RequiresReadLock
+    fun symbols(definition: PsiElement, name: String, arity: Int): List<Symbol> =
+        declarations(definition, name, arity).flatMap { symbols(definition, it, arity) }
 
-                when (declared.form) {
-                    Form.CLAUSE, Form.DELEGATION, Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED ->
-                        symbols(call, DeclaringForm.names(call, declared.form).singleOrNull(), declaration, arity)
-                    Form.EXCEPTION -> symbols(call, call.functionNameElement(), declaration, arity)
-                    Form.CALLBACK -> emptyList()
-                }
-            }
-            is Declared.Compiled ->
-                ((found.element as? BeamCallDefinition)?.navigationElement as? Call)
-                    ?.let { symbols(it, CallDefinitionClause.nameIdentifier(it), declaration, arity) }
-                    .orEmpty()
-        }
-    }
-
-    /** The declarations [definition], a declaring call or a compiled definition, makes for [name] at an arity covering [arity]. */
+    /** The declarations [definition], a declaring call or a compiled definition, makes for [name] at an arity that admits [arity]. */
     @RequiresReadLock
     fun declarations(definition: PsiElement, name: String, arity: Int): List<Declaration> =
         when (definition) {
@@ -191,7 +191,25 @@ internal object UseSymbols {
                     ?.let { form -> Declarations.of(form, definition, ResolveState.initial()).mapNotNull { it.declaration } }
                     .orEmpty()
             else -> emptyList()
-        }.filter { it.name == name && it.arity.arityInterval()?.contains(arity) == true }
+        }.filter { it.name == name && it.arity.admits(arity) }
+
+    @RequiresReadLock
+    private fun symbols(definition: PsiElement, declaration: Declaration, arity: Int): List<Symbol> =
+        when (val declared = declaration.declared) {
+            is Declared.Source -> {
+                val call = definition as? Call
+
+                when (declared.form) {
+                    Form.CLAUSE, Form.DELEGATION, Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED ->
+                        call?.let { symbols(it, DeclaringForm.names(it, declared.form).singleOrNull(), declaration, arity) }
+                    Form.EXCEPTION -> call?.let { symbols(it, it.functionNameElement(), declaration, arity) }
+                    Form.CALLBACK -> null
+                }
+            }
+            is Declared.Compiled ->
+                ((definition as? BeamCallDefinition)?.navigationElement as? Call)
+                    ?.let { symbols(it, CallDefinitionClause.nameIdentifier(it), declaration, arity) }
+        }.orEmpty()
 
     /** The text a rename replaces: an atom's content, without its `:` or quotes, or the whole name. */
     @RequiresReadLock
@@ -221,7 +239,8 @@ internal object UseSymbols {
                     declaration.name,
                     arity,
                     macro,
-                    owner.injected
+                    owner.injected,
+                    declaration.arity == ArityKnowledge.Unknown
                 )
             }
         )

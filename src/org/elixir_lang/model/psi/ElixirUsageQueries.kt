@@ -92,10 +92,10 @@ import java.util.concurrent.Callable as JCallable
  * searcher may invoke the other's interface methods - only the platform may call a `Searcher`.
  *
  * - Every searchable symbol contributes its self-declaration usage.
- * - A [ProtocolFunction] additionally contributes each **call site** that dispatches to it
- *   (`Protocol.function(args)` of matching name/arity), each atom naming it, and each implementing `def`/`defmacro`
- *   clause inside a `defimpl` of the same protocol, each a declaration, and every use of those
- *   definitions (so rename keeps every implementation in sync, and Find Usages lists what rename touches).
+ * - A [ProtocolFunction] additionally contributes each **call site** that dispatches to it, each atom and import key
+ *   naming it, and each implementing `def`/`defmacro` clause inside a `defimpl` of the same protocol, each a
+ *   declaration, and every use of those definitions (so rename keeps every implementation in sync, and Find Usages
+ *   lists what rename touches).
  * - A [FunctionSymbol] that implements a callback or a protocol function also contributes everything that member does.
  * - A [FunctionSymbol] additionally contributes each **call site** that dispatches to it.
  *   Qualified calls (`Module.function(args)`) are matched by the Symbols the preference step gives them; unqualified
@@ -333,7 +333,10 @@ internal object ElixirUsageQueries {
         pf: ProtocolFunction,
         searchScope: SearchScope
     ): Query<out PsiUsage> =
-        wordQuery(project, pf.name, searchScope, ProtocolCallSiteMapper(pf.createPointer()))
+        MergeQuery(
+            wordQuery(project, pf.name, searchScope, ProtocolCallSiteMapper(pf.createPointer())),
+            wordQuery(project, pf.name, searchScope, DelegationHeadMapper(pf.createPointer()))
+        )
 
     /** Each atom naming [pf], as in `apply(Size, :size, [x])`. */
     private fun protocolAtomQuery(
@@ -406,7 +409,7 @@ internal object ElixirUsageQueries {
 
     /**
      * Maps each occurrence of a protocol function name to a **call site** that dispatches to it, if any.
-     * A call site is a qualified call `Protocol.function(args)` the preference step resolves to the protocol function.
+     * A call site is a call whose definitions include the protocol function, and an import key is one that names it.
      */
     private class ProtocolCallSiteMapper(
         private val protocolFunctionPointer: Pointer<out ProtocolFunction>
@@ -414,16 +417,21 @@ internal object ElixirUsageQueries {
         @RequiresReadLock
         override fun map(leaf: PsiElement, offsetInLeaf: Int): Collection<PsiUsage> {
             val protocolFunction = protocolFunctionPointer.dereference() ?: return emptyList()
+            val isProtocolFunctions = { definition: PsiElement ->
+                protocolFunction in UseSymbols.symbols(definition, protocolFunction.name, protocolFunction.arity)
+            }
 
-            // Nearest enclosing call. A call site is an invocation, not a definition clause.
+            keywordKeyUsage(leaf, protocolFunction.name, protocolFunction.arity) { definition, _ -> isProtocolFunctions(definition) }
+                ?.let { return listOf(it) }
+
             val call = leaf.enclosingCalls().firstOrNull() ?: return emptyList()
-            if (CallDefinitionClause.`is`(call)) return emptyList()
+            if (DeclaringForm.named(call) != null) return emptyList()
 
             // The occurrence must be the call's own function name, not one of its arguments.
             val nameElement = call.functionNameElement() ?: return emptyList()
             if (!PsiTreeUtil.isAncestor(nameElement, leaf, false)) return emptyList()
 
-            if (!call.names(protocolFunction)) return emptyList()
+            if (definitions(Use.of(call), CallableResolver.bound(call, false)).none(isProtocolFunctions)) return emptyList()
 
             return listOf(
                 ElixirPsiUsage.create(
@@ -515,7 +523,10 @@ internal object ElixirUsageQueries {
         return Implementer(definition, nameIdentifier, Delegation.headKeepsTargetName(definition))
     }
 
-    /** The definition `leaf` is the head name of, when it implements [protocolFunction] in a `defimpl` of its protocol. */
+    /**
+     * The definition `leaf` is the head name of, when it implements, in a `defimpl` of its protocol, a `def` that
+     * declares [protocolFunction].
+     */
     @RequiresReadLock
     private fun protocolImplementer(leaf: PsiElement, protocolFunction: ProtocolFunction): Implementer? {
         // Nearest enclosing definition: a clause or a `defdelegate`.
@@ -526,7 +537,7 @@ internal object ElixirUsageQueries {
         if (!PsiTreeUtil.isAncestor(nameIdentifier, leaf, false)) return null
 
         // Directly inside a `defimpl` for this protocol, as every other test of "implements" says.
-        if (protocolFunction !in ProtocolImplementation.membersImplementedBy(definition)) return null
+        if (protocolFunction !in ProtocolImplementation.membersOfImplementedDefs(definition)) return null
 
         return Implementer(definition, nameIdentifier, Delegation.headKeepsTargetName(definition))
     }
@@ -881,7 +892,7 @@ internal object ElixirUsageQueries {
     }
 
     /** Maps a name a delegation writes to a call of the Symbol searched for, when its head names it: [UseSymbols.namingByHead]. */
-    private class DelegationHeadMapper(private val symbolPointer: Pointer<out FunctionSymbol>) : WordOccurrenceMapper<PsiUsage> {
+    private class DelegationHeadMapper(private val symbolPointer: Pointer<out Symbol>) : WordOccurrenceMapper<PsiUsage> {
         @RequiresReadLock
         override fun map(leaf: PsiElement, offsetInLeaf: Int): Collection<PsiUsage> {
             val symbol = symbolPointer.dereference() ?: return emptyList()
@@ -919,7 +930,8 @@ internal object ElixirUsageQueries {
 
             atomUsage(leaf, symbol)?.let { return listOf(it) }
 
-            keywordKeyUsage(leaf, symbol)?.let { return listOf(it) }
+            keywordKeyUsage(leaf, symbol.name, symbol.arity) { definition, key -> FunctionSymbol.matches(definition, symbol, key) }
+                ?.let { return listOf(it) }
 
             captureUsage(leaf, symbol)?.let { return listOf(it) }
 
@@ -1100,25 +1112,32 @@ internal object ElixirUsageQueries {
                 usageType = SPECIFICATION
             )
         }
+    }
 
-        @RequiresReadLock
-        private fun keywordKeyUsage(leaf: PsiElement, symbol: FunctionSymbol): PsiUsage? {
-            val occurrence = FunctionArityKeywordPair.at(leaf) ?: return null
-            // `defoverridable` keys resolve to a Callback, handled via the Callback search path.
-            if (occurrence.host == FunctionArityKeywordPair.Host.DEFOVERRIDABLE) return null
-            if (occurrence.name != symbol.name || occurrence.arity != symbol.arity) return null
+    /**
+     * The key at [leaf] when it names a function of [name] and [arity] whose definitions [matches] accepts, at that key.
+     * A `defoverridable` key names a callback, which the callback's search finds.
+     */
+    @RequiresReadLock
+    private fun keywordKeyUsage(
+        leaf: PsiElement,
+        name: String,
+        arity: Int,
+        matches: (definition: PsiElement, key: PsiElement) -> Boolean
+    ): PsiUsage? {
+        val occurrence = FunctionArityKeywordPair.at(leaf) ?: return null
+        if (occurrence.host == FunctionArityKeywordPair.Host.DEFOVERRIDABLE) return null
+        if (occurrence.name != name || occurrence.arity != arity) return null
 
-            val key = occurrence.pair.keywordKey
-            val matches = FunctionArityKeywordPairReference.named(occurrence).any { FunctionSymbol.matches(it, symbol, key) }
-            if (!matches) return null
+        val key = occurrence.pair.keywordKey
+        if (FunctionArityKeywordPairReference.named(occurrence).none { matches(it, key) }) return null
 
-            return ElixirPsiUsage.create(
-                key,
-                TextRange(0, key.textLength),
-                declaration = false,
-                usageType = CALL
-            )
-        }
+        return ElixirPsiUsage.create(
+            key,
+            TextRange(0, key.textLength),
+            declaration = false,
+            usageType = CALL
+        )
     }
 
     private class TypeUsageMapper(

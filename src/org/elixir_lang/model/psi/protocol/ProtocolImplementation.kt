@@ -32,11 +32,25 @@ object ProtocolImplementation {
 
     /**
      * The source protocol functions [implementer], a definition in a `defimpl`, implements: those of the protocol the
-     * `defimpl` names. Empty when it implements none, the protocol does not resolve or it is compiled.
+     * `defimpl` names, at its own arity, which Go To lands on. Empty when it implements none, the protocol does not
+     * resolve or it is compiled.
      */
     @RequiresReadLock
     fun membersImplementedBy(implementer: Call): List<ProtocolFunction> =
         implementedMembers(implementer).filterIsInstance<ImplementedMember.Source>().map { it.member }
+
+    /**
+     * The source protocol functions found and renamed with [implementer], a definition in a `defimpl`: every one that a
+     * `def` it implements declares. A `def` with a default argument declares each arity it covers, so an implementation
+     * of `f/2` is one of `f/1` too.
+     */
+    @RequiresReadLock
+    fun membersOfImplementedDefs(implementer: Call): List<ProtocolFunction> =
+        implementedMembers(implementer)
+            .filterIsInstance<ImplementedMember.Source>()
+            .map { it.element }
+            .distinct()
+            .flatMap(ProtocolFunction::fromClause)
 
     /** Where each protocol member [implementer], a definition in a `defimpl`, implements is defined, once each. */
     @RequiresReadLock

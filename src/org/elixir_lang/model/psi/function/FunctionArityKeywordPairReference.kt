@@ -54,9 +54,7 @@ class FunctionArityKeywordPairReference(
 
     @RequiresReadLock
     private fun resolveFunctions(occurrence: FunctionArityKeywordPair.Occurrence): Collection<Symbol> =
-        named(occurrence)
-            .flatMap { FunctionSymbol.fromDefinition(it) }
-            .filter { it.name == occurrence.name && it.arity == occurrence.arity }
+        named(occurrence).flatMap { UseSymbols.symbols(it, occurrence.name, occurrence.arity) }
 
     @RequiresReadLock
     private fun resolveCallbacks(occurrence: FunctionArityKeywordPair.Occurrence): Collection<Symbol> =
