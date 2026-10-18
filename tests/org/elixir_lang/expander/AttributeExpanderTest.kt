@@ -280,6 +280,24 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """.trimIndent(),
         )
 
+    /** An unknown attribute may hold a boolean, which a `for`'s `uniq:` must be, so the `for` stops, not raises. */
+    fun testAnUnknownAttributeAsAForsUniqInADefinition() =
+        assertEvery(
+            """
+            defmodule A do
+              @u :erlang.is_list([])
+              def f, do: for(x <- [1], uniq: @u, do: x)
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A stopped `@u`
+              write u node `@u :erlang.is_list([])`
+              read u in def f/0: unexpanded
+              final u: unknown
+            """.trimIndent(),
+        )
+
     /** A call in a function runs only when the function does. */
     fun testAWriteInAFunctionBodyHasNoEffect() =
         assertEvery(
@@ -350,7 +368,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             top expanded {} next 0
             module Elixir.A compiled
               write x 1 not a statement `@x 1`
-              read x in def r_x/0: node
+              read x in def r_x/0: unexpanded
               final x: unknown
             """.trimIndent(),
         )
@@ -367,9 +385,739 @@ class AttributeExpanderTest : ExpanderTestCase() {
             top expanded {} next 0
             module Elixir.A compiled
               write x node `@x self()`
-              read x in def r_x/0: node
+              read x in def r_x/0: unexpanded
               final x: unknown
             """.trimIndent(),
+        )
+
+    /** An unknown attribute may hold a literal, so a check of what a literal may be stops rather than reporting. */
+    fun testAnUnknownAttributeAsAUnitStops() =
+        assertEvery(
+            """
+            defmodule A do
+              @u :erlang.length([1, 2])
+              def g(y), do: <<y::size(4)-unit(@u)>>
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A stopped `unit(@u)`
+              write u node `@u :erlang.length([1, 2])`
+              read u in def g/1: unexpanded
+              final u: unknown
+            """.trimIndent(),
+        )
+
+    /**
+     * An unknown attribute may hold an integer, which from 1.16 a sign folds into a literal unit, so the unit stops.
+     * Before it, the sign is a call, which no unit may be, and which 1.15's `number_size/2` can't multiply.
+     */
+    fun testAnUnknownAttributeUnderASignAsAUnitStopsFrom1_16() =
+        assertLevels(
+            """
+            defmodule A do
+              @u :erlang.length([1, 2])
+              def g(y), do: <<y::size(4)-unit(+@u)>>
+            end
+            """.trimIndent(),
+            listOf("1.14.5", "1.15.8", "1.16.3", "1.20.4"),
+        ) { version ->
+            val segment = "`y::size(4)-unit(+@u)`"
+            val attribute = "  write u node `@u :erlang.length([1, 2])`\n  read u in def g/1: unexpanded\n  final u: unknown"
+
+            when (version) {
+                "1.14.5" -> "top expanded {} next 0\nmodule Elixir.A raised bad_unit_argument $segment\n$attribute"
+                "1.15.8" ->
+                    "top expanded {} next 0\nmodule Elixir.A crashed bad_unit_argument $segment Elixir.ArithmeticError\n" +
+                        "$attribute\n  reported bad_unit_argument $segment"
+                else -> "top expanded {} next 0\nmodule Elixir.A stopped `+@u`\n$attribute"
+            }
+        }
+
+    /** An unknown attribute may hold a binary, which `String.Chars.to_string/1` folds into, so the call stops. */
+    fun testAnUnknownAttributeAsToStringsArgumentStops() =
+        assertEvery(
+            """
+            defmodule A do
+              @x :erlang.hd(["a"])
+              def g, do: String.Chars.to_string(@x).foo()
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A stopped `String.Chars.to_string(@x)`
+              write x node `@x :erlang.hd(["a"])`
+              read x in def g/0: unexpanded
+              final x: unknown
+            """.trimIndent(),
+        )
+
+    /** An unknown attribute interpolated in a pattern may hold a binary, which folds into the pattern, so it stops. */
+    fun testAnUnknownAttributeInterpolatedInAPatternStops() =
+        assertEvery(
+            """
+            defmodule A do
+              @x :erlang.hd(["a"])
+              def g("#{@x}"), do: 1
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A stopped `@x`
+              write x node `@x :erlang.hd(["a"])`
+              read x in def g/1: unexpanded
+              final x: unknown
+            """.trimIndent(),
+        )
+
+    /** A `rescue ... in` list holding a known term other than an atom raises whatever an unknown attribute in it holds. */
+    fun testAnUnknownAttributeBesideANonAtomInARescueRaises() =
+        assertEvery(
+            """
+            defmodule A do
+              @e :erlang.hd([ArgumentError])
+              def g, do: (try do :ok rescue x in [@e, 1] -> x end)
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A raised invalid_rescue_clause `x in [@e, 1] -> x`
+              write e node `@e :erlang.hd([ArgumentError])`
+              read e in def g/0: unexpanded
+              final e: unknown
+            """.trimIndent(),
+        )
+
+    fun testAnUnknownAttributeAsASizeStopsBefore1_14() =
+        assertSplit(
+            """
+            defmodule A do
+              @n :erlang.length([1, 2, 3, 4, 5, 6, 7, 8])
+              def f(b) do
+                <<x::size(@n)>> = b
+                x
+              end
+            end
+            """.trimIndent(),
+            "1.14.0-rc.0",
+            """
+            top expanded {} next 0
+            module Elixir.A stopped `size(@n)`
+              write n node `@n :erlang.length([1, 2, 3, 4, 5, 6, 7, 8])`
+              read n in def f/1: unexpanded
+              final n: unknown
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A compiled
+              write n node `@n :erlang.length([1, 2, 3, 4, 5, 6, 7, 8])`
+              read n in def f/1: unexpanded
+              final n: unknown
+            """.trimIndent(),
+        )
+
+    /**
+     * In a definition an unknown attribute may hold a keyword list, which a directive's options must be, so the
+     * directive stops, not raises.
+     */
+    fun testAnUnknownAttributeAsADirectivesOptionsInADefinition() =
+        assertEvery(
+            """
+            defmodule A do
+              @opts :lists.reverse(only: [is_atom: 1])
+              def f do
+                import Kernel, @opts
+                is_atom(1)
+              end
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A stopped `@opts`
+              write opts node `@opts :lists.reverse(only: [is_atom: 1])`
+              read opts in def f/0: unexpanded
+              final opts: unknown
+            """.trimIndent(),
+        )
+
+    /** In the module body `@opts` is `Module.__get_attribute__/4`'s call, which is no keyword list. */
+    fun testAnAttributeAsADirectivesOptionsInTheModuleBody() =
+        assertEvery(
+            """
+            defmodule A do
+              @opts :lists.reverse(only: [is_atom: 1])
+              import Kernel, @opts
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A raised options_are_not_keyword `import Kernel, @opts`
+              write opts node `@opts :lists.reverse(only: [is_atom: 1])`
+              final opts: unknown
+            """.trimIndent(),
+        )
+
+    /** An unknown attribute may hold `as:`, so an `alias` given it stops rather than naming the last segment. */
+    fun testAnUnknownAttributeAsAnAliasesOptionsInADefinition() =
+        assertEvery(
+            """
+            defmodule A do
+              @opts :lists.reverse(as: L)
+              def f do
+                alias :lists, @opts
+                L.reverse([1, 2])
+              end
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A stopped `@opts`
+              write opts node `@opts :lists.reverse(as: L)`
+              read opts in def f/0: unexpanded
+              final opts: unknown
+            """.trimIndent(),
+        )
+
+    /** An unknown attribute may hold what `except:` names, so the `import` stops rather than importing everything. */
+    fun testAnUnknownAttributeAsAnImportsExceptInADefinition() =
+        assertEvery(
+            """
+            defmodule A do
+              @fns :lists.reverse(is_atom: 1)
+              def f do
+                import Kernel, except: @fns
+                is_atom(1)
+              end
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A stopped `except: @fns`
+              write fns node `@fns :lists.reverse(is_atom: 1)`
+              read fns in def f/0: unexpanded
+              final fns: unknown
+            """.trimIndent(),
+        )
+
+    /** `validate_opts/5` reads only the keys, so an unsupported one raises whatever an unknown attribute holds. */
+    fun testAnUnknownAttributeAsAnUnsupportedImportOptionInADefinition() =
+        assertEvery(
+            """
+            defmodule A do
+              @x :erlang.length([1])
+              def f do
+                import Kernel, foo: @x
+                1
+              end
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A raised unsupported_option `import Kernel, foo: @x`
+              write x node `@x :erlang.length([1])`
+              read x in def f/0: unexpanded
+              final x: unknown
+            """.trimIndent(),
+        )
+
+    fun testAnUnknownAttributeAsAnUnsupportedAliasOptionInADefinition() =
+        assertEvery(
+            """
+            defmodule A do
+              @x :erlang.length([1])
+              def f do
+                alias :lists, as: L, foo: @x
+                1
+              end
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A raised unsupported_option `alias :lists, as: L, foo: @x`
+              write x node `@x :erlang.length([1])`
+              read x in def f/0: unexpanded
+              final x: unknown
+            """.trimIndent(),
+        )
+
+    /** Before 1.17 an `only:` list beside any `except:` raises; from 1.17 `except:` is checked first. */
+    fun testAnUnknownAttributeAsAnImportsExceptBesideAnOnlyListInADefinition() =
+        assertSplit(
+            """
+            defmodule A do
+              @x :lists.reverse(is_atom: 1)
+              def f do
+                import Kernel, only: [is_atom: 1], except: @x
+                1
+              end
+            end
+            """.trimIndent(),
+            "1.17.0-rc.0",
+            """
+            top expanded {} next 0
+            module Elixir.A raised only_and_except_given `import Kernel, only: [is_atom: 1], except: @x`
+              write x node `@x :lists.reverse(is_atom: 1)`
+              read x in def f/0: unexpanded
+              final x: unknown
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A stopped `only: [is_atom: 1], except: @x`
+              write x node `@x :lists.reverse(is_atom: 1)`
+              read x in def f/0: unexpanded
+              final x: unknown
+            """.trimIndent(),
+        )
+
+    fun testAnUnknownAttributeInAnImportsOnlyListBesideExceptInADefinition() =
+        assertEvery(
+            """
+            defmodule A do
+              @x :erlang.length([1])
+              def f do
+                import Kernel, only: [is_atom: @x], except: [is_atom: 1]
+                1
+              end
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A stopped `only: [is_atom: @x], except: [is_atom: 1]`
+              write x node `@x :erlang.length([1])`
+              read x in def f/0: unexpanded
+              final x: unknown
+            """.trimIndent(),
+        )
+
+    /** Before 1.17 `only:` is checked first, so a value it doesn't take raises whatever `except:` holds. */
+    fun testAnUnknownAttributeAsAnImportsExceptBesideAnInvalidOnlyInADefinition() =
+        assertSplit(
+            """
+            defmodule A do
+              @x :lists.reverse(is_atom: 1)
+              def f do
+                import Kernel, only: :foo, except: @x
+                1
+              end
+            end
+            """.trimIndent(),
+            "1.17.0-rc.0",
+            """
+            top expanded {} next 0
+            module Elixir.A raised invalid_option `import Kernel, only: :foo, except: @x`
+              write x node `@x :lists.reverse(is_atom: 1)`
+              read x in def f/0: unexpanded
+              final x: unknown
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A stopped `only: :foo, except: @x`
+              write x node `@x :lists.reverse(is_atom: 1)`
+              read x in def f/0: unexpanded
+              final x: unknown
+            """.trimIndent(),
+        )
+
+    /** From 1.17 `except:` is checked first, so a value it doesn't take raises whatever `only:` holds. */
+    fun testAnUnknownAttributeAsAnImportsOnlyBesideAnInvalidExceptInADefinition() =
+        assertSplit(
+            """
+            defmodule A do
+              @x :lists.reverse(is_atom: 1)
+              def f do
+                import Kernel, only: @x, except: :foo
+                1
+              end
+            end
+            """.trimIndent(),
+            "1.17.0-rc.0",
+            """
+            top expanded {} next 0
+            module Elixir.A stopped `only: @x, except: :foo`
+              write x node `@x :lists.reverse(is_atom: 1)`
+              read x in def f/0: unexpanded
+              final x: unknown
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A raised invalid_option `import Kernel, only: @x, except: :foo`
+              write x node `@x :lists.reverse(is_atom: 1)`
+              read x in def f/0: unexpanded
+              final x: unknown
+            """.trimIndent(),
+        )
+
+    /** An `only:` list with a `|` tail is no keyword list, so it raises whatever the tail holds. */
+    fun testAnUnknownAttributeAsTheTailOfAnImportsOnlyInADefinition() =
+        assertEvery(
+            """
+            defmodule A do
+              @x :lists.reverse(is_atom: 1)
+              def f do
+                import Kernel, only: [{:is_list, 1} | @x]
+                1
+              end
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A raised invalid_option `import Kernel, only: [{:is_list, 1} | @x]`
+              write x node `@x :lists.reverse(is_atom: 1)`
+              read x in def f/0: unexpanded
+              final x: unknown
+            """.trimIndent(),
+        )
+
+    /** `validate_opts/5` raises on any unsupported key, whatever an element before it holds. */
+    fun testAnUnknownAttributeBesideAnUnsupportedImportOptionInADefinition() =
+        assertEvery(
+            """
+            defmodule A do
+              @x :lists.reverse(is_atom: 1)
+              def f do
+                import Kernel, [@x, foo: 1]
+                1
+              end
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A raised unsupported_option `import Kernel, [@x, foo: 1]`
+              write x node `@x :lists.reverse(is_atom: 1)`
+              read x in def f/0: unexpanded
+              final x: unknown
+            """.trimIndent(),
+        )
+
+    /** An unknown attribute may hold `:only`, so a key it gives stops rather than raising `unsupported_option`. */
+    fun testAnUnknownAttributeAsAnImportsKeyInADefinition() =
+        assertEvery(
+            """
+            defmodule A do
+              @x :erlang.hd([:only])
+              def f do
+                import Kernel, [{@x, [is_atom: 1]}]
+                is_atom(1)
+              end
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A stopped `[{@x, [is_atom: 1]}]`
+              write x node `@x :erlang.hd([:only])`
+              read x in def f/0: unexpanded
+              final x: unknown
+            """.trimIndent(),
+        )
+
+    /** A `warn:` that isn't a boolean raises, so an unknown one stops beside options that compile. */
+    fun testAnUnknownAttributeAsAnImportsWarnInADefinition() =
+        assertEvery(
+            """
+            defmodule A do
+              @x :erlang.hd([:maybe])
+              def f do
+                import Kernel, only: [is_atom: 1], warn: @x
+                1
+              end
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A stopped `only: [is_atom: 1], warn: @x`
+              write x node `@x :erlang.hd([:maybe])`
+              read x in def f/0: unexpanded
+              final x: unknown
+            """.trimIndent(),
+        )
+
+    fun testAnUnknownAttributeAsAKeyBesideAnUnsupportedRequireOptionInADefinition() =
+        assertEvery(
+            """
+            defmodule A do
+              @x :lists.reverse(is_atom: 1)
+              def f do
+                require Kernel, [{@x, L}, foo: 1]
+                1
+              end
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A raised unsupported_option `require Kernel, [{@x, L}, foo: 1]`
+              write x node `@x :lists.reverse(is_atom: 1)`
+              read x in def f/0: unexpanded
+              final x: unknown
+            """.trimIndent(),
+        )
+
+    /** An attribute holding a list is no unit, as Elixir reports, and from 1.15 its size then crashes. */
+    fun testAListAttributeAsAUnitIsReported() =
+        assertSplit(
+            """
+            defmodule A do
+              @l [1]
+              def g(y), do: <<y::size(4)-unit(@l)>>
+            end
+            """.trimIndent(),
+            "1.15.0-rc.0",
+            """
+            top expanded {} next 0
+            module Elixir.A raised bad_unit_argument `y::size(4)-unit(@l)`
+              write l [1] `@l [1]`
+              read l in def g/1: [1]
+              final l: [1]
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A crashed bad_unit_argument `y::size(4)-unit(@l)` Elixir.ArithmeticError
+              write l [1] `@l [1]`
+              read l in def g/1: [1]
+              final l: [1]
+              reported bad_unit_argument `y::size(4)-unit(@l)`
+            """.trimIndent(),
+        )
+
+    /** In 1.15 `-2.0` is `:erlang.-/1`'s call, which `number_size/2` can't multiply; from 1.16 it folds to a float. */
+    fun testANegatedFloatAsAUnitIsReported() =
+        assertLevels(
+            """
+            defmodule A do
+              def g(y), do: <<y::size(4)-unit(-2.0)>>
+            end
+            """.trimIndent(),
+            listOf("1.14.5", "1.15.8", "1.16.3", "1.20.4"),
+        ) { version ->
+            val segment = "`y::size(4)-unit(-2.0)`"
+
+            when (version) {
+                "1.14.5" -> "top expanded {} next 0\nmodule Elixir.A raised bad_unit_argument $segment"
+                "1.15.8" ->
+                    "top expanded {} next 0\nmodule Elixir.A crashed bad_unit_argument $segment Elixir.ArithmeticError\n" +
+                        "  reported bad_unit_argument $segment"
+                else -> "top expanded {} next 0\nmodule Elixir.A tainted\n  reported bad_unit_argument $segment"
+            }
+        }
+
+    /** A bitstring's unit must be 1, which a float's may be, so from 1.16 a folded float stops after its report. */
+    fun testAFloatUnitOnABitstringStops() =
+        assertLevels(
+            """
+            defmodule A do
+              def g(y), do: <<y::bitstring-unit(+1.0)>>
+            end
+            """.trimIndent(),
+            listOf("1.14.5", "1.15.8", "1.16.3", "1.20.4"),
+        ) { version ->
+            val segment = "`y::bitstring-unit(+1.0)`"
+
+            when (version) {
+                "1.14.5" -> "top expanded {} next 0\nmodule Elixir.A raised bad_unit_argument $segment"
+                "1.15.8" ->
+                    "top expanded {} next 0\nmodule Elixir.A tainted\n  reported bad_unit_argument $segment\n" +
+                        "  reported bittype_mismatch $segment"
+                else -> "top expanded {} next 0\nmodule Elixir.A stopped $segment\n  reported bad_unit_argument $segment"
+            }
+        }
+
+    /** A repeated spec matches its earlier value exactly, so a float is never the integer before it. */
+    fun testAFloatUnitAfterAnIntegerUnitIsAMismatch() =
+        assertLevels(
+            """
+            defmodule A do
+              def g(y), do: <<y::size(4)-unit(2)-unit(+2.0)>>
+            end
+            """.trimIndent(),
+            listOf("1.14.5", "1.16.3", "1.20.4"),
+        ) { version ->
+            val segment = "`y::size(4)-unit(2)-unit(+2.0)`"
+
+            if (version == "1.14.5") {
+                "top expanded {} next 0\nmodule Elixir.A raised bad_unit_argument $segment"
+            } else {
+                "top expanded {} next 0\nmodule Elixir.A tainted\n  reported bad_unit_argument $segment\n" +
+                    "  reported bittype_mismatch $segment"
+            }
+        }
+
+    /** A float is never the list before it, so the units conflict. */
+    fun testAFloatUnitAfterAListUnitIsAMismatch() =
+        assertLevels(
+            """
+            defmodule A do
+              @l [1]
+              def g(y), do: <<y::size(4)-unit(@l)-unit(+2.0)>>
+            end
+            """.trimIndent(),
+            listOf("1.14.5", "1.16.3", "1.20.4"),
+        ) { version ->
+            val segment = "`y::size(4)-unit(@l)-unit(+2.0)`"
+            val l = "  write l [1] `@l [1]`\n  read l in def g/1: [1]\n  final l: [1]"
+
+            if (version == "1.14.5") {
+                "top expanded {} next 0\nmodule Elixir.A raised bad_unit_argument $segment\n$l"
+            } else {
+                "top expanded {} next 0\nmodule Elixir.A tainted\n$l\n  reported bad_unit_argument $segment\n" +
+                    "  reported bad_unit_argument $segment\n  reported bittype_mismatch $segment"
+            }
+        }
+
+    /** Two floats whose values aren't kept may be the same, so the spec stops after their reports. */
+    fun testTwoFloatUnitsStop() =
+        assertLevels(
+            """
+            defmodule A do
+              def g(y), do: <<y::size(4)-unit(+2.0)-unit(+2.0)>>
+            end
+            """.trimIndent(),
+            listOf("1.16.3", "1.20.4"),
+        ) { _ ->
+            val segment = "`y::size(4)-unit(+2.0)-unit(+2.0)`"
+
+            "top expanded {} next 0\nmodule Elixir.A stopped `unit(+2.0)`\n  reported bad_unit_argument $segment\n" +
+                "  reported bad_unit_argument $segment"
+        }
+
+    /** An unknown attribute may hold a module, so a struct of it stops rather than raising. */
+    fun testAnUnknownAttributeAsAStructNameInADefinition() =
+        assertEvery(
+            """
+            defmodule A do
+              @s :erlang.hd([URI])
+              def f, do: %@s{}
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A stopped `%@s{}`
+              write s node `@s :erlang.hd([URI])`
+              read s in def f/0: unexpanded
+              final s: unknown
+            """.trimIndent(),
+        )
+
+    fun testAnUnknownAttributeAsAStructNameInAPattern() =
+        assertEvery(
+            """
+            defmodule A do
+              @s :erlang.hd([URI])
+              def f(%@s{} = u), do: u
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A stopped `%@s{}`
+              write s node `@s :erlang.hd([URI])`
+              read s in def f/1: unexpanded
+              final s: unknown
+            """.trimIndent(),
+        )
+
+    /** An unknown attribute may hold a boolean, which `quote`'s `generated:` must be, so the `quote` stops. */
+    fun testAnUnknownAttributeAsAQuotesGeneratedOption() =
+        assertUnknownStops(
+            "@g :erlang.is_list([])",
+            "def f, do: quote(generated: @g, do: 1)",
+            "@g",
+            "g",
+            "def f/0",
+        )
+
+    /** An unknown attribute may hold an exception's module, which `rescue x in` must name, so the `rescue` stops. */
+    fun testAnUnknownAttributeAsARescuesModules() =
+        assertUnknownStops(
+            "@e :erlang.hd([ArgumentError])",
+            "def f do\n    try do\n      :ok\n    rescue\n      x in @e -> x\n    end\n  end",
+            "@e",
+            "e",
+            "def f/0",
+        )
+
+    /** An unknown attribute may hold 16, 32 or 64, which a float's size must be, so the segment stops. */
+    fun testAnUnknownAttributeAsAFloatsSize() =
+        assertUnknownStops(
+            "@n :erlang.length(:lists.duplicate(64, 1))",
+            "def g(y), do: <<y::float-size(@n)>>",
+            "size(@n)",
+            "n",
+            "def g/1",
+        )
+
+    /** An unknown attribute may hold a module, so a remote call on it in a guard stops rather than reading a field. */
+    fun testAnUnknownAttributeAsAGuardsReceiver() =
+        assertUnknownStops(
+            "@m :erlang.hd([Kernel])",
+            "def g(x) when @m.is_atom(x), do: x",
+            "@m",
+            "m",
+            "def g/1",
+        )
+
+    /** An unknown attribute may hold a module, so an alias with it as its head stops rather than raising. */
+    fun testAnUnknownAttributeAsAnAliasHead() =
+        assertUnknownStops(
+            "@m :erlang.hd([Kernel])",
+            "def f, do: @m.Sub",
+            "@m",
+            "m",
+            "def f/0",
+        )
+
+    /** An unknown attribute may hold a struct's key, so a struct with it as a key stops rather than raising. */
+    fun testAnUnknownAttributeAsAStructKey() =
+        assertUnknownStops(
+            "@k :erlang.hd([:host])",
+            "def f, do: %URI{@k => \"h\"}",
+            "@k",
+            "k",
+            "def f/0",
+        )
+
+    /**
+     * `A`, which writes [write] and then has [definition], whose read of the attribute [name] is unknown, stops at
+     * [at] on every level.
+     */
+    private fun assertUnknownStops(write: String, definition: String, at: String, name: String, reader: String) =
+        assertEvery(
+            "defmodule A do\n  $write\n  $definition\nend",
+            """
+            top expanded {} next 0
+            module Elixir.A stopped `$at`
+              write $name node `$write`
+              read $name in $reader: unexpanded
+              final $name: unknown
+            """.trimIndent(),
+        )
+
+    /** An unknown attribute may hold a module, so a directive of it stops rather than raising. */
+    fun testAnUnknownAttributeAsADirectivesModuleInADefinition() =
+        assertEvery(
+            """
+            defmodule A do
+              @m :erlang.hd([URI])
+              def f do
+                alias @m
+                :ok
+              end
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A stopped `alias @m`
+              write m node `@m :erlang.hd([URI])`
+              read m in def f/0: unexpanded
+              final m: unknown
+            """.trimIndent(),
+        )
+
+    /** An unknown attribute may hold an integer or a binary, which no call can be made on, so a call on it stops. */
+    fun testAnUnknownAttributeAsAReceiver() =
+        assertUnknownStops(
+            "@m :erlang.hd([String])",
+            "def r_m, do: @m.length(\"a\")",
+            "@m",
+            "m",
+            "def r_m/0",
         )
 
     // Positional reads
@@ -574,7 +1322,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             top expanded {} next 0
             module Elixir.A compiled
               write doc {2, "a"} `@doc "a"`
-              read doc in def r_doc/0: node
+              read doc in def r_doc/0: unexpanded
               final doc: unknown
               attributes f/0: doc "a"
               attributes r_doc/0: impls [unknown]; doc unknown; deprecated unknown

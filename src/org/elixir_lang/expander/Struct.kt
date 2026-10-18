@@ -32,9 +32,17 @@ internal fun expandStruct(node: ElixirAst.Call, state: ExState, env: Env, run: R
         val name = (values as Term.List).elements.first()
         val match = env.context == Env.Context.MATCH
 
+        unknownStop(name, node)?.let { return@thenValue it }
+
         when {
             name is Term.Atom -> {
                 val keys = pairs.map { (it as? Term.Pair)?.first ?: return@thenValue Expansion.Unported(node) }
+
+                keys.zip(pairNodes(map))
+                    .firstNotNullOfOrNull { (key, pair) ->
+                        unknownStop(key, (expandedShape(pair) as ElixirAst.Tuple).elements[0])
+                    }
+                    ?.let { return@thenValue it }
 
                 structError(node, name.name, keys, mapUpdate(map) != null, env, run)
                     ?: traced(keys)?.let { traced ->
@@ -138,6 +146,10 @@ private fun undefinedStruct(node: ElixirAst, module: String, env: Env): Expansio
     } else {
         Expansion.Error("undefined_struct", node)
     }
+
+/** The pairs [map] writes, each a 2-tuple once `elixir_map:validate_kv/4` has passed. */
+private fun pairNodes(map: ElixirAst.Call): List<ElixirAst> =
+    mapUpdate(map)?.let { (it.arguments!![1] as ElixirAst.ListNode).elements } ?: map.arguments!!
 
 /** [map] without its first `__struct__` pair, which `elixir_map:delete_struct_key/3` takes out before expansion. */
 private fun withoutStructKey(map: ElixirAst.Call): ElixirAst.Call {

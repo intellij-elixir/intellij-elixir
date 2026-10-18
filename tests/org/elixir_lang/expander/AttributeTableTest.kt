@@ -181,24 +181,24 @@ class AttributeTableTest {
         }
 
     @Test
-    fun `a value with no exact term reads as a node`() =
-        assertTrace("1.20.4", Write("x", list(int(1), NODE)) to null, read("x") to "node")
+    fun `a value with no exact term reads as unexpanded`() =
+        assertTrace("1.20.4", Write("x", list(int(1), NODE)) to null, read("x") to "unexpanded")
 
     @Test
-    fun `an accumulating attribute with one unknown write reads as a node`() =
+    fun `an accumulating attribute with one unknown write reads as unexpanded`() =
         assertTrace(
             "1.20.4",
             Write("compile", atom("a")) to null,
             Write("compile", NODE) to null,
             Write("compile", atom("b")) to null,
-            read("compile") to "node",
+            read("compile") to "unexpanded",
         )
 
     @Test
     fun `an unknown value written to a checked attribute is not checked`() =
         everyLeg {
             for (name in listOf("impl", "deprecated", "doc", "external_resource", "file", "on_load")) {
-                assertTrace(it, Write(name, NODE) to UNCHECKED, read(name) to "node")
+                assertTrace(it, Write(name, NODE) to UNCHECKED, read(name) to "unexpanded")
             }
         }
 
@@ -208,8 +208,8 @@ class AttributeTableTest {
             "1.20.4",
             Write("x", int(1)) to null,
             UnknownEffect to null,
-            read("x") to "node",
-            read("never") to "node",
+            read("x") to "unexpanded",
+            read("never") to "unexpanded",
         )
 
     @Test
@@ -219,9 +219,9 @@ class AttributeTableTest {
             Write("x", int(1)) to null,
             Write("y", int(1)) to null,
             elsewhere(Write("x", int(2))) to null,
-            read("x") to "node",
+            read("x") to "unexpanded",
             Write("x", int(3)) to null,
-            read("x") to "node",
+            read("x") to "unexpanded",
             read("y") to "1",
         )
 
@@ -231,8 +231,8 @@ class AttributeTableTest {
             "1.20.4",
             elsewhere(Register("r", accumulate = true)) to null,
             elsewhere(Delete("d")) to null,
-            read("r") to "node",
-            read("d") to "node",
+            read("r") to "unexpanded",
+            read("d") to "unexpanded",
         )
 
     @Test
@@ -241,18 +241,18 @@ class AttributeTableTest {
 
     @Test
     fun `an unknown effect that is not a statement makes every later read unknown`() =
-        assertTrace("1.20.4", elsewhere(UnknownEffect) to null, read("x") to "node")
+        assertTrace("1.20.4", elsewhere(UnknownEffect) to null, read("x") to "unexpanded")
 
     @Test
     fun `a register whose accumulate option is unknown makes its attribute unknown`() =
-        assertTrace("1.20.4", Register("r", accumulate = null) to null, read("r") to "node")
+        assertTrace("1.20.4", Register("r", accumulate = null) to null, read("r") to "unexpanded")
 
     @Test
     fun `a typespec is an unknown value on its attribute`() =
         everyLeg {
             assertTrace(
                 it,
-                *TYPESPECS.flatMap { name -> listOf(TypespecWrite(name, null) to null, read(name) to "node") }.toTypedArray(),
+                *TYPESPECS.flatMap { name -> listOf(TypespecWrite(name, null) to null, read(name) to "unexpanded") }.toTypedArray(),
             )
         }
 

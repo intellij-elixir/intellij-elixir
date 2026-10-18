@@ -198,10 +198,13 @@ private fun captureRequire(
                 ?.let { withModule(call, ElixirAst.Literal.Atom(module.meta, it.name)) }
                 ?: call
 
-            when {
-                arguments == Arguments.NON_SEQUENTIAL -> captureExpr(at, expanded, arguments, s, e, run)
-                value == VARIABLE_NODE -> Expansion.Expanded(s, e, NODE)
-                value is Term.Atom ->
+            if (arguments == Arguments.NON_SEQUENTIAL) return@thenValue captureExpr(at, expanded, arguments, s, e, run)
+            // `require_function/5` reads it.
+            unknownStop(value, module)?.let { return@thenValue it }
+
+            when (value) {
+                VARIABLE_NODE -> Expansion.Expanded(s, e, NODE)
+                is Term.Atom ->
                     requireFunction(amp, call, value.name, remoteName(call), call.arguments!!.size, s, e, run)
                         ?: captureExpr(at, expanded, arguments, s, e, run)
                 else -> captureExpr(at, call, arguments, s, e, run)

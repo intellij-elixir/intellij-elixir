@@ -91,6 +91,16 @@ class DeprecatedCallTest : ExpanderTestCase() {
             "Dep: none\nUser: deprecated Dep.old/1 \"d\" line 6; deprecated Dep.old/2 \"d\" line 7",
         )
 
+    /** A size is expanded once, so its deprecated macro warns once. */
+    fun testADeprecatedMacroInASizeWarnsOnceFrom1_12_2() =
+        assertSplit(
+            "defmodule Dep do\n  @deprecated \"d\"\n  defmacro v(n), do: n\nend\n" +
+                "defmodule User do\n  require Dep\n  def f(n) do\n    <<x::size(Dep.v(n))>> = <<1>>\n    x\n  end\nend",
+            "1.12.2",
+            "Dep: none\nUser: none",
+            "Dep: none\nUser: deprecated Dep.v/1 \"d\" line 8",
+        )
+
     /** The check comes before the arguments are expanded. */
     fun testACallWarnsBeforeItsArguments() =
         assertEvery(

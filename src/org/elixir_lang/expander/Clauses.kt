@@ -318,6 +318,11 @@ private fun rescueIn(
         Expander.expand(right, leftState, leftEnv, run).thenValue { s, e, value ->
             val rights = if (value is Term.List && value.tail == null) value.elements else listOf(value)
 
+            // A known term other than an atom raises whatever the unknown ones are.
+            if (leftValue == VARIABLE_NODE && rights.all { it is Term.Atom || it == Term.Unexpanded }) {
+                rights.firstNotNullOfOrNull { unknownStop(it, right) }?.let { return@thenValue it }
+            }
+
             if (leftValue == VARIABLE_NODE && rights.all { it is Term.Atom }) {
                 Expansion.Expanded(s, e, NODE)
             } else {

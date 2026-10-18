@@ -9,8 +9,14 @@ sealed class Expansion {
      * The state and env Elixir leaves after the node.
      *
      * @property value the term the node expands to
+     * @property variable the variable the node expands to, where [value] is [VARIABLE_NODE]
      */
-    data class Expanded(val state: ExState, val env: Env, val value: Term) : Expansion()
+    data class Expanded(
+        val state: ExState,
+        val env: Env,
+        val value: Term,
+        val variable: ElixirAst? = null,
+    ) : Expansion()
 
     /**
      * Elixir's expander raises at [at], the node whose metadata it reports.

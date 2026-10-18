@@ -100,6 +100,15 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
             CHAIN / 2,
         )
 
+    /** An `import`'s large option is cancelled as it is read for a part the expansion can't tell. */
+    fun testAnImportsOptionsAreCancelledAsTheyAreReadForUnknownParts() =
+        assertCancelledIn(
+            $$"org.elixir_lang.psi.Import$Term",
+            "hasUnknownPart",
+            "defmacro m, do: ($TREE quote(do: import(Kernel, warn: unquote(t))))",
+            LISTS / 2,
+        )
+
     /** A pattern that is a long chain of matches is cancelled as the chain is unpacked. */
     fun testAPatternsMatchesAreCancelledAsTheyAreUnpacked() =
         assertCancelledIn(

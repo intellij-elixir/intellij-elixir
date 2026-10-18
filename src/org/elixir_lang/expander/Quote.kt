@@ -154,10 +154,14 @@ internal object Quote {
 
         val options = options(call, opts)
         val values = expandedOpts.value
+
+        fun optionValue(key: String): Term? =
+            values.keyfind(key)?.also { term -> unknownStop(term, options.getValue(key))?.let { throw Stop(it) } }
+
         val bindQuoted = options["bind_quoted"]?.let { bindings(call, it, env, level) }
-        val unquote = options["unquote"]?.let { boolean(it, values.keyfind("unquote")) }
+        val unquote = options["unquote"]?.let { boolean(it, optionValue("unquote")) }
             ?: Option.Static(bindQuoted == null)
-        val generated = options["generated"]?.let { boolean(it, values.keyfind("generated")) } ?: Option.Static(false)
+        val generated = options["generated"]?.let { boolean(it, optionValue("generated")) } ?: Option.Static(false)
 
         if (env.context != Env.Context.NONE && QUOTE_IN_PATTERN_WITH_UNQUOTE_RAISES.isSufficient(level)) {
             when (unquote) {
@@ -170,12 +174,12 @@ internal object Quote {
             }
         }
 
-        val kept = options["location"]?.let { keptFile(call, values.keyfind("location"), env, run) }
+        val kept = options["location"]?.let { keptFile(call, optionValue("location"), env, run) }
         val line = if (kept != null) {
             Option.Static(if (QUOTE_KEEP_READS_LINE_OPTION.isSufficient(level)) Line.Keep else Line.Drop)
         } else {
             options["line"]?.let { value ->
-                when (val term = values.keyfind("line")) {
+                when (val term = optionValue("line")) {
                     is Term.Integer -> Option.Static(Line.At(term.value))
                     TRUE -> Option.Static(Line.Keep)
                     FALSE -> Option.Static(Line.Drop)
@@ -184,14 +188,14 @@ internal object Quote {
             } ?: Option.Static(Line.Drop)
         }
         val file = kept?.let { Option.Static(it) } ?: options["file"]?.let { value ->
-            when (val term = values.keyfind("file")) {
+            when (val term = optionValue("file")) {
                 is Term.Binary -> Option.Static(term)
                 NIL -> Option.Static(null)
                 else -> Option.Dynamic(value)
             }
         } ?: Option.Static(null)
         val context = options["context"]?.let { value ->
-            when (val term = values.keyfind("context")) {
+            when (val term = optionValue("context")) {
                 is Term.Atom if term != NIL -> Option.Static(term.name)
                 else -> Option.Dynamic(value)
             }

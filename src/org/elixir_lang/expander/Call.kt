@@ -43,7 +43,7 @@ internal fun expandLocalCall(node: ElixirAst.Call, state: ExState, env: Env, run
                 checkDeprecated(CalledKind.FUNCTION, node, receiver, name, args.size, env, run)
             }
 
-            stacktrace(inlinedReceiver, inlined, args.size, state, env, run) ?: expandRemote(
+            stacktrace(inlinedReceiver, inlined, node, state, env, run) ?: expandRemote(
                 Term.Atom(inlinedReceiver),
                 inlined,
                 node,
@@ -240,6 +240,8 @@ internal fun expandRemoteCall(node: ElixirAst.Call, state: ExState, env: Env, ru
 
     return Expander.expand(left, receiverState(state, env, run), env, run).thenValue { after, receiverEnv, receiver ->
         run.observer.receiver(left, receiver)
+        // `dispatch_require/7` reads it.
+        unknownStop(receiver, left)?.let { return@thenValue it }
 
         if (receiver is Term.Atom) {
             dispatchRequire(receiver.name, name, node, state, receiverEnv, run) { functionReceiver, functionName ->
@@ -260,9 +262,11 @@ internal fun expandAnonymousCall(node: ElixirAst.Call, state: ExState, env: Env,
     val function = (node.callee as ElixirAst.Call).arguments!!.single()
 
     return expandArgs(listOf(function) + node.arguments!!, state, env, run).thenValue { s, e, values ->
-        val callsAnAtom = (values as Term.List).elements.first() is Term.Atom
+        val called = (values as Term.List).elements.first()
 
-        if (callsAnAtom && ANONYMOUS_CALL_OF_ATOM_REFUSED.isSufficient(run.level)) {
+        if (ANONYMOUS_CALL_OF_ATOM_REFUSED.isSufficient(run.level)) unknownStop(called, function)?.let { return@thenValue it }
+
+        if (called is Term.Atom && ANONYMOUS_CALL_OF_ATOM_REFUSED.isSufficient(run.level)) {
             report(ErrorSite.INVALID_FUNCTION_CALL, node, env, run) { Expansion.Expanded(s, e, NODE) }
         } else {
             Expansion.Expanded(s, e, NODE)
@@ -278,11 +282,21 @@ private fun receiverState(state: ExState, env: Env, run: Run): ExState =
         state
     }
 
-/** Inside `rescue` or `catch`, before 1.14, `System.stacktrace()` is rewritten to `__STACKTRACE__`. */
-private fun stacktrace(receiver: String, name: String, arity: Int, state: ExState, env: Env, run: Run): Expansion? =
-    Expansion.Expanded(state, env, VARIABLE_NODE).takeIf {
-        receiver == SYSTEM && name == "stacktrace" && arity == 0 && state.stacktrace &&
-            SYSTEM_STACKTRACE_REWRITTEN.isSufficient(run.level)
+/** Inside `rescue` or `catch`, before 1.14, `System.stacktrace()` is rewritten to `{'__STACKTRACE__', [], nil}`. */
+private fun stacktrace(
+    receiver: String,
+    name: String,
+    node: ElixirAst.Call,
+    state: ExState,
+    env: Env,
+    run: Run,
+): Expansion? =
+    if (receiver == SYSTEM && name == "stacktrace" && node.arguments!!.isEmpty() && state.stacktrace &&
+        SYSTEM_STACKTRACE_REWRITTEN.isSufficient(run.level)
+    ) {
+        Expansion.Expanded(state, env, VARIABLE_NODE, Synthetic(node.meta).variable("__STACKTRACE__", "nil"))
+    } else {
+        null
     }
 
 /**
@@ -300,7 +314,7 @@ internal fun dispatchRequire(
 ): Expansion {
     val arity = node.arguments!!.size
 
-    stacktrace(receiver, name, arity, state, env, run)?.let { return it }
+    stacktrace(receiver, name, node, state, env, run)?.let { return it }
 
     inline(receiver, name, arity, run.level)?.let { (inlinedReceiver, inlinedName) ->
         return function(inlinedReceiver, inlinedName)
@@ -441,6 +455,8 @@ private fun expandRemote(
         val arg = (values as Term.List).elements.singleOrNull()
         val folds = env.context == Env.Context.MATCH || SIGNED_NUMBER_REWRITTEN_EVERYWHERE.isSufficient(level)
 
+        if (isSign && folds) unknownStop(arg, node)?.let { return@thenValue it }
+
         // Every `NonTuple` the expander gives is a float.
         if (isSign && folds && (arg is Term.Integer || arg is Term.NonTuple)) {
             Expansion.Expanded(closed, e, signed(name, arg))
@@ -491,12 +507,23 @@ private fun rewrite(
         // The `String.Chars.to_string/1` fold: a binary is its own string.
         Env.Context.NONE -> {
             val arg = args.elements.singleOrNull()
-            val isToString = atom == STRING_CHARS && name == "to_string" && arg is Term.Binary
+            val isToString = atom == STRING_CHARS && name == "to_string"
 
-            Expansion.Expanded(state, env, if (isToString) arg else callValue(atom, name, args.elements, run.level))
+            if (isToString) unknownStop(arg, node)?.let { return it }
+
+            Expansion.Expanded(
+                state,
+                env,
+                if (isToString && arg is Term.Binary) arg else callValue(atom, name, args.elements, run.level),
+            )
         }
         Env.Context.MATCH ->
             if (atom == ERLANG && name == "++" && args.elements.size == 2) {
+                // `static_append/3` reads each tail of the left side.
+                unknownStop(generateSequence(args.elements[0]) { (it as? Term.List)?.tail }.last(), node)?.let {
+                    return it
+                }
+
                 staticAppend(args.elements[0], args.elements[1])?.let { Expansion.Expanded(state, env, it) }
                     ?: Expansion.Error("invalid_match_append", node)
             } else {

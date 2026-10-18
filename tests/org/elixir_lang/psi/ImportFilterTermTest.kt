@@ -93,6 +93,60 @@ class ImportFilterTermTest {
     }
 
     @Test
+    fun `known options are decided`() {
+        assertDecided(options(), true)
+        assertDecided(options("only" to list(pair("g", 1)), "except" to list()), true)
+        assertDecided(options("only" to atom("functions"), "warn" to Term.Unexpanded), true)
+    }
+
+    @Test
+    fun `an unexpanded only or except is undecided`() {
+        assertDecided(options("only" to Term.Unexpanded), false)
+        assertDecided(options("except" to Term.Unexpanded), false)
+        assertDecided(options("only" to list(pair("g", 1), Term.Unexpanded)), false)
+        assertDecided(options("except" to list(Term.Pair(atom("f"), Term.Unexpanded))), false)
+    }
+
+    @Test
+    fun `a list with a tail is invalid whatever the tail holds`() {
+        for (tail in listOf(atom("h"), Term.Unexpanded)) {
+            val only = options("only" to Term.List(listOf(pair("g", 1)), tail))
+            val except = options("except" to Term.List(listOf(pair("f", 1)), tail))
+
+            assertInvalid(only, INVALID_ONLY)
+            assertDecided(only, true)
+            assertInvalid(except, INVALID_EXCEPT)
+            assertDecided(except, true)
+        }
+    }
+
+    @Test
+    fun `an unexpanded option is undecided unless a known one is unsupported`() {
+        assertDecided(list(Term.Unexpanded), false)
+        assertDecided(list(Term.Pair(Term.Unexpanded, list())), false)
+        assertDecided(list(Term.Pair(Term.Unexpanded, list()), Term.Pair(atom("as"), atom("Elixir.N"))), true)
+    }
+
+    @Test
+    fun `a list invalid for a known element is decided`() =
+        assertDecided(options("except" to list(atom("f"), Term.Unexpanded)), true)
+
+    @Test
+    fun `only is checked first before 1_17`() {
+        assertDecided(options("only" to list(pair("g", 1)), "except" to Term.Unexpanded), true, BEFORE)
+        assertDecided(options("only" to atom("bad"), "except" to Term.Unexpanded), true, BEFORE)
+        assertDecided(options("only" to Term.Unexpanded, "except" to atom("bad")), false, BEFORE)
+        assertDecided(options("only" to list(pair("g", 1), Term.Unexpanded), "except" to list()), false, BEFORE)
+    }
+
+    @Test
+    fun `except is checked first from 1_17`() {
+        assertDecided(options("only" to list(pair("g", 1)), "except" to Term.Unexpanded), false, FROM)
+        assertDecided(options("only" to atom("bad"), "except" to Term.Unexpanded), false, FROM)
+        assertDecided(options("only" to Term.Unexpanded, "except" to atom("bad")), true, FROM)
+    }
+
+    @Test
     fun `except subtracts from the prior import`() =
         assertEquals(
             "g/1 | mac/1",
@@ -126,6 +180,9 @@ class ImportFilterTermTest {
     private fun assertInvalid(options: Term.List, error: Filter.Invalid.Error, level: ElixirLanguageLevel = LEVEL) =
         assertEquals(error, (Filter.of(options, level, null).filter as? Filter.Invalid)?.error)
 
+    private fun assertDecided(options: Term.List, expected: Boolean, level: ElixirLanguageLevel = LEVEL) =
+        assertEquals(expected, Filter.of(options, level, null).decided)
+
     private fun render(imports: Import.Imports): String =
         listOf(imports.functions, imports.macros).joinToString(" | ") { nameArities ->
             nameArities.sortedWith(compareBy({ it.name }, { it.arity })).joinToString(" ") { "${it.name}/${it.arity}" }
@@ -133,6 +190,8 @@ class ImportFilterTermTest {
 
     private companion object {
         val LEVEL: ElixirLanguageLevel = ElixirLanguageLevel.of("1.20.4")
+        val BEFORE: ElixirLanguageLevel = ElixirLanguageLevel.of("1.16.3")
+        val FROM: ElixirLanguageLevel = ElixirLanguageLevel.of("1.17.0-rc.0")
         val F = NameArity("f", 1)
         val G = NameArity("g", 1)
         val EXPORTS = Import.Imports(setOf(F, NameArity("f", 2), G, NameArity("_h", 1)), setOf(NameArity("mac", 1)))

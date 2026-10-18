@@ -1311,6 +1311,44 @@ class InterpreterTest : PlatformTestCase() {
                 source = SourceRun.NEEDS_DISPATCH,
             ),
             macro(
+                "form:for-bitstring-reduce-skip-attribute",
+                """
+                @n 8
+                defmacro m, do: for(<<0::size(@n), x::8 <- <<0, 1, 255, 2, 0, 3, 0, 1>> >>, uniq: true, do: x)
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro(
+                "form:for-bitstring-reduce-skip-unit-attribute",
+                """
+                @u 8
+                defmacro m, do: for(<<0::size(1)-unit(@u), x::8 <- <<0, 1, 255, 2, 0, 3, 0, 1>> >>, uniq: true, do: x)
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro(
+                "form:bitstring-size-var-macro",
+                """
+                defmacro m do
+                  n = 8
+                  <<x::size(var!(n))>> = <<1>>
+                  x
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro(
+                "form:bitstring-size-repeated-attribute",
+                """
+                @n 8
+                defmacro m do
+                  <<x::size(@n)-size(8)>> = <<1>>
+                  x
+                end
+                """,
+                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro(
                 "form:for-bitstring-reduce-skip-operator",
                 """
                 defmacro m do

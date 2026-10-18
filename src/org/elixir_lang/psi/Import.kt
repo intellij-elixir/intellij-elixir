@@ -105,6 +105,21 @@ object Import {
             (this as? List)?.elements?.firstNotNullOfOrNull { element ->
                 (element as? Pair)?.takeIf { (it.first as? Atom)?.name == key }?.second
             }
+
+        /** Whether this is, or holds, a list with a `|` tail, or a read that isn't expanded. */
+        fun hasUnknownPart(): Boolean {
+            ProgressManager.checkCanceled()
+
+            return when (this) {
+                Unexpanded -> true
+                is List -> tail != null || elements.any(Term::hasUnknownPart)
+                is Pair -> first.hasUnknownPart() || second.hasUnknownPart()
+                else -> false
+            }
+        }
+
+        /** Whether this option's key can't be told: it, or a pair's key, is unexpanded. */
+        fun hasUnknownKey(): Boolean = this == Unexpanded || (this is Pair && first == Unexpanded)
     }
 
     /**
@@ -197,7 +212,8 @@ object Import {
             }
 
             override fun namedArities(name: Name): Collection<Arity> =
-                (except.orEmpty() + prior?.functions.orEmpty() + prior?.macros.orEmpty())
+                listOfNotNull(except, prior?.functions, prior?.macros)
+                    .flatten()
                     .filter { it.name == name }
                     .map { it.arity }
 
@@ -239,12 +255,15 @@ object Import {
          * @property selector the `only:` selector, or `null` when `only:` is a list or not given
          * @property only the `only:` list as written, duplicates included, or `null` when it isn't a valid one
          * @property except the `except:` list as written, duplicates included, or `null` when it isn't a valid one
+         * @property decided whether no unknown part of the options could change [filter]: none is read before the
+         *   check that gives it
          */
         class Options(
             val filter: Filter,
             val selector: Selector?,
             val only: List<NameArity>?,
             val except: List<NameArity>?,
+            val decided: Boolean,
         )
 
         companion object {
@@ -256,16 +275,29 @@ object Import {
              * which `except:` subtracts from, or `null` when there is none.
              */
             fun of(options: Term.List, languageLevel: ElixirLanguageLevel, prior: Imports?): Options {
-                if (optionsError(options, OPTIONS) != null) return invalid(Invalid.Error.UNSUPPORTED_OPTION)
+                // An unknown option could be `only:` or `except:`, unless a known one is unsupported.
+                val unknownOption = options.elements.any(Term::hasUnknownKey)
+
+                if (optionsError(options, OPTIONS) != null) {
+                    val known = Term.List(options.elements.filterNot(Term::hasUnknownKey))
+
+                    return invalid(
+                        Invalid.Error.UNSUPPORTED_OPTION,
+                        !unknownOption || optionsError(known, OPTIONS) != null,
+                    )
+                }
 
                 val only = options.keyfind("only")
                 val except = options.keyfind("except")
                 val exceptList = (except as? Term.List)?.let(::nameArities)
                 val exceptInvalid = except != null && except != Term.Unexpanded && exceptList == null
+                val exceptFirst = IMPORT_VALIDATES_EXCEPT_FIRST.isSufficient(languageLevel)
+                val onlyUnknown = only?.hasUnknownPart() == true
+                val exceptUnknown = except?.hasUnknownPart() == true
+                // From 1.17 `except:` is read before `only:` is checked.
+                val onlyDecided = !unknownOption && !(exceptFirst && exceptUnknown)
 
-                if (exceptInvalid && IMPORT_VALIDATES_EXCEPT_FIRST.isSufficient(languageLevel)) {
-                    return invalid(Invalid.Error.INVALID_EXCEPT)
-                }
+                if (exceptInvalid && exceptFirst) return invalid(Invalid.Error.INVALID_EXCEPT, !unknownOption)
 
                 val selector = when (only) {
                     null, Term.Unexpanded, is Term.List -> null
@@ -274,39 +306,40 @@ object Import {
                         "macros" -> Selector.MACROS
                         "sigils" -> Selector.SIGILS.takeIf { IMPORT_ONLY_SIGILS.isSufficient(languageLevel) }
                         else -> null
-                    } ?: return invalid(Invalid.Error.INVALID_ONLY)
+                    } ?: return invalid(Invalid.Error.INVALID_ONLY, onlyDecided)
                 }
 
                 if (only is Term.List) {
-                    val onlyList = nameArities(only) ?: return invalid(Invalid.Error.INVALID_ONLY)
+                    val onlyList = nameArities(only) ?: return invalid(Invalid.Error.INVALID_ONLY, onlyDecided)
                     val filter = if (except == null) {
                         Only(onlyList.toSet())
                     } else {
                         Invalid(Invalid.Error.ONLY_AND_EXCEPT_GIVEN)
                     }
 
-                    return Options(filter, null, onlyList, null)
+                    return Options(filter, null, onlyList, null, onlyDecided && !onlyUnknown)
                 }
 
                 return when {
-                    exceptInvalid -> invalid(Invalid.Error.INVALID_EXCEPT)
-                    only == Term.Unexpanded -> Options(Only(emptySet()), null, null, exceptList)
+                    exceptInvalid -> invalid(Invalid.Error.INVALID_EXCEPT, !unknownOption && !onlyUnknown)
+                    only == Term.Unexpanded -> Options(Only(emptySet()), null, null, exceptList, false)
                     else -> {
                         val filter = Selecting(selector, exceptList?.toSet(), prior, languageLevel)
 
-                        Options(filter, selector, null, exceptList)
+                        Options(filter, selector, null, exceptList, !unknownOption && !exceptUnknown)
                     }
                 }
             }
 
-            private fun invalid(error: Invalid.Error) = Options(Invalid(error), null, null, null)
+            private fun invalid(error: Invalid.Error, decided: Boolean) =
+                Options(Invalid(error), null, null, null, decided)
 
             /**
              * `ensure_keyword_list/1`: the `name: arity` pairs of [list], or `null` when it holds anything else. An
              * element that is or holds [Term.Unexpanded] is skipped, as is an arity no [Arity] can hold.
              */
             private fun nameArities(list: Term.List): List<NameArity>? =
-                list.elements.mapNotNull { element ->
+                list.takeIf { it.tail == null }?.elements?.mapNotNull { element ->
                     val name = ((element as? Term.Pair)?.first as? Term.Atom)?.name
                     val arity = ((element as? Term.Pair)?.second as? Term.Integer)?.value
 
@@ -373,7 +406,8 @@ object Import {
 
             private val NODE = Term.Node(Term.Node.Kind.OTHER)
 
-            private val OPTIONS = listOf("only", "except", "warn")
+            /** The keys `import` takes. */
+            internal val OPTIONS = listOf("only", "except", "warn")
 
             /** A tuple or map written out, which quotes like a call but is a value no option takes. */
             private val LITERALS = listOf(OtpErlangAtom("{}"), OtpErlangAtom("%{}"))

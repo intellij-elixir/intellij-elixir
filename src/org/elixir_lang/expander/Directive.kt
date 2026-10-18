@@ -29,7 +29,7 @@ import org.elixir_lang.psi.Import.Term
 internal enum class Directive(val allowed: List<String>) {
     ALIAS(listOf("as", "warn")),
     REQUIRE(listOf("as", "warn")),
-    IMPORT(listOf("only", "except", "warn"));
+    IMPORT(Import.Filter.OPTIONS);
 
     val atom: String = name.lowercase()
 
@@ -60,6 +60,8 @@ internal fun expandMultiAlias(call: ElixirAst.Call, state: ExState, env: Env, ru
     }
 
     return expandWithoutAliasesReport(base, state, env, run) { baseRef, sb, eb ->
+        unknownStop(baseRef, base)?.let { return@expandWithoutAliasesReport it }
+
         when {
             baseRef is Term.Atom ->
                 mapfold(multi.arguments!!, sb, eb) { ref, s, e ->
@@ -106,6 +108,8 @@ internal fun expandDirective(
 
     return expandWithoutAliasesReport(ref, state, env, run) { eRef, sr, er ->
         expandOpts(directive, call, opts, sr, er, run) { eOpts, st, et ->
+            unknownStop(eRef, call)?.let { return@expandOpts it }
+
             when {
                 eRef !is Term.Atom -> Expansion.Error("expected_compile_time_module", call)
                 // `should_warn/3` crashes on any other `warn:`.
@@ -191,6 +195,8 @@ private fun expandAliases(
     }
 
     return Expander.expand(head, state, env, run).thenValue { s, e, value ->
+        unknownStop(value, head)?.let { return@thenValue it }
+
         if (value is Term.Atom) {
             concat(listOf(value.name) + tail)?.let { next(it, s, e) } ?: Expansion.Unported(node)
         } else {
@@ -307,13 +313,27 @@ private fun expandOpts(
     if (opts == null) return next(Term.List(emptyList()), state, env)
 
     return Expander.expand(opts, state, env, run).thenValue { s, e, value ->
-        if (hasTail(value)) return@thenValue Expansion.Unported(opts)
+        // `validate_opts/5` can't tell what an unexpanded value holds.
+        unknownStop(value, opts)?.let { return@thenValue it }
+        if ((value as? Term.List)?.tail != null) return@thenValue Expansion.Unported(opts)
 
         val eOpts = if (directive == Directive.IMPORT) value else noAliasOpts(opts, value) ?: return@thenValue Expansion.Unported(opts)
+        val list = eOpts as? Term.List
+        val knownKeys = list?.copy(elements = list.elements.filterNot(Term::hasUnknownKey))
 
-        Import.optionsError(eOpts, directive.allowed)?.let { Expansion.Error(it, call) } ?: next(eOpts, s, e)
+        Import.optionsError(knownKeys ?: eOpts, directive.allowed)?.let { return@thenValue Expansion.Error(it, call) }
+
+        when {
+            !eOpts.hasUnknownPart() -> next(eOpts, s, e)
+            directive == Directive.IMPORT && list != null && raisesWhateverUnknown(list, run.level) -> next(eOpts, s, e)
+            else -> Expansion.Unported(opts)
+        }
     }
 }
+
+/** Whether `elixir_import` raises on [options] whatever their unknown parts hold. */
+private fun raisesWhateverUnknown(options: Term.List, level: ElixirLanguageLevel): Boolean =
+    Import.Filter.of(options, level, null).let { it.decided && it.filter is Import.Filter.Invalid }
 
 /**
  * `no_alias_opts/1`: the first `as:` holding an alias names it as written, not through the aliases; `null` where
@@ -568,14 +588,6 @@ private inline fun calculateKey(
 
     return listOf(Env.Imports(module, set, origin)) + others
 }
-
-/** Whether [term] is, or holds, a list with a `|` tail. */
-private fun hasTail(term: Term): Boolean =
-    when (term) {
-        is Term.List -> term.tail != null || term.elements.any(::hasTail)
-        is Term.Pair -> hasTail(term.first) || hasTail(term.second)
-        else -> false
-    }
 
 private fun List<NameArity>?.hasDuplicate(): Boolean = this != null && toSet().size != size
 

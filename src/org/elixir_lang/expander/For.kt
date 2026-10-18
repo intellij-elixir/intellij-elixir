@@ -131,9 +131,9 @@ private fun validateOptions(node: ElixirAst, options: List<ElixirAst>, expanded:
         when (keyOf(option)) {
             "into" -> intoOrUniq = true
             "uniq" ->
-                when ((pair as Term.Pair).second) {
+                when (val uniq = (pair as Term.Pair).second) {
                     TRUE, FALSE -> intoOrUniq = true
-                    else -> return Expansion.Error("for_invalid_uniq", node)
+                    else -> return unknownStop(uniq, valueOf(option)) ?: Expansion.Error("for_invalid_uniq", node)
                 }
             "reduce" -> reduce = true
             // Elixir has no clause for it.

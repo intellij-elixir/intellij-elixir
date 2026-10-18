@@ -84,6 +84,8 @@ private fun expandSegments(
 
         val expansion = expandValue(value, accState, original, accEnv, run)
         if (expansion !is Expansion.Expanded) return expansion
+        // The value's checks and `expr_type/1` read it.
+        unknownStop(expansion.value, value)?.let { return it }
 
         valueError(value, expansion.value, metaNode, context, run, report)?.let { return it }
 
@@ -160,6 +162,8 @@ private fun expandValue(value: ElixirAst, state: ExState, original: ExState, env
 
     // Anything but a binary expands the whole call instead, from the state before it.
     return expand(inline).thenValue { s, e, v ->
+        unknownStop(v, inline)?.let { return@thenValue it }
+
         if (v is Term.Binary) Expansion.Expanded(s, e, v) else expand(value)
     }
 }
@@ -240,17 +244,45 @@ private fun containsMatch(node: ElixirAst): Boolean {
 
 // Specs
 
-/** An expanded spec argument: a literal's term, or the expression it expanded to. */
+/**
+ * An expanded spec argument: a literal's term, the variable it expanded to, another expression, a value the expansion
+ * doesn't hold, or another value.
+ */
 private sealed interface SpecArg {
     data class Literal(val term: OtpErlangObject) : SpecArg
 
-    class Expression(val node: ElixirAst) : SpecArg
+    class Variable(val node: ElixirAst) : SpecArg
+
+    /** The AST of an expression other than a variable, which is no literal's term. */
+    data object Expression : SpecArg
+
+    /** An unknown attribute's read, which may be a literal's: a check that reads it stops at [stop]. */
+    class Unknown(val stop: Expansion.Unported) : SpecArg
+
+    /** A float that isn't written as a literal, such as a macro's, whose value isn't kept. */
+    data object Float : SpecArg
+
+    /** A value that is no number or atom, as a list is, whose term isn't kept. */
+    data object Other : SpecArg
 
     companion object {
-        fun of(node: ElixirAst): SpecArg =
-            when (val shape = expandedShape(node)) {
-                is ElixirAst.Literal -> Literal(shape.toOtp())
-                else -> Expression(shape)
+        /**
+         * [arg], which expanded to [value], or to [variable]: an integer's or an atom's term, a literal's where
+         * [value] doesn't hold it, as a float's, the variable, an expression where [value] is its AST, unknown where
+         * it is an unknown attribute's read, stopping at [spec], a float, and otherwise another value.
+         */
+        fun of(value: Term, variable: ElixirAst?, arg: ElixirAst, spec: ElixirAst): SpecArg =
+            when {
+                value is Term.Integer -> Literal(OtpErlangLong(value.value))
+                value is Term.Atom -> Literal(OtpErlangAtom(value.name))
+                variable != null -> Variable(variable)
+                else -> (expandedShape(arg) as? ElixirAst.Literal)?.let { Literal(it.toOtp()) }
+                    ?: unknownStop(value, spec)?.let(::Unknown)
+                    ?: when (value) {
+                        is Term.Node -> Expression
+                        Term.NonTuple -> Float
+                        else -> Other
+                    }
             }
     }
 }
@@ -303,25 +335,28 @@ private fun expandSpecs(spec: ElixirAst, state: ExState, original: ExState, env:
             }
         }
         val arg = builtin.arg
-
-        if (arg !is ElixirAst.Literal.Atom && arg !is ElixirAst.Literal.Integer) {
+        // As `validate_spec_arg/6` and the checks after it read it: the value the argument expanded to.
+        val value = if (arg is ElixirAst.Literal.Atom || arg is ElixirAst.Literal.Integer) {
+            SpecArg.of(literalValue(arg), null, arg, unpacked.node)
+        } else {
             when (val expansion = expandSpecArg(arg, accState, original, accEnv, run)) {
                 is Expansion.Expanded -> {
                     accState = expansion.state
                     accEnv = expansion.env
+                    SpecArg.of(expansion.value, expansion.variable, arg, unpacked.node)
                 }
                 is Expansion.Error, is Expansion.Unported, is Expansion.Opaque -> return Specs.Stopped(expansion)
             }
         }
 
-        val value = SpecArg.of(literalShape(arg, accEnv, run.level))
-
         if (builtin.key == "unit" && value.integer == null) {
+            if (value is SpecArg.Unknown) return Specs.Stopped(value.stop)
+
             reportOrEnd(ErrorSite.BAD_UNIT_ARGUMENT, segment, accEnv, run)?.let { return Specs.Stopped(it) }
         }
 
-        sizeArgError(builtin.key, value, accState, original, accEnv, run.level)?.let {
-            return Specs.Stopped(Expansion.Error(it, segment))
+        sizeArgCheck(builtin.key, value, accState, original, accEnv, run.level, segment)?.let {
+            return Specs.Stopped(it)
         }
 
         val previous = args[builtin.key]
@@ -332,7 +367,6 @@ private fun expandSpecs(spec: ElixirAst, state: ExState, original: ExState, env:
                     reportOrEnd(ErrorSite.BITTYPE_MISMATCH_SPEC, segment, accEnv, run)?.let {
                         return Specs.Stopped(it)
                     }
-                // Expanded terms carry their metadata, columns included from 1.16.
                 null -> return Specs.Stopped(Expansion.Unported(unpacked.node))
                 true -> Unit
             }
@@ -384,9 +418,21 @@ private fun expandNamedSpec(spec: ElixirAst.Call, state: ExState, env: Env, run:
     }
 }
 
-/** Whether two expanded spec arguments are the same term, or `null` where that depends on their metadata. */
+/**
+ * Whether two expanded spec arguments are the same term, or `null` where that isn't known: a value the expansion
+ * doesn't hold, a value whose term isn't kept, two floats, one of whose values isn't kept, or two expressions, whose
+ * terms hold their metadata. A float is no other kind of term.
+ */
 private fun sameTerm(left: SpecArg, right: SpecArg): Boolean? =
     when {
+        listOf(left, right).any { it is SpecArg.Unknown } -> null
+        left is SpecArg.Float || right is SpecArg.Float ->
+            if (listOf(left, right).all { it is SpecArg.Float || (it as? SpecArg.Literal)?.term is OtpErlangDouble }) {
+                null
+            } else {
+                false
+            }
+        listOf(left, right).any { it is SpecArg.Other } -> null
         left is SpecArg.Literal && right is SpecArg.Literal -> left.term == right.term
         left is SpecArg.Literal || right is SpecArg.Literal -> false
         else -> null
@@ -402,8 +448,12 @@ private fun expandSpecArg(arg: ElixirAst, state: ExState, original: ExState, env
             state.copy(prematch = OutsideMatch(OutsideMatch.Mode.Raise)) to Env.Context.NONE
         }
 
-        Expander.expand(arg, sizeState, env.copy(context = sizeContext), run).then { s, e ->
-            Expansion.Expanded(s.copy(prematch = inMatch), e.copy(context = Env.Context.MATCH), NODE)
+        when (val expansion = Expander.expand(arg, sizeState, env.copy(context = sizeContext), run)) {
+            is Expansion.Expanded -> expansion.copy(
+                state = expansion.state.copy(prematch = inMatch),
+                env = expansion.env.copy(context = Env.Context.MATCH),
+            )
+            is Expansion.Error, is Expansion.Unported, is Expansion.Opaque -> expansion
         }
     } else {
         Expander.expand(arg, state.resetRead(original), env, run)
@@ -411,27 +461,29 @@ private fun expandSpecArg(arg: ElixirAst, state: ExState, original: ExState, env
 
 /**
  * `validate_spec_arg/6` for a size, which before 1.14 must be an integer, or a variable that the pattern bound before
- * the bitstring's own segments did not.
+ * the bitstring's own segments did not: its error at [segment], or the stop of a value that isn't held.
  */
-private fun sizeArgError(
+private fun sizeArgCheck(
     key: String,
     value: SpecArg,
     state: ExState,
     original: ExState,
     env: Env,
     level: ElixirLanguageLevel,
-): String? =
+    segment: ElixirAst,
+): Expansion? =
     when {
         key != "size" || BITSTRING_SIZE_EXPANDED_AS_GUARD.isSufficient(level) || value.integer != null -> null
-        value is SpecArg.Expression && isVariable(value.node) -> {
+        value is SpecArg.Unknown -> value.stop
+        value is SpecArg.Variable -> {
             val variable = variable(value.node)
             val readable = env.context != Env.Context.MATCH ||
                 variable in (state.prematch as InMatch).read ||
                 (variable in state.read && variable !in original.read)
 
-            if (readable) null else "undefined_var_in_spec"
+            if (readable) null else Expansion.Error("undefined_var_in_spec", segment)
         }
-        else -> "bad_size_argument"
+        else -> Expansion.Error("bad_size_argument", segment)
     }
 
 private sealed interface Unpacked {
@@ -615,15 +667,22 @@ private fun describeTyped(
             }?.let { return it }
         "binary", "bitstring" ->
             when {
+                // `Unit /= 1` compares by value, which a float's isn't kept.
+                merged == "bitstring" && unit is SpecArg.Float -> Described.Unported(segment)
                 merged == "bitstring" && unit != null && unit.number?.compareTo(BigDecimal.ONE) != 0 ->
                     ended(ErrorSite.BITTYPE_MISMATCH_UNIT)
                 sign != null -> ended(ErrorSite.BITTYPE_SIGNED)
                 else -> null
             }?.let { return it }
         else -> {
+            // `valid_float_size/1` reads it.
+            if (merged == "float" && size is SpecArg.Unknown) return Described.Ended(size.stop)
+
             val integerSize = size.integer
 
-            if (integerSize != null && unit != null && unit.number == null) return Described.NumberSizeRaises
+            if (integerSize != null && unit != null && unit.number == null && unit !is SpecArg.Float) {
+                return Described.NumberSizeRaises
+            }
 
             val numberSize = integerSize?.let { s -> if (unit == null) s else unit.integer?.let { s * it } }
 

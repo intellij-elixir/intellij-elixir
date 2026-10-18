@@ -248,7 +248,7 @@ internal enum class Clause(vararg val heads: Head) {
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
             (if (COMPILER_VARIABLES_REFUSED_IN_PATTERN.isSufficient(run.level)) noMatchScope(node, env) else null)
                 ?: if (state.stacktrace) {
-                    Expansion.Expanded(state, env, VARIABLE_NODE)
+                    Expansion.Expanded(state, env, VARIABLE_NODE, node)
                 } else {
                     report(ErrorSite.STACKTRACE_NOT_ALLOWED, node, env, run) { Expansion.Expanded(state, env, NODE) }
                 }
@@ -482,7 +482,7 @@ internal enum class Clause(vararg val heads: Head) {
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
             val version = if (UNDERSCORE_TAKES_VERSION.isSufficient(run.level)) state.version + 1 else state.version
-            val expanded = Expansion.Expanded(state.copy(version = version), env, VARIABLE_NODE)
+            val expanded = Expansion.Expanded(state.copy(version = version), env, VARIABLE_NODE, node)
 
             return if (env.context == Env.Context.MATCH) {
                 expanded
@@ -507,7 +507,7 @@ internal enum class Clause(vararg val heads: Head) {
                     bound
                 }
 
-                Expansion.Expanded(state.copy(write = state.write.plus(variable, written)), env, VARIABLE_NODE)
+                Expansion.Expanded(state.copy(write = state.write.plus(variable, written)), env, VARIABLE_NODE, node)
             } else {
                 Expansion.Expanded(
                     state.copy(
@@ -517,6 +517,7 @@ internal enum class Clause(vararg val heads: Head) {
                     ),
                     env,
                     VARIABLE_NODE,
+                    node,
                 )
             }
         }
@@ -528,10 +529,10 @@ internal enum class Clause(vararg val heads: Head) {
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion =
             when (val outcome = variableOutcome(node as ElixirAst.Call, state, run.level)) {
-                VariableOutcome.Read -> Expansion.Expanded(state, env, VARIABLE_NODE)
+                VariableOutcome.Read -> Expansion.Expanded(state, env, VARIABLE_NODE, node)
                 VariableOutcome.LocalCall -> Expander.expand(zeroArityCall(node), state, env, run)
                 is VariableOutcome.Reported ->
-                    report(outcome.site, node, env, run) { Expansion.Expanded(state, env, VARIABLE_NODE) }
+                    report(outcome.site, node, env, run) { Expansion.Expanded(state, env, VARIABLE_NODE, node) }
                 is VariableOutcome.Error -> Expansion.Error(outcome.kind, node)
             }
     },

@@ -138,7 +138,7 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
         when (val value = value(name)) {
             is AttributeValue.Known ->
                 value.term.let { term -> if (name in DOCS && term is Term.Pair) term.second else term }
-            AttributeValue.Unknown -> NODE
+            AttributeValue.Unknown -> Term.Unexpanded
         }
 
     /**

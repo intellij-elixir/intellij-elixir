@@ -188,7 +188,7 @@ internal class Run(
     fun supplied(node: ElixirAst, expansion: Expansion): Expansion {
         val value = supplying.remove(node)
 
-        return if (value != null && expansion is Expansion.Expanded) expansion.copy(value = value) else expansion
+        return if (value != null) expansion.withValue(value) else expansion
     }
 
     /** What each module the run compiled exports, which Elixir loads once `elixir_module:compile` returns. */
@@ -278,8 +278,16 @@ internal inline fun Expansion.thenValue(next: (ExState, Env, Term) -> Expansion)
         is Expansion.Error, is Expansion.Unported, is Expansion.Opaque -> this
     }
 
+/**
+ * The stop for a reader that decides by what [value] is, where [value] is an unknown attribute's read: Elixir's answer
+ * depends on a value that isn't known here, so the form stops at [at]. `null` where [value] is known.
+ */
+internal fun unknownStop(value: Term?, at: ElixirAst): Expansion.Unported? =
+    if (value == Term.Unexpanded) Expansion.Unported(at) else null
+
 /** This expansion with [value] in place of its own, if it expanded. */
-internal fun Expansion.withValue(value: Term): Expansion = if (this is Expansion.Expanded) copy(value = value) else this
+internal fun Expansion.withValue(value: Term): Expansion =
+    if (this is Expansion.Expanded) copy(value = value, variable = null) else this
 
 /** `?line(Meta)`: the `line` in [meta], or 0. */
 internal fun line(meta: Meta): Int = location(meta)?.line ?: 0
