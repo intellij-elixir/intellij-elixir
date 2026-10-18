@@ -16,7 +16,6 @@ import org.elixir_lang.psi.Import
 import org.elixir_lang.psi.QuotableKeywordPair
 import org.elixir_lang.psi.Unquote
 import org.elixir_lang.psi.Use
-import org.elixir_lang.psi.arityInterval
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.ENTRANCE
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
@@ -55,37 +54,19 @@ class FunctionArityKeywordPairReference(
 
     @RequiresReadLock
     private fun resolveFunctions(occurrence: FunctionArityKeywordPair.Occurrence): Collection<Symbol> =
-        when (val definitions = definitions(occurrence)) {
-            is Definitions.Found ->
-                definitions.definitions
-                    .flatMap { FunctionSymbol.fromDefinition(it) }
-                    .filter { it.name == occurrence.name && it.arity == occurrence.arity }
-
-            Definitions.UnresolvedModule -> emptyList()
-        }
+        named(occurrence)
+            .flatMap { FunctionSymbol.fromDefinition(it) }
+            .filter { it.name == occurrence.name && it.arity == occurrence.arity }
 
     @RequiresReadLock
     private fun resolveCallbacks(occurrence: FunctionArityKeywordPair.Occurrence): Collection<Symbol> =
-        when (val definitions = definitions(occurrence)) {
-            is Definitions.Found ->
-                definitions.definitions
-                    .asSequence()
-                    .filterIsInstance<Call>()
-                    .filter { definesKey(it, occurrence) }
-                    .flatMap { CallbackImplementation.implementedCallbacks(it, within = occurrence.hostCall) }
-                    .filter { it.arity == occurrence.arity }
-                    .distinct()
-                    .toList()
-
-            Definitions.UnresolvedModule -> emptyList()
-        }
-
-    @RequiresReadLock
-    private fun definesKey(definition: Call, occurrence: FunctionArityKeywordPair.Occurrence): Boolean {
-        val declaration = DefinitionDeclaration.of(definition, ResolveState.initial()) ?: return false
-
-        return declaration.name == occurrence.name && declaration.arity.arityInterval()?.contains(occurrence.arity) == true
-    }
+        named(occurrence)
+            .asSequence()
+            .filterIsInstance<Call>()
+            .flatMap { CallbackImplementation.implementedCallbacks(it, within = occurrence.hostCall) }
+            .filter { it.arity == occurrence.arity }
+            .distinct()
+            .toList()
 
     /** What the key of an [FunctionArityKeywordPair.Occurrence] can name, before its name and arity. */
     sealed interface Definitions {
@@ -129,6 +110,14 @@ class FunctionArityKeywordPairReference(
                         ?: Definitions.UnresolvedModule
             }
         }
+
+        /** What [occurrence]'s key names: each of [definitions] declared with its name at an arity covering its own. */
+        @RequiresReadLock
+        fun named(occurrence: FunctionArityKeywordPair.Occurrence): List<PsiElement> =
+            (definitions(occurrence) as? Definitions.Found)
+                ?.definitions
+                .orEmpty()
+                .filter { UseSymbols.declarations(it, occurrence.name, occurrence.arity).isNotEmpty() }
 
         /**
          * The calls the `use`s and `unquote`s written in [module] put into it, as a call to one of their functions sees

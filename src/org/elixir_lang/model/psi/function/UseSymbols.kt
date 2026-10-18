@@ -3,6 +3,7 @@ package org.elixir_lang.model.psi.function
 import com.intellij.model.Symbol
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
+import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.declaration.Declaration
@@ -28,6 +29,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
+import org.elixir_lang.psi.scope.call_definition_clause.Declarations
 import org.elixir_lang.structure_view.element.Delegation
 
 /**
@@ -178,6 +180,18 @@ internal object UseSymbols {
                     .orEmpty()
         }
     }
+
+    /** The declarations [definition], a declaring call or a compiled definition, makes for [name] at an arity covering [arity]. */
+    @RequiresReadLock
+    fun declarations(definition: PsiElement, name: String, arity: Int): List<Declaration> =
+        when (definition) {
+            is BeamCallDefinition -> listOf(definition.declaration())
+            is Call ->
+                DeclaringForm.declaredBy(definition)
+                    ?.let { form -> Declarations.of(form, definition, ResolveState.initial()).mapNotNull { it.declaration } }
+                    .orEmpty()
+            else -> emptyList()
+        }.filter { it.name == name && it.arity.arityInterval()?.contains(arity) == true }
 
     /** The text a rename replaces: an atom's content, without its `:` or quotes, or the whole name. */
     @RequiresReadLock

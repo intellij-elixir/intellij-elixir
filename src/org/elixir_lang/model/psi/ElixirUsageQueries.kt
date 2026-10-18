@@ -1109,11 +1109,7 @@ internal object ElixirUsageQueries {
             if (occurrence.name != symbol.name || occurrence.arity != symbol.arity) return null
 
             val key = occurrence.pair.keywordKey
-            val matches = FunctionArityKeywordPairReference.definitions(occurrence)
-                .let { it as? FunctionArityKeywordPairReference.Definitions.Found }
-                ?.definitions
-                .orEmpty()
-                .any { FunctionSymbol.matches(it, symbol, key) }
+            val matches = FunctionArityKeywordPairReference.named(occurrence).any { FunctionSymbol.matches(it, symbol, key) }
             if (!matches) return null
 
             return ElixirPsiUsage.create(
