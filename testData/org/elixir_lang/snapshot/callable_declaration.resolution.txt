@@ -86,15 +86,13 @@ forms.ex:8:35  psi  Callable  `a`  ->  forms.ex:8:27 `a`
 forms.ex:8:35  symbol  VariableReference  `a`  ->  forms.ex:8:27 VariableSymbol(a, PARAMETER, (197,198))
 forms.ex:9:3  definition  Forms  is_small/1  clause  public guard compile-time
 forms.ex:9:21  psi  Callable  `a`  ->  forms.ex:9:21 `a`
-forms.ex:9:21  symbol  FunctionCallReference  `a`  ->  nothing
 forms.ex:9:29  psi  Callable  `a`  ->  forms.ex:9:21 `a`
-forms.ex:9:29  symbol  FunctionCallReference  `a`  ->  nothing
+forms.ex:9:29  symbol  VariableReference  `a`  ->  forms.ex:9:21 VariableSymbol(a, PARAMETER, (227,228))
 forms.ex:9:31  symbol  FunctionCallReference  `<`  ->  nothing
 forms.ex:10:3  definition  Forms  is_large/1  clause  private guard compile-time
 forms.ex:10:22  psi  Callable  `a`  ->  forms.ex:10:22 `a`
-forms.ex:10:22  symbol  FunctionCallReference  `a`  ->  nothing
 forms.ex:10:30  psi  Callable  `a`  ->  forms.ex:10:22 `a`
-forms.ex:10:30  symbol  FunctionCallReference  `a`  ->  nothing
+forms.ex:10:30  symbol  VariableReference  `a`  ->  forms.ex:10:22 VariableSymbol(a, PARAMETER, (263,264))
 forms.ex:10:32  symbol  FunctionCallReference  `>`  ->  nothing
 forms.ex:11:31  symbol  TypeReference  `integer`  ->  nothing
 forms.ex:11:43  symbol  TypeReference  `atom`  ->  nothing

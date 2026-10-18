@@ -128,6 +128,8 @@
 
 ### Bug Fixes
 
+- [#4481](https://github.com/intellij-elixir/intellij-elixir/pull/4481) [@sh41](https://github.com/sh41)
+  - **Calls to a `defdelegate` whose target cannot be found, to a `defexception`, and to a function an EEx template or a `Mix.Generator` embed declares are coloured as function calls. Guards get their own "Calls > Guard" and "Declarations > Guard" colours, which default to the macro colours, and a `defguard`'s parameters are coloured as parameters. Only `Kernel`'s own functions get the predefined colour, not those of a module such as `MyKernel`.** Refs [#4435](https://github.com/intellij-elixir/intellij-elixir/issues/4435).
 - [#4479](https://github.com/intellij-elixir/intellij-elixir/pull/4479) [@sh41](https://github.com/sh41)
   - **Quick Documentation is right where it was wrong or empty**: calls at the wrong arity, `apply/3` and `{Module, :name, arity}`, links written as atoms, a `@moduledoc` under an `if`, and `__MODULE__`. Fixes [#4471](https://github.com/intellij-elixir/intellij-elixir/issues/4471).
 - [#4475](https://github.com/intellij-elixir/intellij-elixir/pull/4475) [@sh41](https://github.com/sh41)

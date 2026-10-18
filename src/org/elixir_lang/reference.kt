@@ -12,8 +12,12 @@ import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil
 
 fun safeMultiResolve(reference: PsiPolyVariantReference, incompleteCode: Boolean): Array<ResolveResult> =
+    safelyResolve(reference, emptyArray()) { reference.multiResolve(incompleteCode) }
+
+/** [resolve]'s results, or [onStackOverflow] after logging that resolving [reference] overflowed the stack. */
+inline fun <T> safelyResolve(reference: PsiPolyVariantReference, onStackOverflow: T, resolve: () -> T): T =
     try {
-        reference.multiResolve(incompleteCode)
+        resolve()
     } catch (stackOverflowError: StackOverflowError) {
         Logger.error(
             PsiPolyVariantReference::class.java,
@@ -22,7 +26,7 @@ fun safeMultiResolve(reference: PsiPolyVariantReference, incompleteCode: Boolean
             stackOverflowError
         )
 
-        emptyArray()
+        onStackOverflow
     }
 
 /**

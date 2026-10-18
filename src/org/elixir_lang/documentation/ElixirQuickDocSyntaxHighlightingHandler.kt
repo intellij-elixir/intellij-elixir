@@ -12,7 +12,6 @@ import com.intellij.psi.PsiRecursiveElementWalkingVisitor
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.ElixirLexer
 import org.elixir_lang.ElixirSyntaxHighlighter
-import org.elixir_lang.declaration.Presentation
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.operation.Operation
@@ -122,18 +121,15 @@ internal object ElixirRenderedDocSemanticHighlighter {
 
 		if (stripped is Call) {
 			stripped.functionNameElement()?.let { functionNameElement ->
-				val textAttributesKeys = when (CallDefinitionClause.capabilities(call)?.presentation) {
-					Presentation.FUNCTION -> arrayOf(ElixirSyntaxHighlighter.FUNCTION_DECLARATION)
-					Presentation.MACRO -> arrayOf(ElixirSyntaxHighlighter.MACRO_DECLARATION)
-					Presentation.GUARD, null -> null
-				}
+				val textAttributesKey =
+					ElixirSyntaxHighlighter.declarationKey(CallDefinitionClause.capabilities(call)?.presentation)
 
-				if (textAttributesKeys != null) {
+				if (textAttributesKey != null) {
 					addRange(
 						ranges,
 						functionNameElement.textRange.startOffset,
 						functionNameElement.textRange.endOffset,
-						textAttributesKeys
+						arrayOf(textAttributesKey)
 					)
 				}
 			}

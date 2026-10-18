@@ -3,6 +3,7 @@ package org.elixir_lang
 import com.intellij.lexer.Lexer
 import com.intellij.openapi.fileTypes.SyntaxHighlighterBase
 import com.intellij.openapi.editor.colors.TextAttributesKey
+import org.elixir_lang.declaration.Presentation
 import org.elixir_lang.psi.ElixirTypes
 import com.intellij.openapi.editor.DefaultLanguageHighlighterColors
 import com.intellij.openapi.editor.HighlighterColors
@@ -173,6 +174,16 @@ class ElixirSyntaxHighlighter : SyntaxHighlighterBase() {
                 FUNCTION_DECLARATION
         )
         @JvmField
+        val GUARD_CALL = TextAttributesKey.createTextAttributesKey(
+                "ELIXIR_GUARD_CALL",
+                MACRO_CALL
+        )
+        @JvmField
+        val GUARD_DECLARATION = TextAttributesKey.createTextAttributesKey(
+                "ELIXIR_GUARD_DECLARATION",
+                MACRO_DECLARATION
+        )
+        @JvmField
         val MAP = TextAttributesKey.createTextAttributesKey(
                 "ELIXIR_MAP",  // DO NOT link to {@link ElixirSyntaxHighlighter.BRACES} since that's for Tuples in standard Elixir
                 DefaultLanguageHighlighterColors.BRACES
@@ -217,6 +228,24 @@ class ElixirSyntaxHighlighter : SyntaxHighlighterBase() {
                 "ELIXIR_SIGIL",  // Based on color used for Regular expression's boundaries in Ruby
                 DefaultLanguageHighlighterColors.TEMPLATE_LANGUAGE_COLOR
         )
+
+        /** The key a declaration of [presentation] is highlighted with. */
+        fun declarationKey(presentation: Presentation?): TextAttributesKey? =
+            when (presentation) {
+                Presentation.FUNCTION -> FUNCTION_DECLARATION
+                Presentation.MACRO -> MACRO_DECLARATION
+                Presentation.GUARD -> GUARD_DECLARATION
+                null -> null
+            }
+
+        /** The key a call of a declaration of [presentation] is highlighted with. */
+        fun callKey(presentation: Presentation?): TextAttributesKey? =
+            when (presentation) {
+                Presentation.FUNCTION -> FUNCTION_CALL
+                Presentation.MACRO -> MACRO_CALL
+                Presentation.GUARD -> GUARD_CALL
+                null -> null
+            }
 
         fun <T> sigilNames(transformer: (capitalization: String, letter: Char, name: Char) -> T): List<T> =
             ('A'..'Z').flatMap { letter ->

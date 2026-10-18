@@ -7,6 +7,8 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.usageView.UsageViewTypeLocation
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.FUNCTION_CALL
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.FUNCTION_DECLARATION
+import org.elixir_lang.ElixirSyntaxHighlighter.Companion.GUARD_CALL
+import org.elixir_lang.ElixirSyntaxHighlighter.Companion.GUARD_DECLARATION
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.MACRO_CALL
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.MACRO_DECLARATION
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.PARAMETER
@@ -22,8 +24,8 @@ import org.elixir_lang.structure_view.element.CallDefinition
 import org.elixir_lang.structure_view.element.Timed
 
 /**
- * What a user sees of a source definition for each `def*`. A guard gets no declaration, call or parameter
- * highlight, no usage-view type of its own and no structure-view node.
+ * What a user sees of a source definition for each `def*`. A guard gets no usage-view type of its own and no
+ * structure-view node.
  */
 class SourcePresentationTest : PlatformTestCase() {
     private lateinit var scheme: DistinctKeyScheme
@@ -41,8 +43,8 @@ class SourcePresentationTest : PlatformTestCase() {
                 "private_function" to setOf(FUNCTION_DECLARATION),
                 "public_macro" to setOf(MACRO_DECLARATION),
                 "private_macro" to setOf(MACRO_DECLARATION),
-                "public_guard" to emptySet(),
-                "private_guard" to emptySet()
+                "public_guard" to setOf(GUARD_DECLARATION),
+                "private_guard" to setOf(GUARD_DECLARATION)
             ),
             NAMES.associateWith { keysAt(declarationOffset(it), it.length) }
         )
@@ -55,8 +57,8 @@ class SourcePresentationTest : PlatformTestCase() {
                 "private_function" to setOf(FUNCTION_CALL),
                 "public_macro" to setOf(MACRO_CALL),
                 "private_macro" to setOf(MACRO_CALL),
-                "public_guard" to emptySet(),
-                "private_guard" to emptySet()
+                "public_guard" to setOf(GUARD_CALL),
+                "private_guard" to setOf(GUARD_CALL)
             ),
             NAMES.associateWith { keysAt(callOffset(it), it.length) }
         )
@@ -69,8 +71,8 @@ class SourcePresentationTest : PlatformTestCase() {
                 "private_function" to setOf(PARAMETER),
                 "public_macro" to setOf(PARAMETER),
                 "private_macro" to setOf(PARAMETER),
-                "public_guard" to emptySet(),
-                "private_guard" to emptySet()
+                "public_guard" to setOf(PARAMETER),
+                "private_guard" to setOf(PARAMETER)
             ),
             NAMES.associateWith { keysAt(declarationOffset(it) + it.length + "(".length, "a".length) }
         )
@@ -99,8 +101,8 @@ class SourcePresentationTest : PlatformTestCase() {
                 "private_function" to "function",
                 "public_macro" to "macro",
                 "private_macro" to "macro",
-                "public_guard" to UNDESCRIBED_IDENTIFIER,
-                "private_guard" to UNDESCRIBED_IDENTIFIER
+                "public_guard" to "macro",
+                "private_guard" to "macro"
             ),
             NAMES.associateWith { name ->
                 ElementDescriptionUtil.getElementDescription(nameIdentifier(name), UsageViewTypeLocation.INSTANCE)
@@ -151,8 +153,8 @@ class SourcePresentationTest : PlatformTestCase() {
                 "private_function" to setOf(setOf(FUNCTION_DECLARATION), setOf(FUNCTION_CALL)),
                 "public_macro" to setOf(setOf(MACRO_DECLARATION), setOf(FUNCTION_CALL)),
                 "private_macro" to setOf(setOf(MACRO_DECLARATION), setOf(FUNCTION_CALL)),
-                "public_guard" to setOf(setOf(FUNCTION_CALL)),
-                "private_guard" to setOf(setOf(FUNCTION_CALL))
+                "public_guard" to setOf(setOf(GUARD_DECLARATION), setOf(FUNCTION_CALL)),
+                "private_guard" to setOf(setOf(GUARD_DECLARATION), setOf(FUNCTION_CALL))
             ),
             NAMES.associateWith { keysByStart[declarationOffset(it)] }
         )
@@ -200,7 +202,6 @@ class SourcePresentationTest : PlatformTestCase() {
     companion object {
         /** The platform's fallback when no provider describes the element: its class's name. */
         private const val UNDESCRIBED_CALL = "Elixir Unmatched Unqualified No Parentheses Call Impl"
-        private const val UNDESCRIBED_IDENTIFIER = "Elixir Identifier Impl"
 
         private val NAMES = listOf(
             "public_function",

@@ -67,8 +67,7 @@ public class Parameter {
 
         return switch (capabilities.getPresentation()) {
             case FUNCTION -> Type.FUNCTION_NAME;
-            case MACRO -> Type.MACRO_NAME;
-            case GUARD -> null;
+            case MACRO, GUARD -> Type.MACRO_NAME;
         };
     }
 

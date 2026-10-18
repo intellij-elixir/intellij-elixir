@@ -58,7 +58,10 @@ class DistinctKeyScheme(disposable: Disposable) {
             ElixirSyntaxHighlighter.MACRO_CALL,
             ElixirSyntaxHighlighter.PARAMETER,
             ElixirSyntaxHighlighter.VARIABLE,
-            ElixirSyntaxHighlighter.IGNORED_VARIABLE
+            ElixirSyntaxHighlighter.IGNORED_VARIABLE,
+            ElixirSyntaxHighlighter.TYPE,
+            ElixirSyntaxHighlighter.GUARD_DECLARATION,
+            ElixirSyntaxHighlighter.GUARD_CALL
         )
 
         private fun foreground(index: Int) = Color(1, 2, 10 + index)
