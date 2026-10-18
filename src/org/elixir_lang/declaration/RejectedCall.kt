@@ -7,8 +7,9 @@ object RejectedCall {
 
     /**
      * What a call with [candidates] names, which may be nothing; `null` where the call is not rejected, as one is valid
-     * or cannot be decided. It names a declaration at the wrong arity, never what a `defdelegate` delegates to, which
-     * the call does not name, and for a [remote] call only what the module exports. An arity is accepted where
+     * or cannot be decided. It names a declaration at the wrong arity, never a contract such as a `@callback`, which
+     * defines nothing, nor what a `defdelegate` delegates to, which the call does not name, and for a [remote] call
+     * only what the module exports. An arity is accepted where
      * [admits] says the path it was reached through brings it in, as an `import only:` may bring in some arities of a
      * function; a head open from some arity is brought in whole.
      */
@@ -24,18 +25,18 @@ object RejectedCall {
             val (declaration, reach, applicability) = candidate(element)
 
             if (applicability != Applicability.WRONG_ARITY ||
+                isContract(declaration) ||
                 reach.delegationTarget ||
                 (remote && !reach.exports(declaration.capabilities))
             ) {
                 return@mapNotNull null
             }
 
-            when (val arity = declaration.arity) {
-                is ArityKnowledge.Exact -> listOf(arity.arity)
-                is ArityKnowledge.Range -> (arity.minimum..arity.maximum).toList()
-                is ArityKnowledge.Open -> return@mapNotNull Named(element, emptyList(), arity.minimum)
-                ArityKnowledge.Unknown -> emptyList()
-            }
+            val (arities, from) = declaration.arity.listing()
+
+            if (from != null) return@mapNotNull Named(element, emptyList(), from)
+
+            arities
                 .filter { admits(element, it) }
                 .takeIf { it.isNotEmpty() }
                 ?.let { Named(element, it) }

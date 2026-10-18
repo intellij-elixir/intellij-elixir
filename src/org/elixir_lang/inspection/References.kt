@@ -8,9 +8,11 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.PsiReference
-import com.intellij.psi.ResolveResult
 import org.elixir_lang.annotator.Injection
 import org.elixir_lang.declaration.Feature
+import org.elixir_lang.declaration.Found
+import org.elixir_lang.declaration.RejectedCall
+import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.reference.CallDefinitionClause
@@ -106,24 +108,41 @@ class References : LocalInspectionTool() {
             }
 
             private fun registerProblem(element: PsiElement, reference: PsiPolyVariantReference) {
-                val resolveResults = results(reference)
+                val answer = answer(reference)
+                val resolveResults = answer?.results() ?: reference.multiResolve(false).toList()
 
                 if (resolveResults.isEmpty()) {
                     holder.registerProblem(element, "Does not resolve to anything", ProblemHighlightType.ERROR)
                 } else if (!resolveResults.any { it.isValidResult } && !expectOnlyInvalid(element)) {
-                    holder.registerProblem(element, "Only resolves to invalid results", ProblemHighlightType.ERROR)
+                    holder.registerProblem(
+                        element,
+                        "Only resolves to invalid results${arities(answer)}",
+                        ProblemHighlightType.ERROR
+                    )
                 }
             }
 
             /** What [reference] resolves to, a call's candidates read from the source this inspection is given. */
-            private fun results(reference: PsiPolyVariantReference): List<ResolveResult> =
+            private fun answer(reference: PsiPolyVariantReference): CallableResolver.Answer? =
                 when (reference) {
                     is Callable -> CallableResolver.answer(reference.element, false, Feature.REFERENCES_INSPECTION)
                     is CaptureNameArity -> CaptureNameArityResolver.answer(reference, false, Feature.REFERENCES_INSPECTION)
                     is CallDefinitionClause ->
                         CallDefinitionClauseResolver.answer(reference, false, Feature.REFERENCES_INSPECTION)
                     else -> null
-                }?.results() ?: reference.multiResolve(false).toList()
+                }
+
+            /** The arities [answer]'s name is defined at, which the compiler's hint lists for a call it rejects. */
+            private fun arities(answer: CallableResolver.Answer?): String {
+                val use = answer?.use ?: return ""
+                val remote = UseSymbols.remote(use)
+                val entries = RejectedCall.named(answer.projection, Found::candidate, remote, UseSymbols::admits)
+                    ?.let(DidYouMean::arities)
+                    ?.takeIf { it.isNotEmpty() }
+                    ?: return ""
+
+                return "; defined as " + (if (remote) DidYouMean.suggestions(entries) else entries).joinToString(", ")
+            }
 
             private fun expectOnlyInvalid(element: PsiElement): Boolean =
                     when (element) {

@@ -12,4 +12,16 @@ sealed class ArityKnowledge {
 
     /** Not yet knowable, as for arguments given by a module attribute. */
     data object Unknown : ArityKnowledge()
+
+    /** The arities a declaration accepts: each of [arities], and every arity from [from] up. */
+    data class Listing(val arities: List<Int>, val from: Int? = null)
+
+    /** The one expansion of what is known into arities, which [Unknown] leaves empty. */
+    fun listing(): Listing =
+        when (this) {
+            is Exact -> Listing(listOf(arity))
+            is Range -> Listing((minimum..maximum).toList())
+            is Open -> Listing(emptyList(), minimum)
+            Unknown -> Listing(emptyList())
+        }
 }

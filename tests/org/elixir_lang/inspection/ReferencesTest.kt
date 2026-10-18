@@ -33,7 +33,7 @@ class ReferencesTest : BeamLibraryTestCase() {
 
     fun testALocalCallAtAWrongArityOnlyResolvesToInvalidResults() {
         assertEquals(
-            listOf("f() => $INVALID"),
+            listOf("f() => $INVALID; defined as f/1"),
             reports("defmodule M do\n  def f(a), do: a\n\n  def run, do: f()\nend\n")
         )
     }
@@ -91,7 +91,7 @@ class ReferencesTest : BeamLibraryTestCase() {
 
     fun testACaptureAtAWrongArityOnlyResolvesToInvalidResults() {
         assertEquals(
-            listOf("&f/2 => $INVALID"),
+            listOf("&f/2 => $INVALID; defined as f/1"),
             reports("defmodule M do\n  def f(a), do: a\n\n  def run, do: &f/2\nend\n")
         )
     }
@@ -109,7 +109,7 @@ class ReferencesTest : BeamLibraryTestCase() {
 
     fun testASpecHeadAtAnArityNothingDefinesOnlyResolvesToInvalidResults() {
         assertEquals(
-            listOf("f(integer) => $INVALID"),
+            listOf("f(integer) => $INVALID; defined as f/2"),
             reports("defmodule M do\n  @spec f(integer) :: integer\n  def f(a, b), do: a + b\nend\n")
         )
     }

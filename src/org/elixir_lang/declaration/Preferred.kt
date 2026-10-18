@@ -118,7 +118,11 @@ fun isOverridable(found: Found): Boolean = role(found) == Role.OVERRIDABLE
 
 /** Whether [found] is a contract, not a body, as a `@callback` is: a candidate, but never what a use names. */
 @RequiresReadLock
-internal fun isContract(found: Found): Boolean = role(found) == Role.NONE
+internal fun isContract(found: Found): Boolean = isContract(found.candidate.declaration)
+
+/** Whether [declaration] is a contract, not a body, as a `@callback` is. */
+internal fun isContract(declaration: Declaration): Boolean =
+    (declaration.declared as? Declared.Source)?.form == Form.CALLBACK
 
 /** What a declaration is to [overridden]. */
 private enum class Role { USER, OVERRIDABLE, NONE }
