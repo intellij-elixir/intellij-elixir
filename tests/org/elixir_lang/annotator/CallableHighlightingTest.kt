@@ -77,6 +77,43 @@ class CallableHighlightingTest : BeamLibraryTestCase() {
         assertEquals(setOf(FUNCTION_CALL), keysAt(":elixir_interpolation.unescape_string(", "unescape_string"))
     }
 
+    fun testACallToKernelSpecialFormsIsPredefinedFromSource() {
+        configure(
+            """
+            defmodule Kernel.SpecialForms do
+              def special_only(x), do: x
+            end
+
+            defmodule Source do
+              def calls(x), do: Kernel.SpecialForms.special_only(x)
+            end
+            """.trimIndent() + "\n"
+        )
+
+        assertEquals(setOf(FUNCTION_CALL, PREDEFINED_CALL), keysAt("SpecialForms.special_only(", "special_only"))
+    }
+
+    fun testACallInAModuleWhoseNameEndsInKernelIsNotPredefined() {
+        configure(
+            """
+            defmodule MyKernel do
+              def f, do: :f
+              def g, do: f()
+            end
+
+            defmodule Foo.Kernel do
+              def h, do: :h
+              def i, do: h()
+            end
+            """.trimIndent() + "\n"
+        )
+
+        assertEquals(
+            mapOf("f" to setOf(FUNCTION_CALL), "h" to setOf(FUNCTION_CALL)),
+            mapOf("f" to keysAt("g, do: f()", "f"), "h" to keysAt("i, do: h()", "h"))
+        )
+    }
+
     fun testTheNameInACaptureOfASourceFunctionIsAFunctionCall() {
         configure(
             """

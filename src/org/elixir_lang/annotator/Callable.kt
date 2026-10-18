@@ -2,7 +2,6 @@ package org.elixir_lang.annotator
 
 import com.intellij.lang.annotation.AnnotationHolder
 import com.intellij.lang.annotation.Annotator
-import com.intellij.navigation.NavigationItem
 import com.intellij.openapi.editor.colors.EditorColorsManager
 import com.intellij.openapi.editor.colors.TextAttributesKey
 import com.intellij.openapi.editor.markup.TextAttributes
@@ -11,11 +10,11 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.psi.*
 import org.elixir_lang.model.psi.variable.VariableSymbol
 import org.elixir_lang.ElixirSyntaxHighlighter
-import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.declaration.Use
+import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.psi.AtOperation
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
@@ -28,7 +27,6 @@ import org.elixir_lang.reference.Callable.Companion.isBitStreamSegmentOption
 import org.elixir_lang.reference.CaptureNameArity
 import org.elixir_lang.safeMultiResolve
 import org.elixir_lang.safelyResolve
-import java.util.*
 
 /**
  * Annotates callables.
@@ -195,7 +193,7 @@ internal class Callable : Annotator, DumbAware {
 
     private fun callHighlight(resolved: Call, previousCallHighlight: CallHighlight?): CallHighlight? =
         ElixirSyntaxHighlighter.callKey(CallDefinitionClause.capabilities(resolved)?.presentation)
-            ?.let { CallHighlight.nullablePut(previousCallHighlight, referrerTextAttributesKeys(resolved, it)) }
+            ?.let { CallHighlight.nullablePut(previousCallHighlight, arrayOf(it)) }
             ?: variableHighlight(resolved, previousCallHighlight)
 
     private fun callHighlight(hit: Hit, previousCallHighlight: CallHighlight?): CallHighlight? =
@@ -207,7 +205,7 @@ internal class Callable : Annotator, DumbAware {
 
     private fun callHighlight(declared: Found, previousCallHighlight: CallHighlight?): CallHighlight? =
         ElixirSyntaxHighlighter.callKey(declared.candidate.declaration.capabilities.presentation)
-            ?.let { CallHighlight.nullablePut(previousCallHighlight, referrerTextAttributesKeys(declared.element, it)) }
+            ?.let { CallHighlight.nullablePut(previousCallHighlight, referrerTextAttributesKeys(declared, it)) }
             ?: previousCallHighlight
 
     private fun variableHighlight(resolved: PsiElement, previousCallHighlight: CallHighlight?): CallHighlight? =
@@ -346,25 +344,14 @@ internal class Callable : Annotator, DumbAware {
         private val IGNORED_VARIABLE_TEXT_ATTRIBUTE_KEYS = arrayOf(ElixirSyntaxHighlighter.IGNORED_VARIABLE)
         private val PARAMETER_TEXT_ATTRIBUTE_KEYS = arrayOf(ElixirSyntaxHighlighter.PARAMETER)
 
-        private val PREDEFINED_LOCATION_STRING_SET = HashSet(
-            listOf(
-                KERNEL,
-                KERNEL_SPECIAL_FORMS
-            )
-        )
+        private val PREDEFINED_MODULE_NAMES = setOf(KERNEL, KERNEL_SPECIAL_FORMS)
         private val VARIABLE_TEXT_ATTRIBUTE_KEYS = arrayOf(ElixirSyntaxHighlighter.VARIABLE)
 
-        private fun referrerTextAttributesKeys(psiElement: PsiElement, key: TextAttributesKey): Array<TextAttributesKey> {
-            val predefined = when (psiElement) {
-                is BeamCallDefinition -> psiElement.parent.name in PREDEFINED_LOCATION_STRING_SET
-                is NavigationItem ->
-                    psiElement.presentation?.locationString?.let { locationString ->
-                        PREDEFINED_LOCATION_STRING_SET.any { locationString.endsWith(it) }
-                    } == true
-                else -> false
+        private fun referrerTextAttributesKeys(declared: Found, key: TextAttributesKey): Array<TextAttributesKey> =
+            if (declared.declaringModuleName() in PREDEFINED_MODULE_NAMES) {
+                arrayOf(key, ElixirSyntaxHighlighter.PREDEFINED_CALL)
+            } else {
+                arrayOf(key)
             }
-
-            return if (predefined) arrayOf(key, ElixirSyntaxHighlighter.PREDEFINED_CALL) else arrayOf(key)
-        }
     }
 }
