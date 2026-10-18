@@ -12,6 +12,7 @@ import com.intellij.psi.*
 import org.elixir_lang.model.psi.variable.VariableSymbol
 import org.elixir_lang.ElixirSyntaxHighlighter
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
+import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Presentation
 import org.elixir_lang.psi.AtOperation
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
@@ -23,6 +24,7 @@ import org.elixir_lang.psi.call.name.Module.KERNEL_SPECIAL_FORMS
 import org.elixir_lang.reference.Callable.Companion.BIT_STRING_TYPES
 import org.elixir_lang.reference.Callable.Companion.isBitStreamSegmentOption
 import org.elixir_lang.safeMultiResolve
+import org.elixir_lang.safelyResolve
 import java.util.*
 
 /**
@@ -94,14 +96,19 @@ internal class Callable : Annotator, DumbAware {
                 private fun visitPlainCall(call: Call, reference: PsiReference?) {
                     if (reference != null) {
                         val resolvedCollection =
-                            if (reference is PsiPolyVariantReference) {
-                                safeMultiResolve(reference, false)
-                                    .filter { it.isValidResult }
-                                    .mapNotNull(ResolveResult::getElement)
-                            } else {
-                                reference.resolve()?.let { resolved ->
-                                    setOf(resolved)
-                                }
+                            when (reference) {
+                                is org.elixir_lang.reference.Callable ->
+                                    results(reference)
+                                        .filter { it.isValidResult }
+                                        .mapNotNull(ResolveResult::getElement)
+                                is PsiPolyVariantReference ->
+                                    safeMultiResolve(reference, false)
+                                        .filter { it.isValidResult }
+                                        .mapNotNull(ResolveResult::getElement)
+                                else ->
+                                    reference.resolve()?.let { resolved ->
+                                        setOf(resolved)
+                                    }
                             }
 
                         if (!resolvedCollection.isNullOrEmpty()) {
@@ -154,6 +161,14 @@ internal class Callable : Annotator, DumbAware {
             }
         )
     }
+
+    /** What `multiResolve` is built from, with the declared part read from the highlighting source. */
+    private fun results(reference: org.elixir_lang.reference.Callable): List<ResolveResult> =
+        safelyResolve(reference, emptyList()) {
+            org.elixir_lang.reference.resolver.Callable
+                .answer(reference.element, false, Feature.HIGHLIGHTING)
+                .results()
+        }
 
     private fun callHighlight(resolved: Call, previousCallHighlight: CallHighlight?): CallHighlight? =
         when (CallDefinitionClause.capabilities(resolved)?.presentation) {

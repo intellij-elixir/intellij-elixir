@@ -14,6 +14,7 @@ import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.Arity
+import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.errorreport.Logger
@@ -33,23 +34,27 @@ import java.util.concurrent.atomic.AtomicInteger
 object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Callable> {
     override fun resolve(callable: org.elixir_lang.reference.Callable, incompleteCode: Boolean): Array<ResolveResult> {
         ApplicationManager.getApplication().assertReadAccessAllowed()
-        val answer = answer(callable.element, incompleteCode)
 
-        return (answer.variables + Resolved.results(answer.projection)).toTypedArray()
+        return answer(callable.element, incompleteCode).results().toTypedArray()
     }
 
     /**
      * What a call resolves to before `multiResolve` gives one result per element; [bound] is whether a valid variable
      * binds its name.
      */
-    class Answer(val variables: List<ResolveResult>, val bound: Boolean, val projection: List<Found>)
+    class Answer(val variables: List<ResolveResult>, val bound: Boolean, val projection: List<Found>) {
+        /** The variables, then one result per declaring element. */
+        @RequiresReadLock
+        fun results(): List<ResolveResult> = variables + Resolved.results(projection)
+    }
 
+    /** What [call] resolves to, its declared part read from [feature]'s source. */
     @RequiresReadLock
-    fun answer(call: Call, incompleteCode: Boolean): Answer {
+    fun answer(call: Call, incompleteCode: Boolean, feature: Feature = Feature.SYMBOL_REFERENCES): Answer {
         val variables = variables(call, incompleteCode)
         val bound = bound(variables)
         val projection = org.elixir_lang.declaration.Use.of(call)
-            ?.let { Resolved.projection(it, incompleteCode, bound) }
+            ?.let { Resolved.projection(it, incompleteCode, bound, feature) }
             .orEmpty()
 
         return Answer(variables, bound, projection)
