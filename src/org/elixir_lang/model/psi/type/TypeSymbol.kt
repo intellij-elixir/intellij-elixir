@@ -23,6 +23,7 @@ import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.CallDefinitionSpecification
 import org.elixir_lang.structure_view.element.Type as TypeElement
 import java.util.*
+import org.elixir_lang.psi.impl.headAtomValue
 
 @Suppress("UnstableApiUsage")
 class TypeSymbol(
@@ -94,6 +95,8 @@ class TypeSymbol(
             val typeAttributeCall = typeAttribute as? AtUnqualifiedNoParenthesesCall<*> ?: return emptyList()
             val specification = TypeElement.specification(typeAttributeCall) ?: return emptyList()
             val typeHead = CallDefinitionSpecification.specificationType(specification) ?: return emptyList()
+            // A head with no atom value, such as `unquote(name)`, names no type until `name` is bound.
+            if (headAtomValue(typeHead) == null) return emptyList()
             // A type head is named as a definition head is, so `unquote(:t)()` is `t/0`.
             val nameArity = CallDefinitionHead.nameArityInterval(typeHead, ResolveState.initial()) ?: return emptyList()
             val name = nameArity.name
@@ -116,9 +119,6 @@ class TypeSymbol(
         /** The text a rename of the type [typeAttribute] declares replaces, read from its head as a definition's is. */
         @RequiresReadLock
         private fun nameRange(typeAttribute: AtUnqualifiedNoParenthesesCall<*>): TextRange? =
-            TypeElement.specification(typeAttribute)
-                ?.let(CallDefinitionSpecification::specificationType)
-                ?.let(CallDefinitionHead::nameElement)
-                ?.let(UseSymbols::nameRange)
+            TypeElement.nameElement(typeAttribute)?.let(UseSymbols::nameRange)
     }
 }

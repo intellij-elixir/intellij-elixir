@@ -8,9 +8,12 @@ import com.intellij.model.psi.PsiSymbolReferenceProvider
 import com.intellij.model.search.SearchRequest
 import com.intellij.openapi.project.Project
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.declaration.Form
+import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 
 /**
  * Attaches a [CallbackImplReference] to an implementing `def`/`defmacro` clause's name, so
@@ -34,9 +37,9 @@ internal class CallbackImplReferenceProvider : PsiSymbolReferenceProvider {
         val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(element)
         if (enclosingModular == null || Protocol.`is`(enclosingModular)) return emptyList()
         if (CallbackImplementation.implementedCallbacks(element).isEmpty()) return emptyList()
-        val nameIdentifier = CallDefinitionClause.nameIdentifier(element) ?: return emptyList()
-        val rangeInElement = nameIdentifier.textRange.shiftLeft(element.textRange.startOffset)
-        return listOf(CallbackImplReference(element, rangeInElement))
+        return DeclaringForm.nameElements(element, Form.CLAUSE).map { nameElement ->
+            CallbackImplReference(element, UseSymbols.nameRange(nameElement).shiftLeft(element.textRange.startOffset))
+        }
     }
 
     override fun getSearchRequests(project: Project, target: Symbol): Collection<SearchRequest> = emptyList()

@@ -65,6 +65,9 @@ class FunctionSymbol(
     override val searchText: String get() = name
     override val targetName: String get() = name
 
+    override val declarationTextByName: ((String) -> String)?
+        get() = UseSymbols.nameTextAt(file, range)
+
     override fun createPointer(): Pointer<out FunctionSymbol> {
         val moduleName = this.moduleName
         val name = this.name
@@ -273,7 +276,7 @@ class FunctionSymbol(
             if (Protocol.`is`(enclosingModular)) return emptyList()
             val owner = owner(enclosingModular) ?: return emptyList()
             val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return emptyList()
-            val nameId = CallDefinitionClause.nameIdentifier(clause) ?: return emptyList()
+            val nameId = CallDefinitionClause.nameElement(clause) ?: return emptyList()
             val macro = CallDefinitionClause.capabilities(clause)?.let(::isMacro) == true
             // For a decompiled beam function, this clause lives in an in-memory mirror file built from the `.beam`'s
             // decompiled text; its `originalFile` is the navigable compiled file whose virtual file opens the
@@ -282,7 +285,7 @@ class FunctionSymbol(
             return nameArity.arityInterval.closed().map { arity ->
                 FunctionSymbol(
                     declarationFile,
-                    nameId.textRange,
+                    UseSymbols.nameRange(nameId),
                     owner.moduleName,
                     nameArity.name,
                     arity,
@@ -320,7 +323,7 @@ class FunctionSymbol(
             val call = definitionClause(definition) ?: definition as? Call ?: return true
             if (!Delegation.`is`(call)) return isInItsImplementation(call, symbol)
 
-            val head = Delegation.nameIdentifier(call) ?: return false
+            val head = Delegation.nameElement(call) ?: return false
             val atOwnHead = PsiTreeUtil.isAncestor(head, at, false) || PsiTreeUtil.isAncestor(at, head, false)
 
             return !atOwnHead && isMadeFrom(symbol, call, head)
@@ -335,7 +338,7 @@ class FunctionSymbol(
             definitionClause(definition)?.let { clause -> return fromClause(clause).map { it to helperImplementation(it) } }
 
             val delegation = (definition as? Call)?.takeIf { Delegation.`is`(it) } ?: return null
-            val head = Delegation.nameIdentifier(delegation) ?: return null
+            val head = Delegation.nameElement(delegation) ?: return null
 
             return delegation.containingFile.originalFile.let { it.virtualFile ?: it } to head.textRange
         }
@@ -397,11 +400,11 @@ class FunctionSymbol(
         private fun madeFromDefinition(file: PsiFile, range: TextRange): Call? =
             generateSequence(file.findElementAt(range.startOffset)) { it.parent }
                 .filterIsInstance<Call>()
-                .firstOrNull { DefinitionDeclaration.`is`(it) && DefinitionDeclaration.nameIdentifier(it)?.textRange == range }
+                .firstOrNull { DefinitionDeclaration.`is`(it) && DefinitionDeclaration.nameIdentifier(it)?.let(UseSymbols::nameRange) == range }
 
         private fun isMadeFrom(symbol: FunctionSymbol, definition: Call, head: PsiElement): Boolean =
             definition.containingFile.originalFile.virtualFile == symbol.file.virtualFile &&
-                head.textRange == symbol.range
+                UseSymbols.nameRange(head) == symbol.range
 
         /**
          * The symbols a `defdelegate` declares in its own module.
@@ -416,13 +419,13 @@ class FunctionSymbol(
             if (Protocol.`is`(enclosingModular)) return emptyList()
             val owner = owner(enclosingModular) ?: return emptyList()
             val arityInterval = declaration.arity.arityInterval() ?: return emptyList()
-            val nameId = Delegation.nameIdentifier(delegation) ?: return emptyList()
+            val nameId = Delegation.nameElement(delegation) ?: return emptyList()
             val declarationFile = delegation.containingFile.originalFile
 
             return arityInterval.closed().map { arity ->
                 FunctionSymbol(
                     declarationFile,
-                    nameId.textRange,
+                    UseSymbols.nameRange(nameId),
                     owner.moduleName,
                     declaration.name,
                     arity,

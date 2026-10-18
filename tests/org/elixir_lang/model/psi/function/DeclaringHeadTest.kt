@@ -6,6 +6,8 @@ import org.elixir_lang.code_insight.assertNoNavigationAtCaret
 import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
 import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
 import org.elixir_lang.code_insight.psiUsagesAtCaret
+import org.elixir_lang.code_insight.renameTargetsAtCaret
+import org.elixir_lang.code_insight.renameTargetAtCaret
 
 /**
  * The name each declaring form writes is a declaration, as a `def`'s is: Ctrl+Click there shows usages, and Find Usages
@@ -294,6 +296,218 @@ class DeclaringHeadTest : PlatformTestCase() {
         )
 
         assertEquals(listOf("target.ex"), myFixture.gotoDeclarationTargetsAtCaret()?.map { it.destination?.containingFile?.name })
+    }
+
+    /** A caret before a quoted atom's opening quote is inside the atom, so on the name. */
+    fun testQuotedAtomOfAnUnquotedNameDeclaresAtItsQuote() {
+        myFixture.addFileToProject("use.ex", "defmodule U do\n  def run, do: M.\"a b\"(1)\nend\n")
+        myFixture.configureByText("m.ex", "defmodule M do\n  def unquote(:<caret>\"a b\")(x), do: x\nend\n")
+
+        assertDeclares("use.ex:2")
+    }
+
+    fun testRenameAtACallOfAnUnquotedNameRewritesItsAtom() {
+        myFixture.configureByText("m.ex", "defmodule M do\n  def unquote(:t)(), do: 1\n\n  def run, do: <caret>t()\nend\n")
+        myFixture.renameTargetAtCaret("u")
+
+        assertEquals("defmodule M do\n  def unquote(:u)(), do: 1\n\n  def run, do: u()\nend\n", myFixture.file.text)
+    }
+
+    fun testRenameAtTheAtomOfAnUnquotedNameRewritesItsAtom() {
+        assertRenames(
+            "g",
+            "defmodule M do\n  def unquote(:<caret>f)(x), do: x\n\n  def run, do: f(1)\nend\n",
+            "defmodule M do\n  def unquote(:g)(x), do: x\n\n  def run, do: g(1)\nend\n"
+        )
+    }
+
+    fun testRenameAtACaptureOfAnUnquotedNameRewritesItsAtom() {
+        assertRenames(
+            "g",
+            "defmodule M do\n  def unquote(:f)(x), do: x\n\n  def run, do: &<caret>f/1\nend\n",
+            "defmodule M do\n  def unquote(:g)(x), do: x\n\n  def run, do: &g/1\nend\n"
+        )
+    }
+
+    fun testRenameOfAnUnquotedNameRewritesItsSpec() {
+        assertRenames(
+            "g",
+            "defmodule M do\n  @spec unquote(:f)(term) :: term\n  def unquote(:<caret>f)(x), do: x\nend\n",
+            "defmodule M do\n  @spec unquote(:g)(term) :: term\n  def unquote(:g)(x), do: x\nend\n"
+        )
+    }
+
+    fun testRenameAtACallOfAnUnquotedProtocolFunctionRewritesItsAtom() {
+        assertRenames(
+            "g",
+            "defprotocol P do\n  def unquote(:f)(t)\nend\n\ndefmodule U do\n  def run, do: P.<caret>f(1)\nend\n",
+            "defprotocol P do\n  def unquote(:g)(t)\nend\n\ndefmodule U do\n  def run, do: P.g(1)\nend\n"
+        )
+    }
+
+    fun testRenameAtAnAtomNamingAnUnquotedImplementationRewritesItsAtom() {
+        assertRenames(
+            "g",
+            "defprotocol P do\n  def f(t)\nend\n\ndefimpl P, for: Integer do\n  def unquote(:f)(t), do: t\nend\n\n" +
+                "defmodule U do\n  def run, do: apply(P.Integer, :<caret>f, [1])\nend\n",
+            "defprotocol P do\n  def g(t)\nend\n\ndefimpl P, for: Integer do\n  def unquote(:g)(t), do: t\nend\n\n" +
+                "defmodule U do\n  def run, do: apply(P.Integer, :g, [1])\nend\n"
+        )
+    }
+
+    fun testRenameAtACallOfAnUnquotedCallbackImplementationRewritesItsAtom() {
+        assertRenames(
+            "g",
+            "defmodule B do\n  @callback f(term) :: term\nend\n\ndefmodule I do\n  @behaviour B\n\n" +
+                "  def unquote(:f)(x), do: x\n  def run, do: <caret>f(1)\nend\n",
+            "defmodule B do\n  @callback g(term) :: term\nend\n\ndefmodule I do\n  @behaviour B\n\n" +
+                "  def unquote(:g)(x), do: x\n  def run, do: g(1)\nend\n"
+        )
+    }
+
+    fun testRenameAtTheAtomOfAnUnquotedTypeRewritesItsAtom() {
+        assertRenames(
+            "v",
+            "defmodule M do\n  @type unquote(:<caret>t)() :: atom\n  @type u :: t()\nend\n",
+            "defmodule M do\n  @type unquote(:v)() :: atom\n  @type u :: v()\nend\n"
+        )
+    }
+
+    fun testRenameAtTheAtomOfAnUnquotedCallbackRewritesItsAtom() {
+        assertRenames(
+            "d",
+            "defmodule B do\n  @callback unquote(:<caret>c)() :: term\nend\n\ndefmodule I do\n  @behaviour B\n\n  def c, do: 1\nend\n",
+            "defmodule B do\n  @callback unquote(:d)() :: term\nend\n\ndefmodule I do\n  @behaviour B\n\n  def d, do: 1\nend\n"
+        )
+    }
+
+    fun testRenameAtTheAtomOfAnUnquotedDelegationRewritesItsAtom() {
+        assertRenames(
+            "f",
+            "defmodule M do\n  defdelegate unquote(:<caret>d)(x), to: T, as: :e\n\n  def run, do: d(1)\nend\n",
+            "defmodule M do\n  defdelegate unquote(:f)(x), to: T, as: :e\n\n  def run, do: f(1)\nend\n"
+        )
+    }
+
+    fun testRenameAtTheUnquoteOfAnUnquotedDelegationRewritesItsAtom() {
+        assertRenames(
+            "f",
+            "defmodule M do\n  defdelegate un<caret>quote(:d)(x), to: T, as: :e\n\n  def run, do: d(1)\nend\n",
+            "defmodule M do\n  defdelegate unquote(:f)(x), to: T, as: :e\n\n  def run, do: f(1)\nend\n"
+        )
+    }
+
+    fun testRenameAtTheUnquoteOfAnUnquotedProtocolFunctionRewritesItsAtom() {
+        assertRenames(
+            "g",
+            "defprotocol P do\n  def un<caret>quote(:f)(t)\nend\n\ndefmodule U do\n  def run, do: P.f(1)\nend\n",
+            "defprotocol P do\n  def unquote(:g)(t)\nend\n\ndefmodule U do\n  def run, do: P.g(1)\nend\n"
+        )
+    }
+
+    fun testRenameAtTheUnquoteOfAnUnquotedCallbackRewritesItsAtom() {
+        assertRenames(
+            "d",
+            "defmodule B do\n  @callback un<caret>quote(:c)() :: term\nend\n\ndefmodule I do\n  @behaviour B\n\n  def c, do: 1\nend\n",
+            "defmodule B do\n  @callback unquote(:d)() :: term\nend\n\ndefmodule I do\n  @behaviour B\n\n  def d, do: 1\nend\n"
+        )
+    }
+
+    /** `true`, `false` and `nil` are atoms written without `:`, so a rename of a head unquoting one writes the new atom whole. */
+    fun testRenameOfAnUnquotedKeywordNameWritesAnAtom() {
+        for (keyword in listOf("true", "false", "nil")) {
+            for (caret in listOf("unquote(<caret>$keyword)", "M.<caret>$keyword(1)")) {
+                assertRenames(
+                    "g",
+                    "defmodule M do\n  def unquote($keyword)(x), do: x\n\n  def run, do: M.$keyword(1)\nend\n"
+                        .replace("unquote($keyword)", caret.takeIf { it.startsWith("unquote") } ?: "unquote($keyword)")
+                        .replace("M.$keyword(1)", caret.takeIf { it.startsWith("M.") } ?: "M.$keyword(1)"),
+                    "defmodule M do\n  def unquote(:g)(x), do: x\n\n  def run, do: M.g(1)\nend\n"
+                )
+            }
+        }
+    }
+
+    /** A written `unquote(:f)(x)` call is not resolved, so a rename of `def unquote(:f)(x)` must leave it whole. */
+    fun testRenameLeavesAWrittenUnquotedCallWhole() {
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  def unquote(:<caret>f)(x), do: x\n\n  def run, do: unquote(:f)(1)\n\n" +
+                "  defmacro m do\n    quote do\n      unquote(:f)(1)\n    end\n  end\nend\n"
+        )
+        myFixture.renameTargetAtCaret("g")
+
+        assertTrue(myFixture.file.text, myFixture.file.text.contains("def unquote(:g)(x), do: x"))
+        assertEquals(2, Regex("""unquote\(:[fg]\)\(1\)""").findAll(myFixture.file.text).count())
+    }
+
+    /** A head written `unquote(name)` has no name until `name` is bound, so nothing renames it, at any head kind. */
+    fun testRenameLeavesAHeadUnquotingAVariable() {
+        val heads = mapOf(
+            "def" to "defmodule M do\n  for name <- [:a, :b] do\n    def un<caret>quote(name)(x), do: x\n  end\nend\n",
+            "@callback" to "defmodule M do\n  for name <- [:a, :b] do\n    @callback un<caret>quote(name)(term) :: term\n  end\nend\n",
+            "@type" to "defmodule M do\n  for name <- [:a, :b] do\n    @type un<caret>quote(name)() :: atom\n  end\nend\n",
+            "protocol def" to "defprotocol P do\n  for name <- [:a, :b] do\n    def un<caret>quote(name)(t)\n  end\nend\n"
+        )
+
+        assertEquals(heads.keys.map { "$it: unchanged" }, heads.map { (kind, text) -> "$kind: ${renamedText(text)}" })
+    }
+
+    /** "unchanged" when every rename target at the caret in [text] leaves it as it is, else what renaming to `g` wrote. */
+    private fun renamedText(text: String): String {
+        myFixture.configureByText("m.ex", text)
+
+        for (target in myFixture.renameTargetsAtCaret()) {
+            runCatching { myFixture.renameTarget(target, "g") }
+        }
+
+        return myFixture.file.text.takeUnless { it == text.replace("<caret>", "") } ?: "unchanged"
+    }
+
+    /** Go To from an `unquote`-named callback implementation's `unquote` or atom reaches the `@callback`. */
+    fun testGotoDeclarationFromAnUnquotedCallbackImplementationReachesItsCallback() {
+        val text = "defmodule B do\n  @callback f(term) :: term\nend\n\ndefmodule I do\n  @behaviour B\n\n" +
+            "  def unquote(:f)(x), do: x\nend\n"
+
+        assertGotoLines(text, "un|quote(:f)", "@callback f(term) :: term")
+        assertGotoLines(text, "unquote(:|f)", "@callback f(term) :: term")
+    }
+
+    /** Go To from an `unquote`-named implementation's `unquote` or atom reaches the protocol function. */
+    fun testGotoDeclarationFromAnUnquotedImplementationReachesItsProtocolFunction() {
+        val text = "defprotocol P do\n  def f(t)\nend\n\ndefimpl P, for: Integer do\n  def unquote(:f)(t), do: t\nend\n"
+
+        assertGotoLines(text, "un|quote(:f)", "def f(t)")
+        assertGotoLines(text, "unquote(:|f)", "def f(t)")
+    }
+
+    /** Go To with the caret where `|` is in [caret] in [text] lands only on the line [expected]. */
+    private fun assertGotoLines(text: String, caret: String, expected: String) {
+        myFixture.configureByText("m.ex", text)
+        myFixture.editor.caretModel.moveToOffset(text.indexOf(caret.replace("|", "")) + caret.indexOf('|'))
+
+        val lines = myFixture.gotoDeclarationTargetsAtCaret().orEmpty().mapNotNull { target ->
+            target.destination?.textOffset?.let { offset -> text.lines()[text.take(offset).count { it == '\n' }].trim() }
+        }
+
+        assertEquals("from `$caret`", listOf(expected), lines)
+    }
+
+    /** Go To from a call lands on an `unquote`-named declaration's atom, where its name is. */
+    fun testGotoDeclarationOfAnUnquotedNameLandsOnItsAtom() {
+        myFixture.configureByText("m.ex", "defmodule M do\n  def unquote(:f)(x), do: x\n\n  def run, do: <caret>f(1)\nend\n")
+
+        assertEquals(
+            listOf(myFixture.file.text.indexOf(":f") + 1),
+            myFixture.gotoDeclarationTargetsAtCaret()?.map { it.destination?.textOffset }
+        )
+    }
+
+    private fun assertRenames(newName: String, before: String, after: String) {
+        myFixture.configureByText("m.ex", before)
+        myFixture.renameTargetAtCaret(newName)
+
+        assertEquals(after, myFixture.file.text)
     }
 
     private fun eex() {

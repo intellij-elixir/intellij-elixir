@@ -3,7 +3,6 @@ package org.elixir_lang.psi.scope.call_definition_clause
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.ResolveState
-import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.EEx
@@ -14,10 +13,10 @@ import org.elixir_lang.psi.Exception
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.impl.call.finalArguments
-import org.elixir_lang.psi.impl.isInterpolatedWithin
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.mix.Generator
 import org.elixir_lang.psi.scope.WalkProbe
+import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.Callback
 import org.elixir_lang.structure_view.element.Delegation
 
@@ -96,10 +95,7 @@ object DeclaringForm {
     @RequiresReadLock
     fun named(element: PsiElement): Declaring? =
         shaped(element).firstOrNull()?.takeIf { (call, form) ->
-            element != call && names(call, form).any { name ->
-                PsiTreeUtil.isAncestor(element, name, false) ||
-                    PsiTreeUtil.isAncestor(name, element, false) && !element.isInterpolatedWithin(name)
-            }
+            element != call && heads(call, form).any { CallDefinitionHead.isOnName(it, element) }
         }
 
     /** The form [call] itself declares with, or `null` when it declares nothing. */
@@ -125,12 +121,20 @@ object DeclaringForm {
             Form.CLAUSE, Form.CALLBACK, Form.DELEGATION, Form.EXCEPTION -> true
         }
 
-    /** The names [call] writes the functions it declares with [form] under: an EEx's or an embed's only as an atom. */
+    /** The names [call] writes the functions it declares with [form] under: in `def unquote(:name)(...)`, the atom. */
     @RequiresReadLock
-    fun names(call: Call, form: Form): List<PsiElement> =
+    fun names(call: Call, form: Form): List<PsiElement> = heads(call, form).mapNotNull(CallDefinitionHead::nameElement)
+
+    /** The elements a caret is on a name [call] declares with [form] at: in `def unquote(:name)(...)`, also `unquote`. */
+    @RequiresReadLock
+    fun nameElements(call: Call, form: Form): List<PsiElement> = heads(call, form).flatMap(CallDefinitionHead::nameElements)
+
+    /** The heads [call] writes the functions it declares with [form] under: an EEx's or an embed's only as an atom. */
+    @RequiresReadLock
+    private fun heads(call: Call, form: Form): List<PsiElement> =
         when (form) {
-            Form.CLAUSE -> listOfNotNull(CallDefinitionClause.nameIdentifier(call))
-            Form.DELEGATION -> listOfNotNull(Delegation.nameIdentifier(call))
+            Form.CLAUSE -> listOfNotNull(CallDefinitionClause.head(call))
+            Form.DELEGATION -> listOfNotNull(Delegation.head(call) as? Call)
             Form.EEX_FUNCTION_FROM -> listOfNotNull(call.finalArguments()?.getOrNull(1)?.takeIf(::isAtom))
             Form.GENERATOR_EMBED -> listOfNotNull(call.finalArguments()?.firstOrNull()?.takeIf(::isAtom))
             Form.CALLBACK, Form.EXCEPTION -> emptyList()

@@ -14,9 +14,12 @@ import com.intellij.psi.SmartPointerManager
 import com.intellij.psi.search.SearchScope
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.ElixirRenameTarget
+import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 import java.util.*
+import org.elixir_lang.declaration.Form
+import org.elixir_lang.psi.scope.call_definition_clause.Declarations
 import org.elixir_lang.structure_view.element.Callback as CallbackElement
 
 /**
@@ -54,13 +57,13 @@ class Callback(
         // survives the identifier replacement, so its name-identifier range is recomputed on restore.
         val attribute = generateSequence(file.findElementAt(range.startOffset)) { it.parent }
             .filterIsInstance<AtUnqualifiedNoParenthesesCall<*>>()
-            .firstOrNull { CallbackElement.`is`(it) && CallbackElement.nameIdentifier(it)?.textRange == range }
+            .firstOrNull { CallbackElement.`is`(it) && CallbackElement.nameElement(it)?.let(UseSymbols::nameRange) == range }
         if (attribute != null) {
             val attributePointer = SmartPointerManager.getInstance(file.project)
                 .createSmartPsiElementPointer(attribute, file)
             return Pointer {
                 val restoredAttribute = attributePointer.dereference() ?: return@Pointer null
-                val restoredRange = CallbackElement.nameIdentifier(restoredAttribute)?.textRange
+                val restoredRange = CallbackElement.nameElement(restoredAttribute)?.let(UseSymbols::nameRange)
                     ?: return@Pointer null
                 Callback(restoredAttribute.containingFile, restoredRange, moduleName, name, arity, macro)
             }
@@ -108,15 +111,17 @@ class Callback(
         @RequiresReadLock
         fun fromModuleAttribute(attr: AtUnqualifiedNoParenthesesCall<*>): List<Callback> {
             if (!CallbackElement.`is`(attr)) return emptyList()
+            // The walk's declaration, which a head with no atom value, such as `unquote(name)`, does not have.
+            if (Declarations.of(Form.CALLBACK, attr, ResolveState.initial()).none { it.declaration != null }) return emptyList()
             val head = CallbackElement.headCall(attr) ?: return emptyList()
             val nameArity = CallDefinitionHead.nameArityInterval(head, ResolveState.initial()) ?: return emptyList()
-            val nameId = CallbackElement.nameIdentifier(attr) ?: return emptyList()
+            val nameRange = CallbackElement.nameElement(attr)?.let(UseSymbols::nameRange) ?: return emptyList()
             val modular = org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall(attr) ?: return emptyList()
             val moduleName = BehaviourMembership.moduleName(modular) ?: return emptyList()
             val macro = org.elixir_lang.psi.impl.ElixirPsiImplUtil.moduleAttributeName(attr) == "@macrocallback"
 
             return nameArity.arityInterval.closed().map { arity ->
-                Callback(attr.containingFile, nameId.textRange, moduleName, nameArity.name, arity, macro)
+                Callback(attr.containingFile, nameRange, moduleName, nameArity.name, arity, macro)
             }
         }
     }

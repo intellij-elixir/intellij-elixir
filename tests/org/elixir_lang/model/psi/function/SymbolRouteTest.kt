@@ -326,6 +326,7 @@ class SymbolRouteTest : PlatformTestCase() {
             .map { element -> FunctionSymbolDeclarationProvider().getDeclarations(element, offset - element.textRange.startOffset) }
             .first { it.isNotEmpty() }
             .map { it.symbol }
+            .distinct()
 
     private fun callSymbols(): List<String> = symbolsAtCaret<FunctionCallReference>().map(::render)
 

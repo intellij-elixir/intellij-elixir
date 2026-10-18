@@ -3,9 +3,12 @@ package org.elixir_lang.model.psi.function
 import com.intellij.model.Symbol
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
 import com.intellij.psi.ResolveState
+import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
+import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Declared
@@ -24,6 +27,7 @@ import org.elixir_lang.model.psi.atom.contentTextRange
 import org.elixir_lang.model.psi.protocol.ProtocolFunction
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
+import org.elixir_lang.psi.ElixirAtomKeyword
 import org.elixir_lang.psi.Import
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.arityInterval
@@ -229,7 +233,7 @@ internal object UseSymbols {
             }
             is Declared.Compiled ->
                 ((definition as? BeamCallDefinition)?.navigationElement as? Call)
-                    ?.let { symbols(it, CallDefinitionClause.nameIdentifier(it), declaration, arity) }
+                    ?.let { symbols(it, CallDefinitionClause.nameElement(it), declaration, arity) }
         }.orEmpty()
 
     /** The text a rename replaces: an atom's content, without its `:` or quotes, or the whole name. */
@@ -239,6 +243,29 @@ internal object UseSymbols {
             is ElixirAtom -> contentTextRange(name).shiftRight(name.textRange.startOffset)
             else -> nameIdentifier.textRange
         }
+
+    /**
+     * What a rename writes over [nameRange] at a declared name [nameElement] when it is not the new name as given:
+     * `true`, `false` and `nil` are atoms written without `:`, so where one is unquoted as a name the new name is written
+     * as an atom.
+     */
+    @RequiresReadLock
+    fun nameText(nameElement: PsiElement?): ((String) -> String)? =
+        if (nameElement?.stripAccessExpression() is ElixirAtomKeyword) { newName -> InspectAtom.literal(newName) } else null
+
+    /** [nameText] at the declared name over [range] in [file]. */
+    @RequiresReadLock
+    fun nameTextAt(file: PsiFile, range: TextRange): ((String) -> String)? =
+        nameText(PsiTreeUtil.findElementOfClassAtRange(file, range.startOffset, range.endOffset, ElixirAtomKeyword::class.java))
+
+    /**
+     * The ranges a caret is on a declared name in: [nameRange], and for an atom also the whole atom, with its `:` and
+     * quotes. The platform keeps the narrowest range at the caret, so inside the content the declaration still ties
+     * with a reference the atom has, as a module's.
+     */
+    @RequiresReadLock
+    fun declarationRanges(nameElement: PsiElement): List<TextRange> =
+        listOfNotNull(nameRange(nameElement), (nameElement.stripAccessExpression() as? ElixirAtom)?.textRange).distinct()
 
     /** The Symbol of [declaration], which [call] makes under [nameIdentifier], at [arity]: what a use and a declaration share. */
     @RequiresReadLock

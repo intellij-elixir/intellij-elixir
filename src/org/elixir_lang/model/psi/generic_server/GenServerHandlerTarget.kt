@@ -9,6 +9,7 @@ import com.intellij.platform.backend.navigation.NavigationTarget
 import com.intellij.platform.backend.presentation.TargetPresentation
 import com.intellij.psi.PsiFile
 import com.intellij.psi.SmartPointerManager
+import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
 import java.util.Objects
@@ -40,13 +41,13 @@ class GenServerHandlerTarget(
         // correctly on restore even if the clause is edited.
         val clause = generateSequence(file.findElementAt(range.startOffset)) { it.parent }
             .filterIsInstance<Call>()
-            .firstOrNull { CallDefinitionClause.`is`(it) && CallDefinitionClause.nameIdentifier(it)?.textRange == range }
+            .firstOrNull { CallDefinitionClause.`is`(it) && CallDefinitionClause.nameElement(it)?.let(UseSymbols::nameRange) == range }
         if (clause != null) {
             val clausePointer = SmartPointerManager.getInstance(file.project)
                 .createSmartPsiElementPointer(clause, file)
             return Pointer {
                 val restoredClause = clausePointer.dereference() ?: return@Pointer null
-                val restoredRange = CallDefinitionClause.nameIdentifier(restoredClause)?.textRange
+                val restoredRange = CallDefinitionClause.nameElement(restoredClause)?.let(UseSymbols::nameRange)
                     ?: return@Pointer null
                 GenServerHandlerTarget(restoredClause.containingFile, restoredRange, presentationText)
             }

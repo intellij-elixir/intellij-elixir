@@ -11,6 +11,7 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.moduleAttributeName
+import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.CallDefinitionSpecification
 
 /**
@@ -33,8 +34,8 @@ internal class SpecFunctionReferenceProvider : PsiSymbolReferenceProvider {
         val specHead = CallDefinitionSpecification.specificationType(specification) ?: return emptyList()
         if (!specHead.isEquivalentTo(element)) return emptyList()
 
-        val nameElement = element.functionNameElement() ?: return emptyList()
-        val rangeInElement = nameElement.textRange.shiftLeft(element.textRange.startOffset)
+        val nameElement = CallDefinitionHead.nameElement(element) ?: return emptyList()
+        val rangeInElement = UseSymbols.nameRange(nameElement).shiftLeft(element.textRange.startOffset)
         return listOf(SpecFunctionReference(element, moduleAttribute, rangeInElement))
     }
 

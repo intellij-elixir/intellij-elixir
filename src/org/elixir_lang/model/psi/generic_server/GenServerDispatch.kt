@@ -5,6 +5,7 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.navigation.DeclarationHead
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
@@ -14,6 +15,7 @@ import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.quotedAtomValue
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.impl.stripAccessExpressionAndParentheses
+import org.elixir_lang.structure_view.element.CallDefinitionHead
 
 /**
  * Resolves GenServer / `Process` message send sites to the matching handler clause(s) in the enclosing
@@ -89,19 +91,19 @@ internal object GenServerDispatch {
         if (nameArity.name != dispatch.handlerName) return false
         if (dispatch.handlerArity !in nameArity.arityInterval) return false
         if (CallDefinitionClause.capabilities(clause)?.quotesArguments == true) return false
-        val head = CallDefinitionClause.head(clause) as? Call ?: return false
-        val firstParam = head.primaryArguments()?.firstOrNull()?.stripAccessExpression() ?: return false
+        val head = CallDefinitionClause.head(clause)?.let(CallDefinitionHead::strip) as? Call ?: return false
+        val firstParam = CallDefinitionHead.parameters(head)?.firstOrNull()?.stripAccessExpression() ?: return false
         val paramAtom = firstParam as? ElixirAtom ?: return false
         return quotedAtomValue(paramAtom) == messageName
     }
 
     @RequiresReadLock
     private fun targetFor(clause: Call): GenServerHandlerTarget? {
-        val nameIdentifier = CallDefinitionClause.nameIdentifier(clause) ?: return null
+        val nameElement = CallDefinitionClause.nameElement(clause) ?: return null
         val presentation =
             runCatching { CallDefinitionClause.declaration(clause, ResolveState.initial())?.let { DeclarationHead.text(it, clause) } }
                 .getOrElse { if (it is ProcessCanceledException) throw it else null }
-                ?: nameIdentifier.text
-        return GenServerHandlerTarget(clause.containingFile, nameIdentifier.textRange, presentation)
+                ?: nameElement.text
+        return GenServerHandlerTarget(clause.containingFile, UseSymbols.nameRange(nameElement), presentation)
     }
 }

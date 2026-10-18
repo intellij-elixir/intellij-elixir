@@ -5,7 +5,6 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.stubs.StubIndex
-import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.Processor
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
@@ -16,6 +15,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.name.Function
 import org.elixir_lang.psi.stub.index.ImplementedProtocolName
+import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.jetbrains.annotations.Contract
 
 object Protocol {
@@ -61,14 +61,9 @@ object Protocol {
 
         // Check if this clause is inside a defprotocol
         val defprotocol = CallDefinitionClause.enclosingModularMacroCall(defClause) ?: return false
-        if (!`is`(defprotocol)) return false
 
-        // Check if element is at or within the name/head of the clause.
-        // Use bidirectional isAncestor: either element is inside nameIdentifier (element IS the identifier or
-        // deeper), or element contains nameIdentifier (element is the defClause or an intermediate parent).
-        val nameIdentifier = CallDefinitionClause.nameIdentifier(defClause) ?: return false
-        return PsiTreeUtil.isAncestor(nameIdentifier, element, false) ||
-               PsiTreeUtil.isAncestor(element, nameIdentifier, false)
+        return `is`(defprotocol) &&
+            CallDefinitionClause.head(defClause)?.let { CallDefinitionHead.isOnName(it, element) } == true
     }
 
     fun processImplementations(defprotocol: Call, consumer: Processor<in PsiElement>) {

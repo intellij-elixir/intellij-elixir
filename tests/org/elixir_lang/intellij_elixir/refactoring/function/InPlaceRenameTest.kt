@@ -57,6 +57,21 @@ class InPlaceRenameTest : InPlaceSymbolRenameTestCase() {
         myFixture.checkResultByFile("multi_arity_heads.ex", "multi_arity_heads_after.ex", false)
     }
 
+    /** An `unquote`-named clause's atom and its `@spec`'s are rewritten, never the word `unquote`. */
+    fun testUnquotedNameInPlaceRename() {
+        myFixture.configureByText(
+            "unquoted.ex",
+            "defmodule M do\n  @spec unquote(:f)(term) :: term\n  def unquote(:<caret>f)(x), do: x\n\n  def run, do: f(1)\nend\n"
+        )
+
+        inPlaceRenameAtCaret("g")
+
+        assertEquals(
+            "defmodule M do\n  @spec unquote(:g)(term) :: term\n  def unquote(:g)(x), do: x\n\n  def run, do: g(1)\nend\n",
+            myFixture.editor.document.text
+        )
+    }
+
     fun testDefaultArgumentsInPlaceRename() {
         myFixture.configureByFiles("default_arguments.ex")
 

@@ -78,6 +78,7 @@ import org.elixir_lang.reference.Callable
 import org.elixir_lang.reference.CaptureNameArity
 import org.elixir_lang.reference.resolver.Callable as CallableResolver
 import org.elixir_lang.psi.operation.capture.NonNumeric as CaptureNonNumeric
+import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.CallDefinitionSpecification
 import org.elixir_lang.structure_view.element.Delegation
 import java.text.Normalizer
@@ -457,15 +458,17 @@ internal object ElixirUsageQueries {
         val nameIdentifier: PsiElement,
         val keepsHeadText: Boolean
     ) {
+        @RequiresReadLock
         fun usage(): PsiUsage {
-            val headName = nameIdentifier.text
+            val range = nameRangeIn(nameIdentifier)
+            val headName = range.substring(nameIdentifier.text)
 
             return ElixirPsiUsage.create(
                 nameIdentifier,
-                TextRange(0, nameIdentifier.textLength),
+                range,
                 declaration = true,
                 usageType = IMPLEMENTATION,
-                usageTextByName = if (keepsHeadText) { _ -> headName } else null
+                usageTextByName = if (keepsHeadText) { _ -> headName } else UseSymbols.nameText(nameIdentifier)
             )
         }
     }
@@ -501,8 +504,9 @@ internal object ElixirUsageQueries {
         val definition = leaf.enclosingCalls().firstOrNull { DefinitionDeclaration.`is`(it) } ?: return null
 
         // The occurrence must be the definition's own name, not a call in its body.
-        val nameIdentifier = DefinitionDeclaration.nameIdentifier(definition) ?: return null
-        if (!PsiTreeUtil.isAncestor(nameIdentifier, leaf, false)) return null
+        val head = DefinitionDeclaration.head(definition) ?: return null
+        if (!CallDefinitionHead.isOnName(head, leaf)) return null
+        val nameIdentifier = CallDefinitionHead.nameElement(head) ?: return null
 
         if (!CallbackImplementation.implements(definition, callback)) return null
 
@@ -519,8 +523,9 @@ internal object ElixirUsageQueries {
         val definition = leaf.enclosingCalls().firstOrNull { DefinitionDeclaration.`is`(it) } ?: return null
 
         // The occurrence must be the definition's own name, not a call in its body.
-        val nameIdentifier = DefinitionDeclaration.nameIdentifier(definition) ?: return null
-        if (!PsiTreeUtil.isAncestor(nameIdentifier, leaf, false)) return null
+        val head = DefinitionDeclaration.head(definition) ?: return null
+        if (!CallDefinitionHead.isOnName(head, leaf)) return null
+        val nameIdentifier = CallDefinitionHead.nameElement(head) ?: return null
 
         // Directly inside a `defimpl` for this protocol, as every other test of "implements" says.
         if (protocolFunction !in ProtocolImplementation.membersOfImplementedDefs(definition)) return null
@@ -856,13 +861,14 @@ internal object ElixirUsageQueries {
             val symbol = symbolPointer.dereference() ?: return emptyList()
 
             val defClause = leaf.enclosingCalls().firstOrNull { CallDefinitionClause.`is`(it) } ?: return emptyList()
-            val nameIdentifier = CallDefinitionClause.nameIdentifier(defClause) ?: return emptyList()
-            if (!PsiTreeUtil.isAncestor(nameIdentifier, leaf, false)) return emptyList()
+            val head = CallDefinitionClause.head(defClause) ?: return emptyList()
+            if (!CallDefinitionHead.isOnName(head, leaf)) return emptyList()
+            val nameIdentifier = CallDefinitionHead.nameElement(head) ?: return emptyList()
             if (!FunctionSymbol.isFamilyMember(defClause, symbol)) return emptyList()
 
             // Direct usage query already contributes the symbol's own declaration.
             if (defClause.containingFile.virtualFile == symbol.file.virtualFile &&
-                nameIdentifier.textRange == symbol.range
+                UseSymbols.nameRange(nameIdentifier) == symbol.range
             ) {
                 return emptyList()
             }
@@ -870,8 +876,9 @@ internal object ElixirUsageQueries {
             return listOf(
                 ElixirPsiUsage.create(
                     nameIdentifier,
-                    TextRange(0, nameIdentifier.textLength),
-                    declaration = true
+                    nameRangeIn(nameIdentifier),
+                    declaration = true,
+                    usageTextByName = UseSymbols.nameText(nameIdentifier)
                 )
             )
         }
@@ -888,13 +895,19 @@ internal object ElixirUsageQueries {
             return listOf(
                 ElixirPsiUsage.create(
                     nameIdentifier,
-                    TextRange(0, nameIdentifier.textLength),
+                    nameRangeIn(nameIdentifier),
                     declaration = false,
-                    usageType = CALL
+                    usageType = CALL,
+                    usageTextByName = UseSymbols.nameText(nameIdentifier)
                 )
             )
         }
     }
+
+    /** The range in [nameElement] that a rename of the name it writes replaces: an atom's content, or all of it. */
+    @RequiresReadLock
+    private fun nameRangeIn(nameElement: PsiElement): TextRange =
+        UseSymbols.nameRange(nameElement).shiftLeft(nameElement.textRange.startOffset)
 
     /**
      * Maps each occurrence of a function name to a **call site** for the given [FunctionSymbol].
@@ -930,10 +943,10 @@ internal object ElixirUsageQueries {
             // A name a declaring form writes declares; the form's own keyword is a call of its macro.
             if (DeclaringForm.named(call) != null) return emptyList()
 
+            specUsage(call, leaf, symbol)?.let { return listOf(it) }
+
             val nameElement = call.functionNameElement() ?: return emptyList()
             if (!PsiTreeUtil.isAncestor(nameElement, leaf, false)) return emptyList()
-
-            specUsage(call, symbol)?.let { return listOf(it) }
 
             if (!matchesCallSite(call, symbol)) return emptyList()
 
@@ -1039,18 +1052,21 @@ internal object ElixirUsageQueries {
             )
         }
         @RequiresReadLock
-        private fun specUsage(call: Call, symbol: FunctionSymbol): PsiUsage? {
+        private fun specUsage(call: Call, leaf: PsiElement, symbol: FunctionSymbol): PsiUsage? {
             val moduleAttribute = call.enclosingSpecAttributeIfHead() ?: return null
+            if (!CallDefinitionHead.isOnName(call, leaf)) return null
+            val nameElement = CallDefinitionHead.nameElement(call) ?: return null
+
             val matches = definitions(Use.specification(call, moduleAttribute))
                 .any { FunctionSymbol.matches(it, symbol, call) }
             if (!matches) return null
 
-            val nameElement = call.functionNameElement() ?: return null
             return ElixirPsiUsage.create(
                 nameElement,
-                TextRange(0, nameElement.textLength),
+                nameRangeIn(nameElement),
                 declaration = false,
-                usageType = SPECIFICATION
+                usageType = SPECIFICATION,
+                usageTextByName = UseSymbols.nameText(nameElement)
             )
         }
     }
