@@ -129,7 +129,7 @@
 ### Bug Fixes
 
 - [#PR-TBD](https://github.com/intellij-elixir/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)
-  - **Calls to a `defdelegate` whose target cannot be found, to a `defexception`, and to a function an EEx template or a `Mix.Generator` embed declares are coloured as function calls.** Refs [#4435](https://github.com/intellij-elixir/intellij-elixir/issues/4435).
+  - **Calls to a `defdelegate` whose target cannot be found, to a `defexception`, and to a function an EEx template or a `Mix.Generator` embed declares are coloured as function calls, and guards get their own "Calls > Guard" and "Declarations > Guard" colours, which default to the macro colours.** Refs [#4435](https://github.com/intellij-elixir/intellij-elixir/issues/4435).
 - [#4479](https://github.com/intellij-elixir/intellij-elixir/pull/4479) [@sh41](https://github.com/sh41)
   - **Quick Documentation is right where it was wrong or empty**: calls at the wrong arity, `apply/3` and `{Module, :name, arity}`, links written as atoms, a `@moduledoc` under an `if`, and `__MODULE__`. Fixes [#4471](https://github.com/intellij-elixir/intellij-elixir/issues/4471).
 - [#4475](https://github.com/intellij-elixir/intellij-elixir/pull/4475) [@sh41](https://github.com/sh41)

@@ -3,13 +3,16 @@ package org.elixir_lang.annotator
 import com.intellij.openapi.editor.colors.TextAttributesKey
 import org.elixir_lang.ElixirFileType
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.FUNCTION_CALL
+import org.elixir_lang.ElixirSyntaxHighlighter.Companion.GUARD_CALL
+import org.elixir_lang.ElixirSyntaxHighlighter.Companion.GUARD_DECLARATION
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.MACRO_CALL
+import org.elixir_lang.ElixirSyntaxHighlighter.Companion.MACRO_DECLARATION
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.declaration.DistinctKeyScheme
 
 /**
  * A call is highlighted by what the called declaration can do, whichever form declares it: a clause, a delegation, an
- * exception, an EEx function or a `Mix.Generator` embed. A callback is a contract, so no call names it.
+ * exception, an EEx function or a `Mix.Generator` embed, and a guard has its own key. A callback is a contract, so no call names it.
  */
 class DeclarationHighlightingTest : PlatformTestCase() {
     private lateinit var scheme: DistinctKeyScheme
@@ -32,6 +35,8 @@ class DeclarationHighlightingTest : PlatformTestCase() {
             mapOf(
                 "function_clause" to setOf(FUNCTION_CALL),
                 "macro_clause" to setOf(MACRO_CALL),
+                "guard_clause" to setOf(GUARD_CALL),
+                "private_guard_clause" to setOf(GUARD_CALL),
                 "untargeted" to setOf(FUNCTION_CALL),
                 "targeted" to setOf(FUNCTION_CALL),
                 "exception" to setOf(FUNCTION_CALL),
@@ -40,6 +45,13 @@ class DeclarationHighlightingTest : PlatformTestCase() {
                 "banner_text" to setOf(FUNCTION_CALL)
             ),
             CALLED.associateWith { name -> keysAt(CODE.indexOf("\n      $name(", usage) + "\n      ".length, name.length) }
+        )
+    }
+
+    fun testAGuardsKeysFallBackToTheMacroKeys() {
+        assertEquals(
+            listOf(MACRO_CALL, MACRO_DECLARATION),
+            listOf(GUARD_CALL.fallbackAttributeKey, GUARD_DECLARATION.fallbackAttributeKey)
         )
     }
 
@@ -71,6 +83,8 @@ class DeclarationHighlightingTest : PlatformTestCase() {
         private val CALLED = listOf(
             "function_clause",
             "macro_clause",
+            "guard_clause",
+            "private_guard_clause",
             "untargeted",
             "targeted",
             "exception",
@@ -116,6 +130,8 @@ class DeclarationHighlightingTest : PlatformTestCase() {
 
               def function_clause(a), do: a
               defmacro macro_clause(a), do: a
+              defguard guard_clause(a) when is_integer(a)
+              defguardp private_guard_clause(a) when is_integer(a)
               defdelegate untargeted(a), to: Missing
               defdelegate targeted(a), to: Target, as: :delegated_target
               defexception [:message]
@@ -126,6 +142,8 @@ class DeclarationHighlightingTest : PlatformTestCase() {
                 {
                   function_clause(x),
                   macro_clause(x),
+                  guard_clause(x),
+                  private_guard_clause(x),
                   untargeted(x),
                   targeted(x),
                   exception(x),

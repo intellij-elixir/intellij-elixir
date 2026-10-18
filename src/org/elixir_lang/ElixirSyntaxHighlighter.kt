@@ -174,6 +174,16 @@ class ElixirSyntaxHighlighter : SyntaxHighlighterBase() {
                 FUNCTION_DECLARATION
         )
         @JvmField
+        val GUARD_CALL = TextAttributesKey.createTextAttributesKey(
+                "ELIXIR_GUARD_CALL",
+                MACRO_CALL
+        )
+        @JvmField
+        val GUARD_DECLARATION = TextAttributesKey.createTextAttributesKey(
+                "ELIXIR_GUARD_DECLARATION",
+                MACRO_DECLARATION
+        )
+        @JvmField
         val MAP = TextAttributesKey.createTextAttributesKey(
                 "ELIXIR_MAP",  // DO NOT link to {@link ElixirSyntaxHighlighter.BRACES} since that's for Tuples in standard Elixir
                 DefaultLanguageHighlighterColors.BRACES
@@ -224,7 +234,8 @@ class ElixirSyntaxHighlighter : SyntaxHighlighterBase() {
             when (presentation) {
                 Presentation.FUNCTION -> FUNCTION_DECLARATION
                 Presentation.MACRO -> MACRO_DECLARATION
-                Presentation.GUARD, null -> null
+                Presentation.GUARD -> GUARD_DECLARATION
+                null -> null
             }
 
         /** The key a call of a declaration of [presentation] is highlighted with. */
@@ -232,7 +243,8 @@ class ElixirSyntaxHighlighter : SyntaxHighlighterBase() {
             when (presentation) {
                 Presentation.FUNCTION -> FUNCTION_CALL
                 Presentation.MACRO -> MACRO_CALL
-                Presentation.GUARD, null -> null
+                Presentation.GUARD -> GUARD_CALL
+                null -> null
             }
 
         fun <T> sigilNames(transformer: (capitalization: String, letter: Char, name: Char) -> T): List<T> =
