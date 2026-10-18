@@ -57,13 +57,13 @@ class Callback(
         // survives the identifier replacement, so its name-identifier range is recomputed on restore.
         val attribute = generateSequence(file.findElementAt(range.startOffset)) { it.parent }
             .filterIsInstance<AtUnqualifiedNoParenthesesCall<*>>()
-            .firstOrNull { CallbackElement.`is`(it) && CallbackElement.nameElement(it)?.let(UseSymbols::nameRange) == range }
+            .firstOrNull { CallbackElement.`is`(it) && CallbackElement.nameIdentifier(it)?.let(UseSymbols::nameRange) == range }
         if (attribute != null) {
             val attributePointer = SmartPointerManager.getInstance(file.project)
                 .createSmartPsiElementPointer(attribute, file)
             return Pointer {
                 val restoredAttribute = attributePointer.dereference() ?: return@Pointer null
-                val restoredRange = CallbackElement.nameElement(restoredAttribute)?.let(UseSymbols::nameRange)
+                val restoredRange = CallbackElement.nameIdentifier(restoredAttribute)?.let(UseSymbols::nameRange)
                     ?: return@Pointer null
                 Callback(restoredAttribute.containingFile, restoredRange, moduleName, name, arity, macro)
             }
@@ -115,7 +115,7 @@ class Callback(
             if (Declarations.of(Form.CALLBACK, attr, ResolveState.initial()).none { it.declaration != null }) return emptyList()
             val head = CallbackElement.headCall(attr) ?: return emptyList()
             val nameArity = CallDefinitionHead.nameArityInterval(head, ResolveState.initial()) ?: return emptyList()
-            val nameRange = CallbackElement.nameElement(attr)?.let(UseSymbols::nameRange) ?: return emptyList()
+            val nameRange = CallbackElement.nameIdentifier(attr)?.let(UseSymbols::nameRange) ?: return emptyList()
             val modular = org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall(attr) ?: return emptyList()
             val moduleName = BehaviourMembership.moduleName(modular) ?: return emptyList()
             val macro = org.elixir_lang.psi.impl.ElixirPsiImplUtil.moduleAttributeName(attr) == "@macrocallback"

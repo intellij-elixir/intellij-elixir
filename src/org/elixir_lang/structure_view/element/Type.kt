@@ -101,12 +101,6 @@ class Type(
             return PsiTreeUtil.isAncestor(head, element, false) || PsiTreeUtil.isAncestor(element, head, false)
         }
 
-        fun nameIdentifier(atUnqualifiedNoParenthesesCall: AtUnqualifiedNoParenthesesCall<*>): PsiElement? =
-            specification(atUnqualifiedNoParenthesesCall)?.let { specificationType(it) }?.let { typeNameIdentifier(it) }
-
-        fun nameIdentifier(call: Call): PsiElement? =
-            (call as? AtUnqualifiedNoParenthesesCall<*>)?.let { nameIdentifier(it) }
-
         /** The head [call] writes its type in: `name(parameters)` in `@type name(parameters) :: ...`. */
         @RequiresReadLock
         fun head(call: Call): PsiElement? =
@@ -116,7 +110,7 @@ class Type(
 
         /** The element [call]'s head writes its name as: in `@type unquote(:name)() :: ...`, the atom. */
         @RequiresReadLock
-        fun nameElement(call: Call): PsiElement? = head(call)?.let(CallDefinitionHead::nameElement)
+        fun nameIdentifier(call: Call): PsiElement? = head(call)?.let(CallDefinitionHead::nameElement)
 
         fun specification(atUnqualifiedNoParenthesesCall: AtUnqualifiedNoParenthesesCall<*>): Call? =
             atUnqualifiedNoParenthesesCall.argument as? Call
@@ -130,7 +124,5 @@ class Type(
 
         fun type(atUnqualifiedNoParenthesesCall: AtUnqualifiedNoParenthesesCall<*>): Call? =
             atUnqualifiedNoParenthesesCall.argument as? Call
-
-        private fun typeNameIdentifier(type: Call): PsiElement? = type.functionNameElement()
     }
 }

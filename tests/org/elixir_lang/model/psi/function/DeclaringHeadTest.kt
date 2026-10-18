@@ -1,6 +1,10 @@
 package org.elixir_lang.model.psi.function
 
 import com.intellij.ide.impl.HeadlessDataManager
+import com.intellij.ide.util.PsiNavigationSupport
+import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.fileEditor.OpenFileDescriptor
+import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.assertNoNavigationAtCaret
 import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
@@ -8,6 +12,8 @@ import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
 import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetsAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
+import org.elixir_lang.psi.call.Call
+import java.util.concurrent.Callable
 
 /**
  * The name each declaring form writes is a declaration, as a `def`'s is: Ctrl+Click there shows usages, and Find Usages
@@ -501,6 +507,31 @@ class DeclaringHeadTest : PlatformTestCase() {
             listOf(myFixture.file.text.indexOf(":f") + 1),
             myFixture.gotoDeclarationTargetsAtCaret()?.map { it.destination?.textOffset }
         )
+    }
+
+    /** Navigating to an `unquote`-named declaration, as the Structure view does, puts the caret on its atom. */
+    fun testNavigationCaretOfAnUnquotedNameIsOnItsAtom() {
+        val heads = mapOf(
+            "def " to "defmodule M do\n  def unquote(:f)(x), do: x\nend\n",
+            "@callback " to "defmodule M do\n  @callback unquote(:f)(term) :: term\nend\n",
+            "@type " to "defmodule M do\n  @type unquote(:f)() :: atom\nend\n",
+            "defdelegate " to "defmodule M do\n  defdelegate unquote(:f)(x), to: T\nend\n"
+        )
+
+        assertEquals(heads.keys.map { "${it.trim()}: on the atom" }, heads.map { (prefix, text) -> navigationCaret(text, prefix) })
+    }
+
+    /** Where navigating to the outermost call in [text] that starts with [prefix] puts the caret, against `:f`. */
+    private fun navigationCaret(text: String, prefix: String): String {
+        myFixture.configureByText("m.ex", text)
+        val offset = ReadAction.nonBlocking(Callable {
+            val declaration = PsiTreeUtil.findChildrenOfType(myFixture.file, Call::class.java).first { it.text.startsWith(prefix) }
+
+            (PsiNavigationSupport.getInstance().getDescriptor(declaration) as OpenFileDescriptor).offset
+        }).executeSynchronously()
+        val atom = text.indexOf(":f")
+
+        return if (offset in atom until atom + ":f".length) "${prefix.trim()}: on the atom" else "${prefix.trim()}: caret at $offset, atom at $atom"
     }
 
     private fun assertRenames(newName: String, before: String, after: String) {

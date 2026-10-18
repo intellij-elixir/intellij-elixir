@@ -178,12 +178,8 @@ class Delegation(private val modular: Modular, call: Call) : Element<Call?>(call
                 Delegation(modular, call)
             }
 
-        @RequiresReadLock
-        fun nameIdentifier(call: Call): PsiElement? =
-            call.finalArguments()?.get(0)?.let { it as? Call }?.functionNameElement()
-
         /** The element [call]'s head writes its name as: in `defdelegate unquote(:name)(...)`, the atom. */
         @RequiresReadLock
-        fun nameElement(call: Call): PsiElement? = (head(call) as? Call)?.let(CallDefinitionHead::nameElement)
+        fun nameIdentifier(call: Call): PsiElement? = (head(call) as? Call)?.let(CallDefinitionHead::nameElement)
     }
 }

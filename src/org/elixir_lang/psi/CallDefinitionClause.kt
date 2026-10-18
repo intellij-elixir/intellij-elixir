@@ -303,12 +303,9 @@ object CallDefinitionClause {
         }
     }
 
-    @RequiresReadLock
-    fun nameIdentifier(call: Call): PsiElement? = head(call)?.let { CallDefinitionHead.nameIdentifier(it) }
-
     /** The element [call]'s name is written as: in `def unquote(:name)(...)`, the atom. */
     @RequiresReadLock
-    fun nameElement(call: Call): PsiElement? = head(call)?.let(CallDefinitionHead::nameElement)
+    fun nameIdentifier(call: Call): PsiElement? = head(call)?.let(CallDefinitionHead::nameElement)
 
     private fun functionElementDescription(
             @Suppress("UNUSED_PARAMETER") call: Call,

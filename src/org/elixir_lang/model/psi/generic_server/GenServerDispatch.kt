@@ -99,7 +99,7 @@ internal object GenServerDispatch {
 
     @RequiresReadLock
     private fun targetFor(clause: Call): GenServerHandlerTarget? {
-        val nameElement = CallDefinitionClause.nameElement(clause) ?: return null
+        val nameElement = CallDefinitionClause.nameIdentifier(clause) ?: return null
         val presentation =
             runCatching { CallDefinitionClause.declaration(clause, ResolveState.initial())?.let { DeclarationHead.text(it, clause) } }
                 .getOrElse { if (it is ProcessCanceledException) throw it else null }

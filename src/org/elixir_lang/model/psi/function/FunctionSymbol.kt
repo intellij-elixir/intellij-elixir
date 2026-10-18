@@ -276,7 +276,7 @@ class FunctionSymbol(
             if (Protocol.`is`(enclosingModular)) return emptyList()
             val owner = owner(enclosingModular) ?: return emptyList()
             val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return emptyList()
-            val nameId = CallDefinitionClause.nameElement(clause) ?: return emptyList()
+            val nameId = CallDefinitionClause.nameIdentifier(clause) ?: return emptyList()
             val macro = CallDefinitionClause.capabilities(clause)?.let(::isMacro) == true
             // For a decompiled beam function, this clause lives in an in-memory mirror file built from the `.beam`'s
             // decompiled text; its `originalFile` is the navigable compiled file whose virtual file opens the
@@ -323,7 +323,7 @@ class FunctionSymbol(
             val call = definitionClause(definition) ?: definition as? Call ?: return true
             if (!Delegation.`is`(call)) return isInItsImplementation(call, symbol)
 
-            val head = Delegation.nameElement(call) ?: return false
+            val head = Delegation.nameIdentifier(call) ?: return false
             val atOwnHead = PsiTreeUtil.isAncestor(head, at, false) || PsiTreeUtil.isAncestor(at, head, false)
 
             return !atOwnHead && isMadeFrom(symbol, call, head)
@@ -338,7 +338,7 @@ class FunctionSymbol(
             definitionClause(definition)?.let { clause -> return fromClause(clause).map { it to helperImplementation(it) } }
 
             val delegation = (definition as? Call)?.takeIf { Delegation.`is`(it) } ?: return null
-            val head = Delegation.nameElement(delegation) ?: return null
+            val head = Delegation.nameIdentifier(delegation) ?: return null
 
             return delegation.containingFile.originalFile.let { it.virtualFile ?: it } to head.textRange
         }
@@ -419,7 +419,7 @@ class FunctionSymbol(
             if (Protocol.`is`(enclosingModular)) return emptyList()
             val owner = owner(enclosingModular) ?: return emptyList()
             val arityInterval = declaration.arity.arityInterval() ?: return emptyList()
-            val nameId = Delegation.nameElement(delegation) ?: return emptyList()
+            val nameId = Delegation.nameIdentifier(delegation) ?: return emptyList()
             val declarationFile = delegation.containingFile.originalFile
 
             return arityInterval.closed().map { arity ->

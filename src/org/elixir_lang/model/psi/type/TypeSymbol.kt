@@ -119,6 +119,6 @@ class TypeSymbol(
         /** The text a rename of the type [typeAttribute] declares replaces, read from its head as a definition's is. */
         @RequiresReadLock
         private fun nameRange(typeAttribute: AtUnqualifiedNoParenthesesCall<*>): TextRange? =
-            TypeElement.nameElement(typeAttribute)?.let(UseSymbols::nameRange)
+            TypeElement.nameIdentifier(typeAttribute)?.let(UseSymbols::nameRange)
     }
 }

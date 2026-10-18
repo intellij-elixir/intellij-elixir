@@ -65,13 +65,13 @@ class ProtocolFunction(
         // identifier replacement, so its name-identifier range is recomputed correctly on restore.
         val clause = generateSequence(file.findElementAt(range.startOffset)) { it.parent }
             .filterIsInstance<Call>()
-            .firstOrNull { CallDefinitionClause.`is`(it) && CallDefinitionClause.nameElement(it)?.let(UseSymbols::nameRange) == range }
+            .firstOrNull { CallDefinitionClause.`is`(it) && CallDefinitionClause.nameIdentifier(it)?.let(UseSymbols::nameRange) == range }
         if (clause != null) {
             val clausePointer = SmartPointerManager.getInstance(file.project)
                 .createSmartPsiElementPointer(clause, file)
             return Pointer {
                 val restoredClause = clausePointer.dereference() ?: return@Pointer null
-                val restoredRange = CallDefinitionClause.nameElement(restoredClause)?.let(UseSymbols::nameRange)
+                val restoredRange = CallDefinitionClause.nameIdentifier(restoredClause)?.let(UseSymbols::nameRange)
                     ?: return@Pointer null
                 ProtocolFunction(restoredClause.containingFile, restoredRange, protocolName, name, arity, macro)
             }
@@ -128,7 +128,7 @@ class ProtocolFunction(
             if (Declarations.of(Form.CLAUSE, clause, ResolveState.initial()).none { it.declaration != null }) return emptyList()
             val protocolName = FunctionSymbol.owner(defprotocol)?.moduleName ?: return emptyList()
             val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return emptyList()
-            val nameRange = CallDefinitionClause.nameElement(clause)?.let(UseSymbols::nameRange) ?: return emptyList()
+            val nameRange = CallDefinitionClause.nameIdentifier(clause)?.let(UseSymbols::nameRange) ?: return emptyList()
             val macro = CallDefinitionClause.capabilities(clause)?.let(FunctionSymbol::isMacro) == true
             return nameArity.arityInterval.closed().map { arity ->
                 ProtocolFunction(clause.containingFile, nameRange, protocolName, nameArity.name, arity, macro)

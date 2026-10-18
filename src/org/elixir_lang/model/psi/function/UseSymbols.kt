@@ -233,7 +233,7 @@ internal object UseSymbols {
             }
             is Declared.Compiled ->
                 ((definition as? BeamCallDefinition)?.navigationElement as? Call)
-                    ?.let { symbols(it, CallDefinitionClause.nameElement(it), declaration, arity) }
+                    ?.let { symbols(it, CallDefinitionClause.nameIdentifier(it), declaration, arity) }
         }.orEmpty()
 
     /** The text a rename replaces: an atom's content, without its `:` or quotes, or the whole name. */

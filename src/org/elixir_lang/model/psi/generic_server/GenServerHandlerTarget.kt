@@ -41,13 +41,13 @@ class GenServerHandlerTarget(
         // correctly on restore even if the clause is edited.
         val clause = generateSequence(file.findElementAt(range.startOffset)) { it.parent }
             .filterIsInstance<Call>()
-            .firstOrNull { CallDefinitionClause.`is`(it) && CallDefinitionClause.nameElement(it)?.let(UseSymbols::nameRange) == range }
+            .firstOrNull { CallDefinitionClause.`is`(it) && CallDefinitionClause.nameIdentifier(it)?.let(UseSymbols::nameRange) == range }
         if (clause != null) {
             val clausePointer = SmartPointerManager.getInstance(file.project)
                 .createSmartPsiElementPointer(clause, file)
             return Pointer {
                 val restoredClause = clausePointer.dereference() ?: return@Pointer null
-                val restoredRange = CallDefinitionClause.nameElement(restoredClause)?.let(UseSymbols::nameRange)
+                val restoredRange = CallDefinitionClause.nameIdentifier(restoredClause)?.let(UseSymbols::nameRange)
                     ?: return@Pointer null
                 GenServerHandlerTarget(restoredClause.containingFile, restoredRange, presentationText)
             }
