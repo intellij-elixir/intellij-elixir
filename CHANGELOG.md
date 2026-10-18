@@ -19,6 +19,9 @@
 
 ### Enhancements
 
+- [#4489](https://github.com/intellij-elixir/intellij-elixir/pull/4489) [@sh41](https://github.com/sh41)
+  - **The Elixir references inspection (off by default) names the arities a wrong-arity call could mean, suggests near names for a misspelled remote call, and no longer reports inside documentation samples.** Refs [#4483](https://github.com/intellij-elixir/intellij-elixir/issues/4483) and [#4150](https://github.com/intellij-elixir/intellij-elixir/issues/4150).
+
 - [#4479](https://github.com/intellij-elixir/intellij-elixir/pull/4479) [@sh41](https://github.com/sh41)
   - **Quick Documentation lists a function's arities in order and opens at the one used, works on the name in a declaration, and links an undocumented `defdelegate` to its target.** Fixes [#4471](https://github.com/intellij-elixir/intellij-elixir/issues/4471).
 
