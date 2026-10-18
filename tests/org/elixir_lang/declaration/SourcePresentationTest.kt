@@ -24,8 +24,8 @@ import org.elixir_lang.structure_view.element.CallDefinition
 import org.elixir_lang.structure_view.element.Timed
 
 /**
- * What a user sees of a source definition for each `def*`. A guard gets no parameter highlight, no usage-view type of
- * its own and no structure-view node.
+ * What a user sees of a source definition for each `def*`. A guard gets no usage-view type of its own and no
+ * structure-view node.
  */
 class SourcePresentationTest : PlatformTestCase() {
     private lateinit var scheme: DistinctKeyScheme
@@ -71,8 +71,8 @@ class SourcePresentationTest : PlatformTestCase() {
                 "private_function" to setOf(PARAMETER),
                 "public_macro" to setOf(PARAMETER),
                 "private_macro" to setOf(PARAMETER),
-                "public_guard" to emptySet(),
-                "private_guard" to emptySet()
+                "public_guard" to setOf(PARAMETER),
+                "private_guard" to setOf(PARAMETER)
             ),
             NAMES.associateWith { keysAt(declarationOffset(it) + it.length + "(".length, "a".length) }
         )
@@ -101,8 +101,8 @@ class SourcePresentationTest : PlatformTestCase() {
                 "private_function" to "function",
                 "public_macro" to "macro",
                 "private_macro" to "macro",
-                "public_guard" to UNDESCRIBED_IDENTIFIER,
-                "private_guard" to UNDESCRIBED_IDENTIFIER
+                "public_guard" to "macro",
+                "private_guard" to "macro"
             ),
             NAMES.associateWith { name ->
                 ElementDescriptionUtil.getElementDescription(nameIdentifier(name), UsageViewTypeLocation.INSTANCE)
@@ -202,7 +202,6 @@ class SourcePresentationTest : PlatformTestCase() {
     companion object {
         /** The platform's fallback when no provider describes the element: its class's name. */
         private const val UNDESCRIBED_CALL = "Elixir Unmatched Unqualified No Parentheses Call Impl"
-        private const val UNDESCRIBED_IDENTIFIER = "Elixir Identifier Impl"
 
         private val NAMES = listOf(
             "public_function",
