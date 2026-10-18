@@ -32,6 +32,8 @@ import com.intellij.util.Query
 import com.intellij.util.UniqueResultsQuery
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.ElixirLanguage
+import org.elixir_lang.declaration.Feature
+import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.heex.HeexLanguage
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
@@ -47,7 +49,6 @@ import org.elixir_lang.model.psi.callback.Callback
 import org.elixir_lang.model.psi.callback.CallbackImplementation
 import org.elixir_lang.model.psi.function.FunctionArityKeywordPairReference
 import org.elixir_lang.model.psi.function.FunctionSymbol
-import org.elixir_lang.model.psi.function.SpecFunctionReference
 import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.model.psi.module.ModuleReference
 import org.elixir_lang.model.psi.module.ModuleSymbol
@@ -75,6 +76,7 @@ import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.scope.ancestorTypeSpec
 import org.elixir_lang.reference.Callable
 import org.elixir_lang.reference.CaptureNameArity
+import org.elixir_lang.reference.resolver.Callable as CallableResolver
 import org.elixir_lang.psi.operation.capture.NonNumeric as CaptureNonNumeric
 import org.elixir_lang.structure_view.element.CallDefinitionSpecification
 import org.elixir_lang.structure_view.element.Delegation
@@ -932,7 +934,7 @@ internal object ElixirUsageQueries {
 
         /**
          * Whether [call] is a call site for [symbol]: a qualified call the preference step resolves to it, an
-         * unqualified call of its module, name and arity, or one resolved via the legacy [Callable] scope-walker.
+         * unqualified call of its module, name and arity, or one whose definitions include it.
          */
         @RequiresReadLock
         private fun matchesCallSite(call: Call, symbol: FunctionSymbol): Boolean =
@@ -946,11 +948,7 @@ internal object ElixirUsageQueries {
             ) {
                 true
             } else {
-                Callable(call).multiResolve(false)
-                    .asSequence()
-                    .filter { it.isValidResult }
-                    .mapNotNull { it.element }
-                    .any { FunctionSymbol.matches(it, symbol, call) }
+                definitions(Use.of(call), CallableResolver.bound(call, false)).any { FunctionSymbol.matches(it, symbol, call) }
             }
 
         /**
@@ -1035,8 +1033,7 @@ internal object ElixirUsageQueries {
          * If [leaf] is the captured NAME of a `&name/arity` or `&Mod.name/arity` capture that
          * resolves to [symbol], the name occurrence, else `null`. The bare name inside a capture
          * classifies as a variable to the [Callable] scope-walker (so the generic call-site path
-         * below cannot resolve it); the capture-aware resolution lives on the capture element's
-         * own [CaptureNameArity] reference, which this reuses.
+         * below cannot resolve it).
          */
         @RequiresReadLock
         private fun captureUsage(leaf: PsiElement, symbol: FunctionSymbol): PsiUsage? {
@@ -1052,10 +1049,7 @@ internal object ElixirUsageQueries {
             if (!absoluteNameRange.contains(leaf.textRange)) return null
             if (reference.arity != symbol.arity) return null
 
-            val matches = reference.multiResolve(false)
-                .asSequence()
-                .filter { it.isValidResult }
-                .mapNotNull { it.element }
+            val matches = definitions(Use.capture(reference.nameElement, reference.arity))
                 .any { FunctionSymbol.matches(it, symbol, capture) }
             if (!matches) return null
 
@@ -1069,11 +1063,8 @@ internal object ElixirUsageQueries {
 
         @RequiresReadLock
         private fun specUsage(call: Call, symbol: FunctionSymbol): PsiUsage? {
-            call.enclosingSpecAttributeIfHead() ?: return null
-            val matches = PsiSymbolReferenceService.getService()
-                .getReferences(call)
-                .filterIsInstance<SpecFunctionReference>()
-                .flatMap { it.definitions() }
+            val moduleAttribute = call.enclosingSpecAttributeIfHead() ?: return null
+            val matches = definitions(Use.specification(call, moduleAttribute))
                 .any { FunctionSymbol.matches(it, symbol, call) }
             if (!matches) return null
 
@@ -1324,6 +1315,15 @@ private val MODULE_ATTRIBUTE_WRITE = UsageType { "Module attribute accumulate or
 private val VALUE_READ = UsageType { "Value read" }
 
 private val VALUE_WRITE = UsageType { "Value write" }
+
+/** The elements of the step's valid results at [use]; [bound] is whether a valid variable binds its name. */
+@RequiresReadLock
+private fun definitions(use: Use?, bound: Boolean = false): Sequence<PsiElement> =
+    use?.let { Resolved.results(Resolved.projection(it, false, bound, Feature.FIND_USAGES_AND_RENAME)) }
+        .orEmpty()
+        .asSequence()
+        .filter { it.isValidResult }
+        .mapNotNull { it.element }
 
 /**
  * Whether this is a qualified call the preference step resolves to [symbol], so a nested module's short and full names

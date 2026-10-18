@@ -12,11 +12,10 @@ import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Preferred
 import org.elixir_lang.declaration.RejectedCall
+import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.declaration.atItsHead
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.passed
-import org.elixir_lang.declaration.preferred
-import org.elixir_lang.declaration.sourceFor
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.model.psi.atom.contentTextRange
 import org.elixir_lang.model.psi.protocol.ProtocolFunction
@@ -82,7 +81,7 @@ internal object UseSymbols {
 
     @RequiresReadLock
     private fun step(use: Use): List<Preferred> =
-        preferred(use, sourceFor(Feature.SYMBOL_REFERENCES).candidates(use, false), false)
+        Resolved.step(use, false)
 
     /** Whether each `import` [found] was reached through brings it in at [arity]. */
     @RequiresReadLock
