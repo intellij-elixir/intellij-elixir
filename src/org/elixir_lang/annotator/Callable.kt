@@ -13,7 +13,6 @@ import org.elixir_lang.model.psi.variable.VariableSymbol
 import org.elixir_lang.ElixirSyntaxHighlighter
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.declaration.Feature
-import org.elixir_lang.declaration.Presentation
 import org.elixir_lang.psi.AtOperation
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
@@ -134,11 +133,9 @@ internal class Callable : Annotator, DumbAware {
 
                 private fun visitStrippedCallDefinitionHead(stripped: Call, clause: Call) {
                     stripped.functionNameElement()?.let { functionNameElement ->
-                        val textAttributeKey = when (CallDefinitionClause.capabilities(clause)?.presentation) {
-                            Presentation.FUNCTION -> ElixirSyntaxHighlighter.FUNCTION_DECLARATION
-                            Presentation.MACRO -> ElixirSyntaxHighlighter.MACRO_DECLARATION
-                            Presentation.GUARD, null -> null
-                        }
+                        val textAttributeKey = ElixirSyntaxHighlighter.declarationKey(
+                            CallDefinitionClause.capabilities(clause)?.presentation
+                        )
 
                         if (textAttributeKey != null) {
                             highlight(functionNameElement, holder, textAttributeKey)
@@ -171,95 +168,34 @@ internal class Callable : Annotator, DumbAware {
         }
 
     private fun callHighlight(resolved: Call, previousCallHighlight: CallHighlight?): CallHighlight? =
-        when (CallDefinitionClause.capabilities(resolved)?.presentation) {
-            Presentation.FUNCTION -> {
-                val referrerTextAttributesKeys = referrerTextAttributesKeys(
-                    resolved,
-                    FUNCTION_CALL_TEXT_ATTRIBUTE_KEYS,
-                    PREDEFINED_FUNCTION_CALL_TEXT_ATTRIBUTE_KEYS
-                )
-
-                CallHighlight.nullablePut(
-                    previousCallHighlight,
-                    referrerTextAttributesKeys
-                )
-            }
-            Presentation.MACRO -> {
-                val referrerTextAttributesKeys = referrerTextAttributesKeys(
-                    resolved,
-                    MACRO_CALL_TEXT_ATTRIBUTES_KEYS,
-                    PREDEFINED_MACRO_CALL_TEXT_ATTRIBUTES_KEYS
-                )
-
-                CallHighlight.nullablePut(
-                    previousCallHighlight,
-                    referrerTextAttributesKeys
-                )
-            }
-            Presentation.GUARD, null -> when (VariableSymbol.classify(resolved)) {
-                VariableSymbol.Kind.PARAMETER ->
-                    CallHighlight.nullablePut(
-                        previousCallHighlight,
-                        PARAMETER_TEXT_ATTRIBUTE_KEYS
-                    )
-                VariableSymbol.Kind.VARIABLE ->
-                    CallHighlight.nullablePut(
-                        previousCallHighlight,
-                        VARIABLE_TEXT_ATTRIBUTE_KEYS
-                    )
-                VariableSymbol.Kind.IGNORED ->
-                    CallHighlight.nullablePut(
-                        previousCallHighlight,
-                        IGNORED_VARIABLE_TEXT_ATTRIBUTE_KEYS
-                    )
-                null -> previousCallHighlight
-            }
-        }
+        ElixirSyntaxHighlighter.callKey(CallDefinitionClause.capabilities(resolved)?.presentation)
+            ?.let { CallHighlight.nullablePut(previousCallHighlight, referrerTextAttributesKeys(resolved, it)) }
+            ?: variableHighlight(resolved, previousCallHighlight)
 
     private fun callHighlight(resolved: PsiElement, previousCallHighlight: CallHighlight?): CallHighlight? =
         when (resolved) {
             is Call -> callHighlight(resolved, previousCallHighlight)
             is BeamCallDefinition -> callHighlight(resolved, previousCallHighlight)
-            else ->
-                when (VariableSymbol.classify(resolved)) {
-                    VariableSymbol.Kind.IGNORED ->
-                        CallHighlight.nullablePut(
-                            previousCallHighlight,
-                            IGNORED_VARIABLE_TEXT_ATTRIBUTE_KEYS
-                        )
-                    VariableSymbol.Kind.PARAMETER ->
-                        CallHighlight.nullablePut(
-                            previousCallHighlight,
-                            PARAMETER_TEXT_ATTRIBUTE_KEYS
-                        )
-                    VariableSymbol.Kind.VARIABLE ->
-                        CallHighlight.nullablePut(
-                            previousCallHighlight,
-                            VARIABLE_TEXT_ATTRIBUTE_KEYS
-                        )
-                    null -> previousCallHighlight
-                }
+            else -> variableHighlight(resolved, previousCallHighlight)
         }
 
-    private fun callHighlight(resolved: BeamCallDefinition, previousCallHighlight: CallHighlight?): CallHighlight {
-        val referrerTextAttributesKeys = when (resolved.capabilities.presentation) {
-            Presentation.MACRO, Presentation.GUARD -> referrerTextAttributesKeys(
-                resolved,
-                MACRO_CALL_TEXT_ATTRIBUTES_KEYS,
-                PREDEFINED_MACRO_CALL_TEXT_ATTRIBUTES_KEYS
-            )
-            Presentation.FUNCTION -> referrerTextAttributesKeys(
-                resolved,
-                FUNCTION_CALL_TEXT_ATTRIBUTE_KEYS,
-                PREDEFINED_FUNCTION_CALL_TEXT_ATTRIBUTE_KEYS
-            )
-        }
-
-        return CallHighlight.nullablePut(
+    private fun callHighlight(resolved: BeamCallDefinition, previousCallHighlight: CallHighlight?): CallHighlight =
+        CallHighlight.nullablePut(
             previousCallHighlight,
-            referrerTextAttributesKeys
+            ElixirSyntaxHighlighter.callKey(resolved.capabilities.presentation)
+                ?.let { referrerTextAttributesKeys(resolved, it) }
         )
-    }
+
+    private fun variableHighlight(resolved: PsiElement, previousCallHighlight: CallHighlight?): CallHighlight? =
+        when (VariableSymbol.classify(resolved)) {
+            VariableSymbol.Kind.IGNORED ->
+                CallHighlight.nullablePut(previousCallHighlight, IGNORED_VARIABLE_TEXT_ATTRIBUTE_KEYS)
+            VariableSymbol.Kind.PARAMETER ->
+                CallHighlight.nullablePut(previousCallHighlight, PARAMETER_TEXT_ATTRIBUTE_KEYS)
+            VariableSymbol.Kind.VARIABLE ->
+                CallHighlight.nullablePut(previousCallHighlight, VARIABLE_TEXT_ATTRIBUTE_KEYS)
+            null -> previousCallHighlight
+        }
 
     private fun callHighlight(resolvedCollection: Collection<PsiElement>): CallHighlight? =
         resolvedCollection.fold(null) { acc: CallHighlight?, resolved ->
@@ -383,12 +319,8 @@ internal class Callable : Annotator, DumbAware {
     }
 
     companion object {
-        private val FUNCTION_CALL_TEXT_ATTRIBUTE_KEYS = arrayOf(ElixirSyntaxHighlighter.FUNCTION_CALL)
         private val IGNORED_VARIABLE_TEXT_ATTRIBUTE_KEYS = arrayOf(ElixirSyntaxHighlighter.IGNORED_VARIABLE)
-        private val MACRO_CALL_TEXT_ATTRIBUTES_KEYS = arrayOf(ElixirSyntaxHighlighter.MACRO_CALL)
         private val PARAMETER_TEXT_ATTRIBUTE_KEYS = arrayOf(ElixirSyntaxHighlighter.PARAMETER)
-        private val PREDEFINED_FUNCTION_CALL_TEXT_ATTRIBUTE_KEYS =
-            arrayOf(ElixirSyntaxHighlighter.FUNCTION_CALL, ElixirSyntaxHighlighter.PREDEFINED_CALL)
 
         private val PREDEFINED_LOCATION_STRING_SET = HashSet(
             listOf(
@@ -396,32 +328,19 @@ internal class Callable : Annotator, DumbAware {
                 KERNEL_SPECIAL_FORMS
             )
         )
-        private val PREDEFINED_MACRO_CALL_TEXT_ATTRIBUTES_KEYS =
-            arrayOf(ElixirSyntaxHighlighter.MACRO_CALL, ElixirSyntaxHighlighter.PREDEFINED_CALL)
         private val VARIABLE_TEXT_ATTRIBUTE_KEYS = arrayOf(ElixirSyntaxHighlighter.VARIABLE)
 
-        private fun referrerTextAttributesKeys(
-            psiElement: PsiElement,
-            standardTextAttributeKeys: Array<TextAttributesKey>,
-            predefinedTextAttributesKeys: Array<TextAttributesKey>
-        ): Array<TextAttributesKey> =
-            when (psiElement) {
-                is BeamCallDefinition -> if (psiElement.parent.name in PREDEFINED_LOCATION_STRING_SET) {
-                    predefinedTextAttributesKeys
-                } else {
-                    null
-                }
-                is NavigationItem -> {
+        private fun referrerTextAttributesKeys(psiElement: PsiElement, key: TextAttributesKey): Array<TextAttributesKey> {
+            val predefined = when (psiElement) {
+                is BeamCallDefinition -> psiElement.parent.name in PREDEFINED_LOCATION_STRING_SET
+                is NavigationItem ->
                     psiElement.presentation?.locationString?.let { locationString ->
-                        if (PREDEFINED_LOCATION_STRING_SET.any { locationString.endsWith(it) }) {
-                            predefinedTextAttributesKeys
-                        } else {
-                            null
-                        }
-                    }
-                }
-                else -> null
+                        PREDEFINED_LOCATION_STRING_SET.any { locationString.endsWith(it) }
+                    } == true
+                else -> false
             }
-                ?: standardTextAttributeKeys
+
+            return if (predefined) arrayOf(key, ElixirSyntaxHighlighter.PREDEFINED_CALL) else arrayOf(key)
+        }
     }
 }
