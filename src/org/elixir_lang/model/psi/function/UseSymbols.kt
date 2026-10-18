@@ -127,13 +127,8 @@ internal object UseSymbols {
     @RequiresReadLock
     fun namingByHead(leaf: PsiElement, symbol: Symbol): Call? {
         val delegation = DeclaringForm.named(leaf)?.takeIf { it.form == Form.DELEGATION }?.call ?: return null
-        val named = definitionsNamedByHead(delegation).flatMap { definition ->
-            reachable(definition) { next ->
-                (next as? Call)?.takeIf { Delegation.`is`(it) }?.let(::definitionsNamedByHead).orEmpty()
-            }
-        }
 
-        return delegation.takeIf { named.any { definition -> names(definition, symbol, leaf) } }
+        return delegation.takeIf { definitionsCalledThrough(it).any { definition -> names(definition, symbol, leaf) } }
     }
 
     /** Whether [definition] is one of [symbol]'s, for a use at [at]. */
@@ -149,6 +144,14 @@ internal object UseSymbols {
     @RequiresReadLock
     fun definitionsNamedByHead(delegation: Call): List<PsiElement> =
         if (Delegation.headKeepsTargetName(delegation)) delegated(delegation)?.first.orEmpty().map { it.element } else emptyList()
+
+    /**
+     * The definitions a call of [delegation] calls by the same name: [definitionsNamedByHead], and theirs in turn along a
+     * chain of delegations without `as:`.
+     */
+    @RequiresReadLock
+    fun definitionsCalledThrough(delegation: Call): List<PsiElement> =
+        (reachable<PsiElement>(delegation) { (it as? Call)?.let(::definitionsNamedByHead).orEmpty() } - delegation).toList()
 
     /** What the step finds [delegation] delegating to at the use its head is, with the arity the head passes on. */
     @RequiresReadLock

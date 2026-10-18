@@ -50,6 +50,14 @@ class FindUsagesTest : PlatformTestCase() {
         )
     }
 
+    /** From the head of `def f(q, x \\ nil)`, which declares `f/1`, an `only:` key at `f/2` is found too. */
+    fun testKeyAtTheHigherArityOfDefaultsIsFound() {
+        myFixture.addFileToProject("caller.ex", "defmodule Caller do\n  import M, only: [f: 2]\nend\n")
+        myFixture.configureByText("m.ex", "defmodule M do\n  def <caret>f(q, x \\\\ nil), do: {q, x}\nend\n")
+
+        assertEquals(listOf("caller.ex: import M, only: [f: 2]"), keyLinesAtCaret())
+    }
+
     /** An `only:` key names a `defdelegate` as it names a clause. */
     fun testKeyNamingDelegation() {
         myFixture.addFileToProject("t.ex", "defmodule T do\n  def f(x), do: x\nend\n")

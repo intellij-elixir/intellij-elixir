@@ -186,6 +186,47 @@ class FunctionFindUsagesTest : PlatformTestCase() {
         assertEquals(fromHead, fromSpec)
     }
 
+    /** From `f/2` of `def f(q, x \\ nil)`, a capture and an import key at `f/1` are uses, as a call at `f/1` is. */
+    fun testCaptureAndKeyAtTheLowerArityOfDefaultsAreFound() {
+        defaults()
+        myFixture.editor.caretModel.moveToOffset(myFixture.file.text.indexOf("M.f(q, 1)") + "M.".length)
+
+        val lines = usageLinesAtCaret().map { it.substringAfter(": ") }
+
+        assertTrue("the capture: $lines", "def b, do: &M.f/1" in lines)
+        assertTrue("the key: $lines", "import M, only: [f: 1]" in lines)
+    }
+
+    /** From `f/1` of `def f(q, x \\ nil)`, a capture and an import key at `f/2` are uses. */
+    fun testCaptureAndKeyAtTheHigherArityOfDefaultsAreFound() {
+        defaults()
+        myFixture.editor.caretModel.moveToOffset(myFixture.file.text.indexOf("M.f(q)") + "M.".length)
+
+        val lines = usageLinesAtCaret().map { it.substringAfter(": ") }
+
+        assertTrue("the capture: $lines", "def c, do: &M.f/2" in lines)
+        assertTrue("the key: $lines", "import M, only: [f: 2]" in lines)
+    }
+
+    /** A key or capture at an arity the definition does not cover names another function; one at an arity it covers is a use. */
+    fun testKeyAtAnotherFunctionsArityIsNotFound() {
+        myFixture.addFileToProject(
+            "m.ex",
+            "defmodule M do\n  def f(q, x \\\\ nil), do: {q, x}\n  def f(a, b, c), do: {a, b, c}\nend\n"
+        )
+        myFixture.configureByText(
+            "caller.ex",
+            "defmodule Caller do\n  import M, only: [f: 3]\n\n  def a(q), do: M.<caret>f(q, 1)\n" +
+                "  def b, do: &M.f/3\n  def c, do: &M.f/1\nend\n"
+        )
+
+        val lines = usageLinesAtCaret().map { it.substringAfter(": ") }
+
+        assertTrue("the f/1 capture: $lines", "def c, do: &M.f/1" in lines)
+        assertFalse("the f/3 key: $lines", "import M, only: [f: 3]" in lines)
+        assertFalse("the f/3 capture: $lines", "def b, do: &M.f/3" in lines)
+    }
+
     /** `def` is a call to `Kernel.def/2`, so its keyword is a use of it, as a `defdelegate` keyword is of its macro. */
     fun testDefKeywordIsAUseOfKernelDef() {
         myFixture.addFileToProject("use.ex", "defmodule Use do\n  def run(x), do: x\nend\n")
@@ -375,6 +416,24 @@ class FunctionFindUsagesTest : PlatformTestCase() {
         val lines = usageLinesAtCaret().map { it.substringAfter(": ") }
 
         assertTrue("the local call: $lines", "def run, do: log_template(a: 1)" in lines)
+    }
+
+    private fun defaults() {
+        myFixture.addFileToProject("m.ex", "defmodule M do\n  def f(q, x \\\\ nil), do: {q, x}\nend\n")
+        myFixture.configureByText(
+            "caller.ex",
+            """
+            defmodule Caller do
+              import M, only: [f: 1]
+              import M, only: [f: 2]
+
+              def a(q), do: M.f(q, 1)
+              def b, do: &M.f/1
+              def c, do: &M.f/2
+              def d(q), do: M.f(q)
+            end
+            """.trimIndent() + "\n"
+        )
     }
 
     private fun eex() {

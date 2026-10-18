@@ -96,6 +96,10 @@ class RenameMatrixTest : PlatformTestCase() {
     fun testFunctionDefaultArgs() =
         doTestFromEveryOccurrence("function_default_args", "renamee", "fresh", expectedCarets = 3)
 
+    /** A capture and an `only:` key at either arity of a def with a default argument rename with its calls. */
+    fun testFunctionDefaultArgsCaptureAndKey() =
+        doTestFromEveryOccurrence("function_default_args_capture_key", "renamee", "fresh", expectedCarets = 6)
+
     /**
      * Two same-named functions of different arity are DIFFERENT symbols: renaming from a
      * `renamee/1` occurrence (spec, def, call) must leave `renamee/2` untouched, and renaming

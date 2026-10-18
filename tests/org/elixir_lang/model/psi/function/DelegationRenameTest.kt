@@ -60,6 +60,41 @@ class DelegationRenameTest : PlatformTestCase() {
             "Facade.sn|oc"
         )
 
+    /**
+     * Without `as:`, an import key and a capture of the delegation name its target by the same name, so they rename with
+     * it, from the target, the head or any use, for a function and a protocol function alike.
+     */
+    fun testRenameWithoutAsRenamesTheDelegationsImportKeyAndCapture() {
+        for ((text, target) in listOf(KEY_AND_CAPTURE to "T", KEY_AND_CAPTURE_PROTOCOL to "P")) {
+            assertRenamesFrom(
+                text,
+                text.replace("snoc", "cons"),
+                "def sn|oc(t)",
+                "defdelegate sn|oc",
+                "[sn|oc: 1]",
+                "do: sn|oc(x)",
+                "&Facade.sn|oc/1",
+                "&$target.sn|oc/1"
+            )
+        }
+    }
+
+    /** From a function, a delegation's import key and capture are uses, as its head and calls are. */
+    fun testFindUsagesFromAFunctionListsTheDelegationsImportKeyAndCapture() {
+        myFixture.configureByText("t.ex", KEY_AND_CAPTURE)
+        myFixture.editor.caretModel.moveToOffset(KEY_AND_CAPTURE.indexOf("def snoc") + 5)
+
+        assertEquals(listOf(2, 6, 10, 11, 12, 13), usageLines())
+    }
+
+    /** From a protocol function, its own capture and a delegation's import key and capture are uses. */
+    fun testFindUsagesFromAProtocolFunctionListsTheDelegationsImportKeyAndCaptures() {
+        myFixture.configureByText("p.ex", KEY_AND_CAPTURE_PROTOCOL)
+        myFixture.editor.caretModel.moveToOffset(KEY_AND_CAPTURE_PROTOCOL.indexOf("def snoc") + 5)
+
+        assertEquals(listOf(2, 6, 10, 14, 15, 16, 17), usageLines())
+    }
+
     /** From the protocol function, the head of a delegation to it without `as:` is a use, as it is of a function. */
     fun testFindUsagesFromAProtocolFunctionListsTheDelegationsHead() {
         myFixture.configureByText("p.ex", PROTOCOL)
@@ -271,6 +306,19 @@ class DelegationRenameTest : PlatformTestCase() {
         const val SAME_NAME_AS_PROTOCOL =
             "defprotocol P do\n  def snoc(t)\nend\n\n" +
                 "defmodule Facade do\n  defdelegate snoc(t), to: P, as: :snoc\n  def facade_use(x), do: Facade.snoc(x)\nend\n"
+
+        const val KEY_AND_CAPTURE =
+            "defmodule T do\n  def snoc(t), do: t\nend\n\n" +
+                "defmodule Facade do\n  defdelegate snoc(t), to: T\nend\n\n" +
+                "defmodule User do\n  import Facade, only: [snoc: 1]\n  def call(x), do: snoc(x)\n" +
+                "  def capture, do: &Facade.snoc/1\n  def direct, do: &T.snoc/1\nend\n"
+
+        const val KEY_AND_CAPTURE_PROTOCOL =
+            "defprotocol P do\n  def snoc(t)\nend\n\n" +
+                "defimpl P, for: Integer do\n  def snoc(t), do: t\nend\n\n" +
+                "defmodule Facade do\n  defdelegate snoc(t), to: P\nend\n\n" +
+                "defmodule User do\n  import Facade, only: [snoc: 1]\n  def call(x), do: snoc(x)\n" +
+                "  def capture, do: &Facade.snoc/1\n  def direct, do: &P.snoc/1\nend\n"
 
         const val PROTOCOL =
             "defprotocol P do\n  def snoc(t)\nend\n\n" +

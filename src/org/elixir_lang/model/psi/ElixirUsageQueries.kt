@@ -418,8 +418,10 @@ internal object ElixirUsageQueries {
                 protocolFunction in UseSymbols.symbols(definition, protocolFunction.name, protocolFunction.arity)
             }
 
-            keywordKeyUsage(leaf, protocolFunction.name, protocolFunction.arity) { definition, _ -> isProtocolFunctions(definition) }
+            keywordKeyUsage(leaf) { definition, _ -> isProtocolFunctions(definition) }
                 ?.let { return listOf(it) }
+
+            captureUsage(leaf) { definition, _ -> isProtocolFunctions(definition) }?.let { return listOf(it) }
 
             val call = leaf.enclosingCalls().firstOrNull() ?: return emptyList()
             if (DeclaringForm.named(call) != null) return emptyList()
@@ -927,10 +929,11 @@ internal object ElixirUsageQueries {
 
             atomUsage(leaf, symbol)?.let { return listOf(it) }
 
-            keywordKeyUsage(leaf, symbol.name, symbol.arity) { definition, key -> FunctionSymbol.matches(definition, symbol, key) }
+            keywordKeyUsage(leaf) { definition, key -> FunctionSymbol.matches(definition, symbol, key) }
                 ?.let { return listOf(it) }
 
-            captureUsage(leaf, symbol)?.let { return listOf(it) }
+            captureUsage(leaf) { definition, capture -> FunctionSymbol.matches(definition, symbol, capture) }
+                ?.let { return listOf(it) }
 
             heexComponentTagUsage(leaf, offsetInLeaf, symbol)?.let { return listOf(it) }
 
@@ -1048,38 +1051,6 @@ internal object ElixirUsageQueries {
                 usageTextByName = { newName -> "$prefix$newName" }
             )
         }
-        /**
-         * If [leaf] is the captured NAME of a `&name/arity` or `&Mod.name/arity` capture that
-         * resolves to [symbol], the name occurrence, else `null`. The bare name inside a capture
-         * classifies as a variable to the [Callable] scope-walker (so the generic call-site path
-         * below cannot resolve it).
-         */
-        @RequiresReadLock
-        private fun captureUsage(leaf: PsiElement, symbol: FunctionSymbol): PsiUsage? {
-            val capture = generateSequence(leaf) { it.parent }
-                .takeWhile { it !is PsiFile }
-                .filterIsInstance<CaptureNonNumeric>()
-                .firstOrNull() ?: return null
-            val reference = capture.reference as? CaptureNameArity ?: return null
-
-            // Only the captured name is a usage - not the `/arity` digits, and for a qualified
-            // capture not the `Mod.` qualifier (CaptureNameArity's range is the name alone).
-            val absoluteNameRange = reference.rangeInElement.shiftRight(capture.textRange.startOffset)
-            if (!absoluteNameRange.contains(leaf.textRange)) return null
-            if (reference.arity != symbol.arity) return null
-
-            val matches = definitions(Use.capture(reference.nameElement, reference.arity))
-                .any { FunctionSymbol.matches(it, symbol, capture) }
-            if (!matches) return null
-
-            return ElixirPsiUsage.create(
-                capture,
-                reference.rangeInElement,
-                declaration = false,
-                usageType = CALL
-            )
-        }
-
         @RequiresReadLock
         private fun specUsage(call: Call, symbol: FunctionSymbol): PsiUsage? {
             val moduleAttribute = call.enclosingSpecAttributeIfHead() ?: return null
@@ -1098,26 +1069,50 @@ internal object ElixirUsageQueries {
     }
 
     /**
-     * The key at [leaf] when it names a function of [name] and [arity] whose definitions [matches] accepts, at that key.
-     * A `defoverridable` key names a callback, which the callback's search finds.
+     * The key at [leaf] when [matches] accepts one of the definitions it names, or one a delegation among them calls by
+     * the same name, at that key. A `defoverridable` key names a callback, which the callback's search finds.
      */
     @RequiresReadLock
-    private fun keywordKeyUsage(
-        leaf: PsiElement,
-        name: String,
-        arity: Int,
-        matches: (definition: PsiElement, key: PsiElement) -> Boolean
-    ): PsiUsage? {
+    private fun keywordKeyUsage(leaf: PsiElement, matches: (definition: PsiElement, key: PsiElement) -> Boolean): PsiUsage? {
         val occurrence = FunctionArityKeywordPair.at(leaf) ?: return null
         if (occurrence.host == FunctionArityKeywordPair.Host.DEFOVERRIDABLE) return null
-        if (occurrence.name != name || occurrence.arity != arity) return null
 
         val key = occurrence.pair.keywordKey
-        if (FunctionArityKeywordPairReference.named(occurrence).none { matches(it, key) }) return null
+        val named = FunctionArityKeywordPairReference.named(occurrence)
+        val called = named + named.filterIsInstance<Call>().flatMap(UseSymbols::definitionsCalledThrough)
+        if (called.none { matches(it, key) }) return null
 
         return ElixirPsiUsage.create(
             key,
             TextRange(0, key.textLength),
+            declaration = false,
+            usageType = CALL
+        )
+    }
+
+    /**
+     * If [leaf] is the captured name of a `&name/arity` or `&Mod.name/arity` capture whose definitions include one
+     * [matches] accepts at that capture, the name occurrence, else `null`. The bare name inside a capture classifies as a
+     * variable to the [Callable] scope-walker, so the generic call-site path cannot resolve it.
+     */
+    @RequiresReadLock
+    private fun captureUsage(leaf: PsiElement, matches: (definition: PsiElement, capture: PsiElement) -> Boolean): PsiUsage? {
+        val capture = generateSequence(leaf) { it.parent }
+            .takeWhile { it !is PsiFile }
+            .filterIsInstance<CaptureNonNumeric>()
+            .firstOrNull() ?: return null
+        val reference = capture.reference as? CaptureNameArity ?: return null
+
+        // Only the captured name is a usage - not the `/arity` digits, and for a qualified
+        // capture not the `Mod.` qualifier (CaptureNameArity's range is the name alone).
+        val absoluteNameRange = reference.rangeInElement.shiftRight(capture.textRange.startOffset)
+        if (!absoluteNameRange.contains(leaf.textRange)) return null
+
+        if (definitions(Use.capture(reference.nameElement, reference.arity)).none { matches(it, capture) }) return null
+
+        return ElixirPsiUsage.create(
+            capture,
+            reference.rangeInElement,
             declaration = false,
             usageType = CALL
         )
