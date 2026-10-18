@@ -33,6 +33,7 @@ import com.intellij.util.UniqueResultsQuery
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.declaration.Feature
+import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.heex.HeexLanguage
@@ -74,6 +75,7 @@ import org.elixir_lang.psi.impl.identifierTextRange
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.scope.ancestorTypeSpec
+import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.reference.Callable
 import org.elixir_lang.reference.CaptureNameArity
 import org.elixir_lang.reference.resolver.Callable as CallableResolver
@@ -543,7 +545,10 @@ internal object ElixirUsageQueries {
         searchScope: SearchScope
     ): Query<out PsiUsage> {
         val mapper = FunctionCallSiteMapper(symbol.createPointer())
-        val calls = wordQuery(project, symbol.name, searchScope, mapper, injections = true)
+        val calls = MergeQuery(
+            wordQuery(project, symbol.name, searchScope, mapper, injections = true),
+            wordQuery(project, symbol.name, searchScope, DelegationHeadMapper(symbol.createPointer()))
+        )
         // The decoded search cannot reach `<.src_µ>` or a call in a documentation code block, and lists every other use
         // itself, so these find those two only.
         val unreached = FunctionCallSiteMapper(symbol.createPointer(), unreachedOnly = true)
@@ -875,6 +880,25 @@ internal object ElixirUsageQueries {
         }
     }
 
+    /** Maps a name a delegation writes to a call of the Symbol searched for, when its head names it: [UseSymbols.namingByHead]. */
+    private class DelegationHeadMapper(private val symbolPointer: Pointer<out FunctionSymbol>) : WordOccurrenceMapper<PsiUsage> {
+        @RequiresReadLock
+        override fun map(leaf: PsiElement, offsetInLeaf: Int): Collection<PsiUsage> {
+            val symbol = symbolPointer.dereference() ?: return emptyList()
+            val delegation = UseSymbols.namingByHead(leaf, symbol) ?: return emptyList()
+            val nameIdentifier = DeclaringForm.names(delegation, Form.DELEGATION).singleOrNull() ?: return emptyList()
+
+            return listOf(
+                ElixirPsiUsage.create(
+                    nameIdentifier,
+                    TextRange(0, nameIdentifier.textLength),
+                    declaration = false,
+                    usageType = CALL
+                )
+            )
+        }
+    }
+
     /**
      * Maps each occurrence of a function name to a **call site** for the given [FunctionSymbol].
      *
@@ -904,8 +928,8 @@ internal object ElixirUsageQueries {
             embeddedCallUsage(leaf, offsetInLeaf, symbol)?.let { return listOf(it) }
 
             val call = leaf.enclosingCalls().firstOrNull() ?: return emptyList()
-            // Skip definition heads/clauses - they are declarations, not call sites.
-            if (CallDefinitionClause.isHead(call) || CallDefinitionClause.`is`(call)) return emptyList()
+            // A name a declaring form writes declares; the form's own keyword is a call of its macro.
+            if (DeclaringForm.named(call) != null) return emptyList()
 
             val nameElement = call.functionNameElement() ?: return emptyList()
             if (!PsiTreeUtil.isAncestor(nameElement, leaf, false)) return emptyList()
@@ -970,7 +994,7 @@ internal object ElixirUsageQueries {
             // findChildrenOfType expands the lazily parsed Elixir root; a raw findElementAt can
             // return the unexpanded chameleon node.
             val call = PsiTreeUtil.findChildrenOfType(elixirRoot, Call::class.java)
-                .filterNot { CallDefinitionClause.isHead(it) || CallDefinitionClause.`is`(it) }
+                .filterNot { DeclaringForm.named(it) != null }
                 .firstOrNull { candidate ->
                     candidate.functionNameElement()?.textRange?.contains(absoluteOffset) == true
                 } ?: return null

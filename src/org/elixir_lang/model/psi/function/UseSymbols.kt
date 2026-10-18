@@ -101,13 +101,13 @@ internal object UseSymbols {
      * at what the head passes on.
      */
     @RequiresReadLock
-    fun delegatedTo(delegation: Call): List<Symbol> {
-        val use = headUse(delegation) ?: return emptyList()
-        val paired = atItsHead(delegation, use, Feature.SYMBOL_REFERENCES) ?: return emptyList()
-        val passed = passed(paired, use)
+    fun delegatedTo(delegation: Call): List<Symbol> =
+        delegated(delegation)?.let { (found, passed) -> found.flatMap { symbols(it, passed) } }.orEmpty()
 
-        return paired.directlyDelegatedTo.flatMap { symbols(it, passed) }
-    }
+    /** The Symbols [delegation]'s head names besides its own: with no `as:`, it calls each target by the head's name. */
+    @RequiresReadLock
+    fun namedByHead(delegation: Call): List<Symbol> =
+        if (Delegation.headKeepsTargetName(delegation)) delegatedTo(delegation) else emptyList()
 
     /** What [delegation] calls, as `T.f/1`, when it delegates to nothing that takes what its head passes on. */
     @RequiresReadLock
@@ -118,6 +118,36 @@ internal object UseSymbols {
         val passed = atItsHead(delegation, use, Feature.SYMBOL_REFERENCES)?.let { passed(it, use) } ?: use.arity
 
         return Delegation.fromCall(delegation)?.to()?.let { "$it.${use.name}/$passed" }
+    }
+
+    /**
+     * The delegation whose name [leaf] is, when its head names [symbol], directly or down a chain of delegations without
+     * `as:`: [namedByHead] read the other way, at one occurrence of [symbol]'s name.
+     */
+    @RequiresReadLock
+    fun namingByHead(leaf: PsiElement, symbol: FunctionSymbol): Call? {
+        val delegation = DeclaringForm.named(leaf)?.takeIf { it.form == Form.DELEGATION }?.call ?: return null
+        val named = definitionsNamedByHead(delegation).flatMap { definition ->
+            reachable(definition) { next ->
+                (next as? Call)?.takeIf { Delegation.`is`(it) }?.let(::definitionsNamedByHead).orEmpty()
+            }
+        }
+
+        return delegation.takeIf { named.any { definition -> FunctionSymbol.matches(definition, symbol, leaf) } }
+    }
+
+    /** The definitions [namedByHead]'s Symbols are made from. */
+    @RequiresReadLock
+    fun definitionsNamedByHead(delegation: Call): List<PsiElement> =
+        if (Delegation.headKeepsTargetName(delegation)) delegated(delegation)?.first.orEmpty().map { it.element } else emptyList()
+
+    /** What the step finds [delegation] delegating to at the use its head is, with the arity the head passes on. */
+    @RequiresReadLock
+    private fun delegated(delegation: Call): Pair<List<Found>, Int>? {
+        val use = headUse(delegation) ?: return null
+        val paired = atItsHead(delegation, use, Feature.SYMBOL_REFERENCES) ?: return null
+
+        return paired.directlyDelegatedTo to passed(paired, use)
     }
 
     /** The use [delegation]'s head is, `null` where it names nothing. */

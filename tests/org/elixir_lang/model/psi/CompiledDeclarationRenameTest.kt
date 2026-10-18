@@ -5,9 +5,11 @@ import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.testFramework.common.runAll
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
+import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetsAtCaret
 import java.io.File
 
+@Suppress("UnstableApiUsage")
 class CompiledDeclarationRenameTest : PlatformTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/documentation/erlang_atom_qualifier_hover"
 
@@ -39,6 +41,22 @@ class CompiledDeclarationRenameTest : PlatformTestCase() {
               def run, do: :queue.new()
             end
             """
+        )
+    }
+
+    /** From a compiled function, a delegation without `as:` whose head has defaults is a use at the arity it passes on. */
+    fun testFindUsagesFromACompiledFunctionListsADelegationWithDefaults() {
+        myFixture.configureByText(
+            "facade.ex",
+            "defmodule Facade do\n  defdelegate eval_string(s, b \\\\ []), to: Code\n  def run, do: Code.eval_<caret>string(\"1\", [])\nend\n"
+        )
+        val text = myFixture.file.text
+
+        val usages = myFixture.psiUsagesAtCaret(project)
+
+        assertTrue(
+            "the delegation's head: $usages",
+            usages.any { it.file == myFixture.file && text.substring(it.range.startOffset).startsWith("eval_string(s, b") }
         )
     }
 

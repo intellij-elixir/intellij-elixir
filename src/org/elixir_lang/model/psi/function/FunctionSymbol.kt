@@ -165,13 +165,12 @@ class FunctionSymbol(
         (reachable<ElixirSymbolWithUsages>(this) { (it as? FunctionSymbol)?.renamedDirectlyWith().orEmpty() } - this).toList()
 
     @RequiresReadLock
-    private fun renamedDirectlyWith(): List<ElixirSymbolWithUsages> =
-        implementedMembers() +
-            anchor()
-                ?.call
-                ?.takeIf { Delegation.headKeepsTargetName(it) }
-                ?.let { UseSymbols.delegatedTo(it).filterIsInstance<ElixirSymbolWithUsages>() }
-                .orEmpty()
+    private fun renamedDirectlyWith(): List<ElixirSymbolWithUsages> = implementedMembers() + namedByHead()
+
+    /** The Symbols the head this Symbol is declared by names besides it: [UseSymbols.namedByHead]. */
+    @RequiresReadLock
+    fun namedByHead(): List<ElixirSymbolWithUsages> =
+        anchor()?.call?.let(UseSymbols::namedByHead).orEmpty().filterIsInstance<ElixirSymbolWithUsages>()
 
     /**
      * A delegation without `as:` calls its target by its head's name, so renaming the head without the target breaks it

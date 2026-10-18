@@ -28,6 +28,27 @@ class DelegationRenameTest : PlatformTestCase() {
     fun testFindUsagesWithoutAs() =
         assertEveryOccurrence { caret -> assertEquals(caret, listOf(2, 3, 7, 8), usageLines()) }
 
+    /** A target with defaults is declared at its lowest arity, and the head without `as:` still names it. */
+    fun testFindUsagesFromATargetWithDefaults() {
+        myFixture.configureByText("m.ex", DEFAULTS)
+        myFixture.editor.caretModel.moveToOffset(DEFAULTS.indexOf("def renamee") + 5)
+
+        assertEquals(listOf(2, 6, 7), usageLines())
+    }
+
+    fun testRenameFromATargetWithDefaults() {
+        myFixture.configureByText("m.ex", DEFAULTS)
+        myFixture.editor.caretModel.moveToOffset(DEFAULTS.indexOf("def renamee") + 5)
+
+        myFixture.renameTargetAtCaret("fresh")
+
+        assertEquals(DEFAULTS.replace("renamee", "fresh"), myFixture.file.text)
+    }
+
+    /** From the delegation's head or a call of it, the target with defaults renames with it, and no `as:` is added. */
+    fun testRenameFromADelegationToATargetWithDefaults() =
+        assertRenamesFrom(DEFAULTS, DEFAULTS.replace("renamee", "cons"), "defdelegate ren|amee", "M.ren|amee")
+
     fun testRenameFromTheHeadWithAs() {
         myFixture.configureByText("m.ex", WITH_AS)
         myFixture.editor.caretModel.moveToOffset(WITH_AS.indexOf("renamee") + 1)
@@ -119,6 +140,29 @@ class DelegationRenameTest : PlatformTestCase() {
         assertEquals(text, myFixture.file.text)
     }
 
+    /**
+     * Renames from each caret in a fresh copy of [text], to `y` at a caret on `x` and to `cons` otherwise, and asserts
+     * the result is [after]. A caret is written as the text around it, with `|` where it goes.
+     */
+    private fun assertRenamesFrom(
+        text: String,
+        after: String,
+        vararg carets: String = arrayOf("defdelegate sn|oc", "M.sn|oc")
+    ) {
+        carets.forEachIndexed { index, caret ->
+            myFixture.configureByText("from$index.ex", text)
+            val virtualFile = myFixture.file.virtualFile
+            myFixture.editor.caretModel.moveToOffset(text.indexOf(caret.replace("|", "")) + caret.indexOf('|'))
+
+            try {
+                myFixture.renameTargetAtCaret(if ("x|" in caret) "y" else "cons")
+                assertEquals("from `$caret`", after, myFixture.file.text)
+            } finally {
+                WriteCommandAction.runWriteCommandAction(project) { virtualFile.delete(this) }
+            }
+        }
+    }
+
     /** Runs [check] with the caret on each occurrence of `renamee` in a fresh copy of [WITHOUT_AS]. */
     private fun assertEveryOccurrence(check: (caret: String) -> Unit) {
         val text = WITHOUT_AS
@@ -144,6 +188,10 @@ class DelegationRenameTest : PlatformTestCase() {
         const val WITHOUT_AS =
             "defmodule T do\n  def renamee(x), do: x\n  def t_use, do: T.renamee(1)\nend\n\n" +
                 "defmodule M do\n  defdelegate renamee(x), to: T\n  def m_use, do: M.renamee(1)\nend\n"
+
+        const val DEFAULTS =
+            "defmodule T do\n  def renamee(a, b \\\\ nil), do: {a, b}\nend\n\n" +
+                "defmodule M do\n  defdelegate renamee(a, b \\\\ nil), to: T\n  def m_use, do: M.renamee(1)\nend\n"
 
         const val WRONG_ARITY =
             "defmodule T do\n  def d(a, b), do: {a, b}\n  def t_use, do: T.d(1, 2)\nend\n\n" +

@@ -184,6 +184,16 @@ class FunctionFindUsagesTest : PlatformTestCase() {
         assertEquals(fromHead, fromSpec)
     }
 
+    /** `def` is a call to `Kernel.def/2`, so its keyword is a use of it, as a `defdelegate` keyword is of its macro. */
+    fun testDefKeywordIsAUseOfKernelDef() {
+        myFixture.addFileToProject("use.ex", "defmodule Use do\n  def run(x), do: x\nend\n")
+        myFixture.configureByText("kernel.ex", "defmodule Kernel do\n  defmacro <caret>def(call, expr), do: {call, expr}\nend\n")
+
+        val lines = usageLinesAtCaret()
+
+        assertTrue("the def keyword: $lines", lines.any { it.startsWith("use.ex:") && it.endsWith("def run(x), do: x") })
+    }
+
     @Suppress("UnstableApiUsage")
     private fun usageLinesAtCaret(): List<String> =
         myFixture.singleTargetPsiUsagesAtCaret(project)
