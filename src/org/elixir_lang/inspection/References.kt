@@ -8,8 +8,16 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.PsiReference
+import com.intellij.psi.ResolveResult
+import org.elixir_lang.declaration.Feature
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.reference.CallDefinitionClause
+import org.elixir_lang.reference.Callable
+import org.elixir_lang.reference.CaptureNameArity
+import org.elixir_lang.reference.resolver.CallDefinitionClause as CallDefinitionClauseResolver
+import org.elixir_lang.reference.resolver.Callable as CallableResolver
+import org.elixir_lang.reference.resolver.CaptureNameArity as CaptureNameArityResolver
 
 class References : LocalInspectionTool() {
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean, session: LocalInspectionToolSession): PsiElementVisitor {
@@ -95,7 +103,7 @@ class References : LocalInspectionTool() {
             }
 
             private fun registerProblem(element: PsiElement, reference: PsiPolyVariantReference) {
-                val resolveResults = reference.multiResolve(false)
+                val resolveResults = results(reference)
 
                 if (resolveResults.isEmpty()) {
                     holder.registerProblem(element, "Does not resolve to anything", ProblemHighlightType.ERROR)
@@ -103,6 +111,16 @@ class References : LocalInspectionTool() {
                     holder.registerProblem(element, "Only resolves to invalid results", ProblemHighlightType.ERROR)
                 }
             }
+
+            /** What [reference] resolves to, a call's candidates read from the source this inspection is given. */
+            private fun results(reference: PsiPolyVariantReference): List<ResolveResult> =
+                when (reference) {
+                    is Callable -> CallableResolver.answer(reference.element, false, Feature.REFERENCES_INSPECTION)
+                    is CaptureNameArity -> CaptureNameArityResolver.answer(reference, false, Feature.REFERENCES_INSPECTION)
+                    is CallDefinitionClause ->
+                        CallDefinitionClauseResolver.answer(reference, false, Feature.REFERENCES_INSPECTION)
+                    else -> null
+                }?.results() ?: reference.multiResolve(false).toList()
 
             private fun expectOnlyInvalid(element: PsiElement): Boolean =
                     when (element) {

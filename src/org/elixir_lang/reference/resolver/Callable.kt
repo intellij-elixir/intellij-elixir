@@ -17,6 +17,7 @@ import org.elixir_lang.Arity
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Resolved
+import org.elixir_lang.declaration.Use as DeclarationUse
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
@@ -39,10 +40,16 @@ object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Cal
     }
 
     /**
-     * What a call resolves to before `multiResolve` gives one result per element; [bound] is whether a valid variable
-     * binds its name.
+     * What a call, a capture or a `@spec` head resolves to before `multiResolve` gives one result per element; [bound]
+     * is whether a valid variable binds its name. [use] is what the projection was read for, `null` where the call
+     * names nothing.
      */
-    class Answer(val variables: List<ResolveResult>, val bound: Boolean, val projection: List<Found>) {
+    class Answer(
+        val variables: List<ResolveResult>,
+        val bound: Boolean,
+        val projection: List<Found>,
+        val use: DeclarationUse?
+    ) {
         /** The variables, then one result per declaring element. */
         @RequiresReadLock
         fun results(): List<ResolveResult> = variables + Resolved.results(projection)
@@ -53,11 +60,10 @@ object Callable : ResolveCache.PolyVariantResolver<org.elixir_lang.reference.Cal
     fun answer(call: Call, incompleteCode: Boolean, feature: Feature = Feature.SYMBOL_REFERENCES): Answer {
         val variables = variables(call, incompleteCode)
         val bound = bound(variables)
-        val projection = org.elixir_lang.declaration.Use.of(call)
-            ?.let { Resolved.projection(it, incompleteCode, bound, feature) }
-            .orEmpty()
+        val use = DeclarationUse.of(call)
+        val projection = use?.let { Resolved.projection(it, incompleteCode, bound, feature) }.orEmpty()
 
-        return Answer(variables, bound, projection)
+        return Answer(variables, bound, projection, use)
     }
 
     /** Whether a valid variable binds [call]'s name, which then names the variable and no function. */
