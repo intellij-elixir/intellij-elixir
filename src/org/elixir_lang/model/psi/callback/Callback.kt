@@ -92,6 +92,8 @@ class Callback(
             .icon(AllIcons.Nodes.AbstractMethod)
             .presentation()
 
+    override fun newNameRefusal(newName: String): String? = FunctionSymbol.nameRefusal(newName)
+
     @RequiresReadLock
     override fun renameClosure(): RenameClosure = FunctionSymbol.renameClosure(this)
 

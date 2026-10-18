@@ -17,6 +17,7 @@ import com.intellij.psi.SmartPointerManager
 import com.intellij.psi.search.SearchScope
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.code.InspectAtom
 import org.elixir_lang.declaration.Capabilities
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Presentation
@@ -184,6 +185,8 @@ class FunctionSymbol(
             ?.takeIf { Delegation.asOffset(it) == null }
             ?.let { "its options are not a keyword list, so `as:` cannot be added" }
 
+    override fun newNameRefusal(newName: String): String? = nameRefusal(newName)
+
     /**
      * An embed's or `defexception`'s call does not write the function's name, an EEx function's calls through an
      * `import` and its `only:` keys are not found as its uses, and a function a `quote` injects is called in modules
@@ -304,6 +307,14 @@ class FunctionSymbol(
                 return answer
             }
         }
+
+        /** Why `def name(...)` cannot take [newName] unquoted, or `null` when it can. */
+        fun nameRefusal(newName: String): String? =
+            when {
+                newName.isEmpty() -> "A function name can't be empty"
+                InspectAtom.localCall(newName) == newName -> null
+                else -> "$newName is not a function name"
+            }
 
         /** Whether a declaration with [capabilities] is presented as a macro: a guard is, as it is expanded at compile time. */
         fun isMacro(capabilities: Capabilities): Boolean =

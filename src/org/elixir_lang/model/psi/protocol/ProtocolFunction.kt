@@ -103,6 +103,8 @@ class ProtocolFunction(
     @RequiresReadLock
     fun matches(definition: PsiElement): Boolean = this in UseSymbols.symbols(definition, name, arity)
 
+    override fun newNameRefusal(newName: String): String? = FunctionSymbol.nameRefusal(newName)
+
     @RequiresReadLock
     override fun renameClosure(): RenameClosure = FunctionSymbol.renameClosure(this)
 
