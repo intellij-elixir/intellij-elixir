@@ -9,6 +9,7 @@ import com.intellij.psi.PsiElementVisitor
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.PsiReference
 import com.intellij.psi.ResolveResult
+import org.elixir_lang.annotator.Injection
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
@@ -21,6 +22,8 @@ import org.elixir_lang.reference.resolver.CaptureNameArity as CaptureNameArityRe
 
 class References : LocalInspectionTool() {
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean, session: LocalInspectionToolSession): PsiElementVisitor {
+        if (Injection.of(holder.file) == Injection.UNCOMPILED) return PsiElementVisitor.EMPTY_VISITOR
+
         return object : ElixirVisitor() {
             override fun visitElement(element: PsiElement) {
                 when (element) {
