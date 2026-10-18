@@ -42,7 +42,7 @@ internal object UseSymbols {
     @RequiresReadLock
     fun of(use: Use.OfCall?): List<Symbol> =
         when (use) {
-            is Use.Named -> of(use, remote = use.entrance is Qualified) { use.arity }
+            is Use.Named -> of(use, remote(use)) { use.arity }
             is Use.AnyName, null -> emptyList()
         }
 
@@ -50,7 +50,7 @@ internal object UseSymbols {
     @RequiresReadLock
     fun of(use: Use.Specified?): List<Symbol> =
         use?.let { specified ->
-            of(specified, remote = false) { found -> headArity(found.candidate.declaration) ?: specified.arity }
+            of(specified, remote(specified)) { found -> headArity(found.candidate.declaration) ?: specified.arity }
         }.orEmpty()
 
     @RequiresReadLock
@@ -62,6 +62,12 @@ internal object UseSymbols {
             ?.map(::NearMiss)
             ?: admitted(found, arity)
     }
+
+    /**
+     * Whether [use] reaches a module from outside it, as a qualified call or an MFA atom does: it then reaches only
+     * what the module exports, where a local call or a `@spec` reaches every function it holds.
+     */
+    internal fun remote(use: Use): Boolean = use is Use.Remote || (use as? Use.OfCall)?.entrance is Qualified
 
     /** The Symbols of the candidates the step admits for [use], never a [NearMiss]: what a call site names. */
     @RequiresReadLock
@@ -80,7 +86,7 @@ internal object UseSymbols {
 
     /** Whether each `import` [found] was reached through brings it in at [arity]. */
     @RequiresReadLock
-    private fun admits(found: Found, arity: Int): Boolean {
+    internal fun admits(found: Found, arity: Int): Boolean {
         val declaration = found.candidate.declaration
 
         return found.via.filter { Import.`is`(it) }.all { importCall ->
@@ -115,10 +121,12 @@ internal object UseSymbols {
         return Delegation.fromCall(delegation)?.to()?.let { "$it.${use.name}/$passed" }
     }
 
-    private fun headUse(delegation: Call): Use.Named? = (Delegation.head(delegation) as? Call)?.let(Use::of) as? Use.Named
+    /** The use [delegation]'s head is, `null` where it names nothing. */
+    @RequiresReadLock
+    internal fun headUse(delegation: Call): Use.Named? = (Delegation.head(delegation) as? Call)?.let(Use::of) as? Use.Named
 
     /** The arity [use], a delegation's head, calls its target at. */
-    private fun passed(paired: Preferred, use: Use.Named): Int = paired.found.candidate.declaration.arity.passed() ?: use.arity
+    internal fun passed(paired: Preferred, use: Use.Named): Int = paired.found.candidate.declaration.arity.passed() ?: use.arity
 
     @RequiresReadLock
     private fun symbols(found: Found, arity: Int): List<Symbol> {

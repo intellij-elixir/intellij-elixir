@@ -183,7 +183,7 @@ class ModuleBodyThroughBlocksTest : PlatformTestCase() {
     private fun fetchModuleDocs(body: String): FetchedDocs? {
         myFixture.configureByText("m.ex", "defmodule <caret>M do\n  $body\nend\n")
 
-        return SourceFileDocsHelper.fetchDocs(myFixture.enclosingCallAtCaret { Module.`is`(it) }!!)
+        return SourceFileDocsHelper.fetchDocs(myFixture.enclosingCallAtCaret { Module.`is`(it) }!!, remote = true)
     }
 
     fun testSpecFindsDefTypedIntoIfAfterAsking() {
@@ -213,9 +213,9 @@ class ModuleBodyThroughBlocksTest : PlatformTestCase() {
     private fun assertDocHeads(count: Int, body: String) {
         configureInModule(body)
 
-        val docs = SourceFileDocsHelper.fetchDocs(myFixture.enclosingCallAtCaret { CallDefinitionClause.`is`(it) }!!)
+        val docs = SourceFileDocsHelper.fetchDocs(myFixture.enclosingCallAtCaret { CallDefinitionClause.`is`(it) }!!, remote = true)
 
-        assertEquals(count, assertInstanceOf(docs, FetchedDocs.FunctionOrMacroDocumentation::class.java).heads.size)
+        assertEquals(count, assertInstanceOf(docs, FetchedDocs.Arities::class.java).entries.sumOf { it.documentation.heads.size })
     }
 
     private fun assertCompileInlineFindsDef(body: String) {

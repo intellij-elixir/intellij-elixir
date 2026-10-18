@@ -164,6 +164,24 @@ class CollectDocCommentsTest : PlatformTestCase() {
         assertEquals(listOf("@doc \"Function\""), collectDocCommentTexts())
     }
 
+    /** A `@moduledoc` under an `if` in a module body documents that module, as a function's `@doc` there documents its function. */
+    fun testModuleDocumentationUnderAnIfIsOwnedByItsModule() {
+        myFixture.configureByText(
+            "conditional.ex",
+            """
+            defmodule Outer do
+              if Code.ensure_loaded?(Jason) do
+                @moduledoc "Conditional"
+              end
+            end
+            """.trimIndent()
+        )
+
+        val owner = collectDocComments().single().owner
+
+        assertTrue("Expected Outer's defmodule, got: ${owner?.text}", owner?.text?.startsWith("defmodule Outer") == true)
+    }
+
     fun testFunctionDocumentationIsCollectedInsideAnAnonymousFunctionInAModuleBody() {
         myFixture.configureByText(
             "generated.ex",
