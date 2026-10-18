@@ -648,6 +648,8 @@
 
 ### Threading / Platform Hygiene
 
+- [#4485](https://github.com/intellij-elixir/intellij-elixir/pull/4485) [@sh41](https://github.com/sh41)
+  - **The expander reads each definition's clauses, from a module's debug info or from source with the quotes they escape, and reads another module's on demand within their own memory bound; nothing uses it yet.** Refs [#4441](https://github.com/intellij-elixir/intellij-elixir/issues/4441).
 - [#4452](https://github.com/intellij-elixir/intellij-elixir/pull/4452) [@sh41](https://github.com/sh41)
   - **The expander answers which definitions a call can refer to and which names are visible where it is, from each file's own SDK; nothing uses it yet.** Fixes [#4446](https://github.com/intellij-elixir/intellij-elixir/issues/4446).
 - [#4429](https://github.com/intellij-elixir/intellij-elixir/pull/4429) [@sh41](https://github.com/sh41)
