@@ -49,7 +49,7 @@ internal object UseSymbols {
     @RequiresReadLock
     fun of(use: Use.OfCall?): List<Symbol> =
         when (use) {
-            is Use.Named -> of(use, remote(use)) { namedArity(it, use.arity) }
+            is Use.Named -> of(use, remote(use), use.entrance, use.name, use.arity) { namedArity(it, use.arity) }
             is Use.AnyName, null -> emptyList()
         }
 
@@ -57,7 +57,9 @@ internal object UseSymbols {
     @RequiresReadLock
     fun of(use: Use.Specified?): List<Symbol> =
         use?.let { specified ->
-            of(specified, remote(specified)) { found -> headArity(found.candidate.declaration) ?: specified.arity }
+            of(specified, remote(specified), specified.head, specified.name, specified.arity) { found ->
+                headArity(found.candidate.declaration) ?: specified.arity
+            }
         }.orEmpty()
 
     /** An MFA atom names one Symbol of each definition the step gives it, at the arity [namedArity] picks. */
@@ -82,13 +84,28 @@ internal object UseSymbols {
         return arity?.takeIf { it in interval } ?: headArity(declaration)
     }
 
+    /**
+     * What [use], written as [call] naming [name] at [useArity], names: each admitted candidate's Symbol at [arity], or
+     * near misses sharing one [WrongArityUse].
+     */
     @RequiresReadLock
-    private fun of(use: Use, remote: Boolean, arity: (Found) -> Int?): List<Symbol> {
+    private fun of(use: Use, remote: Boolean, call: Call, name: String, useArity: Int, arity: (Found) -> Int?): List<Symbol> {
         val found = step(use).map { it.found }
 
         return RejectedCall.named(found, Found::candidate, remote, ::admits)
-            ?.flatMap { named -> (named.arities.minOrNull() ?: named.from)?.let { symbols(named.candidate, it) }.orEmpty() }
-            ?.map(::NearMiss)
+            ?.let { named ->
+                val renameTarget = WrongArityUse.of(
+                    call.containingFile,
+                    call.functionNameElement()?.textRange ?: call.textRange,
+                    name,
+                    useArity,
+                    named.flatMap { it.arities },
+                    named.mapNotNull { it.from }
+                )
+
+                named.flatMap { (candidate, arities, from) -> (arities.minOrNull() ?: from)?.let { symbols(candidate, it) }.orEmpty() }
+                    .map { NearMiss(it, renameTarget) }
+            }
             ?: admitted(found, arity)
     }
 

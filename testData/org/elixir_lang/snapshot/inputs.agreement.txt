@@ -12,8 +12,8 @@ callback_impl.ex:6:14  (c)  psi  Module  `CallbackImpl`  callback_impl.ex:5:11 M
 callback_impl.ex:6:14  (c)  symbol  ModuleReference  `CallbackImpl`  callback_impl.ex:5:11 ModuleSymbol(CallbackImpl)'s usages miss it: callback_impl.ex:5:11
 capture.ex:3:47  (c)  psi  CaptureNameArity  `run`  capture.ex:2:7 FunctionSymbol(Capture.run/1, macro=false)'s usages miss it: capture.ex:2:7, capture.ex:3:23, capture.ex:3:39
 capture.ex:3:47  (c)  symbol  CaptureFunctionReference  `run`  capture.ex:2:7 FunctionSymbol(Capture.run/1, macro=false)'s usages miss it: capture.ex:2:7, capture.ex:3:23, capture.ex:3:39
-capture.ex:3:47  (d)  psi  CaptureNameArity  `run`  Rename offers {}, Find Usages {capture.ex:2:7 FunctionSymbol(Capture.run/1, macro=false)}
-capture.ex:3:47  (d)  symbol  CaptureFunctionReference  `run`  Rename offers {}, Find Usages {capture.ex:2:7 FunctionSymbol(Capture.run/1, macro=false)}
+capture.ex:3:47  (d)  psi  CaptureNameArity  `run`  Rename offers {capture.ex:3:47 WrongArityUse(run/2)}, Find Usages {capture.ex:2:7 FunctionSymbol(Capture.run/1, macro=false)}
+capture.ex:3:47  (d)  symbol  CaptureFunctionReference  `run`  Rename offers {capture.ex:3:47 WrongArityUse(run/2)}, Find Usages {capture.ex:2:7 FunctionSymbol(Capture.run/1, macro=false)}
 definitions.ex:9:38  (a)  psi  Reference  `__MODULE__`  resolves, but Find Usages has no target
 definitions.ex:25:42  (c)  psi  Module  `Definitions`  definitions.ex:1:11 ModuleSymbol(Definitions)'s usages miss it: definitions.ex:1:11, definitions.ex:25:29
 definitions.ex:25:42  (c)  symbol  ModuleReference  `Definitions`  definitions.ex:1:11 ModuleSymbol(Definitions)'s usages miss it: definitions.ex:1:11, definitions.ex:25:29

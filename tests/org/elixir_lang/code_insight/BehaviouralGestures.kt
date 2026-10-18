@@ -13,6 +13,7 @@ import com.intellij.find.usages.api.UsageOptions
 import com.intellij.find.usages.impl.AllSearchOptions
 import com.intellij.find.usages.impl.buildQuery
 import com.intellij.find.usages.impl.searchTargets
+import com.intellij.model.Symbol
 import com.intellij.model.psi.impl.targetSymbols
 import com.intellij.openapi.util.TextRange
 import com.intellij.refactoring.rename.api.PsiRenameUsage
@@ -22,6 +23,7 @@ import com.intellij.refactoring.rename.impl.RenameOptions
 import com.intellij.refactoring.rename.impl.TextOptions
 import com.intellij.refactoring.rename.impl.buildQuery
 import com.intellij.refactoring.rename.impl.prepareRename
+import com.intellij.refactoring.rename.symbol.RenameableSymbol
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.command.WriteCommandAction
@@ -467,8 +469,7 @@ fun CodeInsightTestFixture.searchTargetCountAtCaret(): Int =
  *
  * The rename target is resolved from the caret exactly as the platform's Symbol rename handler
  * resolves it: [targetSymbols] is the same resolution that feeds the `SYMBOLS` data key the
- * handler reads, and every renameable Elixir symbol implements
- * [com.intellij.refactoring.rename.api.RenameTarget] directly. The target is then handed to
+ * handler reads, each mapped by [renameTarget]. The target is then handed to
  * [CodeInsightTestFixture.renameTarget] - the platform's test entry point for the
  * `RenameTarget`-based rename pipeline (the same drive JetBrains' own new-rename-API tests use),
  * which runs the production search (the registered `RenameUsageSearcher` -> queries -> file updates
@@ -538,7 +539,15 @@ fun CodeInsightTestFixture.renameUsageRangesAtCaret(): List<Pair<PsiFile, TextRa
  */
 @Suppress("UnstableApiUsage")
 fun CodeInsightTestFixture.renameTargetsAtCaret(): List<RenameTarget> =
-    targetSymbols(symbolResolutionFile(project), caretOffset).filterIsInstance<RenameTarget>().distinct()
+    targetSymbols(symbolResolutionFile(project), caretOffset).mapNotNull { renameTarget(it) }.distinct()
+
+/**
+ * The [RenameTarget] the platform's `SymbolRenameTargetRenamerFactory` renames [symbol] through: a
+ * [RenameableSymbol]'s, or [symbol] itself, since the plugin registers no `SymbolRenameTargetFactory`.
+ */
+@Suppress("UnstableApiUsage")
+fun renameTarget(symbol: Symbol): RenameTarget? =
+    (symbol as? RenameableSymbol)?.renameTarget ?: symbol as? RenameTarget
 
 /**
  * The `PsiFile` production actually resolves a caret's `targetSymbols`/`searchTargets` lookup

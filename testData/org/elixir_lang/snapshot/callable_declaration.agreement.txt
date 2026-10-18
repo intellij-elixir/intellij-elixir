@@ -22,8 +22,8 @@ forms.ex:20:7  (e)  psi  Callable  `function_from_string` | symbol  FunctionCall
 forms.ex:21:28  (c)  psi  GeneralAtomReference  `:"quoted"`  forms.ex:21:30 FunctionSymbol(Forms.quoted_text/0, macro=false)'s usages miss it: forms.ex:21:30
 import_only.ex:10:53  (c)  psi  Callable  `pad`  import_only.ex:3:7 FunctionSymbol(Errors.pad/1, macro=false)'s usages miss it: import_only.ex:3:7, import_only.ex:7:39, import_only.ex:10:45
 import_only.ex:10:53  (c)  symbol  FunctionCallReference  `pad`  import_only.ex:3:7 FunctionSymbol(Errors.pad/1, macro=false)'s usages miss it: import_only.ex:3:7, import_only.ex:7:39, import_only.ex:10:45
-import_only.ex:10:53  (d)  psi  Callable  `pad`  Rename offers {}, Find Usages {import_only.ex:3:7 FunctionSymbol(Errors.pad/1, macro=false)}
-import_only.ex:10:53  (d)  symbol  FunctionCallReference  `pad`  Rename offers {}, Find Usages {import_only.ex:3:7 FunctionSymbol(Errors.pad/1, macro=false)}
+import_only.ex:10:53  (d)  psi  Callable  `pad`  Rename offers {import_only.ex:10:53 WrongArityUse(pad/2)}, Find Usages {import_only.ex:3:7 FunctionSymbol(Errors.pad/1, macro=false)}
+import_only.ex:10:53  (d)  symbol  FunctionCallReference  `pad`  Rename offers {import_only.ex:10:53 WrongArityUse(pad/2)}, Find Usages {import_only.ex:3:7 FunctionSymbol(Errors.pad/1, macro=false)}
 in_def.ex:6:25  (a)  psi  Callable  `a`  resolves, but Find Usages has no target
 in_def.ex:6:25  (e)  psi  Callable  `a`  a usage of through_use.ex:7:18 VariableSymbol(a, PARAMETER, (123,124)) that does not resolve to it
 in_def.ex:6:28  (a)  psi  Callable  `b`  resolves, but Find Usages has no target

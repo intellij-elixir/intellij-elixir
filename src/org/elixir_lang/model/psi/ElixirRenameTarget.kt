@@ -8,9 +8,10 @@ import com.intellij.refactoring.rename.api.RenameValidator
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 
 /**
- * An [ElixirSymbolWithUsages] the user can rename, unless it, or a symbol its rename also rewrites, is declared in
- * compiled code, in a library or SDK, or by a macro whose declarations a rename cannot rewrite, or it, or a delegation
- * its rename also rewrites, needs an `as:` its options have no place for.
+ * An [ElixirSymbolWithUsages] the user can rename, unless it is a use no function it names can take, or it, or a
+ * symbol its rename also rewrites, is declared in compiled code, in a library or SDK, or by a macro whose declarations
+ * a rename cannot rewrite, or it, or a delegation its rename also rewrites, needs an `as:` its options have no place
+ * for.
  *
  * The platform offers any [RenameTarget] a symbol resolves to, and a compiled declaration has no document to edit
  * and a library's source is not the project's to edit, so only the validator can refuse.
@@ -18,6 +19,9 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 @Suppress("UnstableApiUsage")
 interface ElixirRenameTarget : ElixirSymbolWithUsages, RenameTarget {
     override fun createPointer(): Pointer<out ElixirRenameTarget>
+
+    /** Why a rename at this use renames nothing, as no function it names can be called there, or `null`. */
+    fun useRefusal(): String? = null
 
     /** Why [newName] is not a name this symbol can take, or `null` when it is. */
     fun newNameRefusal(newName: String): String? = null
@@ -43,7 +47,8 @@ interface ElixirRenameTarget : ElixirSymbolWithUsages, RenameTarget {
         val refusal = ReadAction.computeBlocking<String?, Throwable> {
             val closure = renameClosure()
 
-            declarationRefusal(this)?.let { "$targetName cannot be renamed: it is $it" }
+            useRefusal()?.let { "${presentation().presentableText} cannot be renamed: $it" }
+                ?: declarationRefusal(this)?.let { "$targetName cannot be renamed: it is $it" }
                 ?: closure.members.firstNotNullOfOrNull { declarationRefusal(it) }
                     ?.let {
                         "$targetName cannot be renamed: a function renamed with it is $it"
