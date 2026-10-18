@@ -13,6 +13,9 @@ import org.elixir_lang.model.psi.variable.VariableSymbol
 import org.elixir_lang.ElixirSyntaxHighlighter
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
 import org.elixir_lang.declaration.Feature
+import org.elixir_lang.declaration.Found
+import org.elixir_lang.declaration.Resolved
+import org.elixir_lang.declaration.Use
 import org.elixir_lang.psi.AtOperation
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.psi.CallDefinitionClause
@@ -22,6 +25,7 @@ import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.call.name.Module.KERNEL_SPECIAL_FORMS
 import org.elixir_lang.reference.Callable.Companion.BIT_STRING_TYPES
 import org.elixir_lang.reference.Callable.Companion.isBitStreamSegmentOption
+import org.elixir_lang.reference.CaptureNameArity
 import org.elixir_lang.safeMultiResolve
 import org.elixir_lang.safelyResolve
 import java.util.*
@@ -96,17 +100,16 @@ internal class Callable : Annotator, DumbAware {
                     if (reference != null) {
                         val resolvedCollection =
                             when (reference) {
-                                is org.elixir_lang.reference.Callable ->
-                                    results(reference)
-                                        .filter { it.isValidResult }
-                                        .mapNotNull(ResolveResult::getElement)
+                                is org.elixir_lang.reference.Callable -> hits(reference)
+                                is CaptureNameArity -> hits(reference)
                                 is PsiPolyVariantReference ->
                                     safeMultiResolve(reference, false)
                                         .filter { it.isValidResult }
                                         .mapNotNull(ResolveResult::getElement)
+                                        .map { Hit(it, null) }
                                 else ->
                                     reference.resolve()?.let { resolved ->
-                                        setOf(resolved)
+                                        setOf(Hit(resolved, null))
                                     }
                             }
 
@@ -148,7 +151,7 @@ internal class Callable : Annotator, DumbAware {
 
                     identifier.reference?.let { it as PsiPolyVariantReference }?.let { reference ->
                         val resolvedElements = reference.multiResolve(false).filter { it.isValidResult }
-                            .map { (it as PsiElementResolveResult).element }
+                            .map { Hit((it as PsiElementResolveResult).element, null) }
 
                         if (resolvedElements.isNotEmpty()) {
                             highlight(identifier, reference.rangeInElement, resolvedElements, holder)
@@ -159,32 +162,53 @@ internal class Callable : Annotator, DumbAware {
         )
     }
 
+    private class Hit(val element: PsiElement, val declared: Found?)
+
     /** What `multiResolve` is built from, with the declared part read from the highlighting source. */
-    private fun results(reference: org.elixir_lang.reference.Callable): List<ResolveResult> =
+    private fun hits(reference: org.elixir_lang.reference.Callable): List<Hit> =
         safelyResolve(reference, emptyList()) {
-            org.elixir_lang.reference.resolver.Callable
+            val answer = org.elixir_lang.reference.resolver.Callable
                 .answer(reference.element, false, Feature.HIGHLIGHTING)
-                .results()
+
+            hits(answer.projection, answer.results())
         }
+
+    /** What a capture's name resolves to, read from the highlighting source. */
+    private fun hits(reference: CaptureNameArity): List<Hit> =
+        safelyResolve(reference, emptyList()) {
+            Use.capture(reference.nameElement, reference.arity)
+                ?.let { Resolved.projection(it, false, feature = Feature.HIGHLIGHTING) }
+                ?.let { projection -> hits(projection, Resolved.results(projection)) }
+                .orEmpty()
+        }
+
+    private fun hits(projection: List<Found>, results: List<ResolveResult>): List<Hit> {
+        val declared = mutableMapOf<PsiElement, Found>()
+
+        projection.forEach { declared.putIfAbsent(it.element, it) }
+
+        return results
+            .filter { it.isValidResult }
+            .mapNotNull(ResolveResult::getElement)
+            .map { Hit(it, declared[it]) }
+    }
 
     private fun callHighlight(resolved: Call, previousCallHighlight: CallHighlight?): CallHighlight? =
         ElixirSyntaxHighlighter.callKey(CallDefinitionClause.capabilities(resolved)?.presentation)
             ?.let { CallHighlight.nullablePut(previousCallHighlight, referrerTextAttributesKeys(resolved, it)) }
             ?: variableHighlight(resolved, previousCallHighlight)
 
-    private fun callHighlight(resolved: PsiElement, previousCallHighlight: CallHighlight?): CallHighlight? =
-        when (resolved) {
-            is Call -> callHighlight(resolved, previousCallHighlight)
-            is BeamCallDefinition -> callHighlight(resolved, previousCallHighlight)
-            else -> variableHighlight(resolved, previousCallHighlight)
+    private fun callHighlight(hit: Hit, previousCallHighlight: CallHighlight?): CallHighlight? =
+        when {
+            hit.declared != null -> callHighlight(hit.declared, previousCallHighlight)
+            hit.element is Call -> callHighlight(hit.element, previousCallHighlight)
+            else -> variableHighlight(hit.element, previousCallHighlight)
         }
 
-    private fun callHighlight(resolved: BeamCallDefinition, previousCallHighlight: CallHighlight?): CallHighlight =
-        CallHighlight.nullablePut(
-            previousCallHighlight,
-            ElixirSyntaxHighlighter.callKey(resolved.capabilities.presentation)
-                ?.let { referrerTextAttributesKeys(resolved, it) }
-        )
+    private fun callHighlight(declared: Found, previousCallHighlight: CallHighlight?): CallHighlight? =
+        ElixirSyntaxHighlighter.callKey(declared.candidate.declaration.capabilities.presentation)
+            ?.let { CallHighlight.nullablePut(previousCallHighlight, referrerTextAttributesKeys(declared.element, it)) }
+            ?: previousCallHighlight
 
     private fun variableHighlight(resolved: PsiElement, previousCallHighlight: CallHighlight?): CallHighlight? =
         when (VariableSymbol.classify(resolved)) {
@@ -197,18 +221,18 @@ internal class Callable : Annotator, DumbAware {
             null -> previousCallHighlight
         }
 
-    private fun callHighlight(resolvedCollection: Collection<PsiElement>): CallHighlight? =
-        resolvedCollection.fold(null) { acc: CallHighlight?, resolved ->
-            callHighlight(resolved, acc)
+    private fun callHighlight(hits: Collection<Hit>): CallHighlight? =
+        hits.fold(null) { acc: CallHighlight?, hit ->
+            callHighlight(hit, acc)
         }
 
     private fun highlight(
         referrer: PsiElement,
         rangeInReferrer: TextRange,
-        resolvedCollection: Collection<PsiElement>,
+        hits: Collection<Hit>,
         annotationHolder: AnnotationHolder
     ) {
-        val callHighlight = callHighlight(resolvedCollection)
+        val callHighlight = callHighlight(hits)
 
         if (callHighlight != null) {
             val referrerTextAttributesKeys = callHighlight.referrerTextAttributeKeys
