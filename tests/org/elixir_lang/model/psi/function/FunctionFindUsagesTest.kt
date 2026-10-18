@@ -196,6 +196,28 @@ class FunctionFindUsagesTest : PlatformTestCase() {
         assertTrue("the def keyword: $lines", lines.any { it.startsWith("use.ex:") && it.endsWith("def run(x), do: x") })
     }
 
+    /** Under `import Kernel, except: [inspect: 2]`, a bare `inspect(x, [])` calls the module's own `inspect/2`. */
+    fun testBareCallExcludedFromKernelImportIsNotFound() {
+        myFixture.addFileToProject(
+            "algebra.ex",
+            """
+            defmodule Inspect.Algebra do
+              import Kernel, except: [inspect: 2]
+
+              def inspect(term, opts), do: {term, opts}
+              def run(x), do: inspect(x, [])
+              def qualified(x), do: Kernel.inspect(x, [])
+            end
+            """.trimIndent() + "\n"
+        )
+        myFixture.configureByText("kernel.ex", "defmodule Kernel do\n  def <caret>inspect(term, opts), do: {term, opts}\nend\n")
+
+        val lines = usageLinesAtCaret().map { it.substringAfter(": ") }
+
+        assertTrue("the qualified call: $lines", "def qualified(x), do: Kernel.inspect(x, [])" in lines)
+        assertFalse("the module's own call: $lines", "def run(x), do: inspect(x, [])" in lines)
+    }
+
     /** A `defdelegate` with defaults defines each arity, and a call at either is a use of the other. */
     fun testDelegationWithDefaultsAtOtherArity() {
         myFixture.addFileToProject("t.ex", "defmodule T do\n  def f(a, b \\\\ nil), do: {a, b}\nend\n")

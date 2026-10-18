@@ -72,10 +72,6 @@ internal object UseSymbols {
      */
     internal fun remote(use: Use): Boolean = use is Use.Remote || (use as? Use.OfCall)?.entrance is Qualified
 
-    /** The Symbols of the candidates the step admits for [use], never a [NearMiss]: what a call site names. */
-    @RequiresReadLock
-    fun admitted(use: Use.Named): List<Symbol> = admitted(step(use).map { it.found }) { use.arity }
-
     @RequiresReadLock
     private fun admitted(found: List<Found>, arity: (Found) -> Int): List<Symbol> =
         found.filter(::admitted).flatMap { symbols(it, arity(it)) }

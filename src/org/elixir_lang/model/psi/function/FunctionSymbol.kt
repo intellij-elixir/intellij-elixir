@@ -348,13 +348,6 @@ class FunctionSymbol(
         }
 
         /**
-         * Whether [symbol] is made from a clause in a `defimpl` that implements no protocol function. Its module name is
-         * the protocol's, so it is no function of a qualified call that names that module.
-         */
-        @RequiresReadLock
-        fun isHelper(symbol: FunctionSymbol): Boolean = helperImplementation(symbol) != null
-
-        /**
          * What tells two definitions apart where [matches] cannot rely on symbol equality: a clause's symbols, each with
          * the `defimpl` it is tied to when its clause implements nothing, and a `defdelegate`'s file and head range.
          */

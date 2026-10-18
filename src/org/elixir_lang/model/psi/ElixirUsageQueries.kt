@@ -67,7 +67,6 @@ import org.elixir_lang.model.psi.words.WordOccurrenceMapper
 import org.elixir_lang.model.psi.words.buildQueryFromLeaves
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.call.name.Function.*
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.ElixirPsiImplUtil.moduleAttributeName
@@ -98,8 +97,6 @@ import java.util.concurrent.Callable as JCallable
  *   lists what rename touches).
  * - A [FunctionSymbol] that implements a callback or a protocol function also contributes everything that member does.
  * - A [FunctionSymbol] additionally contributes each **call site** that dispatches to it.
- *   Qualified calls (`Module.function(args)`) are matched by the Symbols the preference step gives them; unqualified
- *   calls require scope resolution and are resolved by delegating to the legacy [Callable] walker.
  *
  * Candidates are found by a name-anchored text search (efficient, only visits files containing the
  * name); behaviour membership is resolved via [BehaviourMembership].
@@ -913,8 +910,8 @@ internal object ElixirUsageQueries {
     /**
      * Maps each occurrence of a function name to a **call site** for the given [FunctionSymbol].
      *
-     * Unqualified calls are resolved via the legacy [Callable] scope-walker. With [unreachedOnly] it maps component
-     * tags and calls in documentation code blocks alone, which [DecodedWordQuery] does not walk.
+     * With [unreachedOnly] it maps component tags and calls in documentation code blocks alone, which
+     * [DecodedWordQuery] does not walk.
      */
     private class FunctionCallSiteMapper(
         private val symbolPointer: Pointer<out FunctionSymbol>,
@@ -968,24 +965,10 @@ internal object ElixirUsageQueries {
             return PsiLanguageInjectionHost.isDocumentation(host)
         }
 
-        /**
-         * Whether [call] is a call site for [symbol]: a qualified call the preference step resolves to it, an
-         * unqualified call of its module, name and arity, or one whose definitions include it.
-         */
+        /** Whether [call] is a call site for [symbol]: one of whose definitions [FunctionSymbol.matches] it. */
         @RequiresReadLock
         private fun matchesCallSite(call: Call, symbol: FunctionSymbol): Boolean =
-            if ((call.names(symbol) ||
-                    call !is Qualified &&
-                    call.resolvedModuleName()?.let { FunctionSymbol.Owner(it, injected = false) } ==
-                    FunctionSymbol.Owner(symbol.moduleName, symbol.injected) &&
-                    call.functionName() == symbol.name &&
-                    call.resolvedFinalArity() == symbol.arity) &&
-                !FunctionSymbol.isHelper(symbol)
-            ) {
-                true
-            } else {
-                definitions(Use.of(call), CallableResolver.bound(call, false)).any { FunctionSymbol.matches(it, symbol, call) }
-            }
+            definitions(Use.of(call), CallableResolver.bound(call, false)).any { FunctionSymbol.matches(it, symbol, call) }
 
         /**
          * A plain Elixir call (`{some_function()}`) embedded in an *injected* `~H` fragment that
@@ -1363,16 +1346,6 @@ private fun definitions(use: Use?, bound: Boolean = false): Sequence<PsiElement>
         .asSequence()
         .filter { it.isValidResult }
         .mapNotNull { it.element }
-
-/**
- * Whether this is a qualified call the preference step resolves to [symbol], so a nested module's short and full names
- * are one. A call at an arity [symbol] does not admit names it only as a [org.elixir_lang.model.psi.function.NearMiss],
- * which is no call site.
- */
-@Suppress("UnstableApiUsage")
-@RequiresReadLock
-private fun Call.names(symbol: Symbol): Boolean =
-    this is Qualified && (Use.of(this) as? Use.Named)?.let { symbol in UseSymbols.admitted(it) } == true
 
 private fun PsiElement.enclosingCalls(): Sequence<Call> =
         generateSequence(parent) { it.parent }.takeWhile { it !is PsiFile }.filterIsInstance<Call>()
