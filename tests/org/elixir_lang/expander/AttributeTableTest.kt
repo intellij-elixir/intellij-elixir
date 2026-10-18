@@ -481,7 +481,7 @@ class AttributeTableTest {
     fun `after an unknown effect every attribute has an unknown value`() {
         val table = AttributeTable(ElixirLanguageLevel.of("1.20.4"))
 
-        table.apply(Effect.UnknownEffect)
+        table.apply(UnknownEffect)
 
         assertEquals(listOf(AttributeValue.Unknown), table.values("absent"))
     }

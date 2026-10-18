@@ -1524,9 +1524,11 @@ class AttributeExpanderTest : ExpanderTestCase() {
             } + log.unnamed.mapNotNull { taken -> render(taken)?.let { "attributes unnamed: $it" } }
         val errors = result.errors.map { "reported ${it.kind} `${source(code, it.at)}`" }
 
-        return listOf("${indent}module ${result.module} $ended") +
-            (effects + reads + finals + definitions + errors).map { "$indent  $it" } +
-            result.nested.flatMap { renderModule(code, it, "$indent  ") }
+        return buildList {
+            add("${indent}module ${result.module} $ended")
+            listOf(effects, reads, finals, definitions, errors).flatten().mapTo(this) { "$indent  $it" }
+            result.nested.flatMapTo(this) { renderModule(code, it, "$indent  ") }
+        }
     }
 
     /** A built remote call: `M.f(args)` and its meta's keys. */

@@ -11,7 +11,7 @@ import org.elixir_lang.language_level.ElixirLanguageLevel
 class DeprecatedCallTest : ExpanderTestCase() {
     override val kernel = KernelImports(
         AttributeFixtures.KERNEL.functions,
-        AttributeFixtures.KERNEL.macros + NameArity("in", 2) + NameArity("use", 1),
+        AttributeFixtures.KERNEL.macros + listOf(NameArity("in", 2), NameArity("use", 1)),
     )
 
     override val exports = Exports { module ->

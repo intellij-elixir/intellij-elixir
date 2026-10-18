@@ -45,9 +45,9 @@ class QuoteExpanderTest : ExpanderTestCase() {
         val name = dotArguments?.get(1)
 
         return if (receiver is ElixirAst.Literal.Atom && name is ElixirAst.Literal.Atom) {
-            val key = (at!!.arguments!!.firstOrNull() as? ElixirAst.Literal.Atom)?.let { " :${it.name}" }.orEmpty()
+            val key = (at.arguments!!.firstOrNull() as? ElixirAst.Literal.Atom)?.let { " :${it.name}" }.orEmpty()
 
-            "$outcome :${receiver.name}.${name.name}/${at.arguments!!.size}$key"
+            "$outcome :${receiver.name}.${name.name}/${at.arguments.size}$key"
         } else {
             super.render(code, expansion)
         }

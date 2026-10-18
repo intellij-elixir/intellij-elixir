@@ -484,15 +484,15 @@ private fun isStab(node: ElixirAst): Boolean =
     node is ElixirAst.Call && (node.callee as? ElixirAst.Literal.Atom)?.name == "->"
 
 /**
- * Where [token] is written in [text] after [from], whitespace and the `)` that close a parenthesised form aside, or
+ * Where a `.` is written in [text] after [from], whitespace and the `)` that close a parenthesised form aside, or
  * `null` where something else follows.
  */
-private fun tokenAfter(text: String, from: Int, token: String): Int? {
+private fun dotAfter(text: String, from: Int): Int? {
     var at = from
 
     while (at < text.length && (text[at].isWhitespace() || text[at] == ')')) at++
 
-    return at.takeIf { text.startsWith(token, it) }
+    return at.takeIf { text.startsWith(".", it) }
 }
 
 /**
@@ -600,7 +600,7 @@ private fun headStart(node: ElixirAst, text: String): Int =
         is ElixirAst.Call -> ((node.callee as? ElixirAst.Call)?.takeIf { dotted(it) != null }?.callee ?: node.callee).meta.origin.startOffset
         is ElixirAst.Alias ->
             node.segments.first().takeUnless { it is ElixirAst.Literal.Atom }
-                ?.let { tokenAfter(text, it.meta.origin.endOffset, ".") }
+                ?.let { dotAfter(text, it.meta.origin.endOffset) }
                 ?: node.meta.origin.startOffset
         else -> node.meta.origin.startOffset
     }
@@ -624,8 +624,7 @@ private fun dotted(callee: ElixirAst.Call): Pair<ElixirAst, String?>? {
 private fun children(node: ElixirAst): List<ElixirAst> =
     when (node) {
         is ElixirAst.Call -> {
-            val callee = node.callee
-            val before = when (callee) {
+            val before = when (val callee = node.callee) {
                 is ElixirAst.Literal.Atom -> emptyList()
                 is ElixirAst.Call -> dotted(callee)?.let { listOf(it.first) } ?: listOf(callee)
                 else -> listOf(callee)
