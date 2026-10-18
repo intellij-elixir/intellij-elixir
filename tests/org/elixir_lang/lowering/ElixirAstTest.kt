@@ -28,6 +28,7 @@ import org.elixir_lang.lowering.Meta.Position
 import org.elixir_lang.lowering.Meta.Value
 import org.elixir_lang.psi.ElixirFile
 import java.math.BigInteger
+import java.util.IdentityHashMap
 
 /** [ElixirAst.toOtp] against the terms `Code.string_to_quoted` returns, built by hand. */
 class ElixirAstTest : UnitTestCase() {
@@ -78,6 +79,54 @@ class ElixirAstTest : UnitTestCase() {
         assertEquals(3 to 5, located(listOf(generated, line, column)))
         assertEquals(3 to 0, located(listOf(line)))
         assertEquals(null, located(listOf(generated)))
+    }
+
+    /**
+     * A term `known` gives a node for decodes to that node, origin and all, wherever it sits; an equal term that is not
+     * the same object still decodes with the origin passed.
+     */
+    fun testFromOtpKeepsAKnownTermsNode() {
+        val argument = tuple(atom("x"), list(line(2)), atom("nil"))
+        val argumentNode = ElixirAst.fromOtp(argument, TextRange(5, 6))!!
+        val equal = tuple(atom("x"), list(line(2)), atom("nil"))
+        val term = tuple(atom("+"), list(), list(argument, list(equal, argument)))
+        val decoded = ElixirAst.fromOtp(term, TextRange(0, 0)) { if (it === argument) argumentNode else null } as Call
+        val (left, right) = decoded.arguments!!
+        val (fresh, again) = (right as ListNode).elements
+
+        assertSame(argumentNode, left)
+        assertSame(argumentNode, again)
+        assertNotSame(argumentNode, fresh)
+        assertEquals(TextRange(0, 0), fresh.meta.origin)
+        assertEquals(term, decoded.toOtp())
+    }
+
+    /** `toOtp`'s `onNode` is given every node with the very term it became, children before their parent. */
+    fun testToOtpGivesEachNodeItsTerm() {
+        val x = tuple(atom("x"), list(), atom("nil"))
+        val node = ElixirAst.fromOtp(tuple(atom("+"), list(), list(x, atom("a"))), TextRange(0, 0)) as Call
+        val seen = mutableListOf<Pair<ElixirAst, OtpErlangObject>>()
+        val term = node.toOtp { each, converted -> seen += each to converted } as OtpErlangTuple
+        val (xNode, aNode) = node.arguments!!
+        val (xTerm, aTerm) = (term.elementAt(2) as OtpErlangList).elements()
+
+        assertEquals(listOf(node.callee, (xNode as Call).callee, xNode, aNode, node), seen.map { it.first })
+        assertSame(term, seen.last().second)
+        assertSame(xTerm, seen.single { it.first === xNode }.second)
+        assertSame(aTerm, seen.single { it.first === aNode }.second)
+    }
+
+    /** Where `onNode` is given, a list of bytes stays a list, so each integer decodes back to its own node. */
+    fun testToOtpKeepsAByteListsElementsForTheirNodes() {
+        val node = ElixirAst.fromOtp(tuple(atom("f"), list(), list(OtpErlangLong(1), OtpErlangLong(2))), TextRange(3, 4))
+            as Call
+        val nodes = IdentityHashMap<OtpErlangObject, ElixirAst>()
+        val term = node.toOtp { each, converted -> nodes[converted] = each } as OtpErlangTuple
+        val moved = tuple(atom("g"), list(), term.elementAt(2))
+        val decoded = ElixirAst.fromOtp(moved, TextRange(0, 0), known = nodes::get) as Call
+
+        assertEquals(node.arguments!!.size, decoded.arguments!!.size)
+        node.arguments.zip(decoded.arguments).forEach { (argument, again) -> assertSame(argument, again) }
     }
 
     fun testInteger() = assertOtp(OtpErlangLong(7), integer(7))

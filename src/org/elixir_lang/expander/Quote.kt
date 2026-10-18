@@ -1,14 +1,12 @@
 package org.elixir_lang.expander
 
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILER_PARSES_COLUMNS
-import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTED_DEF_CONTEXT_SKIPS_GUARD
-import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_BINDING_META_DROPS_COLUMN
+import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_EXTENSION_META_ESCAPED
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_IMPORTS_EVERY_ARITY
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_IN_PATTERN_WITH_UNQUOTE_RAISES
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_KEEP_READS_LINE_OPTION
-import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_META_DROPS_COLUMN
+import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_KEEP_STORES_FULL_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_OPTIONS_EXPANDED_FIRST
-import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_CALL_META_KEPT
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_SHALLOW_VALIDATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_VALIDATED_BY_UNQUOTE
 import org.elixir_lang.language_level.ElixirLanguageLevel
@@ -19,9 +17,6 @@ import org.elixir_lang.psi.Import.Term
 import java.math.BigInteger
 import java.util.IdentityHashMap
 
-/** Metadata as a keyword list, each value an expression. */
-private typealias Keywords = List<Pair<String, ElixirAst>>
-
 /**
  * The `quote` clauses of `elixir_expand`, and the part of `elixir_quote` they reach: the quoted expression is built as
  * the escaped expression Elixir builds, an [ElixirAst] of tuples, lists and literals, and then expanded.
@@ -29,13 +24,20 @@ private typealias Keywords = List<Pair<String, ElixirAst>>
 internal object Quote {
     /** `{quote, Meta, [Opts]}`: the `do:` taken out of [call]'s only argument, a list, into a second one. */
     fun expandKeywords(call: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion =
-        withDoArgument(call)?.let { Expander.expand(it, state, env, run) } ?: Expansion.Error("missing_option", call)
+        withDoArgument(call)?.let { expand(it, state, env, run, written = call) } ?: Expansion.Error("missing_option", call)
 
-    /** `{quote, Meta, [Opts, Do]}` where `Do` is a list. */
-    fun expand(call: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion =
+    /**
+     * `{quote, Meta, [Opts, Do]}` where `Do` is a list, which is [written] in the source. In a definition's body, the
+     * escaped block is recorded for [written].
+     */
+    fun expand(call: ElixirAst.Call, state: ExState, env: Env, run: Run, written: ElixirAst.Call = call): Expansion =
         when (val built = build(call, state, env, run, 0)) {
             is Built.Stopped -> built.expansion
-            is Built.Escaped ->
+            is Built.Escaped -> {
+                if (env.function != null && built.known && !built.prelude) {
+                    run.compiling[env.module]?.quotes?.put(written, built.block)
+                }
+
                 Expander.expand(built.quoted, built.state, built.env, run).let {
                     // `{'__block__', [], Prelude ++ [Quoted]}`, the bindings' escaped `__block__`, or from 1.20 outside
                     // a pattern or guard, either in `:elixir_quote.validate_quote/1`.
@@ -43,6 +45,7 @@ internal object Quote {
 
                     if (built.prelude || built.block !== built.quoted || validated) it.withValue(NODE) else it
                 }
+            }
         }
 
     /**
@@ -73,17 +76,17 @@ internal object Quote {
      * builds [node], with no hygiene, its metadata as it is, and each `unquote` its expression. The nodes it builds are
      * at [at].
      */
-    fun escape(node: ElixirAst, at: Meta, env: Env, run: Run): Escaped =
-        try {
-            val q = Quoting(
-                Line.Keep, Option.Static(null), Option.Static("nil"), unquote = true, generated = false, env,
-                run.level, Synthetic(at), 0, run.observer, escape = true,
-            )
+    fun escape(node: ElixirAst, at: Meta, run: Run): Escaped {
+        val s = Synthetic(at)
+        val view = AstEscapeView(s, ParsedMeta(COMPILER_PARSES_COLUMNS.isSufficient(run.level)))
+        val escape = QuoteEscape(view, AstEscapeBuilder(s), view::inserted, run.level, run.exports, unquote = true)
 
-            Escaped.Built(q.doQuote(node))
-        } catch (stop: Stop) {
-            Escaped.Stopped(stop.expansion)
+        return when (val escaped = escape.escape(AstTerm.Node(node))) {
+            is EscapeResult.Built -> Escaped.Built(escaped.value)
+            is EscapeResult.Declined -> Escaped.Stopped(Expansion.Unported(escaped.at ?: node))
+            is EscapeResult.Raised -> Escaped.Stopped(Expansion.Unported(node))
         }
+    }
 
     /** `lists:keytake(do, 1, Opts)`, as the keyword clause expands `{quote, Meta, [DoOpts, [{do, Do}]]}`. */
     private fun withDoArgument(call: ElixirAst.Call): ElixirAst.Call? {
@@ -159,15 +162,20 @@ internal object Quote {
             }
         }
 
-        val line = options["line"]?.let { value ->
-            when (val term = values.keyfind("line")) {
-                is Term.Integer -> Option.Static(Line.At(term.value))
-                TRUE -> Option.Static(Line.Keep)
-                FALSE -> Option.Static(Line.Drop)
-                else -> Option.Dynamic(value)
-            }
-        } ?: Option.Static(Line.Drop)
-        val file = options["file"]?.let { value ->
+        val kept = options["location"]?.let { keptFile(call, values.keyfind("location"), env, run) }
+        val line = if (kept != null) {
+            Option.Static(if (QUOTE_KEEP_READS_LINE_OPTION.isSufficient(level)) Line.Keep else Line.Drop)
+        } else {
+            options["line"]?.let { value ->
+                when (val term = values.keyfind("line")) {
+                    is Term.Integer -> Option.Static(Line.At(term.value))
+                    TRUE -> Option.Static(Line.Keep)
+                    FALSE -> Option.Static(Line.Drop)
+                    else -> Option.Dynamic(value)
+                }
+            } ?: Option.Static(Line.Drop)
+        }
+        val file = kept?.let { Option.Static(it) } ?: options["file"]?.let { value ->
             when (val term = values.keyfind("file")) {
                 is Term.Binary -> Option.Static(term)
                 NIL -> Option.Static(null)
@@ -209,6 +217,7 @@ internal object Quote {
             synthetic = Synthetic(call.meta),
             lineOffset = lineOffset,
             observer = run.observer,
+            exports = run.exports,
         )
 
         fun doQuote(): ElixirAst {
@@ -247,7 +256,7 @@ internal object Quote {
         val block = if (bindQuoted.isNullOrEmpty()) {
             quoted
         } else {
-            val bindingMeta = s.keywords(q.sourceMeta(call.meta, QUOTE_BINDING_META_DROPS_COLUMN.isSufficient(level)))
+            val bindingMeta = s.keywords(q.sourceMeta(call.meta, QUOTE_EXTENSION_META_ESCAPED.isSufficient(level)))
             val bindings = bindQuoted.map { (key, value) ->
                 s.tuple(
                     s.atom("="),
@@ -394,10 +403,37 @@ internal object Quote {
             name in QUOTE_OPTIONS
         }
 
-        // Any `location:` is `:keep`, which reads `E.file`, or a `case_clause` crash.
-        if (readAsOption || "location" in options) throw Stop(Expansion.Unported(call))
+        if (readAsOption) throw Stop(Expansion.Unported(call))
 
         return options
+    }
+
+    /**
+     * The file `location: :keep` stores, [run]'s, which before [QUOTE_KEEP_STORES_FULL_PATH] is relative to the
+     * directory it was compiled in. A definition in another file isn't ported. Any other [location] is a `case_clause`
+     * crash.
+     */
+    private fun keptFile(call: ElixirAst.Call, location: Term?, env: Env, run: Run): Term.Binary {
+        val file = run.file
+        val moved = env.function != null && run.compiling[env.module]?.definitionMoved == true
+        if ((location as? Term.Atom)?.name != "keep" || file == null || moved) throw Stop(Expansion.Unported(call))
+        if (QUOTE_KEEP_STORES_FULL_PATH.isSufficient(run.level)) return Term.Binary(file.toByteArray())
+
+        val directory = run.directories.of(file) ?: throw Stop(Expansion.Unported(call))
+
+        return Term.Binary(relativeTo(file, directory).toByteArray())
+    }
+
+    /** `Path.relative_to/2`: [path] relative to [directory] when below it, otherwise [path] itself. */
+    private fun relativeTo(path: String, directory: String): String {
+        val segments = splitPath(path)
+        val base = splitPath(directory)
+
+        return if (segments.size > base.size && segments.subList(0, base.size) == base) {
+            segments.drop(base.size).joinToString("/")
+        } else {
+            path
+        }
     }
 
     /** `bind_quoted:`'s `[{Key, Value}]`, validated as `elixir_expand` validates it. */
@@ -469,24 +505,12 @@ internal object Quote {
     private fun isUnquoteDot(node: ElixirAst): Boolean =
         isCall(node, ".", 2) && ((node as ElixirAst.Call).arguments!![1] as? ElixirAst.Literal.Atom)?.name == "unquote"
 
-    /** The atom a tuple's first element is, for [node]'s term, or `null` when its term isn't such a tuple. */
-    private fun firstAtom(node: ElixirAst): String? =
-        when (node) {
-            is ElixirAst.Call -> (node.callee as? ElixirAst.Literal.Atom)?.name
-            is ElixirAst.Alias -> "__aliases__"
-            is ElixirAst.Block -> "__block__"
-            is ElixirAst.Tuple -> if (node.elements.size == 2) (node.elements[0] as? ElixirAst.Literal.Atom)?.name else "{}"
-            is ElixirAst.Literal, is ElixirAst.ListNode, is ElixirAst.Placeholder -> null
-        }
-
     private val QUOTE_OPTIONS = listOf("context", "location", "line", "file", "unquote", "bind_quoted", "generated")
 
-    private val DEFINITIONS = setOf("def", "defp", "defmacro", "defmacrop", "@")
-
     /**
-     * `#elixir_quote{op = quote}`, with `aliases_hygiene` and `imports_hygiene` both [env], or, when [escape],
-     * `#elixir_quote{op = escape}` with neither. A dynamic [file] or [context] is the variable the prelude binds;
-     * [observer] is told of the imports quoted.
+     * `#elixir_quote{op = quote}`, with `aliases_hygiene` and `imports_hygiene` both [env]: the [ElixirAst] view and
+     * builder [QuoteEscape] quotes a body through, and the fields only `quote` has. A dynamic [file] or [context] is
+     * the variable the prelude binds; [observer] is told of the imports quoted.
      */
     private class Quoting(
         val line: Line,
@@ -499,16 +523,22 @@ internal object Quote {
         val synthetic: Synthetic,
         val lineOffset: Int,
         val observer: ExpansionObserver,
-        val escape: Boolean = false,
-        /** The metadata `annotate/2` gave a node ahead of its own quoting. */
-        private val annotated: IdentityHashMap<ElixirAst, Keywords> = IdentityHashMap(),
-    ) {
+        val exports: Exports,
+    ) : QuoteOp<AstTerm, ElixirAst> {
         private val s = synthetic
 
-        private fun withoutUnquote() =
-            Quoting(
-                line, file, context, false, generated, env, level, synthetic, lineOffset, observer, escape, annotated,
-            )
+        /** The metadata `annotate_def/2` gave a node ahead of its own quoting. */
+        private val annotated = IdentityHashMap<ElixirAst, Keywords<ElixirAst>>()
+
+        private val view = AstEscapeView(s, ParsedMeta(columns = false, lineOffset))
+
+        /** `do_quote/2` of [node]. */
+        fun doQuote(node: ElixirAst): ElixirAst =
+            when (val built = QuoteEscape(view, AstEscapeBuilder(s), view::inserted, level, exports, this, unquote).escape(AstTerm.Node(node))) {
+                is EscapeResult.Built -> built.value
+                is EscapeResult.Declined -> throw Stop(Expansion.Unported(built.at ?: node))
+                is EscapeResult.Raised -> throw Stop(Expansion.Unported(node))
+            }
 
         /** `Q#elixir_quote.context`. */
         fun contextNode(): ElixirAst =
@@ -518,240 +548,45 @@ internal object Quote {
             }
 
         /** [meta]'s keys as `Code.compile_string` parses them at [level], with [lineOffset] added to each line. */
-        fun sourceMeta(meta: Meta, dropColumn: Boolean = false): Keywords =
-            keywords(meta.keys, COMPILER_PARSES_COLUMNS.isSufficient(level) && !dropColumn)
+        fun sourceMeta(meta: Meta, dropColumn: Boolean = false): Keywords<ElixirAst> {
+            val parsed = ParsedMeta(COMPILER_PARSES_COLUMNS.isSufficient(level) && !dropColumn, lineOffset)
 
-        private fun keywords(keys: List<Meta.Key>, columns: Boolean): Keywords =
-            keys.flatMap { key ->
-                when (key) {
-                    is Meta.Key.Location -> listOfNotNull(
-                        "line" to s.integer((key.position.line + lineOffset).toBigInteger()),
-                        ("column" to s.integer(key.position.column.toBigInteger())).takeIf { columns },
-                    )
-                    is Meta.Key.Entry -> if (key.tokenMetadata) emptyList() else listOf(key.name to value(key.value, columns))
-                }
-            }
-
-        private fun value(value: Meta.Value, columns: Boolean): ElixirAst =
-            when (value) {
-                is Meta.Value.Atom -> s.atom(value.name)
-                is Meta.Value.Integer -> s.integer(value.value.toBigInteger())
-                is Meta.Value.Binary -> ElixirAst.Literal.Binary(s.meta(), value.text.toByteArray(Charsets.UTF_8))
-                is Meta.Value.Keywords -> s.keywords(keywords(value.keys, columns))
-                is Meta.Value.List -> s.list(value.elements.map { value(it, columns) })
-                is Meta.Value.Tuple -> s.tuple(*value.elements.map { value(it, columns) }.toTypedArray())
-            }
-
-        private fun metaOf(node: ElixirAst): Keywords = annotated.remove(node) ?: sourceMeta(node.meta)
-
-        /** `do_quote/2`. */
-        fun doQuote(node: ElixirAst): ElixirAst =
-            when {
-                isCall(node, "quote", 1) || isCall(node, "quote", 2) -> {
-                    val call = node as ElixirAst.Call
-                    val args = call.arguments!!
-                    val tOpts = if (args.size == 2) doQuote(args[0]) else null
-                    val tArg = withoutUnquote().doQuote(args.last())
-                    val meta = if (escape) metaOf(call) else keystore(metaOf(call), "context", contextNode())
-
-                    s.tuple(s.atom("quote"), meta(meta), s.list(listOfNotNull(tOpts, tArg)))
-                }
-                unquote && isCall(node, "unquote", 1) -> unquoted(node.meta, (node as ElixirAst.Call).arguments!!.single())
-                !escape && node is ElixirAst.Alias && (node.segments.first() as? ElixirAst.Literal.Atom)?.name.let {
-                    it != null && it != "Elixir"
-                } -> {
-                    val annotation = aliasedModule(node)
-                    val meta = keystore(keydelete(metaOf(node), "counter"), "alias", s.atom(annotation))
-
-                    s.tuple(s.atom("__aliases__"), meta(meta), doQuoteList(node.segments))
-                }
-                node is ElixirAst.Call && node.callee is ElixirAst.Literal.Atom && node.arguments == null -> {
-                    val name = node.callee.name
-                    val context = when (val context = node.context) {
-                        ElixirAst.VariableContext.Nil -> contextNode()
-                        is ElixirAst.VariableContext.Atom -> s.atom(context.name)
-                    }
-                    val meta = if (escape) metaOf(node) else importMeta(node, metaOf(node), name, 0)
-
-                    s.tuple(s.atom(name), meta(meta), context)
-                }
-                unquote && node is ElixirAst.Call && node.callee is ElixirAst.Call &&
-                    node.callee.arguments?.size == 1 &&
-                    isUnquoteDot(node.callee.callee) -> {
-                    val unquoteCall = node.callee
-                    val dot = unquoteCall.callee as ElixirAst.Call
-
-                    doQuoteCall(dot, unquoteCall.arguments.single(), node.arguments)
-                }
-                unquote && node is ElixirAst.Call && node.arguments?.size == 1 && isUnquoteDot(node.callee) ->
-                    doQuoteCall(node.callee as ElixirAst.Call, node.arguments.single(), null)
-                !escape && isImportedCapture(node) -> {
-                    val capture = node as ElixirAst.Call
-                    val (function, arity) = (capture.arguments!!.single() as ElixirAst.Call).arguments!!
-                    val name = ((function as ElixirAst.Call).callee as ElixirAst.Literal.Atom).name
-                    val receiver = findImport(capture, name, (arity as ElixirAst.Literal.Integer).value.toInt())
-                    val meta = metaOf(capture).let { meta ->
-                        when {
-                            receiver == null -> meta
-                            QUOTE_IMPORTS_EVERY_ARITY.isSufficient(level) ->
-                                keystore(
-                                    keystore(meta, "imports", s.list(s.tuple(s.integer(arity.value), s.atom(receiver)))),
-                                    "context",
-                                    contextNode(),
-                                )
-                            else -> keystore(keystore(meta, "import", s.atom(receiver)), "context", contextNode())
-                        }
-                    }
-
-                    s.tuple(s.atom("&"), meta(meta), doQuoteList(capture.arguments))
-                }
-                node is ElixirAst.Tuple && node.elements.size == 2 -> {
-                    val (left, right) = node.elements
-
-                    if (unquote && (firstAtom(left) == "unquote_splicing" || firstAtom(right) == "unquote_splicing")) {
-                        namedTuple(node, "{}", emptyList(), node.elements)
-                    } else {
-                        val tLeft = doQuote(left)
-
-                        s.tuple(tLeft, doQuote(right))
-                    }
-                }
-                node is ElixirAst.Call && node.callee is ElixirAst.Literal.Atom ->
-                    namedTuple(node, node.callee.name, metaOf(node), node.arguments!!)
-                node is ElixirAst.Alias -> namedTuple(node, "__aliases__", metaOf(node), node.segments)
-                node is ElixirAst.Block -> namedTuple(node, "__block__", metaOf(node), node.expressions)
-                node is ElixirAst.Tuple -> namedTuple(node, "{}", metaOf(node), node.elements)
-                node is ElixirAst.Placeholder -> if (node.stopsExpansion) throw Stop(Expansion.Unported(node)) else node
-                node is ElixirAst.Call -> {
-                    val args = node.arguments ?: error("a call whose callee isn't an atom always has arguments")
-                    val meta = if (escape) metaOf(node) else annotate(node.callee, metaOf(node), args)
-                    val tLeft = doQuote(node.callee)
-
-                    s.tuple(tLeft, meta(meta), doQuoteList(args))
-                }
-                node is ElixirAst.ListNode -> doQuoteList(node.elements)
-                else -> s.literal(node as ElixirAst.Literal)
-            }
-
-        /** The import head of `do_quote/2`: `{Name, Meta, Args}`. */
-        private fun namedTuple(node: ElixirAst, name: String, meta: Keywords, args: List<ElixirAst>): ElixirAst {
-            if (escape) return s.tuple(s.atom(name), meta(meta), doQuoteList(args))
-
-            val importMeta = importMeta(node, meta, name, args.size)
-            val annotatedMeta = annotate(s.atom(name), importMeta, args)
-
-            return s.tuple(s.atom(name), meta(annotatedMeta), doQuoteList(args))
+            return parsed.pairs(meta.keys).map { (key, value) -> key to parsed.code(s, value) }
         }
 
-        /**
-         * `annotate/2` for a node whose first element is [target] and whose arguments are [args]: its own metadata, and
-         * its first argument's, recorded for when that is quoted.
-         */
-        private fun annotate(target: ElixirAst, meta: Keywords, args: List<ElixirAst>): Keywords {
-            val name = (target as? ElixirAst.Literal.Atom)?.name
-                ?: (target as? ElixirAst.Call)?.takeIf { isCall(it, ".", 2) }
-                    ?.let { (it.arguments!![1] as? ElixirAst.Literal.Atom)?.name }
-                    ?.takeIf { it in DEFINITIONS }
+        override fun context(): ElixirAst = contextNode()
+
+        override fun input(output: ElixirAst): AstTerm = AstTerm.Node(output)
+
+        override fun metaOf(input: AstTerm): Keywords<ElixirAst> = node(input).let { annotated.remove(it) ?: sourceMeta(it.meta) }
+
+        override fun annotateDefinition(head: AstTerm) {
+            annotated[node(head)] = keystore(metaOf(head), "context", contextNode())
+        }
+
+        /** The unquote head of `do_quote/2`: [expr] itself, or from 1.18 passed to a validation call. */
+        override fun unquoted(at: Meta?, expr: AstTerm): ElixirAst {
+            val node = view.inserted(expr)
+            val keys = at?.keys.orEmpty()
 
             return when {
-                name in DEFINITIONS && args.isNotEmpty() -> {
-                    annotateDefinition(args.first())
-                    meta
-                }
-                target is ElixirAst.Literal.Atom && name in LEXICAL && args.isNotEmpty() ->
-                    keystore(keydelete(meta, "counter"), "context", contextNode())
-                else -> meta
+                UNQUOTE_VALIDATED_BY_UNQUOTE.isSufficient(level) -> s.remoteCall("elixir_quote", "unquote", listOf(node), keys)
+                UNQUOTE_SHALLOW_VALIDATED.isSufficient(level) -> s.remoteCall("elixir_quote", "shallow_validate_ast", listOf(node), keys)
+                else -> node
             }
         }
 
-        /** `annotate_def/2`: `context:` on the node of [head] that [annotatedDefinitionHead] names. */
-        private fun annotateDefinition(head: ElixirAst) {
-            annotatedDefinitionHead(head, level)?.let { annotated[it] = keystore(metaOf(it), "context", contextNode()) }
-        }
-
-        /**
-         * The unquote head of `do_quote/2`: [expr] itself, or from 1.18 passed to a validation call, which an escape
-         * never makes.
-         */
-        private fun unquoted(meta: Meta, expr: ElixirAst): ElixirAst =
-            when {
-                escape -> expr
-                UNQUOTE_VALIDATED_BY_UNQUOTE.isSufficient(level) -> s.remoteCall(meta, "elixir_quote", "unquote", listOf(expr))
-                UNQUOTE_SHALLOW_VALIDATED.isSufficient(level) ->
-                    s.remoteCall(meta, "elixir_quote", "shallow_validate_ast", listOf(expr))
-                else -> expr
-            }
-
-        /** `do_quote_call` for `Left.unquote(Expr)`, with [args] when it is called. */
-        private fun doQuoteCall(dot: ElixirAst.Call, expr: ElixirAst, args: List<ElixirAst>?): ElixirAst {
-            val meta = meta(sourceMeta(dot.meta)).let { if (UNQUOTE_CALL_META_KEPT.isSufficient(level)) it else doQuote(it) }
-            val left = dot.arguments!![0]
-            val tLeft = doQuote(left)
-            val tUnquote = unquoted(dot.meta, expr)
-            val tArgs = args?.let(::doQuoteList) ?: s.atom("nil")
-
-            return s.remoteCall(
-                dot.meta,
-                "elixir_quote",
-                "dot",
-                listOf(meta, tLeft, tUnquote, tArgs, doQuote(contextNode())),
-            )
-        }
-
-        /** The list heads of `do_quote/2`. */
-        private fun doQuoteList(elements: List<ElixirAst>): ElixirAst =
-            when {
-                elements.isEmpty() -> s.list()
-                !unquote -> s.list(elements.map(::doQuote))
-                else -> doQuoteTail(elements.asReversed())
-            }
-
-        /** `do_quote_tail/2` over the elements, last first. */
-        private fun doQuoteTail(reversed: List<ElixirAst>): ElixirAst {
-            val last = reversed.first()
-            val spliced = (last as? ElixirAst.Call)?.takeIf { isCall(it, "|", 2) }?.arguments
-                ?.takeIf { isCall(it[0], "unquote_splicing", 1) }
-
-            return if (spliced != null) {
-                val tt = doQuoteSplice(reversed.drop(1))
-                val tr = doQuote(spliced[1])
-                val left = (spliced[0] as ElixirAst.Call).arguments!!.single()
-
-                s.remoteCall(last.meta, "elixir_quote", "tail_list", listOf(left, tr, tt))
-            } else {
-                doQuoteSplice(reversed)
-            }
-        }
-
-        /** `do_quote_splice/4` over the elements, last first. */
-        private fun doQuoteSplice(reversed: List<ElixirAst>): ElixirAst {
-            var buffer = ArrayDeque<ElixirAst>()
-            var acc: ElixirAst? = null
-
-            for (element in reversed) {
-                if (isCall(element, "unquote_splicing", 1)) {
-                    val expr = (element as ElixirAst.Call).arguments!!.single()
-
-                    acc = s.remoteCall(element.meta, "elixir_quote", "list", listOf(expr, listConcat(buffer, acc)))
-                    buffer = ArrayDeque()
-                } else {
-                    buffer.addFirst(doQuote(element))
-                }
-            }
-
-            return listConcat(buffer, acc)
-        }
-
-        /** `do_list_concat/2`, where a `null` [right] is `[]`. */
-        private fun listConcat(left: List<ElixirAst>, right: ElixirAst?): ElixirAst =
-            when {
-                right == null -> s.list(left)
-                left.isEmpty() -> right
-                else -> s.remoteCall(s.meta(), "erlang", "++", listOf(s.list(left), right))
+        /** The `alias` annotation `elixir_aliases:expand/4` gives [input]: the module it names, or `false`. */
+        override fun aliased(input: AstTerm): String =
+            when (val expansion = aliasExpansion(node(input) as ElixirAst.Alias, env, level)) {
+                is AliasExpansion.Aliased -> expansion.module
+                is AliasExpansion.Unaliased -> "false"
+                null -> throw Stop(Expansion.Unported(node(input)))
             }
 
         /** `import_meta/5`. */
-        private fun importMeta(node: ElixirAst, meta: Keywords, name: String, arity: Int): Keywords {
+        override fun importMeta(input: AstTerm, meta: Keywords<ElixirAst>, name: String, arity: Int): Keywords<ElixirAst> {
+            val node = node(input)
             val imports = if (QUOTE_IMPORTS_EVERY_ARITY.isSufficient(level)) {
                 when (val found = findImports(name, env)) {
                     is NameImports.Ambiguous -> throw Stop(Expansion.Error("ambiguous_call", node))
@@ -764,7 +599,7 @@ internal object Quote {
             if (imports.isNotEmpty()) {
                 val key = importKey(level, imports)
 
-                return keystore(keystore(meta, "context", contextNode()), key.name, value(key.value, columns = false))
+                return keystore(keystore(meta, "context", contextNode()), key.name, ParsedMeta(columns = false, lineOffset).code(s, key.value))
             }
 
             val ambiguousOp = meta.firstOrNull { it.first == "ambiguous_op" }?.second
@@ -774,6 +609,28 @@ internal object Quote {
             } else {
                 meta
             }
+        }
+
+        override fun captureMeta(input: AstTerm, meta: Keywords<ElixirAst>, name: String, arity: Int): Keywords<ElixirAst> {
+            val receiver = findImport(node(input), name, arity)
+
+            return when {
+                receiver == null -> meta
+                QUOTE_IMPORTS_EVERY_ARITY.isSufficient(level) ->
+                    keystore(
+                        keystore(meta, "imports", s.list(s.tuple(s.integer(arity.toBigInteger()), s.atom(receiver)))),
+                        "context",
+                        contextNode(),
+                    )
+                else -> keystore(keystore(meta, "import", s.atom(receiver)), "context", contextNode())
+            }
+        }
+
+        /** `generated/2` of `keep/2`, and `line/2` without a file. */
+        override fun kept(meta: Keywords<ElixirAst>): ElixirAst {
+            val kept = keep(meta)
+
+            return s.keywords(if (generated) listOf("generated" to s.atom("true")) + kept else kept)
         }
 
         /** `trace_import_quoted/4`: one event for each module, in the order [imports] first name it. */
@@ -799,25 +656,8 @@ internal object Quote {
                 ImportMatch.Unreadable -> throw Stop(Expansion.Unported(node))
             }
 
-        /** The `alias` annotation `elixir_aliases:expand/4` gives [node]: the module it names, or `false`. */
-        private fun aliasedModule(node: ElixirAst.Alias): String =
-            when (val expansion = aliasExpansion(node, env, level)) {
-                is AliasExpansion.Aliased -> expansion.module
-                is AliasExpansion.Unaliased -> "false"
-                null -> throw Stop(Expansion.Unported(node))
-            }
-
-        /** `meta/2`, which an escape quotes as it is. */
-        private fun meta(meta: Keywords): ElixirAst {
-            if (escape) return s.keywords(meta)
-
-            val kept = keep(if (QUOTE_META_DROPS_COLUMN.isSufficient(level)) keydelete(meta, "column") else meta)
-
-            return s.keywords(if (generated) listOf("generated" to s.atom("true")) + kept else kept)
-        }
-
         /** `keep/2`, and `line/2` without a file. */
-        private fun keep(meta: Keywords): Keywords {
+        private fun keep(meta: Keywords<ElixirAst>): Keywords<ElixirAst> {
             val path = when (file) {
                 is Option.Static -> file.value?.let { ElixirAst.Literal.Binary(s.meta(), it) }
                 is Option.Dynamic -> s.variable("file")
@@ -852,42 +692,19 @@ internal object Quote {
                 Line.Var -> s.variable("line")
                 Line.Keep, Line.Drop -> error("$line puts no line in place")
             }
+
+        /** The node [input] is: a `quote`'s body holds nodes only. */
+        private fun node(input: AstTerm): ElixirAst = (input as AstTerm.Node).node
     }
 
-    /** `{'&', Meta, [{'/', _, [{F, _, C}, A]}]}` with `F` and `C` atoms and `A` an integer. */
-    private fun isImportedCapture(node: ElixirAst): Boolean {
-        val slash = (node as? ElixirAst.Call)?.takeIf { isCall(it, "&", 1) }?.arguments?.single() ?: return false
-        if (!isCall(slash, "/", 2)) return false
+    /** The node of a `def` [head] that `annotate_def/2` marks with `context:`, as [definitionHead] names it. */
+    fun annotatedDefinitionHead(head: ElixirAst, level: ElixirLanguageLevel): ElixirAst? {
+        val view = AstEscapeView(Synthetic(head.meta), ParsedMeta(columns = false))
 
-        val (function, arity) = (slash as ElixirAst.Call).arguments!!
-
-        return isVariable(function) && arity is ElixirAst.Literal.Integer
+        return definitionHead(view, AstTerm.Node(head), level)?.let { (it as AstTerm.Node).node }
     }
-
-    /** `lists:keystore/4`, as `elixir_quote`'s `keystore/3` calls it with a value that isn't `nil`. */
-    private fun keystore(meta: Keywords, key: String, value: ElixirAst): Keywords {
-        val index = meta.indexOfFirst { it.first == key }
-
-        return if (index < 0) meta + (key to value) else meta.toMutableList().apply { set(index, key to value) }
-    }
-
-    /** `lists:keydelete/3`. */
-    private fun keydelete(meta: Keywords, key: String): Keywords {
-        val index = meta.indexOfFirst { it.first == key }
-
-        return if (index < 0) meta else meta.filterIndexed { i, _ -> i != index }
-    }
-
-    /**
-     * The node of a `def` [head] that `annotate_def/2` marks with `context:`: the head under a guard's `when` from
-     * [QUOTED_DEF_CONTEXT_SKIPS_GUARD], before it the first node that took any tuple, the `when` included, or `null`
-     * where that has no metadata.
-     */
-    fun annotatedDefinitionHead(head: ElixirAst, level: ElixirLanguageLevel): ElixirAst? =
-        when {
-            QUOTED_DEF_CONTEXT_SKIPS_GUARD.isSufficient(level) && isCall(head, "when", 2) ->
-                annotatedDefinitionHead((head as ElixirAst.Call).arguments!![0], level)
-            head.hasMetadata() -> head
-            else -> null
-        }
 }
+
+/** `Path.split/1`: an absolute path's root, then each name. */
+private fun splitPath(path: String): List<String> =
+    listOfNotNull("/".takeIf { path.startsWith("/") }) + path.split("/").filter(String::isNotEmpty)

@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.util.io.OSAgnosticPathUtil
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.DefinitionTable.Kind
 import org.elixir_lang.expander.ExpansionResult.Owner
@@ -11,6 +12,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.HAS_UNQUOTES_QUOTE_A
 import org.elixir_lang.language_level.ElixirLanguageFeature.POST_MODULE_LOCAL_CHECKS_TYPED
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
 import java.util.Collections
 import java.util.IdentityHashMap
@@ -78,7 +80,7 @@ internal fun define(
     for (part in listOfNotNull(head, body).takeIf { unquotes }.orEmpty()) {
         fragments.collect(part)
 
-        when (val escape = Quote.escape(part, node.meta, env, run)) {
+        when (val escape = Quote.escape(part, node.meta, run)) {
             is Quote.Escaped.Built -> fragments.order(escape.node, pieces)
             // Code the port stops at stops the definition when it is expanded, not the module body that holds it. The
             // source holds no calls of the escape, and its own `:erlang` calls are the body's to dispatch.
@@ -115,7 +117,7 @@ internal fun define(
 
         for ((piece, term) in pieces.zip((terms as Term.List).elements)) {
             val fragment = (piece as? Piece.Fragment)?.call ?: continue
-            val literal = literalOf(fragment, term, escaped = false)
+            val literal = literalOf(fragment, term)
 
             when {
                 literal != null -> replacements[fragment] = literal
@@ -148,23 +150,20 @@ internal fun define(
 }
 
 /**
- * The literal [fragment]'s value [term] is, if it is one a definition can hold. A value that is [escaped] is the
- * expression that builds it, in which a tuple is a tuple; one that isn't is the code `unquote` inserts, in which a tuple
- * of three is a call and one of any other size but two isn't code at all.
+ * The literal [fragment]'s value [term] is, if it is one a definition can hold: the code `unquote` inserts, in which a
+ * tuple of three is a call and one of any other size but two isn't code at all.
  */
-internal fun literalOf(fragment: ElixirAst, term: Term, escaped: Boolean): ElixirAst? =
+internal fun literalOf(fragment: ElixirAst, term: Term): ElixirAst? =
     when (term) {
         is Term.Atom -> ElixirAst.Literal.Atom(fragment.meta, term.name)
         is Term.Integer -> ElixirAst.Literal.Integer(fragment.meta, term.value)
         is Term.Binary -> term.bytes?.let { ElixirAst.Literal.Binary(fragment.meta, it) }
         is Term.List ->
             if (term.tail != null) null
-            else ElixirAst.ListNode(fragment.meta, term.elements.map { literalOf(fragment, it, escaped) ?: return null })
-        is Term.Tuple ->
-            if (escaped) ElixirAst.Tuple(fragment.meta, term.elements.map { literalOf(fragment, it, escaped = true) ?: return null }) else null
+            else ElixirAst.ListNode(fragment.meta, term.elements.map { literalOf(fragment, it) ?: return null })
         is Term.Pair -> ElixirAst.Tuple(
             fragment.meta,
-            listOf(literalOf(fragment, term.first, escaped) ?: return null, literalOf(fragment, term.second, escaped) ?: return null),
+            listOf(literalOf(fragment, term.first) ?: return null, literalOf(fragment, term.second) ?: return null),
         )
         else -> null
     }
@@ -352,8 +351,72 @@ private fun isReadWhole(call: ElixirAst): Boolean =
 internal fun extractGuards(head: ElixirAst): Pair<ElixirAst, List<ElixirAst>> =
     whenArguments(head)?.takeIf { it.size == 2 }?.let { (call, guards) -> call to orGuards(guards) } ?: (head to emptyList())
 
-private fun orGuards(node: ElixirAst): List<ElixirAst> =
+/** `elixir_utils:extract_or_guards/1`: each guard of [node]'s `when`s. */
+internal fun orGuards(node: ElixirAst): List<ElixirAst> =
     whenArguments(node)?.takeIf { it.size == 2 }?.let { (guard, rest) -> listOf(guard) + orGuards(rest) } ?: listOf(node)
+
+/**
+ * Whether `run_with_location_change/3` moves a definition into another file: whether the file of [file], the `@file` it
+ * took, or else of the `keep:` that `elixir_utils:meta_keep/1` reads off [head]'s name and arguments, made absolute as
+ * `filename:absname/1` makes it, isn't [run]'s. A file that can't be read moves it.
+ */
+private fun moved(file: AttributeValue?, head: ElixirAst, run: Run): Boolean {
+    val path = when (file) {
+        null -> keptFile(extractGuards(head).first.meta) ?: return false
+        AttributeValue.Unknown -> return true
+        is AttributeValue.Known -> fileOf(file.term) ?: return true
+    }
+    val joined = when {
+        OSAgnosticPathUtil.isAbsolute(path) -> path
+        else -> run.file?.let(run.directories::of)?.let { "$it/$path" } ?: return true
+    }
+
+    return absname(joined) != run.file?.let(::absname)
+}
+
+/**
+ * `filename:absname/1` of [path], already absolute, as `join1b/4` joins it on Windows: a drive letter lowercased, `\`
+ * read as `/`, a `//` root kept, and a repeated separator or a `.` before one dropped.
+ */
+private fun absname(path: String): String {
+    val slashed = path.replace('\\', '/')
+    val drive = slashed.getOrNull(1) == ':' && slashed[0].lowercaseChar() in 'a'..'z'
+    val root = when {
+        drive -> "${slashed[0].lowercaseChar()}:"
+        slashed.startsWith("//") -> "//"
+        else -> ""
+    }
+    val joined = StringBuilder(root)
+
+    for (char in slashed.substring(root.length)) {
+        when {
+            char != '/' -> joined.append(char)
+            joined.endsWith("/.") -> joined.setLength(joined.length - 1)
+            !joined.endsWith("/") -> joined.append(char)
+        }
+    }
+
+    val name = joined.toString()
+
+    // `maybe_remove_dirsep/2`: a trailing separator is dropped, but not a root's.
+    return if (name.endsWith("/") && name != "$root/" && name != "//") name.dropLast(1) else name
+}
+
+/** `meta_keep/1`: the file of [meta]'s first `keep:`, where that is `{File, Line}` with a binary and an integer. */
+private fun keptFile(meta: Meta): String? {
+    val keep = meta.keys.firstNotNullOfOrNull { key -> (key as? Meta.Key.Entry)?.takeIf { it.name == "keep" } } ?: return null
+    val (file, line) = (keep.value as? Meta.Value.Tuple)?.elements?.takeIf { it.size == 2 } ?: return null
+
+    return (file as? Meta.Value.Binary)?.text?.takeIf { line is Meta.Value.Integer }
+}
+
+/** The file of `@file`'s [term], a binary or `{File, Line}` as `retrieve_location/2` takes it, or `null` for any other. */
+private fun fileOf(term: Term): String? =
+    when (term) {
+        is Term.Binary -> term.bytes?.toString(Charsets.UTF_8)
+        is Term.Pair -> (term.first as? Term.Binary)?.bytes?.takeIf { term.second is Term.Integer }?.toString(Charsets.UTF_8)
+        else -> null
+    }
 
 /**
  * `elixir_def:store_definition/5`: [definition]'s name checked, its defaults and clause expanded in the env where it
@@ -373,7 +436,7 @@ internal fun storeDefinition(
     val unnamedAt = definition.unnamedAt
 
     // `retrieve_location/2`, before the name is checked. Only `invalid_def` comes before it in Elixir, and it raises.
-    takeFile(definition, compiling)
+    compiling.definitionMoved = moved(takeFile(definition, compiling), definition.head, run)
 
     if (unnamedAt != null) {
         compiling.table.define(null, 0, kind, node, 0, 0, definition.statement, definition.checksClauses)
@@ -405,13 +468,24 @@ internal fun storeDefinition(
         return owner to Expansion.Unported(definition.stop ?: node)
     }
 
-    val env = definition.env.copy(function = NameArity(name, arity))
+    val nameArity = NameArity(name, arity)
+    val env = definition.env.copy(function = nameArity)
     val fresh = ExState.empty(run.level).copy(caller = kind.macro)
     val args = defaultsArgs.map { arg -> if (arg in defaults) (arg as ElixirAst.Call).arguments!![0] else arg }
-    val expansion = expandDefaults(defaults, fresh, env, run, compiling, node)
-        .then { _, _ -> clause(node, args, guards, definition.body, fresh, env, run) }
+    val body = definition.body?.let { clauseBody(node, it) }
+    val defaulted = expandDefaults(defaults, fresh, env, run, compiling, node)
+    val expansion = defaulted.then { _, _ -> clause(node, args, guards, definition.body, body, fresh, env, run) }
 
     if (expansion is Expansion.Error) return owner to expansion
+
+    body?.let { compiling.clauses.getOrPut(nameArity) { mutableListOf() } += ModuleClauses.Clause(args, guards, it) }
+    if (defaulted is Expansion.Expanded) {
+        val counter = if (DEFAULT_ARGUMENTS_THREAD_STATE.isSufficient(run.level)) defaulted.state.version else 0
+
+        for (clause in defaultClauses(kind, name, defaultsArgs, defaults, counter)) {
+            compiling.clauses.getOrPut(NameArity(name, clause.args.size)) { mutableListOf() } += clause
+        }
+    }
 
     // The store follows the expansion, so from 1.15 the body's errors are reported before the store raises. A body
     // that isn't expanded may raise before the store does.
@@ -508,14 +582,68 @@ private fun expandDefaults(
 }
 
 /**
- * `def_to_clauses/6`, then `elixir_clauses:def/3` for the clause: the arguments as a pattern, the guard, then the body.
- * A bodiless head stores no clause: each argument that isn't a variable is an error, and so is a guard.
+ * `unpack_expanded/7`: the clause of each default arity of [defaultsArgs], whose [defaults] are expanded. It binds the
+ * arguments it is given to variables numbered from [counter], and calls the full arity through `super` with the
+ * defaults it lacks.
+ */
+private fun defaultClauses(
+    kind: Kind,
+    name: String,
+    defaultsArgs: List<ElixirAst>,
+    defaults: List<ElixirAst.Call>,
+    counter: Int,
+): List<ModuleClauses.Clause> =
+    defaultsArgs.indices.filter { defaultsArgs[it] in defaults }.map { index ->
+        val default = defaultsArgs[index] as ElixirAst.Call
+        val synthetic = Synthetic(default.meta)
+        // `default_var/1`.
+        val variable = { version: Int ->
+            val keys = listOf(
+                Meta.Key.Entry("generated", Meta.Value.Atom("true")),
+                Meta.Key.Entry("version", Meta.Value.Integer(version.toLong())),
+            )
+
+            synthetic.variable("x$version", "elixir_def", keys)
+        }
+        val base = (0 until index).map { variable(counter + it) }
+        var next = counter + index
+        val rest = defaultsArgs.drop(index).map { arg ->
+            if (arg in defaults) null to (arg as ElixirAst.Call).arguments!![1] else variable(next++).let { it to it }
+        }
+        val superKeys = listOf(
+            Meta.Key.Entry("super", Meta.Value.Tuple(listOf(Meta.Value.Atom(kind.name.lowercase()), Meta.Value.Atom(name)))),
+        ) + default.meta.keys
+
+        ModuleClauses.Clause(
+            base + rest.mapNotNull { it.first },
+            emptyList(),
+            synthetic.call("super", base + rest.map { it.second }, superKeys),
+        )
+    }
+
+/** `def_to_clauses/6`'s body of [node]'s [options]: a `do` alone is its body, and with more a `try`; `null` without one. */
+private fun clauseBody(node: ElixirAst.Call, options: ElixirAst): ElixirAst? {
+    val pairs = (options as? ElixirAst.ListNode)?.elements
+
+    return when {
+        pairs?.singleOrNull()?.let(::keyOf) == "do" -> (pairs.single() as ElixirAst.Tuple).elements[1]
+        pairs?.any { keyOf(it) == "do" } == true ->
+            ElixirAst.Call(node.meta, ElixirAst.Literal.Atom(node.meta, "try"), listOf(options))
+        else -> null
+    }
+}
+
+/**
+ * `def_to_clauses/6`, then `elixir_clauses:def/3` for the clause: the arguments as a pattern, the guard, then the
+ * [body] of [options]. A bodiless head stores no clause: each argument that isn't a variable is an error, and so is a
+ * guard.
  */
 private fun clause(
     node: ElixirAst.Call,
     args: List<ElixirAst>,
     guards: List<ElixirAst>,
     options: ElixirAst?,
+    body: ElixirAst?,
     state: ExState,
     env: Env,
     run: Run,
@@ -532,13 +660,7 @@ private fun clause(
         return Expansion.Expanded(state, env, NODE)
     }
 
-    val pairs = (options as? ElixirAst.ListNode)?.elements
-    val body = when {
-        pairs?.singleOrNull()?.let(::keyOf) == "do" -> (pairs.single() as ElixirAst.Tuple).elements[1]
-        pairs?.any { keyOf(it) == "do" } == true ->
-            ElixirAst.Call(node.meta, ElixirAst.Literal.Atom(node.meta, "try"), listOf(options))
-        else -> return Expansion.Error("missing_option", node)
-    }
+    if (body == null) return Expansion.Error("missing_option", node)
 
     return match(state, state, env, node) { s, e -> expandArgs(args, s, e, run) }
         .then { s, e ->

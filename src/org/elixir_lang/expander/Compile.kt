@@ -23,6 +23,12 @@ internal class Compiling(body: ElixirAst, level: ElixirLanguageLevel) {
     /** Each definition's local calls, in expansion order. */
     val calls = LinkedHashMap<NameArity, MutableList<LocalCall<ElixirAst>>>()
 
+    /** Each definition's clauses, in the order they were stored. */
+    val clauses = LinkedHashMap<NameArity, MutableList<ModuleClauses.Clause>>()
+
+    /** Each `quote` the definitions' bodies hold. */
+    val quotes = ModuleClauses.Quotes()
+
     /**
      * The calls a hidden definition's body brought back under the name it was made overridable as, which stay when that
      * name is made overridable again where its checks visit the hidden definition's own body, and go otherwise.
@@ -51,6 +57,12 @@ internal class Compiling(body: ElixirAst, level: ElixirLanguageLevel) {
 
     /** The reads of the definition being stored, which take its owner once it is. */
     private val definitionReads = mutableListOf<Pair<String, Pair<ElixirAst, Term>>>()
+
+    /**
+     * Whether the definition being expanded is in a file other than the run's, as `retrieve_location/2` gives it: it
+     * took `@file`, or it has a `keep:` location.
+     */
+    var definitionMoved = false
 
     /** The struct `defstruct` recorded, if it has run. */
     var struct: ModuleStruct? = null
@@ -393,7 +405,7 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
         compiling.struct,
     )
 
-    run.load(result)
+    run.load(result) { ModuleClauses.of(result.module, compiling, run.file) }
 
     return result
 }

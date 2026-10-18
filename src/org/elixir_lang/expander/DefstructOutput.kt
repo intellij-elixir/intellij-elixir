@@ -215,16 +215,17 @@ internal class StructOutput(
 
         if (enforced == null || entries == null) return queued
 
-        val clause = bodyOf(enforced, entries)
-        val fragments = mapOf("kv" to plainUtils.v("kv"), "body" to clause, "escaped_struct" to struct(entries))
+        val struct = if (escaped) struct(entries) ?: return queued else null
+        val clause = bodyOf(enforced, struct)
+        val fragments = mapOf("kv" to plainUtils.v("kv"), "body" to clause) + listOfNotNull(struct?.let { "escaped_struct" to it })
 
         return queued.map { filled(it, fragments) }
     }
 
-    /** `Kernel.Utils.defstruct`'s `body`: what `__struct__/1` does with its keyword list. */
-    private fun bodyOf(enforced: List<String>, entries: List<Pair<String, ElixirAst>>): ElixirAst {
+    /** `Kernel.Utils.defstruct`'s `body`: what `__struct__/1` does with its keyword list, from [struct] where escaped. */
+    private fun bodyOf(enforced: List<String>, struct: ElixirAst?): ElixirAst {
         val u = utils
-        val initial = if (escaped) struct(entries) else structReadUtils()
+        val initial = struct ?: structReadUtils()
         val update = u.call("%{}", listOf(u.call("|", listOf(u.v("map"), s.list(u.tuple(listOf(u.v("key"), u.v("val"))))))))
 
         if (enforced.isEmpty()) {
@@ -258,13 +259,13 @@ internal class StructOutput(
 
     private fun structReadUtils(): ElixirAst = utils.imported("@", listOf(utils.localVariable("__struct__")), listOf(1 to KERNEL))
 
-    private fun struct(entries: List<Pair<String, ElixirAst>>): ElixirAst {
+    private fun struct(entries: List<Pair<String, ElixirAst>>): ElixirAst? {
         val defaults = LinkedHashMap<String, ElixirAst>()
 
         defaults["__struct__"] = s.atom(module)
         for ((key, value) in entries) defaults[key] = value
 
-        return s.escapedMap(defaults.entries.map { it.key to it.value })
+        return QuoteEscape.map(AstEscapeBuilder(s), level, defaults.entries.map { it.key to it.value })
     }
 }
 

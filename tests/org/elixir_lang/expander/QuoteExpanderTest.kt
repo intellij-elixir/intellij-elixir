@@ -3,6 +3,7 @@ package org.elixir_lang.expander
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.lowering.ParserOptions
 
 /**
  * `unquote` and `quote` over lowered snippets at every supported minor, and the value each `quote` builds, read with
@@ -153,14 +154,56 @@ class QuoteExpanderTest : ExpanderTestCase() {
     fun testUnquoteSplicingBeforeATailIsARemoteCall() =
         assertEvery("l = [1]\nquote(do: [unquote_splicing(l) | 2])", "expanded {l:0} next 1")
 
+    /** Each tree is what 1.20.4's `:elixir_quote.quote/2` writes with `~w` for the snippet in module `T`. */
+    fun testUnquoteSplicingBuildsTheListAtRunTime() {
+        val level = ElixirLanguageLevel.of("1.20.4")
+
+        assertEquals(
+            listOf(
+                "{{'.',[],[erlang,'++']},[],[[1],{{'.',[{line,1}],[elixir_quote,list]},[{line,1}],[{l,[{line,1}],nil},[2]]}]}",
+                "{{'.',[{line,1}],[elixir_quote,tail_list]},[{line,1}],[{l,[{line,1}],nil},{'{}',[],[t,[],'Elixir.T']},[]]}",
+                "{'{}',[],[foo,[],{{'.',[{line,1}],[elixir_quote,list]},[{line,1}],[{l,[{line,1}],nil},[]]}]}",
+                "{{'.',[{line,1}],[elixir_quote,list]},[{line,1}],[{a,[{line,1}],nil},{{'.',[],[erlang,'++']},[],[[1],{{'.',[{line,1}],[elixir_quote,list]},[{line,1}],[{b,[{line,1}],nil},[]]}]}]}",
+            ).joinToString("\n"),
+            listOf(
+                "[1, unquote_splicing(l), 2]",
+                "[unquote_splicing(l) | t]",
+                "foo(unquote_splicing(l))",
+                "[unquote_splicing(a), 1, unquote_splicing(b)]",
+            ).joinToString("\n") { tree("quote(do: $it)", level) },
+        )
+    }
+
+    /** 1.20.4's `:elixir_quote.quote/2` tree: a pair that splices is quoted as `{'{}', [], [Left, Right]}`. */
+    fun testASplicingPairTakesTheQuotesMetadata() =
+        assertEquals(
+            "{'{}',[],['{}',[{generated,true}],{{'.',[{line,1}],[elixir_quote,list]},[{line,1}],[{l,[{line,1}],nil},[2]]}]}",
+            tree("quote(generated: true, do: {unquote_splicing(l), 2})", ElixirLanguageLevel.of("1.20.4")),
+        )
+
     fun testAnUnquotedCallNameIsARemoteCall() =
         assertEvery("f = :foo\nquote(do: Kernel.unquote(f)(1))", "expanded {f:0} next 1")
 
     fun testAnUnquotedNameIsARemoteCall() =
         assertEvery("f = :foo\nquote(do: Kernel.unquote(f))", "expanded {f:0} next 1")
 
-    fun testLocationKeepReadsTheFile() =
+    fun testLocationKeepWithoutAFileIsUnported() =
         assertEvery("quote(location: :keep, do: 1)", "unported `quote(location: :keep, do: 1)`")
+
+    fun testLocationKeepInAFileOfUnknownDirectoryIsUnportedBefore1_14_4() {
+        val code = "quote(location: :keep, do: 1)"
+
+        assertEquals(
+            KEPT.joinToString("\n") { "$it: " + if (isBefore(it, "1.14.4")) "unported `$code`" else "expanded {} next 0" },
+            KEPT.joinToString("\n") { version ->
+                val level = ElixirLanguageLevel.of(version)
+                val env = Env.empty(level, kernel).copy(module = "Elixir.T")
+                val run = inFile(level, CompileDirectories.UNKNOWN)
+
+                "$version: " + render(code, Expander.expand(lower(code, level), ExState.empty(level), env, run))
+            },
+        )
+    }
 
     fun testAnotherLocationCrashes() =
         assertEvery("quote(location: :other, do: 1)", "unported `quote(location: :other, do: 1)`")
@@ -331,6 +374,40 @@ class QuoteExpanderTest : ExpanderTestCase() {
     fun testAnUnquotedLiteralBelow1_18() =
         assertSplitValue("quote(do: foo(unquote(1)))", "1.18.0-rc.0", "{:foo, [], [1]}", "no value")
 
+    // location: :keep
+
+    /** Before 1.14.4 the file is relative to the directory it was compiled in; each node keeps its own line throughout. */
+    fun testLocationKeepKeepsTheFile() =
+        assertKeptValues("quote(location: :keep, do: foo(v))", { DIRECTORY }) { version ->
+            val file = if (isBefore(version, "1.14.4")) "lib/a.ex" else FILE
+
+            "{:foo, [keep: {\"$file\", 1}], [{:v, [keep: {\"$file\", 1}], T}]}"
+        }
+
+    /** `keep` sets the file and line itself, so neither option is read, nor bound ahead of the quote. */
+    fun testLocationKeepReadsNeitherFileNorLine() =
+        assertKeptValues("f = \"x.ex\"\nl = 7\nquote(location: :keep, file: f, line: l, do: foo(v))", { DIRECTORY }) { version ->
+            val file = if (isBefore(version, "1.14.4")) "lib/a.ex" else FILE
+
+            "{:foo, [keep: {\"$file\", 3}], [{:v, [keep: {\"$file\", 3}], T}]}"
+        }
+
+    /** A directory is compared with the file a whole segment at a time. */
+    fun testLocationKeepOfAFileOutsideItsDirectoryKeepsItWhole() =
+        assertKeptValues("quote(location: :keep, do: v)", { "$DIRECTORY/li" }) { "{:v, [keep: {\"$FILE\", 1}], T}" }
+
+    /** From 1.14.4 the directory isn't read. */
+    fun testLocationKeepOfAFileOfUnknownDirectoryFrom1_14_4() =
+        assertKeptValues("quote(location: :keep, do: v)", CompileDirectories.UNKNOWN) { version ->
+            if (isBefore(version, "1.14.4")) "no escaped expression" else "{:v, [keep: {\"$FILE\", 1}], T}"
+        }
+
+    /** The directory is asked for the file being expanded. */
+    fun testLocationKeepAsksForItsOwnFile() =
+        assertKeptValues("quote(location: :keep, do: v)", { file -> DIRECTORY.takeIf { file == FILE } }) { version ->
+            "{:v, [keep: {\"${if (isBefore(version, "1.14.4")) "lib/a.ex" else FILE}\", 1}], T}"
+        }
+
     fun testTheLineOffsetShiftsSourceLinesOnly() {
         val level = ElixirLanguageLevel.of("1.20.4")
 
@@ -350,23 +427,52 @@ class QuoteExpanderTest : ExpanderTestCase() {
     private fun assertSplitValue(code: String, boundary: String, before: String, from: String) =
         assertLevelValues(code, LEVELS + boundary) { if (isBefore(it, boundary)) before else from }
 
-    private fun assertLevelValues(code: String, versions: List<String>, expected: (String) -> String) {
+    /** [code]'s value in [FILE], compiled in the directory [directories] gives, on each leg of [KEPT]. */
+    private fun assertKeptValues(code: String, directories: CompileDirectories, expected: (String) -> String) =
+        assertLevelValues(code, KEPT, { inFile(it, directories) }, expected)
+
+    private fun assertLevelValues(
+        code: String,
+        versions: List<String>,
+        run: (ElixirLanguageLevel) -> Run = { Run(it, ExpansionObserver.NONE, exports, structs) },
+        expected: (String) -> String,
+    ) {
         val sorted = versions.distinct().sortedBy { ElixirLanguageLevel.of(it).elixir }
 
         assertEquals(
             sorted.joinToString("\n") { "$it: ${expected(it)}" },
-            sorted.joinToString("\n") { "$it: ${value(code, ElixirLanguageLevel.of(it))}" },
+            sorted.joinToString("\n") { version ->
+                val level = ElixirLanguageLevel.of(version)
+
+                "$version: ${value(code, level, run = run(level))}"
+            },
         )
+    }
+
+    private fun inFile(level: ElixirLanguageLevel, directories: CompileDirectories) =
+        Run(level, ExpansionObserver.NONE, exports, structs, file = FILE, directories = directories)
+
+    /** The escaped expression [code], a `quote`, builds in module `T`, written with `~w` and without columns. */
+    private fun tree(code: String, level: ElixirLanguageLevel): String {
+        val run = Run(level, ExpansionObserver.NONE, exports, structs)
+        val env = Env.empty(level, kernel).copy(module = "Elixir.T")
+        val escaped = Quote.escaped(lower(code, level) as ElixirAst.Call, ExState.empty(level), env, run) ?: return "no escaped expression"
+
+        return written(escaped.toOtp(ParserOptions(columns = false)))
     }
 
     /**
      * The value of [code]'s last statement, a `quote`, expanded in module `T` from the empty env after the statements
      * before it.
      */
-    private fun value(code: String, level: ElixirLanguageLevel, lineOffset: Int = 0): String {
+    private fun value(
+        code: String,
+        level: ElixirLanguageLevel,
+        lineOffset: Int = 0,
+        run: Run = Run(level, ExpansionObserver.NONE, exports, structs),
+    ): String {
         val ast = lower(code, level)
         val statements = if (ast is ElixirAst.Block) ast.expressions else listOf(ast)
-        val run = Run(level, ExpansionObserver.NONE, exports, structs)
         var state = ExState.empty(level)
         var env = Env.empty(level, kernel).copy(module = "Elixir.T")
 
@@ -384,5 +490,10 @@ class QuoteExpanderTest : ExpanderTestCase() {
 
     private companion object {
         const val AMBIGUOUS = "import Map, only: [get: 2]\nimport Keyword, only: [get: 2]"
+        const val DIRECTORY = "/umbrella/apps/a"
+        const val FILE = "$DIRECTORY/lib/a.ex"
+
+        /** Each leg, and either side of the release from which `keep` stores the whole file. */
+        val KEPT = LEVELS + listOf("1.14.3", "1.14.4")
     }
 }

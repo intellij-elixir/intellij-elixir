@@ -9,6 +9,7 @@ import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.ModificationTracker
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
+import com.intellij.psi.PsiCompiledFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
@@ -19,6 +20,7 @@ import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
+import org.elixir_lang.mix.Project.MIX_EXS
 import org.elixir_lang.navigation.isDecompiled
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.Import.Term
@@ -39,6 +41,14 @@ internal class ProjectModules(private val project: Project) {
 
     private val files = ByFile<Loaded>()
     private val beams = ByFile<Read>()
+    @Volatile
+    private var clauseCache = ClauseCache<VirtualFile, Clauses>(CLAUSE_BOUND, Clauses::weight)
+
+    /** An empty clause cache within [bound] bytes, or the usual bound where it is `null`. */
+    @TestOnly
+    internal fun boundClauses(bound: Long?) {
+        clauseCache = ClauseCache(bound ?: CLAUSE_BOUND, Clauses::weight)
+    }
 
     /** Per holder, so a new holder computes afresh. */
     private val held = Key.create<Held>("org.elixir_lang.expander.ProjectModules.held")
@@ -60,6 +70,23 @@ internal class ProjectModules(private val project: Project) {
     @RequiresReadLock
     fun struct(asker: PsiFile, atom: String, inputs: Inputs): ModuleStruct =
         lookup(asker, atom, inputs, compiling(asker), Memo()).answer.struct
+
+    /**
+     * [atom]'s clauses, from the copy Elixir loads for [asker], as [exports] chooses it: none where which copy loads is
+     * unknown, where it is [asker]'s own file, which reads as compiling, or where it doesn't load with readable exports.
+     * They are read when asked, and held apart from the answers within their own bound.
+     */
+    @RequiresReadLock
+    fun clauses(asker: PsiFile, atom: String, inputs: Inputs): ModuleClauses? {
+        val copy = (choose(asker, atom) as? Choice.One)?.copy ?: return null
+        val inProgress = compiling(asker)
+
+        return when (copy) {
+            is Copy.Compiled -> compiledClauses(copy.virtualFile, inputs.level)
+            is Copy.Source if copy.virtualFile in inProgress -> null
+            is Copy.Source -> sourceClauses(copy, inputs, inProgress)[atom]
+        }
+    }
 
     /** Where Elixir loads a module from for a file that asks. */
     sealed interface Located {
@@ -260,6 +287,54 @@ internal class ProjectModules(private val project: Project) {
         return answer
     }
 
+    private fun compiledClauses(beam: VirtualFile, level: ElixirLanguageLevel): ModuleClauses? {
+        val stamp = beam.modificationStamp
+        (clauseCache[beam] as? Clauses.Compiled)?.takeIf { it.stamp == stamp && it.level == level }?.let { return it.clauses }
+
+        val deprecations = (compiled(beam).exports as? ModuleExports.Present)?.deprecated ?: return null
+        val bytes = try {
+            beam.contentsToByteArray()
+        } catch (_: IOException) {
+            return null
+        }
+        val mirror = (PsiManager.getInstance(project).findFile(beam) as? PsiCompiledFile)?.decompiledPsiFile as? ElixirFile
+            ?: return null
+        val clauses = CompiledModule.of(bytes, beam.path, mirror, level, deprecations)?.let { ModuleClauses.of(it, beam.path) }
+        clauseCache[beam] = Clauses.Compiled(stamp, level, clauses)
+
+        return clauses
+    }
+
+    /** The clauses of each module [copy] loads, by expanding it again. */
+    private fun sourceClauses(
+        copy: Copy.Source,
+        inputs: Inputs,
+        inProgress: Map<VirtualFile, Map<String, Answer>>,
+    ): Map<String, ModuleClauses> {
+        (clauseCache[copy.virtualFile] as? Clauses.Source)
+            ?.takeIf { it.loaded.isCurrent(inputs) && it.loaded.holdsWhile(inProgress) }
+            ?.let { return it.modules }
+
+        val modules = HashMap<String, ModuleClauses>()
+        val computed = compute(copy.file, inputs, inProgress, Memo(), observer = clausesInto(modules))
+        if (computed.transient.isNone) {
+            files[copy.virtualFile] = computed.loaded
+            clauseCache[copy.virtualFile] = Clauses.Source(computed.loaded, modules)
+        }
+
+        return modules
+    }
+
+    /** An observer putting each module's clauses, as it loads, into [modules], or taking them out where it has none. */
+    private fun clausesInto(modules: MutableMap<String, ModuleClauses>) =
+        object : ExpansionObserver {
+            override fun entering(node: ElixirAst, state: ExState, env: Env) {}
+
+            override fun clausesLoaded(module: String, clauses: ModuleClauses?) {
+                if (clauses == null) modules.remove(module) else modules[module] = clauses
+            }
+        }
+
     private fun copy(element: PsiElement): HeldCopy? {
         val file = element.containingFile ?: return null
         val virtualFile = fileOf(file) ?: return null
@@ -284,9 +359,12 @@ internal class ProjectModules(private val project: Project) {
             ?.let { return it to Transient.NONE }
         memo.of(copy.virtualFile, inProgress)?.let { return it }
 
-        val computed = compute(copy.file, inputs, inProgress, memo)
+        // The clauses the expansion loads are kept, so a later read of them doesn't expand the file again.
+        val modules = HashMap<String, ModuleClauses>()
+        val computed = compute(copy.file, inputs, inProgress, memo, observer = clausesInto(modules))
         if (computed.transient.isNone) {
             files[copy.virtualFile] = computed.loaded
+            clauseCache[copy.virtualFile] = Clauses.Source(computed.loaded, modules)
         } else if (!computed.transient.dumb) {
             memo.add(copy.virtualFile, computed.loaded to computed.transient)
         }
@@ -359,6 +437,12 @@ internal class ProjectModules(private val project: Project) {
                     observer.loaded(result, exports, struct)
                 }
             },
+            file = virtualFile?.path,
+            directories = { path ->
+                // A `mix.exs` created or deleted above the file moves its answer.
+                stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+                virtualFile?.fileSystem?.findFileByPath(path)?.let(::compileDirectory)
+            },
         )
         used.forEach { stamps.addAll(it.stamps) }
 
@@ -367,6 +451,13 @@ internal class ProjectModules(private val project: Project) {
 
         return Held(Loaded(inputs, modules, uncompiled, stamps), expansion, results, lowering, transient, envs, receivers)
     }
+
+    /**
+     * The directory Elixir compiled [file] in: the innermost Mix project's holding it, as Mix compiles a dependency and
+     * each umbrella app in its own.
+     */
+    private fun compileDirectory(file: VirtualFile): String? =
+        generateSequence(file.parent) { it.parent }.firstOrNull { it.findChild(MIX_EXS) != null }?.path
 
     /** A [Copy] as held: its file, and whether it is a `.beam`. */
     private class HeldCopy(val virtualFile: VirtualFile, val compiled: Boolean)
@@ -464,6 +555,21 @@ internal class ProjectModules(private val project: Project) {
     /** A `.beam`'s answer, read at [stamp]. */
     private class Read(val stamp: Long, val answer: Answer)
 
+    /** A file's clauses, as [clauseCache] holds them. */
+    private sealed interface Clauses {
+        fun weight(): Long
+
+        /** A `.beam`'s, read at [stamp] and [level]; `null` where it holds none. */
+        class Compiled(val stamp: Long, val level: ElixirLanguageLevel, val clauses: ModuleClauses?) : Clauses {
+            override fun weight(): Long = clauses?.weight() ?: 0
+        }
+
+        /** Each module's of a source file, as the expansion that [loaded] stamps compiled them. */
+        class Source(val loaded: Loaded, val modules: Map<String, ModuleClauses>) : Clauses {
+            override fun weight(): Long = modules.values.sumOf(ModuleClauses::weight)
+        }
+    }
+
     /** Values by file, which let go of deleted files' when a value is stored after `VFS_STRUCTURE_MODIFICATIONS` moves. */
     private class ByFile<V : Any> {
         private val values = ConcurrentHashMap<VirtualFile, V>()
@@ -537,6 +643,9 @@ internal class ProjectModules(private val project: Project) {
         /** Each module [expansion] compiled, a nested module after those around it. */
         fun results(expansion: FileExpansion): Sequence<ExpansionResult> =
             generateSequence(expansion.modules) { results -> results.flatMap { it.nested }.ifEmpty { null } }.flatten()
+
+        /** The bytes the clause cache may retain, apart from the answers' own bound. */
+        private const val CLAUSE_BOUND = 64L shl 20
 
         private val ABSENT = Answer(ModuleExports.Absent, ModuleStruct.Absent)
         private val UNREADABLE = Answer(ModuleExports.Unreadable, ModuleStruct.Unreadable)
