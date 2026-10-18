@@ -1,11 +1,15 @@
 package org.elixir_lang.documentation
 
 import com.intellij.openapi.editor.colors.TextAttributesKey
+import com.intellij.openapi.editor.markup.TextAttributes
+import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.FUNCTION_DECLARATION
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.GUARD_DECLARATION
 import org.elixir_lang.ElixirSyntaxHighlighter.Companion.MACRO_DECLARATION
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.declaration.DistinctKeyScheme
+import java.awt.Color
+import java.awt.Font
 
 /** A code block in rendered documentation highlights a declared name by its presentation, a guard by its own key. */
 class RenderedDocDeclarationHighlightingTest : PlatformTestCase() {
@@ -44,6 +48,34 @@ class RenderedDocDeclarationHighlightingTest : PlatformTestCase() {
             ),
             listOf("function_clause", "macro_clause", "guard_clause", "private_guard_clause")
                 .associateWith { keysByStart[code.indexOf("$it(")] }
+        )
+    }
+
+    /** The semantic ranges are only half the result: a head is also a call, and the block shows the two merged. */
+    fun testTheRenderedBlockColoursADeclaredNameByItsKind() {
+        val code = """
+            defmodule Sample do
+              def function_clause(a), do: a
+              defmacro macro_clause(a), do: a
+              defguard guard_clause(a) when a > 0
+              defguardp private_guard_clause(a) when a > 0
+            end
+        """.trimIndent()
+        val html = RenderedDocCodeBlockRenderer.render(project, ElixirLanguage, code)
+
+        fun keysOf(name: String): Set<TextAttributesKey>? =
+            Regex("""<span style="color:#([0-9a-f]{6})[^"]*">$name<""").find(html)?.groupValues?.get(1)
+                ?.let { scheme.keys(TextAttributes(Color(it.toInt(16)), null, null, null, Font.PLAIN)) }
+
+        assertEquals(
+            mapOf(
+                "function_clause" to setOf(FUNCTION_DECLARATION),
+                "macro_clause" to setOf(MACRO_DECLARATION),
+                "guard_clause" to setOf(GUARD_DECLARATION),
+                "private_guard_clause" to setOf(GUARD_DECLARATION)
+            ),
+            listOf("function_clause", "macro_clause", "guard_clause", "private_guard_clause")
+                .associateWith { keysOf(it) }
         )
     }
 }
