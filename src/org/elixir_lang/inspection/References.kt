@@ -12,6 +12,7 @@ import org.elixir_lang.annotator.Injection
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.RejectedCall
+import org.elixir_lang.declaration.Use
 import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
@@ -112,11 +113,11 @@ class References : LocalInspectionTool() {
                 val resolveResults = answer?.results() ?: reference.multiResolve(false).toList()
 
                 if (resolveResults.isEmpty()) {
-                    holder.registerProblem(element, "Does not resolve to anything", ProblemHighlightType.ERROR)
+                    holder.registerProblem(element, "Does not resolve to anything${hint(answer)}", ProblemHighlightType.ERROR)
                 } else if (!resolveResults.any { it.isValidResult } && !expectOnlyInvalid(element)) {
                     holder.registerProblem(
                         element,
-                        "Only resolves to invalid results${arities(answer)}",
+                        "Only resolves to invalid results${hint(answer)}",
                         ProblemHighlightType.ERROR
                     )
                 }
@@ -132,16 +133,28 @@ class References : LocalInspectionTool() {
                     else -> null
                 }
 
-            /** The arities [answer]'s name is defined at, which the compiler's hint lists for a call it rejects. */
-            private fun arities(answer: CallableResolver.Answer?): String {
+            /**
+             * What the compiler's hint says for a call it rejects: the arities its name is defined at, else for a
+             * remote call the names its module exports that are near.
+             */
+            private fun hint(answer: CallableResolver.Answer?): String {
                 val use = answer?.use ?: return ""
                 val remote = UseSymbols.remote(use)
-                val entries = RejectedCall.named(answer.projection, Found::candidate, remote, UseSymbols::admits)
+                val arities = RejectedCall.named(answer.projection, Found::candidate, remote, UseSymbols::admits)
                     ?.let(DidYouMean::arities)
-                    ?.takeIf { it.isNotEmpty() }
                     ?: return ""
 
-                return "; defined as " + (if (remote) DidYouMean.suggestions(entries) else entries).joinToString(", ")
+                return when {
+                    arities.isNotEmpty() ->
+                        "; defined as " + (if (remote) DidYouMean.suggestions(arities) else arities).joinToString(", ")
+
+                    remote && use is Use.Named ->
+                        DidYouMean.nearNames(use).takeIf { it.isNotEmpty() }
+                            ?.let { ". Did you mean: ${it.joinToString(", ")}?" }
+                            .orEmpty()
+
+                    else -> ""
+                }
             }
 
             private fun expectOnlyInvalid(element: PsiElement): Boolean =
