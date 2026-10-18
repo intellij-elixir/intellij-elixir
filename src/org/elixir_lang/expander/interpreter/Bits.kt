@@ -6,8 +6,11 @@ import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.expander.GUARD_OPERATORS
+import org.elixir_lang.expander.ModuleClauses
+import org.elixir_lang.expander.expandedShape
 import org.elixir_lang.expander.isCall
 import org.elixir_lang.expander.isVariable
+import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_EXPANDED_AS_GUARD
 import org.elixir_lang.language_level.ElixirLanguageFeature.BIT_GENERATOR_SKIP_KEEPS_DEFAULT_SIZE_ONLY
 import org.elixir_lang.language_level.ElixirLanguageFeature.BIT_GENERATOR_SKIP_KEEPS_OUTER_SIZES
 import org.elixir_lang.lowering.ElixirAst
@@ -17,13 +20,24 @@ import java.nio.charset.CharacterCodingException
 import kotlin.math.abs
 import kotlin.math.round
 
-/** The bitstrings of an expanded clause, whose every segment is `value::spec` with its spec built out in full. */
+/**
+ * The bitstrings of a clause: an expanded one's, whose every segment is `value::spec` with its spec built out in full,
+ * or a source one's, whose every segment's spec its expansion recorded.
+ */
 internal class Bits(private val evaluation: Evaluation) {
     private enum class Type(val utf: Boolean = false) {
         INTEGER, FLOAT, BINARY, BITSTRING, UTF8(utf = true), UTF16(utf = true), UTF32(utf = true)
     }
 
-    private class Spec(val type: Type, val size: ElixirAst?, val unit: Int?, val signed: Boolean, val little: Boolean)
+    /** @property pinned from source, the pin whose value's size is the segment's, where its expansion inferred one */
+    private class Spec(
+        val type: Type,
+        val size: ElixirAst?,
+        val unit: Int?,
+        val signed: Boolean,
+        val little: Boolean,
+        val pinned: ElixirAst? = null,
+    )
 
     /** Which values a generator's skip clause matches as `_`, past a run its pattern doesn't match. */
     private enum class Skip {
@@ -39,8 +53,9 @@ internal class Bits(private val evaluation: Evaluation) {
         val writer = Writer()
         var unknown = false
         // `v3_core` evaluates every segment's value and size, in order, before it writes any.
-        val writes = segments.map { segment ->
-            val (valueNode, spec) = segment(segment)
+        val writes = spliced(segments, frame).map { segment ->
+            val (written, spec) = segment(segment, frame)
+            val valueNode = frame.expanded(written)
 
             if (valueNode is ElixirAst.Literal.Binary && spec.type.utf) {
                 return@map { for (code in codePoints(valueNode)) write(writer, integer(code.toLong()), spec, null) }
@@ -95,38 +110,37 @@ internal class Bits(private val evaluation: Evaluation) {
         segments: List<ElixirAst>,
         value: OtpErlangObject,
         frame: Frame,
-        pending: HashMap<Binding, OtpErlangObject>,
+        pending: PatternBindings,
     ): Boolean {
         val bitstring = value as? OtpErlangBitstr ?: return false
         val length = bitLength(bitstring)
 
-        return matchFrom(segments, bitstring, 0, length, frame, pending) == length
+        return matchFrom(spliced(segments, frame), bitstring, 0, length, frame, pending) == length
     }
 
     /**
-     * [emit] once per run of [segments] matched from the start of [value], each in a scope binding its variables. A run
+     * [emit] once per run of the [written] segments matched from the start of [value], each in a scope binding its variables. A run
      * the segments don't match is skipped where its size is known, and ends the generator otherwise. [comprehension]
      * says whether `elixir_erl_for` builds an Erlang comprehension, as it does where every generator is a bitstring's,
-     * or a reduce, whose sizes may read only the variables of [outer], the scope the `for` starts in, that no earlier
-     * generator bound again, as [rebound] holds them. Each run's scope is emitted with the variables it bound.
+     * or a reduce, whose sizes may read only the variables of [outer], the scope the `for` starts in.
      */
     fun generate(
-        segments: List<ElixirAst>,
+        written: List<ElixirAst>,
         value: OtpErlangObject,
         frame: Frame,
         comprehension: Boolean,
         outer: Frame,
-        rebound: Set<Binding>,
-        emit: (Frame, Set<Binding>) -> Unit,
+        emit: (Frame) -> Unit,
     ) {
         seen(value)
 
+        val segments = spliced(written, frame)
         val bitstring = value as? OtpErlangBitstr
             ?: evaluation.error(tuple(atom(if (comprehension) "bad_generator" else "badarg"), value))
         val length = bitLength(bitstring)
         val skip = when {
             comprehension -> Skip.LITERALS
-            reduceSkips(segments, outer, rebound) -> Skip.ALL
+            reduceSkips(segments, frame, outer) -> Skip.ALL
             else -> null
         }
         var offset = 0
@@ -135,11 +149,11 @@ internal class Bits(private val evaluation: Evaluation) {
             ProgressManager.checkCanceled()
 
             val scope = frame.copy()
-            val pending = HashMap<Binding, OtpErlangObject>()
+            val pending = PatternBindings(fresh = true)
             val end = matchFrom(segments, bitstring, offset, length, scope, pending)
 
             if (end == null) {
-                val skipped = skip?.let { matchFrom(segments, bitstring, offset, length, frame.copy(), HashMap(), it) } ?: return
+                val skipped = skip?.let { matchFrom(segments, bitstring, offset, length, frame.copy(), PatternBindings(fresh = true), it) } ?: return
 
                 // Elixir loops for ever on a run that takes no bits.
                 if (skipped == offset) decline("a generator whose segments take no bits")
@@ -149,8 +163,8 @@ internal class Bits(private val evaluation: Evaluation) {
             }
             if (end == offset) decline("a generator whose segments take no bits")
 
-            scope.vars.putAll(pending)
-            emit(scope, pending.keys)
+            scope.vars.putAll(pending.vars)
+            emit(scope)
             offset = end
         }
     }
@@ -160,46 +174,66 @@ internal class Bits(private val evaluation: Evaluation) {
      * segment's size: the default size always; from [BIT_GENERATOR_SKIP_KEEPS_OUTER_SIZES] any [knownSize]; in
      * [BIT_GENERATOR_SKIP_KEEPS_DEFAULT_SIZE_ONLY] no other; before both, any size but a variable.
      */
-    private fun reduceSkips(segments: List<ElixirAst>, outer: Frame, rebound: Set<Binding>): Boolean {
+    private fun reduceSkips(segments: List<ElixirAst>, frame: Frame, outer: Frame): Boolean {
         val level = evaluation.run.level
-        val bound = HashSet(rebound)
 
         return segments.all { segment ->
-            val (value, spec) = segment(segment)
-            val size = spec.size
-            val kept = when {
+            val size = segment(segment, frame).second.size
+
+            when {
                 size == null -> true
-                BIT_GENERATOR_SKIP_KEEPS_OUTER_SIZES.isSufficient(level) -> knownSize(size, outer, bound)
+                BIT_GENERATOR_SKIP_KEEPS_OUTER_SIZES.isSufficient(level) -> knownSize(size, frame, outer)
                 BIT_GENERATOR_SKIP_KEEPS_DEFAULT_SIZE_ONLY.isSufficient(level) -> false
-                else -> !isVariable(size)
+                else -> !isVariable(frame.expanded(size))
             }
-
-            if (isVariable(value)) bound += outer.binding(value)
-
-            kept
         }
     }
 
     /**
-     * Whether [size] is one `no_unbound_var_size/2` keeps: an integer, a variable of [outer] that no earlier generator
-     * or segment binds again, as [bound] holds them, or an operator of them, as [operands] reads it.
+     * Whether [size], of a segment in [frame], is one `no_unbound_var_size/2` keeps: an integer, a variable [outer] binds
+     * at the version the size reads, or an operator of them, as [operands] reads it. From source, a size its expansion
+     * dispatched is judged by what it expanded to: an attribute's value, or a macro's output.
      */
-    private fun knownSize(size: ElixirAst, outer: Frame, bound: Set<Binding>): Boolean =
-        when {
-            size is ElixirAst.Literal.Integer -> true
-            isVariable(size) -> outer.binding(size).let { it in outer.vars && it !in bound }
-            else -> operands(size)?.all { knownSize(it, outer, bound) } == true
+    private fun knownSize(size: ElixirAst, frame: Frame, outer: Frame): Boolean {
+        ProgressManager.checkCanceled()
+
+        val expanded = frame.expanded(size)
+
+        if (expanded is ElixirAst.Literal.Integer) return true
+        if (isVariable(expanded)) return outer.binding(expanded)?.let { it in outer.vars } == true
+
+        return operands(expanded, frame)?.all { knownSize(it, frame, outer) } == true
+    }
+
+    /** [segments] as their expansion left them: from source, a nested bitstring it spliced in is its own segments. */
+    private fun spliced(segments: List<ElixirAst>, frame: Frame): List<ElixirAst> =
+        if (!frame.source) {
+            segments
+        } else {
+            segments.flatMap { segment ->
+                if (frame.module.dispatches.segmentOf(segment)?.spliced == true) {
+                    val nested = expandedShape(frame.expanded(valueOf(segment))) as ElixirAst.Call
+
+                    spliced(nested.arguments.orEmpty(), frame)
+                } else {
+                    listOf(segment)
+                }
+            }
         }
 
     /**
      * The operands of [size] where `elixir_erl_pass` translates it to `{op, _, Op, Left, Right}`: a call of an `:erlang`
-     * operator `elixir_utils:guard_op/2` holds for.
+     * operator `elixir_utils:guard_op/2` holds for, or from source a call its expansion dispatched to one.
      */
-    private fun operands(size: ElixirAst): List<ElixirAst>? {
+    private fun operands(size: ElixirAst, frame: Frame): List<ElixirAst>? {
         val call = size as? ElixirAst.Call ?: return null
         val operands = call.arguments?.takeIf { it.size == 2 } ?: return null
-        val (module, name) = (call.callee as? ElixirAst.Call)?.takeIf { isCall(it, ".", 2) }?.arguments?.let { (module, name) ->
-            (module as? ElixirAst.Literal.Atom)?.name to (name as? ElixirAst.Literal.Atom)?.name
+        val (module, name) = when (val callee = call.callee) {
+            is ElixirAst.Literal.Atom ->
+                (frame.module.dispatches.of(call) as? ModuleClauses.Dispatched.Remote)?.let { it.module to it.name }
+            else -> (callee as? ElixirAst.Call)?.takeIf { isCall(it, ".", 2) }?.arguments?.let { (module, name) ->
+                (module as? ElixirAst.Literal.Atom)?.name to (name as? ElixirAst.Literal.Atom)?.name
+            }
         } ?: return null
 
         return operands.takeIf { module == "erlang" && name in GUARD_OPERATORS }
@@ -212,14 +246,15 @@ internal class Bits(private val evaluation: Evaluation) {
         start: Int,
         length: Int,
         frame: Frame,
-        pending: HashMap<Binding, OtpErlangObject>,
+        pending: PatternBindings,
         skip: Skip? = null,
     ): Int? {
         val reader = Reader(value.binaryValue())
         var offset = start
 
         for (segment in segments) {
-            val (pattern, spec) = segment(segment)
+            val (written, spec) = segment(segment, frame)
+            val pattern = frame.expanded(written)
             val any = skip == Skip.ALL || skip == Skip.LITERALS && !isVariable(pattern)
 
             if (pattern is ElixirAst.Literal.Binary && spec.type.utf) {
@@ -233,7 +268,15 @@ internal class Bits(private val evaluation: Evaluation) {
                 continue
             }
 
-            val size = spec.size?.let { evaluation.eval(it, frame.copy().also { scope -> scope.vars.putAll(pending) }) }
+            val size = spec.size?.let {
+                val scope = frame.copy().also { scope -> scope.vars.putAll(pending.vars) }
+
+                if (BITSTRING_SIZE_EXPANDED_AS_GUARD.isSufficient(evaluation.run.level)) {
+                    evaluation.guardValue(it, scope) ?: return null
+                } else {
+                    evaluation.eval(it, scope)
+                }
+            } ?: spec.pinned?.let { pinnedSize(evaluation.eval(it, frame), spec) }
             val bits = when {
                 // A literal binary matches its own bytes, not the rest.
                 size == null -> (pattern as? ElixirAst.Literal.Binary)?.let { it.bytes.size * 8 }
@@ -421,8 +464,50 @@ internal class Bits(private val evaluation: Evaluation) {
         }
     }
 
+    /** [segment]'s value and spec. */
+    private fun segment(segment: ElixirAst, frame: Frame): Pair<ElixirAst, Spec> =
+        if (frame.source) recorded(segment, frame) else expanded(segment)
+
+    /** A source segment, `value::spec` or a bare value, its spec as its expansion recorded it. */
+    private fun recorded(segment: ElixirAst, frame: Frame): Pair<ElixirAst, Spec> {
+        val record = frame.module.dispatches.segmentOf(segment)
+            ?: decline("a bitstring segment its expansion didn't reach")
+        val value = valueOf(segment)
+        val type = when (record.type) {
+            "integer" -> Type.INTEGER
+            "float" -> Type.FLOAT
+            "binary" -> Type.BINARY
+            "bitstring" -> Type.BITSTRING
+            "utf8" -> Type.UTF8
+            "utf16" -> Type.UTF16
+            "utf32" -> Type.UTF32
+            else -> decline("the bitstring type ${record.type}")
+        }
+        val little = when (record.endianness) {
+            "big" -> false
+            "little" -> true
+            else -> decline("a ${record.endianness}-endian segment")
+        }
+
+        val unit = record.unit?.let(::compiledUnit)
+
+        return value to Spec(type, record.size, unit, record.signed, little, value.takeIf { record.pinned })
+    }
+
+    /** A unit `erl_bits:type_to_record/1` accepts, `1..256`: past it, the module the segment is in doesn't compile. */
+    private fun compiledUnit(unit: BigInteger): Int =
+        unit.takeIf { it.signum() > 0 && it <= MAX_UNIT }?.toInt() ?: decline("a bitstring unit of $unit")
+
+    /** A source segment's value: the left of its `::`, or the segment itself. */
+    private fun valueOf(segment: ElixirAst): ElixirAst =
+        (segment as? ElixirAst.Call)?.takeIf { isCall(it, "::", 2) }?.arguments?.first() ?: segment
+
+    /** The size `expand_specs/7` infers for a pin of [value]: its `byte_size/1` for a binary, else its `bit_size/1`. */
+    private fun pinnedSize(value: OtpErlangObject, spec: Spec): OtpErlangObject =
+        evaluation.natives.call("erlang", if (spec.type == Type.BINARY) "byte_size" else "bit_size", listOf(value))!!
+
     /** `{'::', _, [value, spec]}`, its spec read from the `-`-joined parts the expansion built. */
-    private fun segment(segment: ElixirAst): Pair<ElixirAst, Spec> {
+    private fun expanded(segment: ElixirAst): Pair<ElixirAst, Spec> {
         val (value, specNode) = (segment as? ElixirAst.Call)?.takeIf { isCall(it, "::", 2) }?.arguments
             ?: decline("a bitstring segment without a spec")
         var type = Type.INTEGER
@@ -554,6 +639,8 @@ internal class Bits(private val evaluation: Evaluation) {
     }
 
     private companion object {
+        val MAX_UNIT: BigInteger = BigInteger.valueOf(256)
+
         /**
          * The bit of a [count]-bit integer at [position] in its segment. Little-endian, its whole bytes come lowest first,
          * then its top `count % 8` bits, as `<<0x123::12-little>>` is `<<0x23, 0x1::4>>`.

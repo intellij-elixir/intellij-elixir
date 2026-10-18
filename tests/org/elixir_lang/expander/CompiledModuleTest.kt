@@ -330,7 +330,7 @@ class CompiledModuleTest : PlatformTestCase() {
                 val actualSplit = listOf(
                     OtpErlangList(splitClause.args.map { it.toOtp() }.toTypedArray()),
                     OtpErlangList(splitClause.guards.map { it.toOtp() }.toTypedArray()),
-                    splitClause.body.toOtp(),
+                    splitClause.body!!.toOtp(),
                 )
 
                 listOfNotNull(

@@ -878,6 +878,27 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """.trimIndent(),
         )
 
+    /** A float is no unit, as Elixir reports, but from 1.15 its size is a number, so only the report fails. */
+    fun testAMacrosFloatAsAUnitIsReported() =
+        assertSplit(
+            """
+            defmodule A do
+              defmacrop fl, do: 2.0
+              def g(y), do: <<y::size(4)-unit(fl())>>
+            end
+            """.trimIndent(),
+            "1.15.0-rc.0",
+            """
+            top expanded {} next 0
+            module Elixir.A raised bad_unit_argument `y::size(4)-unit(fl())`
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A tainted
+              reported bad_unit_argument `y::size(4)-unit(fl())`
+            """.trimIndent(),
+        )
+
     /** In 1.15 `-2.0` is `:erlang.-/1`'s call, which `number_size/2` can't multiply; from 1.16 it folds to a float. */
     fun testANegatedFloatAsAUnitIsReported() =
         assertLevels(

@@ -30,6 +30,9 @@ internal class Compiling(body: ElixirAst, level: ElixirLanguageLevel) {
     /** Each `quote` the definitions' bodies hold. */
     val quotes = ModuleClauses.Quotes()
 
+    /** What each call and bitstring segment of the definitions' bodies expanded as. */
+    val dispatches = ModuleClauses.Dispatches()
+
     /**
      * The calls a hidden definition's body brought back under the name it was made overridable as, which stay when that
      * name is made overridable again where its checks visit the hidden definition's own body, and go otherwise.

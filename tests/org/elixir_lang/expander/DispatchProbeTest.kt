@@ -33,9 +33,12 @@ class DispatchProbeTest : ProbeTestCase() {
         }
     }
 
-    /** A call of a local macro in a function body stops that body at the call, and up to there agrees with Elixir. */
-    fun testLocalMacrosStopAtTheCall() {
-        probes.assertMatchesElixirUpToMacro(LOCAL_MACRO_CASES.associateWith { probes.expand(it) })
+    /** A call of a local macro in a function body expands the macro's output, as Elixir does. */
+    fun testLocalMacrosExpandAtTheCall() {
+        val expansions = probes.expandAll(LOCAL_MACRO_CASES)
+
+        probes.assertTracesMatchElixir(expansions)
+        probes.assertMatchesElixir(LOCAL_MACRO_CASES, expansions)
     }
 
     /** Each call a macro's quote marks with the import it saw dispatches to that import, as the leg's `quote` marks it. */

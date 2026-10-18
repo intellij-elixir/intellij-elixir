@@ -86,6 +86,7 @@ internal fun expandQuoted(
     }
 
     env.module?.let { run.compiling[it] }?.rewrote(call, linified)
+    recordDispatch(call, ModuleClauses.Dispatched.Macro(linified), env, run)
 
     watching?.let { run.watching[it] = watched!! }
 

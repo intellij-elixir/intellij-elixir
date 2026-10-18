@@ -265,7 +265,7 @@ class ModuleClausesTest : ExpanderTestCase() {
         val source = "defmodule A do\n  defmacro c, do: quote(do: f(g(1)))\nend"
         val clauses = loaded(source).single()
         val body = clauses.definitions.values.single().clauses!!.single().body
-        val block = clauses.quotes.of(body) as ElixirAst.Tuple
+        val block = clauses.quotes.of(body!!) as ElixirAst.Tuple
         val (_, _, arguments) = block.elements
         val inner = (arguments as ElixirAst.ListNode).elements.single() as ElixirAst.Tuple
         val text = { node: ElixirAst -> node.meta.origin.substring(source) }
@@ -456,7 +456,7 @@ class ModuleClausesTest : ExpanderTestCase() {
                     val guards = clause.guards.takeIf { it.isNotEmpty() }?.joinToString(", ", " when [", "]", transform = text)
                         .orEmpty()
 
-                    "(${clause.args.joinToString(", ", transform = text)})$guards -> ${body(clause.body)}${quoted(clause.body)}"
+                    "(${clause.args.joinToString(", ", transform = text)})$guards -> ${clause.body?.let(body) ?: "stopped"}${clause.body?.let(quoted).orEmpty()}"
                 } ?: "$described unknown"
             }
     }

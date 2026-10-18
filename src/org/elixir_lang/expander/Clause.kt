@@ -190,7 +190,7 @@ internal enum class Clause(vararg val heads: Head) {
                 isMultiAlias((node as ElixirAst.Call).arguments!!.firstOrNull())
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            expandMultiAlias(node as ElixirAst.Call, state, env, run)
+            recordingValue(node, env, run, expandMultiAlias(node as ElixirAst.Call, state, env, run))
     },
 
     ALIAS(expandHead("{alias,_,[_]}"), expandHead("{alias,_,[_,_]}")) {
@@ -198,7 +198,7 @@ internal enum class Clause(vararg val heads: Head) {
             isDirective(node, Directive.ALIAS)
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            expandDirective(Directive.ALIAS, node, state, env, run)
+            recordingValue(node, env, run, expandDirective(Directive.ALIAS, node, state, env, run))
     },
 
     REQUIRE(expandHead("{require,_,[_]}"), expandHead("{require,_,[_,_]}")) {
@@ -206,7 +206,7 @@ internal enum class Clause(vararg val heads: Head) {
             isDirective(node, Directive.REQUIRE)
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            expandDirective(Directive.REQUIRE, node, state, env, run)
+            recordingValue(node, env, run, expandDirective(Directive.REQUIRE, node, state, env, run))
     },
 
     IMPORT(expandHead("{import,_,[_]}"), expandHead("{import,_,[_,_]}")) {
@@ -214,7 +214,7 @@ internal enum class Clause(vararg val heads: Head) {
             isDirective(node, Directive.IMPORT)
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            expandDirective(Directive.IMPORT, node, state, env, run)
+            recordingValue(node, env, run, expandDirective(Directive.IMPORT, node, state, env, run))
     },
 
     MODULE(expandHead("{'__MODULE__',_,V1} when is_atom(V1)")) {
@@ -231,7 +231,7 @@ internal enum class Clause(vararg val heads: Head) {
             isVariableNamed(node, "__DIR__")
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            Expansion.Expanded(state, env, Term.Binary(null))
+            recordingValue(node, env, run, Expansion.Expanded(state, env, Term.Binary(null)))
     },
 
     CALLER(expandHead("{'__CALLER__',_,V1} when is_atom(V1)")) {
@@ -259,7 +259,8 @@ internal enum class Clause(vararg val heads: Head) {
         override fun matches(node: ElixirAst, state: ExState, env: Env, level: ElixirLanguageLevel) =
             isVariableNamed(node, "__ENV__")
 
-        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) = expandEnv(node, state, env, run)
+        override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
+            recordingValue(node, env, run, expandEnv(node, state, env, run))
     },
 
     ENV_FIELD(expandHead("{{'.',_,[{'__ENV__',_,V1},V2]},_,[]} when is_atom(V1), is_atom(V2)")) {
@@ -507,8 +508,10 @@ internal enum class Clause(vararg val heads: Head) {
                     bound
                 }
 
+                recordVersion(node, bound, env, run)
                 Expansion.Expanded(state.copy(write = state.write.plus(variable, written)), env, VARIABLE_NODE, node)
             } else {
+                recordVersion(node, state.version, env, run)
                 Expansion.Expanded(
                     state.copy(
                         read = state.read + (variable to state.version),
@@ -529,8 +532,17 @@ internal enum class Clause(vararg val heads: Head) {
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion =
             when (val outcome = variableOutcome(node as ElixirAst.Call, state, run.level)) {
-                VariableOutcome.Read -> Expansion.Expanded(state, env, VARIABLE_NODE, node)
-                VariableOutcome.LocalCall -> Expander.expand(zeroArityCall(node), state, env, run)
+                VariableOutcome.Read -> {
+                    recordVersion(node, state.read.getValue(variable(node)), env, run)
+                    Expansion.Expanded(state, env, VARIABLE_NODE, node)
+                }
+                VariableOutcome.LocalCall -> {
+                    val call = zeroArityCall(node)
+
+                    Expander.expand(call, state, env, run).also {
+                        run.compiling[env.module]?.dispatches?.of(call)?.let { recordDispatch(node, it, env, run) }
+                    }
+                }
                 is VariableOutcome.Reported ->
                     report(outcome.site, node, env, run) { Expansion.Expanded(state, env, VARIABLE_NODE, node) }
                 is VariableOutcome.Error -> Expansion.Error(outcome.kind, node)

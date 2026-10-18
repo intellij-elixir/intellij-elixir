@@ -203,6 +203,59 @@ class ClauseCacheTest : PlatformTestCase() {
         assertEquals(999L, clauses(a, "Elixir.D")!!.weight() - clauses(a, "Elixir.E")!!.weight())
     }
 
+    /** A dispatch record weighs what it retains: here, the value `@codes` injects. */
+    fun testADispatchRecordWeighsWhatItRetains() {
+        val a = add("a.ex", "defmodule A do\nend\n")
+        add("b.ex", "defmodule B do\n  @codes [1, 2, 3]\n  def codes, do: @codes\nend\n")
+        add("c.ex", "defmodule C do\n  @codes [1]\n  def codes, do: @codes\nend\n")
+
+        assertEquals(
+            ModuleClauses.BYTES_PER_NODE * 2,
+            clauses(a, "Elixir.B")!!.weight() - clauses(a, "Elixir.C")!!.weight(),
+        )
+    }
+
+    /** A variable's version record weighs a node: here, `x`'s, where it is bound and where it is read. */
+    fun testAVariableVersionWeighsANode() {
+        val a = add("a.ex", "defmodule A do\nend\n")
+        add("b.ex", "defmodule B do\n  def f(x), do: x\nend\n")
+        add("c.ex", "defmodule C do\n  def f(1), do: 1\nend\n")
+
+        // Each `x` is a call and its name where `1` is one node, and has its version.
+        assertEquals(
+            ModuleClauses.BYTES_PER_NODE * (2 + 2),
+            clauses(a, "Elixir.B")!!.weight() - clauses(a, "Elixir.C")!!.weight(),
+        )
+    }
+
+    /** A dispatch record's binary weighs its bytes: here, the value `@s` injects. */
+    fun testADispatchRecordsBinaryWeighsItsBytes() {
+        val a = add("a.ex", "defmodule A do\nend\n")
+        add("b.ex", "defmodule B do\n  @s \"${"x".repeat(1000)}\"\n  def s, do: @s\nend\n")
+        add("c.ex", "defmodule C do\n  @s \"x\"\n  def s, do: @s\nend\n")
+
+        assertEquals(999L, clauses(a, "Elixir.B")!!.weight() - clauses(a, "Elixir.C")!!.weight())
+    }
+
+    /** A clause overridden without `super` weighs what its dispatch records retain: here, its call's binary. */
+    fun testAnOverriddenClausesDispatchRecordsWeigh() {
+        val a = add("a.ex", "defmodule A do\nend\n")
+        val overridden = { s: String ->
+            "  def f, do: :erlang.byte_size(\"$s\")\n  defoverridable f: 0\n  def f, do: 1\n"
+        }
+        add("b.ex", "defmodule B do\n${overridden("x".repeat(1000))}end\n\ndefmodule C do\n${overridden("x")}end\n")
+
+        assertEquals(999L, clauses(a, "Elixir.B")!!.weight() - clauses(a, "Elixir.C")!!.weight())
+    }
+
+    /** Weighing the nodes a macro wrote into a function, which the clauses retain, is cancelled as it counts them. */
+    fun testWeighingTheNodesAMacroWroteIsCancelled() =
+        assertWeighingCancelled("def f, do: G.big()")
+
+    /** Weighing the value a macro gave an attribute a function reads, which its record retains, is cancelled as it counts it. */
+    fun testWeighingARecordedValueIsCancelled() =
+        assertWeighingCancelled("@codes G.big()\n  def codes, do: @codes")
+
     /** A function of `erlang`, `lists` or `maps` that isn't one of the natives declines without their clauses read. */
     fun testTheNativesErlangModulesAreNeverRead() {
         val level = legLevel()
@@ -247,6 +300,18 @@ class ClauseCacheTest : PlatformTestCase() {
         assertEquals(emptyList<String>(), asked.filter { it in setOf("erlang", "lists", "maps") })
     }
 
+    /** Weighing `B`'s clauses, whose [body] calls `G.big`, a list that holds itself twice at every depth, is cancelled. */
+    private fun assertWeighingCancelled(body: String) {
+        val a = add("a.ex", "defmodule A do\nend\n")
+        val tree = "t = []; " + "t = [t, t]; ".repeat(DOUBLINGS)
+        add("b.ex", "defmodule G do\n  defmacro big, do: ($tree t)\nend\n\ndefmodule B do\n  require G\n  $body\nend\n")
+        val clauses = clauses(a, "Elixir.B")!!
+
+        assertCancelledIn($$"org.elixir_lang.expander.ModuleClauses$Companion", "weigh", (1 shl DOUBLINGS) / 2) {
+            clauses.weight()
+        }
+    }
+
     private fun clauses(asker: PsiFile, atom: String): ModuleClauses? =
         ReadAction.nonBlocking(Callable { holder.clauses(asker, atom, legInputs) }).executeSynchronously()
 
@@ -258,7 +323,7 @@ class ClauseCacheTest : PlatformTestCase() {
             val described = "  ${definition.kind.name.lowercase()} ${nameArity.name}/${nameArity.arity}"
 
             definition.clauses?.joinToString("; ", "$described: ") { clause ->
-                "${clause.args.size} arguments" + clause.body.let(clauses.quotes::of)?.let { " quoted ${inspect(it.toOtp())}" }.orEmpty()
+                "${clause.args.size} arguments" + clause.body?.let(clauses.quotes::of)?.let { " quoted ${inspect(it.toOtp())}" }.orEmpty()
             } ?: "$described unknown"
         }
     }
@@ -276,4 +341,9 @@ class ClauseCacheTest : PlatformTestCase() {
     }
 
     private fun add(path: String, text: String): PsiFile = myFixture.addFileToProject(path, text)
+
+    private companion object {
+        /** How many times `G.big` doubles its list. */
+        const val DOUBLINGS = 12
+    }
 }

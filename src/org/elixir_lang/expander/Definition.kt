@@ -477,22 +477,25 @@ internal fun storeDefinition(
     reservedNameError(kind, name, arity)?.let { return owner to Expansion.Error(it, node) }
 
     val defaults = defaultsArgs.mapNotNull { arg -> (arg as? ElixirAst.Call)?.takeIf(::isDefault) }
-    if (definition.stop != null || !expand) {
+    val nameArity = NameArity(name, arity)
+    val args = defaultsArgs.map { arg -> if (isDefault(arg)) (arg as ElixirAst.Call).arguments!![0] else arg }
+
+    /** The definition stored with this clause in its place, stopped at [at]. */
+    fun stopped(at: ElixirAst): Pair<Owner, Expansion> {
+        if (definition.body != null) {
+            compiling.clauses.getOrPut(nameArity) { mutableListOf() } += ModuleClauses.Clause(args, guards, null)
+        }
         store(definition, name, arity, defaults.size, compiling)
 
-        return owner to Expansion.Unported(definition.stop ?: node)
+        return owner to Expansion.Unported(at)
     }
 
-    val nameArity = NameArity(name, arity)
+    if (definition.stop != null || !expand) return stopped(definition.stop ?: node)
+
     val env = definition.env.copy(function = nameArity)
     val fresh = ExState.empty(run.level).copy(caller = kind.macro)
-    val args = defaultsArgs.map { arg -> if (isDefault(arg)) (arg as ElixirAst.Call).arguments!![0] else arg }
     val body = definition.body?.let { clauseBody(node, it) }
-    val (defaulted, expansion) = unlessTooDeep({
-        store(definition, name, arity, defaults.size, compiling)
-
-        return owner to Expansion.Unported(node)
-    }) {
+    val (defaulted, expansion) = unlessTooDeep({ return stopped(node) }) {
         val defaulted = expandDefaults(defaults, fresh, env, run, compiling, node)
 
         defaulted to defaulted.then { _, _ -> clause(node, args, guards, definition.body, body, fresh, env, run) }
@@ -500,11 +503,11 @@ internal fun storeDefinition(
 
     if (expansion is Expansion.Error) return owner to expansion
 
-    body?.let { compiling.clauses.getOrPut(nameArity) { mutableListOf() } += ModuleClauses.Clause(args, guards, it, env) }
+    body?.let { compiling.clauses.getOrPut(nameArity) { mutableListOf() } += ModuleClauses.Clause(args, guards, it) }
     if (defaulted is Expansion.Expanded) {
         val counter = if (DEFAULT_ARGUMENTS_THREAD_STATE.isSufficient(run.level)) defaulted.state.version else 0
 
-        for (clause in defaultClauses(kind, name, defaultsArgs, counter, env)) {
+        for (clause in defaultClauses(kind, name, defaultsArgs, counter, compiling.dispatches)) {
             compiling.clauses.getOrPut(NameArity(name, clause.args.size)) { mutableListOf() } += clause
         }
     }
@@ -610,14 +613,14 @@ private fun expandDefaults(
 /**
  * `unpack_expanded/7`: the clause of each default arity of [defaultsArgs], whose defaults are expanded. It binds the
  * arguments it is given to variables numbered from [counter], and calls the full arity through `super` with the
- * defaults it lacks.
+ * defaults it lacks. The clause isn't expanded, so each variable's version goes into [dispatches] here.
  */
 private fun defaultClauses(
     kind: Kind,
     name: String,
     defaultsArgs: List<ElixirAst>,
     counter: Int,
-    env: Env,
+    dispatches: ModuleClauses.Dispatches,
 ): List<ModuleClauses.Clause> =
     defaultsArgs.indices.filter { isDefault(defaultsArgs[it]) }.map { index ->
         ProgressManager.checkCanceled()
@@ -631,7 +634,7 @@ private fun defaultClauses(
                 Meta.Key.Entry("version", Meta.Value.Integer(version.toLong())),
             )
 
-            synthetic.variable("x$version", "elixir_def", keys)
+            synthetic.variable("x$version", "elixir_def", keys).also { dispatches.putVersion(it, version) }
         }
         val base = (0 until index).map { variable(counter + it) }
         var next = counter + index
@@ -646,7 +649,6 @@ private fun defaultClauses(
             base + rest.mapNotNull { it.first },
             emptyList(),
             synthetic.call("super", base + rest.map { it.second }, superKeys),
-            env,
         )
     }
 

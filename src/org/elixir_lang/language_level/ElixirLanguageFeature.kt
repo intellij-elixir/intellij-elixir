@@ -928,7 +928,8 @@ enum class ElixirLanguageFeature(
     /**
      * What the right side of a `<-` in `with` or `for` binds is not visible to its pattern or anything after it, and its
      * pattern sees the env the right side left. Before it, the variables are visible to both, and the pattern sees the
-     * env from before the right side.
+     * env from before the right side. Before it, `with var <- e` is also rewritten to `var = e`, so a value that
+     * doesn't match raises `MatchError`.
      *
      * `elixir-lang/elixir@82a9aa3ef` ("Make right side of <- behaviour consistent across for and with"), first released
      * in v1.13.0-rc.0.
@@ -2376,6 +2377,16 @@ enum class ElixirLanguageFeature(
      * v1.12.0-rc.0.
      */
     STRING_TO_ATOM_REQUIRES_BINARY(sinceElixir = "1.12.0-rc.0"),
+
+    /**
+     * A macro's arguments that are calls or variables are marked `stop_generated: true` where an import dispatches the
+     * macro, or `Macro.expand/2` or `expand_once/2` expands it, and `generated: true` stops there in its expansion. A
+     * remote call to the macro doesn't mark them.
+     *
+     * `elixir-lang/elixir@67042e877` ("Stop propagating generated on macro arguments", #14696), first released in
+     * v1.20.0-rc.0.
+     */
+    MACRO_ARGUMENTS_STOP_GENERATED(sinceElixir = "1.20.0-rc.0"),
 
     /**
      * An `fn` whose clauses match no argument raises `FunctionClauseError`. Before it, OTP 24's compiler raises

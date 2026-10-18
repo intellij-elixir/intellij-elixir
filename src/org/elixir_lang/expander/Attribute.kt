@@ -15,26 +15,11 @@ import org.elixir_lang.psi.Import.Term
  * where the `@` is. In a function, a read returns the attribute's value as it stands.
  */
 internal val ATTRIBUTE = Summary { _, node, state, env, run ->
-    val call = (node.arguments!!.single() as? ElixirAst.Call)?.takeIf { it.callee is ElixirAst.Literal.Atom }
-        ?: return@Summary Expansion.Unported(node)
-    val name = (call.callee as ElixirAst.Literal.Atom).name
-    val args = call.arguments
-    val inFunction = env.function != null
-    val refused = env.context == Env.Context.MATCH ||
-        env.context == Env.Context.GUARD && ATTRIBUTE_REFUSED_IN_GUARD.isSufficient(run.level)
-    val returned = when {
-        env.module == null -> Returned.Ended(Expansion.Error("attribute_outside_module", node))
-        !inFunction && refused -> Returned.Ended(Expansion.Error("attribute_in_match_or_guard", node))
-        args != null && name in TYPESPECS -> typespec(name, args, node, env, run)
-        args.isNullOrEmpty() -> read(name, node, env, run)
-        args.size == 1 -> write(name, call, args.single(), node, env, run)
-        else -> Returned.Ended(Expansion.Error("attribute_arity", node))
-    }
-
-    when (returned) {
+    when (val returned = returned(node, env, run)) {
         is Returned.Ended -> returned.expansion
         is Returned.Value -> {
             run.counters.next(env.module)
+            recordDispatch(node, ModuleClauses.Dispatched.Value(returned.term), env, run)
 
             Expansion.Expanded(state, env, returned.term)
         }
@@ -43,9 +28,38 @@ internal val ATTRIBUTE = Summary { _, node, state, env, run ->
             val linified = linifyWithContextCounter(lineOf(node.meta), KERNEL, counter, returned.node, run::carrySupplied)
 
             run.compiling[env.module!!]?.built(linified, node)
+            recordDispatch(node, ModuleClauses.Dispatched.Macro(linified), env, run)
 
             Expander.expand(linified, state, env, run)
         }
+    }
+}
+
+/** What `Macro.expand/2` takes from `@` at [node]: the code, but not a function's value, which isn't escaped. */
+internal fun attributeOutput(node: ElixirAst.Call, env: Env, run: Run): Summary.Output =
+    when (val returned = returned(node, env, run)) {
+        is Returned.Ended -> Summary.Output.Stopped(returned.expansion)
+        is Returned.Value -> Summary.Output.Unported(node)
+        is Returned.Code -> Summary.Output.Built(returned.node)
+    }
+
+/** What `@` at [node] returns, after its checks in Elixir's order. */
+private fun returned(node: ElixirAst.Call, env: Env, run: Run): Returned {
+    val call = (node.arguments!!.single() as? ElixirAst.Call)?.takeIf { it.callee is ElixirAst.Literal.Atom }
+        ?: return Returned.Ended(Expansion.Unported(node))
+    val name = (call.callee as ElixirAst.Literal.Atom).name
+    val args = call.arguments
+    val inFunction = env.function != null
+    val refused = env.context == Env.Context.MATCH ||
+        env.context == Env.Context.GUARD && ATTRIBUTE_REFUSED_IN_GUARD.isSufficient(run.level)
+
+    return when {
+        env.module == null -> Returned.Ended(Expansion.Error("attribute_outside_module", node))
+        !inFunction && refused -> Returned.Ended(Expansion.Error("attribute_in_match_or_guard", node))
+        args != null && name in TYPESPECS -> typespec(name, args, node, env, run)
+        args.isNullOrEmpty() -> read(name, node, env, run)
+        args.size == 1 -> write(name, call, args.single(), node, env, run)
+        else -> Returned.Ended(Expansion.Error("attribute_arity", node))
     }
 }
 
@@ -72,7 +86,7 @@ private fun typespec(name: String, args: List<ElixirAst>, node: ElixirAst.Call, 
     // The file is `Code.compile_string/2`'s, and the cached env's position isn't modelled.
     return Returned.Code(
         built.remoteCall(
-            KERNEL_TYPESPEC,
+            built.alias("Kernel", "Typespec"),
             "deftypespec",
             built.atom(name),
             escaped,
@@ -111,9 +125,9 @@ private fun write(
 
             Returned.Code(
                 built.remoteCall(
-                    ELIXIR_MODULE,
+                    built.alias("Module"),
                     "__put_attribute__",
-                    *(listOf(built.atom(env.module!!), built.atom(name), value, line) + traces).toTypedArray(),
+                    *(listOf(built.variable("__MODULE__"), built.atom(name), value, line) + traces).toTypedArray(),
                 ),
             )
         }
@@ -141,9 +155,9 @@ private fun read(name: String, node: ElixirAst.Call, env: Env, run: Run): Return
     val built = Built(node.meta)
     val trailing = listOfNotNull(built.atom((!doc).toString()).takeIf { lazily })
     val get = built.remoteCall(
-        ELIXIR_MODULE,
+        built.alias("Module"),
         "__get_attribute__",
-        *(listOf(built.atom(module), built.atom(name), built.integer(line(node.meta))) + trailing).toTypedArray(),
+        *(listOf(built.variable("__MODULE__"), built.atom(name), built.integer(line(node.meta))) + trailing).toTypedArray(),
     )
 
     if (!doc) return Returned.Code(get)
@@ -161,8 +175,15 @@ private class Built(private val meta: Meta) {
 
     fun variable(name: String) = ElixirAst.Call(meta, atom(name), null, ElixirAst.VariableContext.Atom(KERNEL))
 
-    fun remoteCall(module: String, function: String, vararg args: ElixirAst) =
-        ElixirAst.Call(meta, ElixirAst.Call(meta, atom("."), listOf(atom(module), atom(function))), args.toList())
+    /** An alias `quote` builds: `alias: false`, so it isn't expanded through the caller's aliases. */
+    fun alias(vararg segments: String) =
+        ElixirAst.Alias(
+            Meta(meta.origin, meta.start, meta.end, meta.keys + entry("alias", "false"), meta.built),
+            segments.map(::atom),
+        )
+
+    fun remoteCall(module: ElixirAst, function: String, vararg args: ElixirAst) =
+        ElixirAst.Call(meta, ElixirAst.Call(meta, atom("."), listOf(module, atom(function))), args.toList())
 
     /** `case get do {_, doc} -> doc; fallback -> fallback end`. */
     fun docPart(get: ElixirAst, fallback: String): ElixirAst {

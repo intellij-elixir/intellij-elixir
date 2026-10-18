@@ -144,11 +144,21 @@ internal object Summaries {
 /**
  * A call of a macro, which [node] dispatches as [dispatch]: its summary's expansion, or [Expansion.Opaque] where the
  * macro has none, after the check for a deprecation. The observer is told of the dispatch only when it is modelled.
+ *
+ * @param stopGenerated whether `elixir_dispatch` gives the macro its arguments through `stop_generated/1`, as
+ *   `dispatch_import/6` does and `dispatch_require/7` doesn't
  */
-internal fun macro(dispatch: Dispatch, node: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion {
+internal fun macro(
+    dispatch: Dispatch,
+    node: ElixirAst.Call,
+    state: ExState,
+    env: Env,
+    run: Run,
+    stopGenerated: Boolean,
+): Expansion {
     checkDeprecated(dispatch, node, env, run)
 
-    return summarised(dispatch, node, env, run, opaque = { it }) { summary ->
+    return summarised(dispatch, node, state, env, run, stopGenerated, opaque = { it }) { summary ->
         run.observer.dispatched(node, dispatch)
 
         summary.expand(dispatch, node, state, env, run)
@@ -158,16 +168,20 @@ internal fun macro(dispatch: Dispatch, node: ElixirAst.Call, state: ExState, env
 /**
  * [summarised] of [dispatch]'s summary, else of the one its macro's clauses give, or [opaque] of the
  * [Expansion.Opaque] a call [node] gives where neither does.
+ *
+ * @param stopGenerated whether the macro is given its arguments through `stop_generated/1`
  */
 internal inline fun <T> summarised(
     dispatch: Dispatch,
     node: ElixirAst.Call,
+    state: ExState,
     env: Env,
     run: Run,
+    stopGenerated: Boolean,
     opaque: (Expansion.Opaque) -> T,
     summarised: (Summary) -> T,
 ): T =
-    when (val summary = Summaries.of(dispatch) ?: Interpreter.summary(dispatch, node, env, run)) {
+    when (val summary = Summaries.of(dispatch) ?: Interpreter.summary(dispatch, node, state, env, run, stopGenerated)) {
         null -> opaque(Expansion.Opaque(node, dispatch))
         else -> summarised(summary)
     }

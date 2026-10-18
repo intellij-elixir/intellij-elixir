@@ -259,6 +259,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             RESCUE_EXCEPTION_KEY_PRESENT to ("1.20.0-rc.4" to "1.20.0-rc.5"),
             SPLICE_EMPTY_BEFORE_TAIL_RAISES to ("1.20.0-rc.4" to "1.20.0-rc.5"),
             STRING_TO_ATOM_REQUIRES_BINARY to ("1.11.4" to "1.12.0-rc.0"),
+            MACRO_ARGUMENTS_STOP_GENERATED to ("1.19.5" to "1.20.0-rc.0"),
         )
 
         assertEquals(entries.filter { it.sinceElixir != null }.toSet(), boundaries.keys)

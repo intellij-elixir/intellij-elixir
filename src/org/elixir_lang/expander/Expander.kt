@@ -225,11 +225,17 @@ internal class Run(
     private val loadedClauses = HashMap<String, ModuleClauses>()
 
     /**
-     * [module]'s clauses: one the run loaded, those it left; one it is compiling, none, as Elixir hasn't loaded it;
-     * any other, what [clauses] gives.
+     * [module]'s clauses: for a [local] macro's call in a module it is compiling, those it has so far, as
+     * `elixir_def:local_for/5` reads them; one the run loaded, those it left; one it is compiling, none otherwise, as
+     * Elixir hasn't loaded it; any other, what [clauses] gives.
      */
-    fun clausesOf(module: String): ModuleClauses? =
-        loadedClauses[module] ?: if (module in compiling || module in compiled) null else clauses.of(module)
+    fun clausesOf(module: String, local: Boolean = false): ModuleClauses? {
+        if (local) compiling[module]?.let { return ModuleClauses.of(module, it, file) }
+        loadedClauses[module]?.let { return it }
+        if (module in compiling) return null
+
+        return if (module in compiled) null else clauses.of(module)
+    }
 
     /** [result]'s module loaded, as Elixir loads a module once it compiles, with its [clauses]. */
     fun load(result: ExpansionResult, clauses: () -> ModuleClauses) {

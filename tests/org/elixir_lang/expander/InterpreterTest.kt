@@ -27,10 +27,14 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.FN_CLAUSE_ERROR_IS_F
 import org.elixir_lang.language_level.ElixirLanguageFeature.GENERATOR_RIGHT_SIDE_SCOPED
 import org.elixir_lang.language_level.ElixirLanguageFeature.KEY_ERROR_MESSAGE_INSPECTED_WITH_OPTIONS
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_CHECK_THE_FUN_FIRST
+import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ESCAPE_MARKS_GENERATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.MAP_ATOM_KEYS_IN_ATOM_INDEX_ORDER
+import org.elixir_lang.language_level.ElixirLanguageFeature.PINNED_BINARY_SEGMENT_INFERS_SIZE
+import org.elixir_lang.language_level.ElixirLanguageFeature.POST_MODULE_LOCAL_CHECKS_TYPED
 import org.elixir_lang.language_level.ElixirLanguageFeature.REGEX_ESCAPED_IN_FIXED_FIELD_ORDER
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUED_ERROR_MESSAGE_FROM_ERROR_INFO
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNQUOTE_SHALLOW_VALIDATED
+import org.elixir_lang.language_level.ElixirLanguageFeature.UNREQUIRED_MACRO_CALLED_AS_FUNCTION
 import org.elixir_lang.language_level.ElixirLanguageFeature.WITH_OPTIONS_BEFORE_LAST_ARGUMENT
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
@@ -394,9 +398,6 @@ class InterpreterTest : PlatformTestCase() {
     private enum class SourceRun {
         ANSWERS,
 
-        /** Its body calls a macro or an import, or holds a form only an expanded body holds, so the evaluator declines. */
-        NEEDS_DISPATCH,
-
         /** Its macro is the leg's, which only a `.beam` holds. */
         NONE,
     }
@@ -417,6 +418,7 @@ class InterpreterTest : PlatformTestCase() {
      *   the node rendered
      * @property unordered whether the output holds an escaped map, whose pairs Elixir lists in an order the VM keeps
      * @property ownEnd how the row's own module ends from source, where it doesn't compile
+     * @property helper a module defined before the row's, for the row's module to require or import
      */
     private class Row(
         val id: String,
@@ -431,11 +433,12 @@ class InterpreterTest : PlatformTestCase() {
         val stopsAfter: String?,
         val unordered: Boolean = false,
         val ownEnd: String? = null,
+        val helper: String = "",
     ) {
         fun runsFrom(source: Source) = source == Source.DBGI || this.source != SourceRun.NONE
 
         fun pinned(source: Source, level: ElixirLanguageLevel): String? =
-            pins(source, level) ?: OPAQUE.takeIf { source == Source.SOURCE && this.source == SourceRun.NEEDS_DISPATCH }
+            pins(source, level)
 
         fun call(index: Int, token: String) = named(call, index, token)
 
@@ -544,6 +547,20 @@ class InterpreterTest : PlatformTestCase() {
         val UNPINNED: (Source, ElixirLanguageLevel) -> String? = { _, _ -> null }
         val DECLINED: (Source, ElixirLanguageLevel) -> String? = { _, _ -> OPAQUE }
 
+        /** From source the expander declines where [OPAQUE] says; `Dbgi` holds what Elixir compiled. */
+        val DECLINED_FROM_SOURCE: (Source, ElixirLanguageLevel) -> String? = { source, _ ->
+            OPAQUE.takeIf { source == Source.SOURCE }
+        }
+
+        /**
+         * [DECLINED_FROM_SOURCE] for a row whose module calls a function of a helper module that stopped. Before
+         * [UNREQUIRED_MACRO_CALLED_AS_FUNCTION] that call needs the stopped module's macros, so from source the row's
+         * module stops at it ([UNPORTED]).
+         */
+        val CALLS_A_STOPPED_MODULE: (Source, ElixirLanguageLevel) -> String? = { source, level ->
+            DECLINED_FROM_SOURCE(source, level)?.let { if (UNREQUIRED_MACRO_CALLED_AS_FUNCTION.isSufficient(level)) it else UNPORTED }
+        }
+
         /**
          * A `%module{}` that doesn't name every field stops its module where the leg's debug info doesn't record which
          * fields are enforced, as on 1.18.
@@ -578,11 +595,14 @@ class InterpreterTest : PlatformTestCase() {
         /** The test's `.beam`s are compiled in the quoter VM by the leg's Elixir, which holds no `Elixir.` prefix. */
         fun module(index: Int, token: String) = "$token.R$index"
 
-        /** Each row's module, in one file, or only those of the rows at [only]. */
+        /** Each row's helper and module, in one file, or only those of the rows at [only]. */
         fun preamble(rows: List<Row>, token: String, only: List<Int>? = null): String =
             rows.withIndex().filter { (index, row) -> row.defs.isNotEmpty() && (only == null || index in only) }
                 .joinToString("\n") { (index, row) ->
-                    "defmodule ${module(index, token)} do\n${row.defs.replace(ROW, module(index, token))}\nend"
+                    val module = module(index, token)
+
+                    (if (row.helper.isEmpty()) "" else "${row.helper.replace(ROW, module)}\n") +
+                        "defmodule $module do\n${row.defs.replace(ROW, module)}\nend"
                 }
 
         /** A row whose case body binds the output of [call], a call of the row's module's. */
@@ -596,6 +616,7 @@ class InterpreterTest : PlatformTestCase() {
             stop: String = "$ROW.$call",
             unordered: Boolean = false,
             ownEnd: String? = null,
+            helper: String = "",
         ) = Row(
             id,
             defs.trimIndent(),
@@ -609,6 +630,7 @@ class InterpreterTest : PlatformTestCase() {
             null,
             unordered,
             ownEnd,
+            helper.trimIndent(),
         )
 
         /** A row whose case body `use`s the row's module with [options]. */
@@ -643,6 +665,46 @@ class InterpreterTest : PlatformTestCase() {
                 stopsAfter,
             )
         }
+
+        /** A helper module whose macro doubles its argument into a pair. */
+        val TWICE = """
+            defmodule {row}.H do
+              defmacro twice(x), do: quote(do: {unquote(x), unquote(x)})
+            end
+        """.trimIndent()
+
+        /** A helper module whose macro returns a pair of `quote`s. */
+        val PAIR = """
+            defmodule {row}.H do
+              defmacro pair, do: quote(do: {quote(do: 1), quote(do: 2)})
+            end
+        """.trimIndent()
+
+        /** A helper struct whose `Access` fetch answers `1`. */
+        val FETCHES = """
+            defmodule {row}.S do
+              defstruct [:a]
+              def fetch(_, _), do: {:ok, 1}
+            end
+        """.trimIndent()
+
+        /** A helper defining the macro `h/0`, which Elixir exports as `MACRO-h/1`. */
+        val DEFINES_A_MACRO = """
+            defmodule {row}.H do
+              defmacro h, do: 1
+            end
+        """.trimIndent()
+
+        /** A macro defining `a/0` where its argument is marked `stop_generated`, else `b/0`. */
+        val STOP_GENERATED = """
+            defmacro m(x) do
+              if Keyword.get(elem(x, 1), :stop_generated) do
+                quote(do: def(a, do: 1))
+              else
+                quote(do: def(b, do: 1))
+              end
+            end
+        """.trimIndent()
 
         /** A `def` whose body unquotes `Macro.escape(opts)`, a fragment the walk doesn't evaluate. */
         const val UNQUOTE_ESCAPED_OPTS = "{:unquote, [], [{{:., [], [{:__aliases__, [], [:Macro]}, :escape]}"
@@ -702,7 +764,6 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "form:struct",
                 """defmacro m, do: Macro.escape(%URI{host: "h"})""",
-                source = SourceRun.NEEDS_DISPATCH,
                 pins = buildsPartOf("Elixir.URI"),
                 unordered = true,
             ),
@@ -714,7 +775,6 @@ class InterpreterTest : PlatformTestCase() {
                   Macro.escape(%URI{u | port: 1})
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
                 pins = buildsPartOf("Elixir.URI"),
                 unordered = true,
             ),
@@ -726,7 +786,6 @@ class InterpreterTest : PlatformTestCase() {
                   Macro.escape(%URI{x | host: "x"})
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             macro(
                 "form:struct-pattern",
@@ -736,11 +795,23 @@ class InterpreterTest : PlatformTestCase() {
                   h
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
                 pins = buildsPartOf("Elixir.URI"),
             ),
-            macro("form:bitstring", """defmacro m(a), do: <<a::8, "b">>""", "m(97)", source = SourceRun.NEEDS_DISPATCH),
-            macro("form:bitstring-utf8", "defmacro m(a), do: <<a::utf8>>", "m(233)", source = SourceRun.NEEDS_DISPATCH),
+            macro(
+                "form:struct-pattern-unknown-name",
+                """
+                @s :erlang.hd([URI])
+                defmacro m do
+                  case %{__struct__: @s} do
+                    %name{} -> name
+                    _ -> :none
+                  end
+                end
+                """,
+                pins = DECLINED_FROM_SOURCE,
+            ),
+            macro("form:bitstring", """defmacro m(a), do: <<a::8, "b">>""", "m(97)"),
+            macro("form:bitstring-utf8", "defmacro m(a), do: <<a::utf8>>", "m(233)"),
             macro(
                 "form:bitstring-size",
                 """
@@ -750,7 +821,6 @@ class InterpreterTest : PlatformTestCase() {
                 end
                 """,
                 "m(97)",
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             macro(
                 "form:bitstring-match-size-past-an-int",
@@ -764,7 +834,38 @@ class InterpreterTest : PlatformTestCase() {
                   end
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            // A size that raises fails its pattern, as a guard that raises does, and the next clause is tried.
+            macro(
+                "form:bitstring-match-size-raises",
+                """
+                defmacro m do
+                  n = 0
+
+                  case <<1>> do
+                    <<x::size(div(8, n))>> -> {:matched, x}
+                    _ -> :no_match
+                  end
+                end
+                """,
+                legs = BITSTRING_SIZE_EXPANDED_AS_GUARD::isSufficient,
+            ),
+            // From 1.14 a size reads a field as a guard does: `map_get/2`, which a module's name fails.
+            macro(
+                "form:bitstring-match-size-field",
+                """
+                defmacro m do
+                  module = __MODULE__
+
+                  case <<1>> do
+                    <<x::size(module.k)>> -> {:matched, x}
+                    _ -> :no_match
+                  end
+                end
+
+                def k, do: 8
+                """,
+                legs = BITSTRING_SIZE_EXPANDED_AS_GUARD::isSufficient,
             ),
             macro(
                 "form:bitstring-binary-size-past-an-int",
@@ -775,7 +876,6 @@ class InterpreterTest : PlatformTestCase() {
                   <<b::binary-size(n)>>
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             macro(
                 "form:bitstring-integer-size-past-a-long",
@@ -785,7 +885,6 @@ class InterpreterTest : PlatformTestCase() {
                   <<0::size(n)>>
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
                 pins = DECLINED,
             ),
             macro(
@@ -796,7 +895,6 @@ class InterpreterTest : PlatformTestCase() {
                   Macro.escape(<<b::binary-unit(16)>>)
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             macro(
                 "form:bitstring-binary-unit-unaligned",
@@ -806,7 +904,6 @@ class InterpreterTest : PlatformTestCase() {
                   <<b::binary-unit(16)>>
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             macro(
                 "form:bitstring-match-binary-unit",
@@ -818,7 +915,90 @@ class InterpreterTest : PlatformTestCase() {
                   end
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            // A pinned segment followed by another takes its size from the pinned value.
+            macro(
+                "form:bitstring-match-pinned-binary",
+                """
+                defmacro m do
+                  x = "cd"
+
+                  case "cdef" do
+                    <<^x::binary, rest::binary>> -> rest
+                    _ -> :miss
+                  end
+                end
+                """,
+                legs = PINNED_BINARY_SEGMENT_INFERS_SIZE::isSufficient,
+            ),
+            macro(
+                "form:bitstring-match-pinned-bitstring",
+                """
+                defmacro m do
+                  x = <<1::3>>
+
+                  case <<1::3, 5::5>> do
+                    <<^x::bitstring, rest::bitstring>> -> Macro.escape(rest)
+                    _ -> :miss
+                  end
+                end
+                """,
+                legs = PINNED_BINARY_SEGMENT_INFERS_SIZE::isSufficient,
+            ),
+            // A nested bitstring whose whole spec is `binary` or `bitstring` is spliced into the pattern it is in.
+            macro(
+                "form:bitstring-match-nested-binary",
+                """
+                defmacro m do
+                  case <<1, 2>> do
+                    <<(<<x::8>>)::binary, y::8>> -> {x, y}
+                    _ -> :miss
+                  end
+                end
+                """,
+            ),
+            macro(
+                "form:bitstring-match-nested-bitstring",
+                """
+                defmacro m do
+                  case <<1::3, 5::5>> do
+                    <<(<<x::3>>)::bitstring, y::5>> -> {x, y}
+                    _ -> :miss
+                  end
+                end
+                """,
+            ),
+            macro(
+                "form:bitstring-match-nested-empty",
+                """
+                defmacro m do
+                  case <<1>> do
+                    <<(<<>>)::binary, y::8>> -> y
+                    _ -> :miss
+                  end
+                end
+                """,
+            ),
+            // A nested bitstring a macro gives in a block of one expression is spliced in as that expression.
+            macro(
+                "form:bitstring-nested-block",
+                """
+                defmacro b, do: {:__block__, [], [quote(do: <<1>>)]}
+                defmacro m, do: <<b()::binary, 2>>
+                """,
+            ),
+            macro(
+                "form:bitstring-match-nested-block",
+                """
+                defmacro bx, do: {:__block__, [], [quote(do: <<var!(x)::8>>)]}
+
+                defmacro m do
+                  case <<1, 2>> do
+                    <<bx()::binary, y::8>> -> {x, y}
+                    _ -> :miss
+                  end
+                end
+                """,
             ),
             // A binary segment's unit, not a byte, is what its bits come in.
             macro(
@@ -831,7 +1011,6 @@ class InterpreterTest : PlatformTestCase() {
                   end
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             macro(
                 "form:bitstring-match-binary-sub-byte-unit-tail",
@@ -843,7 +1022,6 @@ class InterpreterTest : PlatformTestCase() {
                   end
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             macro(
                 "form:block",
@@ -855,6 +1033,14 @@ class InterpreterTest : PlatformTestCase() {
                 """,
             ),
             macro("form:caller", "defmacro m, do: __CALLER__.module"),
+            // A call another macro's `quote` returns has only the line linify gives it.
+            macro(
+                "form:caller-line-of-a-quoted-call",
+                """
+                defmacro l, do: quote(do: def(unquote(if(__CALLER__.line == 0, do: :zero, else: :line))(), do: 1))
+                defmacro m, do: quote(do: unquote(__MODULE__).l())
+                """,
+            ),
             // A map whose `__exception__` isn't `true` is an exception from 1.20.0-rc.5 only.
             macro(
                 "form:rescue-exception-key",
@@ -869,6 +1055,22 @@ class InterpreterTest : PlatformTestCase() {
                 end
                 """,
             ),
+            // Which Erlang error a record is, is its tag's to say.
+            macro(
+                "form:rescue-unknown-record-tag",
+                """
+                @r :erlang.hd([:badmatch])
+                defmacro m do
+                  try do
+                    :erlang.error({@r, 1})
+                  rescue
+                    MatchError -> :match
+                    _ -> :other
+                  end
+                end
+                """,
+                pins = DECLINED_FROM_SOURCE,
+            ),
             // Which variables the caller has bound is the expansion's to say.
             macro("form:caller-vars", "defmacro m, do: Macro.Env.has_var?(__CALLER__, {:x, nil})", pins = DECLINED),
             macro(
@@ -879,6 +1081,33 @@ class InterpreterTest : PlatformTestCase() {
                     :erlang.error(:x)
                   rescue
                     _ -> :erlang.is_list(__STACKTRACE__)
+                  end
+                end
+                """,
+            ),
+            // Before 1.14, `System.stacktrace()` in a `rescue` is `__STACKTRACE__`.
+            macro(
+                "form:system-stacktrace",
+                """
+                defmacro m do
+                  try do
+                    :erlang.error(:x)
+                  rescue
+                    _ -> :erlang.is_list(System.stacktrace())
+                  end
+                end
+                """,
+            ),
+            macro(
+                "form:system-stacktrace-imported",
+                """
+                import System, only: [stacktrace: 0]
+
+                defmacro m do
+                  try do
+                    :erlang.error(:x)
+                  rescue
+                    _ -> :erlang.is_list(stacktrace())
                   end
                 end
                 """,
@@ -1053,6 +1282,40 @@ class InterpreterTest : PlatformTestCase() {
                 "m(:b)",
             ),
             macro(
+                "form:case-attribute-pattern",
+                """
+                @tag {:ok, [1]}
+
+                defmacro m(x) do
+                  case x do
+                    @tag -> :yes
+                    _ -> :no
+                  end
+                end
+                """,
+                "m({:ok, [1]})",
+            ),
+            macro(
+                "form:case-attribute-pattern-unmatched",
+                """
+                @tag {:ok, [1]}
+
+                defmacro m(x) do
+                  case x do
+                    @tag -> :yes
+                    _ -> :no
+                  end
+                end
+                """,
+                "m({:ok, [1.0]})",
+            ),
+            // `expand_remote/8` folds a signed number in a pattern into the number.
+            macro("form:case-negative-integer-pattern", "defmacro m, do: (case -1 do -1 -> :yes; _ -> :no end)"),
+            macro("form:case-negative-integer-pattern-unmatched", "defmacro m, do: (case 1 do -1 -> :yes; _ -> :no end)"),
+            macro("form:case-negative-float-pattern", "defmacro m, do: (case -1.5 do -1.5 -> :yes; _ -> :no end)"),
+            macro("form:case-positive-integer-pattern", "defmacro m, do: (case 2 do +2 -> :yes; _ -> :no end)"),
+            macro("form:case-negative-zero-pattern", "defmacro m, do: (case 0.0 do -0.0 -> :yes; _ -> :no end)"),
+            macro(
                 "form:try-rescue",
                 """
                 defmacro m do
@@ -1161,6 +1424,48 @@ class InterpreterTest : PlatformTestCase() {
                 end
                 """,
             ),
+            // `error/2` gives the raising function's frame the arguments it is given, where they are a list.
+            macro(
+                "pure:error-args",
+                """
+                def top(args) do
+                  try do
+                    :erlang.error(:e, args)
+                  catch
+                    :error, _ -> :erlang.element(3, :erlang.hd(__STACKTRACE__))
+                  end
+                end
+
+                defmacro m, do: Macro.escape([top([:shown]), top([]), top([1 | 2]), top(:none), top(:bad)])
+                """,
+            ),
+            // `error/3` also puts the last `error_info` in the frame's location, where every option is one with a map.
+            macro(
+                "pure:error-info",
+                """
+                def top(options) do
+                  try do
+                    :erlang.error(:e, [:shown], options)
+                  catch
+                    :error, _ ->
+                      [frame | _] = __STACKTRACE__
+                      {:erlang.element(3, frame), :lists.keyfind(:error_info, 1, :erlang.element(4, frame))}
+                  end
+                end
+
+                defmacro m do
+                  Macro.escape([
+                    top(error_info: %{a: 1}),
+                    top(error_info: %{a: 1}, error_info: %{b: 2}),
+                    top([]),
+                    top(error_info: :x),
+                    top(error_info: %{a: 1}, other: 1),
+                    top([{:error_info, %{a: 1}} | :t]),
+                    top(:x)
+                  ])
+                end
+                """,
+            ),
             macro(
                 "form:try-after",
                 """
@@ -1244,21 +1549,52 @@ class InterpreterTest : PlatformTestCase() {
                 """,
             ),
             macro("form:for-uniq", "defmacro m, do: for(x <- [1, 1, 2], uniq: true, do: x)"),
+            // `elixir_erl_for` reads a case as it expanded: from 1.18 a macro's `<-/2` is a generator.
+            macro(
+                "form:for-generated-generator",
+                """
+                defmacrop gen, do: quote(do: 1 <- [1, 2, 1])
+                defmacro m, do: for(gen(), do: :ok)
+                """,
+                legs = POST_MODULE_LOCAL_CHECKS_TYPED::isSufficient,
+            ),
+            macro(
+                "form:for-generated-filter",
+                """
+                defmacrop small(x), do: quote(do: :erlang.<(unquote(x), 2))
+                defmacro m, do: for(x <- [1, 2, 3], small(x), do: x)
+                """,
+            ),
+            // Not inline, as a list generator makes it, a bitstring generator over a non-bitstring raises `badarg`.
+            macro(
+                "form:for-generated-generator-bitstring-badarg",
+                """
+                defmacrop gen, do: quote(do: 1 <- [1])
+
+                defmacro m do
+                  b = :a
+
+                  try do
+                    for gen(), <<x <- b>>, into: "", do: <<x>>
+                  rescue
+                    e -> e.__struct__
+                  end
+                end
+                """,
+                legs = POST_MODULE_LOCAL_CHECKS_TYPED::isSufficient,
+            ),
             macro(
                 "form:for-bitstring-generator",
                 """defmacro m, do: for(<<c <- "ab">>, do: c)""",
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             macro(
                 "form:for-bitstring-skip",
                 "defmacro m, do: for(<<x::8, 0::8 <- <<1, 0, 2, 1, 3, 0>> >>, do: x)",
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             // A reduce's skip clause, by the sizes each leg's `elixir_erl_for` keeps.
             macro(
                 "form:for-bitstring-reduce-skip-integer",
                 "defmacro m, do: for(<<x::8, 0::8 <- <<1, 0, 2, 1, 3, 0>> >>, uniq: true, do: x)",
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             macro(
                 "form:for-bitstring-reduce-skip-variable",
@@ -1268,7 +1604,6 @@ class InterpreterTest : PlatformTestCase() {
                   for <<x::size(n), 0::8 <- <<1, 0, 2, 1, 3, 0>> >>, uniq: true, do: x
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             macro(
                 "form:for-bitstring-reduce-skip-rebound",
@@ -1278,7 +1613,6 @@ class InterpreterTest : PlatformTestCase() {
                   {n, for(<<n::8, x::size(n), 0::8 <- <<8, 1, 0, 8, 2, 1, 8, 3, 0>> >>, uniq: true, do: x)}
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             macro(
                 "form:for-bitstring-reduce-skip-generator-rebound",
@@ -1288,7 +1622,6 @@ class InterpreterTest : PlatformTestCase() {
                   for n <- [8], <<x::size(n), 0::8 <- <<1, 0, 2, 1, 3, 0>> >>, do: x
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             macro(
                 "form:for-bitstring-reduce-skip-bitstring-generator-rebound",
@@ -1298,7 +1631,6 @@ class InterpreterTest : PlatformTestCase() {
                   for <<n::8 <- <<8>> >>, _ <- [1], <<x::size(n), 0::8 <- <<1, 0, 2, 1, 3, 0>> >>, do: x
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             macro(
                 "form:for-bitstring-reduce-skip-filter-rebound",
@@ -1308,7 +1640,6 @@ class InterpreterTest : PlatformTestCase() {
                   for _ <- [1], n = 8, <<x::size(n), 0::8 <- <<1, 0, 2, 1, 3, 0>> >>, do: x
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             macro(
                 "form:for-bitstring-reduce-skip-attribute",
@@ -1316,7 +1647,6 @@ class InterpreterTest : PlatformTestCase() {
                 @n 8
                 defmacro m, do: for(<<0::size(@n), x::8 <- <<0, 1, 255, 2, 0, 3, 0, 1>> >>, uniq: true, do: x)
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             macro(
                 "form:for-bitstring-reduce-skip-unit-attribute",
@@ -1324,7 +1654,31 @@ class InterpreterTest : PlatformTestCase() {
                 @u 8
                 defmacro m, do: for(<<0::size(1)-unit(@u), x::8 <- <<0, 1, 255, 2, 0, 3, 0, 1>> >>, uniq: true, do: x)
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            macro(
+                "form:for-bitstring-reduce-skip-attribute-operator",
+                """
+                @n 1
+                defmacro m, do: for(<<0::size(@n * 8), x::8 <- <<0, 1, 255, 2, 0, 3, 0, 1>> >>, uniq: true, do: x)
+                """,
+                legs = BITSTRING_SIZE_EXPANDED_AS_GUARD::isSufficient,
+            ),
+            macro(
+                "form:for-bitstring-reduce-skip-macro",
+                """
+                defmacrop eight, do: 8
+                defmacro m, do: for(<<0::size(eight()), x::8 <- <<0, 1, 255, 2, 0, 3, 0, 1>> >>, uniq: true, do: x)
+                """,
+            ),
+            macro(
+                "form:for-bitstring-reduce-skip-macro-variable",
+                """
+                defmacrop sz(v), do: v
+                defmacro m do
+                  n = 8
+                  for <<0::size(sz(n)), x::8 <- <<0, 1, 255, 2, 0, 3, 0, 1>> >>, uniq: true, do: x
+                end
+                """,
             ),
             macro(
                 "form:bitstring-size-var-macro",
@@ -1335,7 +1689,33 @@ class InterpreterTest : PlatformTestCase() {
                   x
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            // A size is expanded once, in the context `expand_spec_arg/4` gives it, which its macro's `__CALLER__` sees.
+            macro(
+                "form:bitstring-size-macro-caller-context",
+                """
+                defmacrop sz(v), do: if(__CALLER__.context == :match, do: quote(do: m), else: v)
+
+                defmacro m do
+                  n = 8
+                  <<x::size(sz(n))>> = <<1>>
+                  x
+                end
+                """,
+            ),
+            // Elixir compares the two sizes as the floats they expand to; from source the attribute's float isn't held.
+            macro(
+                "form:bitstring-size-float-attribute",
+                """
+                @f 8.0
+
+                defmacro m do
+                  <<x::size(@f)-size(8.0)>> = <<1>>
+                  x
+                end
+                """,
+                pins = { source, _ -> UNPORTED.takeIf { source == Source.SOURCE } },
+                legs = BITSTRING_SIZE_EXPANDED_AS_GUARD::isSufficient,
             ),
             macro(
                 "form:bitstring-size-repeated-attribute",
@@ -1346,7 +1726,54 @@ class InterpreterTest : PlatformTestCase() {
                   x
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
+            ),
+            // A bare segment's value is evaluated as its expansion recorded it.
+            macro(
+                "form:bitstring-bare-attribute",
+                """
+                @n 65
+                defmacro m, do: <<@n>>
+                """,
+            ),
+            macro(
+                "form:bitstring-bare-macro",
+                """
+                defmacrop n, do: 65
+                defmacro m, do: <<n()>>
+                """,
+            ),
+            // A UTF segment of a string literal is the string's code points, though an attribute spells it.
+            macro(
+                "form:bitstring-utf-attribute",
+                """
+                @text "ab"
+                defmacro m, do: <<@text::utf8>>
+                """,
+            ),
+            macro(
+                "form:bitstring-match-utf-attribute",
+                """
+                @text "ab"
+                defmacro m do
+                  case "abc" do
+                    <<@text::utf8, rest::binary>> -> rest
+                    _ -> :miss
+                  end
+                end
+                """,
+            ),
+            // A string literal's segment matches its own bytes, not the rest, though an attribute spells it.
+            macro(
+                "form:bitstring-match-binary-attribute",
+                """
+                @text "ab"
+                defmacro m do
+                  case "abc" do
+                    <<@text, rest::binary>> -> rest
+                    _ -> :miss
+                  end
+                end
+                """,
             ),
             macro(
                 "form:for-bitstring-reduce-skip-operator",
@@ -1356,21 +1783,18 @@ class InterpreterTest : PlatformTestCase() {
                   for <<0::size(s * 8), x::8 <- <<0, 1, 255, 2, 0, 3, 0, 1>> >>, uniq: true, do: x
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
                 legs = BITSTRING_SIZE_EXPANDED_AS_GUARD::isSufficient,
             ),
-            macro("form:for-bitstring-not-bitstring", "defmacro m(v), do: for(<<x <- v>>, do: x)", "m(1)", source = SourceRun.NEEDS_DISPATCH),
+            macro("form:for-bitstring-not-bitstring", "defmacro m(v), do: for(<<x <- v>>, do: x)", "m(1)"),
             macro(
                 "form:for-bitstring-not-bitstring-into",
                 """defmacro m(v), do: for(<<x <- v>>, into: "", do: <<x>>)""",
                 "m(1)",
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             macro(
                 "form:for-bitstring-not-bitstring-into-bitstring",
                 "defmacro m(v), do: for(<<x <- v>>, into: <<>>, do: <<x>>)",
                 "m(1)",
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             macro(
                 "form:for-into-first",
@@ -1398,6 +1822,68 @@ class InterpreterTest : PlatformTestCase() {
                 """,
                 pins = DECLINED,
             ),
+            // The collector `Collectable.into/1` gives takes each result as its body gives it.
+            macro(
+                "form:for-into-collectable",
+                """
+                defmacro m do
+                  out = %{}
+                  Macro.escape(for(x <- [1, 2], into: out, do: {x, x}))
+                end
+                """,
+            ),
+            // So the first result it rejects raises before the next body runs.
+            macro(
+                "form:for-into-collectable-rejects-first",
+                """
+                defmacro m do
+                  out = %{}
+
+                  try do
+                    for x <- [1, 2], into: out, do: if(x == 1, do: :bad, else: :erlang.div(1, 0))
+                  rescue
+                    e -> e.__struct__
+                  end
+                end
+                """,
+                pins = DECLINED,
+            ),
+            // `build_inline_each/7` checks each result `into: ""` takes as its body gives it.
+            macro(
+                "form:for-into-binary-rejects-first",
+                """
+                defmacro m do
+                  try do
+                    for x <- [1, 2], into: "", do: if(x == 1, do: :bad, else: :erlang.div(1, 0))
+                  rescue
+                    e -> e.__struct__
+                  end
+                end
+                """,
+            ),
+            // `build_inline/7` reads `into:` as it expanded, so an attribute's `[]` is inline, where before 1.20.2 a
+            // bitstring generator skips a run its pattern doesn't match.
+            macro(
+                "form:for-into-attribute-inline",
+                """
+                @out []
+                defmacro m do
+                  n = 8
+                  for <<x::size(n), 0::8 <- <<1, 0, 2, 1, 3, 0>> >>, into: @out, do: x
+                end
+                """,
+            ),
+            // And `uniq: true` isn't, as it expanded.
+            macro(
+                "form:for-uniq-attribute",
+                """
+                @u true
+                defmacro m do
+                  n = 8
+                  for <<x::size(n), 0::8 <- <<1, 0, 2, 1, 3, 0>> >>, uniq: @u, do: x
+                end
+                """,
+            ),
             // `expand_for/4` expands the options first, in the scope the generators then start from, and from
             // `GENERATOR_RIGHT_SIDE_SCOPED` drops what a generator's right side binds.
             macro(
@@ -1417,7 +1903,6 @@ class InterpreterTest : PlatformTestCase() {
                   for _ <- [1], <<x::8 <- (n = 16; <<1>>)>>, do: {x, n}
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
                 // Before, Elixir doesn't compile it: `unbound variable '_n@2'`.
                 legs = GENERATOR_RIGHT_SIDE_SCOPED::isSufficient,
             ),
@@ -1438,7 +1923,6 @@ class InterpreterTest : PlatformTestCase() {
                   {for(_ <- [1], reduce: (n = 16; 0), do: (acc -> acc + n)), n}
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             macro("form:with", "defmacro m(x), do: with({:ok, v} <- x, do: v)", "m({:ok, 1})"),
             macro("form:with-unmatched", "defmacro m(x), do: with({:ok, v} <- x, do: v)", "m(:error)"),
@@ -1608,6 +2092,22 @@ class InterpreterTest : PlatformTestCase() {
                 """,
             ),
             macro("form:remote-unreadable", "defmacro m, do: :code.which(:absent_beam)", pins = DECLINED),
+            // A module defined again, where the later definition stops, leaves none of the earlier one's clauses.
+            macro(
+                "form:remote-redefined-stopped",
+                "defmacro m, do: $ROW.A.f()",
+                pins = CALLS_A_STOPPED_MODULE,
+                helper = """
+                defmodule $ROW.A do
+                  def f, do: 1
+                end
+
+                defmodule $ROW.A do
+                  def f, do: 2
+                  defoverridable Application.get_env(:app, :ov, f: 0)
+                end
+                """,
+            ),
             macro("form:pair", "defmacro m, do: {:a, :b}"),
             macro("form:list", "defmacro m, do: [1, :a]"),
             macro("form:improper-list", "defmacro m, do: Macro.escape([1 | 2])"),
@@ -1821,6 +2321,17 @@ class InterpreterTest : PlatformTestCase() {
                 legs = UNQUOTE_SHALLOW_VALIDATED::isSufficient,
             ),
             macro(
+                "quote:unquote-invalid-unknown-call",
+                """
+                @c :erlang.hd([:g])
+                defmacro m do
+                  x = {@c, [], 1}
+                  quote do: f(unquote(x))
+                end
+                """,
+                legs = UNQUOTE_SHALLOW_VALIDATED::isSufficient,
+            ),
+            macro(
                 "quote:annotate-def",
                 """
                 defmacro m do
@@ -1852,7 +2363,7 @@ class InterpreterTest : PlatformTestCase() {
             macro("escape:prune", "defmacro m, do: Macro.escape({:a, [line: 1], nil}, prune_metadata: true)"),
             macro("escape:pair", "defmacro m, do: Macro.escape({:a, 1})"),
             macro("escape:tuple", "defmacro m, do: Macro.escape({:a, 1, 2})"),
-            macro("escape:bitstring", "defmacro m, do: Macro.escape(<<1::3>>)", source = SourceRun.NEEDS_DISPATCH),
+            macro("escape:bitstring", "defmacro m, do: Macro.escape(<<1::3>>)"),
             macro("escape:map-order", "defmacro m, do: Macro.escape(%{b: 1, a: 2, c: 3})", unordered = true),
             macro("escape:map-nested", "defmacro m, do: Macro.escape(%{a: %{b: [1]}})"),
             // `1` and `1.0` tie as keys, so the sort compares their values, one of them a binary whose bytes aren't known.
@@ -1882,7 +2393,7 @@ class InterpreterTest : PlatformTestCase() {
                 pins = { _, level -> OPAQUE.takeIf { REGEX_ESCAPED_IN_FIXED_FIELD_ORDER.isSufficient(level) } },
                 unordered = true,
             ),
-            macro("escape:struct", "defmacro m, do: Macro.escape(%URI{})", source = SourceRun.NEEDS_DISPATCH, pins = buildsPartOf("Elixir.URI"), unordered = true),
+            macro("escape:struct", "defmacro m, do: Macro.escape(%URI{})", pins = buildsPartOf("Elixir.URI"), unordered = true),
             macro("escape:empty-list", "defmacro m, do: Macro.escape([])"),
             macro("escape:list-no-unquote", "defmacro m, do: Macro.escape([1, {:unquote, [], [:x]}])"),
             macro("escape:list", "defmacro m, do: Macro.escape([1, {:unquote, [], [:x]}], unquote: true)"),
@@ -1890,6 +2401,98 @@ class InterpreterTest : PlatformTestCase() {
             macro("escape:literal", """defmacro m, do: Macro.escape([1, 2.5, :a, "b"])"""),
             macro("escape:external", "defmacro m, do: Macro.escape(&Enum.map/2)"),
             macro("escape:closure", "defmacro m, do: Macro.escape(fn -> 1 end)"),
+
+            // `elixir_dispatch`
+            macro(
+                "form:user-local",
+                """
+                defmacrop twice(x), do: quote(do: {unquote(x), unquote(x)})
+
+                defmacro m, do: Macro.escape(twice(1))
+                """,
+            ),
+            macro(
+                "form:user-import",
+                """
+                import {row}.H
+
+                defmacro m, do: Macro.escape(twice(1))
+                """,
+                helper = TWICE,
+            ),
+            macro(
+                "form:user-remote",
+                """
+                require {row}.H
+
+                defmacro m, do: Macro.escape({row}.H.twice(1))
+                """,
+                helper = TWICE,
+            ),
+            // The helper's output holds two `quote`s, which take its call's origin.
+            macro(
+                "form:quotes-sharing-an-origin",
+                """
+                require {row}.H
+
+                defmacro m, do: {row}.H.pair()
+                """,
+                helper = PAIR,
+            ),
+            macro(
+                "form:raise-in-macro",
+                """defmacro m, do: raise(%ArgumentError{message: "no"})""",
+                pins = buildsPartOf("Elixir.ArgumentError"),
+            ),
+            // A macro's argument is marked `stop_generated` where an import or `Macro.expand_once/2` calls it, not a
+            // remote call.
+            Row(
+                "quote:stop-generated",
+                STOP_GENERATED,
+                "$ROW.m(f())",
+                "import $ROW\nm(f())",
+                "m(f())",
+                listOf(ROW),
+                SourceRun.ANSWERS,
+                EVERY_LEG,
+                UNPINNED,
+                null,
+            ),
+            // `Macro.expand_once/2` gives back a node it can't expand as it was given, its mark kept.
+            Row(
+                "quote:stop-generated-expanded",
+                """
+                defmacro m(x) do
+                  e = Macro.expand_once(x, __CALLER__)
+
+                  if e == x and Keyword.get(elem(e, 1), :stop_generated, false) do
+                    quote(do: def(a, do: 1))
+                  else
+                    quote(do: def(b, do: 1))
+                  end
+                end
+                """.trimIndent(),
+                "$ROW.m(f())",
+                "import $ROW\nm(f())",
+                "m(f())",
+                listOf(ROW),
+                SourceRun.ANSWERS,
+                EVERY_LEG,
+                UNPINNED,
+                null,
+            ),
+            Row(
+                "quote:stop-generated-remote",
+                STOP_GENERATED,
+                "$ROW.m(f())",
+                "require $ROW\n$ROW.m(f())",
+                "$ROW.m(f())",
+                listOf(ROW),
+                SourceRun.ANSWERS,
+                EVERY_LEG,
+                UNPINNED,
+                null,
+            ),
 
             // The natives: `erlang`
             macro("pure:append", "defmacro m, do: :erlang.++([1], [2])"),
@@ -1970,6 +2573,8 @@ class InterpreterTest : PlatformTestCase() {
             macro("pure:arith-float", "defmacro m, do: [:erlang./(4, 2), :erlang.+(1, 2.0), :erlang.*(2, 1.5)]"),
             macro("pure:badarith", "defmacro m, do: :erlang.+(1, :a)"),
             macro("pure:badarith-division", "defmacro m, do: :erlang.div(1, 0)"),
+            // `/` converts each integer to a float, which raises for one past the float range.
+            macro("pure:badarith-float-conversion", "defmacro m, do: :erlang./(1, 0x1${"0".repeat(275)})"),
             macro(
                 "pure:atom-binary",
                 """
@@ -2015,7 +2620,6 @@ class InterpreterTest : PlatformTestCase() {
                   ]
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             macro("form:exit", "defmacro m, do: :erlang.exit(:x)", pins = DECLINED),
             macro("pure:raise-badarg", "defmacro m, do: [:erlang.raise(:foo, :a, []), :erlang.raise(:error, :a, :bad)]"),
@@ -2089,6 +2693,27 @@ class InterpreterTest : PlatformTestCase() {
                 "pure:function-exported-arity-past-a-small-integer",
                 "defmacro m, do: :erlang.function_exported(Enum, :map, 576_460_752_303_423_490)",
             ),
+            // A macro is exported as `MACRO-<name>`, taking the caller first.
+            macro(
+                "pure:function-exported-macro",
+                """
+                defmacro m do
+                  [
+                    :erlang.function_exported({row}.H, :"MACRO-h", 1),
+                    :erlang.function_exported({row}.H, :h, 0),
+                    :erlang.function_exported(Kernel, :"MACRO-if", 2)
+                  ]
+                end
+                """,
+                helper = DEFINES_A_MACRO,
+            ),
+            // Which the evaluator doesn't run.
+            macro(
+                "pure:remote-macro-function",
+                """defmacro m, do: :erlang.apply({row}.H, :"MACRO-h", [__CALLER__])""",
+                pins = DECLINED,
+                helper = DEFINES_A_MACRO,
+            ),
             macro(
                 "pure:apply",
                 "defmacro m, do: [:erlang.apply(Keyword, :get, [[a: 1], :a]), :erlang.apply(fn x -> [x] end, [1])]",
@@ -2114,6 +2739,149 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "pure:keydelete-position-past-a-long",
                 "defmacro m, do: :lists.keydelete(:a, 18_446_744_073_709_551_617, [{:a, 1}])",
+            ),
+            // From source, an attribute the walk can't read is a value the evaluator doesn't know, which no native takes
+            // for a known value of another type.
+            macro(
+                "pure:keyfind-unknown-element",
+                """
+                @x :erlang.hd([{:a, :first}])
+                defmacro m, do: :lists.keyfind(:a, 1, [@x, {:a, :fallback}])
+                """,
+                pins = DECLINED_FROM_SOURCE,
+            ),
+            macro(
+                "pure:keydelete-unknown-element",
+                """
+                @x :erlang.hd([{:a, :first}])
+                defmacro m, do: :erlang.length(:lists.keydelete(:a, 1, [@x, {:b, 1}]))
+                """,
+                pins = DECLINED_FROM_SOURCE,
+            ),
+            macro(
+                "pure:range-member-unknown",
+                """
+                @x :erlang.hd([2])
+                defmacro m, do: Enum.member?(1..3, @x)
+                """,
+                pins = DECLINED_FROM_SOURCE,
+            ),
+            macro(
+                "pure:keyword-merge-unknown-pair",
+                """
+                @x :erlang.hd([{:a, 1}])
+                defmacro m, do: Keyword.merge([@x], b: 2)
+                """,
+                pins = DECLINED_FROM_SOURCE,
+            ),
+            macro(
+                "pure:keyword-merge-unknown-key",
+                """
+                @k :erlang.hd([:a])
+                defmacro m, do: Keyword.merge([{@k, 1}], b: 2)
+                """,
+                pins = DECLINED_FROM_SOURCE,
+            ),
+            macro(
+                "pure:escape-generated-unknown",
+                """
+                @g :erlang.hd([true])
+                defmacro m, do: Macro.escape({:f, [], []}, generated: @g)
+                """,
+                pins = { source, level -> DECLINED_FROM_SOURCE(source, level)?.takeIf { MACRO_ESCAPE_MARKS_GENERATED.isSufficient(level) } },
+            ),
+            macro(
+                "pure:env-in-match-unknown-struct",
+                """
+                @s :erlang.hd([Macro.Env])
+                defmacro m, do: Macro.Env.in_match?(%{__struct__: @s, context: :match})
+                """,
+                pins = DECLINED_FROM_SOURCE,
+            ),
+            macro(
+                "pure:dot-unknown-name",
+                """
+                @n :erlang.hd([:b])
+                defmacro m do
+                  x = {@n, [], nil}
+                  Macro.escape(quote(do: :lists.unquote(x)))
+                end
+                """,
+                pins = DECLINED_FROM_SOURCE,
+            ),
+            macro(
+                "pure:access-unknown-struct",
+                """
+                @s :erlang.hd([{row}.S])
+                defmacro m, do: %{__struct__: @s, a: 2}[:a]
+                """,
+                pins = DECLINED_FROM_SOURCE,
+                helper = FETCHES,
+            ),
+            // A list whose tail isn't known may be proper.
+            macro(
+                "pure:length-unknown-tail",
+                """
+                @t :erlang.hd([[2]])
+                defmacro m do
+                  try do
+                    length([1 | @t])
+                  rescue
+                    ArgumentError -> :bad
+                  end
+                end
+                """,
+                pins = DECLINED_FROM_SOURCE,
+            ),
+            macro(
+                "pure:match-unknown-tail",
+                """
+                @t :erlang.hd([[2]])
+                defmacro m do
+                  case [1 | @t] do
+                    [_, b] -> b
+                    _ -> :other
+                  end
+                end
+                """,
+                pins = DECLINED_FROM_SOURCE,
+            ),
+            // A segment whose value or size isn't known may raise.
+            macro(
+                "form:bitstring-unknown-segment",
+                """
+                @v :erlang.hd([:bad])
+                defmacro m do
+                  v = @v
+                  _ = <<v::8>>
+                  :ok
+                end
+                """,
+                pins = DECLINED_FROM_SOURCE,
+            ),
+            macro(
+                "form:bitstring-unknown-size",
+                """
+                @s :erlang.hd([:bad])
+                defmacro m do
+                  s = @s
+                  _ = <<1::size(s)>>
+                  :ok
+                end
+                """,
+                pins = DECLINED_FROM_SOURCE,
+            ),
+            // `String.Chars`' implementations for a tuple aren't read.
+            macro(
+                "pure:to-string-unknown",
+                """
+                defmacro m do
+                  w = :erlang.hd([{:a}])
+                  _ = "#{w}"
+                  :ok
+                end
+                """,
+                pins = DECLINED,
             ),
             macro("pure:append-lists", "defmacro m, do: [:lists.append([[1], [2]]), :lists.append([1], [2])]"),
             macro("pure:append-last-improper", "defmacro m, do: Macro.escape(:lists.append([[1], 2]))"),
@@ -2267,12 +3035,10 @@ class InterpreterTest : PlatformTestCase() {
             macro(
                 "pure:enum-range",
                 "defmacro m, do: [Enum.map(1..3, fn x -> x end), Enum.reverse(1..3), Enum.member?(1..3, 2)]",
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             macro(
                 "pure:enum-range-lazy",
                 "defmacro m, do: [Enum.member?(1..1_000_000_000, 1), Enum.any?(1..1_000_000_000), Enum.all?(1..3)]",
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             macro("pure:enum-map", "defmacro m, do: Enum.map(%{a: 1}, fn {k, _} -> k end)", pins = DECLINED),
             macro(
@@ -2343,7 +3109,6 @@ class InterpreterTest : PlatformTestCase() {
                   :ok
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             macro(
                 "form:bitstring-unknown-binary-unit",
@@ -2353,10 +3118,9 @@ class InterpreterTest : PlatformTestCase() {
                   :ok
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
                 pins = DECLINED,
             ),
-            macro("pure:to-string-interpolated", """defmacro m(name), do: :"#{name}?"""", "m(:a)", source = SourceRun.NEEDS_DISPATCH),
+            macro("pure:to-string-interpolated", """defmacro m(name), do: :"#{name}?"""", "m(:a)"),
             macro(
                 "pure:escape-generated",
                 "defmacro m, do: [Macro.escape(1, generated: true), Kernel.elem(Macro.escape({:a, :b, :c}, generated: true), 1)]",
@@ -2402,21 +3166,18 @@ class InterpreterTest : PlatformTestCase() {
                   ]
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
             ),
-            macro("pure:utf-literal", """defmacro m, do: <<"é"::utf8, "a"::utf16>>""", source = SourceRun.NEEDS_DISPATCH),
-            macro("pure:float-overflow", "defmacro m(x), do: <<x::32-float>>", "m(1.0e300)", source = SourceRun.NEEDS_DISPATCH),
+            macro("pure:utf-literal", """defmacro m, do: <<"é"::utf8, "a"::utf16>>"""),
+            macro("pure:float-overflow", "defmacro m(x), do: <<x::32-float>>", "m(1.0e300)"),
             macro(
                 "pure:float-overflow-bignum",
                 "defmacro m(n), do: <<n::64-float>>",
                 "m(${BigInteger.ONE.shiftLeft(1100)})",
-                source = SourceRun.NEEDS_DISPATCH,
             ),
-            macro("pure:utf-overflow", "defmacro m(c), do: <<c::utf8>>", "m(4294967361)", source = SourceRun.NEEDS_DISPATCH),
+            macro("pure:utf-overflow", "defmacro m(c), do: <<c::utf8>>", "m(4294967361)"),
             macro(
                 "pure:bitstring-little-odd",
                 "defmacro m, do: Macro.escape([<<0x123::12-little>>, (<<x::12-little, _::4>> = <<35, 16>>; x)])",
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             // A fun in a macro's result is converted where expansion reaches it, so a macro it is passed to gets the fun.
             Row(
@@ -2432,10 +3193,159 @@ class InterpreterTest : PlatformTestCase() {
                 "require $ROW\n$ROW.outer()",
                 "$ROW.outer()",
                 listOf(ROW),
-                SourceRun.NEEDS_DISPATCH,
+                SourceRun.ANSWERS,
                 EVERY_LEG,
                 DECLINED,
                 null,
+            ),
+            macro(
+                "form:macro-expand",
+                "defmacro m(x, y), do: {Macro.expand_once(x, __CALLER__), Macro.expand(y, __CALLER__)}",
+                "m(unless(false, do: :x), __MODULE__)",
+            ),
+            macro(
+                "form:macro-expand-env",
+                "defmacro m(x), do: Macro.expand(x, %{__CALLER__ | line: 1})",
+                "m(__MODULE__)",
+                pins = DECLINED,
+            ),
+            // The read's line is the caller's, which differs between Elixir's call and the case's.
+            macro(
+                "form:macro-expand-attribute",
+                """
+                defmacro m do
+                  {call, meta, [module, name, _line | rest]} = Macro.expand(quote(do: @a), __CALLER__)
+                  {call, meta, [module, name, 0 | rest]}
+                end
+                """,
+            ),
+            // `do_expand_once/2` reads only the top node, so a term inside it that isn't AST doesn't stop the expansion.
+            macro(
+                "form:macro-expand-holding-a-term",
+                "defmacro m, do: elem(Macro.expand(quote(do: unless(unquote(&List.first/1), do: 1)), __CALLER__), 0)",
+                pins = DECLINED,
+            ),
+            // `alias`, `import` and `require` are their module, and a later node is dispatched as their expansion saw it.
+            macro(
+                "lexical:alias",
+                """
+                defmacro m do
+                  x = alias(Enum, as: E)
+                  {x, E}
+                end
+                """,
+            ),
+            macro(
+                "lexical:import",
+                """
+                defmacro m do
+                  x = import(Enum, only: [count: 1])
+                  {x, count([1, 2])}
+                end
+                """,
+            ),
+            macro(
+                "lexical:require",
+                """
+                defmacro m do
+                  require Integer
+                end
+                """,
+            ),
+            macro(
+                "lexical:multi-alias",
+                """
+                defmacro m do
+                  alias Elixir.{Enum, List}
+                end
+                """,
+            ),
+            macro("form:env-field", "defmacro m, do: __ENV__.function"),
+            // A key the env lacks is the call on the escaped env, which raises `KeyError` when it runs.
+            macro(
+                "form:env-field-missing",
+                """
+                defmacro m do
+                  __ENV__.foo
+                  1
+                end
+                """,
+                pins = DECLINED_FROM_SOURCE,
+            ),
+            // `elixir_fn:capture/4` leaves a capture of a function, or else the `fn` it rewrites the capture to.
+            macro("form:capture-remote-of-arguments", "defmacro m, do: (&length(&1)).([1, 2])"),
+            macro(
+                "form:capture-local-of-arguments",
+                """
+                def f(x), do: x
+                defmacro m, do: (&f(&1)).(2)
+                """,
+            ),
+            macro("form:capture-expression", "defmacro m, do: (&(&1 + 1)).(1)"),
+            macro("form:capture-tuple", "defmacro m, do: (&{&1, 2}).(1)"),
+            macro("form:capture-list", "defmacro m, do: (&[&1 | &2]).(1, [2])"),
+            macro(
+                "form:capture-variable-module",
+                """
+                defmacro m do
+                  mod = :lists
+                  {(&mod.reverse/1).([1, 2]), (&mod.reverse(&1)).([1, 2])}
+                end
+                """,
+            ),
+            // The helper places its argument in two scopes, which dispatch its call differently: each placement is
+            // dispatched as its own scope's.
+            macro(
+                "form:argument-in-two-scopes",
+                """
+                require {row}.H
+
+                defmacro m, do: {{row}.H.pick(true, length([1, 2])), {row}.H.pick(false, length([1, 2]))}
+                """,
+                helper = """
+                    defmodule {row}.Foo do
+                      def length(_), do: :foo
+                    end
+
+                    defmodule {row}.H do
+                      defmacro pick(c, a) do
+                        quote do
+                          if unquote(c) do
+                            import Kernel, except: [length: 1]
+                            import {row}.Foo
+                            unquote(a)
+                          else
+                            unquote(a)
+                          end
+                        end
+                      end
+                    end
+                """,
+            ),
+            macro(
+                "form:argument-in-an-uncalled-scope",
+                """
+                require {row}.H
+
+                defmacro m, do: elem({row}.H.pair(length([1, 2])), 1)
+                """,
+                helper = """
+                    defmodule {row}.Foo do
+                      def length(_), do: :foo
+                    end
+
+                    defmodule {row}.H do
+                      defmacro pair(a) do
+                        quote do
+                          {fn ->
+                             import Kernel, except: [length: 1]
+                             import {row}.Foo
+                             unquote(a)
+                           end, unquote(a)}
+                        end
+                      end
+                    end
+                """,
             ),
             macro(
                 "try:rescue-badarg-message",
@@ -2569,7 +3479,6 @@ class InterpreterTest : PlatformTestCase() {
                 end
                 """,
                 ":html",
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             use(
                 "use:caller",
@@ -2595,7 +3504,6 @@ class InterpreterTest : PlatformTestCase() {
                   [conditional, imports]
                 end
                 """,
-                source = SourceRun.NEEDS_DISPATCH,
                 stopsAfter = "{:unquote, [], [{:prefix_match",
             ),
             use(
@@ -2693,7 +3601,6 @@ class InterpreterTest : PlatformTestCase() {
                 end
                 """,
                 "otp_app: :demo",
-                source = SourceRun.NEEDS_DISPATCH,
             ),
             leg("GenServer", stopsAfter = UNQUOTE_ESCAPED_OPTS),
             leg("Supervisor", stopsAfter = UNQUOTE_ESCAPED_OPTS),

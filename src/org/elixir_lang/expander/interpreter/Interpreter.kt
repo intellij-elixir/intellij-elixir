@@ -16,12 +16,12 @@ import org.elixir_lang.expander.DefinitionTable
 import org.elixir_lang.expander.Dispatch
 import org.elixir_lang.expander.Env
 import org.elixir_lang.expander.ExState
+import org.elixir_lang.expander.MacroExpanded
 import org.elixir_lang.expander.ModuleClauses
+import org.elixir_lang.expander.ModuleClauses.Dispatched
 import org.elixir_lang.expander.ModuleExports
 import org.elixir_lang.expander.Run
 import org.elixir_lang.expander.Summary
-import org.elixir_lang.expander.Variable
-import org.elixir_lang.expander.aliasesModule
 import org.elixir_lang.expander.forOptions
 import org.elixir_lang.expander.isBitstringGenerator
 import org.elixir_lang.expander.isCall
@@ -31,16 +31,19 @@ import org.elixir_lang.expander.isVariable
 import org.elixir_lang.expander.isVariableNamed
 import org.elixir_lang.expander.keyOf
 import org.elixir_lang.expander.lineOf
+import org.elixir_lang.expander.literalOf
+import org.elixir_lang.expander.macroExpand
+import org.elixir_lang.expander.macroExpandOnce
 import org.elixir_lang.expander.metaValue
 import org.elixir_lang.expander.orGuards
 import org.elixir_lang.expander.splitOptions
 import org.elixir_lang.expander.unlessTooDeep
-import org.elixir_lang.expander.variable
 import org.elixir_lang.expander.whenArguments
 import org.elixir_lang.expander.withOptions
 import org.elixir_lang.language_level.ElixirLanguageFeature.FIELD_OF_NON_MAP_RAISES_BADKEY
 import org.elixir_lang.language_level.ElixirLanguageFeature.FN_CLAUSE_ERROR_IS_FUNCTION_CLAUSE
 import org.elixir_lang.language_level.ElixirLanguageFeature.GENERATOR_RIGHT_SIDE_SCOPED
+import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_ARGUMENTS_STOP_GENERATED
 import org.elixir_lang.language_level.ElixirLanguageFeature.FIELD_OF_NON_MAP_RAISES_BADMAP
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUED_ERROR_MESSAGE_FROM_ERROR_INFO
 import org.elixir_lang.language_level.ElixirLanguageFeature.RESCUE_EXCEPTION_KEY_PRESENT
@@ -50,14 +53,26 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.WITH_ELSE_CLAUSE_ERR
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
 import org.elixir_lang.lowering.ParserOptions
+import org.elixir_lang.psi.Import.Term
 import java.util.IdentityHashMap
 
 /** A call of a macro with no summary, answered by evaluating the macro's clauses. */
 internal object Interpreter {
-    /** The summary of [node], which dispatches as [dispatch], from its macro's clauses, or `null` where it declines. */
-    fun summary(dispatch: Dispatch, node: ElixirAst.Call, env: Env, run: Run): Summary? {
+    /**
+     * The summary of [node], which dispatches as [dispatch], from its macro's clauses, or `null` where it declines.
+     *
+     * @param stopGenerated whether the macro is given its arguments through `stop_generated/1`
+     */
+    fun summary(
+        dispatch: Dispatch,
+        node: ElixirAst.Call,
+        state: ExState,
+        env: Env,
+        run: Run,
+        stopGenerated: Boolean,
+    ): Summary? {
         val output = try {
-            unlessTooDeep({ return null }) { Evaluation(dispatch, node, env, run).output() }
+            unlessTooDeep({ return null }) { Evaluation(dispatch, node, state, env, run, stopGenerated).output() }
         } catch (_: Declined) {
             return null
         }
@@ -69,50 +84,69 @@ internal object Interpreter {
 }
 
 /**
- * A variable as a [Frame] binds it: from `Dbgi`, the version its expansion gave it, which `elixir_erl_var` keys it by
- * alone, or none where it has none; from source, for now, its name.
+ * A variable as a [Frame] binds it: the version its expansion gave it, which `elixir_erl_var` keys it by alone, using its
+ * name only to spell a new Erlang variable.
  */
-internal sealed interface Binding {
-    data class Version(val version: Long?) : Binding
-
-    data class Name(val variable: Variable) : Binding
-}
+internal data class Binding(val version: Int)
 
 /**
- * The bindings of one clause of [module]'s, the env a source clause's body is read in, and the stacktrace a `rescue` or
- * `catch` body reads.
+ * The variables a pattern binds, held until all of it matches. [fresh] where its construct binds them afresh, as an
+ * Erlang fun head and generator do, rather than matching a version already bound.
  */
+internal class PatternBindings(val fresh: Boolean) {
+    val vars = HashMap<Binding, OtpErlangObject>()
+}
+
+/** The bindings of one clause of [module]'s, and the stacktrace a `rescue` or `catch` body reads. */
 internal class Frame(
     val module: ModuleClauses,
-    val env: Env?,
     val vars: HashMap<Binding, OtpErlangObject> = HashMap(),
     val stacktrace: OtpErlangObject? = null,
     val guard: Boolean = false,
 ) {
     val source get() = module.source == ModuleClauses.Source.SOURCE
 
-    /** Where it isn't `null`, each variable a match binds in this frame, as a `for` filter's are read. */
-    var binds: MutableSet<Binding>? = null
-
-    /** [node]'s binding: from `Dbgi`, the `version:` its expansion gave it; from source, its name. */
-    fun binding(node: ElixirAst): Binding =
-        if (source) {
-            Binding.Name(variable(node))
+    /**
+     * [node]'s binding, at the version its expansion gave it: from `Dbgi`, the `version:` in its metadata; from source,
+     * the version its expansion recorded. `null` where it has none.
+     */
+    fun binding(node: ElixirAst): Binding? {
+        val version = if (source) {
+            module.dispatches.versionOf(node)
         } else {
-            Binding.Version((metaValue(node.meta, "version") as? Meta.Value.Integer)?.value)
+            (metaValue(node.meta, "version") as? Meta.Value.Integer)?.value?.toInt()
         }
 
-    fun copy(stacktrace: OtpErlangObject? = this.stacktrace) = Frame(module, env, HashMap(vars), stacktrace, guard)
+        return version?.let(::Binding)
+    }
+
+    /**
+     * [node] in the form `translate/3` receives it: from source, a macro's output in place of its call, and a literal
+     * value its expansion injected, such as an attribute's, in place of its call.
+     */
+    fun expanded(node: ElixirAst): ElixirAst {
+        ProgressManager.checkCanceled()
+
+        return when (val dispatched = if (source) module.dispatches.of(node) else null) {
+            is Dispatched.Macro -> expanded(dispatched.output)
+            is Dispatched.Value -> literalOf(node, dispatched.value) ?: node
+            else -> node
+        }
+    }
+
+    fun copy(stacktrace: OtpErlangObject? = this.stacktrace) = Frame(module, HashMap(vars), stacktrace, guard)
 
     /** This frame's bindings, read as a guard reads them. */
-    fun guarded() = Frame(module, env, vars, stacktrace, true)
+    fun guarded() = Frame(module, vars, stacktrace, true)
 }
 
 internal class Evaluation(
     private val dispatch: Dispatch,
     private val call: ElixirAst.Call,
+    private val state: ExState,
     private val env: Env,
     val run: Run,
+    private val stopGenerated: Boolean,
 ) {
     /** Each term made from an argument's node, so the output keeps the nodes the macro passed through. */
     private val nodes = IdentityHashMap<OtpErlangObject, ElixirAst>()
@@ -123,16 +157,21 @@ internal class Evaluation(
     /** The atoms the evaluation has seen, which `binary_to_existing_atom` finds. */
     val atoms = HashSet<String>()
 
-    private val natives = Natives(this)
+    val natives = Natives(this)
 
     private val bits = Bits(this)
 
+    /** `__CALLER__`, one term, so `Macro.expand/2` knows the env it is given. */
+    private val caller by lazy { caller() }
+
     fun output(): Summary.Output {
-        val module = run.clausesOf(dispatch.receiver) ?: decline("no clauses of ${dispatch.receiver}")
+        val module = run.clausesOf(dispatch.receiver, local = dispatch.kind == Dispatch.Kind.LOCAL_MACRO)
+            ?: decline("no clauses of ${dispatch.receiver}")
         val definition = module.definitions[NameArity(dispatch.name, dispatch.arity)]
             ?.takeIf { it.kind.macro }
             ?: decline("${dispatch.receiver} has no macro ${dispatch.name}/${dispatch.arity}")
-        val args = call.arguments.orEmpty().map(::termOf)
+        val marks = stopGenerated && MACRO_ARGUMENTS_STOP_GENERATED.isSufficient(run.level)
+        val args = call.arguments.orEmpty().map { arg -> termOf(arg).let { if (marks) stopGenerated(it, arg) else it } }
         val function = ModuleExports.macroExport(NameArity(dispatch.name, args.size))
         val result = try {
             invoke(module, definition, function.name, args, function.arity)
@@ -161,6 +200,32 @@ internal class Evaluation(
 
     private fun normalize(reason: OtpErlangObject, stacktrace: OtpErlangObject): OtpErlangObject =
         remote(atom("Elixir.Exception"), "normalize", listOf(atom("error"), reason, stacktrace))
+
+    /** `elixir_dispatch:stop_generated/1` of [term], [arg]'s: a call's meta gains `stop_generated: true`. */
+    private fun stopGenerated(term: OtpErlangObject, arg: ElixirAst): OtpErlangObject {
+        val meta = (term as? OtpErlangTuple)?.takeIf { it.arity() == 3 }?.elementAt(1) as? OtpErlangList ?: return term
+
+        return tuple(term.elementAt(0), cons(listOf(tuple(atom("stop_generated"), TRUE)), meta), term.elementAt(2))
+            .also { nodes[it] = arg }
+    }
+
+    /**
+     * `Macro.expand/2`, or with [once] `Macro.expand_once/2`, of [ast] in [env], expanded where the call is. An env
+     * other than `__CALLER__` declines.
+     */
+    fun macroExpand(ast: OtpErlangObject, env: OtpErlangObject, once: Boolean): OtpErlangObject {
+        if (env !== caller) decline("Macro.expand/2 in an env other than __CALLER__")
+
+        val node = ElixirAst.fromOtp(ast, call.meta.origin, nodes::get) ?: decline("Macro.expand/2 of a term it can't read")
+        val expanded = if (once) macroExpandOnce(node, state, this.env, run) else macroExpand(node, state, this.env, run)
+
+        return when (expanded) {
+            // A node that didn't expand is the term given, metadata the node doesn't hold included.
+            is MacroExpanded.Node -> if (expanded.expanded) termOf(expanded.node) else ast
+            MacroExpanded.Dir -> decline("Macro.expand/2 of __DIR__")
+            is MacroExpanded.Stopped -> decline("Macro.expand/2 stops")
+        }
+    }
 
     /** [node] as the term a macro is given, each of its terms remembering the node it came from. */
     private fun termOf(node: ElixirAst): OtpErlangObject =
@@ -191,9 +256,11 @@ internal class Evaluation(
             for (clause in clauses) {
                 if (clause.args.size != args.size) continue
 
-                val frame = Frame(module, clause.env)
+                val frame = Frame(module)
 
-                if (matches(clause.args, args, frame) && guards(clause.guards, frame)) return eval(clause.body, frame)
+                if (matches(clause.args, args, frame) && guards(clause.guards, frame)) {
+                    return eval(clause.body ?: decline("$function/${args.size} matches a clause that stopped expanding"), frame)
+                }
             }
         } finally {
             stack.removeFirst()
@@ -236,6 +303,14 @@ internal class Evaluation(
         error(mapOf(entries(struct) + fields.map { (key, value) -> atom(key) to value }, run.level))
     }
 
+    /** [expr] read as a guard reads it in [frame], `null` where it raises, which fails its guard or its pattern. */
+    internal fun guardValue(expr: ElixirAst, frame: Frame): OtpErlangObject? =
+        try {
+            eval(expr, frame.guarded())
+        } catch (_: Thrown) {
+            null
+        }
+
     internal fun eval(node: ElixirAst, frame: Frame): OtpErlangObject {
         ProgressManager.checkCanceled()
 
@@ -249,11 +324,7 @@ internal class Evaluation(
             is ElixirAst.ListNode -> evalList(node.elements, frame)
             is ElixirAst.Tuple -> OtpErlangTuple(node.elements.map { eval(it, frame) }.toTypedArray())
             is ElixirAst.Block -> block(node.expressions, frame)
-            is ElixirAst.Alias -> {
-                val env = frame.env?.takeIf { frame.source } ?: decline("an alias in debug info")
-
-                atom(aliasesModule(node, env, run.level) ?: decline("an alias not known here"))
-            }
+            is ElixirAst.Alias -> if (frame.source) value(node, frame) else decline("an alias in debug info")
             is ElixirAst.Placeholder -> decline("a placeholder")
             is ElixirAst.Call -> evalCall(node, frame)
         }
@@ -299,12 +370,16 @@ internal class Evaluation(
     }
 
     private fun variable(name: String, node: ElixirAst.Call, frame: Frame): OtpErlangObject {
-        frame.vars[frame.binding(node)]?.let { return it }
+        frame.binding(node)?.let(frame.vars::get)?.let { return it }
 
         return when (name) {
-            "__CALLER__" -> caller()
+            "__CALLER__" -> caller
             "__STACKTRACE__" -> frame.stacktrace ?: decline("__STACKTRACE__ outside a rescue or catch")
             "__MODULE__" if frame.source -> atom(frame.module.module)
+            "__DIR__" if frame.source -> value(node, frame)
+            "__ENV__" if frame.source -> value(node, frame)
+            // Before 1.15, the local call its expansion made of it.
+            else if frame.source && frame.module.dispatches.of(node) != null -> dispatched(name, emptyList(), node, frame)
             else -> decline("reads $name, which isn't bound here")
         }
     }
@@ -337,10 +412,23 @@ internal class Evaluation(
         val (left, right) = callee.arguments!!
         val name = (right as? ElixirAst.Literal.Atom)?.name ?: decline("a remote call whose name isn't an atom")
 
+        if (frame.source) {
+            when (val dispatched = frame.module.dispatches.of(node)) {
+                is Dispatched.Remote -> return remoteCall(atom(dispatched.module), dispatched.name, args, frame)
+                is Dispatched.Macro -> return eval(dispatched.output, frame)
+                is Dispatched.Value -> return otpOf(dispatched.value)
+                Dispatched.Apply -> {}
+                else -> decline("a remote call its expansion didn't reach")
+            }
+        }
+
         if (args.isEmpty() && isFieldReceiver(left, frame)) return field(eval(left, frame), name, node.meta, frame)
 
-        val receiver = eval(left, frame)
+        return remoteCall(eval(left, frame), name, args, frame)
+    }
 
+    /** `receiver.name(args)`, `:erlang.andalso/2` and `orelse/2` evaluating their right only where it is needed. */
+    private fun remoteCall(receiver: OtpErlangObject, name: String, args: List<ElixirAst>, frame: Frame): OtpErlangObject {
         if (receiver == ERLANG && args.size == 2 && (name == "andalso" || name == "orelse")) {
             val value = eval(args[0], frame)
 
@@ -401,20 +489,21 @@ internal class Evaluation(
             "{}" -> OtpErlangTuple(args.map { eval(it, frame) }.toTypedArray())
             "%{}" -> map(args, frame)
             "%" if args.size == 2 -> struct(args, frame)
-            "<<>>" -> if (frame.source) decline("a source bitstring") else bits.build(args, frame)
+            "<<>>" -> bits.build(args, frame)
             "__block__" -> block(args, frame)
             "case" if args.size == 2 -> {
                 val value = eval(args[0], frame)
+                val options = (frame.module.dispatches.of(node) as? Dispatched.Clauses)?.options ?: args[1]
 
-                clauses(arrows(doOption(args[1])), listOf(value), frame) ?: error(tuple(atom("case_clause"), value))
+                clauses(arrows(doOption(options)), listOf(value), frame) ?: error(tuple(atom("case_clause"), value))
             }
             "cond" if args.size == 1 -> cond(arrows(doOption(args[0])), frame)
             "fn" -> fn(args, frame)
-            "&" -> capture(args.single(), frame)
-            "try" -> evalTry(args.single(), frame)
-            "for" -> evalFor(args, frame)
-            "with" -> evalWith(args, frame)
-            "quote" ->
+            "&" if args.size == 1 -> capture(node, frame)
+            "try" if args.size == 1 -> evalTry(args.single(), frame)
+            "for" if args.isNotEmpty() -> evalFor(args, frame)
+            "with" if args.isNotEmpty() -> evalWith(args, frame)
+            "quote" if args.size in 1..2 ->
                 if (frame.source) {
                     eval(frame.module.quotes.of(node) ?: decline("a quote whose escaped block wasn't built"), frame)
                 } else {
@@ -424,14 +513,45 @@ internal class Evaluation(
             "super" -> decline("super")
             // Outside a pattern, only in the size `expand_specs/7` infers for a pin: `byte_size(^x)`.
             "^" if args.size == 1 -> eval(args.single(), frame)
-            else -> local(name, args, frame)
+            else -> if (frame.source) dispatched(name, args, node, frame) else local(name, args, frame)
         }
+
+    /** A source call of [name], as its expansion dispatched it. */
+    private fun dispatched(name: String, args: List<ElixirAst>, node: ElixirAst.Call, frame: Frame): OtpErlangObject =
+        when (val dispatched = frame.module.dispatches.of(node)) {
+            Dispatched.Local -> local(name, args, frame)
+            is Dispatched.Remote -> remoteCall(atom(dispatched.module), dispatched.name, args, frame)
+            is Dispatched.Macro -> eval(dispatched.output, frame)
+            is Dispatched.Value -> otpOf(dispatched.value)
+            is Dispatched.Apply, is Dispatched.Fn, is Dispatched.Clauses, null ->
+                decline("calls $name/${args.size}, which its expansion didn't reach")
+        }
+
+    /** The value a source [node] expanded to, in place of the node. */
+    private fun value(node: ElixirAst, frame: Frame): OtpErlangObject =
+        (frame.module.dispatches.of(node) as? Dispatched.Value)?.let { otpOf(it.value) }
+            ?: decline("a form its expansion didn't reach")
+
+    /** An attribute's [value], as the escaped value `@` gives in a function evaluates to. */
+    private fun otpOf(value: Term): OtpErlangObject {
+        ProgressManager.checkCanceled()
+
+        return when (value) {
+            is Term.Atom -> atom(value.name).also { atoms += value.name }
+            is Term.Integer -> integer(value.value)
+            is Term.Binary -> value.bytes?.let(::OtpErlangBinary) ?: UnknownBinary
+            is Term.List -> cons(value.elements.map(::otpOf), value.tail?.let(::otpOf) ?: EMPTY)
+            is Term.Pair -> tuple(otpOf(value.first), otpOf(value.second))
+            is Term.Tuple -> OtpErlangTuple(value.elements.map(::otpOf).toTypedArray())
+            else -> Unknown
+        }
+    }
 
     /** A call of a function of the clause's own module. */
     private fun local(name: String, args: List<ElixirAst>, frame: Frame): OtpErlangObject {
         val definition = frame.module.definitions[NameArity(name, args.size)]
-            ?.takeIf { !frame.source || !it.kind.macro }
-            ?: decline("calls $name/${args.size}, which needs expansion")
+            ?.takeIf { !it.kind.macro }
+            ?: decline("calls $name/${args.size}, which isn't a function of ${frame.module.module}")
 
         return invoke(frame.module, definition, name, args.map { eval(it, frame) })
     }
@@ -466,17 +586,35 @@ internal class Evaluation(
         return mapOf(entries(map) + pairs, run.level)
     }
 
-    /** `%Name{pairs}` from debug info, its defaults escaped among its pairs, or `%Name{value | pairs}`. */
+    /**
+     * `%Name{pairs}`, from debug info its defaults escaped among its pairs, or `%Name{value | pairs}`. From source, the
+     * defaults are what `Name.__struct__/1` gives, as `elixir_map:expand_struct/5` reads them.
+     */
     private fun struct(args: List<ElixirAst>, frame: Frame): OtpErlangObject {
-        if (frame.source) decline("a source struct")
-
         val (nameNode, mapNode) = args
         val name = eval(nameNode, frame)
         val mapArgs = (mapNode as? ElixirAst.Call)?.takeIf { isCall(it, "%{}", it.arguments?.size ?: -1) }?.arguments
             ?: decline("a struct whose fields aren't a map")
         val update = mapArgs.singleOrNull()?.takeIf { isCall(it, "|", 2) } as ElixirAst.Call?
 
-        if (update == null) return mapOf(listOf(STRUCT to name) + pairs(mapArgs, frame), run.level)
+        if (update == null) {
+            val given = pairs(mapArgs, frame)
+
+            if (!frame.source) return mapOf(listOf(STRUCT to name) + given, run.level)
+
+            val struct = remote(name, "__struct__", listOf(list(given.map { (key, value) -> tuple(key, value) })))
+                as? OtpErlangMap ?: decline("a struct whose __struct__/1 isn't a map")
+            val defaults = entries(struct).filter { (key, _) -> key != STRUCT && given.none { equal(it.first, key, true, run.level) } }
+
+            return mapOf(
+                buildList {
+                    add(STRUCT to name)
+                    addAll(defaults)
+                    addAll(given)
+                },
+                run.level,
+            )
+        }
 
         val (left, pairs) = update.arguments!!
         val value = eval(left, frame)
@@ -506,7 +644,7 @@ internal class Evaluation(
         val closed = frame.copy()
         val arity = clauseHead(arrowParts(arrows.first()).first).first.size
 
-        return Closure(arity) { values -> clauses(arrows, values, closed) ?: noClause(closed, values) }
+        return Closure(arity) { values -> clauses(arrows, values, closed, fresh = true) ?: noClause(closed, values) }
     }
 
     /** What an `fn` of [closed] raises where none of its clauses matches [values]. */
@@ -517,14 +655,40 @@ internal class Evaluation(
         error(atom("function_clause"), OtpErlangTuple(arrayOf(atom(closed.module.module), Unknown, list(values), EMPTY)))
     }
 
-    private fun capture(target: ElixirAst, frame: Frame): OtpErlangObject {
-        val (function, arityNode) = (target as? ElixirAst.Call)?.takeIf { isCall(it, "/", 2) }?.arguments
-            ?: decline("a capture other than name/arity")
-        val arity = (arityNode as? ElixirAst.Literal.Integer)?.value?.toInt() ?: decline("a capture's arity")
-        val functionCall = function as? ElixirAst.Call ?: decline("a capture's function")
-        val callee = functionCall.callee
+    /**
+     * `&` at [amp]: from source, as its expansion dispatched it, a capture of a function or the `fn` `capture_expr/6`
+     * rewrote it to; from `Dbgi`, `&name/arity` or `&Module.name/arity`, the captures `elixir_expand` leaves.
+     */
+    private fun capture(amp: ElixirAst.Call, frame: Frame): OtpErlangObject {
+        val dispatched = if (frame.source) frame.module.dispatches.of(amp) else null
 
-        if (isCall(callee, ".", 2)) {
+        if (dispatched is Dispatched.Fn) return eval(dispatched.fn, frame)
+
+        val captured = amp.arguments!!.single() as? ElixirAst.Call ?: decline("a capture's function")
+        val (function, arity) = when {
+            isCall(captured, "/", 2) -> {
+                val (function, arity) = captured.arguments!!
+
+                function to ((arity as? ElixirAst.Literal.Integer)?.value?.toInt() ?: decline("a capture's arity"))
+            }
+            // `&f(&1, &2)`, where its expansion dispatched it, captures `f/2`.
+            frame.source -> captured to (captured.arguments?.size ?: decline("a capture's arity"))
+            else -> decline("a capture other than name/arity")
+        }
+        val callee = (function as? ElixirAst.Call)?.callee ?: decline("a capture's function")
+
+        val remote = if (frame.source) {
+            when (dispatched) {
+                is Dispatched.Remote -> return OtpErlangExternalFun(dispatched.module, dispatched.name, arity)
+                Dispatched.Local -> false
+                Dispatched.Apply -> true
+                else -> decline("a capture its expansion didn't reach")
+            }
+        } else {
+            isCall(callee, ".", 2)
+        }
+
+        if (remote) {
             val (receiver, name) = (callee as ElixirAst.Call).arguments!!
             val module = eval(receiver, frame) as? OtpErlangAtom ?: decline("a capture's module")
 
@@ -534,8 +698,8 @@ internal class Evaluation(
         val name = (callee as? ElixirAst.Literal.Atom)?.name ?: decline("a capture's name")
         val module = frame.module
         val definition = module.definitions[NameArity(name, arity)]
-            ?.takeIf { !frame.source || !it.kind.macro }
-            ?: decline("a capture of $name/$arity, which needs expansion")
+            ?.takeIf { !it.kind.macro }
+            ?: decline("a capture of $name/$arity, which isn't a function of ${module.module}")
 
         return Closure(arity) { values -> invoke(module, definition, name, values) }
     }
@@ -657,9 +821,17 @@ internal class Evaluation(
         }
 
         if (isUnderscore(left)) return true
-        if (erlangAliases.isEmpty()) return matches(listOf(left), listOf(reason), scope)
 
-        return matches(listOf(left), listOf(normalize(reason, rescueStacktrace(reason, thrown.stacktrace, erlangAliases))), scope)
+        val value = if (erlangAliases.isEmpty()) {
+            reason
+        } else {
+            normalize(reason, rescueStacktrace(reason, thrown.stacktrace, erlangAliases))
+        }
+
+        // `elixir_erl_try` binds the variable by a `=` heading the clause's body.
+        if (!matches(listOf(left), listOf(value), scope)) error(tuple(atom("badmatch"), value))
+
+        return true
     }
 
     /** A rescue clause's variable and the aliases it rescues, `null` for a bare variable's, as `expand_rescue` reads it. */
@@ -765,7 +937,9 @@ internal class Evaluation(
 
     private fun evalFor(args: List<ElixirAst>, frame: Frame): OtpErlangObject {
         // As `elixir_expand` merges a source `for`'s options with its `do` block's.
-        val (qualifiers, elements) = forOptions(args)
+        val (cases, elements) = forOptions(args)
+        // `elixir_erl_for` reads each case as it expanded, so a macro's `<-/2` is a generator.
+        val qualifiers = cases.map(frame::expanded)
         val options = ElixirAst.ListNode(args.last().meta, elements)
         val body = doOption(options)
         val reduce = optionOrNull(options, "reduce")
@@ -788,9 +962,9 @@ internal class Evaluation(
         val into = intoNode?.let { eval(it, start) }
         val uniqNode = optionOrNull(options, "uniq")
         // `build_inline/7`: an Erlang comprehension where every generator is a bitstring's, with no `uniq: true`, into
-        // `[]` or `{bin, _, []}`, which both `""` and `<<>>` translate to.
-        val intoForm = intoFormOf(intoNode)
-        val inline = (uniqNode as? ElixirAst.Literal.Atom)?.name != "true" &&
+        // `[]` or `{bin, _, []}`, which both `""` and `<<>>` translate to, each as the options expanded.
+        val intoForm = intoFormOf(intoNode?.let(frame::expanded))
+        val inline = (uniqNode?.let(frame::expanded) as? ElixirAst.Literal.Atom)?.name != "true" &&
             (intoForm == IntoForm.LIST || intoForm == IntoForm.BINARY) &&
             qualifiers.all { isBitstringGenerator(it) || !isListGenerator(it) }
         val collection = collection(intoForm, into)
@@ -866,18 +1040,8 @@ internal class Evaluation(
     /** How `elixir_erl_for` translates a `for`: as an Erlang comprehension or not, and the scope the `for` starts in. */
     private class Comprehended(val inline: Boolean, val outer: Frame)
 
-    /**
-     * [emit] once per element the qualifiers from [index] reach, with a scope binding each generator's pattern.
-     * [rebound] holds the variables the generators before [index] bound.
-     */
-    private fun comprehend(
-        qualifiers: List<ElixirAst>,
-        index: Int,
-        frame: Frame,
-        comprehended: Comprehended,
-        rebound: Set<Binding> = emptySet(),
-        emit: (Frame) -> Unit,
-    ) {
+    /** [emit] once per element the qualifiers from [index] reach, with a scope binding each generator's pattern. */
+    private fun comprehend(qualifiers: List<ElixirAst>, index: Int, frame: Frame, comprehended: Comprehended, emit: (Frame) -> Unit) {
         ProgressManager.checkCanceled()
 
         if (index == qualifiers.size) return emit(frame)
@@ -888,42 +1052,36 @@ internal class Evaluation(
             val (head, enumerable) = (qualifier as ElixirAst.Call).arguments!!
             val (patterns, guards) = clauseHead(ElixirAst.ListNode(head.meta, listOf(head)))
 
-            for (element in natives.enumerate(eval(enumerable, rightSide(frame)))) {
+            for (element in natives.enumerate(eval(enumerable, frame))) {
                 val scope = frame.copy()
-                val bound = matching(patterns, listOf(element), scope)
 
-                if (bound != null && guards(guards, scope)) {
-                    comprehend(qualifiers, index + 1, scope, comprehended, rebound + bound, emit)
+                if (matches(patterns, listOf(element), scope, fresh = true) && guards(guards, scope)) {
+                    comprehend(qualifiers, index + 1, scope, comprehended, emit)
                 }
             }
         } else if (isBitstringGenerator(qualifier)) {
-            if (frame.source) decline("a source bitstring generator")
+            val generator = (qualifier as ElixirAst.Call).arguments!!
+            val (segments, bitstring) = if (frame.source) {
+                val (last, bitstring) = (generator.last() as ElixirAst.Call).arguments!!
 
-            // Expanded, it is `<<(<<segments>>) <- bitstring>>`.
-            val (left, bitstring) = ((qualifier as ElixirAst.Call).arguments!!.single() as ElixirAst.Call).arguments!!
-            val segments = (left as? ElixirAst.Call)?.takeIf { isCall(it, "<<>>", it.arguments?.size ?: -1) }?.arguments
-                ?: decline("a bitstring generator that isn't expanded")
+                generator.dropLast(1) + last to bitstring
+            } else {
+                // Expanded, it is `<<(<<segments>>) <- bitstring>>`.
+                val (left, bitstring) = (generator.single() as ElixirAst.Call).arguments!!
 
-            val value = eval(bitstring, rightSide(frame))
-
-            bits.generate(segments, value, frame, comprehended.inline, comprehended.outer, rebound) { scope, bound ->
-                comprehend(qualifiers, index + 1, scope, comprehended, rebound + bound, emit)
-            }
-        } else {
-            // A filter's match gives its variables new names, as a generator's pattern does.
-            val bound = HashSet<Binding>().also { frame.binds = it }
-            val kept = try {
-                truthy(eval(qualifier, frame))
-            } finally {
-                frame.binds = null
+                ((left as? ElixirAst.Call)?.takeIf { isCall(it, "<<>>", it.arguments?.size ?: -1) }?.arguments
+                    ?: decline("a bitstring generator that isn't expanded")) to bitstring
             }
 
-            if (kept) comprehend(qualifiers, index + 1, frame, comprehended, rebound + bound, emit)
+            val value = eval(bitstring, frame)
+
+            bits.generate(segments, value, frame, comprehended.inline, comprehended.outer) { scope ->
+                comprehend(qualifiers, index + 1, scope, comprehended, emit)
+            }
+        } else if (truthy(eval(qualifier, frame))) {
+            comprehend(qualifiers, index + 1, frame, comprehended, emit)
         }
     }
-
-    /** The scope a generator's right side is evaluated in: from [GENERATOR_RIGHT_SIDE_SCOPED], its bindings are dropped. */
-    private fun rightSide(frame: Frame): Frame = if (GENERATOR_RIGHT_SIDE_SCOPED.isSufficient(run.level)) frame.copy() else frame
 
     private fun evalWith(args: List<ElixirAst>, frame: Frame): OtpErlangObject {
         // From `Dbgi`, `expand_with/3` has merged the options into the last list.
@@ -942,18 +1100,43 @@ internal class Evaluation(
             val value = eval(right, scope)
 
             if (!(matches(patterns, listOf(value), scope) && guards(guards, scope))) {
-                val elses = optionOrNull(options, "else") ?: return value
-                val error = if (WITH_ELSE_CLAUSE_ERROR.isSufficient(run.level)) "else_clause" else "with_clause"
+                // Before 1.13 `expand_with/2` rewrites `var <- e` to `var = e`.
+                if (!GENERATOR_RIGHT_SIDE_SCOPED.isSufficient(run.level) && isVariable(head)) {
+                    error(tuple(atom("badmatch"), value))
+                }
 
-                return clauses(arrows(elses), listOf(value), frame) ?: error(tuple(atom(error), value))
+                val elses = arrows(optionOrNull(options, "else") ?: return value)
+                // `translate_with_else/3` makes a lone variable clause the last of the `case`, not one of its own.
+                val error = when {
+                    elses.singleOrNull()?.let(::isVariableClause) == true -> "case_clause"
+                    WITH_ELSE_CLAUSE_ERROR.isSufficient(run.level) -> "else_clause"
+                    else -> "with_clause"
+                }
+
+                return clauses(elses, listOf(value), frame) ?: error(tuple(atom(error), value))
             }
         }
 
         return eval(doOption(options), scope)
     }
 
-    /** The body of the first of [arrows] whose head matches [values], evaluated, or `null` where none does. */
-    private fun clauses(arrows: List<ElixirAst>, values: List<OtpErlangObject>, frame: Frame): OtpErlangObject? {
+    /** Whether [arrow]'s head is one variable, with no guard. */
+    private fun isVariableClause(arrow: ElixirAst): Boolean {
+        val (patterns, guards) = clauseHead(arrowParts(arrow).first)
+
+        return guards.isEmpty() && patterns.singleOrNull()?.let(::isVariable) == true
+    }
+
+    /**
+     * The body of the first of [arrows] whose head matches [values], evaluated, or `null` where none does; [fresh] as
+     * [matches] takes it.
+     */
+    private fun clauses(
+        arrows: List<ElixirAst>,
+        values: List<OtpErlangObject>,
+        frame: Frame,
+        fresh: Boolean = false,
+    ): OtpErlangObject? {
         for (arrow in arrows) {
             val (head, body) = arrowParts(arrow)
             val (patterns, guards) = clauseHead(head)
@@ -962,43 +1145,42 @@ internal class Evaluation(
 
             val scope = frame.copy()
 
-            if (matches(patterns, values, scope) && guards(guards, scope)) return eval(body, scope)
+            if (matches(patterns, values, scope, fresh) && guards(guards, scope)) return eval(body, scope)
         }
 
         return null
     }
 
-    /** Whether each of [patterns] matches its value, binding their variables in [frame] where all do. */
-    private fun matches(patterns: List<ElixirAst>, values: List<OtpErlangObject>, frame: Frame): Boolean =
-        matching(patterns, values, frame) != null
+    /**
+     * Whether each of [patterns] matches its value, binding their variables in [frame] where all do: afresh where
+     * [fresh], as a fun head and a generator bind them.
+     */
+    private fun matches(
+        patterns: List<ElixirAst>,
+        values: List<OtpErlangObject>,
+        frame: Frame,
+        fresh: Boolean = false,
+    ): Boolean {
+        val pending = PatternBindings(fresh)
 
-    /** The variables [patterns] bind matching [values], now bound in [frame], or `null` where they don't match. */
-    private fun matching(patterns: List<ElixirAst>, values: List<OtpErlangObject>, frame: Frame): Set<Binding>? {
-        val pending = HashMap<Binding, OtpErlangObject>()
+        if (!patterns.indices.all { match(patterns[it], values[it], frame, pending) }) return false
 
-        if (!patterns.indices.all { match(patterns[it], values[it], frame, pending) }) return null
+        frame.vars.putAll(pending.vars)
 
-        frame.vars.putAll(pending)
-        frame.binds?.addAll(pending.keys)
-
-        return pending.keys
+        return true
     }
 
     /** Whether [pattern] matches [value], binding its variables in [pending]. */
-    internal fun match(pattern: ElixirAst, value: OtpErlangObject, frame: Frame, pending: HashMap<Binding, OtpErlangObject>): Boolean {
+    internal fun match(pattern: ElixirAst, value: OtpErlangObject, frame: Frame, pending: PatternBindings): Boolean {
         ProgressManager.checkCanceled()
 
         if (isVariable(pattern)) {
             if (isUnderscore(pattern)) return true
 
-            val binding = frame.binding(pattern)
-
-            if (binding == Binding.Version(null)) decline("binds a variable with no version")
-
-            // A version already bound is the same Erlang variable, so it is matched, not bound again.
-            val bound = pending[binding]
-                ?: (binding as? Binding.Version)?.let(frame.vars::get)
-                ?: return true.also { pending[binding] = value }
+            val binding = frame.binding(pattern) ?: decline("binds a variable with no version")
+            // A version already bound is the same Erlang variable, so it is matched, unless the construct binds afresh.
+            val bound = pending.vars[binding] ?: frame.vars[binding]?.takeUnless { pending.fresh }
+                ?: return true.also { pending.vars[binding] = value }
 
             return equal(bound, value, true, run.level)
         }
@@ -1017,7 +1199,7 @@ internal class Evaluation(
         patterns: List<ElixirAst>,
         value: OtpErlangObject,
         frame: Frame,
-        pending: HashMap<Binding, OtpErlangObject>,
+        pending: PatternBindings,
     ): Boolean =
         value is OtpErlangTuple && value.arity() == patterns.size &&
             patterns.indices.all { match(patterns[it], value.elementAt(it), frame, pending) }
@@ -1026,7 +1208,7 @@ internal class Evaluation(
         patterns: List<ElixirAst>,
         value: OtpErlangObject,
         frame: Frame,
-        pending: HashMap<Binding, OtpErlangObject>,
+        pending: PatternBindings,
     ): Boolean {
         val (elements, tail) = cells(value) ?: return false
         val last = patterns.lastOrNull()
@@ -1049,7 +1231,7 @@ internal class Evaluation(
         pattern: ElixirAst.Call,
         value: OtpErlangObject,
         frame: Frame,
-        pending: HashMap<Binding, OtpErlangObject>,
+        pending: PatternBindings,
     ): Boolean {
         val args = pattern.arguments ?: decline("a pattern call")
 
@@ -1057,14 +1239,12 @@ internal class Evaluation(
             "^" -> {
                 val pinned = args.single() as? ElixirAst.Call ?: decline("a pin of a non-variable")
 
-                equal(frame.vars[frame.binding(pinned)] ?: decline("a pin of an unbound variable"), value, true, run.level)
+                equal(frame.binding(pinned)?.let(frame.vars::get) ?: decline("a pin of an unbound variable"), value, true, run.level)
             }
             "=" -> args.all { match(it, value, frame, pending) }
             "{}" -> matchTuple(args, value, frame, pending)
             "%{}" -> matchMap(args, value, frame, pending)
             "%" -> {
-                if (frame.source) decline("a source struct pattern")
-
                 val (name, fields) = args
                 val struct = (value as? OtpErlangMap)?.get(STRUCT)?.let(::seen) ?: return false
 
@@ -1073,8 +1253,14 @@ internal class Evaluation(
                 match(name, struct, frame, pending) &&
                     matchMap((fields as? ElixirAst.Call)?.arguments ?: decline("a struct pattern's fields"), value, frame, pending)
             }
-            "<<>>" -> if (frame.source) decline("a source bitstring pattern") else bits.match(args, value, frame, pending)
-            else -> decline("a pattern ${pattern.callee}")
+            "<<>>" -> bits.match(args, value, frame, pending)
+            else ->
+                when (val dispatched = frame.module.dispatches.of(pattern)) {
+                    is Dispatched.Macro -> match(dispatched.output, value, frame, pending)
+                    // An attribute or a signed integer, whose term is a literal pattern.
+                    is Dispatched.Value -> equal(otpOf(dispatched.value), value, true, run.level)
+                    else -> decline("a pattern ${pattern.callee}")
+                }
         }
     }
 
@@ -1082,14 +1268,14 @@ internal class Evaluation(
         args: List<ElixirAst>,
         value: OtpErlangObject,
         frame: Frame,
-        pending: HashMap<Binding, OtpErlangObject>,
+        pending: PatternBindings,
     ): Boolean {
         val map = value as? OtpErlangMap ?: return false
 
         return args.flatMap { arg -> (arg as? ElixirAst.ListNode)?.elements ?: listOf(arg) }.all { pair ->
             val (key, valuePattern) = (pair as? ElixirAst.Tuple)?.elements?.takeIf { it.size == 2 } ?: decline("a map pattern pair")
             val keyValue = if (isCall(key, "^", 1)) {
-                frame.vars[frame.binding((key as ElixirAst.Call).arguments!!.single())]
+                frame.binding((key as ElixirAst.Call).arguments!!.single())?.let(frame.vars::get)
                     ?: decline("a pin of an unbound variable")
             } else {
                 eval(key, frame)
@@ -1103,11 +1289,7 @@ internal class Evaluation(
     /** Whether any of [guards] holds, as a guard does: one that raises doesn't. */
     private fun guards(guards: List<ElixirAst>, frame: Frame): Boolean =
         guards.isEmpty() || guards.any { guard ->
-            val value = try {
-                eval(guard, frame.guarded())
-            } catch (_: Thrown) {
-                FALSE
-            }
+            val value = guardValue(guard, frame) ?: FALSE
 
             seen(value)
 

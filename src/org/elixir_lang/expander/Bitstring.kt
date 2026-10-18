@@ -101,7 +101,7 @@ private fun expandSegments(
                     accState = if (hides) specs.state.copy(read = expansion.state.read, write = expansion.state.write) else specs.state
                     accEnv = specs.env
 
-                    describeTyped(segment, shape, expansion.value, specs.args, matchSize, run, report)
+                    describeTyped(segment, shape, expansion.value, specs, matchSize, env, run, report)
                 }
             }
         } else {
@@ -109,7 +109,7 @@ private fun expandSegments(
             accEnv = expansion.env
             bareMeta = nextBareMeta
 
-            describeBare(metaNode, shape, expansion.value, matchSize, run, report)
+            describeBare(segment, metaNode, shape, expansion.value, matchSize, env, run, report)
         }
 
         when (described) {
@@ -299,8 +299,12 @@ private val SpecArg?.number: BigDecimal?
         }
 
 private sealed interface Specs {
-    /** The last argument given to each spec key. */
-    class Expanded(val args: Map<String, SpecArg>, val state: ExState, val env: Env) : Specs
+    /**
+     * The last argument given to each spec key.
+     *
+     * @property size the size spec's argument as written, which runs where the segment does
+     */
+    class Expanded(val args: Map<String, SpecArg>, val size: ElixirAst?, val state: ExState, val env: Env) : Specs
 
     class Stopped(val expansion: Expansion) : Specs
 }
@@ -310,6 +314,7 @@ private fun expandSpecs(spec: ElixirAst, state: ExState, original: ExState, env:
     var accState = state
     var accEnv = env
     val args = mutableMapOf<String, SpecArg>()
+    var size: ElixirAst? = null
 
     for (unpacked in unpackSpecs(spec)) {
         ProgressManager.checkCanceled()
@@ -373,9 +378,10 @@ private fun expandSpecs(spec: ElixirAst, state: ExState, original: ExState, env:
         }
 
         args[builtin.key] = value
+        if (builtin.key == "size") size = arg
     }
 
-    return Specs.Expanded(args, accState, accEnv)
+    return Specs.Expanded(args, size, accState, accEnv)
 }
 
 /** What `Macro.expand/2` makes of a spec `validate_spec/2` doesn't know. */
@@ -575,8 +581,11 @@ internal class Part(
 internal class BitstringParts(val parts: List<Part>, val alignment: Int?)
 
 private sealed interface Described {
+    /** Whether a nested bitstring's parts are spliced in, in place of the segment. */
+    val spliced: Boolean get() = false
+
     /** @property alignment modulo 8, or `null` where it is `unknown` */
-    class Segment(val parts: List<Part>, val alignment: Int?) : Described
+    class Segment(val parts: List<Part>, val alignment: Int?, override val spliced: Boolean = false) : Described
 
     /** An error Elixir doesn't carry on from. */
     class Ended(val expansion: Expansion) : Described
@@ -607,16 +616,26 @@ private fun exprType(shape: ElixirAst, value: Term?, run: Run) =
 
 /** A segment without `::`, whose spec `infer_spec/2` takes from its value, and which leaves the alignment alone. */
 private fun describeBare(
+    segment: ElixirAst,
     metaNode: ElixirAst,
     shape: ElixirAst,
     value: Term?,
     matchSize: Boolean,
+    env: Env,
     run: Run,
     report: Reporter,
 ): Described {
     val exprType = exprType(shape, value, run)
+    val described = concat(metaNode, shape, exprType == "binary", exprType.takeIf { it in BINARIES }, 0, matchSize, run, report)
 
-    return concat(metaNode, shape, exprType == "binary", exprType.takeIf { it in BINARIES }, 0, matchSize, run, report)
+    recordSegment(
+        segment,
+        ModuleClauses.Segment(mergedType(exprType, null), null, null, false, "big", pinned = false, described.spliced),
+        env,
+        run,
+    )
+
+    return described
 }
 
 /** `expand_specs/7` from a segment's expanded spec arguments, then `concat_or_prepend_bitstring/6`. */
@@ -624,12 +643,14 @@ private fun describeTyped(
     segment: ElixirAst,
     shape: ElixirAst,
     value: Term?,
-    args: Map<String, SpecArg>,
+    specs: Specs.Expanded,
     matchSize: Boolean,
+    env: Env,
     run: Run,
     report: Reporter,
 ): Described {
     val level = run.level
+    val args = specs.args
 
     fun ended(site: ErrorSite) = report(site, segment)?.let(Described::Ended)
 
@@ -694,10 +715,22 @@ private fun describeTyped(
         }
     }
 
+    val endianness = ((args["endianness"] as SpecArg.Literal?)?.term as OtpErlangAtom?)?.atomValue() ?: "big"
+    val signed = ((sign as SpecArg.Literal?)?.term as OtpErlangAtom?)?.atomValue() == "signed"
+
     // `size_and_unit/5` drops a literal's size and unit, so they don't stop it being spliced in.
     val alone = merged.takeIf { it in BINARIES && !(sizeOrUnit && exprType !in BINARIES) && !inferSize }
+    val described = concat(segment, shape, exprType == "binary", alone, alignment(merged, size, unit), matchSize, run, report)
+    val pinned = inferSize && merged in BINARIES && !sizeOrUnit
 
-    return concat(segment, shape, exprType == "binary", alone, alignment(merged, size, unit), matchSize, run, report)
+    recordSegment(
+        segment,
+        ModuleClauses.Segment(merged, specs.size, unit.integer, signed, endianness, pinned, described.spliced),
+        env,
+        run,
+    )
+
+    return described
 }
 
 private val BINARIES = setOf("binary", "bitstring")
@@ -766,7 +799,7 @@ private fun concat(
     if (!isBuilt(shape, run)) return self
 
     val inner = run.bitstrings[shape] ?: return Described.Unported(shape)
-    if (inner.parts.isEmpty()) return Described.Segment(emptyList(), alignment)
+    if (inner.parts.isEmpty()) return Described.Segment(emptyList(), alignment, spliced = true)
 
     if (matchSize) {
         val last = inner.parts.last()
@@ -780,12 +813,12 @@ private fun concat(
         "binary" ->
             when (inner.alignment) {
                 null -> self
-                0 -> Described.Segment(inner.parts, alignment)
+                0 -> Described.Segment(inner.parts, alignment, spliced = true)
                 else ->
                     report(ErrorSite.UNALIGNED_BINARY, at)?.let(Described::Ended)
-                        ?: Described.Segment(inner.parts, alignment)
+                        ?: Described.Segment(inner.parts, alignment, spliced = true)
             }
-        "bitstring" -> Described.Segment(inner.parts, alignment)
+        "bitstring" -> Described.Segment(inner.parts, alignment, spliced = true)
         else -> self
     }
 }

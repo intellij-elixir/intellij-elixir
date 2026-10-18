@@ -40,7 +40,7 @@ internal enum class Directive(val allowed: List<String>) {
 
 /** `expand_aliases/4` for the `__aliases__` clause. */
 internal fun expandAliasesClause(node: ElixirAst.Alias, state: ExState, env: Env, run: Run): Expansion =
-    expandAliases(node, state, env, run) { module, s, e -> Expansion.Expanded(s, e, Term.Atom(module)) }
+    recordingValue(node, env, run, expandAliases(node, state, env, run) { module, s, e -> Expansion.Expanded(s, e, Term.Atom(module)) })
 
 /** `expand_multi_alias_call/7`. */
 internal fun expandMultiAlias(call: ElixirAst.Call, state: ExState, env: Env, run: Run): Expansion {

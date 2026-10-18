@@ -1105,7 +1105,12 @@ internal class Natives(private val evaluation: Evaluation) {
         }
 
     private fun macro(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
-        if (key != "escape/1" && key != "escape/2") return null
+        when (key) {
+            "expand/2" -> return evaluation.macroExpand(args[0], args[1], once = false)
+            "expand_once/2" -> return evaluation.macroExpand(args[0], args[1], once = true)
+            "escape/1", "escape/2" -> {}
+            else -> return null
+        }
 
         val options = args.getOrElse(1) { EMPTY }
         val option = { name: String -> keyword("get/3", listOf(options, atom(name), FALSE))!! }

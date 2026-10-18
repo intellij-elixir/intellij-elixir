@@ -28,6 +28,17 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
             after = CALLS_N,
         )
 
+    /** A macro written by another macro, reading an attribute that holds a large value, is cancelled as it reads it. */
+    fun testAWrittenMacrosAttributeIsCancelledAsItIsRead() =
+        assertCancelledIn(
+            EVALUATION,
+            "otpOf",
+            "defmacro m, do: ($TREE {:__block__, [], [{:@, [], [{:a, [], [t]}]}, " +
+                "{:defmacro, [], [{:n, [], []}, [do: {:@, [], [{:a, [], nil}]}]]}]})",
+            LISTS / 2,
+            after = CALLS_N,
+        )
+
     /** A macro written by another macro, matching a large pattern of `_`, is cancelled as the pattern is matched. */
     fun testAWrittenMacrosPatternIsCancelledAsItIsMatched() =
         assertCancelledIn(
@@ -355,12 +366,13 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
     /** A segment of many specs, in a macro read from debug info, is cancelled as its specs are read. */
     fun testADebugInfoSegmentsSpecsAreCancelledAsTheyAreRead() {
         val body = lower("<<1::${"integer()-".repeat(CHAIN)}integer()>>", ElixirLanguageLevel.of("1.20.4"))
-        val definition = ModuleClauses.Definition(DefinitionTable.Kind.DEFMACRO, listOf(ModuleClauses.Clause(emptyList(), emptyList(), body, null)))
+        val definition = ModuleClauses.Definition(DefinitionTable.Kind.DEFMACRO, listOf(ModuleClauses.Clause(emptyList(), emptyList(), body)))
         val d = ModuleClauses(
             "Elixir.D",
             mapOf(NameArity("n", 0) to definition),
             ModuleClauses.Source.DBGI,
             ModuleClauses.Quotes(),
+            ModuleClauses.Dispatches(),
             null,
         )
         val exports = Exports { module ->
@@ -371,6 +383,15 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
 
         assertCancelledIn("${EXPANDER}interpreter.Bits", "parts", CHAIN / 2, { ended }) { ended = expanding() }
     }
+
+    /** A bitstring generator's size that is a long chain of `+` is cancelled as it is judged known for a reduce. */
+    fun testAGeneratorsSizeIsCancelledAsItIsJudgedKnown() =
+        assertCancelledIn(
+            "${EXPANDER}interpreter.Bits",
+            "knownSize",
+            "defmacro m, do: for(<<x::size(${"1 + ".repeat(CHAIN)}1) <- <<1>> >>, reduce: 0, do: (a -> a + x))",
+            CHAIN / 2,
+        )
 
     /** `:lists.append/1` of many lists is cancelled as they are appended. */
     fun testAnAppendOfManyListsIsCancelledAsTheyAreAppended() =
@@ -391,6 +412,16 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
             CHAIN / 2,
         )
 
+    /** A segment whose value is a local macro whose output is a local macro, many deep, is cancelled as it is read. */
+    fun testASegmentsChainedMacrosAreCancelledAsTheyAreRead() =
+        assertCancelledIn(
+            "${EXPANDER}interpreter.Frame",
+            "expanded",
+            "defmacrop m0, do: 1\n" + (1..CHAIN).joinToString("\n") { "defmacrop m$it, do: quote(do: m${it - 1}())" } +
+                "\ndefmacro m, do: <<m$CHAIN()>>",
+            CHAIN / 2,
+        )
+
     /** An attribute whose value is a list in a list, many deep, is cancelled as its shape is read. */
     fun testAnAttributesNestedListsAreCancelledAsTheirShapeIsRead() =
         assertCancelledIn("${EXPANDER}AttributeTableKt", "isShaped", nestedListsIn("x"), CHAIN / 2)
@@ -406,6 +437,16 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
             "flatten",
             "defmacro m, do: (t = []; ${chain("t = [:no_return | t]")} {:@, [], [{:dialyzer, [], [t]}]})",
             CHAIN / 2,
+        )
+
+    /** `Macro.expand_once/2` of a remote call whose receiver is a remote call, many deep, is cancelled as it expands. */
+    fun testAnExpandOnceOfChainedReceiversIsCancelledAsItExpands() =
+        assertCancelledIn(
+            "${EXPANDER}MacroExpandKt",
+            "macroExpandOnce",
+            "defmacro m, do: (c = {:x, [], nil}; ${chain("c = {{:., [], [c, :f]}, [], []}")} Macro.expand_once(c, __CALLER__))",
+            CHAIN / 2,
+            clauses = macroEnv,
         )
 
     /** A clause's guard of many `when`s, each around the last, is cancelled as it is expanded. */
@@ -500,8 +541,9 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
         call: String = "A.m()",
         version: String = "1.20.4",
         after: String = "",
+        clauses: ModuleClauses.Lookup = ModuleClauses.Lookup.NONE,
     ) {
-        val expanding = expanding(macros, call, version, after)
+        val expanding = expanding(macros, call, version, after, clauses = clauses)
         var ended = "not run"
 
         assertCancelledIn(owner, walk, n, { ended }) { ended = expanding() }
@@ -545,6 +587,25 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
         return {
             Expander.expandFile(forms, Env.empty(level, kernel), level, exports, structs, clauses = clauses)
                 .modules.joinToString { "${it.module} ${it.ended::class.simpleName}" }
+        }
+    }
+
+    /** `Macro.Env` read from debug info, a struct with no fields, so a macro body can read `__CALLER__`. */
+    private val macroEnv = ModuleClauses.Lookup { module ->
+        if (module == "Elixir.Macro.Env") {
+            val body = lower("%{__struct__: :\"Elixir.Macro.Env\"}", ElixirLanguageLevel.of("1.20.4"))
+            val clause = ModuleClauses.Clause(emptyList(), emptyList(), body)
+
+            ModuleClauses(
+                module,
+                mapOf(NameArity("__struct__", 0) to ModuleClauses.Definition(DefinitionTable.Kind.DEF, listOf(clause))),
+                ModuleClauses.Source.DBGI,
+                ModuleClauses.Quotes(),
+                ModuleClauses.Dispatches(),
+                null,
+            )
+        } else {
+            null
         }
     }
 

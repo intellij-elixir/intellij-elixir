@@ -61,7 +61,9 @@ internal fun expandCase(node: ElixirAst.Call, state: ExState, env: Env, run: Run
 
     return Expander.expand(subject, state, env, run).thenValue { subjectState, subjectEnv, subjectValue ->
         val rewritten = if (isOptimizeBoolean(node) && returnsBoolean(subjectValue)) {
-            rewriteCaseClauses(opts, run.level)
+            rewriteCaseClauses(opts, run.level).also {
+                recordDispatch(node, ModuleClauses.Dispatched.Clauses(it), env, run)
+            }
         } else {
             opts
         }
