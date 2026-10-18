@@ -237,6 +237,16 @@ class VariableFindUsagesTest : PlatformTestCase() {
         assertCtrlClickChoosesGotoDeclaration("goto_declaration_pin_match_lhs_list_head_tail.ex")
     }
 
+    /** Kernel's own `defmacro defdelegate(funs, opts)` is a macro clause, whose parameters its body reads. */
+    fun testParameterOfAMacroHeadedAsADelegation() {
+        myFixture.configureByText(
+            "kernel.ex",
+            "defmodule Kernel do\n  defmacro defdelegate(funs, opts) do\n    {<caret>funs, opts}\n  end\nend\n"
+        )
+
+        assertEquals(1, myFixture.nonDeclarationUsageCountAtCaret(project))
+    }
+
     private fun nonDeclarationUsageCount(vararg files: String): Int {
         myFixture.configureByFiles(*files)
         return myFixture.nonDeclarationUsageCountAtCaret(project)

@@ -22,7 +22,6 @@ import org.elixir_lang.psi.stub.type.call.Stub.isModular
 import org.elixir_lang.reference.Callable.Companion.isBitStreamSegmentOption
 import org.elixir_lang.reference.Callable.Companion.isVariable
 import org.elixir_lang.reference.Callable.Companion.variableUseScope
-import org.elixir_lang.structure_view.element.Delegation
 import org.jetbrains.annotations.Contract
 
 fun PsiElement.selfAndFollowingSiblingsSearchScope(): LocalSearchScope {
@@ -112,7 +111,7 @@ object UseScopeImpl {
                         }
 
                         break
-                    } else if (Delegation.`is`(ancestorCall)) {
+                    } else if (DeclaringForm.shapedForm(ancestorCall) == Form.DELEGATION) {
                         break
                     } else if (ancestorCall.hasDoBlockOrKeyword()) {
                         break
