@@ -9,6 +9,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.project.impl.ProjectManagerImpl
+import com.intellij.testFramework.LightPlatformTestCase
 import com.intellij.testFramework.ParsingTestCase
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
@@ -24,7 +25,8 @@ import kotlin.time.Duration.Companion.seconds
 /**
  * Settles the real application before a [ParsingTestCase] class installs its [MockApplication], which anything the real
  * application still runs then reaches through `ApplicationManager`. Disposes the default project an earlier class
- * left, as the platform disposes an idle one on a JVM-wide timer, and waits for the application's cancelled coroutines.
+ * left, as the platform disposes an idle one on a JVM-wide timer, closes the shared light project, and waits for the
+ * application's cancelled coroutines.
  * A project's removal from the platform's kernel database can still run later; `IgnoredLogs` covers that.
  */
 @Suppress("UnstableApiUsage") // The platform's own test-only disposal; nothing public disposes the default project.
@@ -37,6 +39,7 @@ class DefaultProjectDisposal : TestExecutionListener {
         if (application is MockApplication) return
 
         disposeDefaultProject(application)
+        closeLightProject(application)
         awaitCancelledCoroutines(application)
     }
 
@@ -49,6 +52,12 @@ class DefaultProjectDisposal : TestExecutionListener {
             { projectManager.disposeDefaultProjectAndCleanupComponentsForDynamicPluginTests() },
             ModalityState.any(),
         )
+    }
+
+    // `ParsingTestCase.setUp` would close it and then hold the EDT, which its cancelled coroutines need to finish.
+    @Suppress("DEPRECATION") // The class is; its static close, which `ParsingTestCase` calls too, has no replacement.
+    private fun closeLightProject(application: Application) {
+        application.invokeAndWait(LightPlatformTestCase::closeAndDeleteProject, ModalityState.any())
     }
 
     // Disposal only cancels a scope; what it runs on cancellation finishes afterwards.
