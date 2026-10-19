@@ -262,6 +262,24 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """.trimIndent(),
         )
 
+    /** `for` checks its `uniq:` as it expanded, so an attribute holding a boolean is one. */
+    fun testABooleanAttributeAsAForsUniqInADefinition() =
+        assertEvery(
+            """
+            defmodule A do
+              @u true
+              def f, do: for(x <- [1], uniq: @u, do: x)
+            end
+            """.trimIndent(),
+            """
+            top expanded {} next 0
+            module Elixir.A compiled
+              write u :true `@u true`
+              read u in def f/0: :true
+              final u: :true
+            """.trimIndent(),
+        )
+
     /** A call in a function runs only when the function does. */
     fun testAWriteInAFunctionBodyHasNoEffect() =
         assertEvery(

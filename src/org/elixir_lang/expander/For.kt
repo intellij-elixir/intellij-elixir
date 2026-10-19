@@ -32,13 +32,18 @@ internal fun expandFor(node: ElixirAst.Call, state: ExState, env: Env, run: Run)
 
     return argumentScope(state) { scope ->
         expandList(options, scope, env) { option, s, e -> expandArg(option, s, state, e, run) }
-    }.then { optionsState, optionsEnv ->
+    }.thenValue { optionsState, optionsEnv, expanded ->
         mapfold(cases, optionsState, optionsEnv) { case, s, e -> generator(case, s, e, run) }
-    }.then { generatorsState, generatorsEnv ->
-        if (cases.firstOrNull()?.let(::isGenerator) != true) return@then Expansion.Error("for_generator_start", node)
+            .then { generatorsState, generatorsEnv ->
+                if (cases.firstOrNull()?.let(::isGenerator) != true) {
+                    return@then Expansion.Error("for_generator_start", node)
+                }
 
-        validateOptions(node, options)
-            ?: doBlock(node, valueOf(doOption), options.any { keyOf(it) == "reduce" }, generatorsState, generatorsEnv, run)
+                val reduce = options.any { keyOf(it) == "reduce" }
+
+                validateOptions(node, options, (expanded as Term.List).elements)
+                    ?: doBlock(node, valueOf(doOption), reduce, generatorsState, generatorsEnv, run)
+            }
     }.then { s, _ -> Expansion.Expanded(s.restoreVars(state), env, NODE) }.endConstruct(env, run)
 }
 
@@ -75,21 +80,20 @@ private fun bitstringGenerator(node: ElixirAst.Call, state: ExState, env: Env, r
 }
 
 /**
- * `validate_for_options/8` over [options] as expanded, which a `uniq:` must be a boolean literal in: what stops the
- * `for`, if anything does.
+ * `validate_for_options/8` over [options], with [expanded] each one's expanded pair, whose `uniq:` must be a boolean:
+ * what stops the `for`, if anything does.
  */
-private fun validateOptions(node: ElixirAst, options: List<ElixirAst>): Expansion? {
+private fun validateOptions(node: ElixirAst, options: List<ElixirAst>, expanded: List<Term>): Expansion? {
     var intoOrUniq = false
     var reduce = false
 
-    for (option in options) {
+    for ((option, pair) in options.zip(expanded)) {
         when (keyOf(option)) {
             "into" -> intoOrUniq = true
             "uniq" ->
-                if ((expandedShape(valueOf(option)) as? ElixirAst.Literal.Atom)?.name in BOOLEANS) {
-                    intoOrUniq = true
-                } else {
-                    return Expansion.Error("for_invalid_uniq", node)
+                when ((pair as Term.Pair).second) {
+                    TRUE, FALSE -> intoOrUniq = true
+                    else -> return Expansion.Error("for_invalid_uniq", node)
                 }
             "reduce" -> reduce = true
             // Elixir has no clause for it.
@@ -128,5 +132,3 @@ private fun doBlock(node: ElixirAst, body: ElixirAst, reduce: Boolean, state: Ex
 }
 
 private val OPTIONS = setOf("do", "into", "uniq", "reduce")
-
-private val BOOLEANS = setOf("true", "false")
