@@ -188,6 +188,36 @@ class MixDepsSyncServiceTest : PlatformTestCase() {
         )
     }
 
+    /**
+     * Requests arriving closer together than the quiet period are left pending until the burst stops, however long
+     * it lasts, and then drained.
+     */
+    fun testEnqueue_aBurstLongerThanTheQuietPeriodIsNotDrainedUntilItStops() {
+        val service = project.service<MixDepsSyncService>()
+        MixSyncTestHelpers.runSuspendOnPooledThread { service.awaitIdle() }
+        service.clearPendingForTesting()
+
+        val gapsMillis = mutableListOf<Long>()
+        var last = System.nanoTime()
+        repeat(12) { i ->
+            if (i > 0) {
+                Thread.sleep(50)
+                val now = System.nanoTime()
+                gapsMillis += (now - last) / 1_000_000
+                last = now
+            }
+            service.enqueue(SyncRequest.SyncModule("burst_$i"))
+            assertEquals(
+                "a drain must not start while requests keep arriving within the quiet period (gaps: $gapsMillis ms)",
+                i + 1,
+                service.pendingCount,
+            )
+        }
+
+        MixSyncTestHelpers.runSuspendOnPooledThread { service.awaitIdle() }
+        assertEquals("the burst must be drained once it stops", 0, service.pendingCount)
+    }
+
     // ------------------------------------------------------------------
     // Test 6b - DeleteAll suppresses DepRoot for the same tree
     // (also covers Test 8 - delete-before-sync ordering for the same tree)
