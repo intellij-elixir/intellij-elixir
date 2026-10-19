@@ -3,6 +3,7 @@ package org.elixir_lang.mix.sync
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.components.service
+import com.intellij.openapi.project.ex.ProjectManagerEx
 import com.intellij.openapi.roots.LibraryOrderEntry
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
@@ -14,12 +15,17 @@ import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
+import com.intellij.project.TestProjectManager
 import com.intellij.testFramework.PsiTestUtil
+import com.intellij.testFramework.TestApplicationManager
+import com.intellij.testFramework.TestDataProvider
 import com.intellij.util.concurrency.annotations.RequiresEdt
+import kotlinx.coroutines.withTimeoutOrNull
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.mix.library.CONSOLIDATED_LIBRARY_BASE_NAME
 import org.elixir_lang.mix.library.Kind as MixLibraryKind
 import java.io.File
+import kotlin.time.Duration.Companion.seconds
 
 // WritePlan, ModuleWriteOp, LibraryRootsPlan, DeleteAllPlan, ModuleDepsPlan, buildWritePlan,
 // applyWritePlan are internal to the sync package. Tests in the same package access them directly.
@@ -186,6 +192,69 @@ class MixDepsSyncServiceTest : PlatformTestCase() {
             "awaitIdle must wait for a request queued after an earlier drain finished",
             LibraryTablesRegistrar.getInstance().getLibraryTable(project).getLibraryByName(libraryName),
         )
+    }
+
+    /**
+     * Requests arriving closer together than the quiet period are left pending until the burst stops, however long
+     * it lasts, and then drained.
+     */
+    fun testEnqueue_aBurstLongerThanTheQuietPeriodIsNotDrainedUntilItStops() {
+        val service = project.service<MixDepsSyncService>()
+        MixSyncTestHelpers.runSuspendOnPooledThread { service.awaitIdle() }
+        service.clearPendingForTesting()
+
+        val gapsMillis = mutableListOf<Long>()
+        var last = System.nanoTime()
+        repeat(12) { i ->
+            if (i > 0) {
+                Thread.sleep(50)
+                val now = System.nanoTime()
+                gapsMillis += (now - last) / 1_000_000
+                last = now
+            }
+            service.enqueue(SyncRequest.SyncModule("burst_$i"))
+            assertEquals(
+                "a drain must not start while requests keep arriving within the quiet period (gaps: $gapsMillis ms)",
+                i + 1,
+                service.pendingCount,
+            )
+        }
+
+        MixSyncTestHelpers.runSuspendOnPooledThread { service.awaitIdle() }
+        assertEquals("the burst must be drained once it stops", 0, service.pendingCount)
+    }
+
+    /**
+     * A light project's tear-down only marks it closed, and the next light test reopens it, so a quiet period ending
+     * in between must still answer for the requests it held.
+     */
+    fun testAwaitIdle_returnsForRequestsWhoseQuietPeriodEndedWhileTheLightProjectWasClosed() {
+        val service = project.service<MixDepsSyncService>()
+        MixSyncTestHelpers.runSuspendOnPooledThread { service.awaitIdle() }
+        service.clearPendingForTesting()
+        val projectManager = ProjectManagerEx.getInstanceEx()
+        val application = TestApplicationManager.getInstance()
+
+        service.enqueue(SyncRequest.SyncModule("closed_light_project"))
+        // As a light test's tear-down and the next one's setUp close and reopen it.
+        application.setDataProvider(null)
+        try {
+            assertTrue(projectManager.forceCloseProject(project, save = false))
+            assertTrue("a light project's close only marks it disposed", project.isDisposed)
+            Thread.sleep(1_000)
+        } finally {
+            // The next light test's setUp reopens the project through this call; there is no public one.
+            @Suppress("JetBrainsInternalApiUsage")
+            val reopened = (projectManager as TestProjectManager).openProject(project)
+            assertTrue(reopened)
+            application.setDataProvider(TestDataProvider(project))
+        }
+
+        val idle = MixSyncTestHelpers.runSuspendOnPooledThread(timeoutMillis = 20_000) {
+            withTimeoutOrNull(10.seconds) { service.awaitIdle() } != null
+        }
+        assertTrue("awaitIdle must return once the project is reopened: ${service.counts}", idle)
+        assertEquals("requests held while the project was closed must not carry over to the next test", 0, service.pendingCount)
     }
 
     // ------------------------------------------------------------------

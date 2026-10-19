@@ -1,6 +1,7 @@
 package org.elixir_lang.mix.sync
 
 import com.google.common.annotations.VisibleForTesting
+import com.intellij.diagnostic.dumpCoroutines
 import com.intellij.ide.SaveAndSyncHandler
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.logger
@@ -57,7 +58,7 @@ import kotlin.time.measureTimedValue
  *   (write-lock hold time - the key SLO metric).
  */
 @Service(Service.Level.PROJECT)
-class MixDepsSyncService(private val project: Project, cs: CoroutineScope) {
+class MixDepsSyncService(private val project: Project, private val cs: CoroutineScope) {
 
     // ------------------------------------------------------------------
     // Pending request accumulator (thread-safe, filled from VFS callbacks)
@@ -102,7 +103,6 @@ class MixDepsSyncService(private val project: Project, cs: CoroutineScope) {
                     // can invoke it inside that window, which is exactly when libraries look
                     // wrong enough to reach for it. Gating the one collector covers every producer.
                     awaitJpsProjectLoaded(project)
-                    if (project.isDisposed) return@collect
 
                     supervisorScope {
                         val drainAttempt = async { drain() }
@@ -166,6 +166,10 @@ class MixDepsSyncService(private val project: Project, cs: CoroutineScope) {
     internal val counts: String
         get() = "requested=${requested.get()}, completed=${completed.value}, pending=$pendingCount"
 
+    /** This service's coroutines with their full stacks, for a test that gave up waiting. */
+    @TestOnly
+    internal fun coroutineDump(): String? = dumpCoroutines(cs, stripDump = false)
+
     /** Number of requests currently waiting in the pending set. Exposed for tests only. */
     @VisibleForTesting
     internal val pendingCount: Int get() = pendingRequests.get().size
@@ -194,9 +198,10 @@ class MixDepsSyncService(private val project: Project, cs: CoroutineScope) {
     }
 
     private suspend fun drainPending() {
-        if (project.isDisposed) return
-
         val rawRequests: List<SyncRequest> = pendingRequests.getAndSet(emptySet()).toList()
+        // A light test project is only marked disposed between tests, so its requests are dropped, not left for the
+        // next test.
+        if (project.isDisposed) return
         if (rawRequests.isEmpty()) return
 
         val requests = resolvePathShapedRequests(project, rawRequests)

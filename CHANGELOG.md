@@ -651,6 +651,8 @@
 
 ### Threading / Platform Hygiene
 
+- [#4497](https://github.com/intellij-elixir/intellij-elixir/pull/4497) [@sh41](https://github.com/sh41)
+  - **A Mix deps sync whose quiet period ends while a light test project is closed between tests now still completes, so the next light test no longer waits forever for it.** Fixes [#4440](https://github.com/intellij-elixir/intellij-elixir/issues/4440).
 - [#4485](https://github.com/intellij-elixir/intellij-elixir/pull/4485) [@sh41](https://github.com/sh41)
   - **The expander reads each definition's clauses, from a module's debug info or from source with the quotes they escape, and reads another module's on demand within their own memory bound; nothing uses it yet.** Refs [#4441](https://github.com/intellij-elixir/intellij-elixir/issues/4441).
 - [#4452](https://github.com/intellij-elixir/intellij-elixir/pull/4452) [@sh41](https://github.com/sh41)
