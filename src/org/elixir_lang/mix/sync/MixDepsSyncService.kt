@@ -103,7 +103,6 @@ class MixDepsSyncService(private val project: Project, private val cs: Coroutine
                     // can invoke it inside that window, which is exactly when libraries look
                     // wrong enough to reach for it. Gating the one collector covers every producer.
                     awaitJpsProjectLoaded(project)
-                    if (project.isDisposed) return@collect
 
                     supervisorScope {
                         val drainAttempt = async { drain() }
@@ -199,9 +198,10 @@ class MixDepsSyncService(private val project: Project, private val cs: Coroutine
     }
 
     private suspend fun drainPending() {
-        if (project.isDisposed) return
-
         val rawRequests: List<SyncRequest> = pendingRequests.getAndSet(emptySet()).toList()
+        // A light test project is only marked disposed between tests, so its requests are dropped, not left for the
+        // next test.
+        if (project.isDisposed) return
         if (rawRequests.isEmpty()) return
 
         val requests = resolvePathShapedRequests(project, rawRequests)
