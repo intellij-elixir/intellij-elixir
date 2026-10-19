@@ -12,8 +12,6 @@ import org.elixir_lang.model.psi.variable.VariableSymbol
 import org.elixir_lang.ElixirSyntaxHighlighter
 import org.elixir_lang.declaration.Feature
 import org.elixir_lang.declaration.Found
-import org.elixir_lang.declaration.Resolved
-import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.psi.AtOperation
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
@@ -25,6 +23,7 @@ import org.elixir_lang.psi.call.name.Module.KERNEL_SPECIAL_FORMS
 import org.elixir_lang.reference.Callable.Companion.BIT_STRING_TYPES
 import org.elixir_lang.reference.Callable.Companion.isBitStreamSegmentOption
 import org.elixir_lang.reference.CaptureNameArity
+import org.elixir_lang.reference.resolver.CaptureNameArity as CaptureNameArityResolver
 import org.elixir_lang.safeMultiResolve
 import org.elixir_lang.safelyResolve
 
@@ -174,10 +173,9 @@ internal class Callable : Annotator, DumbAware {
     /** What a capture's name resolves to, read from the highlighting source. */
     private fun hits(reference: CaptureNameArity): List<Hit> =
         safelyResolve(reference, emptyList()) {
-            Use.capture(reference.nameElement, reference.arity)
-                ?.let { Resolved.projection(it, false, feature = Feature.HIGHLIGHTING) }
-                ?.let { projection -> hits(projection, Resolved.results(projection)) }
-                .orEmpty()
+            val answer = CaptureNameArityResolver.answer(reference, false, Feature.HIGHLIGHTING)
+
+            hits(answer.projection, answer.results())
         }
 
     private fun hits(projection: List<Found>, results: List<ResolveResult>): List<Hit> {

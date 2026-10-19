@@ -8,11 +8,25 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.PsiReference
+import org.elixir_lang.annotator.Injection
+import org.elixir_lang.declaration.Feature
+import org.elixir_lang.declaration.Found
+import org.elixir_lang.declaration.RejectedCall
+import org.elixir_lang.declaration.Use
+import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.*
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.reference.CallDefinitionClause
+import org.elixir_lang.reference.Callable
+import org.elixir_lang.reference.CaptureNameArity
+import org.elixir_lang.reference.resolver.CallDefinitionClause as CallDefinitionClauseResolver
+import org.elixir_lang.reference.resolver.Callable as CallableResolver
+import org.elixir_lang.reference.resolver.CaptureNameArity as CaptureNameArityResolver
 
 class References : LocalInspectionTool() {
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean, session: LocalInspectionToolSession): PsiElementVisitor {
+        if (Injection.of(holder.file) == Injection.UNCOMPILED) return PsiElementVisitor.EMPTY_VISITOR
+
         return object : ElixirVisitor() {
             override fun visitElement(element: PsiElement) {
                 when (element) {
@@ -95,12 +109,51 @@ class References : LocalInspectionTool() {
             }
 
             private fun registerProblem(element: PsiElement, reference: PsiPolyVariantReference) {
-                val resolveResults = reference.multiResolve(false)
+                val answer = answer(reference)
+                val resolveResults = answer?.results() ?: reference.multiResolve(false).toList()
 
                 if (resolveResults.isEmpty()) {
-                    holder.registerProblem(element, "Does not resolve to anything", ProblemHighlightType.ERROR)
+                    holder.registerProblem(element, "Does not resolve to anything${hint(answer)}", ProblemHighlightType.ERROR)
                 } else if (!resolveResults.any { it.isValidResult } && !expectOnlyInvalid(element)) {
-                    holder.registerProblem(element, "Only resolves to invalid results", ProblemHighlightType.ERROR)
+                    holder.registerProblem(
+                        element,
+                        "Only resolves to invalid results${hint(answer)}",
+                        ProblemHighlightType.ERROR
+                    )
+                }
+            }
+
+            /** What [reference] resolves to, a call's candidates read from the source this inspection is given. */
+            private fun answer(reference: PsiPolyVariantReference): CallableResolver.Answer? =
+                when (reference) {
+                    is Callable -> CallableResolver.answer(reference.element, false, Feature.REFERENCES_INSPECTION)
+                    is CaptureNameArity -> CaptureNameArityResolver.answer(reference, false, Feature.REFERENCES_INSPECTION)
+                    is CallDefinitionClause ->
+                        CallDefinitionClauseResolver.answer(reference, false, Feature.REFERENCES_INSPECTION)
+                    else -> null
+                }
+
+            /**
+             * What the compiler's hint says for a call it rejects: the arities its name is defined at, else for a
+             * remote call the names its module exports that are near.
+             */
+            private fun hint(answer: CallableResolver.Answer?): String {
+                val use = answer?.use ?: return ""
+                val remote = UseSymbols.remote(use)
+                val arities = RejectedCall.named(answer.projection, Found::candidate, remote, UseSymbols::admits)
+                    ?.let(DidYouMean::arities)
+                    ?: return ""
+
+                return when {
+                    arities.isNotEmpty() ->
+                        "; defined as " + (if (remote) DidYouMean.suggestions(arities) else arities).joinToString(", ")
+
+                    remote && use is Use.Named ->
+                        DidYouMean.nearNames(use).takeIf { it.isNotEmpty() }
+                            ?.let { ". Did you mean: ${it.joinToString(", ")}?" }
+                            .orEmpty()
+
+                    else -> ""
                 }
             }
 
