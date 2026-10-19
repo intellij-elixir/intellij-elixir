@@ -97,7 +97,9 @@ internal object MixSyncTestHelpers {
         }
         if (!idle) {
             throw AssertionError(
-                "Mix deps syncs still running after $SYNC_TIMEOUT: ${service.counts}\n\n${hangDump()}"
+                "Mix deps syncs still running after $SYNC_TIMEOUT: ${service.counts}\n\n" +
+                    "Sync coroutines, unstripped:\n${service.coroutineDump() ?: "(coroutine debug probes are not installed)"}" +
+                    "\n\n${hangDump()}"
             )
         }
     }
