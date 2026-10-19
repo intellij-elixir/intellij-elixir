@@ -44,6 +44,8 @@ object UnexpectedLogs {
         val message: String,
         val cause: Throwable?,
         val frames: List<StackTraceElement>,
+        /** What `Logger.error` was given beside the message: each attachment as its name, a newline and its text. */
+        val details: List<String> = emptyList(),
     ) {
         @Volatile
         var reported = false
@@ -61,10 +63,17 @@ object UnexpectedLogs {
                 level == Level.UNCAUGHT || (it.javaClass == Throwable::class.java && it.message == message)
             }
 
+        /** Each detail indented under the header, with a rule before it. */
+        fun detailsText(indent: String): String =
+            details.joinToString("") { detail ->
+                "\n$indent---\n" + detail.lines().joinToString("\n") { "$indent$it" }
+            }
+
         /** For the report, which no IDE renders: the test's full id and the frames as text. */
         override fun toString(): String =
             "${test ?: "(outside any test)"}\n  $header" +
                 (informativeCause?.let { "\n  caused by $it" } ?: "") +
+                detailsText("  ") +
                 frames.joinToString("") { "\n    at $it" }
     }
 
@@ -76,7 +85,7 @@ object UnexpectedLogs {
     private val running = ArrayDeque<Running>()
     private val unreported = ConcurrentLinkedQueue<Logged>()
 
-    fun record(level: Level, category: String, message: String, t: Throwable?) {
+    fun record(level: Level, category: String, message: String, t: Throwable?, details: List<String> = emptyList()) {
         if (IgnoredLogs.matches(category, message, t)) return
 
         val current = synchronized(running) { running.lastOrNull() }
@@ -87,7 +96,7 @@ object UnexpectedLogs {
             else -> LoggingThread.BACKGROUND
         }
         val frames = if (level == Level.UNCAUGHT) tidy(t?.stackTrace.orEmpty().asList(), thread) else callerFrames(thread)
-        val logged = Logged(current?.id, current?.name, Thread.currentThread().name, level, category, message, t, frames)
+        val logged = Logged(current?.id, current?.name, Thread.currentThread().name, level, category, message, t, frames, details)
 
         if (current == null) unreported += logged else current.logged += logged
     }
@@ -251,24 +260,24 @@ private val TITLE = " UNEXPECTED LOGS ".let { title -> "*".repeat((89 - title.le
  * `toString()`, so a message would be shown twice there.
  */
 class UnexpectedLogsError(logged: List<UnexpectedLogs.Logged>) : AssertionError() {
-    private val grouped = logged.groupBy { it.header to it.frames }.values
+    private val grouped = logged.groupBy { Triple(it.header, it.frames, it.details) }.values
 
     // Ruled off, on lines of its own, so it can be found among the logs around it.
     private val text =
-        """
-        |${javaClass.name}
-        |$RULE
-        |$TITLE
-        |$RULE
-        |${logged.size} unexpected log(s) in ${logged.first().testName ?: "no test"}:
-        |${grouped.joinToString("\n") { same -> times(same.size) + same.first().header }}
-        |A test that exercises a warning or an error should capture and validate it with
-        |expectWarnings(<logging class>::class.java, Regex("<message>")) { ... }
-        |or expectErrors(...).
-        |Otherwise fix its cause.
-        |Platform noise belongs in ${IgnoredLogs::class.java.name}.
-        |$RULE
-        """.trimMargin()
+        listOf(
+            javaClass.name,
+            RULE,
+            TITLE,
+            RULE,
+            "${logged.size} unexpected log(s) in ${logged.first().testName ?: "no test"}:",
+            grouped.joinToString("\n") { same -> times(same.size) + same.first().header + same.first().detailsText("    ") },
+            "A test that exercises a warning or an error should capture and validate it with",
+            "expectWarnings(<logging class>::class.java, Regex(\"<message>\")) { ... }",
+            "or expectErrors(...).",
+            "Otherwise fix its cause.",
+            "Platform noise belongs in ${IgnoredLogs::class.java.name}.",
+            RULE,
+        ).joinToString("\n")
 
     init {
         stackTrace = emptyArray()

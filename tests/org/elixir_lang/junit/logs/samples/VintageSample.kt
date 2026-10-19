@@ -1,5 +1,6 @@
 package org.elixir_lang.junit.logs.samples
 
+import com.intellij.openapi.diagnostic.Attachment
 import com.intellij.openapi.diagnostic.Logger
 import org.elixir_lang.junit.UnitTestCase
 import org.elixir_lang.junit.logs.expectErrors
@@ -39,6 +40,25 @@ class VintageSample : UnitTestCase() {
 
     fun testLogsAnError() {
         logger().error(SAMPLE_ERROR)
+    }
+
+    fun testLogsAnErrorWithAttachments() {
+        logger().error(SAMPLE_ERROR, Attachment(FIRST_ATTACHMENT_NAME, FIRST_ATTACHMENT_TEXT), Attachment(SECOND_ATTACHMENT_NAME, SECOND_ATTACHMENT_TEXT))
+    }
+
+    fun testLogsAnErrorWithADetail() {
+        logger().error(SAMPLE_ERROR, DETAIL)
+    }
+
+    fun testLogsTheSameErrorWithDifferentAttachments() {
+        // One call site, so the two logs have the same frames and only their attachments tell them apart.
+        for ((name, text) in listOf(FIRST_ATTACHMENT_NAME to FIRST_ATTACHMENT_TEXT, SECOND_ATTACHMENT_NAME to SECOND_ATTACHMENT_TEXT)) {
+            logger().error(SAMPLE_ERROR, Attachment(name, text))
+        }
+    }
+
+    fun testLogsAnErrorWithAMultiLineAttachment() {
+        logger().error(SAMPLE_ERROR, Attachment(MULTI_LINE_ATTACHMENT_NAME, MULTI_LINE_ATTACHMENT_TEXT))
     }
 
     fun testExpectsItsError() {
@@ -100,6 +120,13 @@ const val BACKGROUND_WARNING = "background warning"
 const val SAMPLE_ERROR = "sample error"
 const val BACKGROUND_ERROR = "background error"
 const val UNCAUGHT_EXCEPTION = "uncaught exception"
+const val FIRST_ATTACHMENT_NAME = "coroutineDump.txt"
+const val FIRST_ATTACHMENT_TEXT = "coroutine still running in the first scope"
+const val SECOND_ATTACHMENT_NAME = "EDT.txt"
+const val SECOND_ATTACHMENT_TEXT = "edt thread dump of the second scope"
+const val MULTI_LINE_ATTACHMENT_NAME = "dump.txt"
+const val MULTI_LINE_ATTACHMENT_TEXT = "first line\n| piped line\nthird line"
+const val DETAIL ="plain detail text"
 const val SAMPLE_FAILURE = "sample failure"
 const val PLATFORM_CATEGORY = "#com.example.platform.Sample"
 const val PLATFORM_WARNING = "platform warning"
