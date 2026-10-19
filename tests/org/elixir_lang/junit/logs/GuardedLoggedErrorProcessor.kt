@@ -20,7 +20,7 @@ open class GuardedLoggedErrorProcessor : LoggedErrorProcessor() {
     override fun processError(category: String, message: String, details: Array<out String>, t: Throwable?): Set<Action> {
         if (IgnoredLogs.isSilent(category, message, t)) return Action.NONE
 
-        UnexpectedLogs.record(Level.ERROR, category, message, t)
+        UnexpectedLogs.record(Level.ERROR, category, message, t, details.asList())
         // Never rethrown: code that catches what its callees throw would swallow it. In fail mode the test's failure
         // prints it; the platform's stderr copy would repeat it down to the test runner's frames.
         return if (UnexpectedLogs.failing) LOG else LOG_AND_STDERR

@@ -3,12 +3,19 @@ package org.elixir_lang.junit.logs
 import org.elixir_lang.junit.UnitTestCase
 import org.elixir_lang.junit.logs.samples.BACKGROUND_ERROR
 import org.elixir_lang.junit.logs.samples.BACKGROUND_WARNING
+import org.elixir_lang.junit.logs.samples.DETAIL
+import org.elixir_lang.junit.logs.samples.FIRST_ATTACHMENT_NAME
+import org.elixir_lang.junit.logs.samples.FIRST_ATTACHMENT_TEXT
 import org.elixir_lang.junit.logs.samples.JupiterSample
+import org.elixir_lang.junit.logs.samples.MULTI_LINE_ATTACHMENT_NAME
+import org.elixir_lang.junit.logs.samples.MULTI_LINE_ATTACHMENT_TEXT
 import org.elixir_lang.junit.logs.samples.PLATFORM_CATEGORY
 import org.elixir_lang.junit.logs.samples.PLATFORM_ERROR
 import org.elixir_lang.junit.logs.samples.PLATFORM_WARNING
 import org.elixir_lang.junit.logs.samples.SAMPLE_ERROR
 import org.elixir_lang.junit.logs.samples.SAMPLE_WARNING
+import org.elixir_lang.junit.logs.samples.SECOND_ATTACHMENT_NAME
+import org.elixir_lang.junit.logs.samples.SECOND_ATTACHMENT_TEXT
 import org.elixir_lang.junit.logs.samples.UNCAUGHT_EXCEPTION
 import org.elixir_lang.junit.logs.samples.UncheckedSample
 import org.elixir_lang.junit.logs.samples.VintageSample
@@ -49,6 +56,57 @@ class UnexpectedLogsTest : UnitTestCase() {
         assertSummaryShownOnce(results, "testFailsAndWarns")
         assertEquals(listOf(PLATFORM_WARNING), reported(VintageSample::class.java))
     }
+
+    // The platform logs its diagnosis (a coroutine dump, a thread dump) as the attachments of an error.
+    fun testAnErrorsAttachmentsAreShown() {
+        val results = run(VintageSample::class.java)
+        reported(VintageSample::class.java)
+
+        for (test in listOf("testLogsAnErrorWithAttachments", "testLogsTheSameErrorWithDifferentAttachments")) {
+            for (attachment in listOf(FIRST_ATTACHMENT_NAME to FIRST_ATTACHMENT_TEXT, SECOND_ATTACHMENT_NAME to SECOND_ATTACHMENT_TEXT)) {
+                val (name, text) = attachment
+                assertFailedWith(results, test, "$name\n")
+                assertFailedWith(results, test, text)
+                assertConsoleShows(results, test, text)
+                assertShownOnce(results, test, text)
+            }
+        }
+        assertShownOnce(results, "testLogsAnErrorWithAttachments", FIRST_ATTACHMENT_NAME)
+        assertFailedWith(results, "testLogsAnErrorWithADetail", DETAIL)
+        assertConsoleShows(results, "testLogsAnErrorWithADetail", DETAIL)
+    }
+
+    // Two errors alike but for their attachments are two logs, not one logged twice.
+    fun testErrorsThatDifferOnlyInTheirAttachmentsAreNotGrouped() {
+        val results = run(VintageSample::class.java)
+        reported(VintageSample::class.java)
+
+        val shown = shown(results.getValue("testLogsTheSameErrorWithDifferentAttachments"))
+        assertFalse("`$shown` groups them", shown.contains("2 times"))
+    }
+
+    // A real dump has many lines, some of which may start with `|`.
+    fun testEveryLineOfAnAttachmentIsShownIndentedAndIntact() {
+        val results = run(VintageSample::class.java)
+        reported(VintageSample::class.java)
+
+        val indented = indented("    ")
+        assertFailedWith(results, "testLogsAnErrorWithAMultiLineAttachment", indented)
+        assertConsoleShows(results, "testLogsAnErrorWithAMultiLineAttachment", indented)
+    }
+
+    fun testReportModeListsAnErrorsAttachments() {
+        run(VintageSample::class.java, mode = "report")
+
+        val reported = UnexpectedLogs.drainUnreported { it.test.orEmpty().contains(VintageSample::class.java.name) }
+            .joinToString("\n") { it.toString() }
+        assertTrue("`$FIRST_ATTACHMENT_TEXT` reported in $reported", reported.contains(FIRST_ATTACHMENT_TEXT))
+        assertTrue("`$DETAIL` reported in $reported", reported.contains(DETAIL))
+        assertTrue("the multi-line attachment reported in $reported", reported.contains(indented("  ")))
+    }
+
+    private fun indented(indent: String): String =
+        "\n$indent---\n" + "$MULTI_LINE_ATTACHMENT_NAME\n$MULTI_LINE_ATTACHMENT_TEXT".lines().joinToString("\n") { "$indent$it" }
 
     fun testJupiter() {
         val results = run(JupiterSample::class.java)
@@ -185,6 +243,12 @@ class UnexpectedLogsTest : UnitTestCase() {
         val shown = shown(results.getValue(test))
 
         assertEquals("`$test` showed:\n$shown", 1, Regex("unexpected log\\(s\\) in").findAll(shown).count())
+    }
+
+    private fun assertShownOnce(results: Map<String, TestExecutionResult>, test: String, text: String) {
+        val shown = shown(results.getValue(test))
+
+        assertEquals("`$test` showed:\n$shown", 1, Regex(Regex.escape(text)).findAll(shown).count())
     }
 
     private fun assertConsoleShows(results: Map<String, TestExecutionResult>, test: String, message: String) {

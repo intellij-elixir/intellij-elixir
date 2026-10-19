@@ -748,6 +748,8 @@
 
 ### Build / CI
 
+- [#4498](https://github.com/intellij-elixir/intellij-elixir/pull/4498) [@sh41](https://github.com/sh41)
+  - **A test that fails for an unexpected logged error now shows the attachments and details the error was logged with, such as the platform's coroutine and thread dumps.** Refs [#4492](https://github.com/intellij-elixir/intellij-elixir/issues/4492).
 - [#4480](https://github.com/intellij-elixir/intellij-elixir/pull/4480) [@sh41](https://github.com/sh41)
   - **The completion agreement file compares the enclosing forms with `Code.Fragment` only where its prefix can see them: not after a non-blank character where Elixir reads no context, and not for a `->`, `=>` or an alias's `.` written after the cursor.** Refs [#4478](https://github.com/intellij-elixir/intellij-elixir/issues/4478).
 - [#4477](https://github.com/intellij-elixir/intellij-elixir/pull/4477) [@sh41](https://github.com/sh41)
