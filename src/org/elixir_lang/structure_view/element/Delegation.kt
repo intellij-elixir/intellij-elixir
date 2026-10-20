@@ -151,10 +151,14 @@ class Delegation(private val modular: Modular, call: Call) : Element<Call?>(call
          * heads, which Elixir deprecates, defines nothing here.
          */
         @RequiresReadLock
-        fun declaration(call: Call, state: ResolveState): Declaration? {
+        fun declaration(call: Call, state: ResolveState): Declaration? = head(call)?.let { declaration(call, it, state) }
+
+        /** What [call] defines under [head], its head or one of its list of heads. */
+        @RequiresReadLock
+        fun declaration(call: Call, head: PsiElement, state: ResolveState): Declaration? {
             if (!`is`(call)) return null
 
-            val (name, arityInterval) = head(call)?.let { CallDefinitionHead.nameArityInterval(it, state) } ?: return null
+            val (name, arityInterval) = CallDefinitionHead.nameArityInterval(head, state) ?: return null
 
             return Declaration(
                 name,

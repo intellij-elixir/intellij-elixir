@@ -19,6 +19,7 @@ defmodule Heads do
   @callback unquote(:cb_literal)(term) :: term
   defdelegate del(x, y \\ 1), to: Target
   defdelegate unquote(:del_literal)(x), to: Target
+  defdelegate [del_list(x), del_list(x, y)], to: Target
   defexception [:message]
   EEx.function_from_string(:def, :eex_plain, "")
   EEx.function_from_string(:defp, :eex_private, "<%= a %>", [:a, :b])

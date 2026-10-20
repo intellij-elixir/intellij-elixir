@@ -17,6 +17,14 @@ class ElixirClausePresentationTest : PlatformTestCase() {
         return ElixirClausePresentation.containerText(clause)
     }
 
+    /** A list of `defdelegate` heads shows as it is written. */
+    fun testHeadTextOfAListOfDelegationHeads() {
+        myFixture.configureByText("scratch.ex", "defmodule M do\n  defdelegate [f(x), f(x, y)], to: T\nend\n")
+        val delegation = PsiTreeUtil.findChildrenOfType(myFixture.file, Call::class.java).single { it.functionName() == "defdelegate" }
+
+        assertEquals("defdelegate [f(x), f(x, y)]", ElixirClausePresentation.headText(delegation))
+    }
+
     fun testWithoutForInAModule() =
         assertEquals("Outer", containerText("defmodule Outer do\n  defimpl P do\n    def f(_), do: 1\n  end\nend\n"))
 

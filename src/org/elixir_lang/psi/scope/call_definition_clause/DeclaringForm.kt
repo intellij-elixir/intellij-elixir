@@ -9,6 +9,7 @@ import org.elixir_lang.EEx
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
+import org.elixir_lang.psi.ElixirList
 import org.elixir_lang.psi.Exception
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
@@ -95,7 +96,7 @@ object DeclaringForm {
     @RequiresReadLock
     fun named(element: PsiElement): Declaring? =
         shaped(element).firstOrNull()?.takeIf { (call, form) ->
-            element != call && heads(call, form).any { CallDefinitionHead.isOnName(it, element) }
+            element != call && namedHeads(call, form).any { CallDefinitionHead.isOnName(it, element) }
         }
 
     /** The form [call] itself declares with, or `null` when it declares nothing. */
@@ -123,22 +124,34 @@ object DeclaringForm {
 
     /** The names [call] writes the functions it declares with [form] under: in `def unquote(:name)(...)`, the atom. */
     @RequiresReadLock
-    fun names(call: Call, form: Form): List<PsiElement> = heads(call, form).mapNotNull(CallDefinitionHead::nameElement)
+    fun names(call: Call, form: Form): List<PsiElement> = namedHeads(call, form).mapNotNull(CallDefinitionHead::nameElement)
 
     /** The elements a caret is on a name [call] declares with [form] at: in `def unquote(:name)(...)`, also `unquote`. */
     @RequiresReadLock
-    fun nameElements(call: Call, form: Form): List<PsiElement> = heads(call, form).flatMap(CallDefinitionHead::nameElements)
+    fun nameElements(call: Call, form: Form): List<PsiElement> =
+        namedHeads(call, form).flatMap(CallDefinitionHead::nameElements)
 
-    /** The heads [call] writes the functions it declares with [form] under: an EEx's or an embed's only as an atom. */
+    /**
+     * The heads [call] writes the functions it declares with [form] under: each of a list of `defdelegate` heads, and an
+     * EEx's or an embed's only as an atom.
+     */
     @RequiresReadLock
-    private fun heads(call: Call, form: Form): List<PsiElement> =
+    internal fun heads(call: Call, form: Form): List<PsiElement> =
         when (form) {
             Form.CLAUSE -> listOfNotNull(CallDefinitionClause.head(call))
-            Form.DELEGATION -> listOfNotNull(Delegation.head(call) as? Call)
+            Form.DELEGATION ->
+                when (val head = Delegation.head(call)) {
+                    is Call -> listOf(head)
+                    else -> (head?.stripAccessExpression() as? ElixirList)?.children?.filterIsInstance<Call>().orEmpty()
+                }
             Form.EEX_FUNCTION_FROM -> listOfNotNull(call.finalArguments()?.getOrNull(1)?.takeIf(::isAtom))
             Form.GENERATOR_EMBED -> listOfNotNull(call.finalArguments()?.firstOrNull()?.takeIf(::isAtom))
             Form.CALLBACK, Form.EXCEPTION -> emptyList()
         }
+
+    /** The [heads] a caret is on a declaration at: a delegation's one head only, as no call of a list of heads resolves. */
+    private fun namedHeads(call: Call, form: Form): List<PsiElement> =
+        if (form == Form.DELEGATION) listOfNotNull(Delegation.head(call) as? Call) else heads(call, form)
 
     private fun isAtom(name: PsiElement): Boolean = name.stripAccessExpression() is ElixirAtom
 

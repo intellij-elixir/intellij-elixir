@@ -52,6 +52,13 @@ class DeclarationsTest : PlatformTestCase() {
     fun testUnquoteLiteralDelegation() =
         assertDeclares("defdelegate unquote(:del_literal)", "del_literal/1 public function delegation")
 
+    fun testDelegationListDeclaresEachHead() =
+        assertDeclares(
+            "defdelegate [del_list(",
+            "del_list/1 public function delegation",
+            "del_list/2 public function delegation"
+        )
+
     fun testExceptionDeclaresExceptionAndMessage() =
         assertDeclares(
             "defexception",

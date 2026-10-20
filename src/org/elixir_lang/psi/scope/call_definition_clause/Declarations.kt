@@ -83,12 +83,11 @@ object Declarations {
         )
     }
 
-    private fun delegation(call: Call, state: ResolveState): List<Spelled> {
-        val declaration = Delegation.declaration(call, state) ?: return emptyList()
-        val atom = Delegation.head(call)?.let(::headAtomValue)
-
-        return listOf(Spelled(declaration.name, declaration.takeIf { atom != null }))
-    }
+    /** One declaration for each head, a list of heads included. */
+    private fun delegation(call: Call, state: ResolveState): List<Spelled> =
+        DeclaringForm.heads(call, Form.DELEGATION).mapNotNull { head ->
+            Delegation.declaration(call, head, state)?.let { Spelled(it.name, it.takeIf { headAtomValue(head) != null }) }
+        }
 
     private fun exception(call: Call): List<Spelled> =
         Exception.NAME_ARITY_LIST.map { (name, arity) ->
