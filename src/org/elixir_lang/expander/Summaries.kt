@@ -22,7 +22,10 @@ internal fun interface Summary {
             run: Run,
         ): Expansion =
             when (val output = output(dispatch, node, state, env, run)) {
-                is Output.Built -> expandQuoted(node, dispatch.receiver, output.ast, state, env, run)
+                is Output.Built ->
+                    unlessTooDeep({ Expansion.Opaque(node, dispatch) }) {
+                        expandQuoted(node, dispatch.receiver, output.ast, state, env, run)
+                    }
                 is Output.Raised -> Expansion.Error(output.kind, node)
                 is Output.Unported -> Expansion.Unported(output.at)
                 is Output.Stopped -> output.expansion
@@ -44,6 +47,17 @@ internal fun interface Summary {
         class Stopped(val expansion: Expansion) : Output()
     }
 }
+
+/**
+ * [block], or [tooDeep] where it overflows the thread's stack. The BEAM's stack grows as code, a macro's body or its
+ * output nests, where the thread's holds a few hundred levels, so a deeper one declines.
+ */
+internal inline fun <T> unlessTooDeep(tooDeep: () -> T, block: () -> T): T =
+    try {
+        block()
+    } catch (_: StackOverflowError) {
+        tooDeep()
+    }
 
 /**
  * [node] through the macro's own `Macro.expand/2`, or [stopped] of the [Summary.Output] the macro gives where that

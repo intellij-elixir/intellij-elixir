@@ -488,8 +488,15 @@ internal fun storeDefinition(
     val fresh = ExState.empty(run.level).copy(caller = kind.macro)
     val args = defaultsArgs.map { arg -> if (isDefault(arg)) (arg as ElixirAst.Call).arguments!![0] else arg }
     val body = definition.body?.let { clauseBody(node, it) }
-    val defaulted = expandDefaults(defaults, fresh, env, run, compiling, node)
-    val expansion = defaulted.then { _, _ -> clause(node, args, guards, definition.body, body, fresh, env, run) }
+    val (defaulted, expansion) = unlessTooDeep({
+        store(definition, name, arity, defaults.size, compiling)
+
+        return owner to Expansion.Unported(node)
+    }) {
+        val defaulted = expandDefaults(defaults, fresh, env, run, compiling, node)
+
+        defaulted to defaulted.then { _, _ -> clause(node, args, guards, definition.body, body, fresh, env, run) }
+    }
 
     if (expansion is Expansion.Error) return owner to expansion
 

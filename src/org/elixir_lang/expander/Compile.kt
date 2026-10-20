@@ -298,7 +298,9 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
     run.pending = mutableListOf()
     run.counters.start(name)
 
-    val body = Expander.expand(module.body, module.state, module.env, run)
+    val body = unlessTooDeep({ Expansion.Unported(module.body) }) {
+        Expander.expand(module.body, module.state, module.env, run)
+    }
     var ended = ended(body, run)
 
     units += ExpansionResult.Unit(Owner.ModuleBody, module.body, true, body)

@@ -64,7 +64,7 @@ object Expander {
             return fastCompile(forms, state, env, run)
         }
 
-        val top = expand(forms, state, env, run)
+        val top = unlessTooDeep({ Expansion.Unported(forms) }) { expand(forms, state, env, run) }
 
         return FileExpansion(top, if (top is Expansion.Error) emptyList() else compilePending(run))
     }

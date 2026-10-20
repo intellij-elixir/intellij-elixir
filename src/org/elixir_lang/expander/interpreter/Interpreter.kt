@@ -34,6 +34,7 @@ import org.elixir_lang.expander.lineOf
 import org.elixir_lang.expander.metaValue
 import org.elixir_lang.expander.orGuards
 import org.elixir_lang.expander.splitOptions
+import org.elixir_lang.expander.unlessTooDeep
 import org.elixir_lang.expander.variable
 import org.elixir_lang.expander.whenArguments
 import org.elixir_lang.expander.withOptions
@@ -56,11 +57,8 @@ internal object Interpreter {
     /** The summary of [node], which dispatches as [dispatch], from its macro's clauses, or `null` where it declines. */
     fun summary(dispatch: Dispatch, node: ElixirAst.Call, env: Env, run: Run): Summary? {
         val output = try {
-            Evaluation(dispatch, node, env, run).output()
+            unlessTooDeep({ return null }) { Evaluation(dispatch, node, env, run).output() }
         } catch (_: Declined) {
-            return null
-        } catch (_: StackOverflowError) {
-            // The BEAM's stack grows as a body recurses, where the thread's is a few hundred calls deep.
             return null
         }
 
