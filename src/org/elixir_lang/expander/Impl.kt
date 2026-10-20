@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFIMPL_EXPANDS_PROTOCOL
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFIMPL_FOR_EXPANDED_IN_KERNEL
@@ -109,12 +110,15 @@ private fun defimpl(
     val outputs = mutableListOf<ImplOutput>()
 
     // `for f <- for, do: __impl__(protocol, f, block)`, for each element of a list, however deep.
-    fun output(type: ElixirAst): ElixirAst =
-        if (type is ElixirAst.ListNode) {
+    fun output(type: ElixirAst): ElixirAst {
+        ProgressManager.checkCanceled()
+
+        return if (type is ElixirAst.ListNode) {
             s.list(type.elements.map(::output))
         } else {
             ImplOutput(s, level, expandedProtocol, type, block).also { outputs += it }.output()
         }
+    }
 
     val output = output(expandedFor)
     val protocolName = namedBy(expandedProtocol, state, env, run)

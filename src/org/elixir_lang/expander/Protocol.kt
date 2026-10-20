@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.PROTOCOL_BEFORE_COMPILE
 import org.elixir_lang.language_level.ElixirLanguageFeature.PROTOCOL_CONCAT
@@ -289,8 +290,11 @@ internal class ProtocolTail(private val module: String, meta: Meta, private val 
     }
 
     /** Whether [node] holds a call of `Protocol`'s own `guard`, the name the loop over the built-in types gives a head. */
-    private fun callsGuard(node: ElixirAst): Boolean =
-        isUnquotedCall(node) && isGuardCall(node as ElixirAst.Call) || children(node).any(::callsGuard)
+    private fun callsGuard(node: ElixirAst): Boolean {
+        ProgressManager.checkCanceled()
+
+        return isUnquotedCall(node) && isGuardCall(node as ElixirAst.Call) || children(node).any(::callsGuard)
+    }
 
     /** Whether the unquoted [call] unquotes `Protocol`'s own `guard`. */
     private fun isGuardCall(call: ElixirAst.Call): Boolean = isProtocolVariable(call.arguments!!.single(), "guard")

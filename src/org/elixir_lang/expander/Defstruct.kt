@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_BIND_QUOTED
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_ESCAPES_STRUCT
 import org.elixir_lang.language_level.ElixirLanguageFeature.ENFORCE_KEYS_MUST_BE_FIELDS
@@ -82,6 +83,8 @@ private fun unreadable(compiling: Compiling): Expansion? {
  * `Kernel`'s `quote` binds is its value in [bound], and the `++` that `quote` builds of two lists is the list of both.
  */
 private fun evaluate(node: ElixirAst, bound: Map<String, ElixirAst>): ElixirAst {
+    ProgressManager.checkCanceled()
+
     if (node !is ElixirAst.Call) return node
 
     val name = (node.callee as? ElixirAst.Literal.Atom)?.name
@@ -221,6 +224,8 @@ private fun defaultOf(part: FieldPart, nil: ElixirAst, escaped: (Term) -> Elixir
 
 /** [node] with the locations of its metadata taken out: `elixir_quote:escape/3` gives a default none. */
 private fun unlocated(node: ElixirAst): ElixirAst {
+    ProgressManager.checkCanceled()
+
     fun meta(meta: Meta) = Meta(meta.origin, meta.start, meta.end, meta.keys.filterNot { it is Meta.Key.Location }, meta.built)
 
     return when (node) {

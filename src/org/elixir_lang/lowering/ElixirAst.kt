@@ -8,6 +8,7 @@ import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import java.math.BigInteger
@@ -98,6 +99,8 @@ sealed class ElixirAst {
         options: ParserOptions = ParserOptions.DEFAULT,
         onNode: ((ElixirAst, OtpErlangObject) -> Unit)? = null,
     ): OtpErlangObject {
+        ProgressManager.checkCanceled()
+
         val term = when (this) {
             is Call -> tuple(
                 callee.toOtp(options, onNode),
@@ -141,6 +144,7 @@ sealed class ElixirAst {
             origin: TextRange,
             known: (OtpErlangObject) -> ElixirAst? = { null },
         ): ElixirAst? {
+            ProgressManager.checkCanceled()
             known(term)?.let { return it }
 
             val bare = { Meta(origin, NO_POSITION, NO_POSITION) }
@@ -262,8 +266,10 @@ sealed class ElixirAst {
                 Meta.Key.Entry((key as? OtpErlangAtom)?.atomValue() ?: return null, value(value) ?: return null)
             }
 
-        private fun value(term: OtpErlangObject): Meta.Value? =
-            when (term) {
+        private fun value(term: OtpErlangObject): Meta.Value? {
+            ProgressManager.checkCanceled()
+
+            return when (term) {
                 is OtpErlangAtom -> Meta.Value.Atom(term.atomValue())
                 is OtpErlangLong -> term.takeIf { it.isLong }?.let { Meta.Value.Integer(it.longValue()) }
                 is OtpErlangBinary -> utf8(term.binaryValue())?.let(Meta.Value::Binary)
@@ -273,6 +279,7 @@ sealed class ElixirAst {
                 is OtpErlangTuple -> Meta.Value.Tuple(term.elements().map { value(it) ?: return null })
                 else -> null
             }
+        }
 
         /** [bytes] as text, or null where they aren't UTF-8, which a [Meta.Value.Binary] couldn't give back. */
         private fun utf8(bytes: ByteArray): String? =

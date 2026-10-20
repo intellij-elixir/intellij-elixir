@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageFeature.MACRO_EXPAND_CHECKS_REMOTE_FUNCTION_DEPRECATION
 import org.elixir_lang.lowering.ElixirAst
 
@@ -21,6 +22,8 @@ internal fun macroExpand(node: ElixirAst, state: ExState, env: Env, run: Run): M
     var expanded = false
 
     while (true) {
+        ProgressManager.checkCanceled()
+
         when (val once = macroExpandOnce(current, state, env, run)) {
             is MacroExpanded.Node ->
                 if (once.expanded) {
@@ -52,8 +55,10 @@ internal fun macroExpandLiterals(node: ElixirAst, state: ExState, env: Env, run:
 private class LiteralsStopped(val expansion: Expansion) : RuntimeException(null, null, false, false)
 
 private class LiteralExpander(private val state: ExState, private val env: Env, private val run: Run) {
-    fun expand(node: ElixirAst): ElixirAst =
-        when {
+    fun expand(node: ElixirAst): ElixirAst {
+        ProgressManager.checkCanceled()
+
+        return when {
             node is ElixirAst.Alias -> {
                 val segments = all(node.segments)
                 val rebuilt = if (segments === node.segments) node else ElixirAst.Alias(node.meta, segments)
@@ -79,6 +84,7 @@ private class LiteralExpander(private val state: ExState, private val env: Env, 
             }
             else -> node
         }
+    }
 
     /** [nodes], each expanded, or the list itself where none changed. */
     private fun all(nodes: List<ElixirAst>): List<ElixirAst> {

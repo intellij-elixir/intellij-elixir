@@ -1,6 +1,7 @@
 package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangObject
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_IN_MAP_KEY_PATTERN
 import org.elixir_lang.language_level.ElixirLanguageFeature.PIN_IN_MAP_KEY_PATTERN
 import org.elixir_lang.language_level.ElixirLanguageLevel
@@ -56,6 +57,8 @@ private fun kvError(args: List<ElixirAst>, env: Env, level: ElixirLanguageLevel)
     val used = mutableSetOf<OtpErlangObject>()
 
     for (arg in args) {
+        ProgressManager.checkCanceled()
+
         val pair = expandedShape(arg) as? ElixirAst.Tuple
         if (pair == null || pair.elements.size != 2) return "not_kv_pair"
 
@@ -78,6 +81,8 @@ private fun kvError(args: List<ElixirAst>, env: Env, level: ElixirLanguageLevel)
 
 /** The error `elixir_map:validate_match_key/3` raises for a key in a pattern, if any. */
 private fun matchKeyError(node: ElixirAst, level: ElixirLanguageLevel): String? {
+    ProgressManager.checkCanceled()
+
     val key = expandedShape(node)
 
     return when {
@@ -104,6 +109,8 @@ private fun matchKeyError(node: ElixirAst, level: ElixirLanguageLevel): String? 
 
 /** `elixir_map:is_literal/1`, on the expanded key. */
 internal fun isLiteral(node: ElixirAst): Boolean {
+    ProgressManager.checkCanceled()
+
     val key = expandedShape(node)
 
     return when {
@@ -115,8 +122,10 @@ internal fun isLiteral(node: ElixirAst): Boolean {
 }
 
 /** A literal key as its expansion in [env] is, at every depth, so equal keys give equal terms. */
-internal fun literalShape(node: ElixirAst, env: Env, level: ElixirLanguageLevel): ElixirAst =
-    when (val key = expandedShape(node)) {
+internal fun literalShape(node: ElixirAst, env: Env, level: ElixirLanguageLevel): ElixirAst {
+    ProgressManager.checkCanceled()
+
+    return when (val key = expandedShape(node)) {
         is ElixirAst.Tuple -> ElixirAst.Tuple(key.meta, key.elements.map { literalShape(it, env, level) })
         is ElixirAst.ListNode -> ElixirAst.ListNode(key.meta, key.elements.map { literalShape(it, env, level) })
         else ->
@@ -125,6 +134,10 @@ internal fun literalShape(node: ElixirAst, env: Env, level: ElixirLanguageLevel)
                 ?.let { ElixirAst.Literal.Atom(key.meta, it) }
                 ?: key
     }
+}
 
-private fun withoutBlocks(node: ElixirAst): ElixirAst =
-    if (node is ElixirAst.Block && node.expressions.size == 1) withoutBlocks(node.expressions.single()) else node
+private fun withoutBlocks(node: ElixirAst): ElixirAst {
+    ProgressManager.checkCanceled()
+
+    return if (node is ElixirAst.Block && node.expressions.size == 1) withoutBlocks(node.expressions.single()) else node
+}

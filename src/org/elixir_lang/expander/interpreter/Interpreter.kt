@@ -238,8 +238,10 @@ internal class Evaluation(
         error(mapOf(entries(struct) + fields.map { (key, value) -> atom(key) to value }, run.level))
     }
 
-    internal fun eval(node: ElixirAst, frame: Frame): OtpErlangObject =
-        when (node) {
+    internal fun eval(node: ElixirAst, frame: Frame): OtpErlangObject {
+        ProgressManager.checkCanceled()
+
+        return when (node) {
             is ElixirAst.Literal.Atom -> atom(node.name).also { atoms += node.name }
             is ElixirAst.Literal.Integer -> integer(node.value)
             // The lowering reads a float past a double's range, which Elixir's tokenizer refuses, as infinite.
@@ -257,6 +259,7 @@ internal class Evaluation(
             is ElixirAst.Placeholder -> decline("a placeholder")
             is ElixirAst.Call -> evalCall(node, frame)
         }
+    }
 
     private fun block(expressions: List<ElixirAst>, frame: Frame): OtpErlangObject {
         var value: OtpErlangObject = NIL
@@ -985,6 +988,8 @@ internal class Evaluation(
 
     /** Whether [pattern] matches [value], binding its variables in [pending]. */
     internal fun match(pattern: ElixirAst, value: OtpErlangObject, frame: Frame, pending: HashMap<Binding, OtpErlangObject>): Boolean {
+        ProgressManager.checkCanceled()
+
         if (isVariable(pattern)) {
             if (isUnderscore(pattern)) return true
 

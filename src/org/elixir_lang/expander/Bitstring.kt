@@ -4,6 +4,7 @@ import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangDouble
 import com.ericsson.otp.erlang.OtpErlangLong
 import com.ericsson.otp.erlang.OtpErlangObject
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.expander.ExState.Prematch.Bitsize
 import org.elixir_lang.expander.ExState.Prematch.InMatch
 import org.elixir_lang.expander.ExState.Prematch.OutsideMatch
@@ -74,6 +75,8 @@ private fun expandSegments(
     val report = Reporter { site, at -> reportOrEnd(site, at, env, run) }
 
     for ((index, segment) in segments.withIndex()) {
+        ProgressManager.checkCanceled()
+
         val matchSize = requireSize || matchSize(context, index, segments)
         val typed = isCall(segment, "::", 2)
         val value = if (typed) (segment as ElixirAst.Call).arguments!![0] else segment
@@ -222,6 +225,8 @@ private fun isMatchSegment(shape: ElixirAst, expanded: Term, run: Run) =
 
 /** `find_match/1`, before 1.19: a `=` in any call's arguments, block's expressions or `{}` tuple's elements. */
 private fun containsMatch(node: ElixirAst): Boolean {
+    ProgressManager.checkCanceled()
+
     val shape = expandedShape(node)
 
     return when {
@@ -275,6 +280,8 @@ private fun expandSpecs(spec: ElixirAst, state: ExState, original: ExState, env:
     val args = mutableMapOf<String, SpecArg>()
 
     for (unpacked in unpackSpecs(spec)) {
+        ProgressManager.checkCanceled()
+
         val builtin = when (unpacked) {
             is Unpacked.Builtin -> unpacked
             is Unpacked.Named -> {
@@ -446,6 +453,8 @@ internal fun sizeAndUnitArguments(spec: ElixirAst): List<ElixirAst> =
 
 /** `unpack_specs/2`, then `validate_spec/2` of each. */
 private fun unpackSpecs(spec: ElixirAst): List<Unpacked> {
+    ProgressManager.checkCanceled()
+
     if (isCall(spec, "-", 2)) return (spec as ElixirAst.Call).arguments!!.flatMap(::unpackSpecs)
 
     if (isCall(spec, "*", 2)) {

@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_REGEX_IMPORTS_ON_OTP_28_1
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_REGEX_RECOMPILES_ON_OTP_28
 import org.elixir_lang.language_level.ElixirLanguageFeature.REGEX_COMPILED_AT_RUN_TIME_ON_OTP_28
@@ -269,6 +270,8 @@ private inline fun unescapedPieces(
     failed: (Summary.Output) -> Nothing,
 ): List<ElixirAst> =
     pieces.map { piece ->
+        ProgressManager.checkCanceled()
+
         if (piece is ElixirAst.Literal.Binary) {
             ElixirAst.Literal.Binary(piece.meta, unescapedBytes(piece, map, level, failed))
         } else {

@@ -14,6 +14,7 @@ import com.ericsson.otp.erlang.OtpErlangPort
 import com.ericsson.otp.erlang.OtpErlangRef
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.NEGATIVE_ZERO_IS_DISTINCT
 import org.elixir_lang.language_level.ElixirLanguageLevel
@@ -100,12 +101,13 @@ private data class Numbers(val exact: Boolean, val signed: Boolean) {
     val keys: Numbers get() = if (exact) this else copy(exact = true)
 }
 
-internal class UnorderedTerms(left: OtpErlangObject, right: OtpErlangObject) :
-    IllegalArgumentException("no known order between $left and $right")
+internal class UnorderedTerms : IllegalArgumentException("no known order between two terms")
 
 private fun compareTerms(left: OtpErlangObject, right: OtpErlangObject, numbers: Numbers): Int {
-    val leftRank = rank(left) ?: throw UnorderedTerms(left, right)
-    val ranks = leftRank.compareTo(rank(right) ?: throw UnorderedTerms(left, right))
+    ProgressManager.checkCanceled()
+
+    val leftRank = rank(left) ?: throw UnorderedTerms()
+    val ranks = leftRank.compareTo(rank(right) ?: throw UnorderedTerms())
     if (ranks != 0) return ranks
 
     return when (left) {
@@ -124,7 +126,7 @@ private fun compareTerms(left: OtpErlangObject, right: OtpErlangObject, numbers:
         is OtpErlangMap -> compareMaps(left, right as OtpErlangMap, numbers)
         is OtpErlangList, is OtpErlangString -> compareLists(left, right, numbers)
         is OtpErlangBitstr -> compareBits(left, right as OtpErlangBitstr)
-        else -> if (left == right) 0 else throw UnorderedTerms(left, right)
+        else -> if (left == right) 0 else throw UnorderedTerms()
     }
 }
 
@@ -149,7 +151,7 @@ private fun compareNumbers(left: OtpErlangObject, right: OtpErlangObject, number
         (left is OtpErlangDouble).compareTo(right is OtpErlangDouble).takeIf { it != 0 }?.let { return it }
     }
 
-    val compared = number(left, right).compareTo(number(right, left))
+    val compared = number(left).compareTo(number(right))
 
     // Two floats of one value differ only as `-0.0` and `0.0`.
     return if (compared == 0 && numbers.exact && numbers.signed && left is OtpErlangDouble) {
@@ -160,11 +162,11 @@ private fun compareNumbers(left: OtpErlangObject, right: OtpErlangObject, number
 }
 
 /** A float past a double's range, which no Elixir term is, has no place. */
-private fun number(term: OtpErlangObject, other: OtpErlangObject): BigDecimal =
+private fun number(term: OtpErlangObject): BigDecimal =
     when (term) {
         is OtpErlangLong -> BigDecimal(term.bigIntegerValue())
         else ->
-            BigDecimal((term as OtpErlangDouble).doubleValue().takeIf(Double::isFinite) ?: throw UnorderedTerms(term, other))
+            BigDecimal((term as OtpErlangDouble).doubleValue().takeIf(Double::isFinite) ?: throw UnorderedTerms())
     }
 
 /** By size, then the keys in their order, then the values in the keys' order. */
@@ -226,6 +228,8 @@ private fun compareBits(left: OtpErlangBitstr, right: OtpErlangBitstr): Int {
     val rightBits = bits(right)
 
     for (i in 0 until minOf(leftBits, rightBits)) {
+        ProgressManager.checkCanceled()
+
         val compared = bit(left, i).compareTo(bit(right, i))
 
         if (compared != 0) return compared

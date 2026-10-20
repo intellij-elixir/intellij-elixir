@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageFeature.ELLIPSIS_NULLARY_CALL
 import org.elixir_lang.language_level.ElixirLanguageFeature.FROM_BRACKETS_ON_BRACKETED_EXPRESSION
 import org.elixir_lang.language_level.ElixirLanguageFeature.PIPE_ONE_OPERAND
@@ -20,6 +21,8 @@ internal val PIPE = object : Summary.Rewrite() {
         var piped = operands.first()
 
         for (call in operands.drop(1)) {
+            ProgressManager.checkCanceled()
+
             piped = when (val output = pipe(piped, call, run.level)) {
                 is Summary.Output.Built -> output.ast
                 else -> return output
@@ -31,8 +34,11 @@ internal val PIPE = object : Summary.Rewrite() {
 }
 
 /** `Macro.unpipe/1`: the operands of every local `|>` in [node], in order. */
-private fun unpipe(node: ElixirAst): List<ElixirAst> =
-    if (isCall(node, "|>", 2)) (node as ElixirAst.Call).arguments!!.flatMap(::unpipe) else listOf(node)
+private fun unpipe(node: ElixirAst): List<ElixirAst> {
+    ProgressManager.checkCanceled()
+
+    return if (isCall(node, "|>", 2)) (node as ElixirAst.Call).arguments!!.flatMap(::unpipe) else listOf(node)
+}
 
 /** `Macro.pipe/3` at position 0: [expr] put first in [call]'s arguments. */
 private fun pipe(expr: ElixirAst, call: ElixirAst, level: ElixirLanguageLevel): Summary.Output =

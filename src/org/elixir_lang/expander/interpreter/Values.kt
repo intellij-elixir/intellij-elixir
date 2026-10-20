@@ -182,33 +182,84 @@ internal fun bitstring(bytes: ByteArray, padBits: Int): OtpErlangBitstr =
  * Declines where the two keys differ in a zero's sign.
  */
 internal fun mapOf(entries: List<Pair<OtpErlangObject, OtpErlangObject>>, level: ElixirLanguageLevel): OtpErlangMap {
-    val map = LinkedHashMap<OtpErlangObject, OtpErlangObject>()
+    val keys = mutableListOf<OtpErlangObject>()
+    val values = mutableListOf<OtpErlangObject>()
+    val byHash = mutableMapOf<Int, MutableList<Int>>()
 
     for ((key, value) in entries) {
         known(key)
         // Two captures of one function are one key in Elixir, but a closure is equal only to itself.
         if (holdsClosure(key)) decline("a function in a map key")
 
-        val held = keyIn(map.keys, key, level)
+        val at = indexIn(keys, key, level, byHash[key.hashCode()].orEmpty())
 
-        // Which of the two the map keeps depends on how the VM holds it and on what the compiler folded.
-        if (held != null && differInSign(held, key)) decline("which of %s and %s a map keeps", held, key)
-        map[held ?: key] = value
+        if (at == null) {
+            byHash.getOrPut(key.hashCode(), ::mutableListOf) += keys.size
+            keys += key
+            values += value
+        } else {
+            // Which of the two the map keeps depends on how the VM holds it and on what the compiler folded.
+            if (keys[at] !== key && holdsFloat(key) && differInSign(keys[at], key)) {
+                decline("which of %s and %s a map keeps", keys[at], key)
+            }
+            values[at] = value
+        }
     }
 
-    return OtpErlangMap(map.keys.toTypedArray(), map.values.toTypedArray())
+    return OtpErlangMap(keys.toTypedArray(), values.toTypedArray())
 }
 
 /** [map]'s value at the key exactly equal to [key] at [level], or `null` where it has none. */
-internal fun valueAt(map: OtpErlangMap, key: OtpErlangObject, level: ElixirLanguageLevel): OtpErlangObject? =
-    if (holdsFloat(known(key))) keyIn(map.keys().asList(), key, level)?.let(map::get) else map.get(key)
+internal fun valueAt(map: OtpErlangMap, key: OtpErlangObject, level: ElixirLanguageLevel): OtpErlangObject? {
+    val keys = map.keys().asList()
+
+    return indexIn(keys, known(key), level, keys.indices)?.let { map.values()[it] }
+}
 
 /**
- * The one of [keys] exactly equal to [key] at [level] where `equals` can't say: a key holding a float, as `hashCode`
- * parts `0.0` from `-0.0` on every OTP. `null` where [key] holds none, or no key is equal to it.
+ * The index of the one of [keys] exactly equal to [key] at [level]. A key holding a float is compared with each key
+ * holding one, as `hashCode` parts `0.0` from `-0.0` on every OTP; any other only with the [sameHash] keys.
  */
-private fun keyIn(keys: Collection<OtpErlangObject>, key: OtpErlangObject, level: ElixirLanguageLevel): OtpErlangObject? =
-    if (holdsFloat(key)) keys.firstOrNull { holdsFloat(it) && equal(it, key, true, level) } else null
+private fun indexIn(
+    keys: List<OtpErlangObject>,
+    key: OtpErlangObject,
+    level: ElixirLanguageLevel,
+    sameHash: Iterable<Int>,
+): Int? =
+    if (holdsFloat(key)) keys.indices.firstOrNull { holdsFloat(keys[it]) && equal(keys[it], key, true, level) }
+    else sameHash.firstOrNull { keys[it].hashCode() == key.hashCode() && sameTerm(keys[it], key) }
+
+/**
+ * Whether [left] and [right] are the one term `equals` says they are, checking for cancellation at each node: `equals`
+ * walks both whole, and a term can hold one part in many places.
+ */
+private fun sameTerm(left: OtpErlangObject?, right: OtpErlangObject?): Boolean {
+    ProgressManager.checkCanceled()
+
+    return when {
+        left === right -> true
+        left == null || right == null -> false
+        left is OtpErlangTuple ->
+            right is OtpErlangTuple && left.arity() == right.arity() &&
+                (0 until left.arity()).all { sameTerm(left.elementAt(it), right.elementAt(it)) }
+        left is OtpErlangList ->
+            right is OtpErlangList && left.arity() == right.arity() &&
+                (0 until left.arity()).all { sameTerm(left.elementAt(it), right.elementAt(it)) } &&
+                sameTerm(left.lastTail, right.lastTail)
+        left is OtpErlangMap -> right is OtpErlangMap && left.arity() == right.arity() && sameEntries(left, right)
+        else -> left == right
+    }
+}
+
+private fun sameEntries(left: OtpErlangMap, right: OtpErlangMap): Boolean {
+    val keys = right.keys().asList()
+    val values = right.values()
+    val byHash = keys.indices.groupBy { keys[it].hashCode() }
+
+    return entries(left).all { (key, value) ->
+        byHash[key.hashCode()].orEmpty().firstOrNull { sameTerm(keys[it], key) }?.let { sameTerm(values[it], value) } == true
+    }
+}
 
 private fun holdsFloat(term: OtpErlangObject): Boolean {
     ProgressManager.checkCanceled()

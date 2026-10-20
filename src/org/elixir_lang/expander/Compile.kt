@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.ExpansionResult.Ended
 import org.elixir_lang.expander.ExpansionResult.Owner
@@ -127,6 +128,8 @@ internal class Compiling(body: ElixirAst, level: ElixirLanguageLevel) {
 
     /** A block's expressions are statements, and so is what a statement that is a match binds, which runs where it does. */
     private fun addStatements(node: ElixirAst) {
+        ProgressManager.checkCanceled()
+
         if (node is ElixirAst.Block) {
             node.expressions.forEach(::addStatements)
         } else {

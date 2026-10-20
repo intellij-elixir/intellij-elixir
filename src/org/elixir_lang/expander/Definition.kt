@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.io.OSAgnosticPathUtil
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.DefinitionTable.Kind
@@ -153,8 +154,10 @@ internal fun define(
  * The literal [fragment]'s value [term] is, if it is one a definition can hold: the code `unquote` inserts, in which a
  * tuple of three is a call and one of any other size but two isn't code at all.
  */
-internal fun literalOf(fragment: ElixirAst, term: Term): ElixirAst? =
-    when (term) {
+internal fun literalOf(fragment: ElixirAst, term: Term): ElixirAst? {
+    ProgressManager.checkCanceled()
+
+    return when (term) {
         is Term.Atom -> ElixirAst.Literal.Atom(fragment.meta, term.name)
         is Term.Integer -> ElixirAst.Literal.Integer(fragment.meta, term.value)
         is Term.Binary -> term.bytes?.let { ElixirAst.Literal.Binary(fragment.meta, it) }
@@ -167,6 +170,7 @@ internal fun literalOf(fragment: ElixirAst, term: Term): ElixirAst? =
         )
         else -> null
     }
+}
 
 /**
  * `elixir_quote:has_unquotes/1`: whether [node] makes its definition one with unquote fragments. Before
@@ -175,6 +179,8 @@ internal fun literalOf(fragment: ElixirAst, term: Term): ElixirAst? =
  * `quote` until [HAS_UNQUOTES_NAME_AT_QUOTE_LEVEL], and at the call's own level from it.
  */
 private fun hasUnquotes(node: ElixirAst, level: ElixirLanguageLevel, quoteLevel: Int = 0): Boolean {
+    ProgressManager.checkCanceled()
+
     val arguments = (node as? ElixirAst.Call)?.arguments
     val unquote = isCall(node, "unquote", 1) || isCall(node, "unquote_splicing", 1)
 
@@ -239,6 +245,8 @@ private class Unquotes {
     var stop: ElixirAst? = null
 
     fun collect(node: ElixirAst) {
+        ProgressManager.checkCanceled()
+
         when {
             isCall(node, "unquote", 1) -> (node as ElixirAst.Call).let { fragments[it.arguments!!.single()] = it }
             isCall(node, "quote", 1) -> {}
@@ -264,6 +272,8 @@ private class Unquotes {
      * escape stopped at, and holds only the expressions.
      */
     fun order(output: ElixirAst, pieces: MutableList<Piece>, escaped: Boolean = true) {
+        ProgressManager.checkCanceled()
+
         val fragment = fragments[output]
 
         when {
@@ -300,6 +310,8 @@ internal fun children(node: ElixirAst): List<ElixirAst> =
 
 /** [node] with each node in [replacements] replaced, rebuilding only what holds a replaced node. */
 internal fun substitute(node: ElixirAst, replacements: Map<ElixirAst, ElixirAst>): ElixirAst {
+    ProgressManager.checkCanceled()
+
     replacements[node]?.let { return it }
 
     if (replacements.isEmpty()) return node
@@ -352,8 +364,11 @@ internal fun extractGuards(head: ElixirAst): Pair<ElixirAst, List<ElixirAst>> =
     whenArguments(head)?.takeIf { it.size == 2 }?.let { (call, guards) -> call to orGuards(guards) } ?: (head to emptyList())
 
 /** `elixir_utils:extract_or_guards/1`: each guard of [node]'s `when`s. */
-internal fun orGuards(node: ElixirAst): List<ElixirAst> =
-    whenArguments(node)?.takeIf { it.size == 2 }?.let { (guard, rest) -> listOf(guard) + orGuards(rest) } ?: listOf(node)
+internal fun orGuards(node: ElixirAst): List<ElixirAst> {
+    ProgressManager.checkCanceled()
+
+    return whenArguments(node)?.takeIf { it.size == 2 }?.let { (guard, rest) -> listOf(guard) + orGuards(rest) } ?: listOf(node)
+}
 
 /**
  * Whether `run_with_location_change/3` moves a definition into another file: whether the file of [file], the `@file` it

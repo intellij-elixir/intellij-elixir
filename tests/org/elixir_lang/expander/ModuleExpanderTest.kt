@@ -727,6 +727,25 @@ class ModuleExpanderTest : ExpanderTestCase() {
         assertCancelledAt("($TREE :erlang.length(:lists.flatten(t)))", unwalked + (1 shl DOUBLINGS) / 2)
     }
 
+    /** A macro ordering two such lists is cancelled while it compares them, once it has walked each. */
+    fun testAComparisonIsCancelledAsItWalks() {
+        val trees = "$TREE ${TREE.replace("t", "u")}"
+        // Ordering a list before a tuple compares no elements, so the walks before the comparison are counted from it.
+        val uncompared = checks("($trees :erlang.<(t, {u}))")
+
+        assertCancelledAt("($trees :erlang.<(t, u))", uncompared + (1 shl DOUBLINGS) / 2)
+    }
+
+    /** A macro ordering two equal wide bitstrings is cancelled while it compares their bits, once it has written them. */
+    fun testABitstringComparisonIsCancelledAsItScans() {
+        val bits = 1 shl 15
+        val bitstrings = "a = <<0::size($bits)>>; b = <<a::bitstring>>;"
+        // Writing the two bitstrings makes most of the checks, so the comparison's are counted from not comparing them.
+        val uncompared = checks("($bitstrings :erlang.is_bitstring(b))")
+
+        assertCancelledAt("($bitstrings :erlang.<(a, b))", uncompared + bits / 2)
+    }
+
     /** A macro ordering such a list is cancelled while it walks it for an unknown value. */
     fun testAComparedTermIsCancelledAsItIsWalked() {
         // Building the list makes most of the checks, so the walk's are counted from the same body's not ordering it.
@@ -741,6 +760,14 @@ class ModuleExpanderTest : ExpanderTestCase() {
         val unwalked = checks("($TREE :erlang.<(t, {:a}))")
 
         assertCancelledAt("($TREE :erlang.map_size(%{t => 1}))", unwalked + (1 shl DOUBLINGS) / 2)
+    }
+
+    /** A macro escaping such a list is cancelled while it escapes it. */
+    fun testAnEscapeIsCancelledAsItWalks() {
+        // Building the list makes most of the checks, so the escape's are counted from the same body's escaping `[[], []]`.
+        val unwalked = checks("($TREE :erlang.length(Macro.escape([[], []])))")
+
+        assertCancelledAt("($TREE :erlang.length(Macro.escape(t)))", unwalked + (1 shl DOUBLINGS) / 2)
     }
 
     /** A macro unquoting a pair that holds itself twice at every depth is cancelled while it validates it. */

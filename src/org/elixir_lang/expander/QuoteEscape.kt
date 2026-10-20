@@ -15,6 +15,7 @@ import com.ericsson.otp.erlang.OtpErlangPort
 import com.ericsson.otp.erlang.OtpErlangRef
 import com.ericsson.otp.erlang.OtpErlangString
 import com.ericsson.otp.erlang.OtpErlangTuple
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SPEC_NAME_EXPANDED_AS_CALL
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_ENTRIES_QUOTED_APART
@@ -194,6 +195,8 @@ internal fun <I> annotation(view: EscapeView<I>, tuple: Shape.Tuple<I>, level: E
  * one.
  */
 internal fun <I> definitionHead(view: EscapeView<I>, head: I, level: ElixirLanguageLevel): I? {
+    ProgressManager.checkCanceled()
+
     val tuple = (view.shape(head) as? Shape.Tuple)?.takeIf { it.elements.size == 3 } ?: return null
     val left = properList(view, tuple.elements[2])?.takeIf { it.size == 2 }?.first()
         ?.takeIf { QUOTED_DEF_CONTEXT_SKIPS_GUARD.isSufficient(level) && (view.shape(tuple.elements[0]) as? Shape.Atom)?.name == "when" }
@@ -353,6 +356,8 @@ internal class QuoteEscape<I, O> private constructor(
 
     /** `do_quote/2`, its heads in Elixir's order. */
     private fun doQuote(input: I, unquote: Boolean): O {
+        ProgressManager.checkCanceled()
+
         val shape = view.shape(input)
         val tuple = shape as? Shape.Tuple
         val q = quote
@@ -843,8 +848,10 @@ internal sealed interface AstTerm {
  * token metadata.
  */
 internal class ParsedMeta(private val columns: Boolean, private val lineOffset: Int = 0) {
-    fun pairs(keys: List<Meta.Key>): List<Pair<String, Meta.Value>> =
-        keys.flatMap { key ->
+    fun pairs(keys: List<Meta.Key>): List<Pair<String, Meta.Value>> {
+        ProgressManager.checkCanceled()
+
+        return keys.flatMap { key ->
             when (key) {
                 is Meta.Key.Location -> listOfNotNull(
                     "line" to Meta.Value.Integer((key.position.line + lineOffset).toLong()),
@@ -853,10 +860,13 @@ internal class ParsedMeta(private val columns: Boolean, private val lineOffset: 
                 is Meta.Key.Entry -> if (key.tokenMetadata) emptyList() else listOf(key.name to key.value)
             }
         }
+    }
 
     /** The code that builds [value]. */
-    fun code(s: Synthetic, value: Meta.Value): ElixirAst =
-        when (value) {
+    fun code(s: Synthetic, value: Meta.Value): ElixirAst {
+        ProgressManager.checkCanceled()
+
+        return when (value) {
             is Meta.Value.Atom -> s.atom(value.name)
             is Meta.Value.Integer -> s.integer(value.value.toBigInteger())
             is Meta.Value.Binary -> ElixirAst.Literal.Binary(s.meta(), value.text.toByteArray(Charsets.UTF_8))
@@ -864,6 +874,7 @@ internal class ParsedMeta(private val columns: Boolean, private val lineOffset: 
             is Meta.Value.List -> s.list(value.elements.map { code(s, it) })
             is Meta.Value.Tuple -> s.tuple(*value.elements.map { code(s, it) }.toTypedArray())
         }
+    }
 
     fun shape(value: Meta.Value): Shape<AstTerm> =
         when (value) {

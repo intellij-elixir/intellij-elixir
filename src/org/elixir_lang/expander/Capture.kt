@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.CAPTURE_ARGUMENT_BELOW_ONE_IS_INVALID_ARITY
 import org.elixir_lang.language_level.ElixirLanguageFeature.CAPTURE_ARGUMENT_COUNTER
@@ -319,8 +320,10 @@ private class Escape(private val run: Run, private val module: String?) {
     var error: Expansion.Error? = null
         private set
 
-    fun escape(node: ElixirAst): ElixirAst =
-        if (error != null) {
+    fun escape(node: ElixirAst): ElixirAst {
+        ProgressManager.checkCanceled()
+
+        return if (error != null) {
             node
         } else {
             when (node) {
@@ -337,6 +340,7 @@ private class Escape(private val run: Run, private val module: String?) {
                 is ElixirAst.Literal, is ElixirAst.Placeholder -> node
             }
         }
+    }
 
     private fun argument(node: ElixirAst.Call): ElixirAst {
         val position = (node.arguments?.singleOrNull() as? ElixirAst.Literal.Integer)?.value
@@ -397,7 +401,12 @@ private fun argumentsFromArity(amp: ElixirAst, arity: ElixirAst): List<ElixirAst
 
 /** `check_sequential_and_not_empty/1`: [args] are `&1` to `&N` in order, and there is at least one. */
 private fun arguments(args: List<ElixirAst>): Arguments =
-    if (args.isNotEmpty() && args.withIndex().all { (index, arg) -> isCaptureArgument(arg, index + 1) }) {
+    if (args.isNotEmpty() && args.withIndex().all { (index, arg) ->
+            ProgressManager.checkCanceled()
+
+            isCaptureArgument(arg, index + 1)
+        }
+    ) {
         Arguments.SEQUENTIAL
     } else {
         Arguments.NON_SEQUENTIAL

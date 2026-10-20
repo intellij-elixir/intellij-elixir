@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.ANONYMOUS_CALL_OF_ATOM_REFUSED
 import org.elixir_lang.language_level.ElixirLanguageFeature.CLAUSES_REFUSED_IN_CALL
@@ -521,6 +522,8 @@ private fun signed(name: String, number: Term): Term =
 /** `assert_no_clauses/4`: whether the last of [args] is a keyword list with `->` clauses as a value. */
 private fun hasClauses(args: List<ElixirAst>): Boolean {
     for (element in (args.lastOrNull() as? ElixirAst.ListNode)?.elements.orEmpty()) {
+        ProgressManager.checkCanceled()
+
         val (key, value) = (element as? ElixirAst.Tuple)?.elements?.takeIf { it.size == 2 } ?: return false
 
         if (key !is ElixirAst.Literal.Atom) return false

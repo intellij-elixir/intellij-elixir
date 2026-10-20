@@ -318,6 +318,8 @@ internal inline fun mapfold(
     val values = ArrayList<Term>(nodes.size)
 
     for (node in nodes) {
+        ProgressManager.checkCanceled()
+
         when (val expansion = expand(node, accState, accEnv)) {
             is Expansion.Expanded -> {
                 accState = expansion.state
@@ -454,8 +456,10 @@ internal fun whenArguments(node: ElixirAst): List<ElixirAst>? =
  * [node] in the shape its expansion has, as far as a ported clause's check reads it: a block of one expression is that
  * expression, an empty block is `nil`, and an alias is an atom. Every other ported clause keeps its node's shape.
  */
-internal fun expandedShape(node: ElixirAst): ElixirAst =
-    when (node) {
+internal fun expandedShape(node: ElixirAst): ElixirAst {
+    ProgressManager.checkCanceled()
+
+    return when (node) {
         is ElixirAst.Block ->
             when (node.expressions.size) {
                 0 -> ElixirAst.Literal.Atom(node.meta, "nil")
@@ -469,3 +473,4 @@ internal fun expandedShape(node: ElixirAst): ElixirAst =
                 .let { concat(it)?.let { name -> ElixirAst.Literal.Atom(node.meta, name) } ?: node }
         else -> node
     }
+}

@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILER_PARSES_COLUMNS
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_EXTENSION_META_ESCAPED
 import org.elixir_lang.language_level.ElixirLanguageFeature.QUOTE_IMPORTS_EVERY_ARITY
@@ -315,6 +316,8 @@ internal object Quote {
         level: ElixirLanguageLevel,
         inPattern: Boolean,
     ): Boolean {
+        ProgressManager.checkCanceled()
+
         fun holds(child: ElixirAst) = holdsCall(child, state, env, level, inPattern)
 
         return when (node) {
@@ -340,6 +343,8 @@ internal object Quote {
 
     /** [node] with each node in it marked [Meta.built], for an expansion the observer is told of once already. */
     private fun builtCopy(node: ElixirAst): ElixirAst {
+        ProgressManager.checkCanceled()
+
         val meta = node.meta.let { Meta(it.origin, it.start, it.end, it.keys, built = true) }
 
         return when (node) {
@@ -459,6 +464,8 @@ internal object Quote {
         val list = expandedShape(value) as? ElixirAst.ListNode ?: throw invalid
 
         return list.elements.map { element ->
+            ProgressManager.checkCanceled()
+
             val pair = (expandedShape(element) as? ElixirAst.Tuple)?.takeIf { it.elements.size == 2 } ?: throw invalid
             val key = when (val key = pair.elements[0]) {
                 is ElixirAst.Alias -> atomValue(key, env, level) ?: throw Stop(Expansion.Unported(key))
@@ -483,8 +490,10 @@ internal object Quote {
             ?: value
 
     /** `elixir_quote:has_unquotes/2`. */
-    private fun hasUnquotes(node: ElixirAst, level: Int): Boolean =
-        when {
+    private fun hasUnquotes(node: ElixirAst, level: Int): Boolean {
+        ProgressManager.checkCanceled()
+
+        return when {
             isCall(node, "quote", 1) -> hasUnquotes((node as ElixirAst.Call).arguments!!.single(), level + 1)
             isCall(node, "quote", 2) -> {
                 val (opts, child) = (node as ElixirAst.Call).arguments!!
@@ -503,6 +512,7 @@ internal object Quote {
             node is ElixirAst.ListNode -> node.elements.any { hasUnquotes(it, level) }
             else -> false
         }
+    }
 
     /** `disables_unquote/1`: `unquote: false` or any `bind_quoted:` in a list of options. */
     private fun disablesUnquote(opts: ElixirAst): Boolean =

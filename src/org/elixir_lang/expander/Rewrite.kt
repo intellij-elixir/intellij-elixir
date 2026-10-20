@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature
 import org.elixir_lang.language_level.ElixirLanguageFeature.ATOM_TO_STRING_INLINED
@@ -65,6 +66,8 @@ internal val GUARD_BIFS_SINCE = mapOf(
  * `impossible`, as it does for anything but a proper list whose tails are written as lists.
  */
 internal fun staticAppend(left: Term, right: Term): Term? {
+    ProgressManager.checkCanceled()
+
     if (left !is Term.List) return null
 
     val tail = left.tail ?: return if (left.elements.isEmpty()) right else Term.List(left.elements, right)

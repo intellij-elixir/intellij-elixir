@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageFeature.VAR_BANG_IF_UNDEFINED
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
@@ -119,8 +120,10 @@ internal fun linifyWithContextCounter(
 
     fun counted(meta: Meta, isCounted: Boolean): Meta = lined(if (isCounted) keynew(meta, "counter", counterValue) else meta)
 
-    fun linify(node: ElixirAst): ElixirAst =
-        when (node) {
+    fun linify(node: ElixirAst): ElixirAst {
+        ProgressManager.checkCanceled()
+
+        return when (node) {
             is ElixirAst.Call -> {
                 val name = (node.callee as? ElixirAst.Literal.Atom)?.name
                 val arguments = node.arguments
@@ -141,6 +144,7 @@ internal fun linifyWithContextCounter(
             is ElixirAst.Placeholder -> ElixirAst.Placeholder(lined(node.meta), node.reason)
             is ElixirAst.Literal -> node
         }.also { onNode(node, it) }
+    }
 
     return linify(node)
 }

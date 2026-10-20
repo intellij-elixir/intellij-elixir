@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.DefinitionTable.Kind
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILER_PARSES_COLUMNS
@@ -95,8 +96,11 @@ private fun <At> sorted(
         .distinctBy(key)
 }
 
-private fun <At> LocalCall<At>.withArguments(): List<LocalCall<At>> =
-    listOf(this) + arguments.flatMap { it.withArguments() }
+private fun <At> LocalCall<At>.withArguments(): List<LocalCall<At>> {
+    ProgressManager.checkCanceled()
+
+    return listOf(this) + arguments.flatMap { it.withArguments() }
+}
 
 private data class SortKey(val caller: NameArity?, val position: List<Int>, val called: NameArity) {
     companion object {
@@ -135,12 +139,16 @@ private class Traversal<At>(
     }
 
     private fun visit(definition: NameArity) {
+        ProgressManager.checkCanceled()
+
         if (visited.add(definition)) {
             calls[definition].orEmpty().forEach { walk(it, definition) }
         }
     }
 
     private fun walk(call: LocalCall<At>, caller: NameArity) {
+        ProgressManager.checkCanceled()
+
         if (!callBeforeArguments) call.arguments.forEach { walk(it, caller) }
 
         when (val error = errorOf(kinds, call, caller)) {

@@ -1,6 +1,7 @@
 package org.elixir_lang.expander
 
 import com.ericsson.otp.erlang.OtpErlangObject
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.expander.ExState.Prematch.Dependency
 import org.elixir_lang.expander.ExState.Prematch.InMatch
 import org.elixir_lang.expander.ExState.Write
@@ -91,6 +92,8 @@ private fun parallelBitstring(
     env: Env,
     level: ElixirLanguageLevel,
 ): Expansion? {
+    ProgressManager.checkCanceled()
+
     fun each(lefts: List<ElixirAst>, rights: List<ElixirAst>) =
         lefts.zip(rights).firstNotNullOfOrNull { (l, r) ->
             parallelBitstring(expandedShape(l), expandedShape(r), parallel, env, level)
@@ -162,7 +165,11 @@ private fun mayHoldBitstring(node: ElixirAst, level: ElixirLanguageLevel): Boole
 
 private fun fields(map: ElixirAst): List<Pair<ElixirAst, ElixirAst>> =
     (map as ElixirAst.Call).arguments!!
-        .mapNotNull { field -> (expandedShape(field) as? ElixirAst.Tuple)?.elements?.takeIf { it.size == 2 } }
+        .mapNotNull { field ->
+            ProgressManager.checkCanceled()
+
+            (expandedShape(field) as? ElixirAst.Tuple)?.elements?.takeIf { it.size == 2 }
+        }
         .map { (key, value) -> key to value }
 
 /** The fields whose keys are literals, by the key's term. */
@@ -175,6 +182,8 @@ private fun literalKeyed(
 
 /** `elixir_clauses:unpack_match/4`: a chain of matches as its sides, left to right. */
 private fun unpackMatch(node: ElixirAst, acc: List<ElixirAst>): List<ElixirAst> {
+    ProgressManager.checkCanceled()
+
     if (!isCall(node, "=", 2)) return listOf(node) + acc
 
     val (left, right) = (node as ElixirAst.Call).arguments!!
@@ -198,6 +207,8 @@ private fun storeCycles(writes: List<Map<Variable, Int>>, prematch: InMatch): St
         val dependsOn = acc.keys + writes.drop(index + 1).flatMap { it.keys }
 
         cycles = write.keys.fold(cycles) { accCycles, variable ->
+            ProgressManager.checkCanceled()
+
             val current = accCycles[variable]
             val updated = if (current == null) {
                 dependsOn.associateWith { Dependency.ONE_SIDE }
@@ -223,6 +234,8 @@ private fun isCyclic(prematch: InMatch): Boolean {
     var seen = emptyMap<Variable, Boolean>()
 
     for (current in prematch.cycles.keys.sortedWith(VARIABLE_ORDER)) {
+        ProgressManager.checkCanceled()
+
         seen = recurCycles(prematch, current, null, seen) ?: return true
     }
 
@@ -240,6 +253,8 @@ private fun recurCycles(
     source: Variable?,
     seen: Map<Variable, Boolean>,
 ): Map<Variable, Boolean>? {
+    ProgressManager.checkCanceled()
+
     if (current in seen) return seen
 
     val dependsOn = prematch.cycles.getValue(current)
