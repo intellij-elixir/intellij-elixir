@@ -135,26 +135,19 @@ internal object UseSymbols {
     fun namedByHead(delegation: Call): List<Symbol> =
         if (Delegation.headKeepsTargetName(delegation)) delegatedTo(delegation) else emptyList()
 
-    /** What [delegation] calls, as `T.f/1`, when it delegates to nothing that takes what its head passes on. */
-    @RequiresReadLock
-    fun unfoundTarget(delegation: Call): String? {
-        if (delegatedTo(delegation).isNotEmpty()) return null
-
-        val use = headUse(delegation) ?: return null
-        val passed = atItsHead(delegation, use, Feature.SYMBOL_REFERENCES)?.let { passed(it, use) } ?: use.arity
-
-        return Delegation.fromCall(delegation)?.to()?.let { "$it.${use.name}/$passed" }
-    }
-
     /**
      * The delegation whose name [leaf] is, when its head names [symbol], directly or down a chain of delegations without
      * `as:`: [namedByHead] read the other way, at one occurrence of [symbol]'s name.
      */
     @RequiresReadLock
-    fun namingByHead(leaf: PsiElement, symbol: Symbol): Call? {
+    fun namingByHead(
+        leaf: PsiElement,
+        symbol: Symbol,
+        calledThrough: (Call) -> List<PsiElement> = ::definitionsCalledThrough
+    ): Call? {
         val delegation = DeclaringForm.named(leaf)?.takeIf { it.form == Form.DELEGATION }?.call ?: return null
 
-        return delegation.takeIf { definitionsCalledThrough(it).any { definition -> names(definition, symbol, leaf) } }
+        return delegation.takeIf { calledThrough(it).any { definition -> names(definition, symbol, leaf) } }
     }
 
     /** Whether [definition] is one of [symbol]'s, for a use at [at]. */
@@ -176,8 +169,11 @@ internal object UseSymbols {
      * chain of delegations without `as:`.
      */
     @RequiresReadLock
-    fun definitionsCalledThrough(delegation: Call): List<PsiElement> =
-        (reachable<PsiElement>(delegation) { (it as? Call)?.let(::definitionsNamedByHead).orEmpty() } - delegation).toList()
+    fun definitionsCalledThrough(
+        delegation: Call,
+        namedByHead: (Call) -> List<PsiElement> = ::definitionsNamedByHead
+    ): List<PsiElement> =
+        (reachable<PsiElement>(delegation) { (it as? Call)?.let(namedByHead).orEmpty() } - delegation).toList()
 
     /** What the step finds [delegation] delegating to at the use its head is, with the arity the head passes on. */
     @RequiresReadLock

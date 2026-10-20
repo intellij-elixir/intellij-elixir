@@ -15,6 +15,7 @@ import com.intellij.psi.SmartPointerManager
 import com.intellij.psi.search.SearchScope
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.ElixirRenameTarget
+import org.elixir_lang.model.psi.RenameClosure
 import org.elixir_lang.model.psi.function.FunctionSymbol
 import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.CallDefinitionClause
@@ -101,6 +102,9 @@ class ProtocolFunction(
     /** Whether [definition] declares this protocol function at its arity. */
     @RequiresReadLock
     fun matches(definition: PsiElement): Boolean = this in UseSymbols.symbols(definition, name, arity)
+
+    @RequiresReadLock
+    override fun renameClosure(): RenameClosure = FunctionSymbol.renameClosure(this)
 
     override fun equals(other: Any?): Boolean =
         other is ProtocolFunction &&

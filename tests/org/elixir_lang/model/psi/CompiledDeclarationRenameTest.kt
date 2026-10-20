@@ -6,6 +6,7 @@ import com.intellij.testFramework.common.runAll
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
 import org.elixir_lang.code_insight.psiUsagesAtCaret
+import org.elixir_lang.code_insight.renameTargetAtCaret
 import org.elixir_lang.code_insight.renameTargetsAtCaret
 import java.io.File
 
@@ -41,6 +42,32 @@ class CompiledDeclarationRenameTest : PlatformTestCase() {
               def run, do: :queue.new()
             end
             """
+        )
+    }
+
+    /**
+     * A delegation without `as:` to a compiled function renames its head and calls and gains `as:`, and the compiled
+     * function keeps its name, at its project call too. Find Usages from the head still lists the compiled declaration
+     * and that call.
+     */
+    fun testRenamingADelegationToACompiledFunctionAddsAs() {
+        val text = "defmodule Facade do\n  defdelegate new(), to: :queue\n  def run, do: :queue.new()\n  def use, do: Facade.new()\nend\n"
+        myFixture.configureByText("facade.ex", text)
+        myFixture.editor.caretModel.moveToOffset(text.indexOf("new()") + 1)
+
+        val usages = myFixture.psiUsagesAtCaret(project)
+
+        assertTrue("the compiled declaration: $usages", usages.any { it.file != myFixture.file })
+        assertTrue(
+            "the project call of the compiled function: $usages",
+            usages.any { it.file == myFixture.file && text.substring(it.range.startOffset).startsWith("new()\n  def use") }
+        )
+
+        myFixture.renameTargetAtCaret("fresh")
+
+        assertEquals(
+            "defmodule Facade do\n  defdelegate fresh(), to: :queue, as: :new\n  def run, do: :queue.new()\n  def use, do: Facade.fresh()\nend\n",
+            myFixture.file.text
         )
     }
 

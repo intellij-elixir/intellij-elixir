@@ -14,6 +14,8 @@ import com.intellij.psi.SmartPointerManager
 import com.intellij.psi.search.SearchScope
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.ElixirRenameTarget
+import org.elixir_lang.model.psi.RenameClosure
+import org.elixir_lang.model.psi.function.FunctionSymbol
 import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
 import org.elixir_lang.structure_view.element.CallDefinitionHead
@@ -89,6 +91,9 @@ class Callback(
         TargetPresentation.builder("$name/$arity")
             .icon(AllIcons.Nodes.AbstractMethod)
             .presentation()
+
+    @RequiresReadLock
+    override fun renameClosure(): RenameClosure = FunctionSymbol.renameClosure(this)
 
     override fun equals(other: Any?): Boolean =
         other is Callback &&

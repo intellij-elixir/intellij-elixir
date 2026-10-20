@@ -72,6 +72,21 @@ class InPlaceRenameTest : InPlaceSymbolRenameTestCase() {
         )
     }
 
+    /** A delegation without `as:` whose target is not found gains `as:` with its old name. */
+    fun testDelegationToAnUnresolvableTargetInPlaceRename() {
+        myFixture.configureByText(
+            "delegation.ex",
+            "defmodule M do\n  defdelegate sn<caret>oc(q), to: T\n  def m_use, do: M.snoc(1)\nend\n"
+        )
+
+        inPlaceRenameAtCaret("cons")
+
+        assertEquals(
+            "defmodule M do\n  defdelegate cons(q), to: T, as: :snoc\n  def m_use, do: M.cons(1)\nend\n",
+            myFixture.editor.document.text
+        )
+    }
+
     fun testDefaultArgumentsInPlaceRename() {
         myFixture.configureByFiles("default_arguments.ex")
 

@@ -2,10 +2,13 @@ package org.elixir_lang.model.psi.function
 
 import com.intellij.ide.impl.HeadlessDataManager
 import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.psi.search.GlobalSearchScope
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
+import org.elixir_lang.code_insight.renameTargetDirectly
 import org.elixir_lang.code_insight.renameTargetsAtCaret
+import java.time.Duration
 
 /**
  * Without `as:`, a `defdelegate`'s head also names the function it delegates to, so the two are one function to rename
@@ -145,26 +148,62 @@ class DelegationRenameTest : PlatformTestCase() {
     }
 
     /**
-     * Without `as:`, renaming only the head and its calls would leave the delegation calling a function that is not
-     * there, so a rename whose target is found at no arity the head passes on is refused, from the head and from a use.
+     * Without `as:`, a delegation whose target is not found calls it by the head's name, so renaming the head and its
+     * calls adds `as:` with the old name, from the head and from a use.
      */
-    fun testRenameIsRefusedAtAWrongArityTarget() {
-        assertRefused(WRONG_ARITY, "d(a), to:", "its target T.d/1 is not found")
-        assertRefused(WRONG_ARITY, "d(1)\nend\n", "its target T.d/1 is not found")
+    fun testRenameAddsAsAtAnUnresolvableTarget() =
+        assertRenamesFrom(UNRESOLVABLE, UNRESOLVABLE.replace("snoc", "cons").replace("to: T", "to: T, as: :snoc"))
+
+    fun testRenameAddsAsAtAWrongArityTarget() =
+        assertRenamesFrom(
+            WRONG_ARITY,
+            WRONG_ARITY.replace("defdelegate snoc(q), to: T", "defdelegate cons(q), to: T, as: :snoc")
+                .replace("M.snoc(1)", "M.cons(1)")
+        )
+
+    /** A target declared by `EEx.function_from_string` cannot be renamed, so it keeps its name and the head gains `as:`. */
+    fun testRenameAddsAsAtAnEExTarget() =
+        assertRenamesFrom(
+            EEX,
+            EEX.replace("defdelegate snoc(q), to: T", "defdelegate cons(q), to: T, as: :snoc")
+                .replace("M.snoc(1)", "M.cons(1)")
+        )
+
+    /** Along a chain, only the delegation whose target is not found gains `as:`; the one before it renames with it. */
+    fun testRenameAddsAsAtTheEndOfAChain() =
+        assertRenamesFrom(
+            CHAIN,
+            CHAIN.replace("x(", "y(").replace("to: Nowhere", "to: Nowhere, as: :x"),
+            "defdelegate x|(a), to: N",
+            "M.x|(1)"
+        )
+
+    /** Options written as a bracketed keyword list take the `as:` inside the brackets. */
+    fun testRenameAddsAsInsideBracketedOptions() =
+        assertRenamesFrom(BRACKETED, BRACKETED.replace("snoc", "cons").replace("[to: T]", "[to: T, as: :snoc]"))
+
+    /** Options on their own line take the `as:` after the last of them. */
+    fun testRenameAddsAsAfterOptionsOnTheirOwnLine() =
+        assertRenamesFrom(OWN_LINE, OWN_LINE.replace("snoc", "cons").replace("to: T\n", "to: T, as: :snoc\n"))
+
+    /** A rename searched in a scope without the delegation still renames its head, so the head still gains its `as:`. */
+    fun testRenameInAScopeWithoutTheDelegationStillAddsAs() {
+        val m = myFixture.addFileToProject("m.ex", UNRESOLVABLE)
+        val caller = myFixture.configureByText("caller.ex", "defmodule Caller do\n  def run, do: M.sn<caret>oc(1)\nend\n")
+
+        myFixture.renameTargetDirectly(myFixture.renameTargetsAtCaret().single(), "cons", GlobalSearchScope.fileScope(caller))
+
+        assertEquals(UNRESOLVABLE.replace("defdelegate snoc(q), to: T", "defdelegate cons(q), to: T, as: :snoc"), m.text)
     }
 
-    fun testRenameIsRefusedAtAnUnresolvableTarget() {
-        assertRefused(UNRESOLVABLE, "d(a), to:", "its target Nowhere.d/1 is not found")
-        assertRefused(UNRESOLVABLE, "d(1)\nend\n", "its target Nowhere.d/1 is not found")
-    }
-
-    /** A delegation renamed with the one the rename starts from would be left calling a function that is not there too. */
-    fun testRenameIsRefusedAlongAChain() {
-        val reason = "a function renamed with it delegates without `as:`, and its target Nowhere.x/1 is not found"
-
-        assertRefused(CHAIN, "x(a), to: N", reason)
-        assertRefused(CHAIN, "x(1)\nend\n", reason)
-    }
+    fun testRenameAddsAsAtTheEndOfAChainToAnEExTarget() =
+        assertRenamesFrom(
+            CHAIN_TO_EEX,
+            CHAIN_TO_EEX.replace("defdelegate x(a), to: N", "defdelegate y(a), to: N").replace("M.x(1)", "M.y(1)")
+                .replace("defdelegate x(a), to: T", "defdelegate y(a), to: T, as: :x"),
+            "defdelegate x|(a), to: N",
+            "M.x|(1)"
+        )
 
     /** With options that are not a keyword list, there is no `as:` to keep the delegation calling its target by. */
     fun testRenameIsRefusedWhenTheOptionsAreNotAKeywordList() {
@@ -182,11 +221,161 @@ class DelegationRenameTest : PlatformTestCase() {
         assertRefused(CHAIN_TO_OPTIONS, "x(1)\nend\n", reason)
     }
 
+    /**
+     * Of two implementations of one protocol function by a delegation, the refusal for the one whose options are not a
+     * keyword list is its own from its head, and another's from the other's head.
+     */
+    fun testRenameIsRefusedForTheImplementationWhoseOptionsAreNotAKeywordList() {
+        assertRefused(
+            IMPLEMENTATIONS_WITH_OPTIONS,
+            "snoc(list), to: Missing",
+            "a function renamed with it delegates without `as:`, and its options are not a keyword list, so `as:` cannot be added"
+        )
+        assertRefused(
+            IMPLEMENTATIONS_WITH_OPTIONS,
+            "snoc(map), @opts",
+            "its options are not a keyword list, so `as:` cannot be added"
+        )
+    }
+
     /** A delegation a `quote` injects is called in modules not known until the `quote` is used, even with a found target. */
     fun testRenameIsRefusedAtAnInjectedHeadWithAFoundTarget() {
         assertRefused(INJECTED, "d(a), to:", "declared by `quote`")
         assertRefused(INJECTED, "d(1)\nend\n", "declared by `quote`")
+        assertRefused(INJECTED, "d(a), do: a", "declared by `quote`")
     }
+
+    /**
+     * A delegation whose target's own rename is refused, here by a delegation a `quote` injects that renames with the
+     * target, gains `as:` instead of being refused.
+     */
+    fun testRenameAddsAsWhereTheTargetIsRefusedThroughAnInjectedDelegation() {
+        val text = "$INJECTED\ndefmodule F do\n  defdelegate d(a), to: T\n  def f_use, do: F.d(1)\nend\n"
+
+        assertRenamesFrom(
+            text,
+            text.replace(
+                "defdelegate d(a), to: T\n  def f_use, do: F.d(1)",
+                "defdelegate cons(a), to: T, as: :d\n  def f_use, do: F.cons(1)"
+            ),
+            "defdelegate d|(a), to: T\n  def f_use",
+            "F.d|(1)"
+        )
+    }
+
+    /**
+     * In a chain to a target whose own rename is refused, only the delegation calling that target gains `as:`; one
+     * delegating to it renames with it, from every caret.
+     */
+    fun testRenameAddsAsOnlyWhereTheChainReachesTheRefusedTarget() {
+        val text =
+            "$INJECTED\ndefmodule F do\n  defdelegate d(a), to: T\n  def f_use, do: F.d(1)\nend\n\n" +
+                "defmodule Y do\n  defdelegate d(a), to: F\n  def y_use, do: Y.d(1)\nend\n"
+
+        assertRenamesFrom(
+            text,
+            text.replace(
+                "defdelegate d(a), to: T\n  def f_use, do: F.d(1)",
+                "defdelegate cons(a), to: T, as: :d\n  def f_use, do: F.cons(1)"
+            ).replace(
+                "defdelegate d(a), to: F\n  def y_use, do: Y.d(1)",
+                "defdelegate cons(a), to: F\n  def y_use, do: Y.cons(1)"
+            ),
+            "defdelegate d|(a), to: T\n  def f_use",
+            "F.d|(1)",
+            "defdelegate d|(a), to: F",
+            "Y.d|(1)"
+        )
+    }
+
+    /** Renaming from a use along a long chain renames every head and the target, about as fast as along a short chain. */
+    fun testRenameAlongALongChain() {
+        val start = System.nanoTime()
+        assertRenamesFrom(LONG_CHAIN, LONG_CHAIN.replace("x(", "y("), "M.x|(1)")
+        val elapsed = Duration.ofNanos(System.nanoTime() - start)
+
+        assertTrue("the rename took $elapsed", elapsed < Duration.ofSeconds(10))
+    }
+
+    /**
+     * A `defimpl` implementing a protocol function by a delegation without `as:` keeps implementing it, whichever of
+     * the target, the delegation, the protocol function or a call of it the rename starts from.
+     */
+    fun testRenameAProtocolImplementationByDelegation() =
+        assertRenamesFrom(
+            IMPLEMENTED_BY_DELEGATION,
+            IMPLEMENTED_BY_DELEGATION.replace("snoc", "cons"),
+            "def sn|oc(x)",
+            "defdelegate sn|oc(list), to: T",
+            "def sn|oc(t)",
+            "P.sn|oc"
+        )
+
+    /** Each of two implementations by a delegation whose target is not found gains its own `as:`. */
+    fun testRenameAddsAsToEachProtocolImplementationByDelegation() =
+        assertRenamesFrom(
+            TWO_IMPLEMENTATIONS_BY_DELEGATION,
+            TWO_IMPLEMENTATIONS_BY_DELEGATION.replace("snoc", "cons")
+                .replace("to: Missing\n", "to: Missing, as: :snoc\n")
+                .replace("to: Absent\n", "to: Absent, as: :snoc\n"),
+            "def sn|oc(t)",
+            "defdelegate sn|oc(list), to: Missing",
+            "defdelegate sn|oc(map), to: Absent",
+            "P.sn|oc"
+        )
+
+    /**
+     * Of two implementations by a delegation, the one whose target is found renames with it and the one whose target is
+     * not found gains `as:`.
+     */
+    fun testRenameDecidesAsForEachProtocolImplementationByDelegation() =
+        assertRenamesFrom(
+            FOUND_AND_MISSING_IMPLEMENTATIONS,
+            FOUND_AND_MISSING_IMPLEMENTATIONS.replace("snoc", "cons").replace("to: Missing\n", "to: Missing, as: :snoc\n"),
+            "def sn|oc(t)",
+            "defdelegate sn|oc(list), to: T",
+            "defdelegate sn|oc(map), to: Missing",
+            "P.sn|oc"
+        )
+
+    /**
+     * Of two implementations by a delegation, the one another protocol's implementation delegates to takes that
+     * implementation and its protocol into the rename.
+     */
+    fun testRenameTakesTheProtocolWhoseImplementationDelegatesToOneImplementation() =
+        assertRenamesFrom(
+            IMPLEMENTATION_DELEGATED_TO,
+            IMPLEMENTATION_DELEGATED_TO.replace("size", "cons")
+                .replace("to: Missing\n", "to: Missing, as: :size\n")
+                .replace("to: Absent\n", "to: Absent, as: :size\n"),
+            "def si|ze(t)\nend\n\ndefimpl P, for: Tuple",
+            "defdelegate si|ze(t), to: Missing",
+            "defdelegate si|ze(t), to: Absent",
+            "P.si|ze(x)",
+            "Q.si|ze(x)"
+        )
+
+    /** As [testRenameAProtocolImplementationByDelegation], through a facade whose target is not found, which gains `as:`. */
+    fun testRenameAProtocolImplementationThroughAFacade() =
+        assertRenamesFrom(
+            IMPLEMENTED_THROUGH_FACADE,
+            IMPLEMENTED_THROUGH_FACADE.replace("snoc", "cons").replace("to: Missing\n", "to: Missing, as: :snoc\n"),
+            "defdelegate sn|oc(list), to: Missing",
+            "defdelegate sn|oc(list), to: Facade",
+            "def sn|oc(t)",
+            "P.sn|oc"
+        )
+
+    /** As [testRenameAProtocolImplementationByDelegation], for a callback a delegation without `as:` implements. */
+    fun testRenameACallbackImplementationByDelegation() =
+        assertRenamesFrom(
+            CALLBACK_BY_DELEGATION,
+            CALLBACK_BY_DELEGATION.replace("snoc", "cons"),
+            "def sn|oc(x)",
+            "defdelegate sn|oc(list), to: T",
+            "@callback sn|oc",
+            "Impl.sn|oc"
+        )
 
     /** The rename with the caret at [caret] in [text] is refused with a reason containing [reason], and the file is unchanged. */
     private fun assertRefused(text: String, caret: String, reason: String) {
@@ -281,8 +470,17 @@ class DelegationRenameTest : PlatformTestCase() {
                 "defmodule M do\n  defdelegate renamee(a, b \\\\ nil), to: T\n  def m_use, do: M.renamee(1)\nend\n"
 
         const val WRONG_ARITY =
-            "defmodule T do\n  def d(a, b), do: {a, b}\n  def t_use, do: T.d(1, 2)\nend\n\n" +
-                "defmodule M do\n  defdelegate d(a), to: T\n  def m_use, do: M.d(1)\nend\n"
+            "defmodule T do\n  def snoc(q, x), do: {q, x}\n  def t_use, do: T.snoc(1, 2)\nend\n\n" +
+                "defmodule M do\n  defdelegate snoc(q), to: T\n  def m_use, do: M.snoc(1)\nend\n"
+
+        const val EEX =
+            "defmodule T do\n  require EEx\n  EEx.function_from_string(:def, :snoc, \"<%= q %>\", [:q])\nend\n\n" +
+                "defmodule M do\n  defdelegate snoc(q), to: T\n  def m_use, do: M.snoc(1)\nend\n"
+
+        const val CHAIN_TO_EEX =
+            "defmodule T do\n  require EEx\n  EEx.function_from_string(:def, :x, \"<%= a %>\", [:a])\nend\n\n" +
+                "defmodule N do\n  defdelegate x(a), to: T\nend\n\n" +
+                "defmodule M do\n  defdelegate x(a), to: N\n  def m_use, do: M.x(1)\nend\n"
 
         const val INJECTED =
             "defmodule T do\n  def d(a), do: a\nend\n\n" +
@@ -297,9 +495,18 @@ class DelegationRenameTest : PlatformTestCase() {
             "defmodule N do\n  @opts [to: T]\n  defdelegate x(a), @opts\nend\n\n" +
                 "defmodule M do\n  defdelegate x(a), to: N\n  def m_use, do: M.x(1)\nend\n"
 
+        const val IMPLEMENTATIONS_WITH_OPTIONS =
+            "defprotocol P do\n  def snoc(t)\nend\n\n" +
+                "defimpl P, for: List do\n  defdelegate snoc(list), to: Missing\nend\n\n" +
+                "defimpl P, for: Map do\n  @opts [to: Absent]\n  defdelegate snoc(map), @opts\nend\n"
+
         const val OPTIONS = "defmodule M do\n  @opts [to: T]\n  defdelegate d(a), @opts\n  def m_use, do: M.d(1)\nend\n"
 
-        const val UNRESOLVABLE = "defmodule M do\n  defdelegate d(a), to: Nowhere\n  def m_use, do: M.d(1)\nend\n"
+        const val UNRESOLVABLE = "defmodule M do\n  defdelegate snoc(q), to: T\n  def m_use, do: M.snoc(1)\nend\n"
+
+        const val BRACKETED = "defmodule M do\n  defdelegate snoc(q), [to: T]\n  def m_use, do: M.snoc(1)\nend\n"
+
+        const val OWN_LINE = "defmodule M do\n  defdelegate snoc(q),\n    to: T\n\n  def m_use, do: M.snoc(1)\nend\n"
 
         const val WITH_AS =
             "defmodule T do\n  def other(x), do: x\nend\n\n" +
@@ -326,10 +533,59 @@ class DelegationRenameTest : PlatformTestCase() {
                 "defmodule User do\n  import Facade, only: [snoc: 1]\n  def call(x), do: snoc(x)\n" +
                 "  def capture, do: &Facade.snoc/1\n  def direct, do: &P.snoc/1\nend\n"
 
+        const val LONG_CHAIN_LENGTH = 18
+
+        /** `M.x/1` delegating along [LONG_CHAIN_LENGTH] delegations, from the last `D` down to `D1`, then to `T.x/1`. */
+        val LONG_CHAIN =
+            "defmodule T do\n  def x(a), do: a\nend\n\n" +
+                (1..LONG_CHAIN_LENGTH).joinToString("") { i ->
+                    "defmodule D$i do\n  defdelegate x(a), to: ${if (i == 1) "T" else "D${i - 1}"}\nend\n\n"
+                } +
+                "defmodule M do\n  defdelegate x(a), to: D$LONG_CHAIN_LENGTH\n  def m_use, do: M.x(1)\nend\n"
+
         const val PROTOCOL =
             "defprotocol P do\n  def snoc(t)\nend\n\n" +
                 "defimpl P, for: Integer do\n  def snoc(t), do: t\nend\n\n" +
                 "defmodule Facade do\n  defdelegate snoc(t), to: P\n  def p_use(x), do: P.snoc(x)\n" +
                 "  def facade_use(x), do: Facade.snoc(x)\nend\n"
+
+        const val IMPLEMENTED_BY_DELEGATION =
+            "defmodule T do\n  def snoc(x), do: x\nend\n\n" +
+                "defprotocol P do\n  def snoc(t)\nend\n\n" +
+                "defimpl P, for: List do\n  defdelegate snoc(list), to: T\nend\n\n" +
+                "defmodule U do\n  def u_use(x), do: P.snoc(x)\nend\n"
+
+        const val TWO_IMPLEMENTATIONS_BY_DELEGATION =
+            "defprotocol P do\n  def snoc(t)\nend\n\n" +
+                "defimpl P, for: List do\n  defdelegate snoc(list), to: Missing\nend\n\n" +
+                "defimpl P, for: Map do\n  defdelegate snoc(map), to: Absent\nend\n\n" +
+                "defmodule U do\n  def u_use(x), do: P.snoc(x)\nend\n"
+
+        const val FOUND_AND_MISSING_IMPLEMENTATIONS =
+            "defmodule T do\n  def snoc(x), do: x\nend\n\n" +
+                "defprotocol P do\n  def snoc(t)\nend\n\n" +
+                "defimpl P, for: List do\n  defdelegate snoc(list), to: T\nend\n\n" +
+                "defimpl P, for: Map do\n  defdelegate snoc(map), to: Missing\nend\n\n" +
+                "defmodule U do\n  def u_use(x), do: P.snoc(x)\nend\n"
+
+        const val IMPLEMENTATION_DELEGATED_TO =
+            "defprotocol P do\n  def size(t)\nend\n\n" +
+                "defimpl P, for: Tuple do\n  defdelegate size(t), to: Missing\nend\n\n" +
+                "defimpl P, for: BitString do\n  defdelegate size(t), to: Absent\nend\n\n" +
+                "defprotocol Q do\n  def size(t)\nend\n\n" +
+                "defimpl Q, for: List do\n  defdelegate size(t), to: P.BitString\nend\n\n" +
+                "defmodule U do\n  def p_use(x), do: P.size(x)\n  def q_use(x), do: Q.size(x)\nend\n"
+
+        const val IMPLEMENTED_THROUGH_FACADE =
+            "defmodule Facade do\n  defdelegate snoc(list), to: Missing\nend\n\n" +
+                "defprotocol P do\n  def snoc(t)\nend\n\n" +
+                "defimpl P, for: List do\n  defdelegate snoc(list), to: Facade\nend\n\n" +
+                "defmodule U do\n  def u_use(x), do: P.snoc(x)\nend\n"
+
+        const val CALLBACK_BY_DELEGATION =
+            "defmodule B do\n  @callback snoc(term) :: term\nend\n\n" +
+                "defmodule T do\n  def snoc(x), do: x\nend\n\n" +
+                "defmodule Impl do\n  @behaviour B\n  defdelegate snoc(list), to: T\nend\n\n" +
+                "defmodule U do\n  def u_use(x), do: Impl.snoc(x)\nend\n"
     }
 }

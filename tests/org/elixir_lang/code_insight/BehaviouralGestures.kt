@@ -33,6 +33,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.intellij.psi.search.GlobalSearchScope
+import com.intellij.psi.search.SearchScope
 import com.intellij.psi.util.PsiUtilBase
 import com.intellij.testFramework.AutoPopupParameterInfoTestUtil
 import com.intellij.testFramework.PlatformTestUtil
@@ -489,12 +490,14 @@ fun CodeInsightTestFixture.renameTargetAtCaret(newName: String) {
  * under a read action, the same [prepareRename] turns the usages into file updates, and the same
  * [FileUpdates.doUpdate] applies them in a write command, so the document ends up as the platform's drive
  * leaves it. What is left out is the progress title, the undoable action and the preview, none of which touch
- * the text. Worth it only for a test that renames thousands of times; elsewhere prefer [renameTargetAtCaret].
+ * the text. [scope], when given, is the search scope the Rename dialog would pass, which [renameTargetAtCaret]
+ * takes none of. Otherwise worth it only for a test that renames thousands of times; elsewhere prefer
+ * [renameTargetAtCaret].
  */
-fun CodeInsightTestFixture.renameTargetDirectly(target: RenameTarget, newName: String) {
+fun CodeInsightTestFixture.renameTargetDirectly(target: RenameTarget, newName: String, scope: SearchScope? = null) {
     val options = RenameOptions(
         TextOptions(commentStringOccurrences = true, textOccurrences = true),
-        runReadActionBlocking { target.maximalSearchScope } ?: GlobalSearchScope.projectScope(project)
+        scope ?: runReadActionBlocking { target.maximalSearchScope } ?: GlobalSearchScope.projectScope(project)
     )
     // prepareRename insists on running outside a read action, and its inner read actions need a pooled thread
     val (fileUpdates, modelUpdate) = onPooledThread {

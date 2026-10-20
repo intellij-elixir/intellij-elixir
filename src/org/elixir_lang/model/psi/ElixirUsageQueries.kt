@@ -103,17 +103,68 @@ import java.util.concurrent.Callable as JCallable
  */
 @Suppress("UnstableApiUsage")
 internal object ElixirUsageQueries {
+    /** The queries for [target]'s usages and those of each symbol Find Usages lists with it. */
     @RequiresReadLock
     fun searchRequests(
         project: Project,
         target: ElixirSymbolWithUsages,
         searchScope: SearchScope
+    ): Collection<Query<out Usage>> =
+        searchRequests(project, target, (target as? ElixirRenameTarget)?.renamedWith().orEmpty(), searchScope)
+
+    /**
+     * The delegations without `as:` in the project that a rename of a symbol renames, for one rename: a chain renames
+     * every member under one name, so each name is searched once, and what each delegation calls is worked out once.
+     */
+    class DelegationsRenamedWith {
+        private val occurrences = HashMap<String, Collection<PsiElement>>()
+        private val namedByHead = HashMap<Call, List<PsiElement>>()
+        private val calledThrough = HashMap<Call, List<PsiElement>>()
+
+        /** Each whose head names [symbol] ([UseSymbols.namingByHead]) and each that implements it. */
+        @RequiresReadLock
+        fun of(symbol: ElixirSymbolWithUsages): Collection<Call> =
+            occurrences.getOrPut(symbol.searchText) { occurrences(symbol.file.project, symbol.searchText) }
+                .mapNotNull { leaf ->
+                    UseSymbols.namingByHead(leaf, symbol, ::calledThrough)
+                        ?: implementer(leaf, symbol)?.definition?.takeIf(Delegation::headKeepsTargetName)
+                }
+                .distinct()
+
+        @RequiresReadLock
+        private fun calledThrough(delegation: Call): List<PsiElement> =
+            calledThrough.getOrPut(delegation) {
+                UseSymbols.definitionsCalledThrough(delegation) { call ->
+                    namedByHead.getOrPut(call) { UseSymbols.definitionsNamedByHead(call) }
+                }
+            }
+
+        @RequiresReadLock
+        private fun occurrences(project: Project, name: String): Collection<PsiElement> =
+            wordQuery(project, name, GlobalSearchScope.projectScope(project), { leaf, _ -> listOf(leaf) }).findAll()
+    }
+
+    /** The definition implementing [symbol] whose head's name [leaf] is, when [symbol] is a callback or protocol function. */
+    @RequiresReadLock
+    private fun implementer(leaf: PsiElement, symbol: ElixirSymbolWithUsages): Implementer? =
+        when (symbol) {
+            is Callback -> callbackImplementer(leaf, symbol)
+            is ProtocolFunction -> protocolImplementer(leaf, symbol)
+            else -> null
+        }
+
+    /** The queries for [target]'s usages and those of each of [with], merged. */
+    @RequiresReadLock
+    fun searchRequests(
+        project: Project,
+        target: ElixirSymbolWithUsages,
+        with: List<ElixirSymbolWithUsages>,
+        searchScope: SearchScope
     ): Collection<Query<out Usage>> {
         val queries = ownSearchRequests(project, target, searchScope)
-        val implemented = (target as? ElixirRenameTarget)?.renamedWith().orEmpty()
-        if (implemented.isEmpty()) return queries
+        if (with.isEmpty()) return queries
 
-        val all = queries + implemented.flatMap { ownSearchRequests(project, it, searchScope) }
+        val all = queries + with.flatMap { ownSearchRequests(project, it, searchScope) }
 
         return listOf(
             UniqueResultsQuery(all.reduce { merged, next -> MergeQuery(merged, next) }) { usage ->
@@ -263,9 +314,9 @@ internal object ElixirUsageQueries {
     /**
      * For each implementing definition [implementerAt] finds at an occurrence of [name]: the other clauses of the
      * function it defines, which implement nothing themselves, as a default argument's header leaves them, and its
-     * uses. One search per definition, however many clauses of one function there are, and none for a head that keeps
-     * its text, whose calls keep theirs. The implementing definitions are found everywhere, so that a search limited to
-     * a client lists its calls of an implementation defined outside it; only the uses are limited to [searchScope].
+     * uses. One search per definition, however many clauses of one function there are. The implementing definitions
+     * are found everywhere, so that a search limited to a client lists its calls of an implementation defined outside
+     * it; only the uses are limited to [searchScope].
      */
     private fun implementedQuery(
         project: Project,
@@ -275,7 +326,7 @@ internal object ElixirUsageQueries {
     ): Query<out PsiUsage> {
         val implemented = wordQuery(project, name, GlobalSearchScope.allScope(project), { leaf, _ ->
             listOfNotNull(
-                implementerAt(leaf)?.takeUnless { it.keepsHeadText }?.let {
+                implementerAt(leaf)?.let {
                     ImplementedFunctions(FunctionSymbol.definitionKey(it.definition), FunctionSymbol.fromDefinition(it.definition))
                 }
             )
@@ -450,27 +501,19 @@ internal object ElixirUsageQueries {
     }
 
     /**
-     * A definition that implements a callback or a protocol function, its [nameIdentifier] being the head's name.
-     * [keepsHeadText] says a rename leaves the head as written. Its head is a declaration of the function.
+     * A definition that implements a callback or a protocol function, its [nameIdentifier] being the head's name. Its
+     * head is a declaration of the function.
      */
-    private class Implementer(
-        val definition: Call,
-        val nameIdentifier: PsiElement,
-        val keepsHeadText: Boolean
-    ) {
+    private class Implementer(val definition: Call, val nameIdentifier: PsiElement) {
         @RequiresReadLock
-        fun usage(): PsiUsage {
-            val range = nameRangeIn(nameIdentifier)
-            val headName = range.substring(nameIdentifier.text)
-
-            return ElixirPsiUsage.create(
+        fun usage(): PsiUsage =
+            ElixirPsiUsage.create(
                 nameIdentifier,
-                range,
+                nameRangeIn(nameIdentifier),
                 declaration = true,
                 usageType = IMPLEMENTATION,
-                usageTextByName = if (keepsHeadText) { _ -> headName } else UseSymbols.nameText(nameIdentifier)
+                usageTextByName = UseSymbols.nameText(nameIdentifier)
             )
-        }
     }
 
     /**
@@ -510,7 +553,7 @@ internal object ElixirUsageQueries {
 
         if (!CallbackImplementation.implements(definition, callback)) return null
 
-        return Implementer(definition, nameIdentifier, Delegation.headKeepsTargetName(definition))
+        return Implementer(definition, nameIdentifier)
     }
 
     /**
@@ -530,7 +573,7 @@ internal object ElixirUsageQueries {
         // Directly inside a `defimpl` for this protocol, as every other test of "implements" says.
         if (protocolFunction !in ProtocolImplementation.membersOfImplementedDefs(definition)) return null
 
-        return Implementer(definition, nameIdentifier, Delegation.headKeepsTargetName(definition))
+        return Implementer(definition, nameIdentifier)
     }
 
     /**

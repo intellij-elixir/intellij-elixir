@@ -246,10 +246,10 @@ class RenameMatrixTest : PlatformTestCase() {
         )
 
     /**
-     * A `defdelegate` without `as:` in a `defimpl` keeps its head, so its spec, `@compile inline:` key and local call
-     * keep their text, though a sibling `defimpl` defines the same function and is renamed.
+     * A `defdelegate` without `as:` in a `defimpl` is renamed with the protocol function it implements, and its target
+     * with it, as from the delegation's own head; so are its spec, `@compile inline:` key and local call.
      */
-    fun testProtocolPlainDelegationSiblingKeepsCalls() =
+    fun testProtocolPlainDelegationRenamesWithItsTarget() =
         doTestFromEveryOccurrence(
             "implementation_calls_protocol_plain_delegation", "size", "fresh", expectedCarets = 7, carets = setOf(0)
         )
@@ -267,17 +267,11 @@ class RenameMatrixTest : PlatformTestCase() {
         )
 
     /**
-     * A `defdelegate` with no `as:` whose `to:` does not resolve calls a target by its head's name that a rename cannot
-     * find, so renaming the head and its calls alone would break it: the rename is refused from every occurrence.
+     * A `defdelegate` with no `as:` whose `to:` does not resolve calls a target by its head's name, so renaming the head
+     * and its calls adds `as:` with the old name, from every occurrence.
      */
     fun testFunctionDefdelegateUnresolved() =
-        doTestFromEveryOccurrence(
-            "function_defdelegate_unresolved",
-            "run",
-            "fresh",
-            expectedCarets = 5,
-            refusal = "run cannot be renamed: its target Missing.run/1 is not found"
-        )
+        doTestFromEveryOccurrence("function_defdelegate_unresolved", "run", "fresh", expectedCarets = 5)
 
     /**
      * A `defp` in a `defimpl` implements nothing, so it is renamed with every clause and call in its own `defimpl`, and

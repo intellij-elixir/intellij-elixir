@@ -22,7 +22,10 @@ import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Presentation
 import org.elixir_lang.model.psi.ElixirRenameTarget
 import org.elixir_lang.model.psi.ElixirSymbolWithUsages
+import org.elixir_lang.model.psi.ElixirUsageQueries
+import org.elixir_lang.model.psi.RenameClosure
 import org.elixir_lang.model.psi.callback.CallbackImplementation
+import org.elixir_lang.model.psi.declarationRefusal
 import org.elixir_lang.model.psi.protocol.ProtocolImplementation
 import org.elixir_lang.navigation.DeclarationHead
 import org.elixir_lang.psi.CallDefinitionClause
@@ -137,6 +140,10 @@ class FunctionSymbol(
             ?.let(DeclaringForm::named)
             ?.takeIf { (call, form) -> DeclaringForm.names(call, form).singleOrNull()?.let(UseSymbols::nameRange) == range }
 
+    /** The `defdelegate` this Symbol is declared by, `null` for any other declaring form. */
+    @RequiresReadLock
+    fun delegation(): Call? = anchor()?.takeIf { it.form == Form.DELEGATION }?.call
+
     @RequiresReadLock
     private fun headText(): String? {
         val (call, form) = anchor() ?: return null
@@ -155,10 +162,6 @@ class FunctionSymbol(
             ?.let { CallbackImplementation.implementedCallbacks(it) + ProtocolImplementation.membersOfImplementedDefs(it) }
             .orEmpty()
 
-    /**
-     * What a rename of this Symbol also renames: what it implements, and for a delegation without `as:`, whose head
-     * names its targets too, those targets, each with what it implements and delegates to in turn.
-     */
     @RequiresReadLock
     override fun renamedWith(): List<ElixirSymbolWithUsages> =
         (reachable<ElixirSymbolWithUsages>(this) { (it as? FunctionSymbol)?.renamedDirectlyWith().orEmpty() } - this).toList()
@@ -166,27 +169,20 @@ class FunctionSymbol(
     @RequiresReadLock
     private fun renamedDirectlyWith(): List<ElixirSymbolWithUsages> = implementedMembers() + namedByHead()
 
+    @RequiresReadLock
+    override fun renameClosure(): RenameClosure = renameClosure(this)
+
     /** The Symbols the head this Symbol is declared by names besides it: [UseSymbols.namedByHead]. */
     @RequiresReadLock
     fun namedByHead(): List<ElixirSymbolWithUsages> =
         anchor()?.call?.let(UseSymbols::namedByHead).orEmpty().filterIsInstance<ElixirSymbolWithUsages>()
 
-    /**
-     * A delegation without `as:` calls its target by its head's name, so renaming the head without the target breaks it
-     * when the target is not found, and `as:` can only be added to options that are a keyword list.
-     */
+    /** `as:` can only be added to options that are a keyword list. */
     @RequiresReadLock
     override fun delegationRefusal(): String? =
-        anchor()
-            ?.call
-            ?.takeIf { Delegation.headKeepsTargetName(it) }
-            ?.let { call ->
-                if (!Delegation.optionsAreKeywordList(call)) {
-                    "its options are not a keyword list, so `as:` cannot be added"
-                } else {
-                    UseSymbols.unfoundTarget(call)?.let { "its target $it is not found" }
-                }
-            }
+        delegation()
+            ?.takeIf { Delegation.asOffset(it) == null }
+            ?.let { "its options are not a keyword list, so `as:` cannot be added" }
 
     /**
      * An embed's or `defexception`'s call does not write the function's name, an EEx function's calls through an
@@ -225,6 +221,90 @@ class FunctionSymbol(
     data class Owner(val moduleName: String, val injected: Boolean)
 
     companion object {
+        /**
+         * What a rename from [start] renames besides it, the same from every member: what each renames with directly
+         * (only its implemented members, for a delegation without `as:` that gains one instead, as its targets are not
+         * found or their own rename would be refused) and each delegation without `as:` a member's rename renames
+         * ([ElixirUsageQueries.DelegationsRenamedWith]), to a fixed point.
+         */
+        @RequiresReadLock
+        fun renameClosure(start: ElixirSymbolWithUsages): RenameClosure {
+            val walk = RenameWalk()
+            val own = Node(start)
+            val nodes = walk.closure(own)
+
+            return RenameClosure(
+                (nodes.map(Node::symbol).toSet() - start).toList(),
+                walk.gainsAs(own),
+                (nodes - own).filter(walk::gainsAs).map(Node::symbol).filterIsInstance<FunctionSymbol>()
+            )
+        }
+
+        /**
+         * A symbol a rename's walk reaches, a delegation by its declaration: the implementations of a protocol function
+         * are one Symbol, and each delegation among them calls its own targets, is named by its own delegations' heads and
+         * gains its own `as:`.
+         */
+        private class Node(val symbol: ElixirSymbolWithUsages) {
+            private val key: Any = (symbol as? FunctionSymbol)?.delegation() ?: symbol
+
+            override fun equals(other: Any?): Boolean = other is Node && other.key == key
+
+            override fun hashCode(): Int = key.hashCode()
+        }
+
+        /** One rename's walk, which keeps what it reads of each symbol, and each delegation's `as:` answer, for the rename. */
+        private class RenameWalk {
+            private val direct = HashMap<Node, List<ElixirSymbolWithUsages>>()
+            private val implemented = HashMap<Node, List<ElixirSymbolWithUsages>>()
+            private val incoming = HashMap<Node, List<FunctionSymbol>>()
+            private val delegations = ElixirUsageQueries.DelegationsRenamedWith()
+
+            /** Each delegation's answer, `null` while it is being worked out, in the order each was first asked. */
+            private val gains = LinkedHashMap<Node, Boolean?>()
+
+            /** [start] and what renames with it, to a fixed point. */
+            @RequiresReadLock
+            fun closure(start: Node): Set<Node> = reachable(start, ::step)
+
+            @RequiresReadLock
+            private fun step(node: Node): List<Node> {
+                val symbol = node.symbol
+                val own = when {
+                    symbol !is FunctionSymbol -> emptyList()
+                    gainsAs(node) -> implemented.getOrPut(node) { symbol.implementedMembers() }
+                    else -> direct.getOrPut(node) { symbol.renamedDirectlyWith() }
+                }
+
+                return (own + incoming.getOrPut(node) { delegations.of(symbol).flatMap(::fromDelegation) })
+                    .map(::Node)
+            }
+
+            /**
+             * Whether [node], a delegation without `as:`, calls its targets by the head's name where the rename cannot
+             * take them with it: none is found, or the rename of one would be refused for what renames with it. A
+             * delegation met again while its own answer is being worked out is taken as renaming with its targets, so
+             * when its answer is that it gains `as:`, the answers worked out meanwhile are worked out again.
+             */
+            @RequiresReadLock
+            fun gainsAs(node: Node): Boolean {
+                val symbol = node.symbol as? FunctionSymbol ?: return false
+                if (symbol.delegation()?.let(Delegation::headKeepsTargetName) != true) return false
+                if (node in gains) return gains[node] ?: false
+
+                val asked = gains.size
+                gains[node] = null
+                val targets = symbol.namedByHead()
+                val answer = targets.isEmpty() ||
+                    targets.any { target -> closure(Node(target)).any { declarationRefusal(it.symbol) != null } }
+
+                if (answer) gains.keys.drop(asked + 1).forEach(gains::remove)
+                gains[node] = answer
+
+                return answer
+            }
+        }
+
         /** Whether a declaration with [capabilities] is presented as a macro: a guard is, as it is expanded at compile time. */
         fun isMacro(capabilities: Capabilities): Boolean =
             when (capabilities.presentation) {

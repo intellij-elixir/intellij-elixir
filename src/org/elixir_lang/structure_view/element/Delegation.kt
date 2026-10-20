@@ -168,9 +168,9 @@ class Delegation(private val modular: Modular, call: Call) : Element<Call?>(call
         @RequiresReadLock
         fun headKeepsTargetName(call: Call): Boolean = `is`(call) && fromCall(call)?.`as`() == null
 
-        /** Whether [call]'s options are a keyword list, the only options `as:` can be added to. */
+        /** Where [call] takes an added `as:`: after its last option, `null` when its options are not a keyword list. */
         @RequiresReadLock
-        fun optionsAreKeywordList(call: Call): Boolean = call.keywordArguments() != null
+        fun asOffset(call: Call): Int? = call.keywordArguments()?.quotableKeywordPairList()?.lastOrNull()?.textRange?.endOffset
 
         @RequiresReadLock
         fun fromCall(call: Call): org.elixir_lang.structure_view.element.Delegation? =

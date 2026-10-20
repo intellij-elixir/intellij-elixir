@@ -24,6 +24,7 @@ import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.Facet
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.beam.BeamLibraryFixture
+import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
 import org.elixir_lang.code_insight.renameTargetsAtCaret
 import org.elixir_lang.facet.SdksService
@@ -36,6 +37,7 @@ import java.io.File
  * an edit to them is lost the next time the dependency is fetched. Anything the project does own still renames:
  * a path dependency under a content root, a scratch file, a file opened from outside the project.
  */
+@Suppress("UnstableApiUsage")
 class LibraryDeclarationRenameTest : PlatformTestCase() {
     private val cleanups = mutableListOf<() -> Unit>()
 
@@ -119,13 +121,53 @@ class LibraryDeclarationRenameTest : PlatformTestCase() {
         assertRenameRefused(declaration, IMPLEMENTER, CALLBACK_SOURCE)
     }
 
-    /** The same from the head of a `defdelegate` with no `as:` to the implementing function, which names it too. */
-    fun testImplementedCallbackInALibraryIsRefusedFromADelegationHead() {
+    /**
+     * A `defdelegate` with no `as:` to that implementing function renames its head and gains `as:`, so the function
+     * and the library's `@callback` keep their name.
+     */
+    fun testDelegationToAnImplementedCallbackInALibraryAddsAs() {
         val declaration = outsideProject("path_dependency_callback_delegation/lib", "lib.ex", CALLBACK_SOURCE)
 
         addSourcesLibrary(declaration.parent)
+        configureCaller(DELEGATION_TO_IMPLEMENTER)
+        myFixture.renameTargetAtCaret("fresh")
 
-        assertRenameRefused(declaration, DELEGATION_TO_IMPLEMENTER, CALLBACK_SOURCE)
+        assertEquals(
+            DELEGATION_TO_IMPLEMENTER.replace("<caret>", "")
+                .replace("defdelegate fun(), to: Caller", "defdelegate fresh(), to: Caller, as: :fun"),
+            myFixture.file.text
+        )
+        assertEquals(CALLBACK_SOURCE, textOf(declaration))
+    }
+
+    /**
+     * A `defdelegate` with no `as:` to a library's function renames its head and calls and gains `as:`, and the library
+     * function keeps its name, at its project call too. Find Usages from the head still lists the library declaration
+     * and that call.
+     */
+    fun testDelegationToALibraryFunctionAddsAs() {
+        val declaration = outsideProject("path_dependency_delegation/lib", "lib.ex", LIBRARY_SOURCE)
+
+        addSourcesLibrary(declaration.parent)
+        configureCaller(DELEGATION_TO_LIBRARY)
+
+        val usages = myFixture.psiUsagesAtCaret(project)
+        val text = myFixture.file.text
+
+        assertTrue("the library declaration: $usages", usages.any { it.file.virtualFile == declaration })
+        assertTrue(
+            "the project call of the library function: $usages",
+            usages.any { it.file == myFixture.file && text.substring(it.range.startOffset).startsWith("fun()\n  def use") }
+        )
+
+        myFixture.renameTargetAtCaret("fresh")
+
+        assertEquals(
+            "defmodule Delegating do\n  defdelegate fresh(), to: Lib, as: :fun\n  def run, do: Lib.fun()\n" +
+                "  def use, do: Delegating.fresh()\nend\n",
+            myFixture.file.text
+        )
+        assertEquals(LIBRARY_SOURCE, textOf(declaration))
     }
 
     /** The same from an atom naming the implementing function. */
@@ -251,6 +293,9 @@ class LibraryDeclarationRenameTest : PlatformTestCase() {
         const val IMPLEMENTER_ATOM =
             "defmodule Caller do\n  @behaviour Lib\n\n  @impl true\n  def fun, do: :ok\n\n  def run, do: apply(Caller, :fu<caret>n, [])\nend\n"
         const val CALLER = "defmodule Caller do\n  def run, do: Lib.fu<caret>n()\nend\n"
+        const val DELEGATION_TO_LIBRARY =
+            "defmodule Delegating do\n  defdelegate fu<caret>n(), to: Lib\n  def run, do: Lib.fun()\n" +
+                "  def use, do: Delegating.fun()\nend\n"
         const val DELEGATION_TO_IMPLEMENTER =
             "defmodule Caller do\n  @behaviour Lib\n\n  @impl true\n  def fun, do: :ok\nend\n\n" +
                 "defmodule Delegating do\n  defdelegate fu<caret>n(), to: Caller\nend\n"
