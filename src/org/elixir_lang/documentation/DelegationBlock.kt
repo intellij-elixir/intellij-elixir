@@ -46,7 +46,7 @@ internal object DelegationBlock {
     @RequiresReadLock
     private fun headOf(delegation: Call): String {
         val head = Delegation.head(delegation)
-        val headName = UseSymbols.headUse(delegation)?.name
+        val headName = UseSymbols.headUse(head)?.second?.name
 
         return if (head != null && headName != null) SourceFileDocsHelper.spelled(head, headName) else head?.text.orEmpty()
     }
@@ -67,11 +67,11 @@ internal object DelegationBlock {
     /** The arity [delegation]'s head calls its targets at, which fills in the defaults of a call written at a lower one. */
     @RequiresReadLock
     fun passed(delegation: Call): Int? =
-        UseSymbols.headUse(delegation)?.let { use -> Documented.atItsHead(delegation)?.let { UseSymbols.passed(it, use) } }
+        UseSymbols.headUse(Delegation.head(delegation))?.let { (_, use) -> Documented.atItsHead(delegation)?.let { UseSymbols.passed(it, use) } }
 
     @RequiresReadLock
     private fun targets(delegation: Call): List<String> {
-        val use = UseSymbols.headUse(delegation) ?: return emptyList()
+        val (_, use) = UseSymbols.headUse(Delegation.head(delegation)) ?: return emptyList()
         val preferred = Documented.atItsHead(delegation) ?: return emptyList()
         val passed = UseSymbols.passed(preferred, use)
 

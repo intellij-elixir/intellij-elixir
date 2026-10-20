@@ -102,7 +102,7 @@ class CallDefinitionClause private constructor(private val arity: Arity?) : Inse
         when (val form = DeclaringForm.syntacticForm(call) ?: DeclaringForm.resolvingForm(call, ResolveState.initial())) {
             Form.CALLBACK -> callbackParameters(call)
             null -> null
-            else -> Declarations.named(form, call, name)?.let { Signature.of(it, call) }?.parameters?.let(::atArity)
+            else -> Declarations.named(form, call, name)?.let { Signature.declaredBy(call, it) }?.parameters?.let(::atArity)
         }
 
     /**

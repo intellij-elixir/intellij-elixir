@@ -14,7 +14,7 @@ class CallDefinitionClause(val nameArity: NameArity) : LookupElementRenderer<Loo
         lookupElementPresentation.itemText = nameArity.name
 
         (element.psiElement as? Call)
-            ?.let { call -> Declarations.named(Form.EXCEPTION, call, nameArity.name)?.let { Signature.of(it, call) } }
+            ?.let { call -> Declarations.named(Form.EXCEPTION, call, nameArity.name)?.let { Signature.declaredBy(call, it) } }
             ?.let { lookupElementPresentation.appendTailText("(${it.parameters.joinToString(", ")})", true) }
     }
 }

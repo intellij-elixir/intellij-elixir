@@ -27,7 +27,7 @@ class Delegation(private val name: String) : LookupElementRenderer<LookupElement
         lookupElementPresentation.icon = itemPresentation?.getIcon(true)
 
         Declarations.named(Form.DELEGATION, delegationCall, name)
-            ?.let { Signature.of(it, delegationCall) }
+            ?.let { Signature.declaredBy(delegationCall, it) }
             ?.let { lookupElementPresentation.appendTailText("(${it.parameters.joinToString(", ")})", true) }
 
         itemPresentation?.locationString?.let { lookupElementPresentation.appendTailText(" ($it)", false) }

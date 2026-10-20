@@ -150,6 +150,15 @@ object DeclaringForm {
         return Head(written, module, declaration.name, declaration.arity)
     }
 
+    /** The [writtenHead] a caret on [element]'s name names [declaration] at: none at a head [names] leaves out. */
+    @RequiresReadLock
+    fun namedHead(element: PsiElement, declaration: Declaration): PsiElement? =
+        writtenHead(element, declaration, module = null).written?.takeUnless { head ->
+            (element as? Call)?.let { call ->
+                (declaration.declared as? Declared.Source)?.form?.let { form -> head in heads(call, form) && head !in namedHeads(call, form) }
+            } == true
+        }
+
     /**
      * The head [call] writes [name] at [arity] under with [form]: its one head, or the one of a list of `defdelegate`
      * heads with that name and arity. A form that writes no head is written by [call] itself.

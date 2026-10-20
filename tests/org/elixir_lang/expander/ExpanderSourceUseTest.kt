@@ -6,6 +6,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.testFramework.LightProjectDescriptor
 import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.code_insight.Signature
 import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Definer
 import org.elixir_lang.declaration.Found
@@ -13,6 +14,7 @@ import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.declaration.preferred
 import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.WalkTestSupport
 import org.elixir_lang.snapshot.LegElixirProjectDescriptor
@@ -157,6 +159,18 @@ class ExpanderSourceUseTest : PlatformTestCase() {
                 "`def f, do: 1`",
             candidates(file, "A.f()"),
         )
+    }
+
+    /**
+     * A head debug info places at its macro's clause borrows nothing from that clause: not the Symbol of the function
+     * the clause's module would define there, nor the clause's parameters.
+     */
+    fun testADebugInfoMacrosDefinitionBorrowsNothingFromItsMacrosClause() {
+        val file = add("a.ex", "defmodule A do\n  use Application\n  def g, do: stop(1)\nend\n")
+        val found = found(file, "stop(1)").single()
+
+        assertEmpty(UseSymbols.symbols(found, 1))
+        assertNull(Signature.of(found))
     }
 
     /**

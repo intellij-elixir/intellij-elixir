@@ -12,6 +12,7 @@ import com.intellij.psi.PsiManager
 import com.intellij.psi.impl.source.PsiFileImpl
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
+import org.elixir_lang.code_insight.Signature
 import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.CandidateSource
 import org.elixir_lang.declaration.Declared
@@ -243,6 +244,37 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             listOf("D.f/1 -> [T.f/1, T.f/2]", "D.f/2 -> [T.f/1, T.f/2]"),
             read { preferred(use, found, true) }.map { preferred ->
                 "${name(preferred.found)} -> ${preferred.delegatedTo.map(::name)}"
+            },
+        )
+    }
+
+    /** Each head of a delegation list has its own parameters. */
+    fun testEachHeadOfADelegationListHasItsOwnSignature() {
+        val file = file(
+            """
+            defmodule T do
+              def f(x), do: x
+              def f(x, y), do: {x, y}
+            end
+
+            defmodule D do
+              defdelegate [f(x), f(x, y)], to: T
+            end
+
+            defmodule P do
+              import D
+              def go, do: f(1, 2)
+            end
+            """
+        )
+        val use = use(file, "f(1, 2)", "f(1, 2)")
+
+        assertEquals(
+            listOf("D.f/1 [x]", "D.f/2 [x, y]"),
+            read {
+                ExpanderSource.candidates(use, false)
+                    .filter { it.declaringModuleName() == "D" }
+                    .map { "${name(it)} ${Signature.of(it)?.parameters}" }
             },
         )
     }

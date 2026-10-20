@@ -12,7 +12,6 @@ import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.psi.ArityInterval
-import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirList
 import org.elixir_lang.psi.Exception as ElixirException
@@ -21,6 +20,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.quotedAtomValue
 import org.elixir_lang.psi.impl.stripAccessExpression
+import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.structure_view.element.CallDefinitionHead
 
 /**
@@ -38,42 +38,40 @@ data class Signature(val nameArityInterval: NameArityInterval, val parameters: L
     companion object {
         /** `null` for a declaration that is no definition to show, as a `@callback`. */
         @RequiresReadLock
-        fun of(found: Found): Signature? = of(found.candidate.declaration, found.element)
+        fun of(found: Found): Signature? = found.head.written?.let { of(found.candidate.declaration, it) }
 
         /**
-         * [declaration] made by [element]: its name and arities are the declaration's, and the parameter text is read
-         * from [element] by the form that made it.
+         * [declaration] written as [head], a [org.elixir_lang.declaration.Head.written]: its name and arities are the
+         * declaration's, and the parameter text is read from [head] by the form that made it.
          */
         @RequiresReadLock
-        fun of(declaration: Declaration, element: PsiElement): Signature? {
+        private fun of(declaration: Declaration, head: PsiElement): Signature? {
             ThreadingAssertions.assertReadAccess()
 
             return when (val declared = declaration.declared) {
-                is Declared.Source -> sourceSignature(declaration, declared.form, element as? Call)
-                is Declared.Compiled -> (element as? BeamCallDefinition)?.let { of(it) }
+                is Declared.Source -> sourceSignature(declaration, declared.form, head)
+                is Declared.Compiled -> (head as? BeamCallDefinition)?.let { of(it) }
             }
         }
 
-        private fun sourceSignature(declaration: Declaration, form: Form, call: Call?): Signature? {
-            if (call == null) return null
+        /** [declaration] as [call] writes it, at the head [call] declares it under. */
+        @RequiresReadLock
+        fun declaredBy(call: Call, declaration: Declaration): Signature? =
+            DeclaringForm.writtenHead(call, declaration, module = null).written?.let { of(declaration, it) }
 
+        private fun sourceSignature(declaration: Declaration, form: Form, head: PsiElement): Signature? {
             val nameArityInterval = declaration.arity.arityInterval()?.let { NameArityInterval(declaration.name, it) }
                 ?: return null
             val parameters = when (form) {
-                Form.CLAUSE -> clause(call)
-                Form.DELEGATION -> delegation(call)
+                Form.CLAUSE, Form.DELEGATION -> headParameters(head)
                 Form.EXCEPTION -> exception(declaration.name)
-                Form.EEX_FUNCTION_FROM -> eexFunctionFrom(call)
-                Form.GENERATOR_EMBED -> embed(call)
+                Form.EEX_FUNCTION_FROM -> (head as? Call)?.let(::eexFunctionFrom)
+                Form.GENERATOR_EMBED -> (head as? Call)?.let(::embed)
                 Form.CALLBACK -> null
             }
 
             return parameters?.let { Signature(nameArityInterval, it.map(ParameterText::normalised)) }
         }
-
-        private fun clause(clause: Call): List<String>? = CallDefinitionClause.head(clause)?.let(::headParameters)
-
-        private fun delegation(defdelegate: Call): List<String>? = defdelegate.finalArguments()?.firstOrNull()?.let(::headParameters)
 
         private fun headParameters(head: PsiElement): List<String> =
             (CallDefinitionHead.strip(head) as? Call)?.let(CallDefinitionHead::parameters)?.map { it.text }.orEmpty()
