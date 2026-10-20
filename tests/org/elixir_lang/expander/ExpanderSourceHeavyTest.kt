@@ -13,6 +13,7 @@ import com.intellij.psi.impl.source.PsiFileImpl
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
 import org.elixir_lang.declaration.ArityKnowledge
+import org.elixir_lang.declaration.CandidateSource
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Preferred
@@ -24,6 +25,7 @@ import org.elixir_lang.junit.HeavyTestCase
 import org.elixir_lang.language_level.ElixirLanguageFeature.FUNCTION_ERRORS_CONTINUE
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
 import java.io.File
 import java.util.concurrent.Callable
 
@@ -95,7 +97,10 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
     }
 
-    /** An `import` that narrows a `defdelegate` head leaves the head calling its target at the head's largest arity. */
+    /**
+     * An `import` that narrows a `defdelegate` head leaves the head whole, as the walk does, calling its target at the
+     * head's largest arity.
+     */
     fun testANarrowedDelegationReachesItsTargetAtTheHeadsArity() {
         val file = file(
             """
@@ -116,7 +121,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
 
         assertEquals(
             """
-            D.f/1 IMPORT VALID via [import D, only: [f: 1]] line 6
+            D.f/1..2 IMPORT VALID via [import D, only: [f: 1]] line 6
             T.f/2 UNHELD_DELEGATION_TARGET VALID via [import D, only: [f: 1] | defdelegate f(a, b \\ 1), to: T] line 2
             """.trimIndent(),
             candidates(file, "do: f(1)", "f(1)"),
@@ -146,8 +151,8 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
     }
 
-    /** An `import` that admits arities apart gives one candidate per run of them. */
-    fun testAnImportOfAritiesApartGivesOneCandidatePerRun() {
+    /** An `import` that admits arities apart gives the head once, as the walk does. */
+    fun testAnImportOfAritiesApartGivesTheHeadOnce() {
         val file = file(
             """
             defmodule Pad do
@@ -163,14 +168,16 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
 
         assertEquals(
             """
-            Pad.pad/1 IMPORT VALID via [import Pad, only: [pad: 1, pad: 3]] line 2
-            Pad.pad/3 IMPORT WRONG_ARITY via [import Pad, only: [pad: 1, pad: 3]] line 2
+            Pad.pad/1..3 IMPORT VALID via [import Pad, only: [pad: 1, pad: 3]] line 2
             """.trimIndent(),
             candidates(file, "do: pad(1)", "pad(1)"),
         )
     }
 
-    /** A delegation imported at arities apart is followed once, valid where any of its runs is. */
+    /**
+     * A delegation imported at arities apart is one head, followed once, and its target goes with that head at each
+     * arity the import admits.
+     */
     fun testADelegationImportedAtAritiesApartReachesItsTargetOnce() {
         val file = file(
             """
@@ -190,21 +197,16 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             """
         )
 
+        val padded = """
+            D.pad/1..3 IMPORT VALID via [import D, only: [pad: 1, pad: 3]] line 6
+              T.pad/3 UNHELD_DELEGATION_TARGET VALID via [import D, only: [pad: 1, pad: 3] | defdelegate pad(a, b \\ 1, c \\ 2), to: T] line 2
+            """.trimIndent()
+
         assertEquals(
-            """
-            D.pad/1 IMPORT VALID via [import D, only: [pad: 1, pad: 3]] line 6
-            D.pad/3 IMPORT WRONG_ARITY via [import D, only: [pad: 1, pad: 3]] line 6
-            T.pad/3 UNHELD_DELEGATION_TARGET VALID via [import D, only: [pad: 1, pad: 3] | defdelegate pad(a, b \\ 1, c \\ 2), to: T] line 2
-            """.trimIndent(),
-            candidates(file, "do: pad(1)", "pad(1)"),
-        )
-        assertEquals(
-            """
-            D.pad/1 IMPORT WRONG_ARITY via [import D, only: [pad: 1, pad: 3]] line 6
-            D.pad/3 IMPORT VALID via [import D, only: [pad: 1, pad: 3]] line 6
-            T.pad/3 UNHELD_DELEGATION_TARGET VALID via [import D, only: [pad: 1, pad: 3] | defdelegate pad(a, b \\ 1, c \\ 2), to: T] line 2
-            """.trimIndent(),
-            candidates(file, "pad(1, 2, 3)", "pad(1, 2, 3)"),
+            listOf(padded, padded),
+            listOf(use(file, "do: pad(1)", "pad(1)"), use(file, "pad(1, 2, 3)", "pad(1, 2, 3)")).map { use ->
+                renderPreferred(read { preferred(use, ExpanderSource.candidates(use, false), false) })
+            },
         )
     }
 
@@ -662,6 +664,59 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         )
     }
 
+    /** Behind a delegation, an `import` that leaves out the arity the delegation calls leaves a nameless use's target a wrong arity. */
+    fun testANamelessUseAnImportLeavesOutIsAWrongArityThroughADelegation() {
+        val file = file(
+            """
+            defmodule T do
+              def f(a, b \\ 0), do: {a, b}
+            end
+
+            defmodule M do
+              import T, only: [f: 2]
+            end
+
+            defmodule D do
+              defdelegate f(a), to: M
+
+              defmacro go(name), do: quote(do: D.unquote(name)(1))
+            end
+            """
+        )
+
+        assertEquals(
+            """T.f/1..2 UNHELD_DELEGATION_TARGET WRONG_ARITY via [import T, only: [f: 2] | defdelegate f(a), to: M] line 2""",
+            candidates(file, "D.unquote(name)(1)", "D.unquote(name)(1)").lines().filter { it.startsWith("T.") }.joinToString("\n"),
+        )
+    }
+
+    /** The walk, which follows a nameless use's delegation as code is completed, answers it as a wrong arity too. */
+    fun testTheWalkGivesANamelessUseAnImportLeavesOutAWrongArityThroughADelegation() {
+        val file = file(
+            """
+            defmodule T do
+              def f(a, b \\ 0), do: {a, b}
+            end
+
+            defmodule M do
+              import T, only: [f: 2]
+            end
+
+            defmodule D do
+              defdelegate f(a), to: M
+
+              defmacro go(name), do: quote(do: D.unquote(name)(1))
+            end
+            """
+        )
+
+        assertEquals(
+            """T.f/1..2 UNHELD_DELEGATION_TARGET WRONG_ARITY via [import T, only: [f: 2] | defdelegate f(a), to: M] line 2""",
+            candidates(file, "D.unquote(name)(1)", "D.unquote(name)(1)", source = LegacyWalkSource, incompleteCode = true)
+                .lines().filter { it.startsWith("T.") }.joinToString("\n"),
+        )
+    }
+
     /** An `import` that leaves out the use's arity leaves the head, and what it delegates to, a wrong arity. */
     fun testANamedUseAnImportLeavesOutIsAWrongArityThroughADelegation() {
         val file = file(
@@ -684,7 +739,7 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
 
         assertEquals(
             """
-            D.pair/2 IMPORT WRONG_ARITY via [import D, only: [pair: 2]] line 6
+            D.pair/1..2 IMPORT WRONG_ARITY via [import D, only: [pair: 2]] line 6
             T.pair/2 UNHELD_DELEGATION_TARGET WRONG_ARITY via [import D, only: [pair: 2] | defdelegate pair(a, b \\ 1), to: T] line 2
             """.trimIndent(),
             candidates(file, "def uses", "pair(1)").lines().filter { it.startsWith("D.") || it.startsWith("T.") }.sorted().joinToString("\n"),
@@ -1001,7 +1056,8 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         assertEquals("Kernel.SpecialForms.super/0+ IMPLICIT_IMPORT VALID via []", candidates(file, "super(x)", "super(x)"))
     }
 
-    fun testAnOnlyArityNarrowsTheRange() {
+    /** An `only:` arity leaves the head whole, as the walk does, and valid only at that arity. */
+    fun testAnOnlyArityLeavesTheHeadWhole() {
         val file = file(
             """
             defmodule Pad do
@@ -1016,9 +1072,9 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             """
         )
 
-        assertEquals("Pad.pad/1 IMPORT VALID via [import Pad, only: [pad: 1]] line 2", candidates(file, "do: pad(1)", "pad(1)"))
+        assertEquals("Pad.pad/1..2 IMPORT VALID via [import Pad, only: [pad: 1]] line 2", candidates(file, "do: pad(1)", "pad(1)"))
         assertEquals(
-            "Pad.pad/1 IMPORT WRONG_ARITY via [import Pad, only: [pad: 1]] line 2",
+            "Pad.pad/1..2 IMPORT WRONG_ARITY via [import Pad, only: [pad: 1]] line 2",
             candidates(file, "do: pad(1, 2)", "pad(1, 2)"),
         )
     }
@@ -1435,11 +1491,18 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
         return PsiManager.getInstance(project).findFile(root.findFileByRelativePath("lib/source.ex")!!)!!
     }
 
-    /** The candidates [ExpanderSource] gives the use [call] in [context], rendered one per line. */
-    private fun candidates(file: PsiFile, context: String, call: String, last: Boolean = false): String {
+    /** The candidates [source] gives the use [call] in [context], rendered one per line. */
+    private fun candidates(
+        file: PsiFile,
+        context: String,
+        call: String,
+        last: Boolean = false,
+        source: CandidateSource = ExpanderSource,
+        incompleteCode: Boolean = false,
+    ): String {
         val use = use(file, context, call, last)
 
-        return render(read { ExpanderSource.candidates(use, false) })
+        return render(read { source.candidates(use, incompleteCode) })
     }
 
     /** The use that is the call [call], found in the only occurrence of [context], or its last with [last]. */

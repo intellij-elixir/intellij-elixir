@@ -120,7 +120,9 @@ object LegacyWalkSource : CandidateSource {
     private fun applicability(reached: ReachedDeclaration, use: Use): Applicability? =
         when (use) {
             is Use.AnyName ->
-                Applicability.ofAnyName(reached.declaration, reached.searchedAtom, use.arity, reached.via.map(::headArity))
+                Applicability.ofAnyName(
+                    reached.declaration, reached.searchedAtom, reached.admitted, use.arity, reached.via.map(::headArity)
+                )
             is Use.Named -> named(reached, use.arity)
             is Use.Specified -> named(reached, use.arity)
             is Use.Remote -> named(reached, use.arity)

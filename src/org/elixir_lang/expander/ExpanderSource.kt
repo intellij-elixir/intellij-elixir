@@ -176,7 +176,6 @@ internal object ExpanderSource : CandidateSource {
      * @property written the head written for it, as [Head.written] is, `null` where nothing written declares it
      * @property module the module's index name (`Module.indexName`), as [Head.module] has it
      * @property injectedBy the call whose evaluated output injected it into [module], as written in [module]'s file
-     * @property headArity the arity the head declares, which an `import` narrowing [declaration]'s leaves as it is
      */
     private class Defined(
         val declaration: Declaration,
@@ -185,10 +184,9 @@ internal object ExpanderSource : CandidateSource {
         val module: String,
         val injectedBy: Call?,
         val delegation: DefinitionTable.Delegation? = null,
-        val headArity: ArityKnowledge = declaration.arity,
     ) {
         /** Its head, which tells apart the heads of a list of `defdelegate` heads, and the modules one macro's output declares it in. */
-        val head: Head get() = Head(written, module, declaration.name, headArity)
+        val head: Head get() = Head(written, module, declaration.name, declaration.arity)
 
         /** Whether [declaration] takes [arity] arguments, which is not known past a head with no largest arity. */
         fun admits(arity: Int?): Boolean = arity == null || declaration.arity.admits(arity)
@@ -202,8 +200,9 @@ internal object ExpanderSource : CandidateSource {
      * @property heads the arity each of [delegations] declares in its head
      * @property through the head of the first of [delegations], the one the use reached itself
      * @property searched the name looked up where it was found
-     * @property named whether everything but the arity fits through every head crossed: each name, and each `import`
-     *   that leaves out some of a definition's arities bringing it in at the arity reaching it
+     * @property named whether everything but the arity fits through every head crossed: each name, and [imported]
+     * @property imported whether each `import` crossed that leaves out some of a definition's arities brings it in at
+     *   the arity reaching it, which a use with no name needs as well
      * @property remote whether a remote call reaches it, which a private definition refuses
      */
     private class Reached(
@@ -215,6 +214,7 @@ internal object ExpanderSource : CandidateSource {
         val through: Head?,
         val searched: String?,
         val named: Boolean,
+        val imported: Boolean,
         val remote: Boolean,
     )
 
@@ -251,27 +251,18 @@ internal object ExpanderSource : CandidateSource {
         arity: Int?,
         crossed: Set<Head>,
     ): List<Reached> =
-        importedDefined(at, file, env, name)
-            .groupBy { ImportedHead(it.defined.head, it.call) }
-            .values
-            .flatMap { runs ->
-                val reached = runs.map { (defined, reach, call) -> reached(defined, reach, listOfNotNull(call), name, arity, remote = false) }
+        importedDefined(at, file, env, name).flatMap { (defined, reach, call, arities) ->
+            val reached = reached(defined, reach, listOfNotNull(call), name, arity, remote = false, arities)
+            val admits = defined.admits(arity) && (arity == null || arity in arities)
 
-                // The runs of one head share its delegation, which is followed once.
-                reached + throughDelegation(
-                    at,
-                    reached.first(),
-                    reached.any(Reached::named),
-                    runs.any { it.defined.admits(arity) },
-                    crossed,
-                )
-            }
+            listOf(reached) + throughDelegation(at, reached, reached.named, admits, crossed)
+        }
 
-    /** A definition an import brings in, how, and the `import` call that brings it in, if any. */
-    private data class Imported(val defined: Defined, val reach: Reach, val call: Call?)
-
-    /** One head an `import` call brings in, whose runs of arities share its delegation. */
-    private data class ImportedHead(val head: Head, val call: Call?)
+    /**
+     * A definition an import brings in, how, the `import` call that brings it in, if any, and the [arities] of it that
+     * the import brings in.
+     */
+    private data class Imported(val defined: Defined, val reach: Reach, val call: Call?, val arities: Set<Int>)
 
     /** The definitions [env]'s imports bring in of [name], or of every name when it is `null`. */
     private fun importedDefined(at: At, file: ElixirFile, env: Env, name: String?): List<Imported> =
@@ -284,7 +275,9 @@ internal object ExpanderSource : CandidateSource {
             val reach = if (call == null && imports.module == KERNEL) Reach.IMPLICIT_IMPORT else Reach.IMPORT
 
             aritiesByName.flatMap { (imported, arities) ->
-                ofModule(at, imports.module, imported).flatMap { narrowed(it, arities.toSet()) }.map { Imported(it, reach, call) }
+                ofModule(at, imports.module, imported)
+                    .filter { bringsIn(it, arities) }
+                    .map { Imported(it, reach, call, arities.toSet()) }
             }
         }
 
@@ -309,7 +302,6 @@ internal object ExpanderSource : CandidateSource {
                 defined.module,
                 defined.injectedBy,
                 defined.delegation,
-                arity,
             )
         }
 
@@ -359,14 +351,23 @@ internal object ExpanderSource : CandidateSource {
         return listOf(reached) + throughDelegation(at, reached, reached.named, defined.admits(arity), crossed)
     }
 
-    /** [defined], looked up as [name] at [arity], which is `null` past a head with no largest arity. */
-    private fun reached(defined: Defined, reach: Reach, paths: List<Call>, name: String?, arity: Int?, remote: Boolean): Reached {
-        val declaration = defined.declaration
-        // An `import` that leaves out some of a head's arities brings in only the rest.
-        val admitted = declaration.arity == defined.headArity || defined.admits(arity)
-        val named = name != null && declaration.name == name && admitted
+    /**
+     * [defined], looked up as [name] at [arity], which is `null` past a head with no largest arity. An `import` that
+     * brings in only the arities [imported] of it names it at no other, as the walk's `importAdmits` decides.
+     */
+    private fun reached(
+        defined: Defined,
+        reach: Reach,
+        paths: List<Call>,
+        name: String?,
+        arity: Int?,
+        remote: Boolean,
+        imported: Set<Int>? = null,
+    ): Reached {
+        val admitted = arity == null || imported == null || arity in imported
+        val named = name != null && defined.declaration.name == name && admitted
 
-        return Reached(defined, reach, paths, emptyList(), emptyList(), null, name, named, remote)
+        return Reached(defined, reach, paths, emptyList(), emptyList(), null, name, named, admitted, remote)
     }
 
     /**
@@ -388,7 +389,8 @@ internal object ExpanderSource : CandidateSource {
         val head = delegation.defined.head
         if (head in crossed) return emptyList()
         val within = crossed + head
-        val arity = delegation.defined.headArity.arityInterval()?.maximum
+        val headArity = delegation.defined.declaration.arity
+        val arity = headArity.arityInterval()?.maximum
 
         return inModule(at, target.module, target.function, arity, imports = true, within)
             .filter { it.defined.head !in within }
@@ -398,10 +400,11 @@ internal object ExpanderSource : CandidateSource {
                     if (delegation.reach.held && it.reach.remote) Reach.DELEGATION_TARGET else Reach.UNHELD_DELEGATION_TARGET,
                     delegation.paths + it.paths,
                     listOf(element) + it.delegations,
-                    listOf(delegation.defined.headArity) + it.heads,
+                    listOf(headArity) + it.heads,
                     delegation.through ?: head,
                     it.searched,
                     named && it.named,
+                    delegation.imported && it.imported,
                     it.remote,
                 )
             }
@@ -486,34 +489,12 @@ internal object ExpanderSource : CandidateSource {
         }
     }
 
-    /** [defined] at only the arities an `import` brings in, one for each run of them. */
-    private fun narrowed(defined: Defined, arities: Set<Int>): List<Defined> {
-        val declaration = defined.declaration
-        // An unknown arity may be any.
-        val interval = declaration.arity.arityInterval() ?: ArityInterval(0)
-        val kept = arities.filter { it in interval }.sorted()
-        if (interval.maximum?.let { kept.size == it - interval.minimum + 1 } == true) return listOf(defined)
+    /** Whether an `import` of [arities] brings in [defined] at any of its arities, an unknown arity being any. */
+    private fun bringsIn(defined: Defined, arities: List<Int>): Boolean {
+        val interval = defined.declaration.arity.arityInterval() ?: ArityInterval(0)
 
-        return runs(kept).map { run ->
-            val arity = if (run.first == run.last) ArityKnowledge.Exact(run.first) else ArityKnowledge.Range(run.first, run.last)
-
-            Defined(
-                declaration.copy(arity = arity),
-                defined.element,
-                defined.written,
-                defined.module,
-                defined.injectedBy,
-                defined.delegation,
-                defined.headArity,
-            )
-        }
+        return arities.any { it in interval }
     }
-
-    private fun runs(sorted: List<Int>): List<IntRange> =
-        sorted.fold(emptyList()) { runs, arity ->
-            val last = runs.lastOrNull()
-            if (last != null && last.last + 1 == arity) runs.dropLast(1) + listOf(last.first..arity) else runs + listOf(arity..arity)
-        }
 
     /**
      * The module [call]'s qualifier expanded to in its file's expansion, or where the expansion didn't reach it, expands
@@ -559,7 +540,8 @@ internal object ExpanderSource : CandidateSource {
         val declaration = reached.defined.declaration
         val applicability = when (use) {
             is Use.Named -> Applicability.of(declaration, reached.searched ?: use.name, reached.named, use.arity, reached.heads)
-            is Use.AnyName -> Applicability.ofAnyName(declaration, reached.searched, use.arity, reached.heads)
+            is Use.AnyName ->
+                Applicability.ofAnyName(declaration, reached.searched, reached.imported, use.arity, reached.heads)
         }
 
         return if (applicability == Applicability.VALID && reached.remote && declaration.visibility == Visibility.PRIVATE) {

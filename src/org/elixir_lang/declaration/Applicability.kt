@@ -41,13 +41,20 @@ enum class Applicability {
 
         /**
          * How [declaration] applies at a use with no name yet and [arity] arguments, reached as [searched] through
-         * the `defdelegate` heads of arities [crossed], from the use outward. Nothing such a use reaches is valid, so
-         * its arity decides; behind a delegation only the name it delegates to is a candidate.
+         * the `defdelegate` heads of arities [crossed], from the use outward. [admitted] is whether each `import`
+         * crossed brings in what it reaches at the arity reaching it. Nothing such a use reaches is valid, so its arity
+         * decides; behind a delegation only the name it delegates to is a candidate.
          */
-        fun ofAnyName(declaration: Declaration, searched: String?, arity: Int, crossed: List<ArityKnowledge>): Applicability? {
+        fun ofAnyName(
+            declaration: Declaration,
+            searched: String?,
+            admitted: Boolean,
+            arity: Int,
+            crossed: List<ArityKnowledge>,
+        ): Applicability? {
             if (searched != null && searched != declaration.name) return null
 
-            return if (fits(declaration, arity, crossed) == false) WRONG_ARITY else OPAQUE
+            return if (!admitted || fits(declaration, arity, crossed) == false) WRONG_ARITY else OPAQUE
         }
 
         /**
