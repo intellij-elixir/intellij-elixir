@@ -159,6 +159,33 @@ class ProtocolFunctionFindUsagesTest : PlatformTestCase() {
         )
     }
 
+    /** A protocol function with defaults defines both arities, so a call at either is a use of the other. */
+    fun testCallAtOtherArityOfDefaults() {
+        myFixture.addFileToProject("use.ex", "defmodule Use do\n  def run(x), do: P.f(x)\nend\n")
+        myFixture.configureByText("p.ex", "defprotocol P do\n  def f(t, opts \\\\ [])\nend\n\ndefmodule Go do\n  def go(x), do: P.<caret>f(x, [])\nend\n")
+
+        assertTrue("the call at f/1: ${usageLinesAtCaret()}", "def run(x), do: P.f(x)" in usageLinesAtCaret())
+    }
+
+    /** A bare call of a protocol function under `import` of its protocol is a use of it. */
+    fun testBareCallUnderImportIsFound() {
+        myFixture.addFileToProject("use.ex", "defmodule Use do\n  import P\n\n  def run(x), do: f(x)\nend\n")
+        myFixture.configureByText("p.ex", "defprotocol P do\n  def <caret>f(t)\nend\n")
+
+        assertTrue("the imported call: ${usageLinesAtCaret()}", "def run(x), do: f(x)" in usageLinesAtCaret())
+    }
+
+    /** A call of a `defdelegate ... to: P` is a use of the protocol function it delegates to, as a function's is. */
+    fun testCallThroughDelegationIsFound() {
+        myFixture.addFileToProject(
+            "facade.ex",
+            "defmodule Facade do\n  defdelegate f(t), to: P\nend\n\ndefmodule Use do\n  def run(x), do: Facade.f(x)\nend\n"
+        )
+        myFixture.configureByText("p.ex", "defprotocol P do\n  def <caret>f(t)\nend\n")
+
+        assertTrue("the delegated call: ${usageLinesAtCaret()}", "def run(x), do: Facade.f(x)" in usageLinesAtCaret())
+    }
+
     /** Each usage's line and whether it is a declaration. */
     private fun usageEntriesAtCaret(): List<Pair<String, Boolean>> =
         myFixture.singleTargetPsiUsagesAtCaret(project)

@@ -49,7 +49,7 @@ fun preferred(use: Use, found: List<Found>, incompleteCode: Boolean, bound: Bool
  */
 @RequiresReadLock
 fun atItsHead(delegation: Call, use: Use.Named, feature: Feature): Preferred? =
-    preferred(use, sourceFor(feature).candidates(use, false), false).firstOrNull { it.found.element == delegation }
+    Resolved.step(use, false, feature = feature).firstOrNull { it.found.element == delegation }
 
 /** Each delegation target goes with its delegation, and nothing is dropped. */
 @RequiresReadLock

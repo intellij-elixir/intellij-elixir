@@ -131,6 +131,8 @@
 
 ### Bug Fixes
 
+- [#4488](https://github.com/intellij-elixir/intellij-elixir/pull/4488) [@sh41](https://github.com/sh41)
+  - **Find Usages and Rename find a capture or `import` key at every arity of a function with default arguments; Rename adds `as:` to a `defdelegate` whose target it can't rename, rewrites only the atom of an `unquote`-named function, and says why it refuses a name that needs quotes or a call, capture or `@spec` no arity takes.** Fixes [#4345](https://github.com/intellij-elixir/intellij-elixir/issues/4345).
 - [#4481](https://github.com/intellij-elixir/intellij-elixir/pull/4481) [@sh41](https://github.com/sh41)
   - **Calls to a `defdelegate` whose target cannot be found, to a `defexception`, and to a function an EEx template or a `Mix.Generator` embed declares are coloured as function calls. Guards get their own "Calls > Guard" and "Declarations > Guard" colours, which default to the macro colours, and a `defguard`'s parameters are coloured as parameters. Only `Kernel`'s own functions get the predefined colour, not those of a module such as `MyKernel`.** Refs [#4435](https://github.com/intellij-elixir/intellij-elixir/issues/4435).
 - [#4479](https://github.com/intellij-elixir/intellij-elixir/pull/4479) [@sh41](https://github.com/sh41)

@@ -19,7 +19,7 @@ internal class AtomReferenceProvider : PsiSymbolReferenceProvider {
     ): Collection<PsiSymbolReference> {
         val atom = element as? ElixirAtom ?: return emptyList()
         val context = atom.mfaReferenceDecision().context ?: return emptyList()
-        return listOf(AtomReference(atom, context.moduleElement, contentTextRange(atom), context.arity))
+        return listOf(AtomReference(atom, context.moduleElement, contentTextRange(atom)))
     }
 
     override fun getSearchRequests(project: Project, target: Symbol): Collection<SearchRequest> = emptyList()

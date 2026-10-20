@@ -8,9 +8,12 @@ import com.intellij.model.psi.PsiSymbolReferenceProvider
 import com.intellij.model.search.SearchRequest
 import com.intellij.openapi.project.Project
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.elixir_lang.declaration.Form
+import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.Implementation
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 
 /**
  * Attaches a [ProtocolImplReference] to a clause inside a `defimpl`, so "Go To Declaration" navigates to the matching
@@ -30,10 +33,9 @@ internal class ProtocolImplReferenceProvider : PsiSymbolReferenceProvider {
         if (element !is Call || !CallDefinitionClause.`is`(element)) return emptyList()
         val enclosingModular = CallDefinitionClause.enclosingModularMacroCall(element) ?: return emptyList()
         if (!Implementation.`is`(enclosingModular)) return emptyList()
-        val nameId = CallDefinitionClause.nameIdentifier(element) ?: return emptyList()
-        val rangeInElement = nameId.textRange.shiftLeft(element.textRange.startOffset)
-        val reference = ProtocolImplReference(element, rangeInElement)
-        return if (reference.resolveReference().isEmpty()) emptyList() else listOf(reference)
+        return DeclaringForm.nameElements(element, Form.CLAUSE)
+            .map { ProtocolImplReference(element, UseSymbols.nameRange(it).shiftLeft(element.textRange.startOffset)) }
+            .filter { it.resolveReference().isNotEmpty() }
     }
 
     override fun getSearchRequests(project: Project, target: Symbol): Collection<SearchRequest> = emptyList()

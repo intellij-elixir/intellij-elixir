@@ -5,6 +5,8 @@ import com.intellij.find.usages.api.PsiUsage
 import com.intellij.psi.PsiElement
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.assertShowUsagesChosenAtCaret
+import org.elixir_lang.code_insight.chosenTargetPsiUsagesAtCaret
+import org.elixir_lang.code_insight.searchTargetsAtCaret
 import org.elixir_lang.code_insight.singleTargetPsiUsagesAtCaret
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
@@ -182,6 +184,274 @@ class FunctionFindUsagesTest : PlatformTestCase() {
 
         assertTrue("the head's usages include its calls", fromHead.any { it.endsWith("def call(a, b), do: {x(a), M.x(a, b)}") })
         assertEquals(fromHead, fromSpec)
+    }
+
+    /** From `f/2` of `def f(q, x \\ nil)`, a capture and an import key at `f/1` are uses, as a call at `f/1` is. */
+    fun testCaptureAndKeyAtTheLowerArityOfDefaultsAreFound() {
+        defaults()
+        myFixture.editor.caretModel.moveToOffset(myFixture.file.text.indexOf("M.f(q, 1)") + "M.".length)
+
+        val lines = usageLinesAtCaret().map { it.substringAfter(": ") }
+
+        assertTrue("the capture: $lines", "def b, do: &M.f/1" in lines)
+        assertTrue("the key: $lines", "import M, only: [f: 1]" in lines)
+    }
+
+    /** From `f/1` of `def f(q, x \\ nil)`, a capture and an import key at `f/2` are uses. */
+    fun testCaptureAndKeyAtTheHigherArityOfDefaultsAreFound() {
+        defaults()
+        myFixture.editor.caretModel.moveToOffset(myFixture.file.text.indexOf("M.f(q)") + "M.".length)
+
+        val lines = usageLinesAtCaret().map { it.substringAfter(": ") }
+
+        assertTrue("the capture: $lines", "def c, do: &M.f/2" in lines)
+        assertTrue("the key: $lines", "import M, only: [f: 2]" in lines)
+    }
+
+    /** A key or capture at an arity the definition does not cover names another function; one at an arity it covers is a use. */
+    fun testKeyAtAnotherFunctionsArityIsNotFound() {
+        myFixture.addFileToProject(
+            "m.ex",
+            "defmodule M do\n  def f(q, x \\\\ nil), do: {q, x}\n  def f(a, b, c), do: {a, b, c}\nend\n"
+        )
+        myFixture.configureByText(
+            "caller.ex",
+            "defmodule Caller do\n  import M, only: [f: 3]\n\n  def a(q), do: M.<caret>f(q, 1)\n" +
+                "  def b, do: &M.f/3\n  def c, do: &M.f/1\nend\n"
+        )
+
+        val lines = usageLinesAtCaret().map { it.substringAfter(": ") }
+
+        assertTrue("the f/1 capture: $lines", "def c, do: &M.f/1" in lines)
+        assertFalse("the f/3 key: $lines", "import M, only: [f: 3]" in lines)
+        assertFalse("the f/3 capture: $lines", "def b, do: &M.f/3" in lines)
+    }
+
+    /** `def` is a call to `Kernel.def/2`, so its keyword is a use of it, as a `defdelegate` keyword is of its macro. */
+    fun testDefKeywordIsAUseOfKernelDef() {
+        myFixture.addFileToProject("use.ex", "defmodule Use do\n  def run(x), do: x\nend\n")
+        myFixture.configureByText("kernel.ex", "defmodule Kernel do\n  defmacro <caret>def(call, expr), do: {call, expr}\nend\n")
+
+        val lines = usageLinesAtCaret()
+
+        assertTrue("the def keyword: $lines", lines.any { it.startsWith("use.ex:") && it.endsWith("def run(x), do: x") })
+    }
+
+    /** An MFA atom at a literal arity the function does not take is listed, as a near miss to fix. */
+    fun testMfaAtomAtAnotherLiteralArityIsListed() {
+        myFixture.addFileToProject("caller.ex", "defmodule Caller do\n  def run, do: apply(M, :f, [1])\nend\n")
+        myFixture.configureByText("m.ex", "defmodule M do\n  def <caret>f(a, b), do: {a, b}\nend\n")
+
+        val lines = usageLinesAtCaret()
+
+        assertTrue("the atom: $lines", lines.any { it.startsWith("caller.ex:") })
+    }
+
+    /** Under `import Kernel, except: [inspect: 2]`, a bare `inspect(x, [])` calls the module's own `inspect/2`. */
+    fun testBareCallExcludedFromKernelImportIsNotFound() {
+        myFixture.addFileToProject(
+            "algebra.ex",
+            """
+            defmodule Inspect.Algebra do
+              import Kernel, except: [inspect: 2]
+
+              def inspect(term, opts), do: {term, opts}
+              def run(x), do: inspect(x, [])
+              def qualified(x), do: Kernel.inspect(x, [])
+            end
+            """.trimIndent() + "\n"
+        )
+        myFixture.configureByText("kernel.ex", "defmodule Kernel do\n  def <caret>inspect(term, opts), do: {term, opts}\nend\n")
+
+        val lines = usageLinesAtCaret().map { it.substringAfter(": ") }
+
+        assertTrue("the qualified call: $lines", "def qualified(x), do: Kernel.inspect(x, [])" in lines)
+        assertFalse("the module's own call: $lines", "def run(x), do: inspect(x, [])" in lines)
+    }
+
+    /** A `defdelegate` with defaults defines each arity, and a call at either is a use of the other. */
+    fun testDelegationWithDefaultsAtOtherArity() {
+        myFixture.addFileToProject("t.ex", "defmodule T do\n  def f(a, b \\\\ nil), do: {a, b}\nend\n")
+        myFixture.addFileToProject("use.ex", "defmodule Use do\n  def run(x), do: M.f(x)\nend\n")
+        myFixture.configureByText("m.ex", "defmodule M do\n  defdelegate f(a, b \\\\ nil), to: T\n\n  def go(x), do: <caret>f(x, 1)\nend\n")
+
+        val lines = usageLinesAtCaret().map { it.substringAfter(": ") }
+
+        assertTrue("the call at f/1: $lines", "def run(x), do: M.f(x)" in lines)
+    }
+
+    /** An `EEx.function_from_string` function is one function at its arity: a call of another of its name is not its. */
+    fun testEExFunctionAtOtherArity() {
+        eex()
+        myFixture.addFileToProject("use.ex", "defmodule Use do\n  def run, do: T.hello(1)\n  def other, do: T.hello(1, 2)\nend\n")
+        myFixture.configureByText(
+            "t.ex",
+            "defmodule T do\n  require EEx\n  EEx.function_from_string(:def, :hel<caret>lo, \"<%= a %>\", [:a])\n" +
+                "  EEx.function_from_string(:def, :hello, \"<%= a %><%= b %>\", [:a, :b])\nend\n"
+        )
+
+        val lines = usageLinesAtCaret().map { it.substringAfter(": ") }
+
+        assertTrue("the call at its arity: $lines", "def run, do: T.hello(1)" in lines)
+        assertFalse("the call at the other's arity: $lines", "def other, do: T.hello(1, 2)" in lines)
+    }
+
+    /** A local call of an `EEx.function_from_string` function in its own module is a use of it. */
+    fun testEExFunctionLocalCallIsFound() {
+        eex()
+        myFixture.configureByText(
+            "t.ex",
+            "defmodule T do\n  require EEx\n  EEx.function_from_string(:def, :hel<caret>lo, \"<%= a %>\", [:a])\n\n" +
+                "  def run, do: hello(1)\nend\n"
+        )
+
+        val lines = usageLinesAtCaret().map { it.substringAfter(": ") }
+
+        assertTrue("the local call: $lines", "def run, do: hello(1)" in lines)
+    }
+
+    /** A function whose arity can't be known takes any, so calls of it at any arity, here or qualified, are its uses. */
+    fun testEExFunctionOfUnknownArityCallsAreFound() {
+        eex()
+        myFixture.addFileToProject("caller.ex", "defmodule Caller do\n  def run, do: T.hello(1)\nend\n")
+        myFixture.configureByText(
+            "t.ex",
+            "defmodule T do\n  require EEx\n  @args [:a]\n  EEx.function_from_string(:def, :hello, \"<%= a %>\", @args)\n\n" +
+                "  def run, do: hel<caret>lo(1)\nend\n"
+        )
+
+        val lines = usageLinesAtCaret().map { it.substringAfter(": ") }
+
+        assertTrue("the local call: $lines", "def run, do: hello(1)" in lines)
+        assertTrue("the qualified call: $lines", "def run, do: T.hello(1)" in lines)
+    }
+
+    /** A helper in a `defimpl` is used only in that `defimpl`, whatever form declares another `defimpl`'s helper. */
+    fun testHelperIsNotUsedFromAnotherDefimplsEExHelper() {
+        eex()
+        myFixture.configureByText(
+            "p.ex",
+            "defprotocol P do\n  def run(t)\nend\n\n" +
+                "defimpl P, for: A do\n  def run(t), do: hel<caret>per(t)\n  defp helper(x), do: x\nend\n\n" +
+                "defimpl P, for: B do\n  require EEx\n  EEx.function_from_string(:defp, :helper, \"<%= x %>\", [:x])\n" +
+                "  def run(b), do: helper(b)\nend\n"
+        )
+
+        val lines = usageLinesAtCaret().map { it.substringAfter(": ") }
+
+        assertTrue("A's call: $lines", "def run(t), do: helper(t)" in lines)
+        assertFalse("B's call: $lines", "def run(b), do: helper(b)" in lines)
+    }
+
+    /** From an EEx-declared helper in a `defimpl`, its own `defimpl`'s call is its use and another's is not. */
+    fun testEExHelperInADefimplFindsOnlyItsOwnCall() {
+        eex()
+        myFixture.configureByText(
+            "p.ex",
+            "defprotocol P do\n  def run(t)\nend\n\n" +
+                "defimpl P, for: A do\n  def run(t), do: helper(t)\n  defp helper(x), do: x\nend\n\n" +
+                "defimpl P, for: B do\n  require EEx\n  EEx.function_from_string(:defp, :hel<caret>per, \"<%= x %>\", [:x])\n" +
+                "  def run(b), do: helper(b)\nend\n"
+        )
+
+        val lines = usageLinesAtCaret().map { it.substringAfter(": ") }
+
+        assertTrue("B's call: $lines", "def run(b), do: helper(b)" in lines)
+        assertFalse("A's call: $lines", "def run(t), do: helper(t)" in lines)
+    }
+
+    /** A call or head only a function of unknown arity can take is not a use of a definition at another arity. */
+    fun testCallOnlyAFunctionOfUnknownArityTakesIsNotAnothersUse() {
+        eex()
+        myFixture.addFileToProject("m.ex", "defmodule M do\n  defdelegate render(a, b), to: T\nend\n")
+        myFixture.configureByText(
+            "t.ex",
+            "defmodule T do\n  require EEx\n  @args [:a, :b]\n  EEx.function_from_string(:def, :render, \"<%= a %>\", @args)\n\n" +
+                "  def ren<caret>der(x), do: x\n  def one, do: render(1)\n  def two, do: render(1, 2)\nend\n"
+        )
+
+        val lines = usageLinesAtCaret().map { it.substringAfter(": ") }
+
+        assertTrue("the call at its arity: $lines", "def one, do: render(1)" in lines)
+        assertFalse("the call at another arity: $lines", "def two, do: render(1, 2)" in lines)
+        assertFalse("the delegation at another arity: $lines", "defdelegate render(a, b), to: T" in lines)
+    }
+
+    /**
+     * A call both a definition and a function of unknown arity can take offers both as targets, whichever is written
+     * first: the definition's lists the calls at its arity alone, the other's every call it can take.
+     */
+    @Suppress("UnstableApiUsage")
+    fun testCallOfADefinitionAndAFunctionOfUnknownArityOffersBoth() {
+        eex()
+        val unknown = "  @args [:a, :b]\n  EEx.function_from_string(:def, :render, \"<%= a %>\", @args)\n"
+        val definition = "  def render(x), do: x\n"
+
+        for (declarations in listOf(unknown + definition, definition + unknown)) {
+            myFixture.configureByText(
+                "t.ex",
+                "defmodule T do\n  require EEx\n$declarations  def one, do: ren<caret>der(1)\n  def two, do: render(1, 2)\nend\n"
+            )
+            val text = myFixture.file.text
+            val targets = myFixture.searchTargetsAtCaret(project)
+
+            assertEquals("targets: $targets", 2, targets.size)
+
+            fun linesOf(declaredAt: String) =
+                myFixture.chosenTargetPsiUsagesAtCaret(project) { offered ->
+                    offered.single { (it as FunctionSymbol).range.startOffset == text.indexOf(declaredAt) }
+                }.map { usage -> text.lines()[text.take(usage.range.startOffset).count { it == '\n' }].trim() }
+
+            val ofDefinition = linesOf("render(x)")
+            val ofUnknown = linesOf("render, \"")
+
+            assertTrue("the definition's call at its arity: $ofDefinition", "def one, do: render(1)" in ofDefinition)
+            assertFalse("the definition's call at another arity: $ofDefinition", "def two, do: render(1, 2)" in ofDefinition)
+            assertTrue("the other's calls: $ofUnknown", listOf("def one, do: render(1)", "def two, do: render(1, 2)").all { it in ofUnknown })
+        }
+    }
+
+    /** `embed_template(:log, ...)` defines `log_template/1`, whose local call is a use of it. */
+    fun testEmbedTemplateNameFindsItsCall() {
+        myFixture.addFileToProject(
+            "generator.ex",
+            "defmodule Mix.Generator do\n  defmacro embed_template(name, contents) do\n    {name, contents}\n  end\nend\n"
+        )
+        myFixture.configureByText(
+            "t.ex",
+            "defmodule T do\n  import Mix.Generator\n  embed_template(:lo<caret>g, \"<%= @a %>\")\n\n" +
+                "  def run, do: log_template(a: 1)\nend\n"
+        )
+
+        val lines = usageLinesAtCaret().map { it.substringAfter(": ") }
+
+        assertTrue("the local call: $lines", "def run, do: log_template(a: 1)" in lines)
+    }
+
+    private fun defaults() {
+        myFixture.addFileToProject("m.ex", "defmodule M do\n  def f(q, x \\\\ nil), do: {q, x}\nend\n")
+        myFixture.configureByText(
+            "caller.ex",
+            """
+            defmodule Caller do
+              import M, only: [f: 1]
+              import M, only: [f: 2]
+
+              def a(q), do: M.f(q, 1)
+              def b, do: &M.f/1
+              def c, do: &M.f/2
+              def d(q), do: M.f(q)
+            end
+            """.trimIndent() + "\n"
+        )
+    }
+
+    private fun eex() {
+        myFixture.addFileToProject(
+            "eex.ex",
+            "defmodule EEx do\n  defmacro function_from_string(kind, name, source, args \\\\ [], options \\\\ []) do\n" +
+                "    {kind, name, source, args, options}\n  end\nend\n"
+        )
     }
 
     @Suppress("UnstableApiUsage")

@@ -94,8 +94,11 @@ class ProtocolImplementationReadersTest : PlatformTestCase() {
 
     fun testFindUsagesListsADelegationWithoutAs() = assertEquals(setOf("Atom"), findUsages(DELEGATION))
 
-    /** Renaming only its head would make it delegate to a function its target does not define. */
-    fun testRenameLeavesADelegationWithoutAsAlone() = assertEquals(NONE, renamed(DELEGATION))
+    /** Its head is renamed with the protocol function, and as its target is not found, it gains `as:` to keep calling it. */
+    fun testRenameRenamesADelegationWithoutAs() {
+        assertEquals(setOf("Atom"), renamed(DELEGATION))
+        assertTrue(myFixture.file.text, "defdelegate fresh(atom), to: Sizes, as: :size" in myFixture.file.text)
+    }
 
     fun testAPrivateImplementerKeepsItsOwnUsages() {
         myFixture.configureByFile(SIZE.file)

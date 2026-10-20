@@ -205,13 +205,15 @@ class DefoverridableKeyCallbackTest : PlatformTestCase() {
         assertEquals(emptyList<String>(), callbacks.map(::describe))
     }
 
-    /** Without `as:` the head names its target's function too, so renaming only the head would break the call. */
-    fun testRenamingACallbackLeavesADelegationWithoutAsAlone() {
+    /** Without `as:` the head names its target's function too, so renaming the callback renames both, as from the head. */
+    fun testRenamingACallbackRenamesADelegationWithoutAsAndItsTarget() {
         myFixture.configureByFile("key.ex")
         caretOn("@callback id", "id")
         myFixture.renameTargetAtCaret("fresh")
 
-        assertTrue(myFixture.file.text.contains("defdelegate id(socket), to: Ids"))
+        val text = myFixture.file.text
+        assertTrue(text, text.contains("defdelegate fresh(socket), to: Ids"))
+        assertTrue(text, text.contains("def fresh(socket), do: socket"))
     }
 
     fun testCtrlClickOnADelegationHeadShowsItsUsages() {

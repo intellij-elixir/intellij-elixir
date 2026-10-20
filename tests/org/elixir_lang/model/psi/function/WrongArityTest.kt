@@ -7,6 +7,7 @@ import com.intellij.navigation.SymbolNavigationService
 import com.intellij.psi.PsiElement
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.gotoDeclarationTargetsAtCaret
+import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetsAtCaret
 import org.elixir_lang.documentation.quickDocumentationAtCaret
 
@@ -22,11 +23,121 @@ class WrongArityTest : PlatformTestCase() {
         assertOffers(listOf("NearMiss(target=FunctionSymbol(M.f/2, macro=false))"), listOf("m.ex:2: def f(a, b), do: {a, b}"))
     }
 
-    fun testNearMissIsNotRenamedFromTheCall() {
+    fun testNearMissIsRefusedFromTheCall() {
         myFixture.configureByText("m.ex", "defmodule M do\n  def f(a, b), do: {a, b}\n\n  def run, do: <caret>f(1)\nend\n")
 
-        assertEquals(emptyList<String>(), myFixture.renameTargetsAtCaret().map { it.toString() })
-        assertEquals(listOf("m.ex:2: def f(a, b), do: {a, b}"), goToAtCaret())
+        assertRefused(
+            "f/1 cannot be renamed: no f/1 can be called here; f/2 can",
+            "goTo=[m.ex:2: def f(a, b), do: {a, b}]; usages=[m.ex:2]; highlights=[]"
+        )
+    }
+
+    fun testNearMissIsRefusedFromTheQualifiedCall() {
+        myFixture.configureByText("m.ex", "defmodule M do\n  def f(a, b), do: {a, b}\n\n  def run, do: M.<caret>f(1)\nend\n")
+
+        assertRefused(
+            "f/1 cannot be renamed: no f/1 can be called here; f/2 can",
+            "goTo=[m.ex:2: def f(a, b), do: {a, b}]; usages=[m.ex:2]; highlights=[]"
+        )
+    }
+
+    fun testNearMissIsRefusedFromTheCapture() {
+        myFixture.configureByText("m.ex", "defmodule M do\n  def f(a, b), do: {a, b}\n\n  def run, do: &<caret>f/1\nend\n")
+
+        assertRefused(
+            "f/1 cannot be renamed: no f/1 can be called here; f/2 can",
+            "goTo=[m.ex:2: def f(a, b), do: {a, b}]; usages=[m.ex:2]; highlights=[]"
+        )
+    }
+
+    fun testNearMissIsRefusedFromTheSpec() {
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  @spec <caret>f(integer) :: integer\n  def f(a, b), do: {a, b}\nend\n"
+        )
+
+        assertRefused(
+            "f/1 cannot be renamed: no f/1 can be called here; f/2 can",
+            "goTo=[m.ex:3: def f(a, b), do: {a, b}]; usages=[m.ex:3]; highlights=[]"
+        )
+    }
+
+    /** Two heads at other arities are one rename target, whose refusal names both. */
+    fun testNearMissesAreOneTargetNamingEveryArity() {
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  def f(a, b), do: {a, b}\n  def f(a, b, c), do: {a, b, c}\n\n  def run, do: <caret>f(1)\nend\n"
+        )
+
+        assertRefused(
+            "f/1 cannot be renamed: no f/1 can be called here; f/2 and f/3 can",
+            "goTo=[m.ex:2: def f(a, b), do: {a, b}, m.ex:3: def f(a, b, c), do: {a, b, c}]; usages=[]; highlights=[]"
+        )
+    }
+
+    fun testNearMissesNameThreeAritiesInOneList() {
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  def f(a, b), do: {a, b}\n  def f(a, b, c), do: {a, b, c}\n  def f(a, b, c, d), do: {a, b, c, d}\n\n" +
+                "  def run, do: <caret>f(1)\nend\n"
+        )
+
+        assertRefused(
+            "f/1 cannot be renamed: no f/1 can be called here; f/2, f/3 and f/4 can",
+            "goTo=[m.ex:2: def f(a, b), do: {a, b}, m.ex:3: def f(a, b, c), do: {a, b, c}, m.ex:4: def f(a, b, c, d), do: {a, b, c, d}]; " +
+                "usages=[]; highlights=[]"
+        )
+    }
+
+    /** A head that takes any number of arguments from some arity on is named as that arity and up. */
+    fun testNearMissAtAnOpenHeadNamesItsArityAndUp() {
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  def f(a, unquote_splicing(rest)), do: a\n\n  def run, do: <caret>f()\nend\n"
+        )
+
+        assertRefused(
+            "f/0 cannot be renamed: no f/0 can be called here; f/1 and up can",
+            "goTo=[m.ex:2: def f(a, unquote_splicing(rest)), do: a]; usages=[m.ex:2]; highlights=[]"
+        )
+    }
+
+    /** The use's rename target is resolved afresh each time, and each is the same target. */
+    fun testNearMissRenameTargetIsEqualAcrossResolutions() {
+        myFixture.configureByText(
+            "m.ex",
+            "defmodule M do\n  def f(a, b), do: {a, b}\n  def f(a, b, c), do: {a, b, c}\n\n  def run, do: <caret>f(1)\nend\n"
+        )
+
+        val first = myFixture.renameTargetsAtCaret().single()
+        val second = myFixture.renameTargetsAtCaret().single()
+
+        assertNotSame(first, second)
+        assertEquals(first, second)
+        assertEquals(first.hashCode(), second.hashCode())
+    }
+
+    fun testNearMissAtDefaultsNamesEveryArity() {
+        myFixture.configureByText("m.ex", "defmodule M do\n  def g(a, b \\\\ 1), do: {a, b}\n\n  def run, do: <caret>g()\nend\n")
+
+        assertRefused(
+            "g/0 cannot be renamed: no g/0 can be called here; g/1 and g/2 can",
+            "goTo=[m.ex:2: def g(a, b \\\\ 1), do: {a, b}]; usages=[m.ex:2]; highlights=[]"
+        )
+    }
+
+    /** An arity an import leaves out cannot be called here either, so the refusal names only what the import brings. */
+    fun testNearMissUnderImportOnlyNamesTheImportedArities() {
+        myFixture.addFileToProject("errors.ex", "defmodule Errors do\n  def pad(a, b \\\\ 1), do: {a, b}\nend\n")
+        myFixture.configureByText(
+            "u.ex",
+            "defmodule OnlyUser do\n  import Errors, only: [pad: 1]\n\n  def usage, do: <caret>pad(1, 2)\nend\n"
+        )
+
+        assertRefused(
+            "pad/2 cannot be renamed: no pad/2 can be called here; pad/1 can",
+            "goTo=[errors.ex:2: def pad(a, b \\\\ 1), do: {a, b}]; usages=[errors.ex:2, u.ex:2]; highlights=[]"
+        )
     }
 
     fun testAdmittedCallIsRenamedFromTheCall() {
@@ -152,6 +263,41 @@ class WrongArityTest : PlatformTestCase() {
         myFixture.configureByText("m.ex", "defmodule M do\n  defdelegate d(a), to: Nowhere\n\n  def run, do: <caret>d(1, 2)\nend\n")
 
         assertOffers(listOf("NearMiss(target=FunctionSymbol(M.d/1, macro=false))"), listOf("m.ex:2: defdelegate d(a), to: Nowhere"))
+    }
+
+    /**
+     * Go To, Find Usages and the messages highlighting shows at the caret are [gestures], and the caret's one rename
+     * target is refused with [reason], editing nothing.
+     */
+    private fun assertRefused(reason: String, gestures: String) {
+        assertEquals(gestures, "goTo=${goToAtCaret()}; usages=${usagesAtCaret()}; highlights=${highlightsAtCaret()}")
+
+        val before = myFixture.file.text
+        val targets = myFixture.renameTargetsAtCaret()
+
+        assertEquals("one rename target: $targets", 1, targets.size)
+
+        val failure = runCatching { myFixture.renameTarget(targets.single(), "fresh") }.exceptionOrNull()
+
+        assertTrue(
+            "Renaming should be refused as `$reason`, but " + (failure?.let { "failed with $it" } ?: "renamed it"),
+            generateSequence(failure) { it.cause }.any { it.message == reason }
+        )
+        assertEquals(before, myFixture.file.text)
+    }
+
+    private fun usagesAtCaret(): List<String> =
+        myFixture.psiUsagesAtCaret(project).map { usage ->
+            "${usage.file.name}:${usage.file.text.take(usage.range.startOffset).count { it == '\n' } + 1}"
+        }.sorted()
+
+    private fun highlightsAtCaret(): List<String> {
+        val caret = myFixture.caretOffset
+
+        return myFixture.doHighlighting()
+            .filter { it.description != null && it.startOffset <= caret && caret <= it.endOffset }
+            .map { "${it.severity}: ${it.description}" }
+            .sorted()
     }
 
     private fun importing(options: String) {

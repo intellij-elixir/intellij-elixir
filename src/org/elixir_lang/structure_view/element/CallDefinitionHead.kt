@@ -5,11 +5,13 @@ import com.intellij.navigation.ItemPresentation
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiErrorElement
 import com.intellij.psi.ResolveState
+import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.NameArityInterval
 import org.elixir_lang.call.Visibility
 import org.elixir_lang.navigation.item_presentation.NameArity
 import org.elixir_lang.psi.*
+import org.elixir_lang.psi.impl.isInterpolatedWithin
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
@@ -78,6 +80,24 @@ class CallDefinitionHead(val callDefinition: CallDefinition, private val visibil
         /** The element a rename of [head]'s name rewrites: in `unquote(:name)(...)`, the atom. */
         @RequiresReadLock
         fun nameElement(head: PsiElement): PsiElement? = headAtomQuotable(head) ?: nameIdentifier(head)
+
+        /**
+         * The elements a caret is on [head]'s name at: in `unquote(:name)(...)`, the atom and `unquote`, which together
+         * write it, though a rename rewrites only the atom.
+         */
+        @RequiresReadLock
+        fun nameElements(head: PsiElement): List<PsiElement> = listOfNotNull(nameElement(head), nameIdentifier(head)).distinct()
+
+        /**
+         * Whether [element] is on [head]'s name, or holds it, but is not code interpolated in it, which runs. An atom, as
+         * an EEx function's name is written, is its own head.
+         */
+        @RequiresReadLock
+        fun isOnName(head: PsiElement, element: PsiElement): Boolean =
+            nameElements(head).any { name ->
+                PsiTreeUtil.isAncestor(element, name, false) ||
+                    PsiTreeUtil.isAncestor(name, element, false) && !element.isInterpolatedWithin(name)
+            }
 
         @RequiresReadLock
         fun nameArityInterval(head: PsiElement, state: ResolveState): NameArityInterval? =

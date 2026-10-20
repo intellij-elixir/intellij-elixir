@@ -3,7 +3,7 @@ defprotocol Size do
 end
 
 defmodule Counter do
-  def size(map), do: map_size(map)
+  def fresh(map), do: map_size(map)
 end
 
 defimpl Size, for: List do
@@ -11,9 +11,9 @@ defimpl Size, for: List do
 end
 
 defimpl Size, for: Map do
-  @spec size(map) :: integer
-  @compile inline: [size: 1]
-  defdelegate size(map), to: Counter
+  @spec fresh(map) :: integer
+  @compile inline: [fresh: 1]
+  defdelegate fresh(map), to: Counter
 
-  def twice(map), do: size(map) * 2
+  def twice(map), do: fresh(map) * 2
 end

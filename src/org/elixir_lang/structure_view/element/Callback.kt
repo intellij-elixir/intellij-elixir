@@ -151,15 +151,13 @@ class Callback(private val modular: Modular, navigationItem: Call, private val k
                 enclosingModular(call)?.let { modular -> Callback(modular, call, kind) }
             }
 
-        @Contract(pure = true)
-        fun nameIdentifier(call: Call): PsiElement? =
-            (call as? AtUnqualifiedNoParenthesesCall<*>)?.let { nameIdentifier(it) }
+        /** The element [call]'s head writes its name as: in `@callback unquote(:name)(...)`, the atom. */
+        @RequiresReadLock
+        fun nameIdentifier(call: Call): PsiElement? = head(call)?.let(CallDefinitionHead::nameElement)
 
-        @Contract(pure = true)
-        fun nameIdentifier(atUnqualifiedNoParenthesesCall: AtUnqualifiedNoParenthesesCall<*>): PsiElement? =
-            headCall(atUnqualifiedNoParenthesesCall)?.let { headCall ->
-                CallDefinitionHead.nameIdentifier(headCall)
-            }
+        /** The head [call] writes its callback in: `name(parameters)` in `@callback name(parameters) :: ...`. */
+        @RequiresReadLock
+        fun head(call: Call): Call? = (call as? AtUnqualifiedNoParenthesesCall<*>)?.let(::headCall)
 
         private fun parameterizedTypeHeadCall(whenOperation: When): Call? =
             (whenOperation.leftOperand() as? Type)?.let { type ->

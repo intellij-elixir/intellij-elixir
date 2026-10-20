@@ -96,6 +96,10 @@ class RenameMatrixTest : PlatformTestCase() {
     fun testFunctionDefaultArgs() =
         doTestFromEveryOccurrence("function_default_args", "renamee", "fresh", expectedCarets = 3)
 
+    /** A capture and an `only:` key at either arity of a def with a default argument rename with its calls. */
+    fun testFunctionDefaultArgsCaptureAndKey() =
+        doTestFromEveryOccurrence("function_default_args_capture_key", "renamee", "fresh", expectedCarets = 6)
+
     /**
      * Two same-named functions of different arity are DIFFERENT symbols: renaming from a
      * `renamee/1` occurrence (spec, def, call) must leave `renamee/2` untouched, and renaming
@@ -157,6 +161,19 @@ class RenameMatrixTest : PlatformTestCase() {
     /** `defprotocol` def, `defimpl` def, and dispatching call site. */
     fun testProtocolEverySite() =
         doTestFromEveryOccurrence("protocol_every_site", "renamee", "fresh", expectedCarets = 3)
+
+    /** An `only:` key naming a protocol function renames with it; one at another arity names another function. */
+    fun testProtocolImportOnlyKey() =
+        doTestFromEveryOccurrence("protocol_import_only_key", "renamee", "fresh", expectedCarets = 5, carets = setOf(0, 2, 4))
+
+    /**
+     * A protocol `def` with a default argument declares both arities, so renaming either, from the implementation, the
+     * key or a call, renames an implementation of the other. The `def` itself offers both.
+     */
+    fun testProtocolDefaultsImplementation() =
+        doTestFromEveryOccurrence(
+            "protocol_defaults_implementation", "size", "fresh", expectedCarets = 5, carets = setOf(1, 2, 3, 4)
+        )
 
     /**
      * Renaming a protocol function from any of its occurrences, the protocol's `def`, an implementing head, a `@spec`,
@@ -229,10 +246,10 @@ class RenameMatrixTest : PlatformTestCase() {
         )
 
     /**
-     * A `defdelegate` without `as:` in a `defimpl` keeps its head, so its spec, `@compile inline:` key and local call
-     * keep their text, though a sibling `defimpl` defines the same function and is renamed.
+     * A `defdelegate` without `as:` in a `defimpl` is renamed with the protocol function it implements, and its target
+     * with it, as from the delegation's own head; so are its spec, `@compile inline:` key and local call.
      */
-    fun testProtocolPlainDelegationSiblingKeepsCalls() =
+    fun testProtocolPlainDelegationRenamesWithItsTarget() =
         doTestFromEveryOccurrence(
             "implementation_calls_protocol_plain_delegation", "size", "fresh", expectedCarets = 7, carets = setOf(0)
         )
@@ -250,17 +267,11 @@ class RenameMatrixTest : PlatformTestCase() {
         )
 
     /**
-     * A `defdelegate` with no `as:` whose `to:` does not resolve calls a target by its head's name that a rename cannot
-     * find, so renaming the head and its calls alone would break it: the rename is refused from every occurrence.
+     * A `defdelegate` with no `as:` whose `to:` does not resolve calls a target by its head's name, so renaming the head
+     * and its calls adds `as:` with the old name, from every occurrence.
      */
     fun testFunctionDefdelegateUnresolved() =
-        doTestFromEveryOccurrence(
-            "function_defdelegate_unresolved",
-            "run",
-            "fresh",
-            expectedCarets = 5,
-            refusal = "run cannot be renamed: its target Missing.run/1 is not found"
-        )
+        doTestFromEveryOccurrence("function_defdelegate_unresolved", "run", "fresh", expectedCarets = 5)
 
     /**
      * A `defp` in a `defimpl` implements nothing, so it is renamed with every clause and call in its own `defimpl`, and

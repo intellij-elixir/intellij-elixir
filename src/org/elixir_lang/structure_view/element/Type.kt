@@ -6,6 +6,7 @@ import com.intellij.psi.ElementDescriptionLocation
 import com.intellij.psi.PsiElement
 import com.intellij.usageView.UsageViewTypeLocation
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.call.Visibility
 import org.elixir_lang.navigation.item_presentation.Parent
 import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
@@ -100,11 +101,16 @@ class Type(
             return PsiTreeUtil.isAncestor(head, element, false) || PsiTreeUtil.isAncestor(element, head, false)
         }
 
-        fun nameIdentifier(atUnqualifiedNoParenthesesCall: AtUnqualifiedNoParenthesesCall<*>): PsiElement? =
-            specification(atUnqualifiedNoParenthesesCall)?.let { specificationType(it) }?.let { typeNameIdentifier(it) }
+        /** The head [call] writes its type in: `name(parameters)` in `@type name(parameters) :: ...`. */
+        @RequiresReadLock
+        fun head(call: Call): PsiElement? =
+            (call as? AtUnqualifiedNoParenthesesCall<*>)
+                ?.let(::specification)
+                ?.let(CallDefinitionSpecification::specificationType)
 
-        fun nameIdentifier(call: Call): PsiElement? =
-            (call as? AtUnqualifiedNoParenthesesCall<*>)?.let { nameIdentifier(it) }
+        /** The element [call]'s head writes its name as: in `@type unquote(:name)() :: ...`, the atom. */
+        @RequiresReadLock
+        fun nameIdentifier(call: Call): PsiElement? = head(call)?.let(CallDefinitionHead::nameElement)
 
         fun specification(atUnqualifiedNoParenthesesCall: AtUnqualifiedNoParenthesesCall<*>): Call? =
             atUnqualifiedNoParenthesesCall.argument as? Call
@@ -118,7 +124,5 @@ class Type(
 
         fun type(atUnqualifiedNoParenthesesCall: AtUnqualifiedNoParenthesesCall<*>): Call? =
             atUnqualifiedNoParenthesesCall.argument as? Call
-
-        private fun typeNameIdentifier(type: Call): PsiElement? = type.functionNameElement()
     }
 }

@@ -5,6 +5,7 @@ import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.Delegation
 
 /**
@@ -20,11 +21,16 @@ object DefinitionDeclaration {
     fun of(call: Call, state: ResolveState): Declaration? =
         CallDefinitionClause.declaration(call, state) ?: Delegation.declaration(call, state)
 
+    /** The head [call] writes its name in: `name(arguments)` of a clause or a `defdelegate`. */
     @RequiresReadLock
-    fun nameIdentifier(call: Call): PsiElement? =
+    fun head(call: Call): PsiElement? =
         when {
-            CallDefinitionClause.`is`(call) -> CallDefinitionClause.nameIdentifier(call)
-            Delegation.`is`(call) -> Delegation.nameIdentifier(call)
+            CallDefinitionClause.`is`(call) -> CallDefinitionClause.head(call)
+            Delegation.`is`(call) -> Delegation.head(call) as? Call
             else -> null
         }
+
+    /** The element [call]'s name is written as: in `def unquote(:name)(...)`, the atom. */
+    @RequiresReadLock
+    fun nameIdentifier(call: Call): PsiElement? = head(call)?.let(CallDefinitionHead::nameElement)
 }

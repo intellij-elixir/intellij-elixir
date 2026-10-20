@@ -57,6 +57,36 @@ class InPlaceRenameTest : InPlaceSymbolRenameTestCase() {
         myFixture.checkResultByFile("multi_arity_heads.ex", "multi_arity_heads_after.ex", false)
     }
 
+    /** An `unquote`-named clause's atom and its `@spec`'s are rewritten, never the word `unquote`. */
+    fun testUnquotedNameInPlaceRename() {
+        myFixture.configureByText(
+            "unquoted.ex",
+            "defmodule M do\n  @spec unquote(:f)(term) :: term\n  def unquote(:<caret>f)(x), do: x\n\n  def run, do: f(1)\nend\n"
+        )
+
+        inPlaceRenameAtCaret("g")
+
+        assertEquals(
+            "defmodule M do\n  @spec unquote(:g)(term) :: term\n  def unquote(:g)(x), do: x\n\n  def run, do: g(1)\nend\n",
+            myFixture.editor.document.text
+        )
+    }
+
+    /** A delegation without `as:` whose target is not found gains `as:` with its old name. */
+    fun testDelegationToAnUnresolvableTargetInPlaceRename() {
+        myFixture.configureByText(
+            "delegation.ex",
+            "defmodule M do\n  defdelegate sn<caret>oc(q), to: T\n  def m_use, do: M.snoc(1)\nend\n"
+        )
+
+        inPlaceRenameAtCaret("cons")
+
+        assertEquals(
+            "defmodule M do\n  defdelegate cons(q), to: T, as: :snoc\n  def m_use, do: M.cons(1)\nend\n",
+            myFixture.editor.document.text
+        )
+    }
+
     fun testDefaultArgumentsInPlaceRename() {
         myFixture.configureByFiles("default_arguments.ex")
 

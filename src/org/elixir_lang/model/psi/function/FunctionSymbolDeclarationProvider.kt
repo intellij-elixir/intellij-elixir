@@ -8,7 +8,6 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.declaration.Form
-import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.psi.scope.call_definition_clause.Declarations
@@ -42,12 +41,14 @@ internal class FunctionSymbolDeclarationProvider : PsiSymbolDeclarationProvider 
     }
 
     private fun clause(clause: Call): List<PsiSymbolDeclaration> {
-        val arity = CallDefinitionClause.declaration(clause, ResolveState.initial())?.let(UseSymbols::headArity)
+        // The walk's declaration, which a head with no atom value, such as `unquote(name)`, does not have.
+        val arity = Declarations.of(Form.CLAUSE, clause, ResolveState.initial())
+            .firstNotNullOfOrNull { it.declaration }
+            ?.let(UseSymbols::headArity)
             ?: return emptyList()
         val symbol = FunctionSymbol.fromClause(clause).firstOrNull { it.arity == arity } ?: return emptyList()
-        val nameIdentifier = DeclaringForm.names(clause, Form.CLAUSE).singleOrNull() ?: return emptyList()
 
-        return listOf(declaration(clause, nameIdentifier, symbol))
+        return declarations(clause, Form.CLAUSE, symbol)
     }
 
     private fun declared(call: Call, form: Form): List<PsiSymbolDeclaration> {
@@ -57,17 +58,19 @@ internal class FunctionSymbolDeclarationProvider : PsiSymbolDeclarationProvider 
             val declaration = spelled.declaration ?: return@mapNotNull null
             val arity = UseSymbols.headArity(declaration) ?: return@mapNotNull null
 
-            UseSymbols.symbols(call, nameIdentifier, declaration, arity).firstOrNull()?.let { declaration(call, nameIdentifier, it) }
-        }
+            UseSymbols.symbols(call, nameIdentifier, declaration, arity).firstOrNull()
+        }.flatMap { declarations(call, form, it) }
     }
 
-    private fun declaration(call: Call, nameIdentifier: PsiElement, symbol: Symbol): PsiSymbolDeclaration {
-        val rangeInDeclaringElement = UseSymbols.nameRange(nameIdentifier).shiftLeft(call.textRange.startOffset)
+    /** [symbol]'s declaration at each range a caret is on [call]'s name in. */
+    private fun declarations(call: Call, form: Form, symbol: Symbol): List<PsiSymbolDeclaration> =
+        DeclaringForm.nameElements(call, form).flatMap(UseSymbols::declarationRanges).map { range ->
+            val rangeInDeclaringElement = range.shiftLeft(call.textRange.startOffset)
 
-        return object : PsiSymbolDeclaration {
-            override fun getDeclaringElement(): PsiElement = call
-            override fun getRangeInDeclaringElement(): TextRange = rangeInDeclaringElement
-            override fun getSymbol(): Symbol = symbol
+            object : PsiSymbolDeclaration {
+                override fun getDeclaringElement(): PsiElement = call
+                override fun getRangeInDeclaringElement(): TextRange = rangeInDeclaringElement
+                override fun getSymbol(): Symbol = symbol
+            }
         }
-    }
 }

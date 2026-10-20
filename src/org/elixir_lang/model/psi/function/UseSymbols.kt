@@ -3,8 +3,13 @@ package org.elixir_lang.model.psi.function
 import com.intellij.model.Symbol
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
+import com.intellij.psi.ResolveState
+import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.beam.psi.CallDefinition as BeamCallDefinition
+import org.elixir_lang.code.InspectAtom
+import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Declaration
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Feature
@@ -12,16 +17,17 @@ import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Preferred
 import org.elixir_lang.declaration.RejectedCall
+import org.elixir_lang.declaration.Resolved
+import org.elixir_lang.declaration.admits
 import org.elixir_lang.declaration.atItsHead
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.passed
-import org.elixir_lang.declaration.preferred
-import org.elixir_lang.declaration.sourceFor
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 import org.elixir_lang.model.psi.atom.contentTextRange
 import org.elixir_lang.model.psi.protocol.ProtocolFunction
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
+import org.elixir_lang.psi.ElixirAtomKeyword
 import org.elixir_lang.psi.Import
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.arityInterval
@@ -29,6 +35,7 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
+import org.elixir_lang.psi.scope.call_definition_clause.Declarations
 import org.elixir_lang.structure_view.element.Delegation
 
 /**
@@ -42,7 +49,7 @@ internal object UseSymbols {
     @RequiresReadLock
     fun of(use: Use.OfCall?): List<Symbol> =
         when (use) {
-            is Use.Named -> of(use, remote(use)) { use.arity }
+            is Use.Named -> of(use, remote(use), use.entrance, use.name, use.arity) { namedArity(it, use.arity) }
             is Use.AnyName, null -> emptyList()
         }
 
@@ -50,16 +57,55 @@ internal object UseSymbols {
     @RequiresReadLock
     fun of(use: Use.Specified?): List<Symbol> =
         use?.let { specified ->
-            of(specified, remote(specified)) { found -> headArity(found.candidate.declaration) ?: specified.arity }
+            of(specified, remote(specified), specified.head, specified.name, specified.arity) { found ->
+                headArity(found.candidate.declaration) ?: specified.arity
+            }
         }.orEmpty()
 
+    /** An MFA atom names one Symbol of each definition the step gives it, at the arity [namedArity] picks. */
     @RequiresReadLock
-    private fun of(use: Use, remote: Boolean, arity: (Found) -> Int): List<Symbol> {
+    fun of(use: Use.Remote?): List<Symbol> =
+        use?.let(::step)
+            ?.flatMap { preferred ->
+                val found = preferred.found
+
+                namedArity(found, use.arity)?.let { symbols(found, it) }.orEmpty()
+            }
+            .orEmpty()
+
+    /**
+     * The arity a use at [arity] names [found]'s definition at: [arity] where the definition takes it, or where its arity
+     * isn't known, as at a call; otherwise its head's, as at an MFA atom whose arity isn't literal.
+     */
+    private fun namedArity(found: Found, arity: Int?): Int? {
+        val declaration = found.candidate.declaration
+        val interval = declaration.arity.arityInterval() ?: return arity
+
+        return arity?.takeIf { it in interval } ?: headArity(declaration)
+    }
+
+    /**
+     * What [use], written as [call] naming [name] at [useArity], names: each admitted candidate's Symbol at [arity], or
+     * near misses sharing one [WrongArityUse].
+     */
+    @RequiresReadLock
+    private fun of(use: Use, remote: Boolean, call: Call, name: String, useArity: Int, arity: (Found) -> Int?): List<Symbol> {
         val found = step(use).map { it.found }
 
         return RejectedCall.named(found, Found::candidate, remote, ::admits)
-            ?.flatMap { named -> (named.arities.minOrNull() ?: named.from)?.let { symbols(named.candidate, it) }.orEmpty() }
-            ?.map(::NearMiss)
+            ?.let { named ->
+                val renameTarget = WrongArityUse.of(
+                    call.containingFile,
+                    call.functionNameElement()?.textRange ?: call.textRange,
+                    name,
+                    useArity,
+                    named.flatMap { it.arities },
+                    named.mapNotNull { it.from }
+                )
+
+                named.flatMap { (candidate, arities, from) -> (arities.minOrNull() ?: from)?.let { symbols(candidate, it) }.orEmpty() }
+                    .map { NearMiss(it, renameTarget) }
+            }
             ?: admitted(found, arity)
     }
 
@@ -69,20 +115,16 @@ internal object UseSymbols {
      */
     internal fun remote(use: Use): Boolean = use is Use.Remote || (use as? Use.OfCall)?.entrance is Qualified
 
-    /** The Symbols of the candidates the step admits for [use], never a [NearMiss]: what a call site names. */
     @RequiresReadLock
-    fun admitted(use: Use.Named): List<Symbol> = admitted(step(use).map { it.found }) { use.arity }
-
-    @RequiresReadLock
-    private fun admitted(found: List<Found>, arity: (Found) -> Int): List<Symbol> =
-        found.filter(::admitted).flatMap { symbols(it, arity(it)) }
+    private fun admitted(found: List<Found>, arity: (Found) -> Int?): List<Symbol> =
+        found.filter(::admitted).flatMap { admitted -> arity(admitted)?.let { symbols(admitted, it) }.orEmpty() }
 
     /** The arity of the one Symbol a head declares: its lowest, as a head with defaults declares one Symbol for its name. */
     fun headArity(declaration: Declaration): Int? = declaration.arity.arityInterval()?.minimum
 
     @RequiresReadLock
     private fun step(use: Use): List<Preferred> =
-        preferred(use, sourceFor(Feature.SYMBOL_REFERENCES).candidates(use, false), false)
+        Resolved.step(use, false)
 
     /** Whether each `import` [found] was reached through brings it in at [arity]. */
     @RequiresReadLock
@@ -102,23 +144,61 @@ internal object UseSymbols {
      * at what the head passes on.
      */
     @RequiresReadLock
-    fun delegatedTo(delegation: Call): List<Symbol> {
-        val use = headUse(delegation) ?: return emptyList()
-        val paired = atItsHead(delegation, use, Feature.SYMBOL_REFERENCES) ?: return emptyList()
-        val passed = passed(paired, use)
+    fun delegatedTo(delegation: Call): List<Symbol> =
+        delegated(delegation)?.let { (found, passed) -> found.flatMap { symbols(it, passed) } }.orEmpty()
 
-        return paired.directlyDelegatedTo.flatMap { symbols(it, passed) }
+    /** The Symbols [delegation]'s head names besides its own: with no `as:`, it calls each target by the head's name. */
+    @RequiresReadLock
+    fun namedByHead(delegation: Call): List<Symbol> =
+        if (Delegation.headKeepsTargetName(delegation)) delegatedTo(delegation) else emptyList()
+
+    /**
+     * The delegation whose name [leaf] is, when its head names [symbol], directly or down a chain of delegations without
+     * `as:`: [namedByHead] read the other way, at one occurrence of [symbol]'s name.
+     */
+    @RequiresReadLock
+    fun namingByHead(
+        leaf: PsiElement,
+        symbol: Symbol,
+        calledThrough: (Call) -> List<PsiElement> = ::definitionsCalledThrough
+    ): Call? {
+        val delegation = DeclaringForm.named(leaf)?.takeIf { it.form == Form.DELEGATION }?.call ?: return null
+
+        return delegation.takeIf { calledThrough(it).any { definition -> names(definition, symbol, leaf) } }
     }
 
-    /** What [delegation] calls, as `T.f/1`, when it delegates to nothing that takes what its head passes on. */
+    /** Whether [definition] is one of [symbol]'s, for a use at [at]. */
     @RequiresReadLock
-    fun unfoundTarget(delegation: Call): String? {
-        if (delegatedTo(delegation).isNotEmpty()) return null
+    private fun names(definition: PsiElement, symbol: Symbol, at: PsiElement): Boolean =
+        when (symbol) {
+            is FunctionSymbol -> FunctionSymbol.matches(definition, symbol, at)
+            is ProtocolFunction -> symbol.matches(definition)
+            else -> false
+        }
 
+    /** The definitions [namedByHead]'s Symbols are made from. */
+    @RequiresReadLock
+    fun definitionsNamedByHead(delegation: Call): List<PsiElement> =
+        if (Delegation.headKeepsTargetName(delegation)) delegated(delegation)?.first.orEmpty().map { it.element } else emptyList()
+
+    /**
+     * The definitions a call of [delegation] calls by the same name: [definitionsNamedByHead], and theirs in turn along a
+     * chain of delegations without `as:`.
+     */
+    @RequiresReadLock
+    fun definitionsCalledThrough(
+        delegation: Call,
+        namedByHead: (Call) -> List<PsiElement> = ::definitionsNamedByHead
+    ): List<PsiElement> =
+        (reachable<PsiElement>(delegation) { (it as? Call)?.let(namedByHead).orEmpty() } - delegation).toList()
+
+    /** What the step finds [delegation] delegating to at the use its head is, with the arity the head passes on. */
+    @RequiresReadLock
+    private fun delegated(delegation: Call): Pair<List<Found>, Int>? {
         val use = headUse(delegation) ?: return null
-        val passed = atItsHead(delegation, use, Feature.SYMBOL_REFERENCES)?.let { passed(it, use) } ?: use.arity
+        val paired = atItsHead(delegation, use, Feature.SYMBOL_REFERENCES) ?: return null
 
-        return Delegation.fromCall(delegation)?.to()?.let { "$it.${use.name}/$passed" }
+        return paired.directlyDelegatedTo to passed(paired, use)
     }
 
     /** The use [delegation]'s head is, `null` where it names nothing. */
@@ -129,26 +209,45 @@ internal object UseSymbols {
     internal fun passed(paired: Preferred, use: Use.Named): Int = paired.found.candidate.declaration.arity.passed() ?: use.arity
 
     @RequiresReadLock
-    private fun symbols(found: Found, arity: Int): List<Symbol> {
-        val declaration = found.candidate.declaration
+    private fun symbols(found: Found, arity: Int): List<Symbol> = symbols(found.element, found.candidate.declaration, arity)
 
-        return when (val declared = declaration.declared) {
+    /**
+     * The Symbols [definition] has for [name] at [arity], built as a use's are: a definition is a use of a target that
+     * is one of them.
+     */
+    @RequiresReadLock
+    fun symbols(definition: PsiElement, name: String, arity: Int): List<Symbol> =
+        declarations(definition, name, arity).flatMap { symbols(definition, it, arity) }
+
+    /** The declarations [definition], a declaring call or a compiled definition, makes for [name] at an arity that admits [arity]. */
+    @RequiresReadLock
+    fun declarations(definition: PsiElement, name: String, arity: Int): List<Declaration> =
+        when (definition) {
+            is BeamCallDefinition -> listOf(definition.declaration())
+            is Call ->
+                DeclaringForm.declaredBy(definition)
+                    ?.let { form -> Declarations.of(form, definition, ResolveState.initial()).mapNotNull { it.declaration } }
+                    .orEmpty()
+            else -> emptyList()
+        }.filter { it.name == name && it.arity.admits(arity) }
+
+    @RequiresReadLock
+    private fun symbols(definition: PsiElement, declaration: Declaration, arity: Int): List<Symbol> =
+        when (val declared = declaration.declared) {
             is Declared.Source -> {
-                val call = found.element as? Call ?: return emptyList()
+                val call = definition as? Call
 
                 when (declared.form) {
                     Form.CLAUSE, Form.DELEGATION, Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED ->
-                        symbols(call, DeclaringForm.names(call, declared.form).singleOrNull(), declaration, arity)
-                    Form.EXCEPTION -> symbols(call, call.functionNameElement(), declaration, arity)
-                    Form.CALLBACK -> emptyList()
+                        call?.let { symbols(it, DeclaringForm.names(it, declared.form).singleOrNull(), declaration, arity) }
+                    Form.EXCEPTION -> call?.let { symbols(it, it.functionNameElement(), declaration, arity) }
+                    Form.CALLBACK -> null
                 }
             }
             is Declared.Compiled ->
-                ((found.element as? BeamCallDefinition)?.navigationElement as? Call)
+                ((definition as? BeamCallDefinition)?.navigationElement as? Call)
                     ?.let { symbols(it, CallDefinitionClause.nameIdentifier(it), declaration, arity) }
-                    .orEmpty()
-        }
-    }
+        }.orEmpty()
 
     /** The text a rename replaces: an atom's content, without its `:` or quotes, or the whole name. */
     @RequiresReadLock
@@ -157,6 +256,29 @@ internal object UseSymbols {
             is ElixirAtom -> contentTextRange(name).shiftRight(name.textRange.startOffset)
             else -> nameIdentifier.textRange
         }
+
+    /**
+     * What a rename writes over [nameRange] at a declared name [nameElement] when it is not the new name as given:
+     * `true`, `false` and `nil` are atoms written without `:`, so where one is unquoted as a name the new name is written
+     * as an atom.
+     */
+    @RequiresReadLock
+    fun nameText(nameElement: PsiElement?): ((String) -> String)? =
+        if (nameElement?.stripAccessExpression() is ElixirAtomKeyword) { newName -> InspectAtom.literal(newName) } else null
+
+    /** [nameText] at the declared name over [range] in [file]. */
+    @RequiresReadLock
+    fun nameTextAt(file: PsiFile, range: TextRange): ((String) -> String)? =
+        nameText(PsiTreeUtil.findElementOfClassAtRange(file, range.startOffset, range.endOffset, ElixirAtomKeyword::class.java))
+
+    /**
+     * The ranges a caret is on a declared name in: [nameRange], and for an atom also the whole atom, with its `:` and
+     * quotes. The platform keeps the narrowest range at the caret, so inside the content the declaration still ties
+     * with a reference the atom has, as a module's.
+     */
+    @RequiresReadLock
+    fun declarationRanges(nameElement: PsiElement): List<TextRange> =
+        listOfNotNull(nameRange(nameElement), (nameElement.stripAccessExpression() as? ElixirAtom)?.textRange).distinct()
 
     /** The Symbol of [declaration], which [call] makes under [nameIdentifier], at [arity]: what a use and a declaration share. */
     @RequiresReadLock
@@ -178,7 +300,8 @@ internal object UseSymbols {
                     declaration.name,
                     arity,
                     macro,
-                    owner.injected
+                    owner.injected,
+                    declaration.arity == ArityKnowledge.Unknown
                 )
             }
         )

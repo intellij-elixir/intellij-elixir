@@ -39,19 +39,6 @@ class MacroDeclaredRenameTest : PlatformTestCase() {
         )
     }
 
-    /** A `defdelegate` without `as:` renames its target with it, so it is refused when its target is macro-declared. */
-    fun testDelegationToAnEExFunctionFromItsHead() {
-        addEEx()
-        myFixture.addFileToProject("t.ex", EEX)
-
-        assertRenameRefused(
-            "defmodule D do\n  defdelegate hel<caret>lo(), to: T\nend\n",
-            "`function_from_string`",
-            "t.ex" to EEX,
-            renamedWith = true
-        )
-    }
-
     fun testEExFromItsName() = assertEExRefused(":hel<caret>lo")
 
     fun testEExFromAUse() = assertEExRefused("hel<caret>lo()")
@@ -84,15 +71,10 @@ class MacroDeclaredRenameTest : PlatformTestCase() {
 
     /**
      * The rename at the caret in [text] is refused with a reason naming [macro] as what declares the renamed function,
-     * or with [renamedWith] one renamed with it, and no file changes.
+     * and no file changes.
      */
-    private fun assertRenameRefused(
-        text: String,
-        macro: String,
-        vararg others: Pair<String, String>,
-        renamedWith: Boolean = false
-    ) {
-        val reason = (if (renamedWith) "a function renamed with it is " else "") + "declared by $macro"
+    private fun assertRenameRefused(text: String, macro: String, vararg others: Pair<String, String>) {
+        val reason = "declared by $macro"
         myFixture.configureByText("caret.ex", text)
         val unchanged = myFixture.file.text
         val targets = myFixture.renameTargetsAtCaret()

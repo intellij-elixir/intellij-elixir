@@ -12,7 +12,7 @@ import com.intellij.model.psi.impl.targetSymbols
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.Project
 import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.refactoring.rename.api.RenameTarget
+import org.elixir_lang.code_insight.renameTarget
 import org.elixir_lang.junit.onPooledThread
 import java.util.concurrent.Callable
 
@@ -88,10 +88,8 @@ class ResolveUsagesAgreementTest : SnapshotTestCase() {
                     }
                 }
 
-                // The Rename handler would also ask `SymbolRenameTargetFactory` and `RenameableSymbol`, which the
-                // plugin does not use.
                 val renameTargets = targetSymbols(reference.file, offset)
-                    .filterIsInstance<RenameTarget>()
+                    .mapNotNull { renameTarget(it) }
                     .map(::describe)
                     .toSortedSet()
                 if (renameTargets != searchTargets.keys) {

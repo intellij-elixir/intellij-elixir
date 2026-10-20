@@ -50,6 +50,56 @@ class FindUsagesTest : PlatformTestCase() {
         )
     }
 
+    /** From the head of `def f(q, x \\ nil)`, which declares `f/1`, an `only:` key at `f/2` is found too. */
+    fun testKeyAtTheHigherArityOfDefaultsIsFound() {
+        myFixture.addFileToProject("caller.ex", "defmodule Caller do\n  import M, only: [f: 2]\nend\n")
+        myFixture.configureByText("m.ex", "defmodule M do\n  def <caret>f(q, x \\\\ nil), do: {q, x}\nend\n")
+
+        assertEquals(listOf("caller.ex: import M, only: [f: 2]"), keyLinesAtCaret())
+    }
+
+    /** An `only:` key names a `defdelegate` as it names a clause. */
+    fun testKeyNamingDelegation() {
+        myFixture.addFileToProject("t.ex", "defmodule T do\n  def f(x), do: x\nend\n")
+        myFixture.addFileToProject("caller.ex", "defmodule Caller do\n  import M, only: [f: 1]\nend\n")
+        myFixture.configureByText("m.ex", "defmodule M do\n  defdelegate <caret>f(x), to: T\nend\n")
+
+        assertEquals(listOf("caller.ex: import M, only: [f: 1]"), keyLinesAtCaret())
+    }
+
+    /** An `only:` key names a `defprotocol` function, which `import` brings in as any other. */
+    fun testKeyNamingProtocolFunction() {
+        myFixture.addFileToProject("caller.ex", "defmodule Caller do\n  import P, only: [f: 1]\nend\n")
+        myFixture.configureByText("p.ex", "defprotocol P do\n  def <caret>f(t)\nend\n")
+
+        assertEquals(listOf("caller.ex: import P, only: [f: 1]"), keyLinesAtCaret())
+    }
+
+    /** A key at another arity names another protocol function. */
+    fun testKeyAtAnotherArityOfAProtocolFunctionIsNotFound() {
+        myFixture.addFileToProject("caller.ex", "defmodule Caller do\n  import P, only: [f: 2]\nend\n")
+        myFixture.configureByText("p.ex", "defprotocol P do\n  def <caret>f(t)\n  def f(t, u)\nend\n")
+
+        assertEquals(emptyList<String>(), keyLinesAtCaret())
+    }
+
+    /** Each key usage of the symbol at the caret, as its file and line. */
+    @Suppress("UnstableApiUsage")
+    private fun keyLinesAtCaret(): List<String> =
+        myFixture.singleTargetPsiUsagesAtCaret(project)
+            .filterNot { it.declaration }
+            .filter { usage ->
+                val element = usage.file.findElementAt(usage.range.startOffset)
+                element != null && generateSequence(element) { it.parent }
+                    .filterIsInstance<QuotableKeywordPair>()
+                    .any { pair -> PsiTreeUtil.isAncestor(pair.keywordKey, element, false) }
+            }
+            .map { usage ->
+                val text = usage.file.text
+                "${usage.file.name}: ${text.lines()[text.take(usage.range.startOffset).count { it == '\n' }].trim()}"
+            }
+            .sorted()
+
     /**
      * Runs Find Usages on the symbol at the caret in [files] and counts non-declaration usages whose
      * location is inside the **key** of a [QuotableKeywordPair] - i.e. a `name: arity` keyword-pair

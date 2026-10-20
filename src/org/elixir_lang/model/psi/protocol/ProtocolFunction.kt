@@ -8,17 +8,22 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.platform.backend.navigation.NavigationRequest
 import com.intellij.platform.backend.navigation.NavigationTarget
 import com.intellij.platform.backend.presentation.TargetPresentation
+import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.ResolveState
 import com.intellij.psi.SmartPointerManager
 import com.intellij.psi.search.SearchScope
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.ElixirRenameTarget
+import org.elixir_lang.model.psi.RenameClosure
 import org.elixir_lang.model.psi.function.FunctionSymbol
+import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.Protocol
 import org.elixir_lang.psi.call.Call
 import java.util.*
+import org.elixir_lang.declaration.Form
+import org.elixir_lang.psi.scope.call_definition_clause.Declarations
 
 /**
  * Symbol representing a single `def`/`defmacro` clause declared inside a `defprotocol`.
@@ -45,6 +50,9 @@ class ProtocolFunction(
     override val searchText: String get() = name
     override val targetName: String get() = name
 
+    override val declarationTextByName: ((String) -> String)?
+        get() = UseSymbols.nameTextAt(file, range)
+
     override fun createPointer(): Pointer<out ProtocolFunction> {
         val protocolName = this.protocolName
         val name = this.name
@@ -58,13 +66,13 @@ class ProtocolFunction(
         // identifier replacement, so its name-identifier range is recomputed correctly on restore.
         val clause = generateSequence(file.findElementAt(range.startOffset)) { it.parent }
             .filterIsInstance<Call>()
-            .firstOrNull { CallDefinitionClause.`is`(it) && CallDefinitionClause.nameIdentifier(it)?.textRange == range }
+            .firstOrNull { CallDefinitionClause.`is`(it) && CallDefinitionClause.nameIdentifier(it)?.let(UseSymbols::nameRange) == range }
         if (clause != null) {
             val clausePointer = SmartPointerManager.getInstance(file.project)
                 .createSmartPsiElementPointer(clause, file)
             return Pointer {
                 val restoredClause = clausePointer.dereference() ?: return@Pointer null
-                val restoredRange = CallDefinitionClause.nameIdentifier(restoredClause)?.textRange
+                val restoredRange = CallDefinitionClause.nameIdentifier(restoredClause)?.let(UseSymbols::nameRange)
                     ?: return@Pointer null
                 ProtocolFunction(restoredClause.containingFile, restoredRange, protocolName, name, arity, macro)
             }
@@ -91,6 +99,15 @@ class ProtocolFunction(
             .icon(AllIcons.Nodes.AbstractMethod)
             .presentation()
 
+    /** Whether [definition] declares this protocol function at its arity. */
+    @RequiresReadLock
+    fun matches(definition: PsiElement): Boolean = this in UseSymbols.symbols(definition, name, arity)
+
+    override fun newNameRefusal(newName: String): String? = FunctionSymbol.nameRefusal(newName)
+
+    @RequiresReadLock
+    override fun renameClosure(): RenameClosure = FunctionSymbol.renameClosure(this)
+
     override fun equals(other: Any?): Boolean =
         other is ProtocolFunction &&
             other.protocolName == protocolName &&
@@ -113,12 +130,14 @@ class ProtocolFunction(
             if (!CallDefinitionClause.`is`(clause)) return emptyList()
             val defprotocol = CallDefinitionClause.enclosingModularMacroCall(clause) ?: return emptyList()
             if (!Protocol.`is`(defprotocol)) return emptyList()
+            // The walk's declaration, which a head with no atom value, such as `unquote(name)`, does not have.
+            if (Declarations.of(Form.CLAUSE, clause, ResolveState.initial()).none { it.declaration != null }) return emptyList()
             val protocolName = FunctionSymbol.owner(defprotocol)?.moduleName ?: return emptyList()
             val nameArity = CallDefinitionClause.nameArityInterval(clause, ResolveState.initial()) ?: return emptyList()
-            val nameId = CallDefinitionClause.nameIdentifier(clause) ?: return emptyList()
+            val nameRange = CallDefinitionClause.nameIdentifier(clause)?.let(UseSymbols::nameRange) ?: return emptyList()
             val macro = CallDefinitionClause.capabilities(clause)?.let(FunctionSymbol::isMacro) == true
             return nameArity.arityInterval.closed().map { arity ->
-                ProtocolFunction(clause.containingFile, nameId.textRange, protocolName, nameArity.name, arity, macro)
+                ProtocolFunction(clause.containingFile, nameRange, protocolName, nameArity.name, arity, macro)
             }
         }
     }

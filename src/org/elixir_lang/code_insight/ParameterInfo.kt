@@ -4,9 +4,8 @@ import com.intellij.lang.parameterInfo.*
 import com.intellij.psi.util.PsiTreeUtil
 import org.elixir_lang.beam.decompiler.ParameterText
 import org.elixir_lang.declaration.Feature
+import org.elixir_lang.declaration.Resolved
 import org.elixir_lang.declaration.Use
-import org.elixir_lang.declaration.preferred
-import org.elixir_lang.declaration.sourceFor
 import org.elixir_lang.psi.Arguments
 import org.elixir_lang.psi.ElixirTypes
 import org.elixir_lang.psi.call.Call
@@ -89,7 +88,7 @@ class ParameterInfo : ParameterInfoHandler<Arguments, Signature> {
     private fun signatures(call: Call): List<Signature> =
         when (val use = Use.of(call)) {
             is Use.Named ->
-                signatures(preferred(use, sourceFor(Feature.PARAMETER_INFO).candidates(use, true), true))
+                signatures(Resolved.step(use, true, feature = Feature.PARAMETER_INFO))
             // A name-less use can be any function of the module, so it describes none.
             is Use.AnyName, null -> emptyList()
         }

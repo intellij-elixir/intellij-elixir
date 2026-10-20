@@ -17,7 +17,7 @@ private fun ElixirAtom.computeReference(): CachedValueProvider.Result<PsiReferen
 
     val decision = mfaReferenceDecision()
     val reference = decision.context?.let { context ->
-        AtomReference(this, context.moduleElement, contentTextRange(this), context.arity)
+        AtomReference(this, context.moduleElement, contentTextRange(this))
     } ?: GeneralAtomReference(this)
 
     return decision.cachedResult(reference, this)

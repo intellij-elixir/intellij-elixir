@@ -13,6 +13,7 @@ import com.intellij.find.usages.api.UsageOptions
 import com.intellij.find.usages.impl.AllSearchOptions
 import com.intellij.find.usages.impl.buildQuery
 import com.intellij.find.usages.impl.searchTargets
+import com.intellij.model.Symbol
 import com.intellij.model.psi.impl.targetSymbols
 import com.intellij.openapi.util.TextRange
 import com.intellij.refactoring.rename.api.PsiRenameUsage
@@ -22,6 +23,7 @@ import com.intellij.refactoring.rename.impl.RenameOptions
 import com.intellij.refactoring.rename.impl.TextOptions
 import com.intellij.refactoring.rename.impl.buildQuery
 import com.intellij.refactoring.rename.impl.prepareRename
+import com.intellij.refactoring.rename.symbol.RenameableSymbol
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.command.WriteCommandAction
@@ -33,6 +35,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.intellij.psi.search.GlobalSearchScope
+import com.intellij.psi.search.SearchScope
 import com.intellij.psi.util.PsiUtilBase
 import com.intellij.testFramework.AutoPopupParameterInfoTestUtil
 import com.intellij.testFramework.PlatformTestUtil
@@ -417,6 +420,20 @@ fun CodeInsightTestFixture.singleTargetPsiUsagesAtCaret(project: Project): List<
 fun CodeInsightTestFixture.singleTargetPsiUsagesAtCaretInScope(project: Project, scope: GlobalSearchScope): List<PsiUsage> =
     psiUsagesAtCaret(project, scope) { it.single() }
 
+/** The search targets at the caret, among which the platform's chooser offers one to Find Usages. */
+@Suppress("UnstableApiUsage")
+fun CodeInsightTestFixture.searchTargetsAtCaret(project: Project): List<SearchTarget> {
+    PlatformTestUtil.dispatchAllInvocationEventsInIdeEventQueue()
+    val targetFile = symbolResolutionFile(project)
+    val offset = caretOffset
+
+    return ReadAction.nonBlocking(Callable { searchTargets(targetFile, offset) }).executeSynchronously()
+}
+
+/** [psiUsagesAtCaret] for the search target [choose] picks, as a choice in the platform's chooser does. */
+fun CodeInsightTestFixture.chosenTargetPsiUsagesAtCaret(project: Project, choose: (List<SearchTarget>) -> SearchTarget?): List<PsiUsage> =
+    psiUsagesAtCaret(project, GlobalSearchScope.allScope(project), choose)
+
 @Suppress("UnstableApiUsage")
 private fun CodeInsightTestFixture.psiUsagesAtCaret(
     project: Project,
@@ -452,8 +469,7 @@ fun CodeInsightTestFixture.searchTargetCountAtCaret(): Int =
  *
  * The rename target is resolved from the caret exactly as the platform's Symbol rename handler
  * resolves it: [targetSymbols] is the same resolution that feeds the `SYMBOLS` data key the
- * handler reads, and every renameable Elixir symbol implements
- * [com.intellij.refactoring.rename.api.RenameTarget] directly. The target is then handed to
+ * handler reads, each mapped by [renameTarget]. The target is then handed to
  * [CodeInsightTestFixture.renameTarget] - the platform's test entry point for the
  * `RenameTarget`-based rename pipeline (the same drive JetBrains' own new-rename-API tests use),
  * which runs the production search (the registered `RenameUsageSearcher` -> queries -> file updates
@@ -475,12 +491,14 @@ fun CodeInsightTestFixture.renameTargetAtCaret(newName: String) {
  * under a read action, the same [prepareRename] turns the usages into file updates, and the same
  * [FileUpdates.doUpdate] applies them in a write command, so the document ends up as the platform's drive
  * leaves it. What is left out is the progress title, the undoable action and the preview, none of which touch
- * the text. Worth it only for a test that renames thousands of times; elsewhere prefer [renameTargetAtCaret].
+ * the text. [scope], when given, is the search scope the Rename dialog would pass, which [renameTargetAtCaret]
+ * takes none of. Otherwise worth it only for a test that renames thousands of times; elsewhere prefer
+ * [renameTargetAtCaret].
  */
-fun CodeInsightTestFixture.renameTargetDirectly(target: RenameTarget, newName: String) {
+fun CodeInsightTestFixture.renameTargetDirectly(target: RenameTarget, newName: String, scope: SearchScope? = null) {
     val options = RenameOptions(
         TextOptions(commentStringOccurrences = true, textOccurrences = true),
-        runReadActionBlocking { target.maximalSearchScope } ?: GlobalSearchScope.projectScope(project)
+        scope ?: runReadActionBlocking { target.maximalSearchScope } ?: GlobalSearchScope.projectScope(project)
     )
     // prepareRename insists on running outside a read action, and its inner read actions need a pooled thread
     val (fileUpdates, modelUpdate) = onPooledThread {
@@ -521,7 +539,15 @@ fun CodeInsightTestFixture.renameUsageRangesAtCaret(): List<Pair<PsiFile, TextRa
  */
 @Suppress("UnstableApiUsage")
 fun CodeInsightTestFixture.renameTargetsAtCaret(): List<RenameTarget> =
-    targetSymbols(symbolResolutionFile(project), caretOffset).filterIsInstance<RenameTarget>().distinct()
+    targetSymbols(symbolResolutionFile(project), caretOffset).mapNotNull { renameTarget(it) }.distinct()
+
+/**
+ * The [RenameTarget] the platform's `SymbolRenameTargetRenamerFactory` renames [symbol] through: a
+ * [RenameableSymbol]'s, or [symbol] itself, since the plugin registers no `SymbolRenameTargetFactory`.
+ */
+@Suppress("UnstableApiUsage")
+fun renameTarget(symbol: Symbol): RenameTarget? =
+    (symbol as? RenameableSymbol)?.renameTarget ?: symbol as? RenameTarget
 
 /**
  * The `PsiFile` production actually resolves a caret's `targetSymbols`/`searchTargets` lookup

@@ -7,7 +7,6 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.ResolveState
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
-import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.usageView.UsageViewTypeLocation
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
@@ -263,9 +262,7 @@ object CallDefinitionClause {
             .filterIsInstance<Call>()
             .firstOrNull { `is`(it) }
             ?: return false
-        val nameIdentifier = nameIdentifier(defClause) ?: return false
-        return PsiTreeUtil.isAncestor(nameIdentifier, element, false) ||
-               PsiTreeUtil.isAncestor(element, nameIdentifier, false)
+        return head(defClause)?.let { CallDefinitionHead.isOnName(it, element) } == true
     }
 
     /**
@@ -306,8 +303,9 @@ object CallDefinitionClause {
         }
     }
 
+    /** The element [call]'s name is written as: in `def unquote(:name)(...)`, the atom. */
     @RequiresReadLock
-    fun nameIdentifier(call: Call): PsiElement? = head(call)?.let { CallDefinitionHead.nameIdentifier(it) }
+    fun nameIdentifier(call: Call): PsiElement? = head(call)?.let(CallDefinitionHead::nameElement)
 
     private fun functionElementDescription(
             @Suppress("UNUSED_PARAMETER") call: Call,
