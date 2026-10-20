@@ -22,6 +22,7 @@ import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Definer
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Found
+import org.elixir_lang.declaration.Head
 import org.elixir_lang.declaration.Reach
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
@@ -172,29 +173,26 @@ internal object ExpanderSource : CandidateSource {
     /**
      * A declaration, the PSI that declares it, the module whose definitions it is, and the delegation its head makes.
      *
-     * @property module the module's index name (`Module.indexName`), as [Found.declaringModule] has it
+     * @property written the head written for it, as [Head.written] is, `null` where nothing written declares it
+     * @property module the module's index name (`Module.indexName`), as [Head.module] has it
      * @property injectedBy the call whose evaluated output injected it into [module], as written in [module]'s file
      * @property headArity the arity the head declares, which an `import` narrowing [declaration]'s leaves as it is
      */
     private class Defined(
         val declaration: Declaration,
         val element: PsiElement,
+        val written: PsiElement?,
         val module: String,
         val injectedBy: Call?,
         val delegation: DefinitionTable.Delegation? = null,
         val headArity: ArityKnowledge = declaration.arity,
     ) {
-        val head: Head get() = Head(element, module, declaration.name, headArity)
+        /** Its head, which tells apart the heads of a list of `defdelegate` heads, and the modules one macro's output declares it in. */
+        val head: Head get() = Head(written, module, declaration.name, headArity)
 
         /** Whether [declaration] takes [arity] arguments, which is not known past a head with no largest arity. */
         fun admits(arity: Int?): Boolean = arity == null || declaration.arity.admits(arity)
     }
-
-    /**
-     * One head of a definition: the PSI that declares it, which a list of `defdelegate` heads shares, its module, which
-     * tells apart the modules one macro's output declares it in, and its name and arity.
-     */
-    private data class Head(val element: PsiElement, val module: String, val name: String, val headArity: ArityKnowledge)
 
     /**
      * A declaration reached for a use.
@@ -202,6 +200,7 @@ internal object ExpanderSource : CandidateSource {
      * @property paths the `import` calls crossed, outermost first
      * @property delegations the `defdelegate` calls crossed, from the use outward
      * @property heads the arity each of [delegations] declares in its head
+     * @property through the head of the first of [delegations], the one the use reached itself
      * @property searched the name looked up where it was found
      * @property named whether everything but the arity fits through every head crossed: each name, and each `import`
      *   that leaves out some of a definition's arities bringing it in at the arity reaching it
@@ -213,6 +212,7 @@ internal object ExpanderSource : CandidateSource {
         val paths: List<Call>,
         val delegations: List<Call>,
         val heads: List<ArityKnowledge>,
+        val through: Head?,
         val searched: String?,
         val named: Boolean,
         val remote: Boolean,
@@ -305,6 +305,7 @@ internal object ExpanderSource : CandidateSource {
             Defined(
                 defined.declaration.copy(arity = arity),
                 defined.element,
+                defined.written,
                 defined.module,
                 defined.injectedBy,
                 defined.delegation,
@@ -365,7 +366,7 @@ internal object ExpanderSource : CandidateSource {
         val admitted = declaration.arity == defined.headArity || defined.admits(arity)
         val named = name != null && declaration.name == name && admitted
 
-        return Reached(defined, reach, paths, emptyList(), emptyList(), name, named, remote)
+        return Reached(defined, reach, paths, emptyList(), emptyList(), null, name, named, remote)
     }
 
     /**
@@ -398,6 +399,7 @@ internal object ExpanderSource : CandidateSource {
                     delegation.paths + it.paths,
                     listOf(element) + it.delegations,
                     listOf(delegation.defined.headArity) + it.heads,
+                    delegation.through ?: head,
                     it.searched,
                     named && it.named,
                     it.remote,
@@ -439,14 +441,18 @@ internal object ExpanderSource : CandidateSource {
                 // `super` saves an overridden public definition as a private one, with the head it was written with, so
                 // the table gives the visibility and the written head the rest. A head placed at its macro's clause
                 // has only the table's.
-                val written = CallDefinitionClause.definer(call)?.takeIf { declares(call, nameArity.name) }
-                val capabilities = (written?.capabilities ?: stored).copy(visibility = stored.visibility)
+                val definer = CallDefinitionClause.definer(call)?.takeIf { declares(call, nameArity.name) }
+                val capabilities = (definer?.capabilities ?: stored).copy(visibility = stored.visibility)
                 val form = DeclaringForm.shapedForm(call) ?: Form.CLAUSE
                 val declared = Declared.Source(form, CallDefinitionClause.sourceOrigin(call))
+                // A head placed at its macro's clause, or at the call that injected it, is written by neither.
+                val written = call.takeIf { form != Form.CLAUSE || definer != null }
+                    ?.let { DeclaringForm.head(it, form, nameArity.name, arity) }
 
                 Defined(
                     Declaration(nameArity.name, arity, capabilities, declared),
                     call,
+                    written,
                     Module.indexName(result.module),
                     injectedBy,
                     head.delegation,
@@ -473,6 +479,7 @@ internal object ExpanderSource : CandidateSource {
             Defined(
                 Declaration(nameArity.name, ArityKnowledge.Exact(nameArity.arity), definition.capabilities, Declared.Compiled(origin)),
                 definition,
+                definition,
                 origin.module,
                 null,
             )
@@ -493,6 +500,7 @@ internal object ExpanderSource : CandidateSource {
             Defined(
                 declaration.copy(arity = arity),
                 defined.element,
+                defined.written,
                 defined.module,
                 defined.injectedBy,
                 defined.delegation,
@@ -538,7 +546,8 @@ internal object ExpanderSource : CandidateSource {
                 Candidate(reached.defined.declaration, reached.reach, applicability),
                 reached.defined.element,
                 reached.paths + reached.delegations,
-                reached.defined.module,
+                reached.defined.head,
+                reached.through,
             )
         }
 

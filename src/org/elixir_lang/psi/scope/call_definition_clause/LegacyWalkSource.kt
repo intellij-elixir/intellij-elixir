@@ -32,7 +32,7 @@ object LegacyWalkSource : CandidateSource {
     override fun candidates(use: Use, incompleteCode: Boolean): List<Found> {
         ThreadingAssertions.assertReadAccess()
 
-        return when (use) {
+        val found = when (use) {
             is Use.OfCall -> Callable.walk(use.entrance, use.arity, incompleteCode).flatMap { found(it, use) }
             // A `@spec` is read in its module's body, so it names what the module declares wherever it declares it.
             is Use.Specified ->
@@ -44,6 +44,25 @@ object LegacyWalkSource : CandidateSource {
                     .maybeModularNameToModulars(use.atom.containingFile, useCall = null, incompleteCode = false)
                     .flatMap { modular -> walk(modular, use.name, use.arity, incompleteCode) }
                     .flatMap { found(it, use) }
+        }
+
+        return delegatedThrough(found)
+    }
+
+    /**
+     * [found] with each delegation target's [Found.delegatedThrough]: the head of the delegation the use reached it
+     * through, the first `defdelegate` in its `via`, as the walk found that delegation. The walk finds one candidate
+     * for each declaring element, so the first found at that element is the delegation.
+     */
+    private fun delegatedThrough(found: List<Found>): List<Found> {
+        val heads = found.filterNot { it.candidate.reach.delegationTarget }.distinctBy(Found::element).associate { it.element to it.head }
+
+        return found.map { target ->
+            if (target.candidate.reach.delegationTarget) {
+                target.copy(delegatedThrough = target.via.firstOrNull { Delegation.`is`(it) }?.let { heads[it] })
+            } else {
+                target
+            }
         }
     }
 
@@ -75,7 +94,12 @@ object LegacyWalkSource : CandidateSource {
                     Candidate(reached.declaration, reach, applicability),
                     result.element,
                     via,
-                    declaringModule(reached, reach, result.element, via),
+                    DeclaringForm.writtenHead(
+                        result.element,
+                        reached.declaration,
+                        declaringModule(reached, reach, result.element, via),
+                    ),
+                    delegatedThrough = null,
                 )
             }
         }

@@ -31,13 +31,27 @@ interface CandidateSource {
 
 /**
  * A [candidate] at a use, the PSI [element] that declares it, [via], the `import` and `use` calls and then the
- * `defdelegate` calls it was reached through, and [declaringModule], the name of the module that declares it, as the
- * source that found it knows it.
+ * `defdelegate` calls it was reached through, the [head] that declares it, and for a delegation target the head of the
+ * delegation the use reached it through, [delegatedThrough], as that delegation's own [head] is.
  */
-data class Found(val candidate: Candidate, val element: PsiElement, val via: List<Call>, val declaringModule: String?)
+data class Found(
+    val candidate: Candidate,
+    val element: PsiElement,
+    val via: List<Call>,
+    val head: Head,
+    val delegatedThrough: Head?,
+)
+
+/**
+ * One head of a definition: the PSI [written] that writes it, the [module] that declares it, as the source that found
+ * it knows it, and its [name] and [arity]. [written] is a clause's or a delegation's head, one of a list of
+ * `defdelegate` heads, the call of a form that writes no head, or a compiled definition; it is `null` where nothing
+ * written declares the head, as where debug info places it at the macro clause that injected it.
+ */
+data class Head(val written: PsiElement?, val module: String?, val name: String, val arity: ArityKnowledge)
 
 /** The name of the module that declares [this], so two copies of one module are one. */
-fun Found.declaringModuleName(): String? = declaringModule
+fun Found.declaringModuleName(): String? = head.module
 
 /**
  * What completion offers as [lookupName] at a position. [name] and [declaration] are `null` exactly when the name has

@@ -51,19 +51,19 @@ fun preferred(use: Use, found: List<Found>, incompleteCode: Boolean, bound: Bool
 fun atItsHead(delegation: Call, use: Use.Named, feature: Feature): Preferred? =
     Resolved.step(use, false, feature = feature).firstOrNull { it.found.element == delegation }
 
-/** Each delegation target goes with its delegation, and nothing is dropped. */
+/** Each delegation target goes with the delegation whose head it was reached through, and nothing is dropped. */
 @RequiresReadLock
 internal fun paired(found: List<Found>): List<Preferred> {
     val (targets, named) = found.partition { it.candidate.reach.delegationTarget }
-    val targetsByDelegation = targets.groupBy { target -> target.via.firstOrNull { Delegation.`is`(it) } }
-    val paired = mutableSetOf<Call?>()
+    val targetsByDelegation = targets.groupBy(Found::delegatedThrough)
+    val paired = mutableSetOf<Head?>()
 
     val preferred = named.map { delegation ->
-        val element = delegation.element as? Call
+        val head = delegation.head
         val delegatedTo =
-            if (element != null && element !in paired && delegation.isDelegation()) {
-                paired += element
-                targetsByDelegation[element].orEmpty()
+            if (head !in paired && delegation.isDelegation()) {
+                paired += head
+                targetsByDelegation[head].orEmpty()
             } else {
                 emptyList()
             }

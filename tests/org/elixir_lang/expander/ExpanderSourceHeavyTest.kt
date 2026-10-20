@@ -15,6 +15,7 @@ import com.intellij.testFramework.PsiTestUtil
 import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Found
+import org.elixir_lang.declaration.Preferred
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
 import org.elixir_lang.declaration.declaringModuleName
@@ -204,6 +205,71 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
             T.pad/3 UNHELD_DELEGATION_TARGET VALID via [import D, only: [pad: 1, pad: 3] | defdelegate pad(a, b \\ 1, c \\ 2), to: T] line 2
             """.trimIndent(),
             candidates(file, "pad(1, 2, 3)", "pad(1, 2, 3)"),
+        )
+    }
+
+    /** Each head of a delegation list goes with the targets its own lookup reached, so `f(1, 2)` keeps `T.f/2`. */
+    fun testEachHeadOfADelegationListIsPairedWithItsOwnTarget() {
+        val file = file(
+            """
+            defmodule T do
+              def f(x), do: x
+              def f(x, y), do: {x, y}
+            end
+
+            defmodule D do
+              defdelegate [f(x), f(x, y)], to: T
+            end
+
+            defmodule P do
+              import D
+              def go, do: f(1, 2)
+            end
+            """
+        )
+        val use = use(file, "f(1, 2)", "f(1, 2)")
+        val found = read { ExpanderSource.candidates(use, false) }
+
+        assertEquals(
+            """
+            D.f/2 IMPORT VALID via [import D] line 7
+              T.f/2 UNHELD_DELEGATION_TARGET VALID via [import D | defdelegate [f(x), f(x, y)], to: T] line 3
+            """.trimIndent(),
+            renderPreferred(read { preferred(use, found, false) }),
+        )
+        assertEquals(
+            listOf("D.f/1 -> [T.f/1, T.f/2]", "D.f/2 -> [T.f/1, T.f/2]"),
+            read { preferred(use, found, true) }.map { preferred ->
+                "${name(preferred.found)} -> ${preferred.delegatedTo.map(::name)}"
+            },
+        )
+    }
+
+    /** A target at another arity than its head's goes with that head, though its admitted targets leave it out. */
+    fun testATargetAtAnotherArityGoesWithItsHead() {
+        val file = file(
+            """
+            defmodule T do
+              def f(x), do: x
+              def f(x, y), do: {x, y}
+            end
+
+            defmodule D do
+              defdelegate f(x), to: T
+            end
+
+            defmodule P do
+              def go, do: D.f(1)
+            end
+            """
+        )
+        val use = use(file, "D.f(1)", "D.f(1)")
+
+        assertEquals(
+            listOf("D.f/1 -> [T.f/1, T.f/2]"),
+            read { preferred(use, ExpanderSource.candidates(use, false), true) }.map { preferred ->
+                "${name(preferred.found)} -> ${preferred.delegatedTo.map(::name)}"
+            },
         )
     }
 
@@ -1408,6 +1474,17 @@ class ExpanderSourceHeavyTest : HeavyTestCase() {
                     "${found.candidate.applicability} via [$via]$line"
             }
         }
+
+    /** [preferred], each candidate then the targets it delegates to, indented, one per line. */
+    private fun renderPreferred(preferred: List<Preferred>): String =
+        preferred.joinToString("\n") { preferred ->
+            (listOf(render(listOf(preferred.found))) + preferred.delegatedTo.map { "  " + render(listOf(it)) })
+                .joinToString("\n")
+        }
+
+    /** [found] as `<declaring module>.<name>/<arity>`. */
+    private fun name(found: Found): String =
+        "${found.declaringModuleName()}.${found.candidate.declaration.name}/${arity(found.candidate.declaration.arity)}"
 
     /** What [ExpanderSource] makes visible at the call [call] in [context]. */
     private fun visible(file: PsiFile, context: String, call: String): List<Visible> {

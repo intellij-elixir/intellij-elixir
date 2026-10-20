@@ -6,11 +6,16 @@ import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.EEx
+import org.elixir_lang.declaration.ArityKnowledge
+import org.elixir_lang.declaration.Declaration
+import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Form
+import org.elixir_lang.declaration.Head
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.ElixirList
 import org.elixir_lang.psi.Exception
+import org.elixir_lang.psi.arityKnowledge
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.impl.call.finalArguments
@@ -130,6 +135,38 @@ object DeclaringForm {
     @RequiresReadLock
     fun nameElements(call: Call, form: Form): List<PsiElement> =
         namedHeads(call, form).flatMap(CallDefinitionHead::nameElements)
+
+    /**
+     * The [Head] [element] writes [declaration] under, in [module]: a clause's or a delegation's head, the one of a list
+     * of `defdelegate` heads with its name and arity, the call of a form that writes no head, or a compiled definition.
+     */
+    @RequiresReadLock
+    fun writtenHead(element: PsiElement, declaration: Declaration, module: String?): Head {
+        val written = when (val declared = declaration.declared) {
+            is Declared.Compiled -> element
+            is Declared.Source -> (element as? Call)?.let { head(it, declared.form, declaration.name, declaration.arity) }
+        }
+
+        return Head(written, module, declaration.name, declaration.arity)
+    }
+
+    /**
+     * The head [call] writes [name] at [arity] under with [form]: its one head, or the one of a list of `defdelegate`
+     * heads with that name and arity. A form that writes no head is written by [call] itself.
+     */
+    @RequiresReadLock
+    fun head(call: Call, form: Form, name: String, arity: ArityKnowledge): PsiElement? =
+        when (form) {
+            Form.CLAUSE, Form.DELEGATION -> {
+                val heads = heads(call, form)
+
+                heads.singleOrNull() ?: heads.firstOrNull { head ->
+                    CallDefinitionHead.nameArityInterval(head, ResolveState.initial())
+                        ?.let { (headName, interval) -> headName == name && interval.arityKnowledge() == arity } == true
+                }
+            }
+            Form.CALLBACK, Form.EXCEPTION, Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED -> call
+        }
 
     /**
      * The heads [call] writes the functions it declares with [form] under: each of a list of `defdelegate` heads, and an

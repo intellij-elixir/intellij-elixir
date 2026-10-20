@@ -11,6 +11,7 @@ import org.elixir_lang.declaration.Definer
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.declaringModuleName
+import org.elixir_lang.declaration.preferred
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.WalkTestSupport
@@ -155,6 +156,33 @@ class ExpanderSourceUseTest : PlatformTestCase() {
                 "C.f/0 DELEGATION_TARGET VALID via [use U, to: B | use U, to: C | $delegate | $delegate] d.ex line 2 " +
                 "`def f, do: 1`",
             candidates(file, "A.f()"),
+        )
+    }
+
+    /**
+     * The delegates one `defdelegate` injects at two arities each go with the target of their own arity, so `A.f(1, 2)`
+     * keeps `T.f/2`.
+     */
+    fun testEachDelegateOneDefdelegateInjectsIsPairedWithItsOwnTarget() {
+        add("t.ex", "defmodule T do\n  def f(x), do: {:one, x}\n  def f(x, y), do: {:two, x, y}\nend\n")
+        add(
+            "b.ex",
+            "defmodule U do\n  defmacro __using__(arity) do\n" +
+                "    args = if arity == 1, do: [quote(do: x)], else: [quote(do: x), quote(do: y)]\n\n" +
+                "    quote do\n      defdelegate f(unquote_splicing(args)), to: T\n    end\n  end\nend\n",
+        )
+        add("a.ex", "defmodule A do\n  use U, 1\n  use U, 2\nend\n")
+        val file = add("c.ex", "defmodule B do\n  def k, do: A.f(1, 2)\nend\n")
+        val use = Use.of(call(file, "A.f(1, 2)"))!!
+        val delegate = "defdelegate f(unquote_splicing(args)), to: T"
+
+        assertEquals(
+            "A.f/2 USE VALID via [use U, 2] b.ex line 6 `$delegate`\n" +
+                "  T.f/2 DELEGATION_TARGET VALID via [use U, 2 | $delegate] t.ex line 3 `def f(x, y), do: {:two, x, y}`",
+            preferred(use, found(file, "A.f(1, 2)"), incompleteCode = false).joinToString("\n") { preferred ->
+                (listOf(render(listOf(preferred.found))) + preferred.delegatedTo.map { "  " + render(listOf(it)) })
+                    .joinToString("\n")
+            },
         )
     }
 
