@@ -175,7 +175,7 @@ internal class ProtocolTail(private val module: String, meta: Meta, private val 
 
     /** [pending] with each definition that waits on the body's values, or is a branch of `impl_for!/1`, an effect. */
     fun settled(pending: List<Pending>): List<Pending> {
-        val branches = pending.filter { it is Pending.Definition && !it.statement && named(it, "impl_for!", 1) }
+        val branches = pending.filter { it is Pending.Definition && !it.statement && isImplFor(it) }
             .takeIf { it.size == 2 }.orEmpty()
 
         return pending.map { entry ->
@@ -313,9 +313,10 @@ internal class ProtocolTail(private val module: String, meta: Meta, private val 
     /** Whether the unquoted [call] unquotes `Protocol`'s own `guard`. */
     private fun isGuardCall(call: ElixirAst.Call): Boolean = isProtocolVariable(call.arguments!!.single(), "guard")
 
-    private fun named(definition: Pending.Definition, name: String, arity: Int): Boolean {
+    /** Whether [definition] is a clause of `impl_for!/1`. */
+    private fun isImplFor(definition: Pending.Definition): Boolean {
         val call = extractGuards(definition.head).first as? ElixirAst.Call ?: return false
 
-        return (call.callee as? ElixirAst.Literal.Atom)?.name == name && call.arguments?.size == arity
+        return (call.callee as? ElixirAst.Literal.Atom)?.name == "impl_for!" && call.arguments?.size == 1
     }
 }
