@@ -208,6 +208,10 @@ class QuoteExpanderTest : ExpanderTestCase() {
     fun testAnotherLocationCrashes() =
         assertEvery("quote(location: :other, do: 1)", "unported `quote(location: :other, do: 1)`")
 
+    /** `__aliases__` is a reserved token Elixir's parser refuses, so a call of it names no alias for the quote. */
+    fun testACallNamedAliasesIsUnported() =
+        assertEvery("quote(do: __aliases__(:Foo))", "unported `__aliases__(:Foo)`")
+
     // A quote in a pattern
 
     fun testAQuoteWithUnquoteInAPattern() =

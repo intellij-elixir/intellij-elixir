@@ -577,12 +577,16 @@ internal object Quote {
         }
 
         /** The `alias` annotation `elixir_aliases:expand/4` gives [input]: the module it names, or `false`. */
-        override fun aliased(input: AstTerm): String =
-            when (val expansion = aliasExpansion(node(input) as ElixirAst.Alias, env, level)) {
+        override fun aliased(input: AstTerm): String {
+            // A call or a value can have the alias head's shape.
+            val alias = node(input) as? ElixirAst.Alias ?: throw Stop(Expansion.Unported(node(input)))
+
+            return when (val expansion = aliasExpansion(alias, env, level)) {
                 is AliasExpansion.Aliased -> expansion.module
                 is AliasExpansion.Unaliased -> "false"
-                null -> throw Stop(Expansion.Unported(node(input)))
+                null -> throw Stop(Expansion.Unported(alias))
             }
+        }
 
         /** `import_meta/5`. */
         override fun importMeta(input: AstTerm, meta: Keywords<ElixirAst>, name: String, arity: Int): Keywords<ElixirAst> {
