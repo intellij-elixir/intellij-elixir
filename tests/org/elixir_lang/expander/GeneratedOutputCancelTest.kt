@@ -382,6 +382,81 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
             CHAIN / 2,
         )
 
+    /** An attribute whose value is a list in a list, many deep, is cancelled as its shape is read. */
+    fun testAnAttributesNestedListsAreCancelledAsTheirShapeIsRead() =
+        assertCancelledIn("${EXPANDER}AttributeTableKt", "isShaped", nestedListsIn("x"), CHAIN / 2)
+
+    /** `@compile` of a list in a list, many deep, is cancelled as its options are checked. */
+    fun testACompileOptionsNestedListsAreCancelledAsTheyAreChecked() =
+        assertCancelledIn("${EXPANDER}Steps", "compileOption", nestedListsIn("compile"), CHAIN / 2)
+
+    /** `@dialyzer` of many options, which may not nest, is cancelled as they are flattened. */
+    fun testADialyzerOptionsAreCancelledAsTheyAreFlattened() =
+        assertCancelledIn(
+            $$"$${EXPANDER}Steps$Companion",
+            "flatten",
+            "defmacro m, do: (t = []; ${chain("t = [:no_return | t]")} {:@, [], [{:dialyzer, [], [t]}]})",
+            CHAIN / 2,
+        )
+
+    /** A clause's guard of many `when`s, each around the last, is cancelled as it is expanded. */
+    fun testAGuardOfManyWhensIsCancelledAsItIsExpanded() =
+        assertCancelledIn(
+            "${EXPANDER}GuardKt",
+            "guard",
+            "defmacro m, do: (g = true; ${chain("g = {:when, [], [true, g]}")} " +
+                "{:case, [], [1, [do: [{:->, [], [[{:when, [], [{:x, [], nil}, g]}], :ok]}]]]})",
+            CHAIN / 2,
+        )
+
+    /** `@derive` of a list in a list, many deep, is cancelled as its protocols are read. */
+    fun testADerivesNestedListsAreCancelledAsTheyAreRead() =
+        assertCancelledIn(
+            "${EXPANDER}DeriveKt",
+            "protocolsOf",
+            "defmacro m, do: (d = {:__aliases__, [], [:Inspect]}; ${chain("d = [d]")} " +
+                "{:__block__, [], [{:@, [], [{:derive, [], [d]}]}, {:defstruct, [], [[:a]]}]})",
+            CHAIN / 2,
+        )
+
+    /** A struct field whose default holds a `fn` in a list in a list, many deep, is cancelled as it is evaluated. */
+    fun testAStructFieldsNestedDefaultIsCancelledAsItIsEvaluated() =
+        assertCancelledIn(
+            "${EXPANDER}DefstructKt",
+            "evaluated",
+            "defmacro m, do: (d = {:fn, [], [{:->, [], [[], 1]}]}; ${chain("d = [d]")} {:defstruct, [], [[a: d]]})",
+            CHAIN / 2,
+        )
+
+    /** A capture of a block of one expression in a block of one, many deep, is cancelled as it is expanded. */
+    fun testACapturesNestedBlocksAreCancelledAsTheyAreExpanded() =
+        assertCancelledIn(
+            "${EXPANDER}CaptureKt",
+            "capture",
+            "defmacro m, do: (b = {:f, [], [{:&, [], [1]}]}; ${chain("b = {:__block__, [], [b]}")} {:&, [], [b]})",
+            CHAIN / 2,
+        )
+
+    /** Before 1.16 an alias of an alias, many deep, is cancelled as it is looked up. */
+    fun testAnAliasOfAnAliasIsCancelledAsItIsLookedUp() =
+        assertCancelledIn(
+            "${EXPANDER}DirectiveKt",
+            "lookup",
+            "",
+            CHAIN / 2,
+            call = (1..CHAIN).joinToString("\n  ") { "alias Elixir.X${it + 1}, as: X$it" } + "\n  X1",
+            version = "1.15.8",
+        )
+
+    /** A module body whose macro writes many definitions is cancelled as it walks what the body queued. */
+    fun testAModuleBodysQueuedDefinitionsAreCancelledAsTheyAreWalked() =
+        assertCancelledIn(
+            "${EXPANDER}CompileKt",
+            "compileModule",
+            "defmacro m, do: (t = quote(do: def(f, do: 1)); ${"t = {:__block__, [], [t, t]}; ".repeat(DOUBLINGS)} t)",
+            LISTS / 2,
+        )
+
     /**
      * An escaped map whose equal keys order their entries by comparing a value only Elixir knows with `t`, a list holding
      * itself twice at every depth, too large to write out, ends: no order is known, and `t` isn't written out.
@@ -516,6 +591,9 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
 
         /** [NESTED_LOCAL_CALLS]'s call, with the `f` it calls. */
         const val NESTED_LOCAL_CALLS_CALL = "A.m()\n  def f(x), do: x"
+
+        /** `@`[name] of `[[...[]...]]`, [CHAIN] deep. */
+        fun nestedListsIn(name: String): String = "defmacro m, do: (t = []; ${chain("t = [t]")} {:@, [], [{:$name, [], [t]}]})"
 
         /** [statement], each run on the last's result, [CHAIN] times. */
         fun chain(statement: String): String = "$statement; ".repeat(CHAIN)

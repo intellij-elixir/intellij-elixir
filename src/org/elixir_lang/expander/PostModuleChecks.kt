@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.DefinitionTable.Kind
 import org.elixir_lang.language_level.ElixirLanguageFeature.DIALYZER_ATTRIBUTE_CHECKED
@@ -209,12 +210,15 @@ private class Steps<At>(
         }
 
     /** `validate_compile_opt/5`: a list is each of its options; an improper one fails at its tail. */
-    private fun compileOption(option: Term): Boolean =
-        when (option) {
+    private fun compileOption(option: Term): Boolean {
+        ProgressManager.checkCanceled()
+
+        return when (option) {
             is Term.Pair -> option.first != INLINE || inlines(option.second)
             is Term.List -> option.elements.all(::compileOption) && (option.tail == null || stop())
             else -> true
         }
+    }
 
     /** `validate_inlines/4`: the first function that isn't defined, or, from [NIFS_ATTRIBUTE_CHECKED], is a macro. */
     private fun inlines(inlines: Term): Boolean {
@@ -288,10 +292,13 @@ private class Steps<At>(
         }
 
         /** `lists:flatten([term])`, or `null` where a list in it is improper. */
-        fun flatten(term: Term): List<Term>? =
-            when (term) {
+        fun flatten(term: Term): List<Term>? {
+            ProgressManager.checkCanceled()
+
+            return when (term) {
                 is Term.List -> if (term.tail != null) null else term.elements.flatMap { flatten(it) ?: return null }
                 else -> listOf(term)
             }
+        }
     }
 }

@@ -178,7 +178,11 @@ private fun literalKeyed(
     env: Env,
     level: ElixirLanguageLevel,
 ): List<Pair<OtpErlangObject, ElixirAst>> =
-    fields.filter { (key, _) -> isLiteral(key) }.map { (key, value) -> literalShape(key, env, level).toOtp() to value }
+    fields.filter { (key, _) -> isLiteral(key) }.map { (key, value) ->
+        ProgressManager.checkCanceled()
+
+        literalShape(key, env, level).toOtp() to value
+    }
 
 /** `elixir_clauses:unpack_match/4`: a chain of matches as its sides, left to right. */
 private fun unpackMatch(node: ElixirAst, acc: List<ElixirAst>): List<ElixirAst> {
@@ -204,6 +208,8 @@ private fun storeCycles(writes: List<Map<Variable, Int>>, prematch: InMatch): St
     var acc = emptyMap<Variable, Int>()
 
     writes.forEachIndexed { index, write ->
+        ProgressManager.checkCanceled()
+
         val dependsOn = acc.keys + writes.drop(index + 1).flatMap { it.keys }
 
         cycles = write.keys.fold(cycles) { accCycles, variable ->
@@ -264,6 +270,8 @@ private fun recurCycles(
     val always = mutableListOf<Variable>()
 
     for (group in prematch.skip) {
+        ProgressManager.checkCanceled()
+
         if (current in group) {
             for (variable in group) {
                 if (variable in dependsOn) once.add(variable) else always.add(variable)
@@ -274,6 +282,8 @@ private fun recurCycles(
     var accSeen = always.associateWith { false } + seen + (current to true)
 
     for (variable in dependsOn.keys.sortedWith(VARIABLE_ORDER)) {
+        ProgressManager.checkCanceled()
+
         when {
             dependsOn.getValue(variable) == Dependency.REPEATED -> return null
             variable == source || variable in once -> Unit

@@ -238,6 +238,8 @@ internal class ProtocolTail(private val module: String, meta: Meta, private val 
         val list = attributes.read(functionsAttribute(level)) as? Term.List ?: return null
         // Before `PROTOCOL_BEFORE_COMPILE` the body can write `@functions`, and `:lists.sort/1` takes any term in it.
         val functions = list.elements.map { element ->
+            ProgressManager.checkCanceled()
+
             val pair = element as? Term.Pair ?: return null
 
             ((pair.first as? Term.Atom)?.name ?: return null) to ((pair.second as? Term.Integer)?.value ?: return null)

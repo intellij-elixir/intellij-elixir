@@ -476,7 +476,7 @@ internal fun storeDefinition(
 
     reservedNameError(kind, name, arity)?.let { return owner to Expansion.Error(it, node) }
 
-    val defaults = defaultsArgs.mapNotNull { arg -> (arg as? ElixirAst.Call)?.takeIf { isCall(it, "\\\\", 2) } }
+    val defaults = defaultsArgs.mapNotNull { arg -> (arg as? ElixirAst.Call)?.takeIf(::isDefault) }
     if (definition.stop != null || !expand) {
         store(definition, name, arity, defaults.size, compiling)
 
@@ -486,7 +486,7 @@ internal fun storeDefinition(
     val nameArity = NameArity(name, arity)
     val env = definition.env.copy(function = nameArity)
     val fresh = ExState.empty(run.level).copy(caller = kind.macro)
-    val args = defaultsArgs.map { arg -> if (arg in defaults) (arg as ElixirAst.Call).arguments!![0] else arg }
+    val args = defaultsArgs.map { arg -> if (isDefault(arg)) (arg as ElixirAst.Call).arguments!![0] else arg }
     val body = definition.body?.let { clauseBody(node, it) }
     val defaulted = expandDefaults(defaults, fresh, env, run, compiling, node)
     val expansion = defaulted.then { _, _ -> clause(node, args, guards, definition.body, body, fresh, env, run) }
@@ -497,7 +497,7 @@ internal fun storeDefinition(
     if (defaulted is Expansion.Expanded) {
         val counter = if (DEFAULT_ARGUMENTS_THREAD_STATE.isSufficient(run.level)) defaulted.state.version else 0
 
-        for (clause in defaultClauses(kind, name, defaultsArgs, defaults, counter, env)) {
+        for (clause in defaultClauses(kind, name, defaultsArgs, counter, env)) {
             compiling.clauses.getOrPut(NameArity(name, clause.args.size)) { mutableListOf() } += clause
         }
     }
@@ -558,6 +558,8 @@ private fun expandDefaults(
     var expansion: Expansion = Expansion.Expanded(fresh, env, NODE)
 
     for (default in defaults) {
+        ProgressManager.checkCanceled()
+
         val defaultCalls = mutableListOf<LocalCall<ElixirAst>>()
 
         run.callArguments.addLast(defaultCalls)
@@ -579,6 +581,8 @@ private fun expandDefaults(
         val arities = DefinitionTable.defaultArities(full.arity, defaults.size)
 
         for (arity in arities) {
+            ProgressManager.checkCanceled()
+
             compiling.calls.getOrPut(NameArity(full.name, arity)) { mutableListOf() } +=
                 LocalCall(
                     node,
@@ -597,7 +601,7 @@ private fun expandDefaults(
 }
 
 /**
- * `unpack_expanded/7`: the clause of each default arity of [defaultsArgs], whose [defaults] are expanded. It binds the
+ * `unpack_expanded/7`: the clause of each default arity of [defaultsArgs], whose defaults are expanded. It binds the
  * arguments it is given to variables numbered from [counter], and calls the full arity through `super` with the
  * defaults it lacks.
  */
@@ -605,11 +609,12 @@ private fun defaultClauses(
     kind: Kind,
     name: String,
     defaultsArgs: List<ElixirAst>,
-    defaults: List<ElixirAst.Call>,
     counter: Int,
     env: Env,
 ): List<ModuleClauses.Clause> =
-    defaultsArgs.indices.filter { defaultsArgs[it] in defaults }.map { index ->
+    defaultsArgs.indices.filter { isDefault(defaultsArgs[it]) }.map { index ->
+        ProgressManager.checkCanceled()
+
         val default = defaultsArgs[index] as ElixirAst.Call
         val synthetic = Synthetic(default.meta)
         // `default_var/1`.
@@ -624,7 +629,7 @@ private fun defaultClauses(
         val base = (0 until index).map { variable(counter + it) }
         var next = counter + index
         val rest = defaultsArgs.drop(index).map { arg ->
-            if (arg in defaults) null to (arg as ElixirAst.Call).arguments!![1] else variable(next++).let { it to it }
+            if (isDefault(arg)) null to (arg as ElixirAst.Call).arguments!![1] else variable(next++).let { it to it }
         }
         val superKeys = listOf(
             Meta.Key.Entry("super", Meta.Value.Tuple(listOf(Meta.Value.Atom(kind.name.lowercase()), Meta.Value.Atom(name)))),
@@ -637,6 +642,9 @@ private fun defaultClauses(
             env,
         )
     }
+
+/** `{'\\\\', Meta, [Arg, Default]}`: an argument with a default. */
+private fun isDefault(arg: ElixirAst): Boolean = isCall(arg, "\\\\", 2)
 
 /** `def_to_clauses/6`'s body of [node]'s [options]: a `do` alone is its body, and with more a `try`; `null` without one. */
 private fun clauseBody(node: ElixirAst.Call, options: ElixirAst): ElixirAst? {

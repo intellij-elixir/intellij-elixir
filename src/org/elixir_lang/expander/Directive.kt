@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
 import org.elixir_lang.Module
 import org.elixir_lang.NameArity
@@ -259,6 +260,8 @@ private tailrec fun lookup(
     level: ElixirLanguageLevel,
     seen: Set<String> = emptySet(),
 ): String? {
+    ProgressManager.checkCanceled()
+
     val entry = entries.firstOrNull { it.alias == name } ?: return name
 
     if (entry.counter != null && entry.counter != counter) return name
@@ -285,7 +288,7 @@ internal fun concat(names: List<String>, firstIsBinary: Boolean = false): String
         else -> "Elixir" to listOf(first) + tail
     }
 
-    return rest.fold(start) { acc, name -> "$acc.${Module.partial(name)}" }.takeIf(::fitsAnAtom)
+    return (listOf(start) + rest.map(Module::partial)).joinToString(".").takeIf(::fitsAnAtom)
 }
 
 /**

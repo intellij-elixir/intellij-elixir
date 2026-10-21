@@ -35,15 +35,19 @@ internal val CONCAT = object : Summary.Rewrite() {
 
 /** `extract_concatenations/2`'s operands of [node]: every local `<>` on the right flattened. */
 private fun concatenations(node: ElixirAst): List<ElixirAst> {
-    ProgressManager.checkCanceled()
+    val operands = mutableListOf<ElixirAst>()
+    var rest = node
 
-    return if (isCall(node, "<>", 2)) {
-        val (left, right) = (node as ElixirAst.Call).arguments!!
+    while (isCall(rest, "<>", 2)) {
+        ProgressManager.checkCanceled()
 
-        listOf(left) + concatenations(right)
-    } else {
-        listOf(node)
+        val (left, right) = (rest as ElixirAst.Call).arguments!!
+
+        operands += left
+        rest = right
     }
+
+    return operands.apply { add(rest) }
 }
 
 /** A left operand in a match whose size can't be known: a variable written in source, or before [PINNED_BINARY_SEGMENT_INFERS_SIZE] one pinned. */

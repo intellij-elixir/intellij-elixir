@@ -249,8 +249,10 @@ private enum class Value { LITERAL, INVALID, DYNAMIC }
  * in the output ([DEFSTRUCT_ESCAPES_STRUCT]) the compiler expands that fun where `__struct__/0` and `/1` read it, which
  * the expander has no value to do, so it isn't followed either.
  */
-private fun evaluated(node: ElixirAst, level: ElixirLanguageLevel): Value =
-    when {
+private fun evaluated(node: ElixirAst, level: ElixirLanguageLevel): Value {
+    ProgressManager.checkCanceled()
+
+    return when {
         node is ElixirAst.Literal -> Value.LITERAL
         node is ElixirAst.ListNode -> combined(node.elements, level)
         node is ElixirAst.Tuple -> combined(node.elements, level)
@@ -277,6 +279,7 @@ private fun evaluated(node: ElixirAst, level: ElixirLanguageLevel): Value =
         }
         else -> Value.DYNAMIC
     }
+}
 
 private fun combined(nodes: List<ElixirAst>, level: ElixirLanguageLevel): Value {
     val values = nodes.map { evaluated(it, level) }
@@ -401,9 +404,12 @@ private fun enforceKeysOf(compiling: Compiling, level: ElixirLanguageLevel): Lis
 
 /** `enforce_keys -- keys`: the enforced keys left once one is taken out for each of [fields]. */
 private fun notFields(enforced: List<String>, fields: Set<String>): List<String> {
-    val left = enforced.toMutableList()
+    val removed = HashSet<String>()
 
-    for (field in fields) left.remove(field)
+    // `--` takes away the first of each.
+    return enforced.filter {
+        ProgressManager.checkCanceled()
 
-    return left
+        !(it in fields && removed.add(it))
+    }
 }

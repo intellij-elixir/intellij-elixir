@@ -117,6 +117,8 @@ private class LiteralExpander(private val state: ExState, private val env: Env, 
  * whose summary isn't a [Summary.Rewrite] is [Expansion.Unported]. An alias's `alias_reference` trace isn't reported.
  */
 internal fun macroExpandOnce(node: ElixirAst, state: ExState, env: Env, run: Run): MacroExpanded {
+    ProgressManager.checkCanceled()
+
     val unchanged = MacroExpanded.Node(node, expanded = false)
 
     return when {

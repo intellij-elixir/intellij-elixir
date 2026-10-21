@@ -175,11 +175,12 @@ private fun compareMaps(left: OtpErlangMap, right: OtpErlangMap, numbers: Number
 
     val keys = numbers.keys
     val keyOrder = Comparator<OtpErlangObject> { a, b -> compareTerms(a, b, keys) }
-    val leftKeys = left.keys().sortedWith(keyOrder)
-    val rightKeys = right.keys().sortedWith(keyOrder)
+    // By entry, as a key's lookup compares it again.
+    val leftEntries = left.entrySet().sortedWith(compareBy(keyOrder) { it.key })
+    val rightEntries = right.entrySet().sortedWith(compareBy(keyOrder) { it.key })
 
-    return compareElements(leftKeys, rightKeys, keys).takeIf { it != 0 }
-        ?: compareElements(leftKeys.map { left.get(it) }, rightKeys.map { right.get(it) }, numbers)
+    return compareElements(leftEntries.map { it.key }, rightEntries.map { it.key }, keys).takeIf { it != 0 }
+        ?: compareElements(leftEntries.map { it.value }, rightEntries.map { it.value }, numbers)
 }
 
 /** Cell by cell: the heads, then the tails, so an improper tail compares as the term it is. */

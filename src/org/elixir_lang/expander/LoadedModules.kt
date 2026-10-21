@@ -74,6 +74,8 @@ internal object LoadedModules {
      */
     private fun deprecations(log: AttributeLog): Deprecations {
         val reasons = log.definitions.mapValues { (_, attributes) ->
+            ProgressManager.checkCanceled()
+
             attributes.reasons.map { ((it as? AttributeValue.Known)?.term as? Term.Binary)?.bytes ?: return Deprecations.Unreadable }
         }
 

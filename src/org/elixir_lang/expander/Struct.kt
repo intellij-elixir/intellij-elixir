@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.expander.ErrorSite.INVALID_KEY_FOR_STRUCT
 import org.elixir_lang.expander.ErrorSite.UNKNOWN_KEY_FOR_STRUCT
 import org.elixir_lang.language_level.ElixirLanguageFeature.STRUCT_KEYS_IN_FUNCTIONS_LEFT_TO_TYPES
@@ -51,7 +52,11 @@ internal fun expandStruct(node: ElixirAst.Call, state: ExState, env: Env, run: R
 
 /** Each of [keys] as the `struct_expansion` trace is compared: an atom by its name, any other by `inspect/1`. */
 private fun traced(keys: List<Term>): List<String>? =
-    keys.map { key -> (key as? Term.Atom)?.name ?: inspected(key) ?: return null }
+    keys.map { key ->
+        ProgressManager.checkCanceled()
+
+        (key as? Term.Atom)?.name ?: inspected(key) ?: return null
+    }
 
 /**
  * What [module]'s struct gives the [keys] written, as their expansions, if anything stops it expanding: the error that
@@ -97,6 +102,7 @@ private fun structError(
     }
     val names = keys.map { (it as? Term.Atom)?.name }
     val unknown = names.filter { it == null || it !in struct.fields }
+    val written = names.toHashSet()
 
     return when {
         !build -> {
@@ -108,8 +114,8 @@ private fun structError(
         unknown.isNotEmpty() -> Expansion.Error("struct_unknown_key", node)
         else -> when (val enforced = struct.enforced) {
             is Enforced.Known ->
-                Expansion.Error("struct_missing_enforced_keys", node).takeUnless { names.containsAll(enforced.keys) }
-            Enforced.Unknown -> Expansion.Unported(node).takeUnless { names.containsAll(struct.fields) }
+                Expansion.Error("struct_missing_enforced_keys", node).takeUnless { written.containsAll(enforced.keys) }
+            Enforced.Unknown -> Expansion.Unported(node).takeUnless { written.containsAll(struct.fields) }
         }
     }
 }

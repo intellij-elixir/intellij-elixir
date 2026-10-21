@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 
@@ -22,11 +23,14 @@ internal fun guard(
     structs: Structs,
 ): Expansion = guard(node, state, env, Run(level, ExpansionObserver.NONE, exports, structs))
 
-internal fun guard(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion =
-    if (isCall(node, "when", 2)) {
+internal fun guard(node: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
+    ProgressManager.checkCanceled()
+
+    return if (isCall(node, "when", 2)) {
         val (left, right) = (node as ElixirAst.Call).arguments!!
 
         guard(left, state, env, run).then { s, e -> guard(right, s, e, run) }
     } else {
         Expander.expand(node, state, env, run)
     }
+}

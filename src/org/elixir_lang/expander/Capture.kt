@@ -46,6 +46,8 @@ internal fun expandCapture(node: ElixirAst.Call, state: ExState, env: Env, run: 
 private enum class Arguments { ARITY, SEQUENTIAL, NON_SEQUENTIAL }
 
 private fun capture(amp: ElixirAst.Call, arg: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
+    ProgressManager.checkCanceled()
+
     val call = arg as? ElixirAst.Call
     val dot = (call?.callee as? ElixirAst.Call)
         ?.takeIf { (it.callee as? ElixirAst.Literal.Atom)?.name == "." }

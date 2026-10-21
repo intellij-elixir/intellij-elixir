@@ -1,5 +1,6 @@
 package org.elixir_lang.expander
 
+import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.lowering.AtomName
 import org.elixir_lang.lowering.ElixirAst
 
@@ -17,17 +18,21 @@ internal val USE = object : Summary.Rewrite() {
         val modules = if (isMultiAlias(module)) {
             val call = module as ElixirAst.Call
             val base = expandArgument(dotArguments(call.callee)!![0], state, env, run) { return it }
+            val first = baseName(base)
 
             call.arguments!!.map { ref ->
+                ProgressManager.checkCanceled()
+
                 when (ref) {
                     is ElixirAst.Alias -> {
                         val segments = ref.segments.map { (it as? ElixirAst.Literal.Atom)?.name }
 
                         if (null in segments) return Summary.Output.Unported(ref)
 
-                        concatenated(base, segments.filterNotNull()) ?: return Summary.Output.Unported(base)
+                        concatenated(base, first, segments.filterNotNull()) ?: return Summary.Output.Unported(base)
                     }
-                    is ElixirAst.Literal.Atom -> concatenated(base, listOf(ref.name)) ?: return Summary.Output.Unported(base)
+                    is ElixirAst.Literal.Atom ->
+                        concatenated(base, first, listOf(ref.name)) ?: return Summary.Output.Unported(base)
                     else -> null
                 }
             }
@@ -51,17 +56,17 @@ internal val USE = object : Summary.Rewrite() {
     }
 }
 
-/**
- * `Module.concat([base | segments])`, or `null` where [base] is neither an atom nor a valid UTF-8 binary, which raises,
- * or where the name is too long for an atom, which raises `system_limit`.
- */
-private fun concatenated(base: ElixirAst, segments: List<String>): String? {
-    val first = when (base) {
+/** [base]'s text, or `null` where it is neither an atom nor a valid UTF-8 binary. */
+private fun baseName(base: ElixirAst): String? =
+    when (base) {
         is ElixirAst.Literal.Atom -> base.name
         is ElixirAst.Literal.Binary -> AtomName.text(base.bytes)
         else -> null
     }
 
-    return first
-        ?.let { concat(listOf(it) + segments, firstIsBinary = base is ElixirAst.Literal.Binary) }
-}
+/**
+ * `Module.concat([base | segments])`, with [first] [base]'s [baseName], or `null` where that is `null`, which raises,
+ * or where [concat] gives none.
+ */
+private fun concatenated(base: ElixirAst, first: String?, segments: List<String>): String? =
+    first?.let { concat(listOf(it) + segments, firstIsBinary = base is ElixirAst.Literal.Binary) }

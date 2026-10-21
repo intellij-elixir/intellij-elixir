@@ -310,6 +310,8 @@ internal fun compileModule(module: Pending.Module, run: Run): ExpansionResult {
     val queue = ArrayDeque(module.settle?.invoke(run.pending) ?: run.pending)
 
     while (queue.isNotEmpty()) {
+        ProgressManager.checkCanceled()
+
         val unitEnded = when (val pending = queue.removeFirst()) {
             is Pending.Module if raised -> null
             is Pending.Effect if raised -> null

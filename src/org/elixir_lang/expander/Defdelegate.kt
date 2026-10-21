@@ -55,7 +55,9 @@ private fun defdelegate(
         }.pending(funs, opts, queued)
 
         // A definition the loop makes for a head it can name is a statement of the body, as its `def` is once it runs.
-        replacement.filterIsInstance<Pending.Definition>().firstOrNull { it !in queued }
+        val wasQueued = queued.toHashSet()
+
+        replacement.filterIsInstance<Pending.Definition>().firstOrNull { it !in wasQueued }
             ?.let { compiling.rewrote(node, it.node) }
         run.replacePending(from, replacement)
     }

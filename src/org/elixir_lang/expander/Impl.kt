@@ -36,7 +36,8 @@ private class ImplOptions(val forValue: ElixirAst?, val forCount: Int, val rest:
         fun of(written: ElixirAst, doBlock: ElixirAst?): ImplOptions? {
             val first = keyword(written) ?: return null
             val second = doBlock?.let { keyword(it) ?: return null }.orEmpty()
-            val merged = first.filter { (key, _) -> second.none { it.first == key } } + second
+            val secondKeys = second.mapTo(HashSet()) { it.first }
+            val merged = first.filter { (key, _) -> key !in secondKeys } + second
 
             return ImplOptions(
                 merged.firstOrNull { it.first == "for" }?.second,
