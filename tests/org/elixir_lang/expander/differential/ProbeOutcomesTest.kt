@@ -57,6 +57,19 @@ class ProbeOutcomesTest : ProbeTestCase() {
         assertEquals(listOf("stops at 1 remote_macro Elixir.Agent.__using__/1 match"), rows.values.map { it.status })
     }
 
+    fun testTheSummaryCountsEachKindOfRow() {
+        val rows = mapOf(
+            "a.ex" to ProbeOutcomes.Row("match"),
+            "b.ex" to ProbeOutcomes.Row("match"),
+            "c.ex" to ProbeOutcomes.Row("diff"),
+            "d.ex" to ProbeOutcomes.Row("unported alias/2"),
+            "e.ex" to ProbeOutcomes.Row("stopped def/2"),
+            "f.ex" to ProbeOutcomes.Row("stops at remote_macro match"),
+        )
+
+        assertEquals("6 cases, 2 match, 1 unported, 1 stopped, 1 stop at a macro, 1 diverge", outcomes.summary(rows))
+    }
+
     fun testAGoldenHasOneLineForEachRowAndHunk() {
         val rows = mapOf(
             "b.ex" to outcomes.row(Comparison(EXPANDER, ELIXIR), ""),

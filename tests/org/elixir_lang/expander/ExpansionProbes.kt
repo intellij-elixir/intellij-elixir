@@ -1743,7 +1743,13 @@ internal class ExpansionProbes(
             }
         }
 
+        /**
+         * Whether [node] holds a `receive` that runs when the module compiles: a definition's body does not, but what it
+         * unquotes does.
+         */
         fun hasReceiveWithoutAfterZero(node: ElixirAst): Boolean {
+            if (isDefiner(node)) return unquoted(node).any(::hasReceiveWithoutAfterZero)
+
             val options = (node as? ElixirAst.Call)?.arguments?.singleOrNull() as? ElixirAst.ListNode
             val isReceive = isNamedCall(node, "receive") &&
                 !options?.elements.isNullOrEmpty() &&

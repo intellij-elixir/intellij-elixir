@@ -1,0 +1,342 @@
+16_bit_floats__a159da8c.ex	match
+accumulates_vars__64322999.ex	match
+cannot_be_0_0_inside_match__202ca9b8.ex	match
+cannot_be_0_0_inside_match__abd44b60.ex	match
+cannot_be_0_0_inside_match__e8321c68.ex	match
+defines_vars__37f4c9fc.ex	match
+dir__c72b510b.ex	match
+does_not_define__ad7700e4.ex	match
+does_not_leak_vars__2aa50b03.ex	match
+does_not_leak_vars__ac10ed57.ex	match
+does_not_leak_vars__d1e6c8a4.ex	match
+does_not_leak_vars__ff6867e1.ex	match
+does_not_leak_vars_on_after__47dbbff5.ex	match
+does_not_leaks_clause_vars__043d21b1.ex	match
+does_not_leaks_vars_on_head__19725352.ex	match
+does_not_leaks_vars_on_head__af47c40c.ex	match
+does_not_share_lexical_scope_between_clauses__1b0fabf1.ex	match
+does_not_share_lexical_scope_between_clauses__26cccd5c.ex	match
+does_not_share_lexical_scope_between_clauses__9377343b.ex	match
+does_not_share_lexical_scope_between_clauses__bdc1cc1e.ex	match
+dynamic_syntax_expands_to_itself__5872930b.ex	match
+expand_args_defines_alias_and_returns_itself__690bedbd.ex	match
+expanded_as_arguments__28b47d20.ex	match
+expanded_as_arguments__5545f892.ex	match
+expanded_as_arguments__5fa115ce.ex	match
+expanded_as_arguments__631eefe7.ex	match
+expanded_as_arguments__828880df.ex	match
+expanded_to_raw_forms__59a84e27.ex	match
+expands_after__4904b046.ex	match
+expands_args__7ffb111e.ex	match
+expands_base_and_args__6b8b7b34.ex	match
+expands_binary_bitstring_specifiers__24a97a8f.ex	match
+expands_binary_bitstring_specifiers__3091dd77.ex	match
+expands_binary_bitstring_specifiers__3dce4566.ex	match
+expands_binary_bitstring_specifiers__6be175f3.ex	match
+expands_binary_bitstring_specifiers__83128cdd.ex	match
+expands_binary_bitstring_specifiers__c3de5862.ex	match
+expands_catch__80b1f2f8.ex	match
+expands_each_clause__cbb0a8b7.ex	match
+expands_each_clause__d45a093b.ex	match
+expands_each_clause__ddbac6dc.ex	match
+expands_each_clause__e1e02e89.ex	match
+expands_else__fffe92ef.ex	match
+expands_even_if_no_alias__06193f96.ex	match
+expands_even_if_no_alias__fe15d5d6.ex	match
+expands_guards__18eecb34.ex	match
+expands_guards__62f69fed.ex	match
+expands_guards__800cf7f3.ex	match
+expands_macros__aab96740.ex	match
+expands_numbers_specifiers__7791cba2.ex	match
+expands_numbers_specifiers__7afb9ebe.ex	match
+expands_numbers_specifiers__a11b6eb2.ex	match
+expands_numbers_specifiers__c44ebb0c.ex	match
+expands_numbers_specifiers__c5d14329.ex	match
+expands_numbers_specifiers__d80d3e59.ex	match
+expands_receiver_and_args__2f2f0365.ex	match
+expands_receiver_and_args__c8e81f0b.ex	match
+expands_remotes__57e24021.ex	match
+expands_remotes__642d2bd0.ex	match
+expands_rescue__ed0ac58c.ex	match
+expands_size_unit__5067cf17.ex	match
+expands_size_unit__5dca371f.ex	match
+expands_size_unit__8dd1e32f.ex	match
+expands_size_unit__b4871500.ex	match
+expands_size_unit__db376a1d.ex	match
+expands_to_erlang__574aca5d.ex	match
+expands_to_remote_calls__c7a069a2.ex	match
+expands_utf_specifiers__567cfe60.ex	match
+expands_utf_specifiers__5b08cc32.ex	match
+expands_utf_specifiers__aeac4f94.ex	match
+expands_utf_specifiers__e9fa79eb.ex	match
+expands_utf_specifiers__f81537e4.ex	match
+expands_with_alias__6c1f7244.ex	match
+expands_with_alias_is_recursive__ceb84262.ex	match
+expects_a_single_clause_for_after__6f9e5be7.ex	match
+expects_an_alias_a_variable_or_var_in_alias_as_the__6cefe186.ex	match
+expects_at_most_one_clause__056cd34e.ex	match
+expects_at_most_one_clause__457d6ea0.ex	match
+expects_at_most_one_clause__63527813.ex	match
+expects_at_most_one_clause__9880a35f.ex	match
+expects_at_most_one_clause__e1e2bf29.ex	match
+expects_atoms__cb9868b2.ex	match
+expects_atoms__d7639d77.ex	match
+expects_clauses__571420b2.ex	match
+expects_clauses__a06442e3.ex	match
+expects_clauses__bf84be51.ex	match
+expects_clauses__df95e133.ex	match
+expects_clauses__e899a27b.ex	match
+expects_clauses__fbd272ff.ex	match
+expects_clauses_for_rescue_else_catch__02f6917f.ex	match
+expects_clauses_for_rescue_else_catch__0733e732.ex	match
+expects_clauses_for_rescue_else_catch__25fa025a.ex	match
+expects_clauses_for_rescue_else_catch__377114ce.ex	match
+expects_clauses_for_rescue_else_catch__6e28798f.ex	match
+expects_clauses_for_rescue_else_catch__8bfa5064.ex	match
+expects_clauses_for_rescue_else_catch__9e39434b.ex	match
+expects_clauses_for_rescue_else_catch__dea5a7c5.ex	match
+expects_clauses_for_rescue_else_catch__e5d3ed82.ex	match
+expects_exactly_one_argument_in_clauses__aa4cc613.ex	match
+expects_exactly_one_argument_in_rescue_clauses__f17d4fea.ex	match
+expects_exactly_one_do__5ff028a9.ex	match
+expects_exactly_one_do__9d6a45dd.ex	match
+expects_exactly_one_do__a5fbf112.ex	match
+expects_exactly_one_do__c7db7a3d.ex	match
+expects_exactly_one_do_or_after__89d2af4f.ex	match
+expects_exactly_one_do_or_after__93d8c60c.ex	match
+expects_exactly_one_do_or_after__ef85e886.ex	match
+expects_more_than_do__1223163c.ex	match
+expects_on_argument_for_do_after_clauses__1a048b2f.ex	match
+expects_on_argument_for_do_after_clauses__a8bbc062.ex	match
+expects_one_argument_in_clauses__912f1bb5.ex	match
+expects_one_or_two_args_for_catch_clauses__e7ff4d2c.ex	match
+fails_for_invalid_options__06ec271b.ex	match
+fails_for_invalid_options__44afe50d.ex	match
+fails_for_invalid_options__54cac3b4.ex	match
+fails_for_invalid_options__fb3b19bb.ex	match
+fails_if_do_is_missing__190b572b.ex	match
+fails_on_block__579e64c3.ex	match
+fails_on_integers__6a436604.ex	match
+fails_on_invalid_arity__0f20a184.ex	match
+fails_on_invalid_else_option__66b45e3b.ex	match
+fails_on_invalid_else_option__d7844889.ex	match
+fails_on_invalid_else_option__ed84109d.ex	match
+fails_on_nested_capture__9f74b9e2.ex	match
+fails_on_non_continuous__92355531.ex	match
+fails_on_non_continuous__a91ad128.ex	match
+fails_on_non_continuous__d699e9fa.ex	match
+fails_on_other_types__3b8db931.ex	match
+fails_when_no_captures__467cfb00.ex	match
+fails_with_invalid_arguments__31f5aa5f.ex	match
+forces_variable_to_exist__63ab7fc2.ex	match
+forces_variable_to_exist__be535f5e.ex	match
+forces_variable_to_exist__c506a97a.ex	match
+guard_expressions_on_size__30e2d827.ex	match
+guard_expressions_on_size__48167af4.ex	match
+handles_invalid_expressions__1cb19f92.ex	diff
+handles_invalid_expressions__1cb19f92.ex	@@ -35,1 +35,1 @@
+handles_invalid_expressions__1cb19f92.ex	-error unhandled_arrow_op at line 96
+handles_invalid_expressions__1cb19f92.ex	+error at line 95: the function "wrong_fun" cannot handle clauses with the -> operator because it is not a macro. Please make sure you are invoking the proper name and that it is a macro
+handles_invalid_expressions__3e197b87.ex	diff
+handles_invalid_expressions__3e197b87.ex	@@ -35,1 +35,1 @@
+handles_invalid_expressions__3e197b87.ex	-error unhandled_arrow_op at line 96
+handles_invalid_expressions__3e197b87.ex	+error at line 95: the function "wrong_fun" cannot handle clauses with the -> operator because it is not a macro. Please make sure you are invoking the proper name and that it is a macro
+handles_invalid_expressions__6b483b5e.ex	match
+handles_invalid_expressions__7eb51008.ex	match
+handles_invalid_expressions__8db79dab.ex	match
+handles_invalid_expressions__91c8fc38.ex	match
+handles_invalid_expressions__b35d87aa.ex	match
+handles_invalid_expressions__c6b77944.ex	match
+handles_invalid_expressions__e737bc6d.ex	match
+in_guards__3fa640f6.ex	match
+in_guards__47b06d57.ex	match
+in_guards__481be60a.ex	match
+in_guards__5301ad66.ex	match
+in_guards_with_bitstrings__13f61c19.ex	diff
+in_guards_with_bitstrings__13f61c19.ex	@@ -7,1 +7,1 @@
+in_guards_with_bitstrings__13f61c19.ex	-5 0.0.1.2: arg/nil=0
+in_guards_with_bitstrings__13f61c19.ex	+5 0.0.1.3: arg/nil=0
+in_guards_with_bitstrings__13f61c19.ex	@@ -58,1 +58,1 @@
+in_guards_with_bitstrings__13f61c19.ex	-0.0.1.2
+in_guards_with_bitstrings__13f61c19.ex	+0.0.1.3
+in_guards_with_bitstrings__5a522003.ex	diff
+in_guards_with_bitstrings__5a522003.ex	@@ -6,0 +7,1 @@
+in_guards_with_bitstrings__5a522003.ex	+5 0.0.1.2: arg/nil=0
+in_guards_with_bitstrings__5a522003.ex	@@ -39,0 +41,10 @@
+in_guards_with_bitstrings__5a522003.ex	+  context_modules: [{token}.Case.Fixture, {token}.Case, {token}.Hook, {token}.Probe]
+in_guards_with_bitstrings__5a522003.ex	+  function: {:run, 0}
+in_guards_with_bitstrings__5a522003.ex	+  functions: ["Elixir.Kernel": ["!=": 2, "!==": 2, "*": 2, "**": 2, "+": 1, "+": 2, "++": 2, "-": 1, "-": 2, "--": 2, "/": 2, "<": 2, "<=": 2, "==": 2, "===": 2, "=~": 2, ">": 2, ">=": 2, abs: 1, apply: 2, apply: 3, binary_part: 3, binary_slice: 2, binary_slice: 3, bit_size: 1, byte_size: 1, ceil: 1, div: 2, elem: 2, exit: 1, floor: 1, function_exported?: 3, get_and_update_in: 3, get_in: 2, hd: 1, inspect: 1, inspect: 2, is_atom: 1, is_binary: 1, is_bitstring: 1, is_boolean: 1, is_float: 1, is_function: 1, is_function: 2, is_integer: 1, is_list: 1, is_map: 1, is_map_key: 2, is_number: 1, is_pid: 1, is_port: 1, is_reference: 1, is_tuple: 1, length: 1, macro_exported?: 3, make_ref: 0, map_size: 1, max: 2, min: 2, node: 0, node: 1, not: 1, pop_in: 2, put_elem: 3, put_in: 3, rem: 2, round: 1, self: 0, send: 2, spawn: 1, spawn: 3, spawn_link: 1, spawn_link: 3, spawn_monitor: 1, spawn_monitor: 3, struct: 1, struct: 2, struct!: 1, struct!: 2, throw: 1, tl: 1, to_timeout: 1, trunc: 1, tuple_size: 1, update_in: 3]]
+in_guards_with_bitstrings__5a522003.ex	+  macro_aliases: ["Elixir.Fixture": {:c0, {token}.Case.Fixture}]
+in_guards_with_bitstrings__5a522003.ex	+  macros: ["Elixir.Kernel": ["!": 1, "&&": 2, "..": 0, "..": 2, "..//": 3, "<>": 2, "@": 1, alias!: 1, and: 2, binding: 0, binding: 1, dbg: 0, dbg: 1, dbg: 2, def: 1, def: 2, defdelegate: 2, defexception: 1, defguard: 1, defguardp: 1, defimpl: 2, defimpl: 3, defmacro: 1, defmacro: 2, defmacrop: 1, defmacrop: 2, defmodule: 2, defoverridable: 1, defp: 1, defp: 2, defprotocol: 2, defstruct: 1, destructure: 2, get_and_update_in: 2, get_in: 1, if: 2, in: 2, is_exception: 1, is_exception: 2, is_nil: 1, is_non_struct_map: 1, is_struct: 1, is_struct: 2, match?: 2, or: 2, pop_in: 1, put_in: 2, raise: 1, raise: 2, reraise: 2, reraise: 3, sigil_C: 2, sigil_D: 2, sigil_N: 2, sigil_R: 2, sigil_S: 2, sigil_T: 2, sigil_U: 2, sigil_W: 2, sigil_c: 2, sigil_r: 2, sigil_s: 2, sigil_w: 2, tap: 2, then: 2, to_char_list: 1, to_charlist: 1, to_string: 1, unless: 2, update_in: 2, use: 1, use: 2, var!: 1, var!: 2, "|>": 2, "||": 2]]
+in_guards_with_bitstrings__5a522003.ex	+  module: {token}.Case.Fixture
+in_guards_with_bitstrings__5a522003.ex	+  requires: [Application, Kernel]
+in_guards_with_bitstrings__5a522003.ex	+0.0.1.2
+in_guards_with_bitstrings__5a522003.ex	+  aliases: ["Elixir.Fixture": {token}.Case.Fixture]
+in_guards_with_bitstrings__5a522003.ex	+  context: :guard
+in_matches__0003c181.ex	match
+in_matches__1342eefb.ex	match
+in_matches__3e17f40e.ex	match
+in_matches__6358a9b0.ex	match
+in_matches__734bd5fd.ex	match
+in_matches__7bb19931.ex	match
+in_matches__934f354e.ex	match
+in_matches__ecb1da40.ex	match
+in_matches__eceef39e.ex	match
+invalid_alias__1a91003f.ex	match
+invalid_alias__1fdc387a.ex	match
+invalid_alias__b0aa0ad1.ex	match
+invalid_alias__babd02d6.ex	match
+invalid_alias__ea55b73d.ex	match
+invalid_expansion__99a2f74b.ex	match
+invalid_import_option__dda01b2f.ex	match
+invalid_keys_in_structs__b2d2123e.ex	match
+invalid_options__71d88724.ex	match
+invalid_options__94c172da.ex	match
+keeps_locals__1147b5a1.ex	match
+keeps_locals__d1869486.ex	match
+map_lookup_on_size__7fc19af5.ex	match
+merges_binaries__889ad1e9.ex	match
+merges_binaries__a5f3cc71.ex	match
+merges_binaries__beaf2aa8.ex	match
+merges_bitstrings__57b44b1b.ex	match
+merges_bitstrings__f224d698.ex	match
+module__7afd3b77.ex	match
+must_start_with_generators__53be42af.ex	match
+must_start_with_generators__85b901e8.ex	match
+nested_match__371bcbac.ex	match
+nested_match__3ac87724.ex	match
+nested_match__5b11930d.ex	match
+nested_match__b8341d93.ex	match
+on_match__7a55a238.ex	match
+on_match__b67f5b06.ex	match
+on_match__b728be49.ex	match
+parallel_match__1cb668d7.ex	match
+parallel_match__2695043b.ex	diff
+parallel_match__2695043b.ex	@@ -6,1 +5,0 @@
+parallel_match__2695043b.ex	-4 0.2.1: baz/nil=0 foo/nil=1
+parallel_match__2695043b.ex	@@ -47,11 +46,1 @@
+parallel_match__2695043b.ex	-0.2.1
+parallel_match__2695043b.ex	-  aliases: ["Elixir.Fixture": {token}.Case.Fixture]
+parallel_match__2695043b.ex	-  context: nil
+parallel_match__2695043b.ex	-  context_modules: [{token}.Case.Fixture, {token}.Case, {token}.Hook, {token}.Probe]
+parallel_match__2695043b.ex	-  function: {:run, 0}
+parallel_match__2695043b.ex	-  functions: ["Elixir.Kernel": ["!=": 2, "!==": 2, "*": 2, "**": 2, "+": 1, "+": 2, "++": 2, "-": 1, "-": 2, "--": 2, "/": 2, "<": 2, "<=": 2, "==": 2, "===": 2, "=~": 2, ">": 2, ">=": 2, abs: 1, apply: 2, apply: 3, binary_part: 3, binary_slice: 2, binary_slice: 3, bit_size: 1, byte_size: 1, ceil: 1, div: 2, elem: 2, exit: 1, floor: 1, function_exported?: 3, get_and_update_in: 3, get_in: 2, hd: 1, inspect: 1, inspect: 2, is_atom: 1, is_binary: 1, is_bitstring: 1, is_boolean: 1, is_float: 1, is_function: 1, is_function: 2, is_integer: 1, is_list: 1, is_map: 1, is_map_key: 2, is_number: 1, is_pid: 1, is_port: 1, is_reference: 1, is_tuple: 1, length: 1, macro_exported?: 3, make_ref: 0, map_size: 1, max: 2, min: 2, node: 0, node: 1, not: 1, pop_in: 2, put_elem: 3, put_in: 3, rem: 2, round: 1, self: 0, send: 2, spawn: 1, spawn: 3, spawn_link: 1, spawn_link: 3, spawn_monitor: 1, spawn_monitor: 3, struct: 1, struct: 2, struct!: 1, struct!: 2, throw: 1, tl: 1, to_timeout: 1, trunc: 1, tuple_size: 1, update_in: 3]]
+parallel_match__2695043b.ex	-  macro_aliases: ["Elixir.Fixture": {:c0, {token}.Case.Fixture}]
+parallel_match__2695043b.ex	-  macros: ["Elixir.Kernel": ["!": 1, "&&": 2, "..": 0, "..": 2, "..//": 3, "<>": 2, "@": 1, alias!: 1, and: 2, binding: 0, binding: 1, dbg: 0, dbg: 1, dbg: 2, def: 1, def: 2, defdelegate: 2, defexception: 1, defguard: 1, defguardp: 1, defimpl: 2, defimpl: 3, defmacro: 1, defmacro: 2, defmacrop: 1, defmacrop: 2, defmodule: 2, defoverridable: 1, defp: 1, defp: 2, defprotocol: 2, defstruct: 1, destructure: 2, get_and_update_in: 2, get_in: 1, if: 2, in: 2, is_exception: 1, is_exception: 2, is_nil: 1, is_non_struct_map: 1, is_struct: 1, is_struct: 2, match?: 2, or: 2, pop_in: 1, put_in: 2, raise: 1, raise: 2, reraise: 2, reraise: 3, sigil_C: 2, sigil_D: 2, sigil_N: 2, sigil_R: 2, sigil_S: 2, sigil_T: 2, sigil_U: 2, sigil_W: 2, sigil_c: 2, sigil_r: 2, sigil_s: 2, sigil_w: 2, tap: 2, then: 2, to_char_list: 1, to_charlist: 1, to_string: 1, unless: 2, update_in: 2, use: 1, use: 2, var!: 1, var!: 2, "|>": 2, "||": 2]]
+parallel_match__2695043b.ex	-  module: {token}.Case.Fixture
+parallel_match__2695043b.ex	-  requires: [Application, Kernel]
+parallel_match__2695043b.ex	-error undefined_function at line 95
+parallel_match__2695043b.ex	+error at line 95: binary patterns cannot be matched in parallel using "=", excess pattern: <<baz>>
+parallel_match__48521b22.ex	match
+parallel_match__533e9420.ex	match
+parallel_match__55ea9b77.ex	match
+parallel_match__596bdb2a.ex	match
+parallel_match__718e7b59.ex	match
+parallel_match__794c5e13.ex	match
+parallel_match__7c56c8a1.ex	match
+parallel_match__905bff2b.ex	match
+parallel_match__a83cb8a3.ex	diff
+parallel_match__a83cb8a3.ex	@@ -5,1 +4,0 @@
+parallel_match__a83cb8a3.ex	-3 0.2.1: baz/nil=0 foo/nil=1
+parallel_match__a83cb8a3.ex	@@ -31,10 +29,0 @@
+parallel_match__a83cb8a3.ex	-  functions: ["Elixir.Kernel": ["!=": 2, "!==": 2, "*": 2, "**": 2, "+": 1, "+": 2, "++": 2, "-": 1, "-": 2, "--": 2, "/": 2, "<": 2, "<=": 2, "==": 2, "===": 2, "=~": 2, ">": 2, ">=": 2, abs: 1, apply: 2, apply: 3, binary_part: 3, binary_slice: 2, binary_slice: 3, bit_size: 1, byte_size: 1, ceil: 1, div: 2, elem: 2, exit: 1, floor: 1, function_exported?: 3, get_and_update_in: 3, get_in: 2, hd: 1, inspect: 1, inspect: 2, is_atom: 1, is_binary: 1, is_bitstring: 1, is_boolean: 1, is_float: 1, is_function: 1, is_function: 2, is_integer: 1, is_list: 1, is_map: 1, is_map_key: 2, is_number: 1, is_pid: 1, is_port: 1, is_reference: 1, is_tuple: 1, length: 1, macro_exported?: 3, make_ref: 0, map_size: 1, max: 2, min: 2, node: 0, node: 1, not: 1, pop_in: 2, put_elem: 3, put_in: 3, rem: 2, round: 1, self: 0, send: 2, spawn: 1, spawn: 3, spawn_link: 1, spawn_link: 3, spawn_monitor: 1, spawn_monitor: 3, struct: 1, struct: 2, struct!: 1, struct!: 2, throw: 1, tl: 1, to_timeout: 1, trunc: 1, tuple_size: 1, update_in: 3]]
+parallel_match__a83cb8a3.ex	-  macro_aliases: ["Elixir.Fixture": {:c0, {token}.Case.Fixture}]
+parallel_match__a83cb8a3.ex	-  macros: ["Elixir.Kernel": ["!": 1, "&&": 2, "..": 0, "..": 2, "..//": 3, "<>": 2, "@": 1, alias!: 1, and: 2, binding: 0, binding: 1, dbg: 0, dbg: 1, dbg: 2, def: 1, def: 2, defdelegate: 2, defexception: 1, defguard: 1, defguardp: 1, defimpl: 2, defimpl: 3, defmacro: 1, defmacro: 2, defmacrop: 1, defmacrop: 2, defmodule: 2, defoverridable: 1, defp: 1, defp: 2, defprotocol: 2, defstruct: 1, destructure: 2, get_and_update_in: 2, get_in: 1, if: 2, in: 2, is_exception: 1, is_exception: 2, is_nil: 1, is_non_struct_map: 1, is_struct: 1, is_struct: 2, match?: 2, or: 2, pop_in: 1, put_in: 2, raise: 1, raise: 2, reraise: 2, reraise: 3, sigil_C: 2, sigil_D: 2, sigil_N: 2, sigil_R: 2, sigil_S: 2, sigil_T: 2, sigil_U: 2, sigil_W: 2, sigil_c: 2, sigil_r: 2, sigil_s: 2, sigil_w: 2, tap: 2, then: 2, to_char_list: 1, to_charlist: 1, to_string: 1, unless: 2, update_in: 2, use: 1, use: 2, var!: 1, var!: 2, "|>": 2, "||": 2]]
+parallel_match__a83cb8a3.ex	-  module: {token}.Case.Fixture
+parallel_match__a83cb8a3.ex	-  requires: [Application, Kernel]
+parallel_match__a83cb8a3.ex	-0.2.1
+parallel_match__a83cb8a3.ex	-  aliases: ["Elixir.Fixture": {token}.Case.Fixture]
+parallel_match__a83cb8a3.ex	-  context: nil
+parallel_match__a83cb8a3.ex	-  context_modules: [{token}.Case.Fixture, {token}.Case, {token}.Hook, {token}.Probe]
+parallel_match__a83cb8a3.ex	-  function: {:run, 0}
+parallel_match__a83cb8a3.ex	@@ -46,1 +35,1 @@
+parallel_match__a83cb8a3.ex	-error undefined_function at line 95
+parallel_match__a83cb8a3.ex	+error at line 95: binary patterns cannot be matched in parallel using "=", excess pattern: <<baz>>
+parallel_match__bc0dfab8.ex	match
+parallel_match__c4b851ec.ex	match
+parallel_match__c7c73cf3.ex	match
+parallel_match__d335ff60.ex	match
+parallel_match__ed5797b2.ex	match
+parallel_match__ee3a357e.ex	match
+raise_error_for_unknown_options__3447f6af.ex	match
+raise_error_for_unknown_options__505a5426.ex	match
+raise_error_on_invalid_reduce__1db77e24.ex	match
+raise_error_on_invalid_reduce__5d4e2b06.ex	match
+raise_error_on_invalid_reduce__b27b050a.ex	match
+raise_error_on_invalid_reduce__dfc839f5.ex	match
+raises_for_conflicting_specifiers__448182f7.ex	match
+raises_for_conflicting_specifiers__f6a30f32.ex	match
+raises_for_in_clauses__f18f86b7.ex	match
+raises_for_invalid_arguments__55143403.ex	match
+raises_for_invalid_arguments__6f8730e6.ex	match
+raises_for_invalid_arguments__b837d583.ex	match
+raises_for_invalid_literals__202b394e.ex	match
+raises_for_invalid_literals__870885ed.ex	match
+raises_for_invalid_size__4c4bd813.ex	match
+raises_for_invalid_size__5817ec8c.ex	match
+raises_for_invalid_size__76a65cef.ex	match
+raises_for_invalid_size__947cd170.ex	match
+raises_for_invalid_size__a9a142b3.ex	match
+raises_for_invalid_size__bc611f48.ex	match
+raises_for_invalid_size__be9bd11d.ex	match
+raises_for_invalid_size__ce6a934a.ex	match
+raises_for_invalid_size_unit_for_floats__c2846222.ex	match
+raises_for_invalid_size_unit_for_floats__e9418bbe.ex	match
+raises_for_invalid_unit__96999e36.ex	match
+raises_for_missing_do__f9364bf5.ex	match
+raises_for_non_compile_time_module__cacf9178.ex	match
+raises_for_non_compile_time_module__eac57ec2.ex	match
+raises_for_unknown_specifier__957b25b6.ex	match
+raises_for_used_outside_of_a_match__c7ffb850.ex	match
+raises_if_as_is_passed_to_multi_alias_aliases__c0b94831.ex	match
+raises_if_do_is_missing__930417ff.ex	match
+raises_if_the_bind_quoted_option_is_invalid__1e53b4a8.ex	match
+raises_if_the_bind_quoted_option_is_invalid__75821d33.ex	match
+raises_on_atom_base__165feb9a.ex	match
+raises_on_binary_fields_with_size_in_matches__0804eeeb.ex	match
+raises_on_binary_fields_with_size_in_matches__12f94847.ex	match
+raises_on_binary_fields_with_size_in_matches__13e3f334.ex	match
+raises_on_binary_fields_with_size_in_matches__3eddb722.ex	match
+raises_on_binary_fields_with_size_in_matches__9e9f5635.ex	match
+raises_on_conflicting_options__2f6d5c1b.ex	match
+raises_on_mixed_arities__fb240508.ex	match
+raises_on_size_or_unit_for_literal_bitstrings__34fea5e7.ex	match
+raises_on_size_or_unit_for_literal_strings__94951da8.ex	match
+raises_on_unaligned_binaries_in_match__28b3b8ad.ex	match
+raises_on_unaligned_binaries_in_match__5e0c6ade.ex	match
+raises_outside_match__4487eb8b.ex	match
+raises_unless_its_options_are_a_keyword_list__77085e7d.ex	match
+raises_when_the_var_is_undefined__01d1bd9b.ex	match
+raises_with_invalid_arguments__0ba32bc4.ex	match
+raises_with_invalid_options__2d809911.ex	match
+raises_with_invalid_options__ae44b01d.ex	match
+raises_with_invalid_options__f797dc65.ex	match
+raises_without_var__eff5c083.ex	match
+require_do_option__22638c87.ex	match
+requires_size_on_binary_generators__9cb56b7c.ex	match
+supports_dynamic_size__5cee6697.ex	match
+uniq_option_is_boolean__0e4e8752.ex	match
+unknown_key_in_structs__2ce1c301.ex	match
+update_syntax__a6f63f0a.ex	match
+update_syntax__b90a90bd.ex	match
+variables_are_available_in_do_option__f527ed5d.ex	match
+variables_do_not_leak__f9f7209b.ex	match
+variables_do_not_leak_with_binaries__a3dadf64.ex	match
+variables_do_not_leak_with_enums__2b88b96a.ex	match
+variables_inside_args_expression_do_not_leak__8a6d9fbb.ex	match
+variables_inside_args_expression_do_not_leak__d3c1dd94.ex	match
+variables_inside_else_do_not_leak__2123629a.ex	match
+variables_inside_filters_are_available_in_blocks__597112b0.ex	match
+variables_inside_generator_args_do_not_leak__80006892.ex	match
+variables_inside_generator_args_do_not_leak__d02992da.ex	match
+variables_inside_options_do_not_leak__0baa3025.ex	match
+variables_inside_options_do_not_leak__a518a2ea.ex	match
+with_binaries_in_keys_inside_patterns__3cd7a505.ex	match
+with_binaries_in_keys_inside_patterns__6617c49e.ex	match
+with_binaries_in_keys_inside_patterns__9b842fc7.ex	match
+with_binaries_in_keys_inside_patterns__f9c2707e.ex	match
+with_variables_on_keys__62997abd.ex	match
+with_variables_on_keys__6424109b.ex	match
+with_variables_on_keys__6fc9887e.ex	match
+with_variables_on_keys__f4ccd659.ex	match
+with_variables_on_keys__fe60b114.ex	match

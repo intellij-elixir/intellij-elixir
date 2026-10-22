@@ -1,6 +1,8 @@
 package org.elixir_lang.expander.differential
 
 import com.intellij.util.diff.Diff
+import junit.framework.TestCase
+import org.elixir_lang.elixir_surface.LegManifest
 import org.elixir_lang.expander.CASE_MODULE_PATTERN
 import org.elixir_lang.expander.Expansion
 import org.elixir_lang.expander.ExpansionProbes
@@ -9,6 +11,7 @@ import org.elixir_lang.expander.ExpansionResult.Ended
 import org.elixir_lang.expander.TOKEN_PATTERN
 import org.elixir_lang.lowering.ElixirAst
 import java.util.TreeMap
+import kotlin.reflect.KClass
 
 /**
  * Every case's outcome against Elixir, one row each: `match`; a line diff of the expander's text against Elixir's;
@@ -34,19 +37,48 @@ internal class ProbeOutcomes(private val probes: ExpansionProbes) {
         val rows = TreeMap<String, Row>()
 
         unported.forEach { (name, expansion) ->
-            rows[name] = Row("unported ${describe((expansion.outcome as Expansion.Unported).at)}")
+            rows[name] = Row("$UNPORTED ${describe((expansion.outcome as Expansion.Unported).at)}")
         }
         probes.compareUpToMacro(opaque).forEach { (name, comparison) ->
-            rows[name] = row(comparison, "stops at ${normalised(opaque.getValue(name).macro.orEmpty())} ")
+            rows[name] = row(comparison, "$STOPS_AT ${normalised(opaque.getValue(name).macro.orEmpty())} ")
         }
         probes.compare(rest).first.forEach { (name, comparison) -> rows[name] = row(comparison, "") }
         (rest.keys - rows.keys).forEach { name ->
-            (rest.getValue(name).ended as? Ended.Stopped)?.let { rows[name] = Row("stopped ${describe(it.at)}") }
+            (rest.getValue(name).ended as? Ended.Stopped)?.let { rows[name] = Row("$STOPPED ${describe(it.at)}") }
         }
 
         check(rows.keys == expansions.keys) { "no row for ${expansions.keys - rows.keys}" }
 
         return rows
+    }
+
+    /** How many of [rows] are of each kind. */
+    fun summary(rows: Map<String, Row>): String =
+        "${rows.size} cases, ${rows.values.count { it.matches }} match, " +
+            "${rows.values.count { it.status.startsWith(UNPORTED) }} unported, " +
+            "${rows.values.count { it.status.startsWith(STOPPED) }} stopped, " +
+            "${rows.values.count { it.status.startsWith(STOPS_AT) }} stop at a macro, " +
+            "${rows.values.count { it.status == DIFF }} diverge"
+
+    /**
+     * The rows of [expansions] against the leg's golden `<name>.txt` of every case's outcome, with at least [floor] of
+     * them `match`, which may only grow. [test] is the class that regenerates the golden.
+     */
+    fun assertGolden(name: String, expansions: Map<String, CaseExpansion>, floor: Int, test: KClass<*>) {
+        val rows = of(expansions)
+        val matched = rows.values.count { it.matches }
+        val elixirVersion = LegManifest.environment("ELIXIR_VERSION")
+
+        println("$name: ${summary(rows)}")
+
+        LegManifest.assertMatchesFile(
+            GOLDENS,
+            elixirVersion,
+            "$name.txt",
+            golden(rows),
+            LegManifest.regenerateCommand(test, elixirVersion, LegManifest.environment("ERLANG_VERSION")),
+        )
+        TestCase.assertTrue("$name: $matched cases match, below $floor", matched >= floor)
     }
 
     /** [rows] as the text of a golden: LF-only lines, each starting with its case's name. */
@@ -88,5 +120,10 @@ internal class ProbeOutcomes(private val probes: ExpansionProbes) {
     private companion object {
         const val MATCH = "match"
         const val DIFF = "diff"
+        const val UNPORTED = "unported"
+        const val STOPPED = "stopped"
+        const val STOPS_AT = "stops at"
+
+        const val GOLDENS = "testData/org/elixir_lang/expander/differential"
     }
 }
