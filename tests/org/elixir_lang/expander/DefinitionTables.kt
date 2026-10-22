@@ -1,6 +1,9 @@
 package org.elixir_lang.expander
 
+import com.ericsson.otp.erlang.OtpErlangAtom
+import org.elixir_lang.intellij_elixir.Quoter
 import org.elixir_lang.language_level.ElixirLanguageLevel
+import org.junit.Assert.assertTrue
 
 /**
  * The expander's definition tables against what a hook read of them on the leg's Elixir: names, arities and kinds on
@@ -16,28 +19,38 @@ internal object DefinitionTables {
 
     /**
      * The rows of the case module and of every module under it that the hook reported or the expander reached, at any
-     * depth; a module on one side only is a row on the other, `no hook row` or `not expanded`. `null` if the hook didn't
-     * run in the case module, whose rows and nested modules' then have nothing to compare. Whether the hook should have
+     * depth; a module on one side only is a row on the other, `no hook row` or `not expanded`. Where the hook didn't run
+     * in the case module, because its compile failed first, only the modules the hook reported are rows, as what the
+     * expander reached after the failure has nothing to compare; `null` if there is none. Whether the hook should have
      * run in a module whose compile failed is the caller's to decide.
+     *
+     * A compile that succeeded must have hooked every module it defined under the case module, or the comparison fails
+     * naming the modules it missed: a harness bug, since a module the hook missed is on neither side.
      *
      * @param hooks what the hook saw, by module
      * @param result the expander's result for the case module
      * @param bodyLine the line the case body starts on, which the rows count their lines from
+     * @param compiled the compile [hooks] came from, whose traced environments name each module it defined
      */
     fun compare(
         caseModule: String,
         hooks: Map<String, List<ProbeHarness.HookEntry>>,
         result: ExpansionResult,
         bodyLine: Int,
+        compiled: Quoter.Compiled,
     ): Rows? {
-        if (caseModule !in hooks) return null
+        assertEveryModuleHooked(caseModule, hooks, compiled)
+
+        val hooked = hooks.filterKeys { DispatchEvents.atOrUnder(it, caseModule) }
+
+        if (hooked.isEmpty()) return null
 
         val expanded = modules(result).associateBy { it.module }
-        val hooked = hooks.filterKeys { it == caseModule || it.startsWith("$caseModule.") }
         val elixir = mutableListOf<String>()
         val expander = mutableListOf<String>()
+        val names = if (caseModule in hooked) hooked.keys + expanded.keys else hooked.keys
 
-        for (module in (hooked.keys + expanded.keys).sorted()) {
+        for (module in names.sorted()) {
             val suffix = module.removePrefix(caseModule)
             val theirs = hooked[module]?.map { hookRow(it, bodyLine) }
             val ours = expanded[module]?.let { compared(hooked[module].orEmpty(), it.table, bodyLine) }
@@ -52,6 +65,23 @@ internal object DefinitionTables {
     /** [rows] under [heading], sorted. */
     fun render(heading: String, rows: List<String>) =
         "== ${heading.replace("\n", "; ")}\n" + rows.sorted().joinToString("") { "  $it\n" }
+
+    /**
+     * Every module a compile defines is the module of a traced environment, but for one defined while a function the
+     * compile calls runs, which this misses.
+     */
+    private fun assertEveryModuleHooked(
+        caseModule: String,
+        hooks: Map<String, List<ProbeHarness.HookEntry>>,
+        compiled: Quoter.Compiled,
+    ) {
+        if (compiled.status != OtpErlangAtom("ok")) return
+
+        val missed = DispatchEvents.modules(compiled.events)
+            .filter { DispatchEvents.atOrUnder(it, caseModule) && it !in hooks }
+
+        assertTrue("the harness left the hook out of ${missed.joinToString()}, which the compile defined", missed.isEmpty())
+    }
 
     private fun under(suffix: String, row: String) = if (suffix.isEmpty()) row else "$suffix $row"
 

@@ -81,7 +81,7 @@ class ProbeHarnessSelfTest : ProbeTestCase() {
 
     /**
      * Modules at any depth, in a `do` block, in a keyword `do:` value, and with no body, are hooked; a `defmodule` in
-     * a `quote` or in a definition's head, but for what the head unquotes, is not a module of the case.
+     * the quoted code of a `quote` or in a definition's head, but for what they evaluate, is not a module of the case.
      */
     fun testEveryModuleACaseDefinesIsHooked() {
         val attempt = harness.attempt(
@@ -191,6 +191,105 @@ class ProbeHarnessSelfTest : ProbeTestCase() {
 
         assertEquals(OtpErlangAtom("ok"), attempt.compiled.status)
         assertEquals(listOf("", ".M"), attempt.batch.hooks.keys.map { it.removePrefix(attempt.layout.caseModule(0)) }.sorted())
+    }
+
+    /**
+     * A module defined by what a `quote` evaluates is a module of the case: what its `do` body unquotes, and its other
+     * options, but not the quoted code, and its `do` body's unquotes only as Elixir reads `unquote:` and `bind_quoted`.
+     */
+    fun testAModuleDefinedInAQuoteIsHooked() {
+        val attempt = harness.attempt(
+            ProbeHarness.Layout(
+                harness.token(),
+                listOf(
+                    ProbeHarness.Case(
+                        """
+                        quote(do: unquote((defmodule M do def f, do: :ok end; :ok)))
+                        quote(line: (defmodule N do end; 1), do: defmodule(Q, do: nil))
+                        quote(bind_quoted: [a: 1], unquote: true, do: unquote((defmodule U do end; 1)))
+                        """.trimIndent()
+                    )
+                ),
+                hook = ProbeHarness.Hook(),
+            )
+        )
+
+        assertEquals(OtpErlangAtom("ok"), attempt.compiled.status)
+        assertEquals(
+            listOf("", ".M", ".N", ".U"),
+            attempt.batch.hooks.keys.map { it.removePrefix(attempt.layout.caseModule(0)) }.sorted()
+        )
+        assertLeftNothingBehind(attempt)
+    }
+
+    /** The name of a call in a `quote` is evaluated where the `quote` is written, so a module it defines is hooked. */
+    fun testAModuleDefinedInAQuotedCallNameIsHooked() {
+        val attempt = harness.attempt(
+            ProbeHarness.Layout(
+                harness.token(),
+                listOf(
+                    ProbeHarness.Case(
+                        """
+                        quote(do: Kernel.unquote((defmodule M do end; :f))(1))
+                        quote(do: unquote((defmodule N do end; :g))(1))
+                        """.trimIndent()
+                    )
+                ),
+                hook = ProbeHarness.Hook(),
+            )
+        )
+
+        assertEquals(OtpErlangAtom("ok"), attempt.compiled.status)
+        assertEquals(
+            listOf("", ".M", ".N"),
+            attempt.batch.hooks.keys.map { it.removePrefix(attempt.layout.caseModule(0)) }.sorted()
+        )
+        assertLeftNothingBehind(attempt)
+    }
+
+    /**
+     * A nested `quote` given its options as a separate argument evaluates what they unquote, where one given a single
+     * keyword list does not.
+     */
+    fun testAModuleDefinedInANestedQuotesOptionsIsHooked() {
+        val attempt = harness.attempt(
+            ProbeHarness.Layout(
+                harness.token(),
+                listOf(
+                    ProbeHarness.Case(
+                        """
+                        quote(do: quote([line: unquote((defmodule M2 do end; 1))], do: :x))
+                        quote(do: quote([line: unquote((defmodule M1 do end; 1)), do: :x]))
+                        """.trimIndent()
+                    )
+                ),
+                hook = ProbeHarness.Hook(),
+            )
+        )
+
+        assertEquals(OtpErlangAtom("ok"), attempt.compiled.status)
+        assertEquals(
+            listOf("", ".M2"),
+            attempt.batch.hooks.keys.map { it.removePrefix(attempt.layout.caseModule(0)) }.sorted()
+        )
+        assertLeftNothingBehind(attempt)
+    }
+
+    /** A module whose `do` is a tuple in a keyword list, which has no `do` token, holds its definition as a `do:` does. */
+    fun testAModuleWhoseDoIsATupleIsHooked() {
+        val attempt = harness.attempt(
+            ProbeHarness.Layout(
+                harness.token(),
+                listOf(ProbeHarness.Case("defmodule M, [{:do, def(f, do: :ok)}]")),
+                hook = ProbeHarness.Hook(),
+            )
+        )
+        val caseModule = attempt.layout.caseModule(0)
+
+        assertEquals(OtpErlangAtom("ok"), attempt.compiled.status)
+        assertEquals(listOf("", ".M"), attempt.batch.hooks.keys.map { it.removePrefix(caseModule) }.sorted())
+        assertEquals(listOf("f/0"), attempt.batch.hooks.getValue("$caseModule.M").map { "${it.name}/${it.arity}" })
+        assertLeftNothingBehind(attempt)
     }
 
     /** A comment between `do:` and a module's value doesn't move the value out of the module. */
