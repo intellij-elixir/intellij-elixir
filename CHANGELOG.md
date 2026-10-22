@@ -756,6 +756,8 @@
 
 ### Build / CI
 
+- [#4516](https://github.com/intellij-elixir/intellij-elixir/pull/4516) [@sh41](https://github.com/sh41)
+  - **The expander's differential test now also runs the variable oracle's function-body and anonymous-function cases, compares the definitions of every module a case defines, and records each case's outcome per Elixir version in a committed file.** Refs [#4512](https://github.com/intellij-elixir/intellij-elixir/issues/4512).
 - [#4519](https://github.com/intellij-elixir/intellij-elixir/pull/4519) [@sh41](https://github.com/sh41)
   - **Pull requests test Elixir 1.11, 1.15, 1.18 and 1.19 and the IDEA versions, and run Windows only when they change SDK, run, console or JPS builder code; a nightly run on `main` tests every Elixir/OTP pair and Windows, leaving out what a merged pull request already passed over the same code.** Fixes [#4517](https://github.com/intellij-elixir/intellij-elixir/issues/4517).
 - [#4518](https://github.com/intellij-elixir/intellij-elixir/pull/4518) [@sh41](https://github.com/sh41)

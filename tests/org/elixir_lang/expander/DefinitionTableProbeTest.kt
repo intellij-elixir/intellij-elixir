@@ -29,6 +29,17 @@ class DefinitionTableProbeTest : ProbeTestCase() {
         }
     }
 
+    /** A module the case defines has its definitions compared too, not the case module's only. */
+    fun testANestedModulesDefinitionsMatchTheHook() {
+        val case = "defmodule Fixture do\n  def f(a), do: a\nend"
+        val rendered = assertTablesMatch(listOf(case)) { _, attempt, module ->
+            assertEquals("compile status", OtpErlangAtom("ok"), attempt.compiled.status)
+            assertTrue("the hook ran in $module.Fixture", "$module.Fixture" in attempt.batch.hooks)
+        }
+
+        assertTrue("a row for Fixture's f/1 in\n$rendered", rendered.contains(".Fixture f/1 def"))
+    }
+
     /**
      * What a macro's effect does to the table: a guard's macro, a definition made overridable, `super`'s hidden entry
      * and a definition in a branch that may not run, each last in the module body.
@@ -58,7 +69,7 @@ class DefinitionTableProbeTest : ProbeTestCase() {
         cases: List<String>,
         stopsAt: (ExpansionResult) -> Boolean = { false },
         ran: (String, ProbeHarness.Attempt, String) -> Unit,
-    ) {
+    ): String {
         val options = compilerOptions()
         val expected = mutableListOf<String>()
         val actual = mutableListOf<String>()
@@ -75,93 +86,20 @@ class DefinitionTableProbeTest : ProbeTestCase() {
             val module = expansions.layout.caseModule(0)
 
             ran(case, attempt, module)
-            assertLeftNothingBehind(expansions.layout)
+            assertLeftNothingBehind(attempt)
 
-            val bodyLine = expansions.layout.bodyLines[0]
-
-            attempt.batch.hooks[module]?.let { hooked ->
-                val (theirs, ours) = compared(hooked, expansion.result.table, bodyLine)
-
-                expected += render(case, theirs)
-                actual += render(case, ours)
-            }
+            DefinitionTables.compare(module, attempt.batch.hooks, expansion.result, expansions.layout.bodyLines[0])
+                ?.let { rows ->
+                    expected += DefinitionTables.render(case, rows.elixir)
+                    actual += DefinitionTables.render(case, rows.expander)
+                }
         }
 
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
         assertEquals("compiler options", options, compilerOptions())
+
+        return expected.joinToString("\n")
     }
-
-    /**
-     * The hook's rows, and the expander's [table] read against them by the may-be-present rule: Elixir's table holds
-     * every ordered entry, an unordered entry may be absent and compares its kind only, and every Elixir entry is one
-     * of the expander's. An unnamed entry pairs with an Elixir entry of its kind that no named entry claims; one that
-     * is a statement, so unordered only for its name, must find one.
-     */
-    private fun compared(
-        hooked: List<ProbeHarness.HookEntry>,
-        table: DefinitionTable,
-        bodyLine: Int,
-    ): Pair<List<String>, List<String>> {
-        val elixir = hooked.associateBy { it.name to it.arity }
-        val actual = mutableListOf<String>()
-        val claimed = mutableSetOf<Pair<String, Int>>()
-
-        for ((nameArity, entry) in table.entries) {
-            val key = nameArity.name to nameArity.arity
-            val theirs = elixir[key]
-
-            when {
-                entry.ordered || theirs != null && theirs.kind != entry.kind.name.lowercase() ->
-                    actual += tableRow(nameArity.name, nameArity.arity, entry, bodyLine)
-                theirs != null -> actual += hookRow(theirs, bodyLine)
-            }
-
-            if (theirs != null) claimed += key
-        }
-
-        val unclaimed = hooked.filterTo(mutableListOf()) { (it.name to it.arity) !in claimed }
-
-        for ((unnamedKind, _, statement) in table.unnamed) {
-            val kind = unnamedKind.name.lowercase()
-            val pair = unclaimed.firstOrNull { it.kind == kind }
-
-            when {
-                pair != null -> {
-                    unclaimed -= pair
-                    actual += hookRow(pair, bodyLine)
-                }
-                statement -> actual += "<unnamed> $kind"
-            }
-        }
-
-        return hooked.map { hookRow(it, bodyLine) } to actual
-    }
-
-    private fun render(case: String, rows: List<String>) =
-        "== ${case.replace("\n", "; ")}\n" + rows.sorted().joinToString("") { "  $it\n" }
-
-    private fun hookRow(entry: ProbeHarness.HookEntry, bodyLine: Int): String =
-        row(entry.name, entry.arity, entry.kind, entry.line?.let { it - bodyLine + 1 }, entry.clauses, entry.default)
-
-    private fun tableRow(name: String, arity: Int, entry: DefinitionTable.Entry, bodyLine: Int): String {
-        val level = legLevel()
-        val detailed = level.elixir >= GET_DEFINITION.elixir
-
-        return row(
-            name,
-            arity,
-            entry.kind.name.lowercase(),
-            (entry.line - bodyLine + 1).takeIf { detailed },
-            entry.clauses.takeIf { detailed },
-            // The hook reads whether the meta holds `:context`, which a definition a macro quoted has on every leg.
-            (entry.default && level.elixir >= DEFAULT_CLAUSES_TAKE_CONTEXT.elixir ||
-                metaValue(entry.at.meta, "context") != null).takeIf { detailed },
-        )
-    }
-
-    private fun row(name: String, arity: Int, kind: String, line: Int?, clauses: Int?, default: Boolean?) =
-        "$name/$arity $kind" + (line?.let { " line $it" } ?: "") + (clauses?.let { " clauses $it" } ?: "") +
-            (default?.let { " default $it" } ?: "")
 
     /** A bodied `defguard` stops the module at `Kernel.Utils.defguard/2`, whose output isn't followed, and nowhere else. */
     private val stopsAtTheGuardTemplate = { result: ExpansionResult ->
@@ -170,12 +108,6 @@ class DefinitionTableProbeTest : ProbeTestCase() {
     }
 
     private companion object {
-        /** `Module.get_definition/2`, which gives a definition's meta and clauses. */
-        val GET_DEFINITION: ElixirLanguageLevel = ElixirLanguageLevel.of("1.12.0-rc.0")
-
-        /** `elixir-lang/elixir@f1bbb2cd3` puts `:context` in a default arity's meta. */
-        val DEFAULT_CLAUSES_TAKE_CONTEXT: ElixirLanguageLevel = ElixirLanguageLevel.of("1.20.0-rc.0")
-
         val CASES = listOf(
             """
             @behaviour Access

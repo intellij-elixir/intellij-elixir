@@ -1,6 +1,7 @@
 package org.elixir_lang.expander
 
-import org.elixir_lang.lowering.ElixirAst
+import org.elixir_lang.elixir_surface.LegManifest
+import org.elixir_lang.expander.differential.ProbeOutcomes
 import org.elixir_lang.psi.ElixirFile
 import java.io.File
 
@@ -8,49 +9,54 @@ import java.io.File
  * After each statement of a case module body, and at each identity probe in its patterns, the expander's variables
  * fall into the same classes as Elixir's, and its env's other fields equal Elixir's, on the leg's Elixir. A case the
  * expander reports an error for is compared as an error. One that reaches an unported clause at any statement is
- * counted as uncovered, and one that stops at a macro whose expansion isn't modelled is counted apart and compared up
- * to that macro.
+ * recorded as unported, and one that stops at a macro whose expansion isn't modelled is compared up to that macro.
+ * Each context's outcomes are committed per leg, and the cases that match may only grow.
  */
 class VariableClassProbeTest : ProbeTestCase() {
-    private val probes = ExpansionProbes(harness) { createPsiFile(getTestName(false), it) as ElixirFile }
+    private val probes = ExpansionProbes(harness, definitions = true) { createPsiFile(getTestName(false), it) as ElixirFile }
+    private val outcomes = ProbeOutcomes(probes)
 
-    fun testTheVariableOraclesTopLevelCases() {
+    fun testTheVariableOraclesTopLevelCases() = assertContext("top", ".exs", TOP_FLOOR)
+
+    fun testTheVariableOraclesDefCases() = assertContext("def", ".ex", DEF_FLOOR)
+
+    fun testTheVariableOraclesFnCases() = assertContext("fn", ".ex", FN_FLOOR)
+
+    /**
+     * Every `<context>__` case of the oracle through [ProbeOutcomes], with the hook on, against the leg's golden of
+     * every case's outcome, and at least [floor] of them `match`.
+     */
+    private fun assertContext(context: String, extension: String, floor: Int) {
         val cases = File(ORACLE_CASES)
-            .listFiles { file -> file.name.startsWith("top__") && file.name.endsWith(".exs") }
+            .listFiles { file -> file.name.startsWith("${context}__") && file.name.endsWith(extension) }
             .orEmpty()
             .sortedBy { it.name }
             .associate { it.name to it.readLines().drop(HEADER_LINES).joinToString("\n") }
-        val expansions = cases.mapValues { (_, body) -> probes.expand(body, PLACEHOLDER) }
-        val covered = expansions.filterValues { it.outcome is Expansion.Expanded }
-        val opaque = expansions.filterValues { it.outcome is Expansion.Opaque }
-        val uncoveredAt = expansions.filterKeys { it !in covered && it !in opaque }.values
-            .map { expansion ->
-                when (val outcome = expansion.outcome) {
-                    is Expansion.Unported -> describe(outcome.at)
-                    is Expansion.Error -> "error ${outcome.kind}"
-                    is Expansion.Expanded, is Expansion.Opaque -> error("unreachable")
-                }
-            }
-            .groupingBy { it }
-            .eachCount()
-            .entries
-            .sortedByDescending { it.value }
+        val expansions = cases.mapValues { (_, body) -> probes.expand(body, PLACEHOLDER, hook = ProbeHarness.Hook()) }
+        val rows = outcomes.of(expansions)
+        val matched = rows.values.count { it.matches }
 
-        println("covered ${covered.size} of ${cases.size}; ${opaque.size} stop at a macro")
         println(
-            "stopped at a macro: " +
-                opaque.entries.joinToString { (name, expansion) ->
-                    "$name ${ExpanderTestCase.render((expansion.outcome as Expansion.Opaque).dispatch)}"
-                }
+            "$context: ${rows.size} cases, $matched match, " +
+                "${rows.values.count { it.status.startsWith("unported") }} unported, " +
+                "${rows.values.count { it.status.startsWith("stops at") }} stop at a macro, " +
+                "${rows.values.count { it.status == "diff" }} diverge"
         )
-        println("uncovered, by the first unported node: " + uncoveredAt.joinToString { "${it.key} ${it.value}" })
-        println("covered cases: " + covered.keys.joinToString(" "))
 
-        probes.assertMatchesElixir(
-            expansions.filterValues { it.outcome !is Expansion.Unported && it.outcome !is Expansion.Opaque }
+        val elixirVersion = LegManifest.environment("ELIXIR_VERSION")
+
+        LegManifest.assertMatchesFile(
+            GOLDENS,
+            elixirVersion,
+            "$context.txt",
+            outcomes.golden(rows),
+            LegManifest.regenerateCommand(
+                VariableClassProbeTest::class,
+                elixirVersion,
+                LegManifest.environment("ERLANG_VERSION"),
+            ),
         )
-        probes.assertMatchesElixirUpToMacro(opaque)
-        assertTrue("covered ${covered.size} of ${cases.size}, below $FLOOR", covered.size >= FLOOR)
+        assertTrue("$context: $matched cases match, below $floor", matched >= floor)
     }
 
     fun testOwnCases() {
@@ -64,15 +70,6 @@ class VariableClassProbeTest : ProbeTestCase() {
         probes.assertMatchesElixir(expansions)
     }
 
-    /** A call as its name and arity, anything else as its kind. */
-    private fun describe(node: ElixirAst): String =
-        when {
-            node is ElixirAst.Call && node.callee is ElixirAst.Literal.Atom ->
-                node.callee.name + (node.arguments?.let { "/${it.size}" } ?: " (variable)")
-            node is ElixirAst.Call -> "remote or anonymous call"
-            else -> node.javaClass.simpleName
-        }
-
     private companion object {
         const val ORACLE_CASES = "testData/org/elixir_lang/model/psi/variable/oracle/cases"
 
@@ -82,8 +79,16 @@ class VariableClassProbeTest : ProbeTestCase() {
         /** Stands for the module Elixir compiles each case body in, whose hygiene counters are `{Module, N}`. */
         const val PLACEHOLDER = "Elixir.VariableCase"
 
-        /** The covered count measured when these clauses were ported; it may only grow. */
-        const val FLOOR = 1066
+        const val GOLDENS = "testData/org/elixir_lang/expander/differential"
+
+        /** The `top` context's lowest count of `match` rows over the legs; it may only grow. */
+        const val TOP_FLOOR = 1066
+
+        /** The `def` context's lowest count of `match` rows over the legs; it may only grow. */
+        const val DEF_FLOOR = 1066
+
+        /** The `fn` context's lowest count of `match` rows over the legs; it may only grow. */
+        const val FN_FLOOR = 1066
 
         val OWN_CASES = listOf(
             "()",

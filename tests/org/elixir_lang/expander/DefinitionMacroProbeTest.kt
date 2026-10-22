@@ -114,7 +114,7 @@ class DefinitionMacroProbeTest : ProbeTestCase() {
                 .joinToString("\n"),
         )
         assertTrue("a guard is among them", docs.entries.any { it.guard })
-        assertLeftNothingBehind(expansions.layout)
+        assertLeftNothingBehind(attempt)
     }
 
 

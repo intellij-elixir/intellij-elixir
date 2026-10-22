@@ -76,7 +76,7 @@ class AttributeProbeTest : ProbeTestCase() {
             ),
             docs.entries!!.map { "${it.kind} ${it.name}/${it.arity} ${text(it.doc)} ${text(it.deprecated)}" }.sorted(),
         )
-        assertLeftNothingBehind(layout)
+        assertLeftNothingBehind(attempt)
         assertEquals("compiler options", options, compilerOptions())
     }
 
@@ -136,7 +136,6 @@ class AttributeProbeTest : ProbeTestCase() {
                 def r_default(a \\ @x), do: a
                 @x 3
                 defmodule Inner do
-                  @after_compile {token}.Hook
                   def r_outer, do: @x
                 end
                 """.trimIndent(),
@@ -332,7 +331,7 @@ class AttributeProbeTest : ProbeTestCase() {
 
     /**
      * Expands and compiles each of [cases] alone with the hook, and compares the expander's attribute log with what the
-     * hook saw, for the case module and each module nested in it that names the hook in its own `@after_compile`.
+     * hook saw, for the case module and every module nested in it.
      */
     private fun assertAttributesMatch(vararg cases: AttributeCase, preamble: String = "") {
         val options = compilerOptions()
@@ -380,13 +379,13 @@ class AttributeProbeTest : ProbeTestCase() {
                     name,
                     layout,
                     result?.let {
-                        expander(it, case.attributes.takeIf { name == module }.orEmpty(), bodyLine, case.definitions)
+                        expander(it, case.attributes, bodyLine, case.definitions)
                     }
                         ?: listOf("not expanded"),
                 )
             }
 
-            assertLeftNothingBehind(layout)
+            assertLeftNothingBehind(attempt)
         }
 
         assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
