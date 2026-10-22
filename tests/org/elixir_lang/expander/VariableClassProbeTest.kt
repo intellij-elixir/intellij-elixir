@@ -18,6 +18,10 @@ class VariableClassProbeTest : ProbeTestCase() {
 
     fun testTheVariableOraclesTopLevelCases() = assertContext("top", ".exs", TOP_FLOOR)
 
+    fun testTheVariableOraclesDefCases() = assertContext("def", ".ex", DEF_FLOOR)
+
+    fun testTheVariableOraclesFnCases() = assertContext("fn", ".ex", FN_FLOOR)
+
     /**
      * Every `<context>__` case of the oracle through [ProbeOutcomes], with the hook on, against the leg's golden of
      * every case's outcome, and at least [floor] of them `match`.
@@ -77,8 +81,14 @@ class VariableClassProbeTest : ProbeTestCase() {
 
         const val GOLDENS = "testData/org/elixir_lang/expander/differential"
 
-        /** The `match` rows of the top-level cases on every leg; it may only grow. */
+        /** The `top` context's lowest count of `match` rows over the legs; it may only grow. */
         const val TOP_FLOOR = 1066
+
+        /** The `def` context's lowest count of `match` rows over the legs; it may only grow. */
+        const val DEF_FLOOR = 1066
+
+        /** The `fn` context's lowest count of `match` rows over the legs; it may only grow. */
+        const val FN_FLOOR = 1066
 
         val OWN_CASES = listOf(
             "()",

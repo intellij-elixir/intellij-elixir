@@ -857,7 +857,11 @@ internal class ExpansionProbes(
     private fun tagRange(expansion: CaseExpansion, tag: Tag): TextRange? =
         if (tag.identity > 0) expansion.case.identities[tag.identity - 1] else expansion.tagRanges[tag]
 
-    /** [cases] expanded again together, a batch for each set of inputs they were expanded with. */
+    /**
+     * [cases] expanded again together, a batch for each set of inputs they were expanded with, split so that none
+     * holds more than [MAX_BATCH_PROBES] probes: what a compile sends back for them must fit the quoter's distribution
+     * buffer, and the compile must finish within [ProbeHarness.COMPILE_TIMEOUT].
+     */
     private fun batches(cases: Map<String, CaseExpansion>): List<Pair<List<String>, Expansions>> =
         cases.keys
             .groupBy { name ->
@@ -866,6 +870,24 @@ internal class ExpansionProbes(
                 }
             }
             .values
+            .flatMap { names ->
+                val chunks = mutableListOf<MutableList<String>>()
+                var probes = 0
+
+                for (name in names) {
+                    val size = cases.getValue(name).steps.size
+
+                    if (chunks.isEmpty() || probes + size > MAX_BATCH_PROBES) {
+                        chunks += mutableListOf<String>()
+                        probes = 0
+                    }
+
+                    chunks.last() += name
+                    probes += size
+                }
+
+                chunks
+            }
             .map { names ->
                 val origin = cases.getValue(names.first()).origin
                 val bodies = names.map { cases.getValue(it).origin.body }
@@ -1397,6 +1419,8 @@ internal class ExpansionProbes(
 
     private companion object {
         const val COMPILE_ERROR = "Elixir.CompileError"
+
+        const val MAX_BATCH_PROBES = 1000
 
         /** The macro `defguard` stops at. */
         const val GUARD_TEMPLATE = "Elixir.Kernel.Utils.defguard/2"
