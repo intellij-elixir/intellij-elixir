@@ -152,7 +152,8 @@ sealed class ElixirAst {
         /**
          * The node quoted [term] is, with [origin] as every node's origin: [toOtp]'s inverse under
          * [ParserOptions.DEFAULT]. Null for a term no quoted expression is, such as a map or a bitstring, unless
-         * [values]. A term [known] gives a node for is that node, origin and all.
+         * [values]. A term [known] gives a node for is that node, origin and all. [onNode] is told each other term and
+         * the node it became.
          *
          * @param values whether a term Elixir's expansion takes for no AST is a [Value], as in a macro's result
          */
@@ -161,23 +162,25 @@ sealed class ElixirAst {
             origin: TextRange,
             values: Boolean = false,
             known: (OtpErlangObject) -> ElixirAst? = { null },
+            onNode: ((OtpErlangObject, ElixirAst) -> Unit)? = null,
         ): ElixirAst? {
             ProgressManager.checkCanceled()
             known(term)?.let { return it }
             if (TermKind.of(term) == null) return null
 
             val bare = { Meta(origin, NO_POSITION, NO_POSITION) }
-
-            return when (term) {
+            val node = when (term) {
                 is OtpErlangAtom -> Literal.Atom(bare(), term.atomValue())
                 is OtpErlangLong -> Literal.Integer(bare(), term.bigIntegerValue())
                 is OtpErlangDouble -> Literal.Float(bare(), term.doubleValue())
                 is OtpErlangBinary -> Literal.Binary(bare(), term.binaryValue())
                 is OtpErlangString, is OtpErlangList ->
-                    elements(term, origin, values, known)?.let { ListNode(bare(), it) }
-                is OtpErlangTuple -> fromTuple(term, origin, values, known)
+                    elements(term, origin, values, known, onNode)?.let { ListNode(bare(), it) }
+                is OtpErlangTuple -> fromTuple(term, origin, values, known, onNode)
                 else -> if (values) Value(bare(), term) else null
             }
+
+            return node?.also { onNode?.invoke(term, it) }
         }
 
         /** The elements of the proper list [term], which a list of bytes decodes to an [OtpErlangString] as. */
@@ -186,6 +189,7 @@ sealed class ElixirAst {
             origin: TextRange,
             values: Boolean,
             known: (OtpErlangObject) -> ElixirAst?,
+            onNode: ((OtpErlangObject, ElixirAst) -> Unit)?,
         ): List<ElixirAst>? =
             when (term) {
                 is OtpErlangString ->
@@ -194,7 +198,7 @@ sealed class ElixirAst {
                     }
                 is OtpErlangList ->
                     term.takeIf { it.lastTail == null }?.elements()?.map {
-                        fromOtp(it, origin, values, known) ?: return null
+                        fromOtp(it, origin, values, known, onNode) ?: return null
                     }
                 else -> null
             }
@@ -204,11 +208,12 @@ sealed class ElixirAst {
             origin: TextRange,
             values: Boolean,
             known: (OtpErlangObject) -> ElixirAst?,
+            onNode: ((OtpErlangObject, ElixirAst) -> Unit)?,
         ): ElixirAst? {
             val bare = Meta(origin, NO_POSITION, NO_POSITION)
 
             if (tuple.arity() == 2) {
-                return Tuple(bare, tuple.elements().map { fromOtp(it, origin, values, known) ?: return null })
+                return Tuple(bare, tuple.elements().map { fromOtp(it, origin, values, known, onNode) ?: return null })
             }
             if (tuple.arity() != 3) return if (values) Value(bare, tuple) else null
 
@@ -227,13 +232,13 @@ sealed class ElixirAst {
 
                 return Call(
                     meta,
-                    fromOtp(head, origin, values, known) ?: return null,
+                    fromOtp(head, origin, values, known, onNode) ?: return null,
                     null,
                     if (context == "nil") VariableContext.Nil else VariableContext.Atom(context),
                 )
             }
 
-            val arguments = elements(last, origin, values, known) ?: return null
+            val arguments = elements(last, origin, values, known, onNode) ?: return null
 
             return when (head) {
                 // `toOtp` writes a pair as `{a, b}`, so `{:{}, meta, [a, b]}` stays a call.
@@ -241,7 +246,7 @@ sealed class ElixirAst {
                 // An alias of no segments has no clause in `elixir_aliases:expand`.
                 ALIASES -> if (arguments.isEmpty()) null else Alias(meta, arguments)
                 BLOCK -> Block(meta, arguments)
-                else -> Call(meta, fromOtp(head, origin, values, known) ?: return null, arguments)
+                else -> Call(meta, fromOtp(head, origin, values, known, onNode) ?: return null, arguments)
             }
         }
 

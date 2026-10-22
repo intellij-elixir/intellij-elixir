@@ -497,24 +497,25 @@ private fun expandRemote(
 }
 
 /**
- * What a call of [receiver] with [values] in a module body does to the module's attributes, if anything, queued at its
- * place in the order the body runs. A call in a function runs only when the function does.
+ * What a call of [receiver] with [values] in a module body does to the module's attributes or definitions, if anything,
+ * queued at its place in the order the body runs. A call in a function runs only when the function does.
  */
 private fun queueEffect(receiver: Term, name: String, node: ElixirAst.Call, values: Term.List, env: Env, run: Run) {
     val module = env.module ?: return
     val compiling = run.compiling[module] ?: return
 
-    if (receiver !is Term.Atom || env.function != null) return
+    if (env.function != null) return
 
-    val dispatch = Dispatch(Dispatch.Kind.REMOTE_FUNCTION, receiver.name, name, values.elements.size)
     val at = compiling.site(node)
     val statement = compiling.isStatement(at)
 
-    when (val change = ModuleEffects.of(dispatch, values.elements, node.arguments.orEmpty(), module, run.level)) {
+    when (val change = ModuleEffects.of(receiver, name, values.elements, node.arguments.orEmpty(), module, run.level)) {
         null -> Unit
         is ModuleEffects.Change.Attributes -> run.pending += Pending.Attribute(change.effect, at, statement)
         is ModuleEffects.Change.Definitions ->
-            run.pending += Pending.Effect(node, statement, apply = { change.apply(it, node, run.exports) })
+            run.pending += Pending.Effect(node, statement) { compiling, ordered ->
+                change.apply(compiling, node, run.exports, ordered)
+            }
     }
 }
 

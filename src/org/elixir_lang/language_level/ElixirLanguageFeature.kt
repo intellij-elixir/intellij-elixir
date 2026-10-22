@@ -732,6 +732,15 @@ enum class ElixirLanguageFeature(
     ATTRIBUTES_EXPANDED_LAZILY(sinceElixir = "1.14.0-rc.0"),
 
     /**
+     * `Module.delete_definition/2` takes a definition out of the module being compiled. Before it, a module body that
+     * calls it raises `UndefinedFunctionError`.
+     *
+     * `elixir-lang/elixir@205d20f56` ("Add Module.get_definition/2 and Module.delete_definition/2"), first released in
+     * v1.12.0-rc.0.
+     */
+    MODULE_DELETE_DEFINITION(sinceElixir = "1.12.0-rc.0"),
+
+    /**
      * A doc attribute read in the module body binds what isn't `{line, doc}` to `value`. Before it, to `other`.
      *
      * `elixir-lang/elixir@76c64a0f3` ("Recompile regexes when escaped from module attributes"), first released in

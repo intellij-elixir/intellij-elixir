@@ -1,6 +1,7 @@
 package org.elixir_lang.expander
 
 import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.vfs.VirtualFile
 import org.elixir_lang.NameArity
 import org.elixir_lang.lowering.ElixirAst
 import java.math.BigInteger
@@ -15,8 +16,8 @@ import java.util.IdentityHashMap
  * @property quotes the escaped block of each `quote` a source clause holds, built when its definition expanded
  * @property dispatches what each call and bitstring segment of a source clause expanded as, recorded when its
  *   definition expanded
- * @property file the path of the file the clauses' origins are in: the source file, or the `.beam` whose decompiled
- *   mirror a [Source.DBGI] clause's origin is in
+ * @property file the file the clauses' origins are in, as [ProjectModules] holds it: the source file, or the `.beam`
+ *   whose decompiled mirror a [Source.DBGI] clause's origin is in
  */
 internal class ModuleClauses(
     val module: String,
@@ -24,7 +25,7 @@ internal class ModuleClauses(
     val source: Source,
     val quotes: Quotes,
     val dispatches: Dispatches,
-    val file: String?,
+    val file: VirtualFile?,
 ) {
     enum class Source { SOURCE, DBGI }
 
@@ -239,7 +240,7 @@ internal class ModuleClauses(
          * Elixir may not hold it, where a definition's name isn't known, or where it is a default arity whose defaults
          * weren't all expanded.
          */
-        fun of(module: String, compiling: Compiling, file: String?): ModuleClauses =
+        fun of(module: String, compiling: Compiling, file: VirtualFile?): ModuleClauses =
             ModuleClauses(
                 module,
                 compiling.table.entries.mapValues { (nameArity, entry) ->
@@ -257,7 +258,7 @@ internal class ModuleClauses(
             )
 
         /** [compiled]'s clauses, read from [file]; `null` where its `.beam` holds none. */
-        fun of(compiled: CompiledModule, file: String?): ModuleClauses? {
+        fun of(compiled: CompiledModule, file: VirtualFile?): ModuleClauses? {
             val read = compiled.bodies as? CompiledModule.Bodies.Read ?: return null
             val kinds = compiled.table.kinds
 

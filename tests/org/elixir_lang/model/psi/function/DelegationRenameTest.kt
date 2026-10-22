@@ -31,6 +31,23 @@ class DelegationRenameTest : PlatformTestCase() {
     fun testFindUsagesWithoutAs() =
         assertEveryOccurrence { caret -> assertEquals(caret, listOf(2, 3, 7, 8), usageLines()) }
 
+    /** No call of a list of heads resolves, so a caret on one of its heads is on no function to rename or find. */
+    fun testAOneHeadListDeclaresNothingAtItsHead() {
+        myFixture.configureByText("m.ex", ONE_HEAD_LIST)
+        myFixture.editor.caretModel.moveToOffset(ONE_HEAD_LIST.indexOf("[renamee") + 2)
+
+        assertEquals(emptyList<Any>(), myFixture.renameTargetsAtCaret())
+        assertEquals(emptyList<Int>(), usageLines())
+    }
+
+    /** A keyword naming a function a list of heads declares is on nothing to rename, as a caret on the head is. */
+    fun testAKeywordNamingAListHeadDeclaresNothing() {
+        myFixture.configureByText("m.ex", LIST_HEAD_KEYWORD)
+        myFixture.editor.caretModel.moveToOffset(LIST_HEAD_KEYWORD.indexOf("inline, renamee") + "inline, ".length + 2)
+
+        assertEquals(emptyList<Any>(), myFixture.renameTargetsAtCaret())
+    }
+
     /** A target with defaults is declared at its lowest arity, and the head without `as:` still names it. */
     fun testFindUsagesFromATargetWithDefaults() {
         myFixture.configureByText("m.ex", DEFAULTS)
@@ -464,6 +481,15 @@ class DelegationRenameTest : PlatformTestCase() {
         const val WITHOUT_AS =
             "defmodule T do\n  def renamee(x), do: x\n  def t_use, do: T.renamee(1)\nend\n\n" +
                 "defmodule M do\n  defdelegate renamee(x), to: T\n  def m_use, do: M.renamee(1)\nend\n"
+
+        const val ONE_HEAD_LIST =
+            "defmodule T do\n  def renamee(x), do: x\nend\n\n" +
+                "defmodule M do\n  defdelegate [renamee(x)], to: T\n  def m_use, do: M.renamee(1)\nend\n"
+
+        const val LIST_HEAD_KEYWORD =
+            "defmodule T do\n  def renamee(x), do: x\n  def renamee(x, y), do: {x, y}\nend\n\n" +
+                "defmodule M do\n  defdelegate [renamee(x), renamee(x, y)], to: T\n  @compile {:inline, renamee: 1}\n" +
+                "  def m_use, do: M.renamee(1)\nend\n"
 
         const val DEFAULTS =
             "defmodule T do\n  def renamee(a, b \\\\ nil), do: {a, b}\nend\n\n" +

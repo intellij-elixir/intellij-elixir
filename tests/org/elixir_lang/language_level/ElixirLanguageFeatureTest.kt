@@ -172,6 +172,7 @@ class ElixirLanguageFeatureTest : LightTestCase() {
             HAS_UNQUOTES_QUOTE_AWARE to ("1.15.8" to "1.16.0-rc.0"),
             HAS_UNQUOTES_NAME_AT_QUOTE_LEVEL to ("1.20.0-rc.4" to "1.20.0-rc.5"),
             ATTRIBUTES_EXPANDED_LAZILY to ("1.13.4" to "1.14.0-rc.0"),
+            MODULE_DELETE_DEFINITION to ("1.11.4" to "1.12.0-rc.0"),
             MODULE_BODY_DOC_READ_BINDS_VALUE to ("1.18.3" to "1.18.4"),
             SUPER_TRACES_LOCAL_FUNCTION to ("1.18.3" to "1.18.4"),
             DEFSTRUCT_BIND_QUOTED to ("1.13.4" to "1.14.0-rc.0"),

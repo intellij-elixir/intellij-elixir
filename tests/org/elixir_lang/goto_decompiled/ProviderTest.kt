@@ -30,6 +30,14 @@ class ProviderTest : BeamLibraryTestCase() {
         )
     }
 
+    fun testDefdelegateListIsRelatedToEachHeadsDecompiledFunction() {
+        assertRelated(
+            "defmodule GotoRelated.Lib do\n  defdelegate [r<caret>un(list), delegated(list)], to: Enum\nend\n",
+            "def run(",
+            "def delegated("
+        )
+    }
+
     fun testEExFunctionFromFileIsRelatedToTheDecompiledFunction() {
         assertRelated(
             "defmodule GotoRelated.Lib do\n  require EEx\n  EEx.function_from_file(:def, :ban<caret>ner, \"banner.eex\", [:name])\nend\n",

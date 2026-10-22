@@ -9,11 +9,14 @@ import org.elixir_lang.declaration.Applicability
 import org.elixir_lang.declaration.ArityKnowledge
 import org.elixir_lang.declaration.Candidate
 import org.elixir_lang.declaration.CandidateSource
+import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Reach
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
+import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.call.Call
+import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.maybeModularNameToModulars
 import org.elixir_lang.psi.impl.qualifierModulars
@@ -29,7 +32,7 @@ object LegacyWalkSource : CandidateSource {
     override fun candidates(use: Use, incompleteCode: Boolean): List<Found> {
         ThreadingAssertions.assertReadAccess()
 
-        return when (use) {
+        val found = when (use) {
             is Use.OfCall -> Callable.walk(use.entrance, use.arity, incompleteCode).flatMap { found(it, use) }
             // A `@spec` is read in its module's body, so it names what the module declares wherever it declares it.
             is Use.Specified ->
@@ -41,6 +44,25 @@ object LegacyWalkSource : CandidateSource {
                     .maybeModularNameToModulars(use.atom.containingFile, useCall = null, incompleteCode = false)
                     .flatMap { modular -> walk(modular, use.name, use.arity, incompleteCode) }
                     .flatMap { found(it, use) }
+        }
+
+        return delegatedThrough(found)
+    }
+
+    /**
+     * [found] with each delegation target's [Found.delegatedThrough]: the head of the delegation the use reached it
+     * through, the first `defdelegate` in its `via`, as the walk found that delegation. The walk finds one candidate
+     * for each declaring element, so the first found at that element is the delegation.
+     */
+    private fun delegatedThrough(found: List<Found>): List<Found> {
+        val heads = found.filterNot { it.candidate.reach.delegationTarget }.distinctBy(Found::element).associate { it.element to it.head }
+
+        return found.map { target ->
+            if (target.candidate.reach.delegationTarget) {
+                target.copy(delegatedThrough = target.via.firstOrNull { Delegation.`is`(it) }?.let { heads[it] })
+            } else {
+                target
+            }
         }
     }
 
@@ -66,14 +88,41 @@ object LegacyWalkSource : CandidateSource {
             applicability(reached, use)?.let { applicability ->
                 val paths = reached.visitedElementSet.filterIsInstance<Call>().filter(Callable::isPath)
 
-                Found(Candidate(reached.declaration, reach, applicability), result.element, paths + reached.via)
+                val via = paths + reached.via
+
+                Found(
+                    Candidate(reached.declaration, reach, applicability),
+                    result.element,
+                    via,
+                    DeclaringForm.writtenHead(
+                        result.element,
+                        reached.declaration,
+                        declaringModule(reached, reach, result.element, via),
+                    ),
+                    delegatedThrough = null,
+                )
             }
+        }
+
+    /**
+     * The name of the module that declares [reached]: a compiled one's own, and for a source one the module enclosing
+     * its [element], or, for what a `use` injects, the module that holds the `use`, the first call [via] crossed.
+     */
+    private fun declaringModule(reached: ReachedDeclaration, reach: Reach, element: PsiElement, via: List<Call>): String? =
+        when (val declared = reached.declaration.declared) {
+            is Declared.Compiled -> declared.origin.module
+            is Declared.Source ->
+                (via.firstOrNull().takeIf { reach == Reach.USE } ?: element as? Call)
+                    ?.let { CallDefinitionClause.enclosingModularMacroCall(it) }
+                    ?.let { SyntacticCall.of(it).canonicalName() }
         }
 
     private fun applicability(reached: ReachedDeclaration, use: Use): Applicability? =
         when (use) {
             is Use.AnyName ->
-                Applicability.ofAnyName(reached.declaration, reached.searchedAtom, use.arity, reached.via.map(::headArity))
+                Applicability.ofAnyName(
+                    reached.declaration, reached.searchedAtom, reached.admitted, use.arity, reached.via.map(::headArity)
+                )
             is Use.Named -> named(reached, use.arity)
             is Use.Specified -> named(reached, use.arity)
             is Use.Remote -> named(reached, use.arity)

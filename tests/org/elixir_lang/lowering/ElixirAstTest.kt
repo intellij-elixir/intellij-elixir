@@ -90,7 +90,7 @@ class ElixirAstTest : UnitTestCase() {
         val argumentNode = ElixirAst.fromOtp(argument, TextRange(5, 6))!!
         val equal = tuple(atom("x"), list(line(2)), atom("nil"))
         val term = tuple(atom("+"), list(), list(argument, list(equal, argument)))
-        val decoded = ElixirAst.fromOtp(term, TextRange(0, 0)) { if (it === argument) argumentNode else null } as Call
+        val decoded = ElixirAst.fromOtp(term, TextRange(0, 0), known = { if (it === argument) argumentNode else null }) as Call
         val (left, right) = decoded.arguments!!
         val (fresh, again) = (right as ListNode).elements
 
@@ -127,6 +127,25 @@ class ElixirAstTest : UnitTestCase() {
 
         assertEquals(node.arguments!!.size, decoded.arguments!!.size)
         node.arguments.zip(decoded.arguments).forEach { (argument, again) -> assertSame(argument, again) }
+    }
+
+    fun testFromOtpGivesEachTermItsNodeButAKnownOne() {
+        val known = tuple(atom("y"), list(), atom("nil"))
+        val knownNode = ElixirAst.fromOtp(known, TextRange(5, 6))!!
+        val x = tuple(atom("x"), list(), atom("nil"))
+        val a = atom("a")
+        val term = tuple(atom("+"), list(), list(x, a, known))
+        val seen = mutableListOf<Pair<OtpErlangObject, ElixirAst>>()
+        val node = ElixirAst.fromOtp(term, TextRange(0, 0), known = { if (it === known) knownNode else null }) { each, converted ->
+            seen += each to converted
+        } as Call
+        val (xNode, aNode) = node.arguments!!
+
+        assertEquals(listOf(x, a, term), seen.map { it.first }.filter { it === x || it === a || it === term })
+        assertTrue(seen.none { it.first === known })
+        assertSame(node, seen.single { it.first === term }.second)
+        assertSame(xNode, seen.single { it.first === x }.second)
+        assertSame(aNode, seen.single { it.first === a }.second)
     }
 
     fun testInteger() = assertOtp(OtpErlangLong(7), integer(7))

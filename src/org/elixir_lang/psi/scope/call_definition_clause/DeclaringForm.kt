@@ -6,10 +6,16 @@ import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.EEx
+import org.elixir_lang.declaration.ArityKnowledge
+import org.elixir_lang.declaration.Declaration
+import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Form
+import org.elixir_lang.declaration.Head
 import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
+import org.elixir_lang.psi.ElixirList
 import org.elixir_lang.psi.Exception
+import org.elixir_lang.psi.arityKnowledge
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.impl.call.finalArguments
@@ -95,7 +101,7 @@ object DeclaringForm {
     @RequiresReadLock
     fun named(element: PsiElement): Declaring? =
         shaped(element).firstOrNull()?.takeIf { (call, form) ->
-            element != call && heads(call, form).any { CallDefinitionHead.isOnName(it, element) }
+            element != call && namedHeads(call, form).any { CallDefinitionHead.isOnName(it, element) }
         }
 
     /** The form [call] itself declares with, or `null` when it declares nothing. */
@@ -123,22 +129,75 @@ object DeclaringForm {
 
     /** The names [call] writes the functions it declares with [form] under: in `def unquote(:name)(...)`, the atom. */
     @RequiresReadLock
-    fun names(call: Call, form: Form): List<PsiElement> = heads(call, form).mapNotNull(CallDefinitionHead::nameElement)
+    fun names(call: Call, form: Form): List<PsiElement> = namedHeads(call, form).mapNotNull(CallDefinitionHead::nameElement)
 
     /** The elements a caret is on a name [call] declares with [form] at: in `def unquote(:name)(...)`, also `unquote`. */
     @RequiresReadLock
-    fun nameElements(call: Call, form: Form): List<PsiElement> = heads(call, form).flatMap(CallDefinitionHead::nameElements)
+    fun nameElements(call: Call, form: Form): List<PsiElement> =
+        namedHeads(call, form).flatMap(CallDefinitionHead::nameElements)
 
-    /** The heads [call] writes the functions it declares with [form] under: an EEx's or an embed's only as an atom. */
+    /**
+     * The [Head] [element] writes [declaration] under, in [module]: a clause's or a delegation's head, the one of a list
+     * of `defdelegate` heads with its name and arity, the call of a form that writes no head, or a compiled definition.
+     */
     @RequiresReadLock
-    private fun heads(call: Call, form: Form): List<PsiElement> =
+    fun writtenHead(element: PsiElement, declaration: Declaration, module: String?): Head {
+        val written = when (val declared = declaration.declared) {
+            is Declared.Compiled -> element
+            is Declared.Source -> (element as? Call)?.let { head(it, declared.form, declaration.name, declaration.arity) }
+        }
+
+        return Head(written, module, declaration.name, declaration.arity)
+    }
+
+    /** The [writtenHead] a caret on [element]'s name names [declaration] at: none at a head [names] leaves out. */
+    @RequiresReadLock
+    fun namedHead(element: PsiElement, declaration: Declaration): PsiElement? =
+        writtenHead(element, declaration, module = null).written?.takeUnless { head ->
+            (element as? Call)?.let { call ->
+                (declaration.declared as? Declared.Source)?.form?.let { form -> head in heads(call, form) && head !in namedHeads(call, form) }
+            } == true
+        }
+
+    /**
+     * The head [call] writes [name] at [arity] under with [form]: its one head, or the one of a list of `defdelegate`
+     * heads with that name and arity. A form that writes no head is written by [call] itself.
+     */
+    @RequiresReadLock
+    fun head(call: Call, form: Form, name: String, arity: ArityKnowledge): PsiElement? =
+        when (form) {
+            Form.CLAUSE, Form.DELEGATION -> {
+                val heads = heads(call, form)
+
+                heads.singleOrNull() ?: heads.firstOrNull { head ->
+                    CallDefinitionHead.nameArityInterval(head, ResolveState.initial())
+                        ?.let { (headName, interval) -> headName == name && interval.arityKnowledge() == arity } == true
+                }
+            }
+            Form.CALLBACK, Form.EXCEPTION, Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED -> call
+        }
+
+    /**
+     * The heads [call] writes the functions it declares with [form] under: each of a list of `defdelegate` heads, and an
+     * EEx's or an embed's only as an atom.
+     */
+    @RequiresReadLock
+    internal fun heads(call: Call, form: Form): List<PsiElement> =
         when (form) {
             Form.CLAUSE -> listOfNotNull(CallDefinitionClause.head(call))
-            Form.DELEGATION -> listOfNotNull(Delegation.head(call) as? Call)
+            Form.DELEGATION ->
+                when (val head = Delegation.head(call)) {
+                    is Call -> listOf(head)
+                    else -> (head?.stripAccessExpression() as? ElixirList)?.children?.filterIsInstance<Call>().orEmpty()
+                }
             Form.EEX_FUNCTION_FROM -> listOfNotNull(call.finalArguments()?.getOrNull(1)?.takeIf(::isAtom))
             Form.GENERATOR_EMBED -> listOfNotNull(call.finalArguments()?.firstOrNull()?.takeIf(::isAtom))
             Form.CALLBACK, Form.EXCEPTION -> emptyList()
         }
+
+    /** The [heads] a caret is on a declaration at: a delegation's one head only, as no call of a list of heads resolves. */
+    private fun namedHeads(call: Call, form: Form): List<PsiElement> =
+        if (form == Form.DELEGATION) listOfNotNull(Delegation.head(call) as? Call) else heads(call, form)
 
     private fun isAtom(name: PsiElement): Boolean = name.stripAccessExpression() is ElixirAtom
 

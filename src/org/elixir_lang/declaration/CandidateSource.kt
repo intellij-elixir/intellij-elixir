@@ -9,7 +9,6 @@ import org.elixir_lang.psi.CallDefinitionClause
 import org.elixir_lang.psi.ElixirAtom
 import org.elixir_lang.psi.Unquote
 import org.elixir_lang.psi.call.Call
-import org.elixir_lang.psi.call.SyntacticCall
 import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.functionNameAtomValue
 import org.elixir_lang.psi.impl.quotedAtomValue
@@ -31,24 +30,28 @@ interface CandidateSource {
 }
 
 /**
- * A [candidate] at a use, the PSI [element] that declares it, and [via], the `import` and `use` calls and then the
- * `defdelegate` calls it was reached through.
+ * A [candidate] at a use, the PSI [element] that declares it, [via], the `import` and `use` calls and then the
+ * `defdelegate` calls it was reached through, the [head] that declares it, and for a delegation target the head of the
+ * delegation the use reached it through, [delegatedThrough], as that delegation's own [head] is.
  */
-data class Found(val candidate: Candidate, val element: PsiElement, val via: List<Call>)
+data class Found(
+    val candidate: Candidate,
+    val element: PsiElement,
+    val via: List<Call>,
+    val head: Head,
+    val delegatedThrough: Head?,
+)
 
 /**
- * The name of the module that declares [this], so two copies of one module are one. What a `use` injects is declared
- * by the module that holds the `use`, the first call [via] crossed.
+ * One head of a definition: the PSI [written] that writes it, the [module] that declares it, as the source that found
+ * it knows it, and its [name] and [arity]. [written] is a clause's or a delegation's head, one of a list of
+ * `defdelegate` heads, the call of a form that writes no head, or a compiled definition; it is `null` where nothing
+ * written declares the head, as where debug info places it at the macro clause that injected it.
  */
-@RequiresReadLock
-fun Found.declaringModuleName(): String? =
-    when (val declared = candidate.declaration.declared) {
-        is Declared.Compiled -> declared.origin.module
-        is Declared.Source ->
-            (via.firstOrNull().takeIf { candidate.reach == Reach.USE } ?: element as? Call)
-                ?.let { CallDefinitionClause.enclosingModularMacroCall(it) }
-                ?.let { SyntacticCall.of(it).canonicalName() }
-    }
+data class Head(val written: PsiElement?, val module: String?, val name: String, val arity: ArityKnowledge)
+
+/** The name of the module that declares [this], so two copies of one module are one. */
+fun Found.declaringModuleName(): String? = head.module
 
 /**
  * What completion offers as [lookupName] at a position. [name] and [declaration] are `null` exactly when the name has

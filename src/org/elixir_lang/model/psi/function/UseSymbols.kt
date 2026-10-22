@@ -36,6 +36,7 @@ import org.elixir_lang.psi.call.qualification.Qualified
 import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.scope.call_definition_clause.DeclaringForm
 import org.elixir_lang.psi.scope.call_definition_clause.Declarations
+import org.elixir_lang.structure_view.element.CallDefinitionHead
 import org.elixir_lang.structure_view.element.Delegation
 
 /**
@@ -195,21 +196,23 @@ internal object UseSymbols {
     /** What the step finds [delegation] delegating to at the use its head is, with the arity the head passes on. */
     @RequiresReadLock
     private fun delegated(delegation: Call): Pair<List<Found>, Int>? {
-        val use = headUse(delegation) ?: return null
-        val paired = atItsHead(delegation, use, Feature.SYMBOL_REFERENCES) ?: return null
+        val (head, use) = headUse(Delegation.head(delegation)) ?: return null
+        val paired = atItsHead(head, use, Feature.SYMBOL_REFERENCES) ?: return null
 
         return paired.directlyDelegatedTo to passed(paired, use)
     }
 
-    /** The use [delegation]'s head is, `null` where it names nothing. */
+    /** [head], a delegation's written head, with the use it is, `null` where it names nothing. */
     @RequiresReadLock
-    internal fun headUse(delegation: Call): Use.Named? = (Delegation.head(delegation) as? Call)?.let(Use::of) as? Use.Named
+    internal fun headUse(head: PsiElement?): Pair<Call, Use.Named>? =
+        (head as? Call)?.let { call -> (Use.of(call) as? Use.Named)?.let { call to it } }
 
     /** The arity [use], a delegation's head, calls its target at. */
     internal fun passed(paired: Preferred, use: Use.Named): Int = paired.found.candidate.declaration.arity.passed() ?: use.arity
 
     @RequiresReadLock
-    private fun symbols(found: Found, arity: Int): List<Symbol> = symbols(found.element, found.candidate.declaration, arity)
+    internal fun symbols(found: Found, arity: Int): List<Symbol> =
+        found.head.written?.let { symbols(found.element, it, found.candidate.declaration, arity) }.orEmpty()
 
     /**
      * The Symbols [definition] has for [name] at [arity], built as a use's are: a definition is a use of a target that
@@ -217,7 +220,9 @@ internal object UseSymbols {
      */
     @RequiresReadLock
     fun symbols(definition: PsiElement, name: String, arity: Int): List<Symbol> =
-        declarations(definition, name, arity).flatMap { symbols(definition, it, arity) }
+        declarations(definition, name, arity).flatMap { declaration ->
+            DeclaringForm.namedHead(definition, declaration)?.let { symbols(definition, it, declaration, arity) }.orEmpty()
+        }
 
     /** The declarations [definition], a declaring call or a compiled definition, makes for [name] at an arity that admits [arity]. */
     @RequiresReadLock
@@ -231,14 +236,17 @@ internal object UseSymbols {
             else -> emptyList()
         }.filter { it.name == name && it.arity.admits(arity) }
 
+    /** The Symbols of [declaration], which [definition] makes under its [written] head, at [arity]. */
     @RequiresReadLock
-    private fun symbols(definition: PsiElement, declaration: Declaration, arity: Int): List<Symbol> =
+    private fun symbols(definition: PsiElement, written: PsiElement, declaration: Declaration, arity: Int): List<Symbol> =
         when (val declared = declaration.declared) {
             is Declared.Source -> {
                 val call = definition as? Call
 
                 when (declared.form) {
-                    Form.CLAUSE, Form.DELEGATION, Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED ->
+                    Form.CLAUSE, Form.DELEGATION ->
+                        call?.let { symbols(it, CallDefinitionHead.nameElement(written), declaration, arity) }
+                    Form.EEX_FUNCTION_FROM, Form.GENERATOR_EMBED ->
                         call?.let { symbols(it, DeclaringForm.names(it, declared.form).singleOrNull(), declaration, arity) }
                     Form.EXCEPTION -> call?.let { symbols(it, it.functionNameElement(), declaration, arity) }
                     Form.CALLBACK -> null

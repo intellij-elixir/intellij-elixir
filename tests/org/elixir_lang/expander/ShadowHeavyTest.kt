@@ -19,7 +19,6 @@ import com.intellij.psi.PsiReferenceService.Hints.NO_HINTS
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.PsiTestUtil
 import org.elixir_lang.declaration.CandidateSource
-import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.EXPANDER
 import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.SOURCE_PROPERTY
@@ -32,6 +31,7 @@ import org.elixir_lang.psi.scope.call_definition_clause.LegacyWalkSource
 import org.elixir_lang.snapshot.CompilerFacts.INPUTS
 import org.elixir_lang.snapshot.CompilerFacts.ROOT
 import org.elixir_lang.snapshot.CompilerJoin
+import org.elixir_lang.snapshot.label
 import org.elixir_lang.snapshot.text
 import java.io.File
 
@@ -212,10 +212,7 @@ class ShadowHeavyTest : HeavyTestCase() {
 
     private fun describe(root: VirtualFile, found: Found): String {
         val (declaration, reach, applicability) = found.candidate
-        val form = when (val declared = declaration.declared) {
-            is Declared.Source -> declared.form.name.lowercase()
-            is Declared.Compiled -> "compiled"
-        }
+        val form = declaration.declared.label()
         val via = found.via.joinToString(", ") { location(root, it.containingFile, it.textRange) }
 
         return "${location(root, found.element.containingFile, found.element.textRange)}  " +

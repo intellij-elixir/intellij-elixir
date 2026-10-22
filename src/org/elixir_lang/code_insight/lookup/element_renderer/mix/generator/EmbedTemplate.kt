@@ -13,7 +13,7 @@ class EmbedTemplate(val name: String) : LookupElementRenderer<LookupElement>() {
         lookupElementPresentation.itemText = name
 
         (element.psiElement as? Call)
-            ?.let { call -> Declarations.named(Form.GENERATOR_EMBED, call, name)?.let { Signature.of(it, call) } }
+            ?.let { call -> Declarations.named(Form.GENERATOR_EMBED, call, name)?.let { Signature.declaredBy(call, it) } }
             ?.let { lookupElementPresentation.appendTailText("(${it.parameters.joinToString(", ")})", true) }
     }
 }

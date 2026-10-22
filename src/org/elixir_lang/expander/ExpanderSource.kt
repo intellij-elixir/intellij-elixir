@@ -7,6 +7,7 @@ import com.intellij.psi.PsiCompiledFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
+import com.intellij.psi.ResolveState
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.call.Visibility
@@ -21,10 +22,13 @@ import org.elixir_lang.declaration.Declared
 import org.elixir_lang.declaration.Definer
 import org.elixir_lang.declaration.Form
 import org.elixir_lang.declaration.Found
+import org.elixir_lang.declaration.Head
 import org.elixir_lang.declaration.Reach
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.Visible
 import org.elixir_lang.declaration.admits
+import org.elixir_lang.Module
+import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Lowering
 import org.elixir_lang.psi.ArityInterval
 import org.elixir_lang.psi.CallDefinitionClause
@@ -89,7 +93,20 @@ internal object ExpanderSource : CandidateSource {
     override fun visible(position: Call): List<Visible> {
         ThreadingAssertions.assertReadAccess()
 
-        val at = inputs(position)?.let { at(position, it) } ?: return emptyList()
+        return inputs(position)?.let { visibleWith(position, it) }.orEmpty()
+    }
+
+    /** What is visible at [position], its file expanded with [inputs] in place of its SDK's. */
+    @TestOnly
+    @RequiresReadLock
+    internal fun visible(position: Call, inputs: ProjectModules.Inputs): List<Visible> {
+        ThreadingAssertions.assertReadAccess()
+
+        return visibleWith(position, inputs)
+    }
+
+    private fun visibleWith(position: Call, inputs: ProjectModules.Inputs): List<Visible> {
+        val at = at(position, inputs) ?: return emptyList()
         val defined = if (position is Qualified) {
             val module = receiver(at, position) ?: return emptyList()
             eachNameOnce(ofModule(at, module, null).filter { it.declaration.visibility != Visibility.PRIVATE })
@@ -106,16 +123,19 @@ internal object ExpanderSource : CandidateSource {
 
     /**
      * [defined] as completion offers a module's functions: of a source module's, the preferred head of each name its
-     * clauses define, then one `defdelegate` for each other name; each of a `.beam`'s.
+     * own clauses define, then one `defdelegate` or head placed at its macro's clause for each other name; each of a
+     * `.beam`'s.
      */
     private fun eachNameOnce(defined: List<Defined>): List<Defined> {
         val (source, compiled) = defined.partition { it.declaration.declared is Declared.Source }
         val (delegations, clauses) = source.partition { (it.declaration.declared as Declared.Source).form == Form.DELEGATION }
-        val byElement = clauses.associateBy { it.element }
-        val calls = clauses.mapNotNull { it.element as? Call }.filter { CallDefinitionClause.`is`(it) }
+        val (own, placed) = clauses.partition { declares(it.element, it.declaration.name) }
+        val byElement = own.associateBy { it.element }
+        val calls = own.map { it.element as Call }
 
-        return eachNameOnce(calls, delegations.map { it.declaration.name to it }) { _, clause -> byElement.getValue(clause) } +
-            compiled
+        return eachNameOnce(calls, (delegations + placed).map { it.declaration.name to it }) { _, clause ->
+            byElement.getValue(clause)
+        } + compiled
     }
 
     /**
@@ -151,24 +171,26 @@ internal object ExpanderSource : CandidateSource {
     }
 
     /**
-     * A declaration, the PSI that declares it, and the delegation its head makes.
+     * A declaration, the PSI that declares it, the module whose definitions it is, and the delegation its head makes.
      *
-     * @property headArity the arity the head declares, which an `import` narrowing [declaration]'s leaves as it is
+     * @property written the head written for it, as [Head.written] is, `null` where nothing written declares it
+     * @property module the module's index name (`Module.indexName`), as [Head.module] has it
+     * @property injectedBy the call whose evaluated output injected it into [module], as written in [module]'s file
      */
     private class Defined(
         val declaration: Declaration,
         val element: PsiElement,
+        val written: PsiElement?,
+        val module: String,
+        val injectedBy: Call?,
         val delegation: DefinitionTable.Delegation? = null,
-        val headArity: ArityKnowledge = declaration.arity,
     ) {
-        val head: Head get() = Head(element, declaration.name, headArity)
+        /** Its head, which tells apart the heads of a list of `defdelegate` heads, and the modules one macro's output declares it in. */
+        val head: Head get() = Head(written, module, declaration.name, declaration.arity)
 
         /** Whether [declaration] takes [arity] arguments, which is not known past a head with no largest arity. */
         fun admits(arity: Int?): Boolean = arity == null || declaration.arity.admits(arity)
     }
-
-    /** One head of a definition: the PSI that declares it, which a list of `defdelegate` heads shares, and its name and arity. */
-    private data class Head(val element: PsiElement, val name: String, val headArity: ArityKnowledge)
 
     /**
      * A declaration reached for a use.
@@ -176,9 +198,11 @@ internal object ExpanderSource : CandidateSource {
      * @property paths the `import` calls crossed, outermost first
      * @property delegations the `defdelegate` calls crossed, from the use outward
      * @property heads the arity each of [delegations] declares in its head
+     * @property through the head of the first of [delegations], the one the use reached itself
      * @property searched the name looked up where it was found
-     * @property named whether everything but the arity fits through every head crossed: each name, and each `import`
-     *   that leaves out some of a definition's arities bringing it in at the arity reaching it
+     * @property named whether everything but the arity fits through every head crossed: each name, and [imported]
+     * @property imported whether each `import` crossed that leaves out some of a definition's arities brings it in at
+     *   the arity reaching it, which a use with no name needs as well
      * @property remote whether a remote call reaches it, which a private definition refuses
      */
     private class Reached(
@@ -187,15 +211,25 @@ internal object ExpanderSource : CandidateSource {
         val paths: List<Call>,
         val delegations: List<Call>,
         val heads: List<ArityKnowledge>,
+        val through: Head?,
         val searched: String?,
         val named: Boolean,
+        val imported: Boolean,
         val remote: Boolean,
     )
 
     private fun own(at: At, name: String?, arity: Int): List<Reached> =
-        ownDefined(at, name).flatMap {
-            reachedFrom(at, it, Reach.OWN, emptyList(), name, arity, remote = false, emptySet())
-        }
+        ownDefined(at, name).flatMap { held(at, it, name, arity, remote = false, emptySet()) }
+
+    /**
+     * [defined], which its module holds, looked up there as [name] at [arity]: through the call whose output injected
+     * it, as [Reach.USE], or else as [Reach.OWN].
+     */
+    private fun held(at: At, defined: Defined, name: String?, arity: Int?, remote: Boolean, crossed: Set<Head>): List<Reached> {
+        val reach = if (defined.injectedBy == null) Reach.OWN else Reach.USE
+
+        return reachedFrom(at, defined, reach, listOfNotNull(defined.injectedBy), name, arity, remote, crossed)
+    }
 
     /** The definitions of [name], or of every name when it is `null`, in the module body [at] is in. */
     private fun ownDefined(at: At, name: String?): List<Defined> {
@@ -205,7 +239,7 @@ internal object ExpanderSource : CandidateSource {
                 result.units.any { it.owner == ExpansionResult.Owner.ModuleBody && it.node.meta.origin.contains(at.range) }
         } ?: return emptyList()
 
-        return defined(at.file, result.table, name)
+        return defined(at.file, result, name)
     }
 
     /** What [env]'s imports of [name] reach, each through its `import` call in [file]. */
@@ -217,39 +251,33 @@ internal object ExpanderSource : CandidateSource {
         arity: Int?,
         crossed: Set<Head>,
     ): List<Reached> =
-        importedDefined(at, file, env, name)
-            .groupBy { ImportedHead(it.defined.head, it.call) }
-            .values
-            .flatMap { runs ->
-                val reached = runs.map { (defined, reach, call) -> reached(defined, reach, listOfNotNull(call), name, arity, remote = false) }
+        importedDefined(at, file, env, name).flatMap { (defined, reach, call, arities) ->
+            val reached = reached(defined, reach, listOfNotNull(call), name, arity, remote = false, arities)
+            val admits = defined.admits(arity) && (arity == null || arity in arities)
 
-                // The runs of one head share its delegation, which is followed once.
-                reached + throughDelegation(
-                    at,
-                    reached.first(),
-                    reached.any(Reached::named),
-                    runs.any { it.defined.admits(arity) },
-                    crossed,
-                )
-            }
+            listOf(reached) + throughDelegation(at, reached, reached.named, admits, crossed)
+        }
 
-    /** A definition an import brings in, how, and the `import` call that brings it in, if any. */
-    private data class Imported(val defined: Defined, val reach: Reach, val call: Call?)
-
-    /** One head an `import` call brings in, whose runs of arities share its delegation. */
-    private data class ImportedHead(val head: Head, val call: Call?)
+    /**
+     * A definition an import brings in, how, the `import` call that brings it in, if any, and the [arities] of it that
+     * the import brings in.
+     */
+    private data class Imported(val defined: Defined, val reach: Reach, val call: Call?, val arities: Set<Int>)
 
     /** The definitions [env]'s imports bring in of [name], or of every name when it is `null`. */
     private fun importedDefined(at: At, file: ElixirFile, env: Env, name: String?): List<Imported> =
         (env.functions + env.macros).flatMap { imports ->
             val aritiesByName = NameIndex.of(imports).named(name).groupBy({ it.name }, { it.arity })
             if (aritiesByName.isEmpty()) return@flatMap emptyList()
-            val call = imports.origin?.let { importCall(file, it) }
+            // An `import` a macro's output added is reached through the call that injected it.
+            val call = imports.injectedBy?.let { injectingCall(file, it) } ?: imports.origin?.let { importCall(file, it) }
             // The `Kernel` import a `defprotocol` builds has the `defprotocol`'s origin, and no `import` call names it.
             val reach = if (call == null && imports.module == KERNEL) Reach.IMPLICIT_IMPORT else Reach.IMPORT
 
             aritiesByName.flatMap { (imported, arities) ->
-                ofModule(at, imports.module, imported).flatMap { narrowed(it, arities.toSet()) }.map { Imported(it, reach, call) }
+                ofModule(at, imports.module, imported)
+                    .filter { bringsIn(it, arities) }
+                    .map { Imported(it, reach, call, arities.toSet()) }
             }
         }
 
@@ -267,7 +295,14 @@ internal object ExpanderSource : CandidateSource {
         ofModule(at, SPECIAL_FORMS, name).map { defined ->
             val arity = specialFormArity(defined.declaration.name, at.inputs.level) ?: return@map defined
 
-            Defined(defined.declaration.copy(arity = arity), defined.element, defined.delegation, arity)
+            Defined(
+                defined.declaration.copy(arity = arity),
+                defined.element,
+                defined.written,
+                defined.module,
+                defined.injectedBy,
+                defined.delegation,
+            )
         }
 
     /**
@@ -288,15 +323,13 @@ internal object ExpanderSource : CandidateSource {
             ProjectModules.Located.Unknown, ProjectModules.Located.None, is ProjectModules.Located.Several -> emptyList()
             is ProjectModules.Located.Source -> {
                 val result = located.result ?: return emptyList()
-                val own = defined(located.file, result.table, name)
-                    .flatMap { reachedFrom(at, it, Reach.OWN, emptyList(), name, arity, remote = true, crossed) }
+                val own = defined(located.file, result, name).flatMap { held(at, it, name, arity, remote = true, crossed) }
                 val body = if (imports) bodyEnv(result) else null
 
                 own + body?.let { imported(at, located.file, it, name, arity, crossed) }.orEmpty()
             }
             is ProjectModules.Located.Compiled ->
-                compiled(at.file, located, name)
-                    .flatMap { reachedFrom(at, it, Reach.OWN, emptyList(), name, arity, remote = true, crossed) }
+                compiled(at.file, located, name).flatMap { held(at, it, name, arity, remote = true, crossed) }
         }
     }
 
@@ -318,14 +351,23 @@ internal object ExpanderSource : CandidateSource {
         return listOf(reached) + throughDelegation(at, reached, reached.named, defined.admits(arity), crossed)
     }
 
-    /** [defined], looked up as [name] at [arity], which is `null` past a head with no largest arity. */
-    private fun reached(defined: Defined, reach: Reach, paths: List<Call>, name: String?, arity: Int?, remote: Boolean): Reached {
-        val declaration = defined.declaration
-        // An `import` that leaves out some of a head's arities brings in only the rest.
-        val admitted = declaration.arity == defined.headArity || defined.admits(arity)
-        val named = name != null && declaration.name == name && admitted
+    /**
+     * [defined], looked up as [name] at [arity], which is `null` past a head with no largest arity. An `import` that
+     * brings in only the arities [imported] of it names it at no other, as the walk's `importAdmits` decides.
+     */
+    private fun reached(
+        defined: Defined,
+        reach: Reach,
+        paths: List<Call>,
+        name: String?,
+        arity: Int?,
+        remote: Boolean,
+        imported: Set<Int>? = null,
+    ): Reached {
+        val admitted = arity == null || imported == null || arity in imported
+        val named = name != null && defined.declaration.name == name && admitted
 
-        return Reached(defined, reach, paths, emptyList(), emptyList(), name, named, remote)
+        return Reached(defined, reach, paths, emptyList(), emptyList(), null, name, named, admitted, remote)
     }
 
     /**
@@ -347,7 +389,8 @@ internal object ExpanderSource : CandidateSource {
         val head = delegation.defined.head
         if (head in crossed) return emptyList()
         val within = crossed + head
-        val arity = delegation.defined.headArity.arityInterval()?.maximum
+        val headArity = delegation.defined.declaration.arity
+        val arity = headArity.arityInterval()?.maximum
 
         return inModule(at, target.module, target.function, arity, imports = true, within)
             .filter { it.defined.head !in within }
@@ -357,9 +400,11 @@ internal object ExpanderSource : CandidateSource {
                     if (delegation.reach.held && it.reach.remote) Reach.DELEGATION_TARGET else Reach.UNHELD_DELEGATION_TARGET,
                     delegation.paths + it.paths,
                     listOf(element) + it.delegations,
-                    listOf(delegation.defined.headArity) + it.heads,
+                    listOf(headArity) + it.heads,
+                    delegation.through ?: head,
                     it.searched,
                     named && it.named,
+                    delegation.imported && it.imported,
                     it.remote,
                 )
             }
@@ -373,29 +418,48 @@ internal object ExpanderSource : CandidateSource {
     private fun ofModule(at: At, module: String, name: String?): List<Defined> =
         when (val located = at.holder.locate(at.file, module, at.inputs)) {
             ProjectModules.Located.Unknown, ProjectModules.Located.None, is ProjectModules.Located.Several -> emptyList()
-            is ProjectModules.Located.Source -> located.result?.let { defined(located.file, it.table, name) }.orEmpty()
+            is ProjectModules.Located.Source -> located.result?.let { defined(located.file, it, name) }.orEmpty()
             is ProjectModules.Located.Compiled -> compiled(at.file, located, name)
         }
 
-    /** [table]'s definitions of [name], or of every name when it is `null`: one for each head, each with its arities. */
-    private fun defined(file: ElixirFile, table: DefinitionTable, name: String?): List<Defined> =
-        NameIndex.of(table).named(name).flatMap { (nameArity, entry) ->
+    /**
+     * [result]'s module's definitions of [name], or of every name when it is `null`, in [file]: one for each head, each
+     * with its arities. A head a macro's output injected is declared where the macro writes it.
+     */
+    private fun defined(file: ElixirFile, result: ExpansionResult, name: String?): List<Defined> =
+        NameIndex.of(result.table).named(name).flatMap { (nameArity, entry) ->
             val arity = if (entry.defaults == 0) {
                 ArityKnowledge.Exact(nameArity.arity)
             } else {
                 ArityKnowledge.Range(nameArity.arity - entry.defaults, nameArity.arity)
             }
-
             entry.heads.mapNotNull { head ->
-                val call = declaringCall(file, head.at.meta.origin) ?: return@mapNotNull null
+                ProgressManager.checkCanceled()
+
+                val injectedBy = head.injected?.call?.let { injectingCall(file, it) }
+                val call = head.injected?.place?.let { placed(file, it) }
+                    ?: declaringCall(file, head.at.meta.origin)
+                    ?: return@mapNotNull null
                 val stored = definer(entry.kind).capabilities
                 // `super` saves an overridden public definition as a private one, with the head it was written with, so
-                // the table gives the visibility and the written head the rest.
-                val capabilities = (CallDefinitionClause.definer(call)?.capabilities ?: stored).copy(visibility = stored.visibility)
+                // the table gives the visibility and the written head the rest. A head placed at its macro's clause
+                // has only the table's.
+                val definer = CallDefinitionClause.definer(call)?.takeIf { declares(call, nameArity.name) }
+                val capabilities = (definer?.capabilities ?: stored).copy(visibility = stored.visibility)
                 val form = DeclaringForm.shapedForm(call) ?: Form.CLAUSE
                 val declared = Declared.Source(form, CallDefinitionClause.sourceOrigin(call))
+                // A head placed at its macro's clause, or at the call that injected it, is written by neither.
+                val written = call.takeIf { form != Form.CLAUSE || definer != null }
+                    ?.let { DeclaringForm.head(it, form, nameArity.name, arity) }
 
-                Defined(Declaration(nameArity.name, arity, capabilities, declared), call, head.delegation)
+                Defined(
+                    Declaration(nameArity.name, arity, capabilities, declared),
+                    call,
+                    written,
+                    Module.indexName(result.module),
+                    injectedBy,
+                    head.delegation,
+                )
             }
         }
 
@@ -418,30 +482,19 @@ internal object ExpanderSource : CandidateSource {
             Defined(
                 Declaration(nameArity.name, ArityKnowledge.Exact(nameArity.arity), definition.capabilities, Declared.Compiled(origin)),
                 definition,
+                definition,
+                origin.module,
+                null,
             )
         }
     }
 
-    /** [defined] at only the arities an `import` brings in, one for each run of them. */
-    private fun narrowed(defined: Defined, arities: Set<Int>): List<Defined> {
-        val declaration = defined.declaration
-        // An unknown arity may be any.
-        val interval = declaration.arity.arityInterval() ?: ArityInterval(0)
-        val kept = arities.filter { it in interval }.sorted()
-        if (interval.maximum?.let { kept.size == it - interval.minimum + 1 } == true) return listOf(defined)
+    /** Whether an `import` of [arities] brings in [defined] at any of its arities, an unknown arity being any. */
+    private fun bringsIn(defined: Defined, arities: List<Int>): Boolean {
+        val interval = defined.declaration.arity.arityInterval() ?: ArityInterval(0)
 
-        return runs(kept).map { run ->
-            val arity = if (run.first == run.last) ArityKnowledge.Exact(run.first) else ArityKnowledge.Range(run.first, run.last)
-
-            Defined(declaration.copy(arity = arity), defined.element, defined.delegation, defined.headArity)
-        }
+        return arities.any { it in interval }
     }
-
-    private fun runs(sorted: List<Int>): List<IntRange> =
-        sorted.fold(emptyList()) { runs, arity ->
-            val last = runs.lastOrNull()
-            if (last != null && last.last + 1 == arity) runs.dropLast(1) + listOf(last.first..arity) else runs + listOf(arity..arity)
-        }
 
     /**
      * The module [call]'s qualifier expanded to in its file's expansion, or where the expansion didn't reach it, expands
@@ -474,6 +527,8 @@ internal object ExpanderSource : CandidateSource {
                 Candidate(reached.defined.declaration, reached.reach, applicability),
                 reached.defined.element,
                 reached.paths + reached.delegations,
+                reached.defined.head,
+                reached.through,
             )
         }
 
@@ -485,7 +540,8 @@ internal object ExpanderSource : CandidateSource {
         val declaration = reached.defined.declaration
         val applicability = when (use) {
             is Use.Named -> Applicability.of(declaration, reached.searched ?: use.name, reached.named, use.arity, reached.heads)
-            is Use.AnyName -> Applicability.ofAnyName(declaration, reached.searched, use.arity, reached.heads)
+            is Use.AnyName ->
+                Applicability.ofAnyName(declaration, reached.searched, reached.imported, use.arity, reached.heads)
         }
 
         return if (applicability == Applicability.VALID && reached.remote && declaration.visibility == Visibility.PRIVATE) {
@@ -495,6 +551,14 @@ internal object ExpanderSource : CandidateSource {
         }
     }
 
+    /**
+     * Whether [element] is a `def*` call of [name]: not the macro clause that debug info, which places nothing more
+     * finely, places an injected head at.
+     */
+    private fun declares(element: PsiElement, name: String): Boolean =
+        element is Call && CallDefinitionClause.`is`(element) &&
+            CallDefinitionClause.nameArityInterval(element, ResolveState.initial())?.name == name
+
     private fun definer(kind: DefinitionTable.Kind): Definer =
         when (kind) {
             DefinitionTable.Kind.DEF -> Definer.DEF
@@ -502,6 +566,18 @@ internal object ExpanderSource : CandidateSource {
             DefinitionTable.Kind.DEFMACRO -> Definer.DEFMACRO
             DefinitionTable.Kind.DEFMACROP -> Definer.DEFMACROP
         }
+
+    /** The call written in [file] whose evaluated output [call] is, at its origin. */
+    private fun injectingCall(file: PsiFile, call: ElixirAst.Call): Call? =
+        call.meta.origin.let { origin -> enclosing(file, origin).firstOrNull { it.textRange == origin } }
+
+    /**
+     * The declaring call at [place]: in its macro's file, as [ProjectModules] reads that file, `null` where it is gone, or
+     * in [expanded].
+     */
+    private fun placed(expanded: PsiFile, place: Place): Call? =
+        (if (place.file == null) expanded else ProjectModules.getInstance(expanded.project).read(place.file))
+            ?.let { declaringCall(it, place.origin) }
 
     /** The `import` call whose origin is [origin]: the innermost call covering it named `import`. */
     private fun importCall(file: PsiFile, origin: TextRange): Call? =

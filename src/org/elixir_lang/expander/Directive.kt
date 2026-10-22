@@ -523,10 +523,11 @@ private inline fun import(
 
     val imported = filter.imports(Import.Imports(functions.toSet(), exports.macros.toSet()))
     val exceptGiven = options.except != null
+    val injectedBy = run.injecting?.takeIf { builtBy(call, it) }
     val newFunctions = if (selector == Import.Filter.Selector.MACROS) {
         env.functions.filter { it.module != module }
     } else {
-        calculateKey(module, env.functions, imported.functions, exceptGiven, removedAfter, level, call.meta.origin) {
+        calculateKey(module, env.functions, imported.functions, exceptGiven, removedAfter, level, call.meta.origin, injectedBy) {
             return Expansion.Error("special_form_conflict", call)
         }
     }
@@ -535,7 +536,7 @@ private inline fun import(
         Import.Filter.Selector.FUNCTIONS -> env.macros.filter { it.module != module }
         Import.Filter.Selector.MACROS if noMacros -> return Expansion.Error("no_macros", call)
         else ->
-            calculateKey(module, env.macros, imported.macros, exceptGiven, removedAfter, level, call.meta.origin) {
+            calculateKey(module, env.macros, imported.macros, exceptGiven, removedAfter, level, call.meta.origin, injectedBy) {
                 return Expansion.Error("special_form_conflict", call)
             }
     }
@@ -559,8 +560,8 @@ private fun isUnclassifiedSigil(nameArity: NameArity): Boolean {
 
 /**
  * `calculate_key/6`, and before 1.17 the end of `calculate/6`: [module]'s entry of [new] less [removed], made by the
- * `import` at [origin], put first in [old], or none when that is empty. [conflict] is called for a special form the
- * level raises on.
+ * `import` at [origin], which [injectedBy] injected if it did, put first in [old], or none when that is empty.
+ * [conflict] is called for a special form the level raises on.
  */
 private inline fun calculateKey(
     module: String,
@@ -570,6 +571,7 @@ private inline fun calculateKey(
     removed: Set<NameArity>,
     level: ElixirLanguageLevel,
     origin: TextRange,
+    injectedBy: ElixirAst.Call?,
     conflict: () -> Nothing,
 ): List<Env.Imports> {
     val others = old.filter { it.module != module }
@@ -586,7 +588,7 @@ private inline fun calculateKey(
         conflict()
     }
 
-    return listOf(Env.Imports(module, set, origin)) + others
+    return listOf(Env.Imports(module, set, origin, injectedBy)) + others
 }
 
 private fun List<NameArity>?.hasDuplicate(): Boolean = this != null && toSet().size != size

@@ -2,13 +2,14 @@ package org.elixir_lang.expander
 
 import org.elixir_lang.NameArity
 import org.elixir_lang.language_level.ElixirLanguageFeature.ATTRIBUTES_EXPANDED_LAZILY
+import org.elixir_lang.language_level.ElixirLanguageFeature.MODULE_DELETE_DEFINITION
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.psi.Import.Term
 
 /**
- * The remote functions that change the module whose body calls them, keyed by their dispatch. The call's arguments are
- * its expanded values, beside the nodes they were expanded from.
+ * The remote functions that change the module whose body calls them, keyed by receiver, name and arity. The call's
+ * arguments are its expanded values, beside the nodes they were expanded from.
  */
 internal object ModuleEffects {
     /** What a call does to the module being compiled. */
@@ -16,8 +17,11 @@ internal object ModuleEffects {
         /** A change to the module's attributes. */
         class Attributes(val effect: Effect) : Change
 
-        /** A change to its definition table, which the walk applies at the call's place: [apply] is given the call and the exports. */
-        class Definitions(val apply: (Compiling, ElixirAst, Exports) -> Expansion?) : Change
+        /**
+         * A change to its definition table, which the walk applies at the call's place: [apply] is given the call, the
+         * exports, and whether the call is one Elixir surely runs.
+         */
+        class Definitions(val apply: (Compiling, ElixirAst, Exports, Boolean) -> Expansion?) : Change
     }
 
     private fun interface Row {
@@ -29,43 +33,47 @@ internal object ModuleEffects {
     }
 
     /**
-     * What a call in [module]'s body that dispatches as [dispatch], with [args] expanded from [nodes], does to
-     * [module]: `null` for nothing, as for a call of another module.
+     * What a call in [module]'s body of [receiver]'s [name] with [args], expanded from [nodes], does to [module]: `null`
+     * for nothing, as for a call of another module. A receiver that isn't known at expansion may be a remover's, so a
+     * call of a remover's name and arity through one stops.
      */
     fun of(
-        dispatch: Dispatch,
+        receiver: Term,
+        name: String,
         args: List<Term>,
         nodes: List<ElixirAst>,
         module: String,
         level: ElixirLanguageLevel,
     ): Change? {
+        val removers = removers(level)
+        val key = (receiver as? Term.Atom)?.let { Triple(it.name, name, args.size) }
+            ?: return STOP.takeIf { removers.keys.any { (_, removerName, arity) -> removerName == name && arity == args.size } }
         val putArity = if (ATTRIBUTES_EXPANDED_LAZILY.isSufficient(level)) 5 else 4
-        val row = when (Triple(dispatch.receiver, dispatch.name, dispatch.arity)) {
+        val row = when (key) {
             Triple(ELIXIR_MODULE, "put_attribute", 3), Triple(ELIXIR_MODULE, "__put_attribute__", putArity) -> WRITE
             Triple(ELIXIR_MODULE, "register_attribute", 3) -> REGISTER
             Triple(ELIXIR_MODULE, "delete_attribute", 2) -> DELETE
             Triple(KERNEL_TYPESPEC, "deftypespec", 6) -> TYPESPEC_WRITE
-            Triple(ELIXIR_MODULE, "make_overridable", 2) -> MAKE_OVERRIDABLE
-            else -> return null
+            else -> removers[key] ?: return null
         }
 
         return row.change(module, args, nodes)
     }
 
     /**
-     * [change] where [target], the module a call is given, is [module]; `null` where it is another; [unknown] where it
-     * isn't known.
+     * [change] where [target], the module a call is given, is [module]; `null` where it is another; [UNKNOWN_ATTRIBUTE]
+     * where it isn't known.
      */
-    private fun targeting(target: Term, module: String, unknown: Change, change: () -> Change?): Change? =
+    private fun targeting(target: Term, module: String, change: () -> Change?): Change? =
         when (target) {
             is Term.Atom -> if (target.name == module) change() else null
-            else -> unknown
+            else -> UNKNOWN_ATTRIBUTE
         }
 
     /** `Module`'s attribute functions take the module first and the attribute second (`Mod:1595`, `:1729`, `:1782`). */
     private fun attributeCall(effect: (name: String, args: List<Term>) -> Effect) =
         Row { module, args, _ ->
-            targeting(args[0], module, UNKNOWN_ATTRIBUTE) { named(args[1]) { effect(it, args) } }
+            targeting(args[0], module) { named(args[1]) { effect(it, args) } }
         }
 
     private fun named(key: Term, effect: (String) -> Effect): Change =
@@ -81,7 +89,7 @@ internal object ModuleEffects {
 
     /** `deftypespec(kind, expr, line, file, module, pos)`, where `kind` is the attribute and `expr` the spec, escaped. */
     private val TYPESPEC_WRITE = Row { module, args, nodes ->
-        targeting(args[4], module, UNKNOWN_ATTRIBUTE) {
+        targeting(args[4], module) {
             named(args[0]) { Effect.TypespecWrite(it, specHead(nodes[1])) }
         }
     }
@@ -114,14 +122,41 @@ internal object ModuleEffects {
             ?.takeIf { (callee as? ElixirAst.Literal.Atom)?.name == name && it.size == 2 }
     }
 
-    /** `Module.make_overridable(module, definitions)`: a call of another module is not followed. */
-    private val MAKE_OVERRIDABLE = Row { module, args, _ ->
-        val unknown = Change.Definitions { _, at, _ -> Expansion.Unported(at) }
+    /** The call stops the module there: what it takes out of the table isn't followed. */
+    private val STOP = Change.Definitions { _, at, _, _ -> Expansion.Unported(at) }
 
-        targeting(args[0], module, unknown) {
-            Change.Definitions { compiling, at, exports -> makeAllOverridable(compiling, args[1], at, exports) }
+    /**
+     * `Module.make_overridable(module, definitions)`. A call of another module stops, as that may be one being compiled,
+     * which a module nested in it can name, and for one that isn't, Elixir raises (`Mod:1499`, `:1525`).
+     */
+    private val MAKE_OVERRIDABLE = Row { module, args, _ ->
+        if ((args[0] as? Term.Atom)?.name == module) {
+            Change.Definitions { compiling, at, exports, ordered ->
+                makeAllOverridable(compiling, args[1], at, exports, ordered)
+            }
+        } else {
+            STOP
         }
     }
+
+    /** A remover this doesn't follow, which stops the module whatever its target. */
+    private val STOPS = Row { _, _, _ -> STOP }
+
+    /**
+     * Every function that takes a definition out of the module's table: `elixir_def:take_definition/2` and its callers
+     * in `Module` (`Mod:1482`, `:1504`). Elixir removes from its table through no other.
+     */
+    private val REMOVERS = mapOf(
+        Triple(ELIXIR_MODULE, "make_overridable", 2) to MAKE_OVERRIDABLE,
+        Triple(ELIXIR_MODULE, "delete_definition", 2) to STOPS,
+        Triple(ELIXIR_DEF, "take_definition", 2) to STOPS,
+    )
+
+    /** [REMOVERS] before `Module.delete_definition/2` was added. */
+    private val REMOVERS_BEFORE_DELETE = REMOVERS - Triple(ELIXIR_MODULE, "delete_definition", 2)
+
+    private fun removers(level: ElixirLanguageLevel) =
+        if (MODULE_DELETE_DEFINITION.isSufficient(level)) REMOVERS else REMOVERS_BEFORE_DELETE
 
     /**
      * `Keyword.get(options, :accumulate)` taken as a boolean (`Mod:1790`): its first `accumulate` pair, or `null` where
@@ -151,5 +186,7 @@ internal object ModuleEffects {
 }
 
 internal const val ELIXIR_MODULE = "Elixir.Module"
+
+private const val ELIXIR_DEF = "elixir_def"
 
 internal const val KERNEL_TYPESPEC = "Elixir.Kernel.Typespec"

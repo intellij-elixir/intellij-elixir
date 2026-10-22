@@ -655,6 +655,8 @@
 
 - [#4497](https://github.com/intellij-elixir/intellij-elixir/pull/4497) [@sh41](https://github.com/sh41)
   - **A Mix deps sync whose quiet period ends while a light test project is closed between tests now still completes, so the next light test no longer waits forever for it.** Fixes [#4440](https://github.com/intellij-elixir/intellij-elixir/issues/4440).
+- [#4491](https://github.com/intellij-elixir/intellij-elixir/pull/4491) [@sh41](https://github.com/sh41)
+  - **The expander records where a definition a `use` injects is written and which `use` injected it, and answers it as reached through that `use`, each delegate it injects with its own target; nothing uses that yet. A `defdelegate` list of heads now declares each head, so Go To Related reaches each head's decompiled definition and navigation popups show the list as written.** Fixes [#4441](https://github.com/intellij-elixir/intellij-elixir/issues/4441) and [#4505](https://github.com/intellij-elixir/intellij-elixir/issues/4505).
 - [#4487](https://github.com/intellij-elixir/intellij-elixir/pull/4487) [@sh41](https://github.com/sh41)
   - **The expander evaluates the body of a macro a project or its dependencies define, so a module that `use`s a library is expanded past the `use`; nothing uses it yet.** Refs [#4441](https://github.com/intellij-elixir/intellij-elixir/issues/4441).
 - [#4485](https://github.com/intellij-elixir/intellij-elixir/pull/4485) [@sh41](https://github.com/sh41)

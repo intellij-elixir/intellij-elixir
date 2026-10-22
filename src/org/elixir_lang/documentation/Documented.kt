@@ -68,12 +68,16 @@ internal object Documented {
     /** The delegation [preferred] is, with what it delegates to at its own head; any other as it is. */
     @RequiresReadLock
     private fun withTargets(preferred: Preferred): Preferred =
-        (preferred.found.element as? Call)?.takeIf { preferred.found.isDelegation() }?.let { atItsHead(it) } ?: preferred
+        preferred.found.head.written?.takeIf { preferred.found.isDelegation() }?.let(::headed) ?: preferred
 
     /** [delegation] as the step prefers it at the use its own head is, for documentation. */
     @RequiresReadLock
-    fun atItsHead(delegation: Call): Preferred? =
-        UseSymbols.headUse(delegation)?.let { use -> atItsHead(delegation, use, Feature.DOCUMENTATION) }
+    fun atItsHead(delegation: Call): Preferred? = headed(Delegation.head(delegation))
+
+    /** The delegation [written] heads, as the step prefers it at the use [written] is, for documentation. */
+    @RequiresReadLock
+    private fun headed(written: PsiElement?): Preferred? =
+        UseSymbols.headUse(written)?.let { (head, use) -> atItsHead(head, use, Feature.DOCUMENTATION) }
 
     /**
      * Past a delegation that writes an `@doc`, the first source declaration that defines the function, else the first

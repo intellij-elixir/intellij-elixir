@@ -17,6 +17,7 @@ import com.intellij.psi.PsiManager
 import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
+import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
@@ -323,6 +324,16 @@ internal class ProjectModules(private val project: Project) {
         return answer
     }
 
+    /** The Elixir [file] a module's clauses are read from: a source file, or a `.beam`'s decompiled mirror. */
+    @RequiresBackgroundThread(generateAssertion = false)
+    @RequiresReadLock
+    fun read(file: VirtualFile): ElixirFile? {
+        if (!file.isValid) return null
+        val psi = PsiManager.getInstance(project).findFile(file)
+
+        return ((psi as? PsiCompiledFile)?.decompiledPsiFile ?: psi) as? ElixirFile
+    }
+
     private fun compiledClauses(beam: VirtualFile, level: ElixirLanguageLevel): ModuleClauses? {
         val stamp = beam.modificationStamp
         (clauseCache[beam] as? Clauses.Compiled)?.takeIf { it.stamp == stamp && it.level == level }?.let { return it.clauses }
@@ -333,9 +344,8 @@ internal class ProjectModules(private val project: Project) {
         } catch (_: IOException) {
             return null
         }
-        val mirror = (PsiManager.getInstance(project).findFile(beam) as? PsiCompiledFile)?.decompiledPsiFile as? ElixirFile
-            ?: return null
-        val clauses = CompiledModule.of(bytes, beam.path, mirror, level, deprecations)?.let { ModuleClauses.of(it, beam.path) }
+        val mirror = read(beam) ?: return null
+        val clauses = CompiledModule.of(bytes, beam.path, mirror, level, deprecations)?.let { ModuleClauses.of(it, beam) }
         clauseCache[beam] = Clauses.Compiled(stamp, level, clauses)
 
         return clauses
@@ -475,6 +485,7 @@ internal class ProjectModules(private val project: Project) {
                 }
             },
             file = virtualFile?.path,
+            virtualFile = virtualFile,
             directories = { path ->
                 // A `mix.exs` created or deleted above the file moves its answer.
                 stamps.track(VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)

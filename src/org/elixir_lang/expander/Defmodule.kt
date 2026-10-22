@@ -127,7 +127,10 @@ private fun queueModule(
         env.function != null -> Expansion.Unported(body)
         moduleState == null -> Expansion.Unported(node)
         else -> {
-            run.pending += Pending.Module(node, name, isAtom, body, env.copy(module = name), moduleState)
+            run.pending += Pending.Module(
+                node, name, isAtom, body, env.copy(module = name), moduleState,
+                injectedBy = run.injecting?.takeIf { builtBy(node, it) },
+            )
 
             Expansion.Expanded(state, env, NODE)
         }
