@@ -756,6 +756,8 @@
 
 ### Build / CI
 
+- [#4524](https://github.com/intellij-elixir/intellij-elixir/pull/4524) [@sh41](https://github.com/sh41)
+  - **The expander's differential test now also runs the programs from Elixir's own expansion tests on every supported Elixir version, and records each program's outcome per version in a committed file.** Refs [#4513](https://github.com/intellij-elixir/intellij-elixir/issues/4513) and [#4520](https://github.com/intellij-elixir/intellij-elixir/issues/4520).
 - [#4516](https://github.com/intellij-elixir/intellij-elixir/pull/4516) [@sh41](https://github.com/sh41)
   - **The expander's differential test now also runs the variable oracle's function-body and anonymous-function cases, compares the definitions of every module a case defines, and records each case's outcome per Elixir version in a committed file.** Refs [#4512](https://github.com/intellij-elixir/intellij-elixir/issues/4512).
 - [#4519](https://github.com/intellij-elixir/intellij-elixir/pull/4519) [@sh41](https://github.com/sh41)
