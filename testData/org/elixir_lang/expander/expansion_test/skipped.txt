@@ -1,0 +1,322 @@
+v1.11.4:24 expand-with-version tracks variable version
+v1.11.4:38 expand-with-version tracks variable version
+v1.11.4:54 expand-with-version tracks variable version
+v1.11.4:70 expand-with-version tracks variable version
+v1.11.4:87 unquote expands to nil when empty
+v1.11.4:91 unquote expands to argument when arity is 1
+v1.11.4:101 unquote is recursive to argument when arity is 1
+v1.11.4:296 env __ENV__
+v1.11.4:302 env __ENV__.accessor
+v1.11.4:304 env __ENV__.accessor
+v1.11.4:426 expansion-target custom imports
+v1.11.4:483 unquote expects key-value pairs
+v1.11.4:513 unquote expects atoms
+v1.11.4:519 unquote expects atoms
+v1.11.4:625 expansion-target modules must be required for macros
+v1.11.4:633 expansion-target raises when not required
+v1.11.4:942 expansion-target expands macros
+v1.11.4:2152 expansion-target inlines binaries inside interpolation
+v1.11.4:2159 expansion-target inlines binaries inside interpolation
+v1.11.4:2168 not-a-quote inlines binaries inside interpolation is isomorphic after manual expansion
+v1.11.4:2191 expansion-target expands size * unit
+v1.11.4:2194 expansion-target expands size * unit
+v1.11.4:2197 expansion-target expands size * unit
+v1.11.4:2200 expansion-target expands size * unit
+v1.11.4:2282 expansion-target expands macro specifiers
+v1.11.4:2285 expansion-target expands macro specifiers
+v1.11.4:2305 expansion-target expands macro in args
+v1.11.4:2551 not-a-quote raises when a call is ambiguous
+v1.11.4:2558 unquote handles invalid expressions
+v1.11.4:2562 unquote handles invalid expressions
+v1.12.3:24 expand-with-version tracks variable version
+v1.12.3:38 expand-with-version tracks variable version
+v1.12.3:54 expand-with-version tracks variable version
+v1.12.3:70 expand-with-version tracks variable version
+v1.12.3:87 unquote expands to nil when empty
+v1.12.3:91 unquote expands to argument when arity is 1
+v1.12.3:101 unquote is recursive to argument when arity is 1
+v1.12.3:296 env __ENV__
+v1.12.3:302 env __ENV__.accessor
+v1.12.3:304 env __ENV__.accessor
+v1.12.3:426 expansion-target custom imports
+v1.12.3:483 unquote expects key-value pairs
+v1.12.3:513 unquote expects atoms
+v1.12.3:519 unquote expects atoms
+v1.12.3:625 expansion-target modules must be required for macros
+v1.12.3:633 expansion-target raises when not required
+v1.12.3:942 expansion-target expands macros
+v1.12.3:2152 expansion-target inlines binaries inside interpolation
+v1.12.3:2159 expansion-target inlines binaries inside interpolation
+v1.12.3:2168 not-a-quote inlines binaries inside interpolation is isomorphic after manual expansion
+v1.12.3:2191 expansion-target expands size * unit
+v1.12.3:2194 expansion-target expands size * unit
+v1.12.3:2197 expansion-target expands size * unit
+v1.12.3:2200 expansion-target expands size * unit
+v1.12.3:2282 expansion-target expands macro specifiers
+v1.12.3:2285 expansion-target expands macro specifiers
+v1.12.3:2305 expansion-target expands macro in args
+v1.12.3:2551 not-a-quote raises when a call is ambiguous
+v1.12.3:2563 not-a-quote raises when a call is ambiguous
+v1.12.3:2570 unquote handles invalid expressions
+v1.12.3:2574 unquote handles invalid expressions
+v1.13.4:24 expand-with-version tracks variable version
+v1.13.4:38 expand-with-version tracks variable version
+v1.13.4:54 expand-with-version tracks variable version
+v1.13.4:70 expand-with-version tracks variable version
+v1.13.4:88 unquote expands to nil when empty
+v1.13.4:92 unquote expands to argument when arity is 1
+v1.13.4:102 unquote is recursive to argument when arity is 1
+v1.13.4:300 env __ENV__
+v1.13.4:306 env __ENV__.accessor
+v1.13.4:308 env __ENV__.accessor
+v1.13.4:443 expansion-target custom imports
+v1.13.4:500 unquote expects key-value pairs
+v1.13.4:530 unquote expects atoms
+v1.13.4:536 unquote expects atoms
+v1.13.4:642 expansion-target modules must be required for macros
+v1.13.4:1086 expansion-target expands macros
+v1.13.4:2290 expansion-target inlines binaries inside interpolation
+v1.13.4:2297 expansion-target inlines binaries inside interpolation
+v1.13.4:2306 not-a-quote inlines binaries inside interpolation is isomorphic after manual expansion
+v1.13.4:2329 expansion-target expands size * unit
+v1.13.4:2332 expansion-target expands size * unit
+v1.13.4:2335 expansion-target expands size * unit
+v1.13.4:2338 expansion-target expands size * unit
+v1.13.4:2420 expansion-target expands macro specifiers
+v1.13.4:2423 expansion-target expands macro specifiers
+v1.13.4:2443 expansion-target expands macro in args
+v1.13.4:2689 not-a-quote raises when a call is ambiguous
+v1.13.4:2702 not-a-quote raises when a call is ambiguous
+v1.13.4:2709 unquote handles invalid expressions
+v1.13.4:2713 unquote handles invalid expressions
+v1.14.5:18 unquote expands to nil when empty
+v1.14.5:22 unquote expands to argument when arity is 1
+v1.14.5:32 unquote is recursive to argument when arity is 1
+v1.14.5:230 env __ENV__
+v1.14.5:236 env __ENV__.accessor
+v1.14.5:238 env __ENV__.accessor
+v1.14.5:262 not-a-quote expands vars to local call
+v1.14.5:327 expand-with-version tracks variable version
+v1.14.5:341 expand-with-version tracks variable version
+v1.14.5:357 expand-with-version tracks variable version
+v1.14.5:373 expand-with-version tracks variable version
+v1.14.5:461 expansion-target custom imports
+v1.14.5:515 unquote expects key-value pairs
+v1.14.5:545 unquote expects atoms
+v1.14.5:551 unquote expects atoms
+v1.14.5:657 expansion-target modules must be required for macros
+v1.14.5:1103 expansion-target expands macros
+v1.14.5:2308 expansion-target inlines binaries inside interpolation
+v1.14.5:2315 expansion-target inlines binaries inside interpolation
+v1.14.5:2324 not-a-quote inlines binaries inside interpolation is isomorphic after manual expansion
+v1.14.5:2347 expansion-target expands size * unit
+v1.14.5:2350 expansion-target expands size * unit
+v1.14.5:2353 expansion-target expands size * unit
+v1.14.5:2356 expansion-target expands size * unit
+v1.14.5:2438 expansion-target expands macro specifiers
+v1.14.5:2441 expansion-target expands macro specifiers
+v1.14.5:2461 expansion-target expands macro in args
+v1.14.5:2790 not-a-quote raises when a call is ambiguous
+v1.14.5:2803 not-a-quote raises when a call is ambiguous
+v1.14.5:2810 unquote handles invalid expressions
+v1.14.5:2814 unquote handles invalid expressions
+v1.15.8:20 unquote expands to nil when empty
+v1.15.8:24 unquote expands to argument when arity is 1
+v1.15.8:34 unquote is recursive to argument when arity is 1
+v1.15.8:224 env __ENV__
+v1.15.8:230 env __ENV__.accessor
+v1.15.8:232 env __ENV__.accessor
+v1.15.8:260 not-a-quote raises on undefined var by default
+v1.15.8:267 not-a-quote expands vars to local call when :on_undefined_variable is :warn
+v1.15.8:334 expand-with-version tracks variable version
+v1.15.8:348 expand-with-version tracks variable version
+v1.15.8:364 expand-with-version tracks variable version
+v1.15.8:380 expand-with-version tracks variable version
+v1.15.8:467 expansion-target custom imports
+v1.15.8:549 unquote expects key-value pairs
+v1.15.8:579 unquote expects atoms
+v1.15.8:585 unquote expects atoms
+v1.15.8:691 expansion-target modules must be required for macros
+v1.15.8:1152 expansion-target expands macros
+v1.15.8:2366 expansion-target inlines binaries inside interpolation
+v1.15.8:2373 expansion-target inlines binaries inside interpolation
+v1.15.8:2383 not-a-quote inlines binaries inside interpolation is isomorphic after manual expansion
+v1.15.8:2407 expansion-target expands size * unit
+v1.15.8:2410 expansion-target expands size * unit
+v1.15.8:2413 expansion-target expands size * unit
+v1.15.8:2416 expansion-target expands size * unit
+v1.15.8:2498 expansion-target expands macro specifiers
+v1.15.8:2501 expansion-target expands macro specifiers
+v1.15.8:2522 expansion-target expands macro in args
+v1.15.8:2836 not-a-quote raises when a call is ambiguous
+v1.15.8:2849 not-a-quote raises when a call is ambiguous
+v1.15.8:2856 unquote handles invalid expressions
+v1.15.8:2860 unquote handles invalid expressions
+v1.16.3:20 unquote expands to nil when empty
+v1.16.3:24 unquote expands to argument when arity is 1
+v1.16.3:34 unquote is recursive to argument when arity is 1
+v1.16.3:224 env __ENV__
+v1.16.3:230 env __ENV__.accessor
+v1.16.3:232 env __ENV__.accessor
+v1.16.3:260 not-a-quote raises on undefined var by default
+v1.16.3:267 not-a-quote expands vars to local call when :on_undefined_variable is :warn
+v1.16.3:334 expand-with-version tracks variable version
+v1.16.3:348 expand-with-version tracks variable version
+v1.16.3:364 expand-with-version tracks variable version
+v1.16.3:380 expand-with-version tracks variable version
+v1.16.3:467 expansion-target custom imports
+v1.16.3:559 unquote expects key-value pairs
+v1.16.3:589 unquote expects atoms
+v1.16.3:595 unquote expects atoms
+v1.16.3:701 expansion-target modules must be required for macros
+v1.16.3:1165 expansion-target expands macros
+v1.16.3:2379 expansion-target inlines binaries inside interpolation
+v1.16.3:2386 expansion-target inlines binaries inside interpolation
+v1.16.3:2396 not-a-quote inlines binaries inside interpolation is isomorphic after manual expansion
+v1.16.3:2420 expansion-target expands size * unit
+v1.16.3:2423 expansion-target expands size * unit
+v1.16.3:2426 expansion-target expands size * unit
+v1.16.3:2429 expansion-target expands size * unit
+v1.16.3:2511 expansion-target expands macro specifiers
+v1.16.3:2514 expansion-target expands macro specifiers
+v1.16.3:2535 expansion-target expands macro in args
+v1.16.3:2849 not-a-quote raises when a call is ambiguous
+v1.16.3:2862 not-a-quote raises when a call is ambiguous
+v1.16.3:2869 unquote handles invalid expressions
+v1.16.3:2873 unquote handles invalid expressions
+v1.17.3:20 unquote expands to nil when empty
+v1.17.3:24 unquote expands to argument when arity is 1
+v1.17.3:34 unquote is recursive to argument when arity is 1
+v1.17.3:204 env __ENV__
+v1.17.3:210 env __ENV__.accessor
+v1.17.3:212 env __ENV__.accessor
+v1.17.3:240 not-a-quote raises on undefined var by default
+v1.17.3:247 not-a-quote expands vars to local call when :on_undefined_variable is :warn
+v1.17.3:314 expand-with-version tracks variable version
+v1.17.3:328 expand-with-version tracks variable version
+v1.17.3:344 expand-with-version tracks variable version
+v1.17.3:360 expand-with-version tracks variable version
+v1.17.3:447 expansion-target custom imports
+v1.17.3:451 not-a-quote invalid metadata
+v1.17.3:544 unquote expects key-value pairs
+v1.17.3:574 unquote expects atoms
+v1.17.3:580 unquote expects atoms
+v1.17.3:694 expansion-target modules must be required for macros
+v1.17.3:1137 not-a-quote keeps position meta on & variables
+v1.17.3:1164 expansion-target expands macros
+v1.17.3:2378 expansion-target inlines binaries inside interpolation
+v1.17.3:2385 expansion-target inlines binaries inside interpolation
+v1.17.3:2395 not-a-quote inlines binaries inside interpolation is isomorphic after manual expansion
+v1.17.3:2419 expansion-target expands size * unit
+v1.17.3:2422 expansion-target expands size * unit
+v1.17.3:2425 expansion-target expands size * unit
+v1.17.3:2428 expansion-target expands size * unit
+v1.17.3:2510 expansion-target expands macro specifiers
+v1.17.3:2513 expansion-target expands macro specifiers
+v1.17.3:2534 expansion-target expands macro in args
+v1.17.3:2848 not-a-quote raises when a call is ambiguous
+v1.17.3:2861 not-a-quote raises when a call is ambiguous
+v1.17.3:2868 unquote handles invalid expressions
+v1.17.3:2872 unquote handles invalid expressions
+v1.18.4:20 unquote expands to nil when empty
+v1.18.4:24 unquote expands to argument when arity is 1
+v1.18.4:34 unquote is recursive to argument when arity is 1
+v1.18.4:269 env __ENV__
+v1.18.4:275 env __ENV__.accessor
+v1.18.4:277 env __ENV__.accessor
+v1.18.4:305 not-a-quote raises on undefined var by default
+v1.18.4:312 not-a-quote expands vars to local call when :on_undefined_variable is :warn
+v1.18.4:379 expand-with-version tracks variable version
+v1.18.4:393 expand-with-version tracks variable version
+v1.18.4:409 expand-with-version tracks variable version
+v1.18.4:425 expand-with-version tracks variable version
+v1.18.4:512 expansion-target custom imports
+v1.18.4:516 not-a-quote invalid metadata
+v1.18.4:609 unquote expects key-value pairs
+v1.18.4:639 unquote expects atoms
+v1.18.4:645 unquote expects atoms
+v1.18.4:753 expansion-target modules must be required for macros
+v1.18.4:1201 not-a-quote keeps position meta on & variables
+v1.18.4:1233 expansion-target expands macros
+v1.18.4:2414 expansion-target inlines binaries inside interpolation
+v1.18.4:2421 expansion-target inlines binaries inside interpolation
+v1.18.4:2431 not-a-quote inlines binaries inside interpolation is isomorphic after manual expansion
+v1.18.4:2455 expansion-target expands size * unit
+v1.18.4:2458 expansion-target expands size * unit
+v1.18.4:2461 expansion-target expands size * unit
+v1.18.4:2464 expansion-target expands size * unit
+v1.18.4:2546 expansion-target expands macro specifiers
+v1.18.4:2549 expansion-target expands macro specifiers
+v1.18.4:2570 expansion-target expands macro in args
+v1.18.4:2874 not-a-quote raises when a call is ambiguous
+v1.18.4:2887 not-a-quote raises when a call is ambiguous
+v1.18.4:2894 not-a-quote handles invalid expressions
+v1.18.4:2898 not-a-quote handles invalid expressions
+v1.19.5:24 unquote expands to nil when empty
+v1.19.5:28 unquote expands to argument when arity is 1
+v1.19.5:38 unquote is recursive to argument when arity is 1
+v1.19.5:279 env __ENV__
+v1.19.5:285 env __ENV__.accessor
+v1.19.5:287 env __ENV__.accessor
+v1.19.5:315 not-a-quote raises on undefined var by default
+v1.19.5:322 not-a-quote expands vars to local call when :on_undefined_variable is :warn
+v1.19.5:389 expand-with-version tracks variable version
+v1.19.5:403 expand-with-version tracks variable version
+v1.19.5:419 expand-with-version tracks variable version
+v1.19.5:435 expand-with-version tracks variable version
+v1.19.5:522 expansion-target custom imports
+v1.19.5:526 not-a-quote invalid metadata
+v1.19.5:619 unquote expects key-value pairs
+v1.19.5:649 unquote expects atoms
+v1.19.5:655 unquote expects atoms
+v1.19.5:763 expansion-target modules must be required for macros
+v1.19.5:1220 not-a-quote keeps position meta on & variables
+v1.19.5:1258 expansion-target expands macros
+v1.19.5:2438 expansion-target inlines binaries inside interpolation
+v1.19.5:2445 expansion-target inlines binaries inside interpolation
+v1.19.5:2455 not-a-quote inlines binaries inside interpolation is isomorphic after manual expansion
+v1.19.5:2479 expansion-target expands size * unit
+v1.19.5:2482 expansion-target expands size * unit
+v1.19.5:2485 expansion-target expands size * unit
+v1.19.5:2488 expansion-target expands size * unit
+v1.19.5:2570 expansion-target expands macro specifiers
+v1.19.5:2573 expansion-target expands macro specifiers
+v1.19.5:2594 expansion-target expands macro in args
+v1.19.5:2909 not-a-quote raises when a call is ambiguous
+v1.19.5:2922 not-a-quote raises when a call is ambiguous
+v1.19.5:2929 not-a-quote handles invalid expressions
+v1.19.5:2933 not-a-quote handles invalid expressions
+v1.20.4:24 unquote expands to nil when empty
+v1.20.4:28 unquote expands to argument when arity is 1
+v1.20.4:38 unquote is recursive to argument when arity is 1
+v1.20.4:279 env __ENV__
+v1.20.4:285 env __ENV__.accessor
+v1.20.4:287 env __ENV__.accessor
+v1.20.4:315 not-a-quote raises on undefined var by default
+v1.20.4:379 expand-with-version tracks variable version
+v1.20.4:393 expand-with-version tracks variable version
+v1.20.4:409 expand-with-version tracks variable version
+v1.20.4:425 expand-with-version tracks variable version
+v1.20.4:512 expansion-target custom imports
+v1.20.4:516 not-a-quote invalid metadata
+v1.20.4:609 unquote expects key-value pairs
+v1.20.4:639 unquote expects atoms
+v1.20.4:645 unquote expects atoms
+v1.20.4:675 env unknown key in structs
+v1.20.4:750 expansion-target modules must be required for macros
+v1.20.4:1216 not-a-quote keeps position meta on & variables
+v1.20.4:1254 expansion-target expands macros
+v1.20.4:2479 expansion-target inlines binaries inside interpolation
+v1.20.4:2486 expansion-target inlines binaries inside interpolation
+v1.20.4:2496 not-a-quote inlines binaries inside interpolation is isomorphic after manual expansion
+v1.20.4:2520 expansion-target expands size * unit
+v1.20.4:2523 expansion-target expands size * unit
+v1.20.4:2526 expansion-target expands size * unit
+v1.20.4:2529 expansion-target expands size * unit
+v1.20.4:2611 expansion-target expands macro specifiers
+v1.20.4:2614 expansion-target expands macro specifiers
+v1.20.4:2635 expansion-target expands macro in args
+v1.20.4:2950 not-a-quote raises when a call is ambiguous
+v1.20.4:2963 not-a-quote raises when a call is ambiguous
+v1.20.4:2970 not-a-quote handles invalid expressions
+v1.20.4:2974 not-a-quote handles invalid expressions
