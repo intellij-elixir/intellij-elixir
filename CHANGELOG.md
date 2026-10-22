@@ -131,6 +131,8 @@
 
 ### Bug Fixes
 
+- [#4514](https://github.com/intellij-elixir/intellij-elixir/pull/4514) [@sh41](https://github.com/sh41)
+  - **Go To Symbol and completion show a `defguard` as compile time, a component tag resolves to what a call of its function resolves to, and the structure view no longer fails on an `EEx.function_from_string` whose kind is not a literal.** Fixes [#4511](https://github.com/intellij-elixir/intellij-elixir/issues/4511).
 - [#4488](https://github.com/intellij-elixir/intellij-elixir/pull/4488) [@sh41](https://github.com/sh41)
   - **Find Usages and Rename find a capture or `import` key at every arity of a function with default arguments; Rename adds `as:` to a `defdelegate` whose target it can't rename, rewrites only the atom of an `unquote`-named function, and says why it refuses a name that needs quotes or a call, capture or `@spec` no arity takes.** Fixes [#4345](https://github.com/intellij-elixir/intellij-elixir/issues/4345).
 - [#4481](https://github.com/intellij-elixir/intellij-elixir/pull/4481) [@sh41](https://github.com/sh41)
