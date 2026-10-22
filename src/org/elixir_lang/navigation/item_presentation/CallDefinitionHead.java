@@ -19,7 +19,7 @@ public class CallDefinitionHead implements ItemPresentation {
     private final PsiElement psiElement;
     @NotNull
     private final NameArity callDefinition;
-    @NotNull
+    @Nullable
     private final Visibility visibility;
 
 
@@ -29,10 +29,11 @@ public class CallDefinitionHead implements ItemPresentation {
 
     /**
      * @param callDefinition the parent {@link NameArity} of which {@code call} is a head
+     * @param visibility     {@code null} if the head's visibility is not known
      * @param psiElement     a call definition head
      */
     public CallDefinitionHead(@NotNull NameArity callDefinition,
-                              @NotNull Visibility visibility,
+                              @Nullable Visibility visibility,
                               @NotNull PsiElement psiElement) {
         this.psiElement = psiElement;
         this.callDefinition = callDefinition;
