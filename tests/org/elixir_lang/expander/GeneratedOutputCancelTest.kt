@@ -163,15 +163,6 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
     fun testAConcatenationIsCancelledAsItsSegmentsAreMade() =
         assertCancelledIn($$"$${EXPANDER}ConcatKt$CONCAT$1", "output", CONCATENATIONS, CHAIN / 2)
 
-    /** `defstruct` of a `++` that `Kernel` wrote, many deep, is cancelled as its fields are evaluated. */
-    fun testAStructsFieldsAreCancelledAsTheyAreEvaluated() =
-        assertCancelledIn(
-            "${EXPANDER}DefstructKt",
-            "evaluate",
-            "defmacro m, do: (f = [a: 1]; ${chain("f = {:++, [context: Kernel], [[a: 1], f]}")} {:defstruct, [], [f]})",
-            CHAIN / 2,
-        )
-
     /** A quoted definition whose head has many guards, each around the last, is cancelled as its head is found. */
     fun testAQuotedDefinitionsHeadIsCancelledAsItIsFound() =
         assertCancelledIn(
@@ -341,7 +332,7 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
         assertChecked(
             listOf("${EXPANDER}DefstructKt" to "unlocated"),
             LISTS / 2,
-            "defmacro m, do: ($TREE {:defstruct, [], [[a: {:hd, [], [[t]]}]]})",
+            "defmacro m, do: ($TREE {:defstruct, [], [[a: {:receive, [], [[after: [{:->, [], [[0], t]}]]]}]]})",
         )
 
     /** A local call in a local call, many deep, checks as the local calls are walked. */

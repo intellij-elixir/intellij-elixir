@@ -93,12 +93,6 @@ internal class Compiling(
     /** How the module ends, once something has ended it: the first stop or raise, as the walk goes on after a stop. */
     var ended: Ended? = null
 
-    /**
-     * The `bind_quoted` values of the macro whose output is expanding, by variable name, in `Kernel`'s context: what
-     * `defexception` gives `defstruct` to evaluate as the fields it builds on.
-     */
-    var bound: Map<String, ElixirAst> = emptyMap()
-
     val definitions = LinkedHashMap<NameArity, AttributeLog.DefinitionAttributes>()
 
     val unnamed = mutableListOf<AttributeLog.DefinitionAttributes>()

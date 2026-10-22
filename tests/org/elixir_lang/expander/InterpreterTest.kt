@@ -22,6 +22,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.BITSTRING_SIZE_EXPAN
 import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILE_ENV_TAKES_ENV_FIRST
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFINER_REFUSED_IN_MATCH_OR_GUARD
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
+import org.elixir_lang.language_level.ElixirLanguageFeature.DEFSTRUCT_ESCAPES_STRUCT
 import org.elixir_lang.language_level.ElixirLanguageFeature.DUPLICATE_MATCH_UNPACKED_ONCE
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_ENTRIES_SORTED
 import org.elixir_lang.language_level.ElixirLanguageFeature.ESCAPED_MAP_IN_VM_ORDER
@@ -5644,6 +5645,27 @@ class InterpreterTest : PlatformTestCase() {
                   fs = [f: 0]
                   defoverridable fs
                   def f, do: super() + 1
+                end
+                """,
+            ),
+            // Before `__struct__/0` returns the escaped struct, it reads the struct from an attribute, a map the
+            // expander holds no term for.
+            macro(
+                "body:defstruct-binding",
+                "defmacro m, do: Macro.escape({{row}.S.__struct__(), {row}.E.exception([]).code, " +
+                    "Exception.message({row}.E.exception([]))})",
+                pins = { source, level ->
+                    DECLINED_FROM_SOURCE(source, level)?.takeUnless { DEFSTRUCT_ESCAPES_STRUCT.isSufficient(level) }
+                },
+                helper = """
+                defmodule {row}.S do
+                  fields = [a: 1, b: 2]
+                  defstruct fields
+                end
+
+                defmodule {row}.E do
+                  f = [message: "boom", code: 7]
+                  defexception f
                 end
                 """,
             ),

@@ -50,7 +50,7 @@ private fun defstruct(
     val effect = DefstructEffect(
         node,
         output,
-        fieldsOf(evaluate(fields, compiling.bound), watched.value, node, run.level, run.exports),
+        { compiling -> fieldsAt(watched, node, compiling, state, env, run) },
         definitions,
         compiling.statements,
         compiling.isStatement(node),
@@ -80,28 +80,23 @@ private fun unreadable(compiling: Compiling): Expansion? {
 }
 
 /**
- * [node], the fields `defstruct` is given, as the module body evaluates them where that is a list: a variable that
- * `Kernel`'s `quote` binds is its value in [bound], and the `++` that `quote` builds of two lists is the list of both.
+ * The fields [fields] watched, as the module body has run to the call [at]: the term the expansion gave, or where that
+ * isn't known, the node expanded evaluated from the values [compiling]'s body has bound.
  */
-private fun evaluate(node: ElixirAst, bound: Map<String, ElixirAst>): ElixirAst {
-    ProgressManager.checkCanceled()
+private fun fieldsAt(
+    fields: Watched,
+    at: ElixirAst,
+    compiling: Compiling,
+    state: ExState,
+    env: Env,
+    run: Run,
+): Fields {
+    val term = fields.value ?: return Fields.Dynamic
+    val expanded = fields.expanded ?: return Fields.Dynamic
 
-    if (node !is ElixirAst.Call) return node
-
-    val name = (node.callee as? ElixirAst.Literal.Atom)?.name
-
-    return when {
-        node.arguments == null && node.context == ElixirAst.VariableContext.Atom(KERNEL) -> bound[name] ?: node
-        isCall(node, "++", 2) && (metaValue(node.meta, "context") as? Meta.Value.Atom)?.name == KERNEL -> {
-            val (left, right) = node.arguments!!.map { evaluate(it, bound) }
-
-            if (left is ElixirAst.ListNode && right is ElixirAst.ListNode) {
-                ElixirAst.ListNode(node.meta, left.elements + right.elements)
-            } else {
-                node
-            }
-        }
-        else -> node
+    return when (val values = evaluatedArguments(listOf(term), listOf(expanded), compiling, state, env, run)) {
+        is ArgumentValues.Evaluated -> fieldsOf(fields.node, values.terms.single(), at, run.level, run.exports)
+        is ArgumentValues.Raised -> Fields.Raised(values.expansion)
     }
 }
 
@@ -115,6 +110,9 @@ private sealed interface Fields {
 
     /** Evaluated, and not a list. */
     data object NotAList : Fields
+
+    /** Evaluating them raises, ending the module body with [expansion]. */
+    class Raised(val expansion: Expansion) : Fields
 }
 
 /**
@@ -300,7 +298,7 @@ private fun combined(nodes: List<ElixirAst>, level: ElixirLanguageLevel): Value 
 private class DefstructEffect(
     private val node: ElixirAst.Call,
     private val output: StructOutput,
-    private val result: Fields,
+    private val fields: (Compiling) -> Fields,
     private val queued: List<Pending.Definition>,
     private val statements: Statements,
     private val statement: Boolean,
@@ -319,6 +317,9 @@ private class DefstructEffect(
         // Up to 1.13 the output checks for a second call before it evaluates the fields.
         if (twice && !DEFSTRUCT_BIND_QUOTED.isSufficient(level)) return Expansion.Error("struct_twice", node)
 
+        val result = fields(compiling)
+
+        if (result is Fields.Raised) return result.expansion
         if (result == Fields.Dynamic) return stopped(compiling)
         if (twice) return Expansion.Error("struct_twice", node)
 
@@ -326,6 +327,7 @@ private class DefstructEffect(
             Fields.NotAList -> return Expansion.Error("struct_fields_not_list", node)
             is Fields.Known -> result
             Fields.Dynamic -> return stopped(compiling)
+            is Fields.Raised -> return result.expansion
         }
 
         known.error?.let { return Expansion.Error(it, node) }

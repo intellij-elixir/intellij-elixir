@@ -192,10 +192,11 @@ object Expander {
 
 /**
  * A node of the output [expandQuoted] expands whose value the caller reads after: [value] is the term it expanded to, or
- * `null` where the expansion never reached it or stopped at it.
+ * `null` where the expansion never reached it or stopped at it, and [expanded] the output's copy of it that was expanded.
  */
 internal class Watched(val node: ElixirAst) {
     var value: Term? = null
+    var expanded: ElixirAst? = null
 }
 
 /**
@@ -259,7 +260,10 @@ internal class Run(
 
     /** [node] was expanded to [expansion], which the watch of it reads. */
     fun watched(node: ElixirAst, expansion: Expansion) {
-        watching.remove(node)?.value = (expansion as? Expansion.Expanded)?.value
+        watching.remove(node)?.let {
+            it.value = (expansion as? Expansion.Expanded)?.value
+            it.expanded = node
+        }
     }
 
     /**

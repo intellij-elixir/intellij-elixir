@@ -560,7 +560,7 @@ private fun queueEffect(
 }
 
 /** A call's arguments, evaluated where the walk reaches it. */
-private sealed interface ArgumentValues {
+internal sealed interface ArgumentValues {
     class Evaluated(val terms: List<Term>) : ArgumentValues
 
     /** Evaluating one of them raises, ending the module body with [expansion]. */
@@ -571,7 +571,7 @@ private sealed interface ArgumentValues {
  * [terms], the values [nodes] expanded to, each one that isn't known evaluated from the values [compiling]'s body has
  * bound, or kept where the evaluator can't produce it.
  */
-private fun evaluatedArguments(
+internal fun evaluatedArguments(
     terms: List<Term>,
     nodes: List<ElixirAst>,
     compiling: Compiling,
