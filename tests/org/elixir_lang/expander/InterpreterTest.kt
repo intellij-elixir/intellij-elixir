@@ -5885,6 +5885,25 @@ class InterpreterTest : PlatformTestCase() {
                 end
                 """,
             ),
+            // `defdelegate`'s options are read where the body runs it: `as: @a` at its point, and a variable's list.
+            macro(
+                "defdelegate:as-attribute-point",
+                "defmacro m, do: Macro.escape({{row}.DA.f(1), {row}.DA.g(2)})",
+                helper = """
+                defmodule {row}.DM do
+                  def foo(x), do: {:foo, x}
+                  def bar(x), do: {:bar, x}
+                end
+
+                defmodule {row}.DA do
+                  @a :foo
+                  defdelegate f(x), to: {row}.DM, as: @a
+                  @a :bar
+                  opts = [to: {row}.DM, as: :bar]
+                  defdelegate g(x), opts
+                end
+                """,
+            ),
             macro(
                 "fragment:name",
                 "defmacro m, do: Macro.escape({row}.FN.f())",
@@ -5973,6 +5992,17 @@ class InterpreterTest : PlatformTestCase() {
                     def unquote(elem({:f0, :f1, :f2, :f3}, @x))(), do: 1
                     @x 3
                     def unquote(elem({:g0, :g1, :g2, :g3}, @x))(), do: 1
+                  end
+                end
+                """,
+            ),
+            use(
+                "body:use-defdelegate-options",
+                """
+                defmacro __using__(_) do
+                  quote unquote: false do
+                    opts = [to: Kernel, as: :abs]
+                    defdelegate g(x), opts
                   end
                 end
                 """,

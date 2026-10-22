@@ -652,6 +652,11 @@ class ProjectModulesTest : PlatformTestCase() {
         assertSharedValueConvertsInBoundedWork("  @a t\n")
     }
 
+    /** As a value an effect is given, `defdelegate`'s options whose parts are shared convert in bounded work. */
+    fun testASharedValueInDefdelegatesOptionsConvertsInBoundedWork() {
+        assertSharedValueConvertsInBoundedWork("  defdelegate f(x), to: B, extra: t\n")
+    }
+
     /** A shared module-body value a definition unquotes converts in bounded work. */
     fun testASharedValueADefinitionUnquotesConvertsInBoundedWork() {
         assertSharedValueConvertsInBoundedWork("  def f, do: unquote(t)\n")

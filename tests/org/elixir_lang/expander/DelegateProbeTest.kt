@@ -80,6 +80,9 @@ class DelegateProbeTest : SdkProbeTestCase(accounting = true) {
             "defdelegate count(x), to: Enum, as: :map",
             "defdelegate count(x), to: M, as: :count",
             "defdelegate count(x), to: __MODULE__, as: :other",
+            // options as the body binds them
+            "@t Enum\ndefdelegate count(x), to: @t",
+            "defdelegate f(x), to: Enum, as: String.to_atom(\"count\")",
             // delegate_list
             "defdelegate [a(x), b(y)], to: M",
             "defdelegate [a(x), b(y)], to: M, as: :c",
@@ -106,10 +109,8 @@ class DelegateProbeTest : SdkProbeTestCase(accounting = true) {
         /** A `to:` or an `as:` the expander can't read stops the module at the `defdelegate`, as every unevaluated definition does. */
         val STOPPING = listOf(
             "defdelegate count(x), to: Application.get_env(:a, :b) || Enum",
-            "@t Enum\ndefdelegate count(x), to: @t",
             // an `as:` that isn't an atom is the function the delegate calls, or raises as the `delegate_to` metadata does
             "defdelegate f(x), to: Enum, as: \"count\"",
-            "defdelegate f(x), to: Enum, as: String.to_atom(\"count\")",
         )
 
         val RAISING = listOf(
