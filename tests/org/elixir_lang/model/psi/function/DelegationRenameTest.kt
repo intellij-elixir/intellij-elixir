@@ -1,14 +1,29 @@
 package org.elixir_lang.model.psi.function
 
 import com.intellij.ide.impl.HeadlessDataManager
+import com.intellij.model.search.SearchService
+import com.intellij.model.search.SearchWordQueryBuilder
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.progress.EmptyProgressIndicator
+import com.intellij.openapi.progress.ProcessCanceledException
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Computable
 import com.intellij.psi.search.GlobalSearchScope
+import com.intellij.testFramework.replaceService
+import com.intellij.util.concurrency.AppExecutorUtil
 import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.code_insight.psiUsagesAtCaret
 import org.elixir_lang.code_insight.renameTargetAtCaret
 import org.elixir_lang.code_insight.renameTargetDirectly
 import org.elixir_lang.code_insight.renameTargetsAtCaret
+import org.elixir_lang.model.psi.ElixirRenameTarget
+import org.elixir_lang.model.psi.RenameClosure
+import java.lang.management.ManagementFactory
 import java.time.Duration
+import java.util.concurrent.TimeUnit
 
 /**
  * Without `as:`, a `defdelegate`'s head also names the function it delegates to, so the two are one function to rename
@@ -305,13 +320,96 @@ class DelegationRenameTest : PlatformTestCase() {
         )
     }
 
-    /** Renaming from a use along a long chain renames every head and the target, about as fast as along a short chain. */
+    /** Renaming from a use along a long chain renames every head and the target. */
     fun testRenameAlongALongChain() {
-        val start = System.nanoTime()
-        assertRenamesFrom(LONG_CHAIN, LONG_CHAIN.replace("x(", "y("), "M.x|(1)")
-        val elapsed = Duration.ofNanos(System.nanoTime() - start)
+        val chain = longChain(LONG_CHAIN_LENGTH)
 
-        assertTrue("the rename took $elapsed", elapsed < Duration.ofSeconds(10))
+        assertRenamesFrom(chain, chain.replace("x(", "y("), "M.x|(1)")
+    }
+
+    /**
+     * Doubling the chain multiplies the rename closure's cost by less than [CLOSURE_GROWTH_BOUND]. The closure is not
+     * linear in the chain (5 to 6 times per doubling), and one more factor of the chain's length in its work
+     * doubles that again. A ratio of two costs on this run holds on a slow runner where a time would not.
+     */
+    fun testRenameClosureGrowsBoundedlyAlongAChain() {
+        val short = closureCost(LONG_CHAIN_LENGTH)
+        val long = closureCost(2 * LONG_CHAIN_LENGTH)
+
+        assertTrue(
+            "the closure took ${long / 1_000_000} ms along ${2 * LONG_CHAIN_LENGTH} delegations, over " +
+                "$CLOSURE_GROWTH_BOUND times its ${short / 1_000_000} ms along $LONG_CHAIN_LENGTH",
+            long < CLOSURE_GROWTH_BOUND * short
+        )
+    }
+
+    /** A chain's name is searched for once for the whole rename closure, not once for each delegation along it. */
+    fun testRenameClosureSearchesAChainsNameOnce() {
+        val text = longChain(LONG_CHAIN_LENGTH)
+        myFixture.configureByText("chain.ex", text)
+        val virtualFile = myFixture.file.virtualFile
+        myFixture.editor.caretModel.moveToOffset(text.indexOf("M.x(1)") + 3)
+        val searched = mutableListOf<String>()
+
+        try {
+            val target = myFixture.renameTargetsAtCaret().single() as ElixirRenameTarget
+            ApplicationManager.getApplication().replaceService(
+                SearchService::class.java,
+                WordRecordingSearchService(SearchService.getInstance(), searched),
+                myFixture.testRootDisposable
+            )
+
+            closureWithinCeiling(target)
+
+            assertEquals(listOf("x"), searched.filter { it == "x" })
+        } finally {
+            WriteCommandAction.runWriteCommandAction(project) { virtualFile.delete(this) }
+        }
+    }
+
+    /** [target]'s rename closure, which fails the test rather than running on if it has not finished within [CLOSURE_CEILING]. */
+    private fun closureWithinCeiling(target: ElixirRenameTarget): RenameClosure {
+        val indicator = EmptyProgressIndicator()
+        val ceiling = AppExecutorUtil.getAppScheduledExecutorService()
+            .schedule({ indicator.cancel() }, CLOSURE_CEILING.toMillis(), TimeUnit.MILLISECONDS)
+
+        try {
+            return ProgressManager.getInstance().runProcess(
+                Computable { runReadActionBlocking { target.renameClosure() } },
+                indicator
+            )
+        } catch (e: ProcessCanceledException) {
+            throw AssertionError("the closure was still running after $CLOSURE_CEILING", e)
+        } finally {
+            ceiling.cancel(false)
+        }
+    }
+
+    /** The CPU time of the best of three computations of the closure of `M.x/1` along [length] delegations, once warm. */
+    private fun closureCost(length: Int): Long {
+        val text = longChain(length)
+        myFixture.configureByText("chain$length.ex", text)
+        val virtualFile = myFixture.file.virtualFile
+        myFixture.editor.caretModel.moveToOffset(text.indexOf("M.x(1)") + 3)
+
+        try {
+            val target = myFixture.renameTargetsAtCaret().single() as ElixirRenameTarget
+            val thread = ManagementFactory.getThreadMXBean()
+
+            fun once(): Long {
+                val start = thread.currentThreadCpuTime
+                val closure = closureWithinCeiling(target)
+                val cost = thread.currentThreadCpuTime - start
+
+                assertEquals(length + 1, closure.members.size)
+                return cost
+            }
+
+            once()
+            return (1..3).minOf { once() }
+        } finally {
+            WriteCommandAction.runWriteCommandAction(project) { virtualFile.delete(this) }
+        }
     }
 
     /**
@@ -561,13 +659,18 @@ class DelegationRenameTest : PlatformTestCase() {
 
         const val LONG_CHAIN_LENGTH = 18
 
-        /** `M.x/1` delegating along [LONG_CHAIN_LENGTH] delegations, from the last `D` down to `D1`, then to `T.x/1`. */
-        val LONG_CHAIN =
+        const val CLOSURE_GROWTH_BOUND = 8
+
+        /** Ends a closure that does not finish, and is no assertion: one along the longest chain here takes well under a second. */
+        val CLOSURE_CEILING: Duration = Duration.ofMinutes(2)
+
+        /** `M.x/1` delegating along [length] delegations, from the last `D` down to `D1`, then to `T.x/1`. */
+        fun longChain(length: Int) =
             "defmodule T do\n  def x(a), do: a\nend\n\n" +
-                (1..LONG_CHAIN_LENGTH).joinToString("") { i ->
+                (1..length).joinToString("") { i ->
                     "defmodule D$i do\n  defdelegate x(a), to: ${if (i == 1) "T" else "D${i - 1}"}\nend\n\n"
                 } +
-                "defmodule M do\n  defdelegate x(a), to: D$LONG_CHAIN_LENGTH\n  def m_use, do: M.x(1)\nend\n"
+                "defmodule M do\n  defdelegate x(a), to: D$length\n  def m_use, do: M.x(1)\nend\n"
 
         const val PROTOCOL =
             "defprotocol P do\n  def snoc(t)\nend\n\n" +
@@ -613,5 +716,18 @@ class DelegationRenameTest : PlatformTestCase() {
                 "defmodule T do\n  def snoc(x), do: x\nend\n\n" +
                 "defmodule Impl do\n  @behaviour B\n  defdelegate snoc(list), to: T\nend\n\n" +
                 "defmodule U do\n  def u_use(x), do: Impl.snoc(x)\nend\n"
+    }
+}
+
+/** The platform's [SearchService] that notes each word a word search is built for. */
+@Suppress("UnstableApiUsage")
+private class WordRecordingSearchService(
+    private val real: SearchService,
+    private val words: MutableList<String>
+) : SearchService by real {
+    override fun searchWord(project: Project, word: String): SearchWordQueryBuilder {
+        words += word
+
+        return real.searchWord(project, word)
     }
 }

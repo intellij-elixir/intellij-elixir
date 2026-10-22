@@ -756,6 +756,8 @@
 
 ### Build / CI
 
+- [#4518](https://github.com/intellij-elixir/intellij-elixir/pull/4518) [@sh41](https://github.com/sh41)
+  - **The test that renames along a long `defdelegate` chain no longer fails on a slow runner: it checks how the work grows with the chain, not how long it takes.** Fixes [#4515](https://github.com/intellij-elixir/intellij-elixir/issues/4515).
 - [#4498](https://github.com/intellij-elixir/intellij-elixir/pull/4498) [@sh41](https://github.com/sh41)
   - **A test that fails for an unexpected logged error now shows the attachments and details the error was logged with, such as the platform's coroutine and thread dumps.** Refs [#4492](https://github.com/intellij-elixir/intellij-elixir/issues/4492).
 - [#4480](https://github.com/intellij-elixir/intellij-elixir/pull/4480) [@sh41](https://github.com/sh41)
