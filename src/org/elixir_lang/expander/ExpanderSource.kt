@@ -54,7 +54,7 @@ internal object ExpanderSource : CandidateSource {
 
         return when (use) {
             is Use.OfCall -> inputs(use.entrance)?.let { answer(use, it) }.orEmpty()
-            is Use.Specified, is Use.Remote -> emptyList()
+            is Use.Specified, is Use.Remote, is Use.Tag -> emptyList()
         }
     }
 

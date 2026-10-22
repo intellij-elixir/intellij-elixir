@@ -20,100 +20,98 @@ class HeexComponentTargetTest : HeexHostTestCase() {
     override fun getTestDataPath(): String = "testData/org/elixir_lang/heex/component_target"
 
     fun testOpaqueFunctionImportedLocal() =
-        assertTag("opaque", ".button", LOCAL_CALL, Versus.SAME, target = null, declaration = null, symbols = emptyList())
+        assertTag("opaque", ".button", LOCAL_CALL, target = null, declaration = null, symbols = emptyList())
 
     fun testOpaqueFunctionRemote() =
-        assertTag("opaque", REMOTE_TAG, REMOTE_CALL, Versus.DIFFERENT, target = null, declaration = null, symbols = emptyList())
+        assertTag("opaque", REMOTE_TAG, REMOTE_CALL, EEX_FUNCTION, EEX_FUNCTION, emptyList())
 
     fun testOpaqueFunctionOwn() =
-        assertTag("opaque_own", ".button", LOCAL_CALL, Versus.DIFFERENT, target = null, declaration = null, symbols = emptyList())
+        assertTag("opaque_own", ".button", LOCAL_CALL, OWN_EEX_FUNCTION, OWN_EEX_FUNCTION, emptyList())
 
-    fun testContractImportedLocal() = assertTag("contract", ".button", LOCAL_CALL, Versus.SAME, DEF, BUTTON, BUTTON_1)
+    fun testContractImportedLocal() = assertTag("contract", ".button", LOCAL_CALL, DEF, BUTTON, BUTTON_1)
 
     fun testContractRemote() =
-        assertTag("contract", REMOTE_TAG, REMOTE_CALL, Versus.DIFFERENT, CALLBACK, CALLBACK, emptyList())
+        assertTag("contract", REMOTE_TAG, REMOTE_CALL, DEF, BUTTON, BUTTON_1)
 
     fun testContractOwn() =
-        assertTag("contract_own", ".button", LOCAL_CALL, Versus.DIFFERENT, OWN_CALLBACK, OWN_CALLBACK, emptyList())
+        assertTag("contract_own", ".button", LOCAL_CALL, OWN_DEF, OWN_BUTTON, BUTTON_1)
 
-    fun testTwoImportsFullImportLast() = assertTag("two_imports", ".button", LOCAL_CALL, Versus.SAME, DEF, BUTTON, BUTTON_1)
+    fun testTwoImportsFullImportLast() = assertTag("two_imports", ".button", LOCAL_CALL, DEF, BUTTON, BUTTON_1)
 
-    fun testTwoImportsFullImportLastRemote() = assertTag("two_imports", REMOTE_TAG, REMOTE_CALL, Versus.SAME, DEF, BUTTON, BUTTON_1)
+    fun testTwoImportsFullImportLastRemote() = assertTag("two_imports", REMOTE_TAG, REMOTE_CALL, DEF, BUTTON, BUTTON_1)
 
     fun testTwoImportsRestrictedImportLast() =
-        assertTag("two_imports_last", ".button", LOCAL_CALL, Versus.UNCOMPARED, DEF, BUTTON, BUTTON_1)
+        assertTag("two_imports_last", ".button", LOCAL_CALL, DEF, BUTTON, BUTTON_1, callAnswer = null)
 
-    fun testOverriddenImportedLocal() = assertTag("overridden_def", ".button", LOCAL_CALL, Versus.SAME, DEF, BUTTON, BUTTON_1)
+    fun testOverriddenImportedLocal() = assertTag("overridden_def", ".button", LOCAL_CALL, DEF, BUTTON, BUTTON_1)
 
-    fun testOverriddenRemote() = assertTag("overridden_def", REMOTE_TAG, REMOTE_CALL, Versus.DIFFERENT, DEF, BUTTON, BUTTON_1)
+    fun testOverriddenRemote() = assertTag("overridden_def", REMOTE_TAG, REMOTE_CALL, OVERRIDING_DEF, BUTTON, BUTTON_1)
 
     fun testOverriddenOwn() =
-        assertTag("overridden_def_own", ".button", LOCAL_CALL, Versus.DIFFERENT, OWN_DEF, OWN_BUTTON, BUTTON_1)
+        assertTag("overridden_def_own", ".button", LOCAL_CALL, OWN_OVERRIDING_DEF, OWN_BUTTON, BUTTON_1)
 
     fun testExceptionMessageOverriddenImportedLocal() =
-        assertTag("exception_overridden", ".message", MESSAGE_CALL, Versus.SAME, MESSAGE_DEF, MESSAGE, MESSAGE_1)
+        assertTag("exception_overridden", ".message", MESSAGE_CALL, MESSAGE_DEF, MESSAGE, MESSAGE_1)
 
     fun testExceptionMessageOverriddenRemote() =
-        assertTag("exception_overridden", REMOTE_MESSAGE_TAG, REMOTE_MESSAGE_CALL, Versus.DIFFERENT, DEFEXCEPTION, DEFEXCEPTION, emptyList())
+        assertTag("exception_overridden", REMOTE_MESSAGE_TAG, REMOTE_MESSAGE_CALL, MESSAGE_DEF, MESSAGE, MESSAGE_1)
 
     fun testExceptionMessageOverriddenOwn() =
-        assertTag("exception_overridden_own", ".message", MESSAGE_CALL, Versus.DIFFERENT, OWN_DEFEXCEPTION, OWN_DEFEXCEPTION, emptyList())
+        assertTag("exception_overridden_own", ".message", MESSAGE_CALL, OWN_MESSAGE_DEF, OWN_MESSAGE, MESSAGE_1)
 
     fun testExceptionMessageKeptImportedLocal() =
-        assertTag("exception_kept", ".message", MESSAGE_CALL, Versus.SAME, target = null, declaration = null, symbols = emptyList())
+        assertTag("exception_kept", ".message", MESSAGE_CALL, target = null, declaration = null, symbols = emptyList())
 
     fun testExceptionMessageKeptRemote() =
-        assertTag("exception_kept", REMOTE_MESSAGE_TAG, REMOTE_MESSAGE_CALL, Versus.SAME, DEFEXCEPTION, DEFEXCEPTION, emptyList())
+        assertTag("exception_kept", REMOTE_MESSAGE_TAG, REMOTE_MESSAGE_CALL, DEFEXCEPTION, DEFEXCEPTION, emptyList())
 
     fun testExceptionMessageKeptOwn() =
-        assertTag("exception_kept_own", ".message", MESSAGE_CALL, Versus.SAME, OWN_DEFEXCEPTION, OWN_DEFEXCEPTION, emptyList())
+        assertTag("exception_kept_own", ".message", MESSAGE_CALL, OWN_DEFEXCEPTION, OWN_DEFEXCEPTION, emptyList())
 
-    fun testDelegationLocal() = assertTag("delegate", ".button", LOCAL_CALL, Versus.SAME, DEFDELEGATE, DEFDELEGATE, emptyList())
+    fun testDelegationLocal() = assertTag("delegate", ".button", LOCAL_CALL, DEFDELEGATE, DEFDELEGATE, emptyList())
 
-    fun testDelegationRemote() = assertTag("delegate", REMOTE_TAG, REMOTE_CALL, Versus.SAME, DEFDELEGATE, DEFDELEGATE, emptyList())
+    fun testDelegationRemote() = assertTag("delegate", REMOTE_TAG, REMOTE_CALL, DEFDELEGATE, DEFDELEGATE, emptyList())
 
     fun testDelegationWithUnquoteSplicingLocal() =
-        assertTag("unquote_splicing", ".button", LOCAL_CALL, Versus.SAME, SPLICED_DEFDELEGATE, SPLICED_DEFDELEGATE, emptyList())
+        assertTag("unquote_splicing", ".button", LOCAL_CALL, SPLICED_DEFDELEGATE, SPLICED_DEFDELEGATE, emptyList())
 
     fun testDelegationWithUnquoteSplicingRemote() =
-        assertTag("unquote_splicing", REMOTE_TAG, REMOTE_CALL, Versus.SAME, SPLICED_DEFDELEGATE, SPLICED_DEFDELEGATE, emptyList())
+        assertTag("unquote_splicing", REMOTE_TAG, REMOTE_CALL, SPLICED_DEFDELEGATE, SPLICED_DEFDELEGATE, emptyList())
 
-    fun testSpecLocal() = assertTag("spec", ".button", LOCAL_CALL, Versus.SAME, DEF, BUTTON, BUTTON_1)
+    fun testSpecLocal() = assertTag("spec", ".button", LOCAL_CALL, DEF, BUTTON, BUTTON_1)
 
-    fun testSpecRemote() = assertTag("spec", REMOTE_TAG, REMOTE_CALL, Versus.SAME, DEF, BUTTON, BUTTON_1)
+    fun testSpecRemote() = assertTag("spec", REMOTE_TAG, REMOTE_CALL, DEF, BUTTON, BUTTON_1)
 
-    fun testDefaultArgumentLocal() = assertTag("default", ".button", LOCAL_CALL, Versus.SAME, DEFAULT_DEF, BUTTON, BUTTON_1_AND_2)
+    fun testDefaultArgumentLocal() = assertTag("default", ".button", LOCAL_CALL, DEFAULT_DEF, BUTTON, BUTTON_1_AND_2)
 
-    fun testDefaultArgumentRemote() = assertTag("default", REMOTE_TAG, REMOTE_CALL, Versus.SAME, DEFAULT_DEF, BUTTON, BUTTON_1_AND_2)
+    fun testDefaultArgumentRemote() = assertTag("default", REMOTE_TAG, REMOTE_CALL, DEFAULT_DEF, BUTTON, BUTTON_1_AND_2)
 
-    fun testMacroLocal() = assertTag("macro", ".button", LOCAL_CALL, Versus.SAME, DEFMACRO, DEFMACRO, BUTTON_1)
+    fun testMacroLocal() = assertTag("macro", ".button", LOCAL_CALL, DEFMACRO, DEFMACRO, BUTTON_1)
 
-    fun testMacroRemote() = assertTag("macro", REMOTE_TAG, REMOTE_CALL, Versus.SAME, DEFMACRO, DEFMACRO, BUTTON_1)
+    fun testMacroRemote() = assertTag("macro", REMOTE_TAG, REMOTE_CALL, DEFMACRO, DEFMACRO, BUTTON_1)
 
     /** A module present only as a `.beam` is no source modular, so a remote tag to it resolves to nothing. */
     fun testCompiledModuleRemote() {
         addKernelBeam()
 
-        assertTag("compiled", "Kernel.abs", null, Versus.UNCOMPARED, target = null, declaration = null, symbols = emptyList())
+        assertTag("compiled", "Kernel.abs", null, target = null, declaration = null, symbols = emptyList())
     }
 
     /** A function imported from a module present only as a `.beam` is no source clause, so a local tag resolves to nothing. */
     fun testCompiledFunctionImportedLocal() {
         addKernelBeam()
 
-        assertTag("compiled", ".abs", null, Versus.UNCOMPARED, target = null, declaration = null, symbols = emptyList())
+        assertTag("compiled", ".abs", null, target = null, declaration = null, symbols = emptyList())
     }
-
-    private enum class Versus { SAME, DIFFERENT, UNCOMPARED }
 
     private fun assertTag(
         directory: String,
         tagName: String,
         callText: String?,
-        comparison: Versus,
         target: String?,
         declaration: String?,
-        symbols: List<String>
+        symbols: List<String>,
+        callAnswer: String? = target
     ) {
         configure(directory)
         val tag = tag(tagName)
@@ -127,12 +125,8 @@ class HeexComponentTargetTest : HeexHostTestCase() {
             HeexComponentResolver.resolveFunctionSymbols(tag).map { "${it.name}/${it.arity}" }
         )
 
-        val callTarget = callText?.let { text(call(directory, it).reference?.resolve()) }
-
-        when (comparison) {
-            Versus.SAME -> assertEquals("the call at the same place", callTarget, resolvedTarget)
-            Versus.DIFFERENT -> assertFalse("the call at the same place resolves to $callTarget", callTarget == resolvedTarget)
-            Versus.UNCOMPARED -> Unit
+        if (callText != null) {
+            assertEquals("the call at the same place", callAnswer, text(call(directory, callText).reference?.resolve()))
         }
     }
 
@@ -178,7 +172,6 @@ class HeexComponentTargetTest : HeexHostTestCase() {
 
         const val DEF = "core_components.ex: def button(assigns), do: assigns"
         const val BUTTON = "core_components.ex: button"
-        const val CALLBACK = "core_components.ex: @callback button(map) :: term"
         const val MESSAGE_DEF = "core_components.ex: def message(assigns), do: assigns"
         const val MESSAGE = "core_components.ex: message"
         const val DEFEXCEPTION = "core_components.ex: defexception [:message]"
@@ -188,9 +181,14 @@ class HeexComponentTargetTest : HeexHostTestCase() {
         const val DEFAULT_DEF = "core_components.ex: def button(assigns, opts \\\\ []), do: {assigns, opts}"
         const val DEFMACRO = "core_components.ex: defmacro button(assigns), do: assigns"
 
-        const val OWN_CALLBACK = "page_live.ex: @callback button(map) :: term"
+        const val OVERRIDING_DEF = "core_components.ex: def button(assigns), do: {:overridden, assigns}"
+        const val EEX_FUNCTION = "core_components.ex: EEx.function_from_string(:def, :button, \"<%= @x %>\", @args)"
+        const val OWN_EEX_FUNCTION = "page_live.ex: EEx.function_from_string(:def, :button, \"<%= @x %>\", @args)"
         const val OWN_DEF = "page_live.ex: def button(assigns), do: assigns"
+        const val OWN_OVERRIDING_DEF = "page_live.ex: def button(assigns), do: {:overridden, assigns}"
         const val OWN_BUTTON = "page_live.ex: button"
+        const val OWN_MESSAGE_DEF = "page_live.ex: def message(assigns), do: assigns"
+        const val OWN_MESSAGE = "page_live.ex: message"
         const val OWN_DEFEXCEPTION = "page_live.ex: defexception [:message]"
 
         val BUTTON_1 = listOf("button/1")

@@ -1,6 +1,7 @@
 package org.elixir_lang.declaration
 
 import com.intellij.psi.PsiElement
+import com.intellij.psi.xml.XmlTag
 import com.intellij.util.concurrency.ThreadingAssertions
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.model.psi.atom.mfaReferenceDecision
@@ -91,7 +92,20 @@ sealed class Use {
         val arity: Int?
     ) : Use()
 
+    /**
+     * A HEEx component [tag] named [name], used as a call of one argument from [entrance]: the view's Elixir root, or a
+     * module a remote tag's alias names.
+     */
+    @ConsistentCopyVisibility
+    data class Tag internal constructor(val tag: XmlTag, val entrance: PsiElement, val name: String) : Use() {
+        val arity: Int get() = 1
+    }
+
     companion object {
+        /** The use of the component a HEEx [tag] named [name] names, from [entrance]. */
+        @RequiresReadLock
+        fun tag(tag: XmlTag, entrance: PsiElement, name: String): Tag = Tag(tag, entrance, name)
+
         /** `null` when [call] names nothing, as when its name has no atom value. */
         @RequiresReadLock
         fun of(call: Call): OfCall? = of(call, Unquote.arity(call))
