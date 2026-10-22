@@ -150,7 +150,8 @@ internal fun decline(reason: String, vararg terms: OtpErlangObject): Nothing =
 
 /**
  * [term] as Erlang writes it, cut short with `...` after its first [NAMED_NODES] nodes: a term can hold one part in
- * many places, so writing it whole can take as long as walking it.
+ * many places, so writing it whole can take as long as walking it. An integer wider than [NAMED_BITS] is `...` too:
+ * writing its digits costs more than its width, 167 ms at 2^21 bits.
  */
 private class Named(term: OtpErlangObject) {
     private val written = StringBuilder()
@@ -184,6 +185,7 @@ private class Named(term: OtpErlangObject) {
 
                 written.append("}")
             }
+            is OtpErlangLong if term.bitLength() > NAMED_BITS -> written.append("...")
             else -> written.append(term)
         }
     }
@@ -209,6 +211,9 @@ private class Named(term: OtpErlangObject) {
 
 /** The nodes of a term a decline names: enough to tell the term, far fewer than one sharing its parts can hold. */
 private const val NAMED_NODES = 32
+
+/** The widest integer a decline writes, whose digits take less time to write than the longest atom's 255 characters. */
+private const val NAMED_BITS = 1024
 
 /** An exception of class [kind] (`error`, `throw` or `exit`) the body raised, with its [reason] and [stacktrace]. */
 internal class Thrown(val kind: String, val reason: OtpErlangObject, val stacktrace: OtpErlangObject) :
