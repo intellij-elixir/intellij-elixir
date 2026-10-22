@@ -61,6 +61,7 @@ jobs:
         id: detect
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
           PREVIOUS_SHA: ${{ steps.previous.outputs.sha }}
           # Fallback basis on a branch's first run, so a changelog-only pull request skips then too.
           BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}

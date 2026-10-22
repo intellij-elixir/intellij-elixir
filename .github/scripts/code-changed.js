@@ -38,7 +38,13 @@ function run() {
     }
   }
   const previousSha = basis;
-  if (previousSha === head) return { code: true, why: `${origin} is this same sha` };
+  if (previousSha === head) {
+    // A rerun or a manual run asks to run again; a night with no new commit since its last success
+    // does not. The merge base is the head itself on main, which says nothing was tested.
+    return process.env.EVENT_NAME === 'schedule' && previous
+      ? { code: false, why: `${origin} is this same sha, so the scheduled run has nothing new to test` }
+      : { code: true, why: `${origin} is this same sha` };
+  }
 
   try {
     git('cat-file', '-e', `${previousSha}^{commit}`);
