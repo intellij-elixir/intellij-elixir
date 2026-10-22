@@ -12,7 +12,7 @@
 //
 // Which legs exist depends on the event. A pull request or a push to main gets the IDEA legs, the pairs
 // marked `pull-request` in the declaration, and (on a pull request only) Windows when it changes the code
-// Windows has found bugs in. Any other event - the nightly run, a manual run, a release - gets every
+// Windows has found bugs in. Any other event - the nightly run, a manual run, tag.yml's release dispatch - gets every
 // declared leg, so an event this file does not know composes the most, not the least.
 // A run on main also drops the jobs merged-head-jobs.js says already passed over the same code.
 

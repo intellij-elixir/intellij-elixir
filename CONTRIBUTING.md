@@ -450,8 +450,9 @@ update them in the same commit as `.github/ci-versions.json`.
 
 Tests always run against IntelliJ IDEA. The legs are every declared IDEA version on Ubuntu (arm64) with
 `beam.baseline`, plus one leg per `beam.additional` pair on the minimum supported IDEA, plus
-`beam.baseline` on Windows. That is the full matrix, which the nightly run on `main` (and a manual or
-release run) tests. A pull request, and a push to `main`, tests a subset:
+`beam.baseline` on Windows. That is the full matrix, which the nightly run on `main` and a manual run
+(including the one `tag.yml` makes for a release) test. A pull request, and a push to `main` (the run
+`release.yml` makes after each merge), tests a subset:
 
 - the IDEA legs, which run `beam.baseline`;
 - the `beam.additional` pairs marked `"pull-request": true` in `.github/ci-versions.json`;
@@ -469,7 +470,8 @@ head, when the merge left the code equal to that head (`.github/scripts/merged-h
 nothing out when the merge changes something a cache is keyed on or holds; the list is beside the rule.
 The job name of a leg on a version pointer such as `LATEST-EAP-SNAPSHOT` carries the build it resolved
 (`ideaIU LATEST-EAP-SNAPSHOT 263.5701.42`), so a pass on an older build is not reused. Qodana's runs on
-`main` are not affected.
+`main` are not affected. A nightly run with no new commit on `main` since the last successful one runs
+only the `Changes` job.
 
 Two scripts in `.github/scripts` read that file, so you can see what a change to it produces without
 pushing:
