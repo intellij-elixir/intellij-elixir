@@ -7,6 +7,7 @@ import org.elixir_lang.psi.CallDefinitionClause.enclosingModularMacroCall
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.structure_view.element.CallDefinitionClause
 import org.elixir_lang.structure_view.element.CallDefinitionHead
+import org.elixir_lang.structure_view.element.Timed
 
 class GotoSymbolContributorTest : PlatformTestCase() {
     private fun gotoSymbolContributor(): GotoSymbolContributor {
@@ -76,6 +77,22 @@ class GotoSymbolContributorTest : PlatformTestCase() {
         val items = gotoSymbolContributor().getItemsByName("P.Outer", "P.Outer", myFixture.project, false)
 
         assertEquals("P.Outer", items.single().name)
+    }
+
+    /** A `defguard` is expanded at compile time, as Elixir defines it with `defmacro`, so Go To Symbol lists it so. */
+    fun testADefguardIsListedAsCompileTime() = assertListedAsCompileTime("defguard is_small(x) when x < 10")
+
+    fun testADefguardpIsListedAsCompileTime() = assertListedAsCompileTime("defguardp is_small(x) when x < 10")
+
+    private fun assertListedAsCompileTime(definition: String) {
+        myFixture.configureByText("guards.ex", "defmodule Guards do\n  $definition\nend\n")
+
+        val items = gotoSymbolContributor().getItemsByName("is_small", "is_small", myFixture.project, false)
+
+        assertEquals(
+            listOf(Timed.Time.COMPILE),
+            items.filterIsInstance<CallDefinitionClause>().map { it.callDefinition.time() }
+        )
     }
 
     fun testIssue472() {
