@@ -95,8 +95,12 @@ object Resolved {
      * it delegates to; else its only valid result.
      */
     @JvmStatic
-    fun target(reference: PsiPolyVariantReference): PsiElement? {
-        val valid = reference.multiResolve(false).filter(ResolveResult::isValidResult)
+    fun target(reference: PsiPolyVariantReference): PsiElement? = target(reference.multiResolve(false).asList())
+
+    /** The target [results] give, by the rule [target] applies to a reference's. */
+    @JvmStatic
+    fun target(results: List<ResolveResult>): PsiElement? {
+        val valid = results.filter(ResolveResult::isValidResult)
 
         return (valid.firstOrNull { it !is Opaque } ?: valid.singleOrNull())?.element
     }

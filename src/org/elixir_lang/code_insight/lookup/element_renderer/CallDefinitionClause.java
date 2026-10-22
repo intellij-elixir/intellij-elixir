@@ -135,10 +135,9 @@ public class CallDefinitionClause extends com.intellij.codeInsight.lookup.Lookup
         // a RowIcon of [time (function/macro), visibility, call-definition-clause].  Only exported
         // (public) definitions are offered in completion, so visibility is PUBLIC.
         RowIcon icon = new RowIcon(3);
-        icon.setIcon(switch (callDefinition.getCapabilities().getPresentation()) {
-            case FUNCTION -> Icons.Time.RUN;
-            case MACRO, GUARD -> Icons.Time.COMPILE;
-        }, 0);
+        icon.setIcon(
+                Icons.Time.from(org.elixir_lang.structure_view.element.CallDefinitionClause.time(callDefinition.getCapabilities())),
+                0);
         icon.setIcon(Icons.Visibility.from(Visibility.PUBLIC), 1);
         icon.setIcon(Icons.CALL_DEFINITION_CLAUSE, 2);
         presentation.setIcon(icon);

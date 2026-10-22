@@ -4,7 +4,7 @@ import com.intellij.ide.util.treeView.smartTree.TreeElement
 import com.intellij.navigation.ItemPresentation
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.call.Visibility
-import org.elixir_lang.declaration.Presentation
+import org.elixir_lang.declaration.Capabilities
 import org.elixir_lang.errorreport.Logger
 import org.elixir_lang.navigation.item_presentation.NameArity
 import org.elixir_lang.psi.CallDefinitionClause.capabilities
@@ -118,19 +118,20 @@ class CallDefinitionClause(val callDefinition: CallDefinition, call: Call) :
          * a macro.
          *
          * @param call def(macro)?p?
-         * @return [Timed.Time.COMPILE] for `defmacrop?`; [Timed.Time.RUN] for `defp?`
+         * @return [Timed.Time.COMPILE] for `defmacrop?` and `defguardp?`; [Timed.Time.RUN] for `defp?`
          */
         @RequiresReadLock
         fun time(call: Call): Timed.Time =
-            when (capabilities(call)?.presentation) {
-                Presentation.FUNCTION, Presentation.GUARD -> Timed.Time.RUN
-                Presentation.MACRO -> Timed.Time.COMPILE
-                null -> {
-                    Logger.error(logger, "Don't whether call is at runtime or compile-time", call)
+            capabilities(call)?.let { time(it) } ?: run {
+                Logger.error(logger, "Don't know whether call is at runtime or compile-time", call)
 
-                    Timed.Time.RUN
-                }
+                Timed.Time.RUN
             }
+
+        /** [Timed.Time.COMPILE] for what is expanded at compile time, a guard as much as a macro. */
+        @JvmStatic
+        fun time(capabilities: Capabilities): Timed.Time =
+            if (capabilities.compileTime) Timed.Time.COMPILE else Timed.Time.RUN
 
         /**
          * @param call
