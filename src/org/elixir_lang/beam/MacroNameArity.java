@@ -25,7 +25,7 @@ public class MacroNameArity implements Comparable<MacroNameArity> {
      */
 
     public static final Map<Visibility, String> FUNCTION_MACRO_BY_VISIBILITY = new EnumMap<>(Visibility.class);
-    private static final String MACRO_EXPORT_PREFIX = "MACRO-";
+    public static final String MACRO_EXPORT_PREFIX = "MACRO-";
     private static final Map<Visibility, String> MACRO_MACRO_BY_VISIBILITY = new EnumMap<>(Visibility.class);
     public static final List<String> MACRO_ORDER = Arrays.asList(DEFMACRO, DEFMACROP, DEF, DEFP);
     private static final Map<String, Integer> ORDER_BY_MACRO = new HashMap<>();

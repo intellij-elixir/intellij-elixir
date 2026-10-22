@@ -1,6 +1,7 @@
 package org.elixir_lang.expander
 
 import org.elixir_lang.NameArity
+import org.elixir_lang.beam.MacroNameArity.MACRO_EXPORT_PREFIX
 
 /** What each module exports, as `elixir_aliases:ensure_loaded/3` and `elixir_import` read it. */
 fun interface Exports {
@@ -78,15 +79,13 @@ sealed class ModuleExports {
         /** The exports `__info__(:functions)` leaves out: [INTERNALS] and [INFO]. */
         val NOT_IN_INFO: Set<NameArity> = INTERNALS + INFO
 
-        private const val MACRO_PREFIX = "MACRO-"
-
         /** The function Elixir compiles [macro] to and exports: `MACRO-<name>`, taking the caller first. */
-        fun macroExport(macro: NameArity): NameArity = NameArity(MACRO_PREFIX + macro.name, macro.arity + 1)
+        fun macroExport(macro: NameArity): NameArity = NameArity(MACRO_EXPORT_PREFIX + macro.name, macro.arity + 1)
 
         /** The macro [export] is the [macroExport] of, or `null` where it is a function's. */
         fun macroOf(export: NameArity): NameArity? =
-            if (export.name.startsWith(MACRO_PREFIX)) {
-                NameArity(export.name.removePrefix(MACRO_PREFIX), export.arity - 1)
+            if (export.name.startsWith(MACRO_EXPORT_PREFIX)) {
+                NameArity(export.name.removePrefix(MACRO_EXPORT_PREFIX), export.arity - 1)
             } else {
                 null
             }
