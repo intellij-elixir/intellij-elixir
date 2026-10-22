@@ -151,7 +151,7 @@ private fun defimpl(
     }
 
     val from = run.pending.size
-    val expansion = expandQuoted(node, KERNEL, output, state, env, run, supplied = supplied)
+    val expansion = expandQuoted(node, KERNEL, output, state, env, run, supplied = supplied, ports = true)
 
     if (expansion is Expansion.Expanded && protocolName != null) {
         val queued = run.pending.subList(from, run.pending.size).toList()
@@ -214,6 +214,7 @@ private fun implemented(
         settle = { pending -> ImplTail(protocol, type).settled(pending) },
         applied = module.applied,
         injectedBy = module.injectedBy,
+        outer = module.outer,
     )
 
     if (compiling == null) return listOf(settled)

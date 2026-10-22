@@ -99,8 +99,8 @@ internal object LoadedModules {
         struct ?: if (table.entries.keys.any(::buildsStruct)) ModuleStruct.Unreadable else ModuleStruct.Absent
 
     /**
-     * The exports of a module the file defines that [file] didn't compile: none where the expansion reached the file's
-     * end or raised before it, and unknown where it stopped short.
+     * The exports of a module the file defines that [file] didn't compile: none where the run compiled every module it
+     * reached or a certain raise ended it, and unknown where it stopped short of a module Elixir may have compiled.
      */
     fun uncompiledExports(file: FileExpansion): ModuleExports =
         if (stoppedShort(file)) ModuleExports.Unreadable else ModuleExports.Absent
@@ -111,19 +111,33 @@ internal object LoadedModules {
 
     private enum class Loading { UNREADABLE, LOADED, ABSENT }
 
+    /** How [result]'s module loads, where the project compiles: an error from uncertain inputs is assumed not to raise. */
     private fun loading(result: ExpansionResult): Loading =
         when {
-            result.ended.raises -> Loading.ABSENT
-            result.ended is ExpansionResult.Ended.Stopped || !result.table.everyNameKnown -> Loading.UNREADABLE
-            result.ended == ExpansionResult.Ended.Compiled -> Loading.LOADED
-            else -> Loading.ABSENT
+            result.ended.endsRun -> Loading.ABSENT
+            result.definitionsKnown -> Loading.LOADED
+            else -> Loading.UNREADABLE
         }
 
-    private fun stoppedShort(file: FileExpansion): Boolean =
+    /** Whether [file]'s run may have skipped a module Elixir compiled: its top stopped, or a module's run [skips] one. */
+    fun stoppedShort(file: FileExpansion): Boolean =
         when (file.top) {
-            is Expansion.Expanded, is Expansion.Error -> false
+            is Expansion.Expanded, is Expansion.Error -> file.modules.any(::skips)
             is Expansion.Unported, is Expansion.Opaque -> true
         }
+
+    /**
+     * Whether [result]'s run, or a nested module's, may have skipped a module Elixir compiled: an expansion stopped, the
+     * body's or a callback output's, after which nothing was queued, or a stop left `@before_compile` callbacks unrun.
+     */
+    private fun skips(result: ExpansionResult): Boolean {
+        ProgressManager.checkCanceled()
+
+        val ended = result.ended
+
+        // A stop that may raise ended the run at or before what it skipped, so Elixir ran none of that.
+        return ended is ExpansionResult.Ended.Stopped && ended.skipped && !ended.mayRaise || result.nested.any(::skips)
+    }
 
     /** What `__info__` gives for a module that has it, and `module_info(exports)` for one that doesn't. */
     fun exports(beam: ByteArray, path: String): ModuleExports =

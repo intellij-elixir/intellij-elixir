@@ -29,7 +29,7 @@ internal val DEFPROTOCOL = Summary { _, node, state, env, run ->
         Expansion.Unported(node)
     } else {
         val from = run.pending.size
-        val expansion = expandQuoted(node, KERNEL, ProtocolOutput(Synthetic(node.meta), run.level, name, block).output(), state, env, run)
+        val expansion = expandQuoted(node, KERNEL, ProtocolOutput(Synthetic(node.meta), run.level, name, block).output(), state, env, run, ports = true)
         val index = (from until run.pending.size).firstOrNull { run.pending[it] is Pending.Module }
 
         if (expansion is Expansion.Expanded && index != null) {
@@ -40,6 +40,8 @@ internal val DEFPROTOCOL = Summary { _, node, state, env, run ->
                 settle = { pending -> ProtocolTail(module.name, module.node.meta, run.level).settled(pending) },
                 applied = setOf(PROTOCOL to "__before_compile__"),
                 injectedBy = module.injectedBy,
+                outer = module.outer,
+                placed = module.placed,
             )
         }
 
@@ -58,7 +60,7 @@ internal val PROTOCOL_DEF = Summary { _, node, state, env, run ->
         is ProtocolFunction.Declared -> {
             val from = run.pending.size
             val output = ProtocolDefOutput(Synthetic(node.meta), run.level, shape.name, shape.arguments).output()
-            val expansion = expandQuoted(node, PROTOCOL, output, state, env, run)
+            val expansion = expandQuoted(node, PROTOCOL, output, state, env, run, ports = true)
 
             if (expansion is Expansion.Expanded) knowFunctions(shape, from, run)
 
@@ -118,10 +120,14 @@ private fun knowFunctions(shape: ProtocolFunction.Declared, from: Int, run: Run)
 
     val declared = Term.Pair(Term.Atom(shape.name), Term.Integer(BigInteger.valueOf(shape.arguments.size.toLong())))
 
-    run.pending[index] = Pending.Attribute(write.effect, write.at, statement = true) { attributes ->
+    run.pending[index] = Pending.Attribute(write.effect, write.at, statement = true, write.raises) { attributes ->
         val before = attributes.read(attribute) as? Term.List
 
-        if (before == null || before.tail != null) write.effect else Effect.Write(attribute, Term.List(listOf(declared) + before.elements))
+        if (before == null || before.tail != null) {
+            write.resolve?.invoke(attributes) ?: write.effect
+        } else {
+            Effect.Write(attribute, Term.List(listOf(declared) + before.elements))
+        }
     }
 }
 

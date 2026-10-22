@@ -2,6 +2,7 @@ package org.elixir_lang.expander
 
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
+import com.intellij.psi.PsiElement
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
@@ -590,6 +591,29 @@ class ModuleExpanderTest : ExpanderTestCase() {
             module nil raised invalid_module_name `defmodule __MODULE__, do: :ok`
             """.trimIndent()
         }
+
+    /**
+     * A module defined before a name that isn't an atom loads with its definitions on either side of the fast path:
+     * before 1.13 the file's expansion stops at the name, after the module, and from 1.13 the fast path raises there.
+     */
+    fun testAModuleBeforeANameThatIsntAnAtomIsLoaded() {
+        val code = "defmodule A do\n  def f, do: 1\nend\ndefmodule Module.concat(Foo, Bar) do\nend\ndefmodule C do\nend"
+
+        assertEquals(
+            FAST_PATH_LEVELS.joinToString("\n") { "$it: Elixir.A Present f/0" },
+            FAST_PATH_LEVELS.joinToString("\n") { version ->
+                val level = ElixirLanguageLevel.of(version)
+                val file = Expander.expandFile(lower(code, level), Env.empty(level, kernel), level, exports, structs)
+
+                "$version: " + file.modules.filter { it.module == "Elixir.A" }.joinToString { result ->
+                    val loaded = LoadedModules.exports(result)
+                    val functions = (loaded as? ModuleExports.Present)?.functions?.joinToString { "${it.name}/${it.arity}" }
+
+                    "${result.module} ${loaded::class.simpleName} $functions"
+                }
+            },
+        )
+    }
 
     /** A module compiled earlier in the file is loaded for the modules after it. */
     fun testAModuleRequiresOneDefinedBeforeIt() =
@@ -1917,6 +1941,21 @@ class ModuleExpanderTest : ExpanderTestCase() {
             """.trimIndent()
         }
 
+    /** An attribute whose value nests too deeply to convert stops its module, as the evaluator's own overflow does. */
+    fun testAnAttributeNestedTooDeeplyStops() =
+        assertLevels(
+            "defmodule S do\n  l = [1]\n  ${"l = l ++ l; ".repeat(DEEP_DOUBLINGS)}\n  Module.put_attribute(__MODULE__, :a, :lists.foldl(fn x, acc -> {x, acc} end, nil, l))\n  def f, do: 1\nend",
+            listOf("1.20.4"),
+        ) { version ->
+            """
+            top expanded {} next 0 context ${topContext(version, "Elixir.S")}
+            module Elixir.S stopped `Module.put_attribute(__MODULE__, :a, :lists.foldl(fn x, acc -> {x, acc} end, nil, l))`
+              def f/0 line 5 clauses 1
+              body: expanded {l:17} next 21 context [Elixir.S]
+              def f/0: expanded {} next 0
+            """.trimIndent()
+        }
+
     /**
      * `store_definition/5` reads the name and `length(Args)` after the splice, so a head whose name is a fragment, or
      * one of whose arguments is a splice, has no arity the expander can read. An `unquote` argument is still one.
@@ -2045,6 +2084,31 @@ class ModuleExpanderTest : ExpanderTestCase() {
                 )
 
                 "$version: " + file.modules.single().table.entries.keys.joinToString(" ") { "${it.name}/${it.arity}" }
+            },
+        )
+    }
+
+    /**
+     * A definition holding code the port doesn't lower leaves what its module defined unknown, while a raise computed
+     * from what is known after it still leaves the module absent, and the module after it loads.
+     */
+    fun testAnUnreadDefinitionLeavesItsModuleUnreadable() {
+        val unlowered = ElixirAst.Placeholder.Reason.Unlowered(PsiElement::class.java)
+
+        fun loadings(code: String, version: String): String {
+            val level = ElixirLanguageLevel.of(version)
+            val file = Expander.expandFile(placeholding(lower(code, level), "c", unlowered), Env.empty(level, kernel), level, exports, structs)
+
+            return file.modules.joinToString(" ") { "${it.module} ${LoadedModules.exports(it)::class.simpleName}" }
+        }
+
+        val versions = listOf("1.11.4", "1.20.4")
+
+        assertEquals(
+            versions.joinToString("\n") { "$it: Elixir.A Unreadable Elixir.B Present / Elixir.A Absent" },
+            versions.joinToString("\n") { version ->
+                "$version: " + loadings("defmodule A do\n  def f, do: c\nend\ndefmodule B do\n  def g, do: 1\nend", version) +
+                    " / " + loadings("defmodule A do\n  def f, do: c\n  1 + :a\nend", version)
             },
         )
     }
@@ -2201,7 +2265,11 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
     // Ending a module
 
-    /** A definition that raises ends the module even after one that stopped, so nothing after it is expanded. */
+    /**
+     * A definition that raises after one that stopped isn't the module's raise for certain, as Elixir may have raised
+     * at the stop, so the module keeps its stop. The walk ends there all the same: Elixir ran nothing after a raise,
+     * so nothing after it is expanded.
+     */
     fun testADefinitionThatRaisesAfterOneThatStopped() =
         assertLevels(
             """
@@ -2215,14 +2283,14 @@ class ModuleExpanderTest : ExpanderTestCase() {
             end
             """.trimIndent(),
             LEVELS,
-        ) { version ->
+        ) {
             """
-            top expanded {} next 0 context ${topContext(version, "Elixir.A")}
+            top unported `:ok`
             module Elixir.A stopped `:ok`
               def f/0 line 2 clauses 1
               body: expanded {} next 0 context [Elixir.A.Inner, Elixir.A]
               def f/0: unported `:ok`
-              def __info__/1: error __info__ `def __info__(x), do: 1`
+              def __info__/1: unported `def __info__(x), do: 1`
             """.trimIndent()
         }
 
@@ -2339,8 +2407,8 @@ class ModuleExpanderTest : ExpanderTestCase() {
         }
 
     /** Each module-body call of a remover's name and arity reaches the table or stops, whatever its receiver and target. */
-    fun testEachRemoverCallStopsItsModule() =
-        assertLevels(
+    fun testEachRemoverCallStopsItsModule() {
+        val code =
             """
             defmodule DD do
               def f, do: 1
@@ -2387,9 +2455,9 @@ class ModuleExpanderTest : ExpanderTestCase() {
                 Module.make_overridable(NO, f: 0)
               end
             end
-            """.trimIndent(),
-            LEVELS,
-        ) { version ->
+            """.trimIndent()
+
+        assertLevels(code, LEVELS) { version ->
             val before = isBefore(version, "1.13.0-rc.0")
             val names = listOf("DD", "UD", "UT", "UO", "UM", "ED", "TU", "NO")
             val listed = { modules: List<String> -> modules.joinToString(prefix = "[", postfix = "]") { "Elixir.$it" } }
@@ -2400,20 +2468,22 @@ class ModuleExpanderTest : ExpanderTestCase() {
             val lines = listOf(2, 7, 13, 18, 23, 29, 34, 40)
 
             fun module(index: Int, stop: String, bound: String, inner: List<String> = emptyList()) =
-                """
-                module Elixir.${names[index]} ${if (stop.isEmpty()) "compiled" else "stopped `$stop`"}
-                  def f/0 line ${lines[index]} clauses 1
-                  body: expanded {$bound} next ${if (bound.isEmpty()) 0 else 1} context ${context(index, inner)}
-                  def f/0: expanded {} next 0
-                """.trimIndent()
+                listOf(
+                    "module Elixir.${names[index]} ${if (stop.isEmpty()) "compiled" else "stopped `$stop`"}",
+                    "  def f/0 line ${lines[index]} clauses 1",
+                    "  body: expanded {$bound} next ${if (bound.isEmpty()) 0 else 1} context ${context(index, inner)}",
+                    "  def f/0: expanded {} next 0",
+                ).joinToString("\n")
             val deletes = !isBefore(version, "1.12.0-rc.0")
-            val delete = { stop: String -> stop.takeIf { deletes }.orEmpty() }
+            // Before 1.12 `delete_definition` is no function of `Module`: a call given the module may have written it,
+            // after which its `@before_compile` callbacks aren't known. `get_env` may return its default, the module.
+            val delete = { stop: String, index: Int -> if (deletes) stop else code.split("\n\n")[index] }
 
             listOf(
                 "top expanded {} next 0 context ${if (before) listed(names.reversed()) else "[]"}",
-                module(0, delete("Module.delete_definition(__MODULE__, {:f, 0})"), ""),
-                module(1, delete("m.delete_definition(__MODULE__, {:f, 0})"), "m:0"),
-                module(2, delete("Module.delete_definition(Application.get_env(:app, :t, __MODULE__), {:f, 0})"), ""),
+                module(0, delete("Module.delete_definition(__MODULE__, {:f, 0})", 0), ""),
+                module(1, delete("m.delete_definition(__MODULE__, {:f, 0})", 1), "m:0"),
+                module(2, delete("Module.delete_definition(Application.get_env(:app, :t, __MODULE__), {:f, 0})", 2), ""),
                 module(3, "Module.make_overridable(Application.get_env(:app, :t, __MODULE__), f: 0)", ""),
                 module(4, "m.make_overridable(__MODULE__, f: 0)", "m:0"),
                 module(5, ":elixir_def.take_definition(__MODULE__, {:f, 0})", ""),
@@ -2423,6 +2493,7 @@ class ModuleExpanderTest : ExpanderTestCase() {
                 "    body: expanded {} next 0 context ${context(7, listOf("NO.Inner"))}",
             ).joinToString("\n")
         }
+    }
 
     // Rendering
 
@@ -2544,6 +2615,9 @@ class ModuleExpanderTest : ExpanderTestCase() {
 
         /** The doublings of a one-element list that make a long one: far more elements than the checks of the rest. */
         const val DOUBLINGS = 12
+
+        /** The doublings of a one-element list whose fold into nested pairs nests deeper than a thread's stack goes. */
+        const val DEEP_DOUBLINGS = 17
 
         /** A list `t` that holds itself twice at every depth: built in [DOUBLINGS] steps, walked in 2^[DOUBLINGS]. */
         val TREE = "t = []; " + "t = [t, t]; ".repeat(DOUBLINGS)

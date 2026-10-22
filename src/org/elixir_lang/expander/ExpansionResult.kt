@@ -15,6 +15,13 @@ import org.elixir_lang.lowering.ElixirAst
  * @property consulted the modules whose exports the module's expansion read
  * @property attributes what the module body did to its attributes
  * @property struct the struct `defstruct` recorded in the module body, or `null` where nothing recorded one
+ * @property certain whether what compiling the module did is Elixir's: Elixir runs the `defmodule` where the expander
+ *   did, it compiled, every statement of its body ran with Elixir's outcome, and no `@after_compile` callback runs code
+ *   the expander doesn't follow
+ * @property definitionsKnown whether what the module defines is known, as other files read it where the project
+ *   compiles: it compiled, its `defmodule` and each around it are placed where Elixir runs them ([BodyValues.placed]),
+ *   its tables hold what Elixir's do ([Compiling.tablesCertain]), and no `@after_compile` callback runs code the
+ *   expander doesn't follow
  */
 internal data class ExpansionResult(
     val module: String,
@@ -28,6 +35,8 @@ internal data class ExpansionResult(
     val nested: List<ExpansionResult>,
     val attributes: AttributeLog,
     val struct: ModuleStruct?,
+    val certain: Boolean,
+    val definitionsKnown: Boolean,
 ) {
     /**
      * One body.
@@ -51,6 +60,20 @@ internal data class ExpansionResult(
         /** Whether compiling the module raised, which ends the compile of the file or module around it. */
         val raises: Boolean get() = this is Tainted || this is Raised || this is Crashed
 
+        /**
+         * Whether compiling the module ended its run and the run of the file or module around it: it raised, or it
+         * reached a raise from certain inputs, where Elixir raised or raised before it.
+         */
+        val endsRun: Boolean get() = raises || this is Stopped && this.mayRaise
+
+        /**
+         * Whether compiling the module ended the run of the file or module around it, where the module is one of its
+         * units and a [statement] of it or not: a raise ends that run wherever the module is, since the module raised
+         * only where Elixir ran it as the expander did; a raise that may be Elixir's ends it at a statement, where
+         * Elixir ran nothing after the module if it ran it as the expander did.
+         */
+        fun endsRunAt(statement: Boolean): Boolean = raises || statement && endsRun
+
         /** No error was reported. */
         data object Compiled : Ended
 
@@ -63,8 +86,16 @@ internal data class ExpansionResult(
         /** Elixir's own code raised [exception] after [error] was reported. */
         data class Crashed(val error: Expansion.Error, val exception: String) : Ended
 
-        /** The first unit to reach a node that isn't ported, or a macro that isn't modelled, reached [at]. */
-        data class Stopped(val at: ElixirAst) : Ended
+        /**
+         * The first unit to reach a node that isn't ported, or a macro that isn't modelled, reached [at]. The module
+         * [mayRaise] where that unit, or a later one on the statement path, reached an error from certain inputs that
+         * isn't the module's for certain, as Elixir may have raised at the stop before it: the module's run ends there
+         * as a raise ends it.
+         * The stop [skipped] what Elixir runs after it where it is in an expansion Elixir finishes before it runs any
+         * of it, the body's or a `@before_compile` callback's output's, so what Elixir would have queued after it was
+         * never queued, and where it left `@before_compile` callbacks unrun.
+         */
+        data class Stopped(val at: ElixirAst, val mayRaise: Boolean = false, val skipped: Boolean = false) : Ended
     }
 }
 
@@ -73,5 +104,7 @@ internal data class ExpansionResult(
  *
  * @property top the expansion of the file's forms, whose env is the one after the last form
  * @property modules each module the file defines at its top, in the order Elixir compiles them
+ * @property endsRun whether the file's run ended at an error from certain inputs: Elixir raised there or before it, so
+ *   it compiled no module after it
  */
-internal data class FileExpansion(val top: Expansion, val modules: List<ExpansionResult>)
+internal data class FileExpansion(val top: Expansion, val modules: List<ExpansionResult>, val endsRun: Boolean)

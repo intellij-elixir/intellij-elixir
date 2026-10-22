@@ -3,24 +3,54 @@ package org.elixir_lang.expander
 import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
+import com.intellij.openapi.application.ReadAction
+import com.intellij.psi.PsiFileFactory
+import org.elixir_lang.ElixirLanguage
+import org.elixir_lang.PlatformTestCase
 import org.elixir_lang.lowering.inspect
 import org.elixir_lang.parser_definition.ParsingTestCase
 import org.elixir_lang.psi.ElixirFile
 import org.junit.ComparisonFailure
 
+/** Runs [comparison], printing both sides in full when they differ. */
+internal fun printed(comparison: () -> Unit) {
+    try {
+        comparison()
+    } catch (failure: ComparisonFailure) {
+        println("expander:\n${failure.expected}\nelixir:\n${failure.actual}")
+        throw failure
+    }
+}
+
+/**
+ * A test that compiles case bodies in a project, whose expander reads the leg's modules' clauses from their `.beam`s,
+ * as a project's SDK gives them. [accounting] and [definitions] are its [ExpansionProbes]' options of those names.
+ */
+abstract class SdkProbeTestCase(accounting: Boolean = false, definitions: Boolean = false) : PlatformTestCase() {
+    // A project, so the leg's `.beam`s are read through their decompiled files.
+    private val parse: (String) -> ElixirFile = { text ->
+        ReadAction.computeBlocking<ElixirFile, Throwable> {
+            PsiFileFactory.getInstance(project).createFileFromText("probe.ex", ElixirLanguage, text) as ElixirFile
+        }
+    }
+    internal val harness = ProbeHarness(parse)
+    internal val probes = ExpansionProbes(harness, accounting, definitions, parse)
+    internal lateinit var sdk: ModuleClauses.Lookup
+
+    override fun setUp() {
+        super.setUp()
+
+        sdk = sdkClauses(project, testRootDisposable)
+    }
+
+    /** [body] as a case module after [preamble], with the leg's modules' clauses, and [hook] added to it. */
+    internal fun expand(body: String, preamble: String, hook: ProbeHarness.Hook? = null): ExpansionProbes.CaseExpansion =
+        probes.expandAll(listOf(body), preamble, hook = hook, clauses = sdk).cases.single()
+}
+
 /** A test that compiles case bodies through a [ProbeHarness] parsing them with this fixture. */
 abstract class ProbeTestCase : ParsingTestCase() {
     protected val harness = ProbeHarness { createPsiFile(getTestName(false), it) as ElixirFile }
-
-    /** Runs [comparison], printing both sides in full when they differ. */
-    protected fun printed(comparison: () -> Unit) {
-        try {
-            comparison()
-        } catch (failure: ComparisonFailure) {
-            println("expander:\n${failure.expected}\nelixir:\n${failure.actual}")
-            throw failure
-        }
-    }
 
     /**
      * The invariant each compile keeps: none of [attempt]'s modules, the nested ones the hook reported among them, is

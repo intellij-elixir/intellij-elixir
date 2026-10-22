@@ -122,6 +122,7 @@ internal fun expandDirective(
                     val directiveWarns = warns && DIRECTIVE_WARNS_AT_RUN_TIME.isSufficient(level)
                     val requireWarns = warns && REQUIRE_WARNS_AT_RUN_TIME.isSufficient(level)
 
+                    // The tracker's call a directive that warns expands to returns the module when it runs.
                     when (directive) {
                         Directive.ALIAS ->
                             alias(call, module, true, eOpts, st, et, defined, level) { aliased ->
@@ -142,7 +143,7 @@ internal fun expandDirective(
                                 ?: import(call, module, eOpts, st, et, defined, run) { imported ->
                                     directiveValue(module, imported && directiveWarns)
                                 }
-                    }
+                    }.also { recordingValue(call, env, run, it.withValue(Term.Atom(module))) }
                 }
             }
         }

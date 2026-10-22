@@ -77,8 +77,8 @@ class GeneratedOutputCancelTest : ExpanderTestCase() {
     /** Output in place of a module body's statement is cancelled as its statements are recorded. */
     fun testAStatementsOutputIsCancelledAsItsStatementsAreRecorded() =
         assertCancelledIn(
-            "${EXPANDER}Compiling",
-            "addStatements",
+            "${EXPANDER}Statements",
+            "add",
             "defmacro m, do: (t = :ok; ${"t = {:__block__, [], [t, t]}; ".repeat(DOUBLINGS)} t)",
             LISTS / 2,
         )

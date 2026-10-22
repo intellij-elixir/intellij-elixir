@@ -732,6 +732,15 @@ enum class ElixirLanguageFeature(
     ATTRIBUTES_EXPANDED_LAZILY(sinceElixir = "1.14.0-rc.0"),
 
     /**
+     * `Application.compile_env/3` calls `Application.compile_env/4`, and `compile_env!/2` calls `compile_env!/3`, the
+     * env first. Before it, they call `Application.__compile_env__/4` and `__compile_env__!/3`, the env last.
+     *
+     * `elixir-lang/elixir@d12326ed5` ("Add Application.compile_env/4 and Application.compile_env!/3"), first released in
+     * v1.14.0-rc.0.
+     */
+    COMPILE_ENV_TAKES_ENV_FIRST(sinceElixir = "1.14.0-rc.0"),
+
+    /**
      * `Module.delete_definition/2` takes a definition out of the module being compiled. Before it, a module body that
      * calls it raises `UndefinedFunctionError`.
      *
@@ -747,6 +756,21 @@ enum class ElixirLanguageFeature(
      * v1.18.4.
      */
     MODULE_BODY_DOC_READ_BINDS_VALUE(sinceElixir = "1.18.4"),
+
+    /**
+     * `Module.get_attribute/3` gives its default only for an attribute that isn't set, and an attribute registered and
+     * never written gives `nil`. Before it, it gives its default for any `nil`.
+     *
+     * `elixir-lang/elixir@ea185b82f` ("Add `Module.get_last_attribute/3`"), first released in v1.15.0-rc.1.
+     */
+    GET_ATTRIBUTE_DEFAULT_ONLY_UNSET(sinceElixir = "1.15.0-rc.1"),
+
+    /**
+     * `Module.get_attribute/3` gives its default for an attribute registered and never written.
+     *
+     * `elixir-lang/elixir@fb0356372` ("Return default value for persisted attributes"), first released in v1.17.0-rc.0.
+     */
+    GET_ATTRIBUTE_DEFAULT_FOR_REGISTERED(sinceElixir = "1.17.0-rc.0"),
 
     /**
      * `@after_verify` accumulates, and a module given to it is called as `__after_verify__/1`. Before it, it is an

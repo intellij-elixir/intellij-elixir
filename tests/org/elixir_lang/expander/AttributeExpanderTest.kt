@@ -285,14 +285,14 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @u :erlang.is_list([])
+              @u (receive do after 0 -> true end)
               def f, do: for(x <- [1], uniq: @u, do: x)
             end
             """.trimIndent(),
             """
             top expanded {} next 0
             module Elixir.A stopped `@u`
-              write u node `@u :erlang.is_list([])`
+              write u node `@u (receive do after 0 -> true end)`
               read u in def f/0: unexpanded
               final u: unknown
             """.trimIndent(),
@@ -395,14 +395,14 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @u :erlang.length([1, 2])
+              @u (receive do after 0 -> 2 end)
               def g(y), do: <<y::size(4)-unit(@u)>>
             end
             """.trimIndent(),
             """
             top expanded {} next 0
             module Elixir.A stopped `unit(@u)`
-              write u node `@u :erlang.length([1, 2])`
+              write u node `@u (receive do after 0 -> 2 end)`
               read u in def g/1: unexpanded
               final u: unknown
             """.trimIndent(),
@@ -416,14 +416,14 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertLevels(
             """
             defmodule A do
-              @u :erlang.length([1, 2])
+              _ = fn -> @u 2 end
               def g(y), do: <<y::size(4)-unit(+@u)>>
             end
             """.trimIndent(),
             listOf("1.14.5", "1.15.8", "1.16.3", "1.20.4"),
         ) { version ->
             val segment = "`y::size(4)-unit(+@u)`"
-            val attribute = "  write u node `@u :erlang.length([1, 2])`\n  read u in def g/1: unexpanded\n  final u: unknown"
+            val attribute = "  write u 2 not a statement `@u 2`\n  read u in def g/1: unexpanded\n  final u: unknown"
 
             when (version) {
                 "1.14.5" -> "top expanded {} next 0\nmodule Elixir.A raised bad_unit_argument $segment\n$attribute"
@@ -439,14 +439,14 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @x :erlang.hd(["a"])
+              @x (receive do after 0 -> "a" end)
               def g, do: String.Chars.to_string(@x).foo()
             end
             """.trimIndent(),
             """
             top expanded {} next 0
             module Elixir.A stopped `String.Chars.to_string(@x)`
-              write x node `@x :erlang.hd(["a"])`
+              write x node `@x (receive do after 0 -> "a" end)`
               read x in def g/0: unexpanded
               final x: unknown
             """.trimIndent(),
@@ -457,14 +457,14 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @x :erlang.hd(["a"])
+              @x (receive do after 0 -> "a" end)
               def g("#{@x}"), do: 1
             end
             """.trimIndent(),
             """
             top expanded {} next 0
             module Elixir.A stopped `@x`
-              write x node `@x :erlang.hd(["a"])`
+              write x node `@x (receive do after 0 -> "a" end)`
               read x in def g/1: unexpanded
               final x: unknown
             """.trimIndent(),
@@ -475,14 +475,14 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @e :erlang.hd([ArgumentError])
+              _ = fn -> @e ArgumentError end
               def g, do: (try do :ok rescue x in [@e, 1] -> x end)
             end
             """.trimIndent(),
             """
             top expanded {} next 0
             module Elixir.A raised invalid_rescue_clause `x in [@e, 1] -> x`
-              write e node `@e :erlang.hd([ArgumentError])`
+              write e :Elixir.ArgumentError not a statement `@e ArgumentError`
               read e in def g/0: unexpanded
               final e: unknown
             """.trimIndent(),
@@ -492,7 +492,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertSplit(
             """
             defmodule A do
-              @n :erlang.length([1, 2, 3, 4, 5, 6, 7, 8])
+              @n (receive do after 0 -> 8 end)
               def f(b) do
                 <<x::size(@n)>> = b
                 x
@@ -503,14 +503,14 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A stopped `size(@n)`
-              write n node `@n :erlang.length([1, 2, 3, 4, 5, 6, 7, 8])`
+              write n node `@n (receive do after 0 -> 8 end)`
               read n in def f/1: unexpanded
               final n: unknown
             """.trimIndent(),
             """
             top expanded {} next 0
             module Elixir.A compiled
-              write n node `@n :erlang.length([1, 2, 3, 4, 5, 6, 7, 8])`
+              write n node `@n (receive do after 0 -> 8 end)`
               read n in def f/1: unexpanded
               final n: unknown
             """.trimIndent(),
@@ -524,7 +524,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @opts :lists.reverse(only: [is_atom: 1])
+              @opts (receive do after 0 -> [only: [is_atom: 1]] end)
               def f do
                 import Kernel, @opts
                 is_atom(1)
@@ -534,7 +534,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A stopped `@opts`
-              write opts node `@opts :lists.reverse(only: [is_atom: 1])`
+              write opts node `@opts (receive do after 0 -> [only: [is_atom: 1]] end)`
               read opts in def f/0: unexpanded
               final opts: unknown
             """.trimIndent(),
@@ -545,14 +545,14 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @opts :lists.reverse(only: [is_atom: 1])
+              @opts (receive do after 0 -> [only: [is_atom: 1]] end)
               import Kernel, @opts
             end
             """.trimIndent(),
             """
             top expanded {} next 0
             module Elixir.A raised options_are_not_keyword `import Kernel, @opts`
-              write opts node `@opts :lists.reverse(only: [is_atom: 1])`
+              write opts node `@opts (receive do after 0 -> [only: [is_atom: 1]] end)`
               final opts: unknown
             """.trimIndent(),
         )
@@ -562,7 +562,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @opts :lists.reverse(as: L)
+              @opts (receive do after 0 -> [as: L] end)
               def f do
                 alias :lists, @opts
                 L.reverse([1, 2])
@@ -572,7 +572,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A stopped `@opts`
-              write opts node `@opts :lists.reverse(as: L)`
+              write opts node `@opts (receive do after 0 -> [as: L] end)`
               read opts in def f/0: unexpanded
               final opts: unknown
             """.trimIndent(),
@@ -583,7 +583,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @fns :lists.reverse(is_atom: 1)
+              @fns (receive do after 0 -> [is_atom: 1] end)
               def f do
                 import Kernel, except: @fns
                 is_atom(1)
@@ -593,7 +593,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A stopped `except: @fns`
-              write fns node `@fns :lists.reverse(is_atom: 1)`
+              write fns node `@fns (receive do after 0 -> [is_atom: 1] end)`
               read fns in def f/0: unexpanded
               final fns: unknown
             """.trimIndent(),
@@ -604,7 +604,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @x :erlang.length([1])
+              _ = fn -> @x 1 end
               def f do
                 import Kernel, foo: @x
                 1
@@ -614,7 +614,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A raised unsupported_option `import Kernel, foo: @x`
-              write x node `@x :erlang.length([1])`
+              write x 1 not a statement `@x 1`
               read x in def f/0: unexpanded
               final x: unknown
             """.trimIndent(),
@@ -624,7 +624,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @x :erlang.length([1])
+              _ = fn -> @x 1 end
               def f do
                 alias :lists, as: L, foo: @x
                 1
@@ -634,7 +634,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A raised unsupported_option `alias :lists, as: L, foo: @x`
-              write x node `@x :erlang.length([1])`
+              write x 1 not a statement `@x 1`
               read x in def f/0: unexpanded
               final x: unknown
             """.trimIndent(),
@@ -645,7 +645,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertSplit(
             """
             defmodule A do
-              @x :lists.reverse(is_atom: 1)
+              _ = fn -> @x [is_atom: 1] end
               def f do
                 import Kernel, only: [is_atom: 1], except: @x
                 1
@@ -656,14 +656,14 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A raised only_and_except_given `import Kernel, only: [is_atom: 1], except: @x`
-              write x node `@x :lists.reverse(is_atom: 1)`
+              write x [{:is_atom, 1}] not a statement `@x [is_atom: 1]`
               read x in def f/0: unexpanded
               final x: unknown
             """.trimIndent(),
             """
             top expanded {} next 0
             module Elixir.A stopped `only: [is_atom: 1], except: @x`
-              write x node `@x :lists.reverse(is_atom: 1)`
+              write x [{:is_atom, 1}] not a statement `@x [is_atom: 1]`
               read x in def f/0: unexpanded
               final x: unknown
             """.trimIndent(),
@@ -673,7 +673,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @x :erlang.length([1])
+              @x (receive do after 0 -> 1 end)
               def f do
                 import Kernel, only: [is_atom: @x], except: [is_atom: 1]
                 1
@@ -683,7 +683,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A stopped `only: [is_atom: @x], except: [is_atom: 1]`
-              write x node `@x :erlang.length([1])`
+              write x node `@x (receive do after 0 -> 1 end)`
               read x in def f/0: unexpanded
               final x: unknown
             """.trimIndent(),
@@ -694,7 +694,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertSplit(
             """
             defmodule A do
-              @x :lists.reverse(is_atom: 1)
+              _ = fn -> @x [is_atom: 1] end
               def f do
                 import Kernel, only: :foo, except: @x
                 1
@@ -705,14 +705,14 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A raised invalid_option `import Kernel, only: :foo, except: @x`
-              write x node `@x :lists.reverse(is_atom: 1)`
+              write x [{:is_atom, 1}] not a statement `@x [is_atom: 1]`
               read x in def f/0: unexpanded
               final x: unknown
             """.trimIndent(),
             """
             top expanded {} next 0
             module Elixir.A stopped `only: :foo, except: @x`
-              write x node `@x :lists.reverse(is_atom: 1)`
+              write x [{:is_atom, 1}] not a statement `@x [is_atom: 1]`
               read x in def f/0: unexpanded
               final x: unknown
             """.trimIndent(),
@@ -723,7 +723,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertSplit(
             """
             defmodule A do
-              @x :lists.reverse(is_atom: 1)
+              _ = fn -> @x [is_atom: 1] end
               def f do
                 import Kernel, only: @x, except: :foo
                 1
@@ -734,14 +734,14 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A stopped `only: @x, except: :foo`
-              write x node `@x :lists.reverse(is_atom: 1)`
+              write x [{:is_atom, 1}] not a statement `@x [is_atom: 1]`
               read x in def f/0: unexpanded
               final x: unknown
             """.trimIndent(),
             """
             top expanded {} next 0
             module Elixir.A raised invalid_option `import Kernel, only: @x, except: :foo`
-              write x node `@x :lists.reverse(is_atom: 1)`
+              write x [{:is_atom, 1}] not a statement `@x [is_atom: 1]`
               read x in def f/0: unexpanded
               final x: unknown
             """.trimIndent(),
@@ -752,7 +752,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @x :lists.reverse(is_atom: 1)
+              _ = fn -> @x [is_atom: 1] end
               def f do
                 import Kernel, only: [{:is_list, 1} | @x]
                 1
@@ -762,7 +762,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A raised invalid_option `import Kernel, only: [{:is_list, 1} | @x]`
-              write x node `@x :lists.reverse(is_atom: 1)`
+              write x [{:is_atom, 1}] not a statement `@x [is_atom: 1]`
               read x in def f/0: unexpanded
               final x: unknown
             """.trimIndent(),
@@ -773,7 +773,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @x :lists.reverse(is_atom: 1)
+              _ = fn -> @x [is_atom: 1] end
               def f do
                 import Kernel, [@x, foo: 1]
                 1
@@ -783,7 +783,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A raised unsupported_option `import Kernel, [@x, foo: 1]`
-              write x node `@x :lists.reverse(is_atom: 1)`
+              write x [{:is_atom, 1}] not a statement `@x [is_atom: 1]`
               read x in def f/0: unexpanded
               final x: unknown
             """.trimIndent(),
@@ -794,7 +794,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @x :erlang.hd([:only])
+              @x (receive do after 0 -> :only end)
               def f do
                 import Kernel, [{@x, [is_atom: 1]}]
                 is_atom(1)
@@ -804,7 +804,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A stopped `[{@x, [is_atom: 1]}]`
-              write x node `@x :erlang.hd([:only])`
+              write x node `@x (receive do after 0 -> :only end)`
               read x in def f/0: unexpanded
               final x: unknown
             """.trimIndent(),
@@ -815,7 +815,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @x :erlang.hd([:maybe])
+              @x (receive do after 0 -> :maybe end)
               def f do
                 import Kernel, only: [is_atom: 1], warn: @x
                 1
@@ -825,7 +825,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A stopped `only: [is_atom: 1], warn: @x`
-              write x node `@x :erlang.hd([:maybe])`
+              write x node `@x (receive do after 0 -> :maybe end)`
               read x in def f/0: unexpanded
               final x: unknown
             """.trimIndent(),
@@ -835,7 +835,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @x :lists.reverse(is_atom: 1)
+              _ = fn -> @x [is_atom: 1] end
               def f do
                 require Kernel, [{@x, L}, foo: 1]
                 1
@@ -845,7 +845,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A raised unsupported_option `require Kernel, [{@x, L}, foo: 1]`
-              write x node `@x :lists.reverse(is_atom: 1)`
+              write x [{:is_atom, 1}] not a statement `@x [is_atom: 1]`
               read x in def f/0: unexpanded
               final x: unknown
             """.trimIndent(),
@@ -1004,14 +1004,14 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @s :erlang.hd([URI])
+              @s (receive do after 0 -> URI end)
               def f, do: %@s{}
             end
             """.trimIndent(),
             """
             top expanded {} next 0
             module Elixir.A stopped `%@s{}`
-              write s node `@s :erlang.hd([URI])`
+              write s node `@s (receive do after 0 -> URI end)`
               read s in def f/0: unexpanded
               final s: unknown
             """.trimIndent(),
@@ -1021,14 +1021,14 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @s :erlang.hd([URI])
+              @s (receive do after 0 -> URI end)
               def f(%@s{} = u), do: u
             end
             """.trimIndent(),
             """
             top expanded {} next 0
             module Elixir.A stopped `%@s{}`
-              write s node `@s :erlang.hd([URI])`
+              write s node `@s (receive do after 0 -> URI end)`
               read s in def f/1: unexpanded
               final s: unknown
             """.trimIndent(),
@@ -1037,7 +1037,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
     /** An unknown attribute may hold a boolean, which `quote`'s `generated:` must be, so the `quote` stops. */
     fun testAnUnknownAttributeAsAQuotesGeneratedOption() =
         assertUnknownStops(
-            "@g :erlang.is_list([])",
+            "@g (receive do after 0 -> true end)",
             "def f, do: quote(generated: @g, do: 1)",
             "@g",
             "g",
@@ -1047,7 +1047,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
     /** An unknown attribute may hold an exception's module, which `rescue x in` must name, so the `rescue` stops. */
     fun testAnUnknownAttributeAsARescuesModules() =
         assertUnknownStops(
-            "@e :erlang.hd([ArgumentError])",
+            "@e (receive do after 0 -> ArgumentError end)",
             "def f do\n    try do\n      :ok\n    rescue\n      x in @e -> x\n    end\n  end",
             "@e",
             "e",
@@ -1067,7 +1067,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
     /** An unknown attribute may hold a module, so a remote call on it in a guard stops rather than reading a field. */
     fun testAnUnknownAttributeAsAGuardsReceiver() =
         assertUnknownStops(
-            "@m :erlang.hd([Kernel])",
+            "@m (receive do after 0 -> Kernel end)",
             "def g(x) when @m.is_atom(x), do: x",
             "@m",
             "m",
@@ -1077,7 +1077,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
     /** An unknown attribute may hold a module, so an alias with it as its head stops rather than raising. */
     fun testAnUnknownAttributeAsAnAliasHead() =
         assertUnknownStops(
-            "@m :erlang.hd([Kernel])",
+            "@m (receive do after 0 -> Kernel end)",
             "def f, do: @m.Sub",
             "@m",
             "m",
@@ -1087,7 +1087,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
     /** An unknown attribute may hold a struct's key, so a struct with it as a key stops rather than raising. */
     fun testAnUnknownAttributeAsAStructKey() =
         assertUnknownStops(
-            "@k :erlang.hd([:host])",
+            "@k (receive do after 0 -> :host end)",
             "def f, do: %URI{@k => \"h\"}",
             "@k",
             "k",
@@ -1115,7 +1115,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         assertEvery(
             """
             defmodule A do
-              @m :erlang.hd([URI])
+              @m (receive do after 0 -> URI end)
               def f do
                 alias @m
                 :ok
@@ -1125,7 +1125,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
             """
             top expanded {} next 0
             module Elixir.A stopped `alias @m`
-              write m node `@m :erlang.hd([URI])`
+              write m node `@m (receive do after 0 -> URI end)`
               read m in def f/0: unexpanded
               final m: unknown
             """.trimIndent(),
@@ -1134,7 +1134,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
     /** An unknown attribute may hold an integer or a binary, which no call can be made on, so a call on it stops. */
     fun testAnUnknownAttributeAsAReceiver() =
         assertUnknownStops(
-            "@m :erlang.hd([String])",
+            "@m (receive do after 0 -> String end)",
             "def r_m, do: @m.length(\"a\")",
             "@m",
             "m",
@@ -1505,15 +1505,7 @@ class AttributeExpanderTest : ExpanderTestCase() {
         }
         val log = result.attributes
         val effects = log.effects.map { logged ->
-            val text = when (val effect = logged.effect) {
-                is Effect.Write -> "write ${effect.name} ${render(effect.value)}"
-                is Effect.Register -> "register ${effect.name} accumulate ${effect.accumulate}"
-                is Effect.Delete -> "delete ${effect.name}"
-                is Effect.TypespecWrite -> "typespec ${effect.name}"
-                Effect.UnknownEffect -> "unknown effect"
-            }
-
-            "$text${if (logged.statement) "" else " not a statement"} `${source(code, logged.at)}`"
+            "${render(logged.effect)}${if (logged.statement) "" else " not a statement"} `${source(code, logged.at)}`"
         }
         val reads = log.reads.map { "read ${it.name} in ${render(it.owner)}: ${render(it.value)}" }
         val named = log.effects.mapNotNull { named(it.effect) }.toSortedSet()
@@ -1548,13 +1540,23 @@ class AttributeExpanderTest : ExpanderTestCase() {
         return "$receiver.$name($arguments) $keys"
     }
 
+    private fun render(effect: Effect): String =
+        when (effect) {
+            is Effect.Write -> "write ${effect.name} ${render(effect.value)}"
+            is Effect.Register -> "register ${effect.name} accumulate ${effect.accumulate}"
+            is Effect.Delete -> "delete ${effect.name}"
+            is Effect.TypespecWrite -> "typespec ${effect.name}"
+            Effect.UnknownEffect -> "unknown effect"
+            is Effect.OtherModule -> "${render(effect.effect)} in ${effect.module ?: "an unknown module"}"
+        }
+
     private fun named(effect: Effect): String? =
         when (effect) {
             is Effect.Write -> effect.name
             is Effect.Register -> effect.name
             is Effect.Delete -> effect.name
             is Effect.TypespecWrite -> effect.name
-            Effect.UnknownEffect -> null
+            Effect.UnknownEffect, is Effect.OtherModule -> null
         }
 
     private fun render(owner: ExpansionResult.Owner): String =

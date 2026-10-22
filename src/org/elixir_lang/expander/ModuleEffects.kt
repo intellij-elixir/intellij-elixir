@@ -8,11 +8,11 @@ import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.psi.Import.Term
 
 /**
- * The remote functions that change the module whose body calls them, keyed by receiver, name and arity. The call's
- * arguments are its expanded values, beside the nodes they were expanded from.
+ * The remote functions that change the module whose body calls them, or another being compiled, keyed by receiver,
+ * name and arity. The call's arguments are its expanded values, beside the nodes they were expanded from.
  */
 internal object ModuleEffects {
-    /** What a call does to the module being compiled. */
+    /** What a call does to the modules being compiled. */
     sealed interface Change {
         /** A change to the module's attributes. */
         class Attributes(val effect: Effect) : Change
@@ -24,18 +24,22 @@ internal object ModuleEffects {
         class Definitions(val apply: (Compiling, ElixirAst, Exports, Boolean) -> Expansion?) : Change
     }
 
-    private fun interface Row {
-        /**
-         * The change to [module] of a call with [args], expanded from [nodes], once its module and attribute are
-         * known.
-         */
-        fun change(module: String, args: List<Term>, nodes: List<ElixirAst>): Change?
-    }
+    /**
+     * A function that changes a module.
+     *
+     * @property unknownReceiver what a call of its name and arity does through a receiver that isn't known at expansion,
+     *   which may be this function's
+     * @property change the change to `module` of a call with `args`, expanded from `nodes`, once its receiver is known
+     */
+    private class Row(
+        val unknownReceiver: Change,
+        val change: (module: String, args: List<Term>, nodes: List<ElixirAst>) -> Change?,
+    )
 
     /**
-     * What a call in [module]'s body of [receiver]'s [name] with [args], expanded from [nodes], does to [module]: `null`
-     * for nothing, as for a call of another module. A receiver that isn't known at expansion may be a remover's, so a
-     * call of a remover's name and arity through one stops.
+     * What a call in [module]'s body of [receiver]'s [name] with [args], expanded from [nodes], does: `null` for
+     * nothing, as for a call of a function that changes no module. A receiver that isn't known at expansion may be any
+     * row's with the call's name and arity, so the call does the most any of them does through one: a remover's stops.
      */
     fun of(
         receiver: Term,
@@ -45,41 +49,38 @@ internal object ModuleEffects {
         module: String,
         level: ElixirLanguageLevel,
     ): Change? {
-        val removers = removers(level)
+        val rows = rows(level)
         val key = (receiver as? Term.Atom)?.let { Triple(it.name, name, args.size) }
-            ?: return STOP.takeIf { removers.keys.any { (_, removerName, arity) -> removerName == name && arity == args.size } }
-        val putArity = if (ATTRIBUTES_EXPANDED_LAZILY.isSufficient(level)) 5 else 4
-        val row = when (key) {
-            Triple(ELIXIR_MODULE, "put_attribute", 3), Triple(ELIXIR_MODULE, "__put_attribute__", putArity) -> WRITE
-            Triple(ELIXIR_MODULE, "register_attribute", 3) -> REGISTER
-            Triple(ELIXIR_MODULE, "delete_attribute", 2) -> DELETE
-            Triple(KERNEL_TYPESPEC, "deftypespec", 6) -> TYPESPEC_WRITE
-            else -> removers[key] ?: return null
-        }
+            ?: return rows.filterKeys { (_, rowName, arity) -> rowName == name && arity == args.size }.values
+                .map(Row::unknownReceiver)
+                .let { changes -> changes.firstOrNull { it is Change.Definitions } ?: changes.firstOrNull() }
 
-        return row.change(module, args, nodes)
+        return rows[key]?.change(module, args, nodes)
     }
 
     /**
-     * [change] where [target], the module a call is given, is [module]; `null` where it is another; [UNKNOWN_ATTRIBUTE]
-     * where it isn't known.
+     * [change] where [target], the module a call is given, is [module]; the change on another module where it is
+     * another; [UNKNOWN_MODULE] where it isn't known.
      */
-    private fun targeting(target: Term, module: String, change: () -> Change?): Change? =
-        when (target) {
-            is Term.Atom -> if (target.name == module) change() else null
-            else -> UNKNOWN_ATTRIBUTE
+    private fun targeting(target: Term, module: String, change: () -> Change.Attributes): Change.Attributes =
+        when {
+            target !is Term.Atom -> UNKNOWN_MODULE
+            target.name == module -> change()
+            else -> Change.Attributes(Effect.OtherModule(target.name, change().effect))
         }
 
     /** `Module`'s attribute functions take the module first and the attribute second (`Mod:1595`, `:1729`, `:1782`). */
     private fun attributeCall(effect: (name: String, args: List<Term>) -> Effect) =
-        Row { module, args, _ ->
+        Row(UNKNOWN_MODULE) { module, args, _ ->
             targeting(args[0], module) { named(args[1]) { effect(it, args) } }
         }
 
-    private fun named(key: Term, effect: (String) -> Effect): Change =
+    private fun named(key: Term, effect: (String) -> Effect): Change.Attributes =
         if (key is Term.Atom) Change.Attributes(effect(key.name)) else UNKNOWN_ATTRIBUTE
 
     private val UNKNOWN_ATTRIBUTE = Change.Attributes(Effect.UnknownEffect)
+
+    private val UNKNOWN_MODULE = Change.Attributes(Effect.OtherModule(null, Effect.UnknownEffect))
 
     private val WRITE = attributeCall { name, args -> Effect.Write(name, args[2]) }
 
@@ -88,7 +89,7 @@ internal object ModuleEffects {
     private val DELETE = attributeCall { name, _ -> Effect.Delete(name) }
 
     /** `deftypespec(kind, expr, line, file, module, pos)`, where `kind` is the attribute and `expr` the spec, escaped. */
-    private val TYPESPEC_WRITE = Row { module, args, nodes ->
+    private val TYPESPEC_WRITE = Row(UNKNOWN_MODULE) { module, args, nodes ->
         targeting(args[4], module) {
             named(args[0]) { Effect.TypespecWrite(it, specHead(nodes[1])) }
         }
@@ -129,7 +130,7 @@ internal object ModuleEffects {
      * `Module.make_overridable(module, definitions)`. A call of another module stops, as that may be one being compiled,
      * which a module nested in it can name, and for one that isn't, Elixir raises (`Mod:1499`, `:1525`).
      */
-    private val MAKE_OVERRIDABLE = Row { module, args, _ ->
+    private val MAKE_OVERRIDABLE = Row(STOP) { module, args, _ ->
         if ((args[0] as? Term.Atom)?.name == module) {
             Change.Definitions { compiling, at, exports, ordered ->
                 makeAllOverridable(compiling, args[1], at, exports, ordered)
@@ -140,7 +141,7 @@ internal object ModuleEffects {
     }
 
     /** A remover this doesn't follow, which stops the module whatever its target. */
-    private val STOPS = Row { _, _, _ -> STOP }
+    private val STOPS = Row(STOP) { _, _, _ -> STOP }
 
     /**
      * Every function that takes a definition out of the module's table: `elixir_def:take_definition/2` and its callers
@@ -152,11 +153,23 @@ internal object ModuleEffects {
         Triple(ELIXIR_DEF, "take_definition", 2) to STOPS,
     )
 
-    /** [REMOVERS] before `Module.delete_definition/2` was added. */
-    private val REMOVERS_BEFORE_DELETE = REMOVERS - Triple(ELIXIR_MODULE, "delete_definition", 2)
+    /**
+     * Every row, keyed by receiver, name and arity, for each of whether attributes expand lazily, which gives
+     * `Module.__put_attribute__/5` in place of `/4`, and whether `Module.delete_definition/2` exists.
+     */
+    private val ROWS = listOf(false, true).flatMap { lazily -> listOf(false, true).map { lazily to it } }
+        .associateWith { (lazily, deletes) ->
+            mapOf(
+                Triple(ELIXIR_MODULE, "put_attribute", 3) to WRITE,
+                Triple(ELIXIR_MODULE, "__put_attribute__", if (lazily) 5 else 4) to WRITE,
+                Triple(ELIXIR_MODULE, "register_attribute", 3) to REGISTER,
+                Triple(ELIXIR_MODULE, "delete_attribute", 2) to DELETE,
+                Triple(KERNEL_TYPESPEC, "deftypespec", 6) to TYPESPEC_WRITE,
+            ) + if (deletes) REMOVERS else REMOVERS - Triple(ELIXIR_MODULE, "delete_definition", 2)
+        }
 
-    private fun removers(level: ElixirLanguageLevel) =
-        if (MODULE_DELETE_DEFINITION.isSufficient(level)) REMOVERS else REMOVERS_BEFORE_DELETE
+    private fun rows(level: ElixirLanguageLevel) =
+        ROWS.getValue(ATTRIBUTES_EXPANDED_LAZILY.isSufficient(level) to MODULE_DELETE_DEFINITION.isSufficient(level))
 
     /**
      * `Keyword.get(options, :accumulate)` taken as a boolean (`Mod:1790`): its first `accumulate` pair, or `null` where

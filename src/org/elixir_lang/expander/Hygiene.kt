@@ -7,6 +7,8 @@ import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
+import java.util.Collections
+import java.util.IdentityHashMap
 
 /** The `counter` entry of [meta]: `{Module, n}`, or the integer Elixir draws when there is no module. */
 internal fun counterOf(meta: Meta): Env.Counter? =
@@ -59,15 +61,18 @@ internal fun expandQuoted(
     run: Run,
     watched: Watched? = null,
     supplied: Map<ElixirAst, Term> = emptyMap(),
+    ports: Boolean = false,
 ): Expansion {
-    return expandQuoted(call, receiver, run.counters.next(env.module), output, state, env, run, watched, supplied)
+    return expandQuoted(call, receiver, run.counters.next(env.module), output, state, env, run, watched, supplied, ports)
 }
 
 /**
  * [expandQuoted] with the [counter] the macro's output was given, for a macro that also uses it outside the output.
  * [watched], a node of [output], is told the value it expands to, and each node of [output] that [supplied], a map by
  * identity, has takes that value. Each node of [output] keeps its [Run.placedAt] place; where [call] has one, a node
- * the macro built takes [call]'s.
+ * the macro built takes [call]'s. Where the caller [ports] the raises of [output] itself, or [call] is [Run.ported], each
+ * node the macro built is [Run.ported]; a node of [call]'s arguments is only where it already was, though it shares the
+ * call's origin where the call is itself a macro's output.
  */
 internal fun expandQuoted(
     call: ElixirAst.Call,
@@ -79,18 +84,22 @@ internal fun expandQuoted(
     run: Run,
     watched: Watched? = null,
     supplied: Map<ElixirAst, Term> = emptyMap(),
+    ports: Boolean = false,
 ): Expansion {
     var watching: ElixirAst? = null
     val placing = placing(call, run)
+    val porting = ports || call in run.ported
+    val arguments = if (porting) descendants(call.arguments.orEmpty()) else emptySet()
     val linified = linifyWithContextCounter(lineOf(call.meta), receiver, counter, run.level, output) { original, linified ->
         if (original === watched?.node) watching = linified
+        if (porting && original !in arguments || original in run.ported) run.ported += linified
 
         // A node in a module body is expanded when the module is compiled, after this call returns.
         supplied[original]?.let { run.supplying[linified] = it }
         placing(original, linified)
     }
 
-    env.module?.let { run.compiling[it] }?.rewrote(call, linified)
+    run.statementsAt(env)?.rewrote(call, linified)
     recordDispatch(call, ModuleClauses.Dispatched.Macro(linified), env, run)
 
     watching?.let { run.watching[it] = watched!! }
@@ -105,6 +114,22 @@ internal fun expandQuoted(
     run.bitstrings[expandedShape(linified)]?.let { run.bitstrings[call] = it }
 
     return expansion
+}
+
+/** Each node of [nodes] and every node in them, by identity. */
+private fun descendants(nodes: List<ElixirAst>): Set<ElixirAst> {
+    val found: MutableSet<ElixirAst> = Collections.newSetFromMap(IdentityHashMap())
+    val pending = ArrayDeque(nodes)
+
+    while (pending.isNotEmpty()) {
+        ProgressManager.checkCanceled()
+
+        val node = pending.removeLast()
+
+        if (found.add(node)) pending.addAll(children(node))
+    }
+
+    return found
 }
 
 /**

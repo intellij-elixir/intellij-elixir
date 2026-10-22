@@ -33,13 +33,13 @@ private fun defexception(
     compiling.bound = mapOf("fields" to fields)
 
     val expansion = try {
-        expandQuoted(node, KERNEL, output.output(), state, env, run)
+        expandQuoted(node, KERNEL, output.output(), state, env, run, ports = true)
     } finally {
         compiling.bound = outer
     }
 
     if (expansion is Expansion.Expanded && compiling.isStatement(node)) {
-        run.replacePending(from, withMessageBranch(node, run.pending.subList(from, run.pending.size).toList()))
+        run.replacePending(from, withMessageBranch(node, run.pending.subList(from, run.pending.size).toList(), compiling.statements))
     }
 
     return expansion
@@ -50,8 +50,8 @@ private fun defexception(
  * left to an effect after `defstruct`'s. It gives them as statements once the struct has a `message` field, and none
  * once it hasn't. Where the struct isn't known, they stay as they were: they may or may not run.
  */
-private fun withMessageBranch(node: ElixirAst.Call, queued: List<Pending>): List<Pending> {
-    val branch = queued.filterNot { it.isStatement() }
+private fun withMessageBranch(node: ElixirAst.Call, queued: List<Pending>, statements: Statements): List<Pending> {
+    val branch = queued.filterNot { it.isStatement(statements) }
 
     if (branch.isEmpty()) return queued
 
@@ -72,11 +72,11 @@ private fun withMessageBranch(node: ElixirAst.Call, queued: List<Pending>): List
             null
         },
     )
-    val first = queued.indexOfFirst { !it.isStatement() }
+    val first = queued.indexOfFirst { !it.isStatement(statements) }
 
     return buildList {
         addAll(queued.take(first))
         add(decision)
-        addAll(queued.drop(first).filter { it.isStatement() })
+        addAll(queued.drop(first).filter { it.isStatement(statements) })
     }
 }

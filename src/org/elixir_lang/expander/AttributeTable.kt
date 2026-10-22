@@ -67,8 +67,14 @@ internal sealed interface Effect {
      */
     data class TypespecWrite(val name: String, val head: NameArity?) : Effect
 
-    /** One of the others whose attribute or module isn't known. */
+    /** One of the others whose attribute isn't known. */
     data object UnknownEffect : Effect
+
+    /**
+     * [effect] on [module], a module other than the one whose body runs the call, or `null` where the module isn't
+     * known, which may be any module being compiled, the body's own included: [effect] is then [UnknownEffect].
+     */
+    data class OtherModule(val module: String?, val effect: Effect) : Effect
 }
 
 internal sealed interface EffectOutcome {
@@ -97,8 +103,16 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
     private val unknown = mutableSetOf<String>()
     private var everyUnknown = false
 
+    // What an effect that may not run may have written or deleted: a subset of what is unknown, which also holds what a
+    // statement wrote that the expander can't hold.
+    private val changed = mutableSetOf<String>()
+    private var everyChanged = false
+
     /** Each typespec write's name and arity still in its attribute's bag, oldest first, `null` where it isn't known. */
     private val heads = mutableMapOf<String, List<NameArity?>>()
+
+    /** The kind, name and arity of each callback whose `@doc` its first write took, `null` where they aren't known. */
+    private var documented: MutableSet<Pair<String, NameArity>>? = mutableSetOf()
 
     init {
         entries["moduledoc"] = Entry.Set(AttributeValue.Known(NIL))
@@ -128,10 +142,26 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
             is Effect.TypespecWrite -> EffectOutcome.Stored.also {
                 store(effect.name, AttributeValue.Unknown)
                 heads[effect.name] = heads[effect.name].orEmpty() + effect.head
+                takeDoc(effect)
             }
-            Effect.UnknownEffect -> EffectOutcome.Stored.also { everyUnknown = true }
+            // Whether Elixir refuses a write whose attribute isn't known isn't known either.
+            Effect.UnknownEffect -> EffectOutcome.Unchecked.also { everyUnknown = true }
+            is Effect.OtherModule -> applyElsewhere(effect)
         }
     }
+
+    /**
+     * Whether Elixir calls back through [name], a callback attribute at this level, into code the expander doesn't
+     * follow: the body wrote an entry to it, or may have. `on_definition`'s own `compile_definition_attributes` entry
+     * is followed.
+     */
+    fun callsBack(name: String): Boolean =
+        callbackFunction(name) != null &&
+            values(name).any { (it as? AttributeValue.Known)?.term != COMPILE_DEFINITION_ATTRIBUTES }
+
+    /** The function Elixir calls on a module written to `@name`, `null` where `@name` is no callback at this level. */
+    private fun callbackFunction(name: String): String? =
+        CALLBACKS[name]?.takeIf { name != "after_verify" || AFTER_VERIFY_ACCUMULATES.isSufficient(level) }
 
     /** What `@name` in a definition injects at this point (`K:3815–3828`). */
     fun read(name: String): Term =
@@ -140,6 +170,37 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
                 value.term.let { term -> if (name in DOCS && term is Term.Pair) term.second else term }
             AttributeValue.Unknown -> Term.Unexpanded
         }
+
+    /** An attribute's row, as `Module`'s `get_attribute` finds it. */
+    sealed interface Lookup {
+        data object Absent : Lookup
+
+        /** Registered without `accumulate:` and never written. */
+        data object Unset : Lookup
+
+        /** @property value an accumulating attribute's values, newest first */
+        data class Holds(val value: AttributeValue) : Lookup
+    }
+
+    /** [name]'s row at this point, as `Module.get_attribute/3` and `Module.__get_attribute__` read it. */
+    fun lookup(name: String): Lookup {
+        if (everyUnknown || name in unknown) return Lookup.Holds(AttributeValue.Unknown)
+
+        return when (entries[name]) {
+            null -> Lookup.Absent
+            Entry.Unset -> Lookup.Unset
+            else -> Lookup.Holds(value(name))
+        }
+    }
+
+    /**
+     * Whether [name] has a row at this point, as `Module.has_attribute?/2` finds it (`:ets.member/2`), or `null` where an
+     * effect that may not run may have written or deleted it.
+     */
+    fun has(name: String): Boolean? = if (everyUnknown || name in unknown) null else name in entries
+
+    /** Whether an effect that may not run may have written or deleted [name]. */
+    fun mayHaveChanged(name: String): Boolean = everyChanged || name in changed
 
     /**
      * Each attribute's value as `Module.get_attribute/2` gives it at this point. After an [Effect.UnknownEffect] an
@@ -238,15 +299,58 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
             is Effect.Write -> {
                 val prepared = prepare(effect.name, effect.value, statement = false)
 
-                unknown += effect.name
+                mayChange(effect.name)
 
                 if (prepared.checked) EffectOutcome.Stored else EffectOutcome.Unchecked
             }
-            is Effect.Register -> EffectOutcome.Stored.also { unknown += effect.name }
-            is Effect.Delete -> EffectOutcome.Stored.also { unknown += effect.name }
-            is Effect.TypespecWrite -> EffectOutcome.Stored.also { unknown += effect.name }
-            Effect.UnknownEffect -> EffectOutcome.Stored.also { everyUnknown = true }
+            is Effect.Register -> EffectOutcome.Stored.also { mayChange(effect.name) }
+            is Effect.Delete -> EffectOutcome.Stored.also { mayChange(effect.name) }
+            is Effect.TypespecWrite -> EffectOutcome.Stored.also {
+                mayChange(effect.name)
+                docOf(effect.name)?.let(::mayChange)
+                if (effect.name in CALLBACK_SPECS) documented = null
+            }
+            Effect.UnknownEffect -> EffectOutcome.Stored.also { mayChangeEvery() }
+            is Effect.OtherModule -> EffectOutcome.Stored.also { if (effect.module == null) mayChangeEvery() }
         }
+
+    /**
+     * `deftypespec`'s `get_doc_info` (`Typespec:117–162` at v1.20.4, the same at v1.11.4): a type takes `@typedoc`,
+     * and a callback `@doc` where its kind, name and arity has no doc yet, once its name and arity are read.
+     */
+    private fun takeDoc(effect: Effect.TypespecWrite) {
+        val doc = docOf(effect.name) ?: return
+        val head = effect.head
+        val documented = documented
+
+        when {
+            head == null -> {
+                markUnknown(doc)
+                if (effect.name in CALLBACK_SPECS) this.documented = null
+            }
+            effect.name !in CALLBACK_SPECS -> take(doc)
+            documented == null -> markUnknown(doc)
+            documented.add(effect.name to head) -> take(doc)
+        }
+    }
+
+    /** The doc attribute a typespec write of [name] takes, `null` for a spec. */
+    private fun docOf(name: String): String? =
+        when (name) {
+            in CALLBACK_SPECS -> "doc"
+            "spec" -> null
+            else -> "typedoc"
+        }
+
+    private fun mayChange(name: String) {
+        unknown += name
+        changed += name
+    }
+
+    private fun mayChangeEvery() {
+        everyUnknown = true
+        everyChanged = true
+    }
 
     private fun write(name: String, term: Term): EffectOutcome =
         when (val prepared = prepare(name, term, statement = true)) {
@@ -347,9 +451,7 @@ internal class AttributeTable(private val level: ElixirLanguageLevel) {
 
         if (!valid) return Prepared.Raise
 
-        val callback = CALLBACKS[name]
-            ?.takeIf { name != "after_verify" || AFTER_VERIFY_ACCUMULATES.isSufficient(level) }
-            ?.takeIf { term is Term.Atom }
+        val callback = callbackFunction(name)?.takeIf { term is Term.Atom }
 
         return Prepared.Store.Checked(AttributeValue.of(callback?.let { Term.Pair(term, Term.Atom(it)) } ?: term))
     }
@@ -516,3 +618,5 @@ internal val DOCS = setOf("doc", "moduledoc", "typedoc")
 
 /** `typespec?/1`. */
 internal val TYPESPECS = setOf("type", "typep", "opaque", "spec", "callback", "macrocallback")
+
+private val CALLBACK_SPECS = setOf("callback", "macrocallback")

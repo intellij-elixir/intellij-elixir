@@ -5,7 +5,6 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiManager
 import com.intellij.testFramework.LightProjectDescriptor
 import org.elixir_lang.PlatformTestCase
-import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.psi.ElixirFile
 import org.elixir_lang.snapshot.LegElixirProjectDescriptor
@@ -366,7 +365,7 @@ class InjectedDefinitionTest : PlatformTestCase() {
         return ProjectModules.results(holder.expansion(file, inputs)).single { it.module == name }
     }
 
-    private val inputs get() = ProjectModules.Inputs(ElixirLanguageLevel.of("1.20.4"), legKernel)
+    private val inputs get() = ProjectModules.Inputs(legLevel(), legKernel)
 
     private fun injectedBy(code: String): String = injectedBy(moduleOf(code).table, code)
 

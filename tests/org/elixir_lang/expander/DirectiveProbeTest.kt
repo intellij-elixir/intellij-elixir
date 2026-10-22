@@ -1,17 +1,13 @@
 package org.elixir_lang.expander
 
-import org.elixir_lang.psi.ElixirFile
-
 /**
  * After each statement of a case module body, the expander's aliases, requires, imports and other env fields equal
  * Elixir's on the leg's Elixir, and a case the expander reports an error for fails at expansion for the same reason.
  * Every case is ported.
  */
-class DirectiveProbeTest : ProbeTestCase() {
-    private val probes = ExpansionProbes(harness) { createPsiFile(getTestName(false), it) as ElixirFile }
-
+class DirectiveProbeTest : SdkProbeTestCase() {
     fun testOwnCases() {
-        val expansions = CASES.associateWith { probes.expand(it) }
+        val expansions = CASES.associateWith { expand(it, "") }
 
         assertEquals("", expansions.filterValues { it.outcome is Expansion.Unported }.keys.joinToString("\n"))
 

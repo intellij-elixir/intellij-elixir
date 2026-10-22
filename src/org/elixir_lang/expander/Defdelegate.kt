@@ -46,7 +46,7 @@ private fun defdelegate(
         MacroExpanded.Dir -> written
     }
     val from = run.pending.size
-    val expansion = expandQuoted(node, KERNEL, DelegateOutput(Synthetic(node.meta), run.level, escaped, opts).output(), state, env, run)
+    val expansion = expandQuoted(node, KERNEL, DelegateOutput(Synthetic(node.meta), run.level, escaped, opts).output(), state, env, run, ports = true)
 
     if (expansion is Expansion.Expanded && compiling.isStatement(node)) {
         val queued = run.pending.subList(from, run.pending.size).toList()
@@ -126,8 +126,17 @@ private class Delegates(
 ) {
     private val s = Synthetic(node.meta)
 
-    /** [queued], what the output queued for one iteration, replaced by what each head queues. */
+    /**
+     * [queued], what the output queued: its `bind_quoted` matches, which run first, then one iteration, replaced by what
+     * each head queues.
+     */
     fun pending(funs: ElixirAst, opts: ElixirAst, queued: List<Pending>): List<Pending> {
+        val (matches, iteration) = queued.partition { it is Pending.Match }
+
+        return matches + each(funs, opts, iteration)
+    }
+
+    private fun each(funs: ElixirAst, opts: ElixirAst, queued: List<Pending>): List<Pending> {
         val attribute = queued.getOrNull(0) as? Pending.Attribute
         val definition = queued.getOrNull(1) as? Pending.Definition
 

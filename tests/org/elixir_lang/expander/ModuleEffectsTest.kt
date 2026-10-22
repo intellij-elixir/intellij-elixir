@@ -33,14 +33,14 @@ class ModuleEffectsTest {
     }
 
     @Test
-    fun `a call on another module does nothing`() {
-        assertEffect("Elixir.Module", "put_attribute", listOf(atom("Elixir.Other"), atom("x"), int(1)), null)
-        assertEffect("Elixir.Module", "delete_attribute", listOf(atom("Elixir.Other"), atom("x")), null)
+    fun `a call on another module is that module's effect`() {
+        assertEffect("Elixir.Module", "put_attribute", listOf(atom("Elixir.Other"), atom("x"), int(1)), OtherModule("Elixir.Other", Write("x", int(1))))
+        assertEffect("Elixir.Module", "delete_attribute", listOf(atom("Elixir.Other"), atom("x")), OtherModule("Elixir.Other", Delete("x")))
     }
 
     @Test
-    fun `a module that isn't known is an unknown effect`() =
-        assertEffect("Elixir.Module", "put_attribute", listOf(NODE, atom("x"), int(1)), UnknownEffect)
+    fun `a module that isn't known is an unknown effect on any module`() =
+        assertEffect("Elixir.Module", "put_attribute", listOf(NODE, atom("x"), int(1)), OtherModule(null, UnknownEffect))
 
     @Test
     fun `an attribute that isn't known is an unknown effect`() {

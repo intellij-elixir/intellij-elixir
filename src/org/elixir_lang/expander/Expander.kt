@@ -4,12 +4,14 @@ import com.ericsson.otp.erlang.OtpErlangPid
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.VirtualFile
+import org.elixir_lang.expander.interpreter.Given
 import org.elixir_lang.language_level.ElixirLanguageFeature.DEFMODULE_FAST_PATH
 import org.elixir_lang.language_level.ElixirLanguageFeature.FAST_PATH_ADDS_CONTEXT_MODULE
 import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.lowering.ElixirAst
 import org.elixir_lang.lowering.Meta
 import org.elixir_lang.psi.Import.Term
+import java.util.Collections
 import java.util.IdentityHashMap
 
 /**
@@ -34,19 +36,48 @@ object Expander {
         counters: Counters = Counters(),
     ): Expansion = expand(ast, state, env, Run(level, observer, exports, structs, counters))
 
-    internal fun expand(ast: ElixirAst, state: ExState, env: Env, run: Run): Expansion =
-        observed(ast, state, env, run) {
+    internal fun expand(ast: ElixirAst, state: ExState, env: Env, run: Run): Expansion {
+        val from = run.pending.size
+
+        return observed(ast, state, env, run) {
             Clause.entries
                 .firstOrNull { it.matches(ast, state, env, run.level) }
                 ?.expand(ast, state, env, run)
                 ?: Expansion.Unported(ast)
+        }.also { if (it is Expansion.Expanded) queueStatement(ast, it, from, state, env, run) }
+    }
+
+    /**
+     * [node], expanded to [expansion], queued for the walk after what it queued since [Run.pending] had [from] entries,
+     * where it is a statement its body runs where it is: a `=`, which the walk runs, or one whose value nothing takes,
+     * which no unit queued and no macro's output replaced. One whose value is known, as it expanded or as the evaluator
+     * takes it, or that a port built, raises nowhere, so it is inert instead.
+     */
+    private fun queueStatement(node: ElixirAst, expansion: Expansion.Expanded, from: Int, state: ExState, env: Env, run: Run) {
+        val statements = run.statementsAt(env)
+            ?.takeIf { env.function == null && env.context == Env.Context.NONE && it.contains(node) }
+            ?: return
+
+        when {
+            isCall(node, "=", 2) -> run.pending += Pending.Match(node, state, env)
+            !statements.isWhole(node) || statements.isRewritten(node) -> Unit
+            run.pending.subList(from, run.pending.size).any { it.site === node } -> Unit
+            expansion.value == VARIABLE_NODE || isKnown(expansion.value) -> statements.inert(node)
+            (run.dispatchesAt(env)?.of(node) as? ModuleClauses.Dispatched.Value)?.value?.let(::isKnown) == true ->
+                statements.inert(node)
+            run.isPorted(node) -> statements.inert(node)
+            else -> run.pending += Pending.Statement(node, state, env)
         }
+    }
+
+    private fun isKnown(term: Term): Boolean = AttributeValue.of(term) is AttributeValue.Known
 
     /**
      * A file's top-level [forms] expanded from [env] as Elixir at [level] compiles them: the forms, then each module
      * they define, in turn, with [counters] giving each macro expansion its hygiene counter. [file] is the file's path,
      * and [directories] gives the directory a file was compiled in. [virtualFile] is the file, where [ProjectModules]
-     * holds it. A file of only modules compiles each directly from [DEFMODULE_FAST_PATH].
+     * holds it. A file of only modules compiles each directly from [DEFMODULE_FAST_PATH]. Where the forms expanded, the
+     * file's top is how their run ended, if it did: the error a statement raised, or else where it first stopped.
      */
     internal fun expandFile(
         forms: ElixirAst,
@@ -68,32 +99,48 @@ object Expander {
             return fastCompile(forms, state, env, run)
         }
 
-        val top = unlessTooDeep({ Expansion.Unported(forms) }) { expand(forms, state, env, run) }
+        run.fileStatements.add(forms)
 
-        return FileExpansion(top, if (top is Expansion.Error) emptyList() else compilePending(run))
+        val (expanded, assumed) = run.assuming { unlessTooDeep({ Expansion.Unported(forms) }) { expand(forms, state, env, run) } }
+        run.fileValues.expanded(expanded, assumed)
+
+        val top = expanded.certain(run.fileValues.known)
+
+        if (expanded is Expansion.Error) return FileExpansion(top, emptyList(), endsRun = true)
+
+        val walked = compilePending(run)
+
+        return FileExpansion(if (top is Expansion.Expanded) walked.ended ?: top else top, walked.modules, walked.endsRun)
     }
 
-    /** `elixir_compiler:fast_compile/2` for each of [forms]: each module compiled directly, with no module variables. */
+    /**
+     * `elixir_compiler:fast_compile/2` for each of [forms]: each module compiled directly, with no module variables,
+     * up to the first whose name isn't ported, where the file stops, unless a module before it ended the file's run.
+     */
     private fun fastCompile(forms: ElixirAst, state: ExState, env: Env, run: Run): FileExpansion {
-        val modules = mutableListOf<ExpansionResult>()
+        var stop: Expansion? = null
+
+        run.fileStatements.add(forms)
 
         for (form in defmodules(forms)) {
             val (nameNode, options) = form.arguments!!
-            val (name, isAtom) = fastName(nameNode, env, run.level)
-                ?: return FileExpansion(Expansion.Unported(nameNode), modules)
+            val (name, isAtom) = fastName(nameNode, env, run.level) ?: run {
+                stop = Expansion.Unported(nameNode)
+                break
+            }
             val contextModules =
                 if (FAST_PATH_ADDS_CONTEXT_MODULE.isSufficient(run.level)) listOf(name) + env.contextModules
                 else env.contextModules
             val body = ((options as ElixirAst.ListNode).elements.single() as ElixirAst.Tuple).elements[1]
             val moduleEnv = env.copy(module = name, contextModules = contextModules)
-            val result = compileModule(Pending.Module(form, name, isAtom, body, moduleEnv, state), run)
 
-            modules += result
-
-            if (result.ended.raises) break
+            run.pending += Pending.Module(form, name, isAtom, body, moduleEnv, state)
         }
 
-        return FileExpansion(Expansion.Expanded(state, env, NODE), modules)
+        val walked = compilePending(run)
+        val raised = walked.modules.lastOrNull()?.ended?.raises == true
+
+        return FileExpansion(walked.ended ?: stop?.takeUnless { raised } ?: Expansion.Expanded(state, env, NODE), walked.modules, walked.endsRun)
     }
 
     /** `expand_defmodule/2`'s walk: each `defmodule` in [forms], into nested blocks. */
@@ -163,6 +210,14 @@ internal class Place(val file: VirtualFile?, val origin: TextRange)
  */
 internal fun builtBy(node: ElixirAst, call: ElixirAst): Boolean = node.meta.origin == call.meta.origin
 
+/** [block]'s result, and whether code it expanded or ran took a raise not to happen ([Run.assumptions]). */
+internal inline fun <T> Run.assuming(block: () -> T): Pair<T, Boolean> {
+    val from = assumptions
+    val result = block()
+
+    return result to (assumptions > from)
+}
+
 /** What every recursive expansion of one [Expander.expand] call shares. */
 internal class Run(
     val level: ElixirLanguageLevel,
@@ -182,6 +237,19 @@ internal class Run(
 
     /** The references `make_ref/0` has made in the run's evaluations, so each is new. */
     private var refs = 0
+
+    /**
+     * How many raises whose inputs aren't known the run's evaluations took not to happen, in a native or a macro's
+     * output: Elixir may have raised at each.
+     */
+    var assumptions = 0
+
+    /**
+     * The modules being compiled that calls declined in the module-body code or macro being run were given, any of
+     * which those calls may have written, so reads after them there don't know them; `null` where none is being run. A
+     * function that earlier code made reads them too, wherever it was made.
+     */
+    var declinedGiven: Given? = null
 
     /** The number of a reference no evaluation in the run has made before. */
     fun nextRef(): Int = ++refs
@@ -211,6 +279,35 @@ internal class Run(
      * identity: the env `eval_callbacks/5` gives a `@before_compile` callback (`Mo:494–495`).
      */
     val givenEnvs = IdentityHashMap<ElixirAst, Env>()
+
+    /**
+     * Each node a port built in output whose raises it ports itself, by identity. The evaluator declining code of only
+     * such nodes doesn't mean Elixir may have raised there: the port says whether it does.
+     */
+    val ported: MutableSet<ElixirAst> = Collections.newSetFromMap(IdentityHashMap())
+
+    /**
+     * Each call of a module body whose effect on its module the walk applies itself, by identity. The evaluator
+     * declining one doesn't mean it wrote anything else: the effect says what it writes.
+     */
+    val effects: MutableSet<ElixirAst> = Collections.newSetFromMap(IdentityHashMap())
+
+    /** Whether every node of [node] is [ported], but a literal, which the evaluator never declines. */
+    fun isPorted(node: ElixirAst): Boolean {
+        val pending = ArrayDeque(listOf(node))
+
+        while (pending.isNotEmpty()) {
+            ProgressManager.checkCanceled()
+
+            val next = pending.removeLast()
+
+            if (next !in ported && next !is ElixirAst.Literal) return false
+
+            pending.addAll(children(next))
+        }
+
+        return true
+    }
 
     var injecting: ElixirAst.Call? = null
         private set
@@ -321,6 +418,36 @@ internal class Run(
 
     /** The definitions and modules the body being expanded defines, in the order it reached them. */
     var pending = mutableListOf<Pending>()
+
+    /**
+     * What each call, bitstring segment and variable of a module body or the file's top level expanded as, which the
+     * walk evaluates as it reaches their statements. A definition's records are its module's, which load with it.
+     */
+    val bodyDispatches = ModuleClauses.Dispatches()
+
+    /** The escaped block of each `quote` of a module body or the file's top level. */
+    val bodyQuotes = ModuleClauses.Quotes()
+
+    /** The file's top-level statements. */
+    val fileStatements = Statements()
+
+    /** What the file's top-level statements bound so far, and how far what ran is Elixir's. */
+    val fileValues = BodyValues(fileStatements)
+
+    /** Where [env]'s code records what it expanded as: a definition's module, or the run for a body. */
+    fun dispatchesAt(env: Env): ModuleClauses.Dispatches? =
+        if (env.function == null) bodyDispatches else compiling[env.module]?.dispatches
+
+    fun quotesAt(env: Env): ModuleClauses.Quotes? =
+        if (env.function == null) bodyQuotes else compiling[env.module]?.quotes
+
+    /** The statements of the body [env] is in: its module's, or the file's. */
+    fun statementsAt(env: Env): Statements? =
+        if (env.module == null) fileStatements else compiling[env.module]?.statements
+
+    /** A module body's code, or the file's where [module] is `null`, as the clauses the evaluator reads it through. */
+    fun bodyClauses(module: String?): ModuleClauses =
+        ModuleClauses(module ?: "nil", emptyMap(), ModuleClauses.Source.SOURCE, bodyQuotes, bodyDispatches, virtualFile)
 
     /**
      * For each local call whose arguments are being expanded, or default argument, innermost last, the local calls in

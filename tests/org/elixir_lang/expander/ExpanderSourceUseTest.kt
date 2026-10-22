@@ -13,7 +13,6 @@ import org.elixir_lang.declaration.Found
 import org.elixir_lang.declaration.Use
 import org.elixir_lang.declaration.declaringModuleName
 import org.elixir_lang.declaration.preferred
-import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.model.psi.function.UseSymbols
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.scope.WalkTestSupport
@@ -245,7 +244,7 @@ class ExpanderSourceUseTest : PlatformTestCase() {
             .first { it.textRange.startOffset == offset && it.text == call }
     }
 
-    private val inputs get() = ProjectModules.Inputs(ElixirLanguageLevel.of("1.20.4"), legKernel)
+    private val inputs get() = ProjectModules.Inputs(legLevel(), legKernel)
 
     /**
      * [found] as `<declaring module>.<name>/<arity> <reach> <applicability> via [<calls>] <file> line <n> `<first

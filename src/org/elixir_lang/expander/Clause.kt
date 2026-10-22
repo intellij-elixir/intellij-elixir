@@ -205,7 +205,7 @@ internal enum class Clause(vararg val heads: Head) {
             isDirective(node, Directive.ALIAS)
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            recordingValue(node, env, run, expandDirective(Directive.ALIAS, node, state, env, run))
+            expandDirective(Directive.ALIAS, node, state, env, run)
     },
 
     REQUIRE(expandHead("{require,_,[_]}"), expandHead("{require,_,[_,_]}")) {
@@ -213,7 +213,7 @@ internal enum class Clause(vararg val heads: Head) {
             isDirective(node, Directive.REQUIRE)
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            recordingValue(node, env, run, expandDirective(Directive.REQUIRE, node, state, env, run))
+            expandDirective(Directive.REQUIRE, node, state, env, run)
     },
 
     IMPORT(expandHead("{import,_,[_]}"), expandHead("{import,_,[_,_]}")) {
@@ -221,7 +221,7 @@ internal enum class Clause(vararg val heads: Head) {
             isDirective(node, Directive.IMPORT)
 
         override fun expand(node: ElixirAst, state: ExState, env: Env, run: Run) =
-            recordingValue(node, env, run, expandDirective(Directive.IMPORT, node, state, env, run))
+            expandDirective(Directive.IMPORT, node, state, env, run)
     },
 
     MODULE(expandHead("{'__MODULE__',_,V1} when is_atom(V1)")) {
@@ -836,7 +836,7 @@ private fun isFor(node: ElixirAst): Boolean =
  * The `for` that `expand_block/5` sends to `expand_for/4` without expanding the rest of [node]: [node] itself, or the
  * right side of `_ = `.
  */
-private fun discardedFor(node: ElixirAst): ElixirAst? {
+internal fun discardedFor(node: ElixirAst): ElixirAst? {
     if (isFor(node)) return node
     if (!isCall(node, "=", 2)) return null
 

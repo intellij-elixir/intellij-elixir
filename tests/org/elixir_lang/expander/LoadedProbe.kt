@@ -3,7 +3,15 @@ package org.elixir_lang.expander
 import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangObject
 import com.ericsson.otp.erlang.OtpErlangTuple
+import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
+import com.intellij.psi.PsiCompiledFile
+import com.intellij.psi.PsiManager
 import junit.framework.TestCase.assertEquals
+import org.elixir_lang.psi.ElixirFile
 import java.io.File
 
 /** Each `.beam` in every app of the leg's Elixir and OTP, by module as atom text. */
@@ -12,6 +20,34 @@ internal val appBeams: Map<String, File> by lazy {
         .flatMap { ebin -> ebin.listFiles { file -> file.extension == "beam" }.orEmpty().toList() }
         .associateBy { it.nameWithoutExtension }
 }
+
+/**
+ * The leg's modules' clauses, read from their [appBeams] `.beam`s in [project] as `ProjectModules` reads an SDK's, each
+ * once. The `.beam`s' roots are readable until [disposable] is disposed.
+ */
+internal fun sdkClauses(project: Project, disposable: Disposable): ModuleClauses.Lookup {
+    appBeams.values.map { it.parentFile.parentFile.parentFile.path }.distinct().forEach {
+        VfsRootAccess.allowRootAccess(disposable, it)
+    }
+
+    val read = HashMap<String, ModuleClauses?>()
+
+    return ModuleClauses.Lookup { module -> read.getOrPut(module) { appBeams[module]?.let { clausesOf(project, it) } } }
+}
+
+/** The clauses of [beam], read through its decompiled file in [project]; `null` where it has no export chunk. */
+internal fun clausesOf(project: Project, beam: File): ModuleClauses? =
+    ReadAction.computeBlocking<ModuleClauses?, Throwable> {
+        val file = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(beam)!!
+        val compiled = PsiManager.getInstance(project).findFile(file) as PsiCompiledFile
+        val mirror = compiled.decompiledPsiFile as ElixirFile
+        val bytes = beam.readBytes()
+        val deprecations = (LoadedModules.exports(bytes, beam.path) as? ModuleExports.Present)?.deprecated
+
+        deprecations
+            ?.let { CompiledModule.of(bytes, beam.path, mirror, legLevel(), it) }
+            ?.let { ModuleClauses.of(it, file) }
+    }
 
 /**
  * What [answer], an expression of the loaded module `m`, gives for each of [modules] on the leg's node, [BATCH_SIZE]

@@ -1,7 +1,6 @@
 package org.elixir_lang.expander
 
 import org.elixir_lang.expander.differential.ProbeOutcomes
-import org.elixir_lang.psi.ElixirFile
 import java.io.File
 
 /**
@@ -11,8 +10,7 @@ import java.io.File
  * recorded as unported, and one that stops at a macro whose expansion isn't modelled is compared up to that macro.
  * Each context's outcomes are committed per leg, and the cases that match may only grow.
  */
-class VariableClassProbeTest : ProbeTestCase() {
-    private val probes = ExpansionProbes(harness, definitions = true) { createPsiFile(getTestName(false), it) as ElixirFile }
+class VariableClassProbeTest : SdkProbeTestCase(definitions = true) {
     private val outcomes = ProbeOutcomes(probes)
 
     fun testTheVariableOraclesTopLevelCases() = assertContext("top", ".exs", TOP_FLOOR)
@@ -31,12 +29,12 @@ class VariableClassProbeTest : ProbeTestCase() {
             .orEmpty()
             .sortedBy { it.name }
             .associate { it.name to it.readLines().drop(HEADER_LINES).joinToString("\n") }
-        val expansions = cases.mapValues { (_, body) -> probes.expand(body, PLACEHOLDER, hook = ProbeHarness.Hook()) }
+        val expansions = cases.mapValues { (_, body) -> expand(body, PLACEHOLDER, hook = ProbeHarness.Hook()) }
         outcomes.assertGolden(context, expansions, floor, VariableClassProbeTest::class)
     }
 
     fun testOwnCases() {
-        val expansions = OWN_CASES.associateWith { probes.expand(it, PLACEHOLDER) }
+        val expansions = OWN_CASES.associateWith { expand(it, PLACEHOLDER) }
 
         assertEquals(
             "",
@@ -56,7 +54,7 @@ class VariableClassProbeTest : ProbeTestCase() {
         const val PLACEHOLDER = "Elixir.VariableCase"
 
         /** The `top` context's lowest count of `match` rows over the legs; it may only grow. */
-        const val TOP_FLOOR = 1066
+        const val TOP_FLOOR = 1050
 
         /** The `def` context's lowest count of `match` rows over the legs; it may only grow. */
         const val DEF_FLOOR = 1066

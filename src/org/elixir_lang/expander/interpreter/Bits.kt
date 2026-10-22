@@ -52,30 +52,59 @@ internal class Bits(private val evaluation: Evaluation) {
     fun build(segments: List<ElixirAst>, frame: Frame): OtpErlangObject {
         val writer = Writer()
         var unknown = false
-        // `v3_core` evaluates every segment's value and size, in order, before it writes any.
-        val writes = spliced(segments, frame).map { segment ->
-            val (written, spec) = segment(segment, frame)
-            val valueNode = frame.expanded(written)
+        val writes = ArrayList<() -> Unit>()
+        // `v3_core` evaluates every segment's value and then its size, in order, before it writes any: each is a part.
+        val turn = InTurn<Thrown>()
+
+        for (segment in spliced(segments, frame)) {
+            var read: Pair<ElixirAst, Spec>? = null
+            var value: OtpErlangObject? = null
+
+            turn.take(evaluation.part {
+                val (written, spec) = segment(segment, frame)
+                val valueNode = frame.expanded(written)
+
+                read = valueNode to spec
+                evaluation.eval(valueNode, frame).also { value = it }
+            })
+            if (turn.raised) break
+
+            // Where the spec declined, the segment has no size to run.
+            val (valueNode, spec) = read ?: continue
 
             if (valueNode is ElixirAst.Literal.Binary && spec.type.utf) {
-                return@map { for (code in codePoints(valueNode)) write(writer, integer(code.toLong()), spec, null) }
+                writes += { for (code in codePoints(valueNode)) write(writer, integer(code.toLong()), spec, null) }
+                continue
             }
 
-            val value = evaluation.eval(valueNode, frame)
-            val evaluatedSize = spec.size?.let { evaluation.eval(it, frame) }
+            var evaluatedSize: OtpErlangObject? = null
+            val sizeNode = spec.size
 
-            return@map {
-                val size = evaluatedSize?.let(::seen)
+            if (sizeNode != null) {
+                turn.take(evaluation.part { evaluation.eval(sizeNode, frame).also { evaluatedSize = it } })
+                if (turn.raised) break
+            }
 
-                if (value === UnknownBinary && takesWhole(spec, size, null)) {
+            // Where a part declined, nothing is written.
+            val segmentValue = value ?: continue
+            val segmentSize = evaluatedSize
+
+            writes += {
+                val size = segmentSize?.let(::seen)
+
+                if (segmentValue === UnknownBinary && takesWhole(spec, size, null)) {
                     unknown = true
-                } else if (!write(writer, seen(value), spec, size)) {
+                } else if (!write(writer, seen(segmentValue), spec, size)) {
                     evaluation.error(atom("badarg"))
                 }
             }
         }
 
-        writes.forEach { it() }
+        when (val evaluated = turn.outcome) {
+            is PartsOutcome.Declines -> throw evaluated.declined
+            is PartsOutcome.Raises -> throw evaluated.raise
+            is PartsOutcome.Values -> writes.forEach { it() }
+        }
 
         return when {
             !unknown -> writer.bitstring()
@@ -96,7 +125,7 @@ internal class Bits(private val evaluation: Evaluation) {
         val writer = Writer()
 
         for (value in values) {
-            if (value === Unknown) return Unknown
+            if (value is UnknownValue) return value
             if (value !is OtpErlangBitstr) evaluation.error(tuple(atom("badarg"), value))
 
             writer.bitstring(value, bitLength(value))
@@ -277,10 +306,10 @@ internal class Bits(private val evaluation: Evaluation) {
                     evaluation.eval(it, scope)
                 }
             } ?: spec.pinned?.let { pinnedSize(evaluation.eval(it, frame), spec) }
-            val bits = when {
+            val bits = when (size) {
                 // A literal binary matches its own bytes, not the rest.
-                size == null -> (pattern as? ElixirAst.Literal.Binary)?.let { it.bytes.size * 8 }
-                size === Unknown -> decline("a segment of unknown size")
+                null -> (pattern as? ElixirAst.Literal.Binary)?.let { it.bytes.size * 8 }
+                is UnknownValue -> decline("a segment of unknown size")
                 // No type reads more bits than remain.
                 else -> (size as? OtpErlangLong)?.let { bits(it, spec) }?.takeIf { it <= BigInteger.valueOf((length - offset).toLong()) }
                     ?.toInt() ?: return null

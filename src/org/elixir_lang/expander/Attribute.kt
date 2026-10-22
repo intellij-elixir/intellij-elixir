@@ -145,6 +145,7 @@ private fun read(name: String, node: ElixirAst.Call, env: Env, run: Run): Return
         val compiling = run.compiling[module] ?: return Returned.Ended(Expansion.Unported(node))
         val value = compiling.attributes.read(name)
 
+        if (compiling.attributes.mayHaveChanged(name)) compiling.readChanged = true
         compiling.read(name, node, value)
 
         return Returned.Value(value)

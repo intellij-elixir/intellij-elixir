@@ -17,6 +17,8 @@ import com.ericsson.otp.erlang.OtpErlangTuple
 import com.intellij.openapi.progress.ProgressManager
 import org.elixir_lang.NameArity
 import org.elixir_lang.expander.Annotation
+import org.elixir_lang.expander.AttributeTable
+import org.elixir_lang.expander.AttributeValue
 import org.elixir_lang.expander.DefinitionTable
 import org.elixir_lang.expander.EscapeOp
 import org.elixir_lang.expander.EscapeView
@@ -28,7 +30,11 @@ import org.elixir_lang.expander.TermEscapeBuilder
 import org.elixir_lang.expander.TermEscapeView
 import org.elixir_lang.expander.annotation
 import org.elixir_lang.expander.defines
+import org.elixir_lang.language_level.ElixirLanguageFeature.ATTRIBUTES_EXPANDED_LAZILY
+import org.elixir_lang.language_level.ElixirLanguageFeature.COMPILE_ENV_TAKES_ENV_FIRST
 import org.elixir_lang.language_level.ElixirLanguageFeature.ERLANG_ERROR_3
+import org.elixir_lang.language_level.ElixirLanguageFeature.GET_ATTRIBUTE_DEFAULT_FOR_REGISTERED
+import org.elixir_lang.language_level.ElixirLanguageFeature.GET_ATTRIBUTE_DEFAULT_ONLY_UNSET
 import org.elixir_lang.language_level.ElixirLanguageFeature.INTEGERS_UP_TO_4_MBIT
 import org.elixir_lang.language_level.ElixirLanguageFeature.LISTS_CHECK_THE_FUN_FIRST
 import org.elixir_lang.language_level.ElixirLanguageFeature.RAISE_FRAME_TAKES_A_CAPTURE
@@ -47,28 +53,77 @@ import kotlin.math.abs
 /** The frames a stacktrace `erlang:raise/3` stores holds at most: the default `backtrace_depth`, which Elixir keeps. */
 private const val BACKTRACE_DEPTH = 8
 
+/**
+ * Each native that can return, or return a part of, fewer than all its arguments, by receiver, name and arity, to the
+ * indices of those it can; any other can return any of them. An app-env read returns the environment's value, which
+ * came from no module, or a default: `get_env/3`'s and `compile_env/4`'s where the key isn't set (`App:724`, `:595` at
+ * v1.20.4), and `__compile_env__/4`'s before it (`App:516` at v1.11.4). `Module`'s attribute reads return a value of
+ * the module their first argument names, or `get_attribute/3`'s default, and its predicates a boolean.
+ */
+private val RETURNABLE = mapOf(
+    Triple("Elixir.Application", "get_env", 2) to emptyList(),
+    Triple("Elixir.Application", "get_env", 3) to listOf(2),
+    Triple("Elixir.Application", "fetch_env", 2) to emptyList(),
+    Triple("Elixir.Application", "fetch_env!", 2) to emptyList(),
+    Triple("Elixir.Application", "compile_env", 4) to listOf(3),
+    Triple("Elixir.Application", "compile_env!", 3) to emptyList(),
+    Triple("Elixir.Application", "__compile_env__", 4) to listOf(2),
+    Triple("Elixir.Application", "__compile_env__!", 3) to emptyList(),
+    Triple("Elixir.Module", "__get_attribute__", 3) to listOf(0),
+    Triple("Elixir.Module", "__get_attribute__", 4) to listOf(0),
+    Triple("Elixir.Module", "get_attribute", 2) to listOf(0),
+    Triple("Elixir.Module", "get_attribute", 3) to listOf(0, 2),
+    Triple("Elixir.Module", "has_attribute?", 2) to emptyList(),
+    Triple("Elixir.Module", "defines?", 2) to emptyList(),
+    Triple("Elixir.Module", "defines?", 3) to emptyList(),
+)
+
+/**
+ * Each native that runs a function its arguments name, by receiver, name and arity, to the indices of the arguments that
+ * name it: `apply/3`'s module and name, and each other's function. The native reads them from here ([Natives.running]),
+ * as [Natives.runs] does.
+ */
+private val RUNS = mapOf(
+    Triple("erlang", "apply", 2) to listOf(0),
+    Triple("erlang", "apply", 3) to listOf(0, 1),
+    Triple("lists", "map", 2) to listOf(0),
+    Triple("lists", "filter", 2) to listOf(0),
+    Triple("lists", "foldl", 3) to listOf(0),
+    Triple("lists", "mapfoldl", 3) to listOf(0),
+    Triple("lists", "all", 2) to listOf(0),
+    Triple("Elixir.Enum", "map", 2) to listOf(1),
+    Triple("Elixir.Enum", "flat_map", 2) to listOf(1),
+    Triple("Elixir.Enum", "filter", 2) to listOf(1),
+    Triple("Elixir.Enum", "reject", 2) to listOf(1),
+    Triple("Elixir.Enum", "reduce", 3) to listOf(2),
+    Triple("Elixir.Enum", "any?", 2) to listOf(1),
+    Triple("Elixir.Enum", "all?", 2) to listOf(1),
+)
+
 /** The functions a macro body calls that are answered as their clauses would answer, without reading them. */
 internal class Natives(private val evaluation: Evaluation) {
+    companion object {
+        /** The Erlang modules whose functions are answered here or not at all: their clauses are never read. */
+        val CLAUSES_UNREAD = setOf("erlang", "lists", "maps", "elixir_quote")
+    }
+
     private val level get() = evaluation.run.level
 
-    /**
-     * [module]'s [function] applied to [args], or `null` where it isn't one of these. An Erlang module's function that
-     * isn't one declines, as its clauses are never read.
-     */
+    /** [module]'s [function] applied to [args], or `null` where it isn't one of these. */
     fun call(module: String, function: String, args: List<OtpErlangObject>): OtpErlangObject? {
         val key = "$function/${args.size}"
-        val unported = { decline("$module:$key isn't a native") }
 
         return when (module) {
-            "erlang" -> erlang(key, args) ?: unported()
-            "lists" -> lists(key, args) ?: unported()
-            "maps" -> maps(key, args) ?: unported()
-            "elixir_quote" -> quote(key, args) ?: unported()
+            "erlang" -> erlang(key, args)
+            "lists" -> lists(key, args)
+            "maps" -> maps(key, args)
+            "elixir_quote" -> quote(key, args)
             "Elixir.Keyword" -> keyword(key, args)
             "Elixir.Enum" -> enum(key, args)
             "Elixir.Access" -> access(key, args)
             "Elixir.Macro.Env" -> env(key, args)
             "Elixir.Module" -> module(key, args)
+            "Elixir.Application" -> application(key, args)
             "Elixir.Atom" -> if (key == "to_string/1") erlang("atom_to_binary/1", args) else null
             "Elixir.String" -> string(key, args)
             "Elixir.String.Chars" -> if (key == "to_string/1") toString(args[0]) else null
@@ -77,6 +132,25 @@ internal class Natives(private val evaluation: Evaluation) {
             else -> null
         }
     }
+
+    /**
+     * The arguments of [module]'s [function], given [args], that a native [call] may return, or return a part of, where
+     * its result isn't known or it declines ([RETURNABLE]). An argument it only reads, such as `compile_env/4`'s env, is
+     * none of them.
+     */
+    fun returnable(module: String, function: String, args: List<OtpErlangObject>): List<OtpErlangObject> =
+        RETURNABLE[Triple(module, function, args.size)]?.map(args::get) ?: args
+
+    /**
+     * What [module]'s [function], given [args], runs, given what: every argument where it runs a function its arguments
+     * name ([RUNS]), known or not, or where a function is held in any ([anyHeld]), which the others may flow into, and
+     * none otherwise. A native writes no module itself: the `Module` writes it serves are effects the walk applies.
+     */
+    fun runs(module: String, function: String, args: List<OtpErlangObject>): List<OtpErlangObject> =
+        args.takeIf {
+            Triple(module, function, args.size) in RUNS ||
+                anyHeld(it) { term -> term is Closure || term is OtpErlangExternalFun }
+        }.orEmpty()
 
     /** `erlang:map_get/2`, as a guard's `map.key` reads it. */
     fun mapGet(key: OtpErlangObject, map: OtpErlangObject): OtpErlangObject = erlang("map_get/2", listOf(key, map))!!
@@ -118,17 +192,17 @@ internal class Natives(private val evaluation: Evaluation) {
             "and/2" -> bool((boolean(args[0]) ?: badarg()) and (boolean(args[1]) ?: badarg()))
             "or/2" -> bool((boolean(args[0]) ?: badarg()) or (boolean(args[1]) ?: badarg()))
             "xor/2" -> bool((boolean(args[0]) ?: badarg()) xor (boolean(args[1]) ?: badarg()))
-            "is_atom/1" -> bool(seen(args[0]) is OtpErlangAtom)
-            "is_list/1" -> bool(seen(args[0]).let { it is OtpErlangList || it is OtpErlangString })
-            "is_binary/1" -> bool(seen(args[0]).let { it is OtpErlangBitstr && it.pad_bits() == 0 })
-            "is_bitstring/1" -> bool(seen(args[0]) is OtpErlangBitstr)
-            "is_integer/1" -> bool(seen(args[0]) is OtpErlangLong)
-            "is_float/1" -> bool(seen(args[0]) is OtpErlangDouble)
-            "is_number/1" -> bool(isNumber(seen(args[0])))
-            "is_tuple/1" -> bool(seen(args[0]) is OtpErlangTuple)
-            "is_map/1" -> bool(seen(args[0]) is OtpErlangMap)
+            "is_atom/1" -> bool(isAtom(args[0]))
+            "is_list/1" -> bool(isList(args[0]))
+            "is_binary/1" -> bool(isBinary(args[0]))
+            "is_bitstring/1" -> bool(typed(args[0]) is OtpErlangBitstr)
+            "is_integer/1" -> bool(typed(args[0]) is OtpErlangLong)
+            "is_float/1" -> bool(typed(args[0]) is OtpErlangDouble)
+            "is_number/1" -> bool(isNumber(typed(args[0])))
+            "is_tuple/1" -> bool(typed(args[0]) is OtpErlangTuple)
+            "is_map/1" -> bool(typed(args[0]) is OtpErlangMap)
             "is_boolean/1" -> bool(boolean(args[0]) != null)
-            "is_pid/1" -> bool(seen(args[0]) is OtpErlangPid)
+            "is_pid/1" -> bool(typed(args[0]) is OtpErlangPid)
             "is_function/1" -> bool(arity(args[0]) != null)
             "is_function/2" -> {
                 val arity = (seen(args[1]) as? OtpErlangLong)?.takeIf { it.signum() >= 0 } ?: badarg()
@@ -224,11 +298,12 @@ internal class Natives(private val evaluation: Evaluation) {
                     ModuleExports.Unreadable -> decline("${module.atomValue()}'s exports aren't known")
                 }
             }
-            "apply/2" -> evaluation.apply(args[0], properElements(args[1]) ?: badarg())
+            "apply/2" -> evaluation.apply(running("erlang", key, args).single(), properElements(args[1]) ?: badarg())
             "apply/3" -> {
-                val function = seen(args[1]) as? OtpErlangAtom ?: badarg()
+                val (module, name) = running("erlang", key, args)
+                val function = seen(name) as? OtpErlangAtom ?: badarg()
 
-                evaluation.remote(args[0], function.atomValue(), properElements(args[2]) ?: badarg())
+                evaluation.remote(module, function.atomValue(), properElements(args[2]) ?: badarg())
             }
             "error/1" -> evaluation.raiseAs("error", args[0])
             "error/2" -> evaluation.error(args[0], args[1], null)
@@ -304,7 +379,7 @@ internal class Natives(private val evaluation: Evaluation) {
         list(
             cells(stacktrace)!!.first.take(BACKTRACE_DEPTH).map { frame ->
                 val elements = (seen(frame) as OtpErlangTuple).elements()
-                val short = elements.size == 2 || elements.size == 3 && seen(elements[0]) is OtpErlangAtom
+                val short = elements.size == 2 || elements.size == 3 && isAtom(elements[0])
 
                 if (short) OtpErlangTuple(elements + EMPTY) else frame
             }
@@ -317,13 +392,12 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun isStackFrame(frame: OtpErlangObject): Boolean {
         val elements = (seen(frame) as? OtpErlangTuple)?.elements() ?: return false
         val isFun = { term: OtpErlangObject ->
-            when (seen(term)) {
+            when (typed(term)) {
                 is OtpErlangFun -> true
                 is OtpErlangExternalFun -> RAISE_FRAME_TAKES_A_CAPTURE.isSufficient(level)
                 else -> false
             }
         }
-        val isAtom = { term: OtpErlangObject -> seen(term) is OtpErlangAtom }
 
         return when (elements.size) {
             2 -> isFun(elements[0])
@@ -338,6 +412,7 @@ internal class Natives(private val evaluation: Evaluation) {
             evaluation.error(atom("function_clause"), frame("lists", function, list(clauseArgs)))
         }
         val badarg = { function: String -> evaluation.error(atom("badarg"), frame("lists", function, list(args))) }
+        val ran by lazy { running("lists", key, args).single() }
 
         return when (key) {
             "reverse/1" -> {
@@ -390,13 +465,13 @@ internal class Natives(private val evaluation: Evaluation) {
                 list(mutableListOf<OtpErlangObject>().also { flatten(args[0], it) }.asReversed())
             }
             "map/2" -> {
-                val function = function(args[0], 1) ?: listsError(atom("function_clause"), frame("lists", "map", list(args)))
+                val function = function(ran, 1) ?: listsError(atom("function_clause"), frame("lists", "map", list(args)))
                 val caseClause = { listsError(tuple(atom("case_clause"), args[1])) }
 
                 list(each(args[1], caseClause, { tail -> frame("lists", "map_1", list(listOf(args[0], tail))) }) { function.call(it) })
             }
             "filter/2" -> {
-                val predicate = function(args[0], 1) ?: functionClause("filter", args)
+                val predicate = function(ran, 1) ?: functionClause("filter", args)
 
                 filter(args[1]) { element ->
                     when (val keep = predicate.call(element)) {
@@ -407,7 +482,7 @@ internal class Natives(private val evaluation: Evaluation) {
                 }
             }
             "foldl/3" -> {
-                val function = function(args[0], 2) ?: listsError(atom("function_clause"), frame("lists", "foldl", list(args)))
+                val function = function(ran, 2) ?: listsError(atom("function_clause"), frame("lists", "foldl", list(args)))
                 val caseClause = { listsError(tuple(atom("case_clause"), args[2])) }
                 var acc = args[1]
 
@@ -418,7 +493,7 @@ internal class Natives(private val evaluation: Evaluation) {
                 acc
             }
             "mapfoldl/3" -> {
-                val function = function(args[0], 2) ?: listsError(atom("function_clause"), frame("lists", "mapfoldl", list(args)))
+                val function = function(ran, 2) ?: listsError(atom("function_clause"), frame("lists", "mapfoldl", list(args)))
                 var acc = args[1]
                 val helper = { list: OtpErlangObject -> frame("lists", "mapfoldl_1", list(listOf(args[0], acc, list))) }
                 val notList = { listsError(atom("function_clause"), helper(args[2])) }
@@ -434,7 +509,7 @@ internal class Natives(private val evaluation: Evaluation) {
                 tuple(list(mapped), acc)
             }
             "all/2" -> {
-                val predicate = function(args[0], 1) ?: listsError(atom("function_clause"), frame("lists", "all", list(args)))
+                val predicate = function(ran, 1) ?: listsError(atom("function_clause"), frame("lists", "all", list(args)))
                 val (elements, tail) = cells(args[1]) ?: listsError(tuple(atom("case_clause"), args[1]))
 
                 for (element in elements) {
@@ -578,7 +653,7 @@ internal class Natives(private val evaluation: Evaluation) {
         return when (key) {
             "validate_quote/1" -> args[0]
             "validate_runtime/2" -> {
-                val value = seen(args[1])
+                val value = typed(args[1])
                 val valid = when ((seen(args[0]) as? OtpErlangAtom)?.atomValue()) {
                     "line" -> value is OtpErlangLong
                     "file" -> value is OtpErlangBitstr && value.pad_bits() == 0
@@ -587,7 +662,7 @@ internal class Natives(private val evaluation: Evaluation) {
                     else -> functionClause("is_valid")
                 }
 
-                if (valid) value else argumentError()
+                if (valid) args[1] else argumentError()
             }
             "dot/5" -> annotate(dot(args[0], args[1], args[2], args[3]), args[4])
             "dot/4" -> dot(args[0], args[1], args[2], args[3])
@@ -645,7 +720,7 @@ internal class Natives(private val evaluation: Evaluation) {
                     } else {
                         call(right, noParens(), EMPTY)
                     }
-                name != null && seen(context!!) is OtpErlangAtom -> call(name, noParens(), EMPTY)
+                name != null && isAtom(context!!) -> call(name, noParens(), EMPTY)
                 name != null -> call(name, meta, context!!)
                 else -> argumentError()
             }
@@ -653,7 +728,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
         return when {
             right is OtpErlangAtom -> call(right, meta, args)
-            name != null && seen(context!!) is OtpErlangAtom -> call(name, meta, args)
+            name != null && isAtom(context!!) -> call(name, meta, args)
             else -> argumentError()
         }
     }
@@ -721,10 +796,10 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun shallowValidElem(term: OtpErlangObject): Boolean {
         ProgressManager.checkCanceled()
 
-        when (seen(term)) {
+        when (val typed = typed(term)) {
             is OtpErlangList, is OtpErlangString, is OtpErlangAtom, is OtpErlangLong, is OtpErlangDouble, is OtpErlangPid,
             is OtpErlangFun, is OtpErlangExternalFun -> return true
-            is OtpErlangBitstr -> return (term as OtpErlangBitstr).pad_bits() == 0
+            is OtpErlangBitstr -> return typed.pad_bits() == 0
         }
 
         val tuple = term as? OtpErlangTuple ?: return false
@@ -736,7 +811,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
                 when {
                     !isList(meta) -> false
-                    (seen(args) is OtpErlangAtom || isList(args)) && seen(call) is OtpErlangAtom -> true
+                    (isAtom(args) || isList(args)) && isAtom(call) -> true
                     isList(args) -> shallowValidAst(call)
                     else -> false
                 }
@@ -753,7 +828,7 @@ internal class Natives(private val evaluation: Evaluation) {
             evaluation.error(atom("function_clause"), frame("Elixir.Keyword", function, list(args)))
         }
         val guarded = { function: String ->
-            if (!isList(args[0]) || seen(args[1]) !is OtpErlangAtom) functionClause(function)
+            if (!isList(args[0]) || !isAtom(args[1])) functionClause(function)
         }
         val found = { function: String ->
             guarded(function)
@@ -871,25 +946,26 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun enum(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
         val enumerable = args.getOrNull(0) ?: return null
         val elements = { enumerate(enumerable) }
+        val ran by lazy { running("Elixir.Enum", key, args).single() }
 
         return when (key) {
             "map/2" ->
                 if (isList(enumerable)) {
-                    lists("map/2", listOf(args[1], enumerable))
+                    lists("map/2", listOf(ran, enumerable))
                 } else {
-                    list(elements().map { evaluation.apply(args[1], listOf(it)) }.toList())
+                    list(elements().map { evaluation.apply(ran, listOf(it)) }.toList())
                 }
-            "flat_map/2" -> list(elements().flatMap { enumerate(evaluation.apply(args[1], listOf(it))) }.toList())
+            "flat_map/2" -> list(elements().flatMap { enumerate(evaluation.apply(ran, listOf(it))) }.toList())
             "filter/2", "reject/2" -> {
                 val keep = key == "filter/2"
 
-                list(elements().filter { truthy(evaluation.apply(args[1], listOf(it))) == keep }.toList())
+                list(elements().filter { truthy(evaluation.apply(ran, listOf(it))) == keep }.toList())
             }
             "reduce/3" ->
                 if (isList(enumerable)) {
-                    lists("foldl/3", listOf(args[2], args[1], enumerable))
+                    lists("foldl/3", listOf(ran, args[1], enumerable))
                 } else {
-                    elements().fold(args[1]) { acc, element -> evaluation.apply(args[2], listOf(element, acc)) }
+                    elements().fold(args[1]) { acc, element -> evaluation.apply(ran, listOf(element, acc)) }
                 }
             "any?/1", "all?/1" -> {
                 val any = key == "any?/1"
@@ -899,7 +975,7 @@ internal class Natives(private val evaluation: Evaluation) {
             "any?/2", "all?/2" -> {
                 val initial = key == "all?/2"
 
-                bool(elements().all { truthy(evaluation.apply(args[1], listOf(it))) == initial } == initial)
+                bool(elements().all { truthy(evaluation.apply(ran, listOf(it))) == initial } == initial)
             }
             "member?/2" -> {
                 val range = range(enumerable)
@@ -986,7 +1062,7 @@ internal class Natives(private val evaluation: Evaluation) {
                 }
             }
             is OtpErlangList, is OtpErlangString ->
-                if (seen(accessKey) is OtpErlangAtom) {
+                if (isAtom(accessKey)) {
                     when (val found = lists("keyfind/3", listOf(accessKey, integer(1), container))) {
                         FALSE -> default
                         else -> (found as OtpErlangTuple).takeIf { it.arity() == 2 }?.elementAt(1)
@@ -1018,12 +1094,152 @@ internal class Natives(private val evaluation: Evaluation) {
         when (key) {
             "concat/1" -> concat(args[0].takeIf(::isList) ?: functionClause("Elixir.Module", "concat", args))
             "concat/2" -> {
-                if (!args.all { seen(it) is OtpErlangAtom || isBinary(it) }) functionClause("Elixir.Module", "concat", args)
+                if (!args.all { isAtom(it) || isBinary(it) }) functionClause("Elixir.Module", "concat", args)
 
                 concat(list(args))
             }
             "defines?/2", "defines?/3" -> defines(args)
+            "has_attribute?/2" -> hasAttribute(args)
+            "__get_attribute__/3", "__get_attribute__/4" ->
+                if ((args.size == 4) == ATTRIBUTES_EXPANDED_LAZILY.isSufficient(level)) {
+                    when (val row = lookup("__get_attribute__", args, guardsModule = false)) {
+                        AttributeTable.Lookup.Absent, AttributeTable.Lookup.Unset -> NIL
+                        is AttributeTable.Lookup.Holds -> valueOf(row, args)
+                    }
+                } else {
+                    null
+                }
+            // `get_attribute/2` is the default-argument clause of `get_attribute/3`, which raises with `nil` appended.
+            "get_attribute/2" -> getAttribute(args + NIL, NIL)
+            "get_attribute/3" -> getAttribute(args, args[2])
             else -> null
+        }
+
+    /**
+     * `Module.get_attribute/2,3` (`Mod:1637–1639` at v1.20.4, `Mod:1232–1237` at v1.11.4): [default] for an attribute
+     * that isn't set, or, before [GET_ATTRIBUTE_DEFAULT_ONLY_UNSET], for any `nil`.
+     */
+    private fun getAttribute(args: List<OtpErlangObject>, default: OtpErlangObject): OtpErlangObject {
+        val onlyUnset = GET_ATTRIBUTE_DEFAULT_ONLY_UNSET.isSufficient(level)
+
+        return when (val row = lookup("get_attribute", args, guardsModule = true)) {
+            AttributeTable.Lookup.Absent -> default
+            AttributeTable.Lookup.Unset ->
+                if (!onlyUnset || GET_ATTRIBUTE_DEFAULT_FOR_REGISTERED.isSufficient(level)) default else NIL
+            is AttributeTable.Lookup.Holds -> valueOf(row, args).let { if (!onlyUnset && it == NIL) default else it }
+        }
+    }
+
+    /**
+     * The row of [args]' attribute, as `Module`'s `get_attribute` finds it in the module being compiled, its body run
+     * to where the walk is, declining where Elixir's may differ ([Evaluation.compilingKnown]).
+     */
+    private fun lookup(function: String, args: List<OtpErlangObject>, guardsModule: Boolean): AttributeTable.Lookup {
+        val module = seen(args[0]) as? OtpErlangAtom
+        val key = seen(args[1]) as? OtpErlangAtom
+
+        if (key == null || guardsModule && module == null) functionClause("Elixir.Module", function, args)
+
+        return attributesOf(module, args[0]).lookup(key.atomValue())
+    }
+
+    /**
+     * `Module.has_attribute?/2` (`Mod:1268–1273` at v1.11.4, `:1705–1708` at v1.20.4): its guards, then whether the
+     * module being compiled has a row for the key, declining where Elixir's may differ.
+     */
+    private fun hasAttribute(args: List<OtpErlangObject>): OtpErlangObject {
+        val module = seen(args[0]) as? OtpErlangAtom
+        val key = seen(args[1]) as? OtpErlangAtom
+
+        if (module == null || key == null) functionClause("Elixir.Module", "has_attribute?", args)
+
+        return attributesOf(module, args[0]).has(key.atomValue())?.let(::bool)
+            ?: decline("whether %s has %s isn't known", args[0], args[1])
+    }
+
+    /** The attributes of [module], being compiled, where they are Elixir's here ([Evaluation.compilingKnown]). */
+    private fun attributesOf(module: OtpErlangAtom?, arg: OtpErlangObject): AttributeTable =
+        module?.let { evaluation.compilingKnown(it.atomValue()) }?.attributes
+            ?: decline("reads an attribute of %s, which isn't known there", arg)
+
+    /**
+     * `Application.compile_env/4` and `compile_env!/3` from [COMPILE_ENV_TAKES_ENV_FIRST] (`App:595–646` at v1.20.4),
+     * `__compile_env__/4` and `__compile_env__!/3` before it (`App:516–552` at v1.11.4): their env match, then
+     * `fetch_compile_env`'s key and `fetch_env/2`'s app guards, then the application's environment as the build
+     * configures it, which isn't known, so whether `compile_env!` finds it isn't either and its raise is assumed away.
+     * An env that isn't known is taken to be one, which assumes away the raise where it isn't; before
+     * [COMPILE_ENV_TAKES_ENV_FIRST] it is read only for its tracers, after the guards, where a binary raises. A tracer
+     * the env names records the read, and writes no module. `get_env/2,3`, `fetch_env/2` and `fetch_env!/2`
+     * (`App:724–783` at v1.20.4, `App:620–668` at v1.11.4) read the same environment after their `is_atom(app)` guard;
+     * `get_env/2` is `get_env/3`'s default.
+     */
+    private fun application(key: String, args: List<OtpErlangObject>): OtpErlangObject? {
+        val envFirst = COMPILE_ENV_TAKES_ENV_FIRST.isSufficient(level)
+
+        when (key) {
+            "get_env/2" -> if (!isAtom(args[0])) functionClause("Elixir.Application", "get_env", args + NIL)
+            "get_env/3", "fetch_env/2", "fetch_env!/2" ->
+                if (!isAtom(args[0])) functionClause("Elixir.Application", key.substringBefore('/'), args)
+            "compile_env/4", "compile_env!/3" -> if (!envFirst) return null
+            "__compile_env__/4", "__compile_env__!/3" -> if (envFirst) return null
+            else -> return null
+        }
+
+        if (key.startsWith("get_env/") || key.startsWith("fetch_env")) {
+            if (key == "fetch_env!/2") assumeNoRaise()
+
+            return Unknown
+        }
+
+        val env = if (envFirst) args[0] else args.last()
+        val (app, path) = if (envFirst) args[1] to args[2] else args[0] to args[1]
+
+        if (envFirst) {
+            when {
+                env is UnknownValue -> assumeNoRaise()
+                (env as? OtpErlangMap)?.get(atom("__struct__"))?.let(::seen) != atom("Elixir.Macro.Env") ->
+                    functionClause("Elixir.Application", key.substringBefore('/'), args)
+            }
+        }
+
+        val keys = seen(path)
+        val first = when (keys) {
+            is OtpErlangAtom -> keys
+            else -> cells(keys)?.let { (elements, _) -> elements.firstOrNull() }?.let(::seen)
+        }
+
+        if (first !is OtpErlangAtom) {
+            functionClause("Elixir.Application", "fetch_compile_env", listOf(app, path, env))
+        }
+
+        if (!isAtom(app)) functionClause("Elixir.Application", "fetch_env", listOf(app, first))
+
+        if (!envFirst) {
+            when {
+                env is UnknownValue -> assumeNoRaise()
+                typed(env) is OtpErlangBinary -> argumentError()
+                (env as? OtpErlangMap)?.get(atom("tracers")) == null -> decline("reads the tracers of %s", env)
+            }
+        }
+
+        // `traverse_env/2` fetches each key after the first from the value before it, which may not be a container.
+        if (key.endsWith("!/3") || keys !is OtpErlangAtom && properElements(keys)?.size != 1) assumeNoRaise()
+
+        return Unknown
+    }
+
+    /** A raise whose inputs aren't known is taken not to happen: Elixir may have raised there (`Run.assumptions`). */
+    private fun assumeNoRaise() {
+        evaluation.run.assumptions++
+    }
+
+    /** Whether [term] is an atom, declining where that isn't known. */
+    private fun isAtom(term: OtpErlangObject): Boolean = typed(term) is OtpErlangAtom
+
+    private fun valueOf(row: AttributeTable.Lookup.Holds, args: List<OtpErlangObject>): OtpErlangObject =
+        when (val value = row.value) {
+            is AttributeValue.Known -> evaluation.otpOf(value.term)
+            AttributeValue.Unknown -> decline("the value of %s's %s isn't known", args[0], args[1])
         }
 
     /**
@@ -1045,7 +1261,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
         val nameArity = NameArity(name.atomValue(), arity.longValue().toInt())
 
-        return evaluation.run.defines(module.atomValue(), nameArity, kind)?.let(::bool)
+        return evaluation.compilingKnown(module.atomValue())?.defines(nameArity, kind)?.let(::bool)
             ?: decline("whether ${module.atomValue()} defines ${nameArity.name}/${nameArity.arity} isn't known")
     }
 
@@ -1106,7 +1322,7 @@ internal class Natives(private val evaluation: Evaluation) {
     /** `String.Chars.to_string/1` by its `BitString`, `Atom` and `Integer` implementations; the others aren't read. */
     private fun toString(term: OtpErlangObject): OtpErlangObject =
         when {
-            term === UnknownBinary || isBinary(term) -> term
+            isBinary(term) -> term
             term == NIL -> binary("")
             term is OtpErlangAtom -> binary(term.atomValue())
             term is OtpErlangLong -> binary(term.bigIntegerValue().toString())
@@ -1159,6 +1375,9 @@ internal class Natives(private val evaluation: Evaluation) {
 
         return tuple(node.elementAt(0), cons(listOf(tuple(atom("generated"), TRUE)), node.elementAt(1)), node.elementAt(2))
     }
+
+    /** [term] as a type test reads it: a binary whose bytes aren't known is a binary, as only reading them declines. */
+    private fun typed(term: OtpErlangObject): OtpErlangObject = if (term === UnknownBinary) SOME_BINARY else seen(term)
 
     private fun functionClause(module: String, function: String, args: List<OtpErlangObject>): Nothing =
         evaluation.error(atom("function_clause"), frame(module, function, list(args)))
@@ -1220,10 +1439,10 @@ internal class Natives(private val evaluation: Evaluation) {
             else -> (number as OtpErlangDouble).doubleValue()
         }
 
-    private fun number(term: OtpErlangObject): OtpErlangObject? = seen(term).takeIf(::isNumber)
+    private fun number(term: OtpErlangObject): OtpErlangObject? = typed(term).takeIf(::isNumber)
 
     private fun boolean(term: OtpErlangObject): Boolean? =
-        when (seen(term)) {
+        when (typed(term)) {
             TRUE -> true
             FALSE -> false
             else -> null
@@ -1231,7 +1450,7 @@ internal class Natives(private val evaluation: Evaluation) {
 
     /** The arity of the `fun` [term], `null` for any other term. */
     private fun arity(term: OtpErlangObject): Int? =
-        when (val function = seen(term)) {
+        when (val function = typed(term)) {
             is Closure -> function.arity
             is OtpErlangExternalFun -> function.arity
             is OtpErlangFun -> decline("a fun the evaluator didn't make")
@@ -1241,6 +1460,10 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun interface Function {
         fun call(vararg values: OtpErlangObject): OtpErlangObject
     }
+
+    /** The arguments of [module]'s function [key], given [args], that name the function it runs ([RUNS]). */
+    private fun running(module: String, key: String, args: List<OtpErlangObject>): List<OtpErlangObject> =
+        RUNS.getValue(Triple(module, key.substringBeforeLast('/'), args.size)).map(args::get)
 
     /** [term] as a function of [arity] arguments, `null` where it isn't one. */
     private fun function(term: OtpErlangObject, arity: Int): Function? =
@@ -1257,18 +1480,18 @@ internal class Natives(private val evaluation: Evaluation) {
     private fun map(term: OtpErlangObject): OtpErlangMap =
         seen(term) as? OtpErlangMap ?: evaluation.error(tuple(atom("badmap"), term))
 
-    private fun isList(term: OtpErlangObject) = seen(term) is OtpErlangList || term is OtpErlangString
+    private fun isList(term: OtpErlangObject) = typed(term).let { it is OtpErlangList || it is OtpErlangString }
 
     private fun bitSize(bitstring: OtpErlangBitstr) = bitstring.binaryValue().size * 8 - bitstring.pad_bits()
 
-    private fun isBinary(term: OtpErlangObject) = seen(term) is OtpErlangBitstr && (term as OtpErlangBitstr).pad_bits() == 0
+    private fun isBinary(term: OtpErlangObject) = typed(term).let { it is OtpErlangBitstr && it.pad_bits() == 0 }
 
     /** The text of the binary [term], `null` where it isn't a binary of UTF-8. */
     private fun utf8(term: OtpErlangObject): String? {
         if (!isBinary(term)) return null
 
         return try {
-            Charsets.UTF_8.newDecoder().decode(ByteBuffer.wrap((term as OtpErlangBitstr).binaryValue())).toString()
+            Charsets.UTF_8.newDecoder().decode(ByteBuffer.wrap((seen(term) as OtpErlangBitstr).binaryValue())).toString()
         } catch (_: CharacterCodingException) {
             null
         }
@@ -1284,6 +1507,9 @@ private const val LOCAL_NODE = "nonode@nohost"
 
 /** `self()`: the one process a macro body runs in. */
 private val SELF = OtpErlangPid(LOCAL_NODE, 0, 0, 0)
+
+/** A binary that stands for [UnknownBinary] in a type test. */
+private val SOME_BINARY = OtpErlangBinary(ByteArray(0))
 
 /** The small integers of a 64-bit VM. */
 private val SMALL_INTEGERS = -(1L shl 59) until (1L shl 59)

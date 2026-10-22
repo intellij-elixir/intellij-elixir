@@ -45,13 +45,14 @@ private fun defstruct(
     val output = StructOutput(Synthetic(node.meta), run.level, module, fields)
     val watched = Watched(fields)
     val from = run.pending.size
-    val expansion = expandQuoted(node, KERNEL, output.output(), state, env, run, watched)
+    val expansion = expandQuoted(node, KERNEL, output.output(), state, env, run, watched, ports = true)
     val definitions = run.pending.subList(from, run.pending.size).toList().filterIsInstance<Pending.Definition>()
     val effect = DefstructEffect(
         node,
         output,
         fieldsOf(evaluate(fields, compiling.bound), watched.value, node, run.level, run.exports),
         definitions,
+        compiling.statements,
         compiling.isStatement(node),
         run,
     ).takeIf { expansion is Expansion.Expanded && definitions.size == output.definitionCount }
@@ -301,6 +302,7 @@ private class DefstructEffect(
     private val output: StructOutput,
     private val result: Fields,
     private val queued: List<Pending.Definition>,
+    private val statements: Statements,
     private val statement: Boolean,
     private val run: Run,
 ) {
@@ -374,7 +376,7 @@ private class DefstructEffect(
 
     /** The definitions, as statements where the `defstruct` is one: the arm the module body takes is known. */
     fun queued(): List<Pending> =
-        output.definitions(queued, enforced, entries).map { if (statement && !it.isStatement()) it.asStatement() else it }
+        output.definitions(queued, enforced, entries).map { if (statement && !it.isStatement(statements)) it.asStatement() else it }
 }
 
 /**

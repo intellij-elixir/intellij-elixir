@@ -36,14 +36,14 @@ internal object Quote {
         when (val built = build(call, state, env, run, 0)) {
             is Built.Stopped -> built.expansion
             is Built.Escaped -> {
-                if (env.function != null && built.known) {
+                if (built.known) {
                     val evaluated = if (built.bindings.isEmpty()) {
                         built.block
                     } else {
                         ElixirAst.Block(call.meta, built.bindings + built.block)
                     }
 
-                    run.compiling[env.module]?.quotes?.put(written, evaluated)
+                    run.quotesAt(env)?.put(written, evaluated)
                 }
 
                 Expander.expand(built.quoted, built.state, built.env, run).let {
