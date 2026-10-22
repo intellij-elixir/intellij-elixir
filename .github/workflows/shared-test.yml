@@ -346,6 +346,7 @@ jobs:
           CORPUS_OUTCOME: ${{ steps.download-corpus.outcome }}
           TEST_OUTCOME: ${{ steps.test.outcome }}
           LABEL: ${{ matrix.label }}
+          JOB: ${{ matrix.job }}
           LEG_OS: ${{ matrix.os }}
           IDEA: ${{ matrix.idea-version }}
           ELIXIR: ${{ matrix.beam.elixir }}

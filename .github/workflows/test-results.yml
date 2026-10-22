@@ -425,7 +425,8 @@ jobs:
             }
 
             for (const leg of legs.values()) {
-              leg.seconds = jobDurations.get(`test (${leg.label})`);
+              // A status file from before it named the job falls back to the name the label implies.
+              leg.seconds = jobDurations.get((leg.status && leg.status.job) || `test (${leg.label})`);
             }
 
             // The icon says whether the leg passed and whether that blocks a merge - nothing else. A required leg

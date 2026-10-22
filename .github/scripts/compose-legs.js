@@ -18,7 +18,7 @@
 
 const fs = require('fs');
 const { readDeclaration, ideaVersions, baseline, beamAdditional, pullRequestPairs, verifyProducts } = require('./ci-versions');
-const { productCode, resolveBuild, noActivePrerelease } = require('./ide-releases');
+const { isPointer, productCode, resolveBuild, noActivePrerelease } = require('./ide-releases');
 const { setOutput, addSummary, fail } = require('./actions');
 
 const SUBSET_EVENTS = new Set(['pull_request', 'push']);
@@ -122,8 +122,10 @@ async function main() {
   // it. Two constraints on the format: the discriminator goes first, because the checks graph truncates
   // names at roughly 24 characters, and `/` is illegal in an artifact name (hence `+` between Elixir and
   // OTP) though legal in a job name. It carries the declared version, not the build, so a pointer's
-  // check keeps its name from one build to the next.
+  // check keeps its name from one build to the next. The job name, which reuse matches on, adds the build
+  // for a pointer, so a pass on an older build does not stand for the one it names now.
   // `continue-on-error` on either axis makes the leg informational; shared-test.yml reads only the leg's.
+  const buildSuffix = (version, build) => (isPointer(version) ? ` ${build}` : '');
   const leg = async (os, idea, beam, label) => {
     const build = await buildFor('IU', idea.version);
     const continueOnError = Boolean(idea['continue-on-error'] || beam['continue-on-error']);
@@ -134,7 +136,7 @@ async function main() {
         'java-version': idea.java,
         beam,
         label,
-        job: `test (${label})`,
+        job: `test (${label}${buildSuffix(idea.version, build)})`,
         'continue-on-error': continueOnError,
       }
     );
@@ -170,7 +172,7 @@ async function main() {
             fail(error.message, 'Unknown verification product');
           }
           const build = await buildFor(code, idea.version);
-          return build && { product, version: idea.version, build, job: `${product} ${idea.version}` };
+          return build && { product, version: idea.version, build, job: `${product} ${idea.version}${buildSuffix(idea.version, build)}` };
         }),
       ),
     )
