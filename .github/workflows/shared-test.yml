@@ -2,6 +2,11 @@ name: Test
 
 on:
   pull_request:
+  # The full matrix, run on main: every declared Elixir/OTP pair, the IDEA legs and Windows. Pull requests
+  # and pushes to main run the subset compose-legs.js picks. A scheduled workflow runs on the default
+  # branch's latest commit, and the Changes job turns a night with no new code into one short job.
+  schedule:
+    - cron: '17 2 * * *'
   workflow_dispatch:
   workflow_call:
     inputs:
@@ -64,10 +69,15 @@ jobs:
   # vars and inputs contexts -- never a file.
   test-matrix:
     name: Test Matrix
+    # Needs the jobs the merged pull request head already passed, which a run on main leaves out of
+    # the matrix.
+    needs: changes
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 5
     outputs:
+      commit: ${{ steps.checkout.outputs.commit }}
       matrix: ${{ steps.compose.outputs.matrix }}
+      matrix-any: ${{ steps.compose.outputs.matrix-any }}
       verify: ${{ steps.compose.outputs.verify }}
       verify-any: ${{ steps.compose.outputs.verify-any }}
     steps:
@@ -83,6 +93,29 @@ jobs:
             .github/scripts
           sparse-checkout-cone-mode: false
 
+      # Every test leg checks out this commit, not the ref again: a pull request's ref is a merge commit that
+      # moves when the base does, and the run reports it nowhere else. merged-head-jobs.js reads it back
+      # from this step's name in the run's job list.
+      - name: Tested commit ${{ steps.checkout.outputs.commit }}
+        env:
+          COMMIT: ${{ steps.checkout.outputs.commit }}
+        run: echo "The test legs check out $COMMIT"
+
+      # What a pull request changes decides whether it runs Windows. Written to a file, and absent on any
+      # failure, which compose-legs.js reads as "run Windows". The API returns at most 3000 files.
+      - name: List the pull request's changed files
+        id: pull-request-files
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PULL_REQUEST: ${{ github.event.pull_request.number }}
+        run: |
+          if gh api --paginate "repos/$REPO/pulls/$PULL_REQUEST/files?per_page=100" --jq '.[] | .filename, (.previous_filename // empty)' > "$RUNNER_TEMP/pull-request-files.tmp"; then
+            mv "$RUNNER_TEMP/pull-request-files.tmp" "$RUNNER_TEMP/pull-request-files.txt"
+            echo "files=$RUNNER_TEMP/pull-request-files.txt" >> "$GITHUB_OUTPUT"
+          fi
+
       # Keep the generator in a file. Inlining it here - as jq, python or node -e - puts a program
       # inside a single-quoted shell word, where one apostrophe anywhere in it, comments included,
       # ends the string and turns the rest into shell. That failure takes out the whole matrix, and
@@ -91,6 +124,9 @@ jobs:
       # (see CONTRIBUTING), so a declaration change is checkable without pushing.
       - name: Compose test legs
         id: compose
+        env:
+          PULL_REQUEST_FILES: ${{ steps.pull-request-files.outputs.files }}
+          PASSED_JOBS: ${{ needs.changes.outputs.reusable_jobs }}
         run: node .github/scripts/compose-legs.js
 
   # Whether the test matrix has to run at all. A rebase that only moves a changelog entry leaves the
@@ -107,6 +143,8 @@ jobs:
       contents: read
       actions: read
     uses: ./.github/workflows/shared-changes.yml
+    with:
+      reuse-pull-request-jobs: true
 
   test:
     # Explicit name: with a generated matrix the auto-generated one is assembled from the whole
@@ -115,9 +153,10 @@ jobs:
     # The label leads, because the checks graph truncates around 24-27 characters and the leading
     # fields were the ones that barely varied: os was ubuntu-22.04 for ten of eleven legs and
     # `test (ubuntu-22.04, 2025...` was all a reviewer could read. See Compose test legs.
-    name: test (${{ matrix.label }})
+    name: ${{ matrix.job }}
     needs: [ test-matrix, changes ]
-    if: ${{ needs.changes.outputs.code == 'true' }}
+    # An empty include list is not a valid matrix: a run on main can reuse every leg.
+    if: ${{ needs.changes.outputs.code == 'true' && needs.test-matrix.outputs.matrix-any == 'true' }}
     runs-on: ${{ matrix.os }}
     # Headroom for setup-gradle's post-step cache save; Run tests has its own limit. A job cut off
     # mid-save never records the new cache keys, so later pushes to main re-attempt the whole save.
@@ -174,7 +213,7 @@ jobs:
         id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.ref || github.ref }}
+          ref: ${{ needs.test-matrix.outputs.commit }}
           persist-credentials: false
 
       - name: Setup Build Environment
@@ -316,6 +355,7 @@ jobs:
           CORPUS_OUTCOME: ${{ steps.download-corpus.outcome }}
           TEST_OUTCOME: ${{ steps.test.outcome }}
           LABEL: ${{ matrix.label }}
+          JOB: ${{ matrix.job }}
           LEG_OS: ${{ matrix.os }}
           IDEA: ${{ matrix.idea-version }}
           ELIXIR: ${{ matrix.beam.elixir }}
@@ -485,7 +525,7 @@ jobs:
           # merge commit stamps the artifact with a SHA nobody can look up. Checking out the head
           # commit makes the stamp a commit that is actually in the pull request.
           #
-          # The test jobs deliberately keep `github.ref`: they publish no version, and testing the
+          # The test jobs deliberately test the merge commit: they publish no version, and testing the
           # merge result is what catches a pull request that breaks against a moved base.
           #
           # Empty for every other trigger, so those fall through to the ref they already used.

@@ -42,6 +42,7 @@ try {
 
   const status = {
     label,
+    job: process.env.JOB,
     os: process.env.LEG_OS,
     idea: process.env.IDEA,
     elixir: process.env.ELIXIR,

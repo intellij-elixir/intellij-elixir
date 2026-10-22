@@ -12,33 +12,8 @@
 // answers `true` (run them). The failure mode it refuses is a green check that tested nothing; the
 // failure mode it accepts is a wasted matrix.
 
-const { execFileSync } = require('child_process');
-const crypto = require('crypto');
 const { setOutput, warn } = require('./actions.js');
-
-// Paths that cannot change a test outcome. Everything else - including .github/workflows and
-// gradle.properties, which decide how the tests run - counts as code.
-const NON_CODE = [
-  /^CHANGELOG\.md$/,
-  /^changelog\.d\//,
-  /^[^/]*\.md$/,
-  /^docs\//,
-  /^screenshots\//,
-  /^\.github\/ISSUE_TEMPLATE\//,
-  /^\.github\/PULL_REQUEST_TEMPLATE/,
-];
-
-const isNonCode = p => NON_CODE.some(re => re.test(p));
-
-const git = (...args) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 1 << 28 });
-
-// The tree listing, minus the non-code paths: mode, type, sha and path per entry, so a content change
-// to any code file changes the digest.
-function codeDigest(sha) {
-  const lines = git('ls-tree', '-r', sha).split('\n').filter(Boolean);
-  const kept = lines.filter(line => !isNonCode(line.split('\t').slice(1).join('\t')));
-  return crypto.createHash('sha256').update(kept.join('\n')).digest('hex');
-}
+const { git, codeDigest } = require('./code-digest.js');
 
 function run() {
   const head = process.env.HEAD_SHA;
@@ -63,7 +38,13 @@ function run() {
     }
   }
   const previousSha = basis;
-  if (previousSha === head) return { code: true, why: `${origin} is this same sha` };
+  if (previousSha === head) {
+    // A rerun or a manual run asks to run again; a night with no new commit since its last success
+    // does not. The merge base is the head itself on main, which says nothing was tested.
+    return process.env.EVENT_NAME === 'schedule' && previous
+      ? { code: false, why: `${origin} is this same sha, so the scheduled run has nothing new to test` }
+      : { code: true, why: `${origin} is this same sha` };
+  }
 
   try {
     git('cat-file', '-e', `${previousSha}^{commit}`);
