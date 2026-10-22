@@ -48,10 +48,13 @@ import kotlin.time.TimeSource
  *
  * With [accounting], each probe also compares the hygiene counters taken: Elixir's `counter_before`, less the probes
  * delivered before it in its module, each of which took one, against the expander's count.
+ *
+ * With [definitions], a case expanded with a hook also compares the definition tables of its modules.
  */
 internal class ExpansionProbes(
     private val harness: ProbeHarness,
     private val accounting: Boolean = false,
+    private val definitions: Boolean = false,
     private val parse: (String) -> ElixirFile,
 ) {
     /**
@@ -160,7 +163,7 @@ internal class ExpansionProbes(
 
     /**
      * [body] as the body of a case module of its own, after [preamble]'s modules, with [exports] and [structs] standing
-     * for the modules Elixir loads and [standIns] for the preamble's macros.
+     * for the modules Elixir loads, [standIns] for the preamble's macros and [hook] on every module it defines.
      */
     fun expand(
         body: String,
@@ -168,7 +171,8 @@ internal class ExpansionProbes(
         exports: Exports = legExports,
         structs: Structs = legStructs,
         standIns: List<StandIn> = emptyList(),
-    ): CaseExpansion = expandAll(listOf(body), preamble, exports, structs, standIns = standIns).cases.single()
+        hook: ProbeHarness.Hook? = null,
+    ): CaseExpansion = expandAll(listOf(body), preamble, exports, structs, hook, standIns = standIns).cases.single()
 
     /**
      * Each of [bodies] as the body of a case module, in one file after [preamble]'s modules, with `{token}` in either
@@ -264,29 +268,46 @@ internal class ExpansionProbes(
     }
 
     /**
+     * What the expander and Elixir each made of one case, as the text a comparison asserts equal: the probes' classes
+     * and envs and the case's errors or traces, and, with [definitions], the definition tables of its modules.
+     */
+    class Comparison(val expected: String, val actual: String) {
+        val matches: Boolean get() = expected == actual
+    }
+
+    /**
      * Compares each of [cases] whose module compiles or reports an error with Elixir, and returns how long the
      * compiles of the erroring ones took.
      */
     fun assertMatchesElixir(cases: Map<String, CaseExpansion>): Duration {
+        val (comparisons, elapsed) = compare(cases)
+
+        assertSame(comparisons.values)
+
+        return elapsed
+    }
+
+    /** Each of [cases] whose module compiles or reports an error, compared with Elixir, and the erroring compiles' time. */
+    fun compare(cases: Map<String, CaseExpansion>): Pair<Map<String, Comparison>, Duration> {
         assertDefaultCompilerOptions()
 
         val compiled = cases.filterValues { it.ended == Ended.Compiled }
         val erroring = cases.filterValues { it.ended.raises }
-        val expected = mutableListOf<String>()
-        val actual = mutableListOf<String>()
+        val comparisons = linkedMapOf<String, Comparison>()
 
-        compareCompiled(compiled, expected, actual)
+        compareCompiled(compiled, comparisons)
 
         val start = TimeSource.Monotonic.markNow()
-        erroring.forEach { (name, expansion) -> compareError(name, expansion, expected, actual) }
+        erroring.forEach { (name, expansion) -> comparisons[name] = compareError(name, expansion) }
         val elapsed = start.elapsedNow()
 
         println("${compiled.size} compiled and ${erroring.size} erroring cases; erroring compiles took $elapsed")
 
-        assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
-
-        return elapsed
+        return comparisons to elapsed
     }
+
+    private fun assertSame(comparisons: Collection<Comparison>) =
+        assertEquals(comparisons.joinToString("\n") { it.expected }, comparisons.joinToString("\n") { it.actual })
 
     /**
      * Compares [expansions], whose cases must compile, with Elixir compiling its layout: each case's probes, the
@@ -296,21 +317,20 @@ internal class ExpansionProbes(
         assertDefaultCompilerOptions()
 
         val attempt = harness.attempt(expansions.layout)
-        val expected = mutableListOf<String>()
-        val actual = mutableListOf<String>()
 
         assertEquals(
             "compile status ${attempt.compiled.diagnostics.map(::inspect)}",
             OtpErlangAtom("ok"),
             attempt.compiled.status,
         )
-        compareBatch(names, expansions, attempt, expected, actual)
-        expected.add("== outside any module\n" + expansions.topTraces.joinToString("\n"))
-        actual.add(
+
+        val outside = Comparison(
+            "== outside any module\n" + expansions.topTraces.joinToString("\n"),
             "== outside any module\n" +
-                DispatchEvents.top(attempt.compiled.events, expansions.layout.topLine).joinToString("\n")
+                DispatchEvents.top(attempt.compiled.events, expansions.layout.topLine).joinToString("\n"),
         )
-        assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
+
+        assertSame(compareBatch(names, expansions, attempt) + outside)
     }
 
     /**
@@ -319,11 +339,13 @@ internal class ExpansionProbes(
      * expander reached, equal the expander's steps, and the traces equal the leg's events up to and including the
      * first macro event on the macro's line. What follows the macro isn't compared.
      */
-    fun assertMatchesElixirUpToMacro(cases: Map<String, CaseExpansion>) {
+    fun assertMatchesElixirUpToMacro(cases: Map<String, CaseExpansion>) = assertSame(compareUpToMacro(cases).values)
+
+    /** Each of [cases] compared with Elixir up to its macro, as [assertMatchesElixirUpToMacro] does. */
+    fun compareUpToMacro(cases: Map<String, CaseExpansion>): Map<String, Comparison> {
         assertDefaultCompilerOptions()
 
-        val expected = mutableListOf<String>()
-        val actual = mutableListOf<String>()
+        val comparisons = linkedMapOf<String, Comparison>()
 
         for ((names, batch) in batches(cases)) {
             val together = harness.attempt(batch.layout)
@@ -356,15 +378,15 @@ internal class ExpansionProbes(
                     events.drop(end + 1).takeWhile { TEMPLATE_BEGINS !in it }
                 }
 
-                expected.add(render(name, expansion.steps) + "\n" + (expansion.traces + macro + expansion.guarded).joinToString("\n"))
-                actual.add(
+                comparisons[name] = Comparison(
+                    render(name, expansion.steps) + "\n" + (expansion.traces + macro + expansion.guarded).joinToString("\n"),
                     render(name, observed, attempt.batch.probeModule, delivered(attempt, index)) + "\n" +
-                        (prefix + guarded).joinToString("\n")
+                        (prefix + guarded).joinToString("\n"),
                 )
             }
         }
 
-        assertEquals(expected.joinToString("\n"), actual.joinToString("\n"))
+        return comparisons
     }
 
     /**
@@ -429,57 +451,71 @@ internal class ExpansionProbes(
             attempt.batch.definitionAttributes,
         )
 
-    private fun compareCompiled(
-        cases: Map<String, CaseExpansion>,
-        expected: MutableList<String>,
-        actual: MutableList<String>,
-    ) {
+    private fun compareCompiled(cases: Map<String, CaseExpansion>, comparisons: MutableMap<String, Comparison>) {
         for ((names, batch) in batches(cases)) {
             val attempt = harness.attempt(batch.layout)
 
             if (attempt.compiled.status == OtpErlangAtom("ok") && batch.cases.all { it.ended == Ended.Compiled }) {
-                compareBatch(names, batch, attempt, expected, actual)
+                names.zip(compareBatch(names, batch, attempt)).forEach { (name, comparison) -> comparisons[name] = comparison }
             } else {
-                names.forEach { name -> compareAlone(name, cases.getValue(name), expected, actual) }
+                names.forEach { name -> comparisons[name] = compareAlone(name, cases.getValue(name)) }
             }
         }
     }
 
+    /** A comparison for each of [names], then for the top-level probe if [expansions] has one. */
     private fun compareBatch(
         names: List<String>,
         expansions: Expansions,
         attempt: ProbeHarness.Attempt,
-        expected: MutableList<String>,
-        actual: MutableList<String>,
-    ) {
+    ): List<Comparison> {
         val byCase = attempt.batch.observations.groupBy { it.tag.case }
-        val cut = expansions.cases.indices.filter { expansions.cases[it].cut }.toSet()
-        val missing = attempt.tags.filter { it.case !in cut }.toSet() - byCase.values.flatten().map { it.tag }.toSet()
+        val observedTags = attempt.batch.observations.map { it.tag }.toSet()
 
-        expected.add("probes not delivered: []")
-        actual.add("probes not delivered: $missing")
+        fun undelivered(case: (Int) -> Boolean) = attempt.tags.filter { case(it.case) && it !in observedTags }
 
-        names.forEachIndexed { index, name ->
+        val comparisons = names.mapIndexed { index, name ->
             val expansion = expansions.cases[index]
-
-            expected.add(render(name, expansion.steps))
+            val missing = if (expansion.cut) emptyList() else undelivered { it == index }.map { it.copy(case = 0) }
             val observed = delivered(expansion, byCase[index].orEmpty())
+            val tables = tables(expansion, attempt, index)
 
-            actual.add(render(name, observed, attempt.batch.probeModule, byCase[index].orEmpty()))
+            Comparison(
+                "probes not delivered: []\n" + render(name, expansion.steps) + tables?.first.orEmpty(),
+                "probes not delivered: $missing\n" +
+                    render(name, observed, attempt.batch.probeModule, byCase[index].orEmpty()) + tables?.second.orEmpty(),
+            )
         }
 
-        if (expansions.layout.top) {
-            expected.add(render("top", listOfNotNull(expansions.top)))
-            actual.add(render("top", byCase[-1].orEmpty(), attempt.batch.probeModule))
-        }
+        if (!expansions.layout.top) return comparisons
+
+        return comparisons + Comparison(
+            "probes not delivered: []\n" + render("top", listOfNotNull(expansions.top)),
+            "probes not delivered: ${undelivered { it < 0 }}\n" +
+                render("top", byCase[-1].orEmpty(), attempt.batch.probeModule),
+        )
     }
 
-    private fun compareAlone(
-        name: String,
-        expansion: CaseExpansion,
-        expected: MutableList<String>,
-        actual: MutableList<String>,
-    ) {
+    /**
+     * The definition tables of [expansion]'s case module and the modules under it as text to append to the expander's
+     * comparison and to Elixir's, or `null` unless [definitions] is on and the case has a hook that
+     * [DefinitionTables.compare] has something to compare.
+     */
+    private fun tables(expansion: CaseExpansion, attempt: ProbeHarness.Attempt, index: Int): Pair<String, String>? {
+        if (!definitions || expansion.origin.hook == null) return null
+
+        val rows = DefinitionTables.compare(
+            attempt.batch.caseModule(index),
+            attempt.batch.hooks,
+            expansion.result,
+            attempt.bodyLines[index],
+        ) ?: return null
+
+        return "\n" + DefinitionTables.render("definitions", rows.expander) to
+            "\n" + DefinitionTables.render("definitions", rows.elixir)
+    }
+
+    private fun compareAlone(name: String, expansion: CaseExpansion): Comparison {
         val (alone, attempt) = alone(expansion)
         val compiled = attempt.compiled
         val observations = attempt.batch.observations
@@ -492,13 +528,16 @@ internal class ExpansionProbes(
             attempt.tags.toSet() == observations.map { it.tag }.toSet() &&
             !isPostModuleError(status)
 
-        expected.add(render(name, alone.steps))
-        actual.add(
+        val tables = tables(alone, attempt, 0)
+
+        return Comparison(
+            render(name, alone.steps) + tables?.first.orEmpty(),
             if (status == OtpErlangAtom("ok") || afterExpansion) {
-                render(name, delivered(alone, observations), attempt.batch.probeModule, observations)
+                render(name, delivered(alone, observations), attempt.batch.probeModule, observations) +
+                    tables?.second.orEmpty()
             } else {
                 "== $name\ncompile failed: ${inspect(compiled.status)} ${compiled.diagnostics.map(::inspect)}"
-            }
+            },
         )
     }
 
@@ -516,12 +555,7 @@ internal class ExpansionProbes(
      * that raised; from 1.15, every error in order, then how the compile ended. Where the comparison stops at a body
      * Elixir may expand elsewhere, only the errors before it are compared, as a prefix of Elixir's.
      */
-    private fun compareError(
-        name: String,
-        expansion: CaseExpansion,
-        expected: MutableList<String>,
-        actual: MutableList<String>,
-    ) {
+    private fun compareError(name: String, expansion: CaseExpansion): Comparison {
         val (alone, attempt) = alone(expansion)
         val compiled = attempt.compiled
         val observations = attempt.batch.observations
@@ -529,16 +563,18 @@ internal class ExpansionProbes(
         val witness = witness(alone)
         val errors = expectedErrors(alone, level)
 
-        expected.add(render(name, alone.steps) + "\n" + errors.joinToString("\n") { it.render() })
-        actual.add(
+        val tables = tables(alone, attempt, 0)
+
+        return Comparison(
+            render(name, alone.steps) + "\n" + errors.joinToString("\n") { it.render() } + tables?.first.orEmpty(),
             render(name, delivered(alone, observations), attempt.batch.probeModule, observations) + "\n" +
-                if (witness != null && observations.any { it.tag == witness }) {
+                (if (witness != null && observations.any { it.tag == witness }) {
                     "not an expansion error: ${inspect(compiled.status)} ${compiled.diagnostics.map(::inspect)}"
                 } else if (FUNCTION_ERRORS_CONTINUE.isSufficient(level)) {
                     elixirErrors(errors, compiled, alone.unordered)
                 } else {
                     elixirError(errors.single(), compiled)
-                }
+                }) + tables?.second.orEmpty(),
         )
     }
 

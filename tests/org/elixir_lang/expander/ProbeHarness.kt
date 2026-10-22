@@ -282,7 +282,7 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
     fun compileSource(source: String): Quoter.Compiled = Quoter.compile(source, COMPILE_TIMEOUT)
 
     /** A token unique to one compile, which names its modules. */
-    fun token(): String = "ProbeCase" + UUID.randomUUID().toString().replace("-", "")
+    fun token(): String = TOKEN_PREFIX + UUID.randomUUID().toString().replace("-", "")
 
     /**
      * Compiles a module whose body reports `Code.get_compiler_option([name])` as its compile sees it.
@@ -649,7 +649,7 @@ class ProbeHarness(private val parse: (String) -> ElixirFile) {
 
         fun hookModule(token: String) = "$token.Hook"
 
-        fun caseModule(token: String, case: Int) = "$token.Case$case"
+        fun caseModule(token: String, case: Int) = "$token.$CASE_SEGMENT$case"
 
         /** The definitions a hook sent: 6-tuples from 1.12, and before it `{name, arity, kind}`. */
         fun hookEntries(term: OtpErlangObject): List<HookEntry> =
@@ -762,6 +762,15 @@ internal fun unquoted(node: ElixirAst): List<ElixirAst> =
         isCall(node, "unquote", 1) || isCall(node, "unquote_splicing", 1) -> (node as ElixirAst.Call).arguments!!
         else -> children(node).flatMap(::unquoted)
     }
+
+private const val TOKEN_PREFIX = "ProbeCase"
+private const val CASE_SEGMENT = "Case"
+
+/** A compile's token, as [ProbeHarness.token] makes it. */
+internal val TOKEN_PATTERN = Regex("$TOKEN_PREFIX[0-9a-f]{32}")
+
+/** A case module's name after the `Elixir.` prefix, for any case. */
+internal val CASE_MODULE_PATTERN = Regex("${TOKEN_PATTERN.pattern}\\.$CASE_SEGMENT\\d+")
 
 /** The nodes directly under [node]. */
 internal fun children(node: ElixirAst): List<ElixirAst> =
