@@ -179,7 +179,8 @@ jobs:
       # A caller passes the whole matrix; a manual dispatch names one product and version, which is
       # turned into a single-leg matrix here so the job body serves both. On the dispatch path
       # inputs.matrix is null, and GitHub casts null and '' to the same value, so the test picks the
-      # right branch. In format(), '{{' emits a literal '{'.
+      # right branch. In format(), '{{' emits a literal '{'. A dispatch run names its job without the
+      # build a pointer resolves to, which it finds in the job; it is never reused, so the name needs none.
       matrix: >-
         ${{ inputs.matrix != ''
             && fromJson(inputs.matrix)

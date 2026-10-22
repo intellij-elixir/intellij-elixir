@@ -55,6 +55,7 @@ jobs:
           REPO: ${{ github.repository }}
           BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
           RUN_ID: ${{ github.run_id }}
+          EVENT_NAME: ${{ github.event_name }}
         run: node .github/scripts/last-successful-run.js
 
       - name: Detect whether the code tree changed

@@ -12,16 +12,15 @@
 //
 // Which legs exist depends on the event. A pull request or a push to main gets the IDEA legs, the pairs
 // marked `pull-request` in the declaration, and (on a pull request only) Windows when it changes the code
-// Windows has found bugs in. Any other event - the nightly run, a manual run, tag.yml's release dispatch - gets every
-// declared leg, so an event this file does not know composes the most, not the least.
+// Windows has found bugs in. Any other event - the nightly run, a manual run, tag.yml's release dispatch -
+// gets every declared leg (run-events.js), so an event nobody listed composes the most, not the least.
 // A run on main also drops the jobs merged-head-jobs.js says already passed over the same code.
 
 const fs = require('fs');
 const { readDeclaration, ideaVersions, baseline, beamAdditional, pullRequestPairs, verifyProducts } = require('./ci-versions');
 const { isPointer, productCode, resolveBuild, noActivePrerelease } = require('./ide-releases');
 const { setOutput, addSummary, fail } = require('./actions');
-
-const SUBSET_EVENTS = new Set(['pull_request', 'push']);
+const { isFullRun } = require('./run-events');
 
 // Windows has found bugs only in how paths are written, so a pull request runs it only when it changes
 // the code that writes them. Other events run it unconditionally.
@@ -47,7 +46,7 @@ function pullRequestFiles() {
 }
 
 function includeWindows(event) {
-  if (!SUBSET_EVENTS.has(event)) return true;
+  if (isFullRun(event)) return true;
   if (event === 'push') return false;
   const files = pullRequestFiles();
   return !files || files.some((file) => WINDOWS_PATHS.some((prefix) => file.startsWith(prefix)));
@@ -90,7 +89,7 @@ async function main() {
   const minimumSupported = declaration.idea.minimumSupported;
   const base = baseline(declaration);
   const event = process.env.GITHUB_EVENT_NAME || '';
-  const pairs = SUBSET_EVENTS.has(event) ? pullRequestPairs(declaration) : beamAdditional(declaration);
+  const pairs = isFullRun(event) ? beamAdditional(declaration) : pullRequestPairs(declaration);
   const reusable = reusableJobs();
 
   // Keyed by product code as well as version: a pointer names a different build per product.

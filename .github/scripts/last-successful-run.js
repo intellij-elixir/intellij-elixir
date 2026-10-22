@@ -7,6 +7,7 @@
 
 const { execFileSync } = require('child_process');
 const { setOutput, warn } = require('./actions.js');
+const { isFullRun } = require('./run-events.js');
 
 function gh(endpoint) {
   const out = execFileSync('gh', ['api', endpoint], { encoding: 'utf8', maxBuffer: 1 << 28 });
@@ -27,8 +28,12 @@ try {
     `repos/${repo}/actions/workflows/${workflowId}/runs` +
     `?branch=${encodeURIComponent(branch)}&status=success&per_page=20`
   ).workflow_runs || [];
+  // A branch filter also matches a fork pull request opened from a branch of the same name, and that run
+  // tested only the subset: a run that tests everything takes a previous run that did too.
+  const wantFullRun = isFullRun(process.env.EVENT_NAME);
   // Newest first; skip this run and anything that has not concluded.
-  const previous = runs.find(r => String(r.id) !== String(currentRunId) && r.conclusion === 'success');
+  const previous = runs.find(r =>
+    String(r.id) !== String(currentRunId) && r.conclusion === 'success' && (!wantFullRun || isFullRun(r.event)));
   if (previous) {
     sha = previous.head_sha;
     runId = String(previous.id);
