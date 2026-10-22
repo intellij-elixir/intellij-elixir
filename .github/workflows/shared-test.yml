@@ -75,6 +75,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 5
     outputs:
+      commit: ${{ steps.checkout.outputs.commit }}
       matrix: ${{ steps.compose.outputs.matrix }}
       matrix-any: ${{ steps.compose.outputs.matrix-any }}
       verify: ${{ steps.compose.outputs.verify }}
@@ -91,6 +92,14 @@ jobs:
             .github/ci-versions.json
             .github/scripts
           sparse-checkout-cone-mode: false
+
+      # Every test leg checks out this commit, not the ref again: a pull request's ref is a merge commit that
+      # moves when the base does, and the run reports it nowhere else. merged-head-jobs.js reads it back
+      # from this step's name in the run's job list.
+      - name: Tested commit ${{ steps.checkout.outputs.commit }}
+        env:
+          COMMIT: ${{ steps.checkout.outputs.commit }}
+        run: echo "The test legs check out $COMMIT"
 
       # What a pull request changes decides whether it runs Windows. Written to a file, and absent on any
       # failure, which compose-legs.js reads as "run Windows". The API returns at most 3000 files.
@@ -204,7 +213,7 @@ jobs:
         id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.ref || github.ref }}
+          ref: ${{ needs.test-matrix.outputs.commit }}
           persist-credentials: false
 
       - name: Setup Build Environment
@@ -516,7 +525,7 @@ jobs:
           # merge commit stamps the artifact with a SHA nobody can look up. Checking out the head
           # commit makes the stamp a commit that is actually in the pull request.
           #
-          # The test jobs deliberately keep `github.ref`: they publish no version, and testing the
+          # The test jobs deliberately test the merge commit: they publish no version, and testing the
           # merge result is what catches a pull request that breaks against a moved base.
           #
           # Empty for every other trigger, so those fall through to the ref they already used.

@@ -466,12 +466,12 @@ turns `main` red, and its fix goes through an ordinary pull request. A pull requ
 per-version golden files is checked only on the versions it runs.
 
 A run on `main` whose head is a merge commit leaves out each leg that passed on the merged pull request
-head, when the merge left the code equal to that head (`.github/scripts/merged-head-jobs.js`). It leaves
-nothing out when the merge changes something a cache is keyed on or holds; the list is beside the rule.
-The job name of a leg on a version pointer such as `LATEST-EAP-SNAPSHOT` carries the build it resolved
-(`ideaIU LATEST-EAP-SNAPSHOT 263.5701.42`), so a pass on an older build is not reused. Qodana's runs on
-`main` are not affected. A nightly run with no new commit on `main` since the last successful one runs
-only the `Changes` job.
+head, when the merge left the code equal to that head and to the merge commit those legs checked out
+(`.github/scripts/merged-head-jobs.js`). It leaves nothing out when the merge changes something a cache
+is keyed on or holds; the list is beside the rule. The job name of a leg on a version pointer such as
+`LATEST-EAP-SNAPSHOT` carries the build it resolved (`ideaIU LATEST-EAP-SNAPSHOT 263.5701.42`), so a
+pass on an older build is not reused. Qodana's runs on `main` are not affected. A nightly run with no new
+commit on `main` since the last successful one runs only the `Changes` job.
 
 Two scripts in `.github/scripts` read that file, so you can see what a change to it produces without
 pushing:

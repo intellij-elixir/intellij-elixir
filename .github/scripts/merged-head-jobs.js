@@ -83,10 +83,34 @@ function run() {
   ).workflow_runs[0];
   if (!run) return { jobs: [], why: `no successful pull request run for ${second.slice(0, 9)}` };
 
-  const jobs = gh('--paginate', `repos/${repo}/actions/runs/${run.id}/jobs?per_page=100`, '--jq', '.jobs[] | select(.conclusion == "success") | .name')
+  // The legs of a pull request run check out its merge commit - the head merged with the base of that
+  // moment - which the run does not report. shared-test.yml names a step after it, so it is read back here.
+  const passed = gh(
+    '--paginate',
+    `repos/${repo}/actions/runs/${run.id}/jobs?per_page=100`,
+    '--jq',
+    '.jobs[] | select(.conclusion == "success") | {name, tested: ([.steps[]?.name | select(startswith("Tested commit "))] | first)} | tojson',
+  )
     .split('\n')
-    .filter(Boolean);
-  return { jobs, why: `${jobs.length} jobs passed in run ${run.id} on the merged head ${second.slice(0, 9)}, which has the same code` };
+    .filter(Boolean)
+    .map(line => JSON.parse(line));
+  const tested = (passed.map(job => /^Tested commit ([0-9a-f]{40})$/.exec(job.tested || '')).find(Boolean) || [])[1];
+  if (!tested) return { jobs: [], why: `run ${run.id} does not say which commit it tested` };
+  try {
+    git('cat-file', '-e', `${tested}^{commit}`);
+  } catch {
+    try {
+      git('fetch', '--no-tags', '--quiet', 'origin', tested);
+    } catch {
+      return { jobs: [], why: `the commit ${tested.slice(0, 9)} that run ${run.id} tested cannot be fetched` };
+    }
+  }
+  if (codeDigest(tested) !== codeDigest(head)) {
+    return { jobs: [], why: `run ${run.id} tested ${tested.slice(0, 9)}, whose code differs from this head's` };
+  }
+
+  const jobs = passed.map(job => job.name);
+  return { jobs, why: `${jobs.length} jobs passed in run ${run.id} on the merged head ${second.slice(0, 9)}, over the same code` };
 }
 
 let result;
