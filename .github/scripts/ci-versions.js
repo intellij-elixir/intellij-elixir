@@ -35,6 +35,12 @@ function beamAdditional(declaration) {
   return declaration.beam.additional || [];
 }
 
+// The beam.additional pairs that a pull request tests too; the others wait for the nightly run on main.
+// beam.baseline needs no mark: every IDEA leg runs it.
+function pullRequestPairs(declaration) {
+  return beamAdditional(declaration).filter((pair) => pair['pull-request'] === true);
+}
+
 function verifyProducts(idea) {
   return idea.verify || [];
 }
@@ -46,5 +52,6 @@ module.exports = {
   javaFor,
   baseline,
   beamAdditional,
+  pullRequestPairs,
   verifyProducts,
 };

@@ -756,6 +756,8 @@
 
 ### Build / CI
 
+- [#4519](https://github.com/intellij-elixir/intellij-elixir/pull/4519) [@sh41](https://github.com/sh41)
+  - **Pull requests test Elixir 1.11, 1.15, 1.18 and 1.19 and the IDEA versions, and run Windows only when they change SDK, run, console or JPS builder code; a nightly run on `main` tests every Elixir/OTP pair and Windows, leaving out what a merged pull request already passed over the same code.** Fixes [#4517](https://github.com/intellij-elixir/intellij-elixir/issues/4517).
 - [#4518](https://github.com/intellij-elixir/intellij-elixir/pull/4518) [@sh41](https://github.com/sh41)
   - **The test that renames along a long `defdelegate` chain no longer fails on a slow runner: it checks how the work grows with the chain, not how long it takes.** Fixes [#4515](https://github.com/intellij-elixir/intellij-elixir/issues/4515).
 - [#4498](https://github.com/intellij-elixir/intellij-elixir/pull/4498) [@sh41](https://github.com/sh41)

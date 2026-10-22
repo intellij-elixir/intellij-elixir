@@ -450,7 +450,24 @@ update them in the same commit as `.github/ci-versions.json`.
 
 Tests always run against IntelliJ IDEA. The legs are every declared IDEA version on Ubuntu (arm64) with
 `beam.baseline`, plus one leg per `beam.additional` pair on the minimum supported IDEA, plus
-`beam.baseline` on Windows.
+`beam.baseline` on Windows. That is the full matrix, which the nightly run on `main` (and a manual or
+release run) tests. A pull request, and a push to `main`, tests a subset:
+
+- the IDEA legs, which run `beam.baseline`;
+- the `beam.additional` pairs marked `"pull-request": true` in `.github/ci-versions.json`;
+- Windows, on a pull request only, and only when it changes (or renames away) a file under a path in
+  `WINDOWS_PATHS` in `.github/scripts/compose-legs.js`. A leg that is left out is not in the matrix at
+  all, so it shows no check.
+
+Choose the marked pairs so that between them they cover each behaviour that exists in a middle Elixir
+and is gone again by the newest, not only the oldest and newest. A failure that only the nightly run finds
+turns `main` red, and its fix goes through an ordinary pull request. A pull request that regenerates
+per-version golden files is checked only on the versions it runs.
+
+A run on `main` whose head is a merge commit leaves out each leg that passed on the merged pull request
+head, when the merge left the code equal to that head (`.github/scripts/merged-head-jobs.js`). It leaves
+nothing out when the merge changes something a cache is keyed on or holds; the list is beside the rule.
+Qodana's runs on `main` are not affected.
 
 Two scripts in `.github/scripts` read that file, so you can see what a change to it produces without
 pushing:
@@ -462,8 +479,13 @@ pushing:
 
 ```sh
 node .github/scripts/compose-legs.js
+GITHUB_EVENT_NAME=pull_request PULL_REQUEST_FILES=changed.txt node .github/scripts/compose-legs.js
 SETUP_ELIXIR=true node .github/scripts/resolve-versions.js
 ```
+
+With no event set, `compose-legs.js` composes the full matrix. `GITHUB_EVENT_NAME=pull_request` or `push`
+composes the subset; for a pull request `PULL_REQUEST_FILES` names a file of changed paths, one per line,
+and without it Windows is included.
 
 Outside the runner they print what they would otherwise hand to the workflow - the leg tables and the
 resolved versions - so a bad declaration is diagnosable locally rather than from a failed run.

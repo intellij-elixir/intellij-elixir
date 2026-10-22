@@ -4,6 +4,12 @@ name: Changes
 # answer the same question the same way rather than each carrying its own copy of the wiring.
 on:
   workflow_call:
+    inputs:
+      reuse-pull-request-jobs:
+        description: 'Also list the jobs that passed on the pull request head this head merges (merged-head-jobs.js)'
+        required: false
+        type: boolean
+        default: false
     outputs:
       code:
         description: '"true" when the code tree differs from the last head that passed'
@@ -14,6 +20,9 @@ on:
       previous_run_id:
         description: 'The last successful run of the calling workflow, for reusing its artifacts'
         value: ${{ jobs.detect.outputs.previous_run_id }}
+      reusable_jobs:
+        description: 'JSON array of job names that already passed over this code on the merged pull request head'
+        value: ${{ jobs.detect.outputs.reusable_jobs }}
 
 defaults:
   run:
@@ -28,6 +37,7 @@ jobs:
       code: ${{ steps.detect.outputs.code }}
       reason: ${{ steps.detect.outputs.reason }}
       previous_run_id: ${{ steps.previous.outputs.run_id }}
+      reusable_jobs: ${{ steps.reusable.outputs.jobs || '[]' }}
     steps:
       # Full history: the detector reads the tree of an earlier head, which a shallow clone lacks.
       - name: Checkout
@@ -60,3 +70,17 @@ jobs:
             git fetch --no-tags --quiet origin "$PREVIOUS_SHA" 2>/dev/null || true
           fi
           node .github/scripts/code-changed.js
+
+      # Only the test workflow asks. Qodana's push runs on main are a full analysis that saves the caches
+      # pull requests restore, and a pull request's scan covers only its diff, so one cannot stand in for
+      # the other.
+      - name: List the jobs the merged pull request head already passed
+        id: reusable
+        if: ${{ inputs.reuse-pull-request-jobs }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.sha }}
+          PREVIOUS_SHA: ${{ steps.previous.outputs.sha }}
+        run: node .github/scripts/merged-head-jobs.js

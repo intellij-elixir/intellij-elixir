@@ -103,7 +103,7 @@ on:
   workflow_call:
     inputs:
       matrix:
-        description: 'Verification legs as a JSON matrix: {"include":[{"product":"ideaIU","version":"LATEST-EAP-SNAPSHOT","build":"263.5701.42"},...]}. product is an intellij-repository artifact id, version the declared version and build what it resolved to (compose-legs.js).'
+        description: 'Verification legs as a JSON matrix: {"include":[{"product":"ideaIU","version":"LATEST-EAP-SNAPSHOT","build":"263.5701.42","job":"ideaIU LATEST-EAP-SNAPSHOT"},...]}. product is an intellij-repository artifact id, version the declared version, build what it resolved to and job the job name (compose-legs.js).'
         # Required, so a caller that forgets it fails at call time with a clear message rather than
         # falling through to the manual-dispatch branch and verifying ":".
         required: true
@@ -169,7 +169,7 @@ jobs:
     # `<caller job name> / <callee job name>`, the caller job has no name: so its id `verify` is used,
     # and the checks graph truncates around 24-27 characters - `verify / verify (ideaIU, 2026...` spent
     # its whole budget saying verify twice. `verify / ideaIU 2026.1.5` fits.
-    name: ${{ matrix.product }} ${{ matrix.version }}
+    name: ${{ matrix.job }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
     strategy:
@@ -183,7 +183,7 @@ jobs:
       matrix: >-
         ${{ inputs.matrix != ''
             && fromJson(inputs.matrix)
-            || fromJson(format('{{"include":[{{"product":"{0}","version":"{1}"}}]}}', inputs.product, inputs.version)) }}
+            || fromJson(format('{{"include":[{{"product":"{0}","version":"{1}","job":"{0} {1}"}}]}}', inputs.product, inputs.version)) }}
 
     steps:
       # The verify build, the Gradle wrapper and catalog it runs with, setup-env, and the internal API

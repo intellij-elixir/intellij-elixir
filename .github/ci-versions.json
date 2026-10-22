@@ -32,6 +32,10 @@
     "    the tests, so an Elixir the toolchain or the quoter cannot handle still cannot block a merge.",
     "    Delete the flag once the leg is green - the version is then supported, and any later change",
     "    that breaks it fails the pipeline.",
+    "  pull-request: true on a beam.additional pair makes pull requests test it; the nightly run on main",
+    "    tests every pair. beam.baseline needs no mark, since every IDEA leg runs it. Pick the marked",
+    "    pairs so that between them they cover each version-dependent behaviour that appears in a middle",
+    "    Elixir and is gone again by the newest, not just the oldest and the newest.",
     "  continue-on-error on an idea entry makes that version's test leg informational the same way; it",
     "    does not cover the version's verification legs.",
     "  Check OTP support against https://elixir.hexdocs.pm/compatibility-and-deprecations.html, which",
@@ -64,7 +68,7 @@
     },
     "additional": [
       {
-        "elixir": "1.11.4", "otp": "24.3.4.6",
+        "elixir": "1.11.4", "otp": "24.3.4.6", "pull-request": true,
         "corpus": [ { "git": "https://github.com/elixir-lang/elixir", "sha": "308255bda81e7f76f9bec838cef033e8e869981b" } ]
       },
       {
@@ -80,7 +84,7 @@
         "corpus": [ { "git": "https://github.com/elixir-lang/elixir", "sha": "81d6007410b3ae43e279cfb689bd03ffc5f06830" } ]
       },
       {
-        "elixir": "1.15.8", "otp": "26.2.5.21",
+        "elixir": "1.15.8", "otp": "26.2.5.21", "pull-request": true,
         "corpus": [ { "git": "https://github.com/elixir-lang/elixir", "sha": "29fdd09c0fcb5f029d43591665de35491f7378dd" } ]
       },
       {
@@ -92,11 +96,11 @@
         "corpus": [ { "git": "https://github.com/elixir-lang/elixir", "sha": "78f63d08313677a680868685701ae79a2459dcc1" } ]
       },
       {
-        "elixir": "1.18.4", "otp": "27.3.4",
+        "elixir": "1.18.4", "otp": "27.3.4", "pull-request": true,
         "corpus": [ { "git": "https://github.com/elixir-lang/elixir", "sha": "7b20c281d521aa7aa2ad2baa1e9ae6c579d79d0c" } ]
       },
       {
-        "elixir": "1.19.5", "otp": "28.4",
+        "elixir": "1.19.5", "otp": "28.4", "pull-request": true,
         "corpus": [ { "git": "https://github.com/elixir-lang/elixir", "sha": "d33fd8e413fe98e0e54dde7ef94fadb272b1ef67" } ]
       }
     ]
